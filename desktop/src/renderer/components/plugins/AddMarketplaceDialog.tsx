@@ -1,12 +1,13 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FolderOpen, Store } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { usePluginStore, type MarketplaceEntry } from '../../stores/pluginStore'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Input, Textarea } from '../ui/Input'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
+import styles from './AddMarketplaceDialog.module.css'
 
 interface AddMarketplaceDialogProps {
   /** Hides the local-folder picker, which cannot reach a remote workspace host. */
@@ -15,10 +16,6 @@ interface AddMarketplaceDialogProps {
   onAdded: (marketplace: MarketplaceEntry, alreadyAdded: boolean) => void
 }
 
-/**
- * Collects a marketplace source and adds it. Fetch failures stay inline rather than
- * becoming a transient notification, because the user has to correct the input.
- */
 export function AddMarketplaceDialog({
   allowLocalFolder,
   onClose,
@@ -37,8 +34,6 @@ export function AddMarketplaceDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Repository-only fields are disabled for a directory source so the request is not
-  // rejected for a combination the user can see is impossible. The server stays authoritative.
   const localSource = useMemo(() => looksLikeLocalPath(source), [source])
   const canSubmit = source.trim() !== '' && !busy
 
@@ -84,17 +79,14 @@ export function AddMarketplaceDialog({
     }
   }
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      style={overlayStyle}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose()
-      }}
-    >
-      <div style={panelStyle} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      titleId={titleId}
+      width={460}
+      onDismiss={busy ? undefined : onClose}
+      onSubmit={() => void handleSubmit()}
+      bodyClassName={styles.body}
+      header={(
         <ModalHeader
           icon={<Store size={18} aria-hidden />}
           title={t('plugins.marketplace.add.title')}
@@ -103,83 +95,71 @@ export function AddMarketplaceDialog({
           onClose={busy ? undefined : onClose}
           closeLabel={t('common.cancel')}
         />
-
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void handleSubmit()
-          }}
-        >
-          <div style={fieldStyle}>
-            <label htmlFor={sourceId} style={labelStyle}>{t('plugins.marketplace.add.source')}</label>
-            <div style={sourceRowStyle}>
-              <Input
-                ref={sourceRef}
-                id={sourceId}
-                value={source}
-                disabled={busy}
-                placeholder={t('plugins.marketplace.add.sourcePlaceholder')}
-                onChange={(event) => setSource(event.target.value)}
-                style={growStyle}
-              />
-              {allowLocalFolder && (
-                <IconButton
-                  label={t('plugins.marketplace.add.browse')}
-                  tooltipLabel={t('plugins.marketplace.add.browse')}
-                  disabled={busy}
-                  icon={<FolderOpen size={16} aria-hidden />}
-                  onClick={() => void handlePickFolder()}
-                />
-              )}
-            </div>
-          </div>
-
-          <div style={fieldStyle}>
-            <label htmlFor={refId} style={labelStyle}>{t('plugins.marketplace.add.ref')}</label>
-            <Input
-              id={refId}
-              value={ref}
-              disabled={busy || localSource}
-              placeholder={t('plugins.marketplace.add.refPlaceholder')}
-              onChange={(event) => setRef(event.target.value)}
+      )}
+      error={error}
+      footer={(
+        <ModalFooter>
+          <Button variant="secondary" disabled={busy} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!canSubmit}>
+            {busy ? t('plugins.marketplace.add.submitting') : t('plugins.marketplace.add.submit')}
+          </Button>
+        </ModalFooter>
+      )}
+    >
+      <div className={styles.field}>
+        <label htmlFor={sourceId} className={styles.label}>{t('plugins.marketplace.add.source')}</label>
+        <div className={styles.sourceRow}>
+          <Input
+            ref={sourceRef}
+            id={sourceId}
+            value={source}
+            disabled={busy}
+            placeholder={t('plugins.marketplace.add.sourcePlaceholder')}
+            onChange={(event) => setSource(event.target.value)}
+            className={styles.grow}
+          />
+          {allowLocalFolder && (
+            <IconButton
+              label={t('plugins.marketplace.add.browse')}
+              tooltipLabel={t('plugins.marketplace.add.browse')}
+              disabled={busy}
+              icon={<FolderOpen size={16} aria-hidden />}
+              onClick={() => void handlePickFolder()}
             />
-          </div>
-
-          <div style={fieldStyle}>
-            <label htmlFor={sparseId} style={labelStyle}>{t('plugins.marketplace.add.sparsePaths')}</label>
-            <Textarea
-              id={sparseId}
-              value={sparsePaths}
-              disabled={busy || localSource}
-              rows={4}
-              placeholder={t('plugins.marketplace.add.sparsePathsPlaceholder')}
-              onChange={(event) => setSparsePaths(event.target.value)}
-              style={monoStyle}
-            />
-            <span style={hintStyle}>{t('plugins.marketplace.add.sparsePathsHint')}</span>
-          </div>
-
-          {error && (
-            <p role="alert" style={errorStyle}>{error}</p>
           )}
-
-          <div style={footerStyle}>
-            <Button variant="secondary" disabled={busy} onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" variant="primary" loading={busy} disabled={!canSubmit}>
-              {busy ? t('plugins.marketplace.add.submitting') : t('plugins.marketplace.add.submit')}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
-    </div>
-  )
 
-  return createPortal(dialog, document.body) as JSX.Element
+      <div className={styles.field}>
+        <label htmlFor={refId} className={styles.label}>{t('plugins.marketplace.add.ref')}</label>
+        <Input
+          id={refId}
+          value={ref}
+          disabled={busy || localSource}
+          placeholder={t('plugins.marketplace.add.refPlaceholder')}
+          onChange={(event) => setRef(event.target.value)}
+        />
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor={sparseId} className={styles.label}>{t('plugins.marketplace.add.sparsePaths')}</label>
+        <Textarea
+          id={sparseId}
+          mono
+          value={sparsePaths}
+          disabled={busy || localSource}
+          rows={4}
+          placeholder={t('plugins.marketplace.add.sparsePathsPlaceholder')}
+          onChange={(event) => setSparsePaths(event.target.value)}
+        />
+        <span className={styles.hint}>{t('plugins.marketplace.add.sparsePathsHint')}</span>
+      </div>
+    </ModalDialog>
+  )
 }
 
-/** Splits the textarea into one sparse path per line, dropping blanks. */
 export function parseSparsePaths(value: string): string[] {
   return value
     .split(/\r?\n/)
@@ -205,50 +185,3 @@ export function looksLikeLocalPath(value: string): boolean {
     || /^[A-Za-z]:[\\/]/.test(source)
   )
 }
-
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 10000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: 'var(--overlay-scrim)'
-}
-
-const panelStyle: CSSProperties = {
-  backgroundColor: 'var(--bg-secondary)',
-  borderRadius: '10px',
-  boxShadow: 'var(--shadow-level-3)',
-  padding: '24px',
-  width: '460px',
-  maxWidth: 'calc(100vw - 48px)',
-  maxHeight: 'calc(100vh - 96px)',
-  overflowY: 'auto'
-}
-
-const fieldStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }
-
-const labelStyle: CSSProperties = { fontSize: '12.5px', color: 'var(--text-secondary)' }
-
-const sourceRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px' }
-
-// The shared field owns its height, so a row placement only has to say how it
-// shares the horizontal space with the folder picker beside it.
-const growStyle: CSSProperties = { flex: 1, minWidth: 0 }
-
-const monoStyle: CSSProperties = { fontFamily: 'var(--font-mono)' }
-
-const hintStyle: CSSProperties = { fontSize: '11.5px', color: 'var(--text-tertiary)' }
-
-const errorStyle: CSSProperties = {
-  margin: '0 0 16px',
-  padding: '10px 12px',
-  borderRadius: '8px',
-  background: 'color-mix(in srgb, var(--error) 10%, transparent)',
-  color: 'var(--error)',
-  fontSize: '12.5px',
-  lineHeight: 1.5
-}
-
-const footerStyle: CSSProperties = { display: 'flex', gap: '8px', justifyContent: 'flex-end' }

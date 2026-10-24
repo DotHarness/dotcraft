@@ -1,0 +1,52 @@
+.title {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.body {
+  gap: 18px;
+}
+
+.message {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.urlButton {
+  justify-content: flex-start;
+  width: 100%;
+  overflow: hidden;
+}
+
+.urlLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fields {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.options {
+  display: grid;
+  gap: 8px;
+}
+
+.description {
+  color: var(--text-secondary);
+  font-size: 11px;
+}

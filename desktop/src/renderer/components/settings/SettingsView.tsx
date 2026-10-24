@@ -2,6 +2,7 @@ import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
 import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
+import { BrowserUseDomainDialog } from './BrowserUseDomainDialog'
 import { ProviderEditor, type ProviderTestResultWire } from './providers/ProviderEditor'
 import {
   createProviderDraft,
@@ -55,7 +56,6 @@ import { stringifyComposerDraftSegments } from '../conversation/richInputSeriali
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
-import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -157,6 +157,7 @@ const VoicePanel = coreSettingsPanels.voice
 const ComputerUsePanel = coreSettingsPanels.computerUse
 const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
+const WorktreesPanel = coreSettingsPanels.worktrees
 const HooksPanel = coreSettingsPanels.hooks
 const SubAgentsPanel = coreSettingsPanels.subAgents
 const ImportPanel = coreSettingsPanels.import
@@ -1756,8 +1757,6 @@ export function SettingsView({
               >
                 <SettingsGroup
                   title={t('settings.group.application')}
-                  // Version belongs in the header slot: a row here would read like
-                  // something you can change.
                   headerAction={
                     <span style={settingsMetaTextStyle()}>
                       {t('settings.version')} {version}
@@ -2498,6 +2497,8 @@ export function SettingsView({
               <SourceControlPanel workspacePath={workspacePath} />
             )}
 
+            {activeSettingsTab === 'worktrees' && <WorktreesPanel workspacePath={workspacePath} />}
+
             {activeSettingsTab === 'hooks' && <HooksPanel />}
 
             {activeSettingsTab === 'mcp' && (
@@ -2656,69 +2657,17 @@ export function SettingsView({
         </div>
       </main>
       {browserUseDomainTarget && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--overlay-scrim)'
+        <BrowserUseDomainDialog
+          target={browserUseDomainTarget}
+          value={browserUseDomainDraft}
+          error={browserUseDomainError}
+          onChange={(value) => {
+            setBrowserUseDomainDraft(value)
+            setBrowserUseDomainError('')
           }}
-        >
-          <div
-            style={{
-              width: '420px',
-              maxWidth: 'calc(100vw - 48px)',
-              border: '1px solid var(--border-default)',
-              borderRadius: '12px',
-              background: 'var(--bg-secondary)',
-              boxShadow: 'var(--shadow-level-3)',
-              padding: '22px'
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {browserUseDomainTarget === 'blocked'
-                ? t('settings.browserUse.addBlockedDomain')
-                : t('settings.browserUse.addAllowedDomain')}
-            </h2>
-            <p style={{ margin: '8px 0 14px', fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-              {browserUseDomainTarget === 'blocked'
-                ? t('settings.browserUse.addBlockedDomainHint')
-                : t('settings.browserUse.addAllowedDomainHint')}
-            </p>
-            <Input
-              value={browserUseDomainDraft}
-              onChange={(e) => {
-                setBrowserUseDomainDraft(e.target.value)
-                setBrowserUseDomainError('')
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleAddBrowserUseDomain()
-                if (e.key === 'Escape') setBrowserUseDomainTarget(null)
-              }}
-              placeholder="example.com"
-              autoFocus
-              mono
-            />
-            {browserUseDomainError && (
-              <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--error)' }}>
-                {browserUseDomainError}
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '18px' }}>
-              <Button onClick={() => setBrowserUseDomainTarget(null)}>
-                {t('settings.browserUse.cancel')}
-              </Button>
-              <Button variant="primary" onClick={() => void handleAddBrowserUseDomain()}>
-                {t('settings.browserUse.add')}
-              </Button>
-            </div>
-          </div>
-        </div>
+          onCancel={() => setBrowserUseDomainTarget(null)}
+          onSubmit={() => void handleAddBrowserUseDomain()}
+        />
       )}
     </div>
   )

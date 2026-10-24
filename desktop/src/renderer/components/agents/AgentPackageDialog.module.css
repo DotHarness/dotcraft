@@ -1,33 +1,5 @@
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--overlay-scrim);
-}
-
-.dialog {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  width: 520px;
-  max-width: 100%;
-  max-height: 100%;
-  padding: 24px;
-  border-radius: 12px;
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-level-3);
-}
-
 .body {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .drop {
@@ -65,8 +37,7 @@
 }
 
 .dropHint,
-.note,
-.fieldHint {
+.note {
   color: var(--text-secondary);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-prose-line-height);
@@ -196,29 +167,9 @@
   line-height: var(--type-secondary-prose-line-height);
 }
 
-.error {
-  margin: 16px 0 0;
-  color: var(--error);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-prose-line-height);
-  overflow-wrap: anywhere;
-}
-
-.footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 24px;
-}
-
 .footerNote {
-  flex: 1;
   min-width: 0;
   color: var(--text-secondary);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
-}
-
-.footer > :first-child:not(.footerNote) {
-  margin-inline-end: auto;
 }

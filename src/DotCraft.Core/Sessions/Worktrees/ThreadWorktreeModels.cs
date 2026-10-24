@@ -2,9 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.Sessions;
 
-/// <summary>
-/// Persistent metadata for a DotCraft-managed Git worktree bound to a thread.
-/// </summary>
 public sealed record ThreadWorktreeInfo
 {
     public string Id { get; init; } = string.Empty;
@@ -29,15 +26,15 @@ public sealed record ThreadWorktreeInfo
 
     public string? OwnerId { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EnvironmentPath { get; init; }
+
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; init; }
 }
 
-/// <summary>
-/// Summary of dirty working tree files copied into a newly created worktree.
-/// </summary>
 public sealed record ThreadWorktreeDirtyHandoffInfo
 {
     public bool Requested { get; init; }
@@ -48,7 +45,6 @@ public sealed record ThreadWorktreeDirtyHandoffInfo
 
     public int DeletedFileCount { get; init; }
 
-    /// <summary>Whether an existing target worktree's own uncommitted changes were stashed and kept.</summary>
     public bool TargetStashed { get; init; }
 }
 
@@ -79,9 +75,6 @@ public static class WorktreeDirtyHandoffStatuses
     public const string Succeeded = "succeeded";
 }
 
-/// <summary>
-/// Options for creating a Git worktree and then forking a source thread into it.
-/// </summary>
 public sealed record WorktreeCreateAndForkOptions
 {
     public string SourceThreadId { get; init; } = string.Empty;
@@ -101,6 +94,14 @@ public sealed record WorktreeCreateAndForkOptions
     public string? Path { get; init; }
 
     public bool CopyDirtyChanges { get; init; } = true;
+
+    public string? EnvironmentPath { get; init; }
+
+    public string? OperationId { get; init; }
+
+    public Action<string, string>? Progress { get; init; }
+
+    public Action<string>? SetupOutput { get; init; }
 }
 
 public sealed record WorktreeCreateAndForkResult
@@ -108,11 +109,10 @@ public sealed record WorktreeCreateAndForkResult
     public SessionThread Thread { get; init; } = new();
 
     public ThreadWorktreeInfo Worktree { get; init; } = new();
+
+    public WorktreeSetupResult? Setup { get; init; }
 }
 
-/// <summary>
-/// Options for creating a Git worktree and starting a new thread inside it.
-/// </summary>
 public sealed record WorktreeCreateAndStartOptions
 {
     public SessionIdentity Identity { get; init; } = new();
@@ -131,6 +131,14 @@ public sealed record WorktreeCreateAndStartOptions
 
     public bool CopyDirtyChanges { get; init; } = true;
 
+    public string? EnvironmentPath { get; init; }
+
+    public string? OperationId { get; init; }
+
+    public Action<string, string>? Progress { get; init; }
+
+    public Action<string>? SetupOutput { get; init; }
+
     public ThreadSource? Source { get; init; }
 }
 
@@ -139,6 +147,8 @@ public sealed record WorktreeCreateAndStartResult
     public SessionThread Thread { get; init; } = new();
 
     public ThreadWorktreeInfo Worktree { get; init; } = new();
+
+    public WorktreeSetupResult? Setup { get; init; }
 }
 
 public static class WorktreeHandoffModes
@@ -147,9 +157,6 @@ public static class WorktreeHandoffModes
     public const string Worktree = "worktree";
 }
 
-/// <summary>
-/// Options for moving an existing thread between its local workspace and a managed worktree.
-/// </summary>
 public sealed record WorktreeHandoffOptions
 {
     public string ThreadId { get; init; } = string.Empty;
@@ -179,9 +186,6 @@ public sealed record WorktreeHandoffResult
     public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; init; }
 }
 
-/// <summary>
-/// Options for ensuring a named DotCraft-managed worktree is bound to an existing thread.
-/// </summary>
 public sealed record WorktreeEnsureOptions
 {
     public string ThreadId { get; init; } = string.Empty;
@@ -218,9 +222,6 @@ public sealed record ThreadExecutionWorkspaceOptions
     public bool ClearWorktree { get; init; } = true;
 }
 
-/// <summary>
-/// Options for force-removing a managed worktree and its branch.
-/// </summary>
 public sealed record WorktreeRemoveOptions
 {
     public string? ThreadId { get; init; }
@@ -234,7 +235,6 @@ public sealed record WorktreeRemoveOptions
     public bool DeleteBranch { get; init; } = true;
 }
 
-/// <summary>Outcome of leaving a worktree: either the thread left it, or removal was refused to keep work.</summary>
 public sealed record WorktreeExitResult
 {
     public ThreadWorktreeInfo? Worktree { get; init; }
@@ -253,9 +253,14 @@ public sealed class WorktreeHandoffConflictException(
     public IReadOnlyList<string> ConflictPaths { get; } = conflictPaths;
 }
 
+public sealed class WorktreeInUseException(string path)
+    : InvalidOperationException($"Another program is using the worktree folder '{path}'.")
+{
+    public string Path { get; } = path;
+}
+
 public sealed record ThreadWorktreeStatus
 {
-    /// <summary>The bound thread, or <c>null</c> for a worktree no thread is bound to.</summary>
     public string? ThreadId { get; init; }
 
     public ThreadWorktreeInfo Worktree { get; init; } = new();

@@ -62,6 +62,8 @@ export interface ServerNotificationMethods {
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "visualization/widgetState/updated": { params: Models.VisualizationWidgetStateUpdatedNotification; result: Models.RpcEmpty };
   "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };
+  "worktree/createProgress": { params: Models.WorktreeCreateProgressNotification; result: Models.RpcEmpty };
+  "worktree/setupOutput": { params: Models.WorktreeSetupOutputNotification; result: Models.RpcEmpty };
 }
 
 export type ServerNotificationMethod = keyof ServerNotificationMethods;

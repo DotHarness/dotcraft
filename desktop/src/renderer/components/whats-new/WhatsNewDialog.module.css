@@ -1,0 +1,88 @@
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+/* Not --bg-tertiary: the loading skeleton pulses in that colour. */
+.mediaFrame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+.mediaImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-heading-size);
+  font-weight: 600;
+  line-height: var(--type-heading-line-height);
+  overflow-wrap: anywhere;
+}
+
+.cardSummary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  overflow-wrap: anywhere;
+}
+
+.docsButton {
+  align-self: flex-start;
+  margin-left: -10px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 220px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-heading-size);
+  font-weight: 600;
+  line-height: var(--type-heading-line-height);
+}
+
+.emptyBody {
+  max-width: 360px;
+  margin: 0;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}

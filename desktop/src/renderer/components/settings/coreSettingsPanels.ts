@@ -14,6 +14,8 @@ export const coreSettingsPanels = {
     .then((module) => module.ConnectionsPanel)),
   sourceControl: lazyWithPrefetch(() => import('./panels/SourceControlPanel')
     .then((module) => module.SourceControlPanel)),
+  worktrees: lazyWithPrefetch(() => import('./panels/worktrees/WorktreesPanel')
+    .then((module) => module.WorktreesPanel)),
   hooks: lazyWithPrefetch(() => import('./panels/HooksPanel')
     .then((module) => module.HooksPanel)),
   subAgents: lazyWithPrefetch(() => import('./panels/SubAgentsPanel')
@@ -31,13 +33,13 @@ const panelByTab: Partial<Record<SettingsTab, { prefetch: () => Promise<void> }>
   computerControl: coreSettingsPanels.computerUse,
   connections: coreSettingsPanels.connections,
   sourceControl: coreSettingsPanels.sourceControl,
+  worktrees: coreSettingsPanels.worktrees,
   hooks: coreSettingsPanels.hooks,
   subAgents: coreSettingsPanels.subAgents,
   import: coreSettingsPanels.import,
   archivedThreads: coreSettingsPanels.archivedThreads
 }
 
-// Tabs drawn inside SettingsView have no module of their own.
 export function prefetchSettingsPanel(tab: SettingsTab): void {
   void panelByTab[tab]?.prefetch().catch(() => undefined)
 }

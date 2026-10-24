@@ -4801,6 +4801,7 @@ export interface ThreadWorktreeInfo {
   branchName?: string;
   createdAt?: string;
   dirtyHandoff?: ThreadWorktreeDirtyHandoffInfo | null;
+  environmentPath?: string | null;
   head?: string;
   id?: string;
   ownerId?: string | null;
@@ -5555,6 +5556,11 @@ export interface WorkspaceCommitMessageSuggestResult {
   [key: string]: unknown;
 }
 
+export interface WorktreeCancelCreateParams {
+  operationId: string;
+  [key: string]: unknown;
+}
+
 export interface WorktreeCreateAndForkParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
   baseRef?: string | null;
@@ -5563,14 +5569,17 @@ export interface WorktreeCreateAndForkParams {
   copyDirtyChanges?: boolean | null;
   displayName?: string | null;
   dynamicTools?: JsonValue[] | null;
+  environmentPath?: string | null;
   forkPoint?: ThreadForkPoint | null;
   identity?: SessionIdentity | null;
+  operationId?: string | null;
   path?: string | null;
   sourceThreadId?: string;
   [key: string]: unknown;
 }
 
 export interface WorktreeCreateAndForkResult {
+  setup?: WorktreeSetupResult;
   thread?: SessionThread;
   worktree?: ThreadWorktreeInfo;
   [key: string]: unknown;
@@ -5584,15 +5593,25 @@ export interface WorktreeCreateAndStartParams {
   copyDirtyChanges?: boolean | null;
   displayName?: string | null;
   dynamicTools?: JsonValue[] | null;
+  environmentPath?: string | null;
   historyMode?: string | null;
   identity?: SessionIdentity;
+  operationId?: string | null;
   path?: string | null;
   [key: string]: unknown;
 }
 
 export interface WorktreeCreateAndStartResult {
+  setup?: WorktreeSetupResult;
   thread?: SessionThread;
   worktree?: ThreadWorktreeInfo;
+  [key: string]: unknown;
+}
+
+export interface WorktreeCreateProgressNotification {
+  operationId: string;
+  status: string;
+  step: string;
   [key: string]: unknown;
 }
 
@@ -5608,10 +5627,46 @@ export interface WorktreeListResult {
 export interface WorktreeRemoveParams {
   discardChanges?: boolean;
   path?: string;
+  skipCleanup?: boolean;
   [key: string]: unknown;
 }
 
 export interface WorktreeRemoveResult {
+  [key: string]: unknown;
+}
+
+export interface WorktreeRunSetupParams {
+  operationId?: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface WorktreeRunSetupResult {
+  setup: WorktreeSetupResult;
+  [key: string]: unknown;
+}
+
+export interface WorktreeSetEnvironmentParams {
+  environmentPath: string | null;
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface WorktreeSetEnvironmentResult {
+  worktree: ThreadWorktreeInfo;
+  [key: string]: unknown;
+}
+
+export interface WorktreeSetupOutputNotification {
+  delta: string;
+  operationId: string;
+  [key: string]: unknown;
+}
+
+export interface WorktreeSetupResult {
+  exitCode?: number;
+  outputTail: string;
+  status: string;
   [key: string]: unknown;
 }
 

@@ -47,6 +47,8 @@ import { getFallbackThreadName } from '../../utils/threadFallbackName'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
+import { createWelcomeWorktreeThread } from '../../utils/worktreeThreadCreation'
+import { isWorktreeCreationCancelled } from '../../stores/worktreeCreationStore'
 import { welcomeScopeKey } from '../../utils/detailPanelScope'
 import { handOffWelcomePanel } from '../../utils/welcomePanelHandoff'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
@@ -244,7 +246,6 @@ function ConversationWelcomeCore({
   const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
   const [welcomeBaseRef, setWelcomeBaseRef] = useState<string | null>(null)
   const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
-  /** Perforce changelist pre-selected on the welcome screen; applied when the first thread is created. */
   const [welcomeChangelist, setWelcomeChangelist] = useState<string>('default')
   useEffect(() => {
     setWelcomeChangelist('default')
@@ -334,7 +335,6 @@ function ConversationWelcomeCore({
   const canUseThreadGoals = capabilities?.threadGoals === true
   const canUseAppBinding = capabilities?.appBindingVersion === 1
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
-  // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const resolvedProfileName = useResolvedProfileName(selectedProfileId ?? undefined, workspacePath)
   const canUseSystemActions = true
@@ -1072,13 +1072,18 @@ function ConversationWelcomeCore({
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
 
     const thread = welcomeWorkspaceMode === 'worktree' && !chatFolder
-      ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
-          identity,
-          historyMode: 'server',
-          baseRef: welcomeBaseRef || undefined,
-          branchName: welcomeWorktreeBranchName || undefined,
-          config
-        }, 180_000) as unknown as { thread: ThreadSummary }).thread
+      ? await createWelcomeWorktreeThread({
+          workspacePath: identityPath,
+          local: !remoteWorkspace,
+          params: {
+            identity,
+            historyMode: 'server',
+            baseRef: welcomeBaseRef || undefined,
+            branchName: welcomeWorktreeBranchName || undefined,
+            config
+          },
+          localParams: { identity, historyMode: 'server', config, ...rootsField }
+        })
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
           historyMode: 'server',
@@ -1090,7 +1095,6 @@ function ConversationWelcomeCore({
       try {
         await usePerforceChangelistStore.getState().setTarget(thread.id, welcomeChangelist)
       } catch {
-        // Non-fatal: the thread still starts; its target stays on the default changelist.
       }
     }
     return thread
@@ -1104,8 +1108,6 @@ function ConversationWelcomeCore({
     welcomeWorktreeBranchName
   ])
 
-  // If the user opened another thread while creation was in flight, leave them there and start the
-  // first turn unseen rather than dropping it.
   const openOrDetachCreatedThread = useCallback((threadId: string): void => {
     handOffWelcomePanel(contextKey, threadId)
     if (useThreadStore.getState().activeThreadId == null) {
@@ -1194,7 +1196,7 @@ function ConversationWelcomeCore({
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, submittedContexts)
-      addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
       return false
     } finally {
       sendInFlightRef.current = false
@@ -1334,7 +1336,7 @@ function ConversationWelcomeCore({
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, inputContexts)
-      addToast(err instanceof Error ? err.message : String(err), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
@@ -2009,6 +2011,5 @@ async function deleteUnusedWelcomeThread(threadId: string): Promise<void> {
   try {
     await window.api.appServer.sendRequest('thread/delete', { threadId })
   } catch {
-    // Best effort cleanup only; preserving the user's draft matters more than surfacing this secondary failure.
   }
 }

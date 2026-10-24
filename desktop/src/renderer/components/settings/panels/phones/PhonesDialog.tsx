@@ -1,19 +1,24 @@
 import { useEffect, useRef, type JSX, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 
-import { LayerBoundary } from '../../../../contexts/LayerContext'
+import { ModalDialog, ModalFooter } from '../../../ui/ModalDialog'
 import * as s from '../connections/connectionsStyles'
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled])'
 
 export function PhonesDialog({
   titleId,
+  header,
+  footer,
   onClose,
+  onSubmit,
   children
 }: {
   titleId: string
+  header: ReactNode
+  footer: ReactNode
   onClose: () => void
+  onSubmit?: () => void
   children: ReactNode
 }): JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -52,29 +57,24 @@ export function PhonesDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  return createPortal(
-    <LayerBoundary>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="dc-satellite-invite-scrim"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) onClose()
-        }}
-      >
-        <div ref={dialogRef} className="dc-satellite-invite-dialog" onMouseDown={(event) => event.stopPropagation()}>
-          {children}
-        </div>
-      </div>
-    </LayerBoundary>,
-    document.body
-  ) as JSX.Element
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={460}
+      onDismiss={onClose}
+      onSubmit={onSubmit}
+      header={header}
+      footer={<ModalFooter>{footer}</ModalFooter>}
+    >
+      {children}
+    </ModalDialog>
+  )
 }
 
 export function PhonesDialogFailure({ title, reason }: { title: string; reason: string }): JSX.Element {
   return (
-    <div className="dc-satellite-invite-banner" style={s.banner} role="alert">
+    <div style={s.banner} role="alert">
       <span className="dc-satellite-invite-banner__glyph" aria-hidden>
         <AlertTriangle size={20} />
       </span>

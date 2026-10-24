@@ -1,0 +1,186 @@
+.hero {
+  position: relative;
+  padding-top: 8px;
+  margin-bottom: 24px;
+}
+
+.close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+}
+
+.logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.dotTrail {
+  color: var(--text-dimmed);
+  letter-spacing: 2px;
+}
+
+.title {
+  margin: 18px 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.infoCard {
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+
+.cardTitle {
+  font-size: 14px;
+}
+
+.muted {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.divider {
+  height: 1px;
+  margin: 16px 0;
+  background-color: var(--border-subtle);
+}
+
+.sectionTitle {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.wide {
+  width: 100%;
+}
+
+.trailing {
+  margin-inline-start: auto;
+}
+
+.setupPanel {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+.setupPanel[data-tone='warning'] {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border-default));
+  background-color: color-mix(in srgb, var(--warning) 8%, var(--bg-secondary));
+}
+
+.setupIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.setupPanel[data-tone='warning'] .setupIcon {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.stepBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stepTitle {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.stepAction {
+  display: flex;
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.appList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.appRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.appBody {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.appActions {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}

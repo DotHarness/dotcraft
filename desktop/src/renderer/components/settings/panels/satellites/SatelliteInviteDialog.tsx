@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useId, useRef, useState, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Copy, Monitor } from 'lucide-react'
 
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
 import { InputWithAction } from '../../../ui/InputWithAction'
+import { ModalDialog, ModalFooter } from '../../../ui/ModalDialog'
 import { ModalHeader } from '../../../ui/ModalHeader'
 import { Skeleton } from '../../../ui/Skeleton'
-import { LayerBoundary } from '../../../../contexts/LayerContext'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useSatellitesStore } from '../../../../stores/satellitesStore'
 import { isInviteExpired, type SatelliteInvite } from '../../../../../shared/satellites'
 import * as s from '../connections/connectionsStyles'
 
-/** The minted link lives in the store, so closing and reopening shows it again. */
 export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const t = useT()
   const invite = useSatellitesStore((state) => state.invite)
@@ -43,15 +41,12 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
     setCopied(false)
   }, [invite?.url])
 
-  // There is nothing to fill in, so opening the dialog is the request. Every later
-  // link comes from Create another or a retry.
   useEffect(() => {
     if (minted.current) return
     minted.current = true
     if (invite == null) void createInvite()
   }, [createInvite, invite])
 
-  // The link is the point of the dialog, so it arrives selected and ready to copy.
   useEffect(() => {
     if (invite == null) return
     resultRef.current?.querySelector('input')?.select()
@@ -91,21 +86,13 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
     void createInvite()
   }
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className="dc-satellite-invite-scrim"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <div
-        ref={dialogRef}
-        className="dc-satellite-invite-dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={460}
+      onDismiss={onClose}
+      header={(
         <ModalHeader
           icon={<Monitor size={18} aria-hidden />}
           title={t('settings.satellites.invite.title')}
@@ -114,35 +101,9 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
           onClose={onClose}
           closeLabel={t('common.close')}
         />
-
-        {invite ? (
-          <div ref={resultRef}>
-            <InviteResult invite={invite} expired={expired} copied={copied} onCopy={() => setCopied(true)} />
-          </div>
-        ) : inviteError != null ? (
-          <div className="dc-satellite-invite-banner" style={s.banner}>
-            <span className="dc-satellite-invite-banner__glyph" aria-hidden>
-              <AlertTriangle size={20} />
-            </span>
-            <div style={{ flex: 1 }}>
-              <div className="dc-satellite-invite-banner__text">{t('settings.satellites.invite.error')}</div>
-              {inviteError !== '' && <div className="dc-satellite-invite-banner__reason">{inviteError}</div>}
-            </div>
-          </div>
-        ) : (
-          <div
-            className="dc-satellite-invite-result"
-            role="status"
-            aria-busy="true"
-            aria-label={t('settings.satellites.invite.creating')}
-          >
-            <span className="dc-satellite-field__label">{t('settings.satellites.invite.linkLabel')}</span>
-            <Skeleton height={34} radius={8} />
-            <Skeleton width="72%" height={11} style={{ marginTop: '2px' }} />
-          </div>
-        )}
-
-        <div className="dc-satellite-invite-foot">
+      )}
+      footer={(
+        <ModalFooter>
           {hasLink ? (
             <>
               <Button variant="secondary" onClick={another}>
@@ -164,12 +125,37 @@ export function SatelliteInviteDialog({ onClose }: { onClose: () => void }): JSX
               </Button>
             </>
           )}
+        </ModalFooter>
+      )}
+    >
+      {invite ? (
+        <div ref={resultRef}>
+          <InviteResult invite={invite} expired={expired} copied={copied} onCopy={() => setCopied(true)} />
         </div>
-      </div>
-    </div>
+      ) : inviteError != null ? (
+        <div style={s.banner}>
+          <span className="dc-satellite-invite-banner__glyph" aria-hidden>
+            <AlertTriangle size={20} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div className="dc-satellite-invite-banner__text">{t('settings.satellites.invite.error')}</div>
+            {inviteError !== '' && <div className="dc-satellite-invite-banner__reason">{inviteError}</div>}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="dc-satellite-invite-result"
+          role="status"
+          aria-busy="true"
+          aria-label={t('settings.satellites.invite.creating')}
+        >
+          <span className="dc-satellite-field__label">{t('settings.satellites.invite.linkLabel')}</span>
+          <Skeleton height={34} radius={8} />
+          <Skeleton width="72%" height={11} style={{ marginTop: '2px' }} />
+        </div>
+      )}
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
 function InviteResult({

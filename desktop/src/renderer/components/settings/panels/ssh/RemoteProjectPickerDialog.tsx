@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type JSX } from 'react
 import { ChevronRight, Folder, FolderPlus } from 'lucide-react'
 
 import { Button } from '../../../ui/Button'
+import { ModalFooter } from '../../../ui/ModalDialog'
 import { ModalHeader } from '../../../ui/ModalHeader'
 import { Select } from '../../../ui/Select'
 import { Skeleton, SkeletonList } from '../../../ui/Skeleton'
@@ -98,15 +99,39 @@ export function RemoteProjectPickerDialog({
   }
 
   return (
-    <SshDialogFrame titleId={titleId} wide onClose={onClose}>
-      <ModalHeader
-        icon={<FolderPlus size={18} aria-hidden />}
-        title={t('settings.ssh.picker.title')}
-        titleId={titleId}
-        description={t('settings.ssh.picker.description')}
-        onClose={onClose}
-        closeLabel={t('common.close')}
-      />
+    <SshDialogFrame
+      titleId={titleId}
+      wide
+      onClose={onClose}
+      header={(
+        <ModalHeader
+          icon={<FolderPlus size={18} aria-hidden />}
+          title={t('settings.ssh.picker.title')}
+          titleId={titleId}
+          description={t('settings.ssh.picker.description')}
+          onClose={onClose}
+          closeLabel={t('common.close')}
+        />
+      )}
+      footer={(
+        <ModalFooter
+          leading={(
+            <span className="dc-ssh-picker__note">
+              {loading ? <Skeleton width={120} height={10} /> : already ? t('settings.ssh.picker.already') : null}
+            </span>
+          )}
+        >
+          <Button
+            variant="primary"
+            disabled={loading || already || !listing || !ready || error != null}
+            loading={adding}
+            onClick={() => void use()}
+          >
+            {t('settings.ssh.picker.use')}
+          </Button>
+        </ModalFooter>
+      )}
+    >
       <div className="dc-ssh-picker__machine">
         <span className="dc-ssh-field__label">{t('settings.ssh.picker.machine')}</span>
         <Select
@@ -121,66 +146,54 @@ export function RemoteProjectPickerDialog({
           onValueChange={(value) => setMachineId(value)}
         />
       </div>
-      {listing && (
-        <nav className="dc-ssh-crumbs" aria-label={t('settings.ssh.picker.path')}>
-          {crumbsFor(listing).map((crumb, index, all) => (
-            <span key={crumb.path} className="dc-ssh-crumbs__item">
-              {index > 0 && <ChevronRight size={13} aria-hidden className="dc-ssh-crumbs__sep" />}
-              {index === all.length - 1 ? (
-                <span className="dc-ssh-crumbs__current" aria-current="location">
-                  {crumb.label}
-                </span>
-              ) : (
-                <button type="button" className="dc-ssh-crumbs__link" onClick={() => void browse(crumb.path)}>
-                  {crumb.label}
-                </button>
-              )}
-            </span>
-          ))}
-        </nav>
-      )}
-      <div className="dc-ssh-folders" aria-busy={loading}>
-        {loading ? (
-          <SkeletonList
-            count={4}
-            ariaLabel={t('settings.ssh.picker.loading')}
-            rowProps={{ media: 16, mediaRadius: 4, lines: ['34%'], lineHeight: 12 }}
-            rowStyle={{ padding: '9px 12px' }}
-          />
-        ) : !ready ? (
-          <div className="dc-ssh-folders__empty">{t('settings.ssh.picker.connectFirst')}</div>
-        ) : error ? (
-          <div className="dc-ssh-folders__empty" role="alert">
-            {error}
-          </div>
-        ) : listing && listing.folders.length === 0 ? (
-          <div className="dc-ssh-folders__empty">
-            {t('settings.ssh.picker.noFolders', { folder: crumbsFor(listing).slice(-1)[0].label })}
-          </div>
-        ) : (
-          listing?.folders.map((folder) => (
-            <button key={folder.path} type="button" className="dc-ssh-folder" onClick={() => void browse(folder.path)}>
-              <Folder size={15} aria-hidden className="dc-ssh-folder__icon" />
-              <span className="dc-ssh-folder__name">{folder.name}</span>
-              {folder.saved && <span className="dc-ssh-folder__meta">{t('settings.ssh.added')}</span>}
-              <ChevronRight size={15} aria-hidden className="dc-ssh-folder__chevron" />
-            </button>
-          ))
+      <div>
+        {listing && (
+          <nav className="dc-ssh-crumbs" aria-label={t('settings.ssh.picker.path')}>
+            {crumbsFor(listing).map((crumb, index, all) => (
+              <span key={crumb.path} className="dc-ssh-crumbs__item">
+                {index > 0 && <ChevronRight size={13} aria-hidden className="dc-ssh-crumbs__sep" />}
+                {index === all.length - 1 ? (
+                  <span className="dc-ssh-crumbs__current" aria-current="location">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <button type="button" className="dc-ssh-crumbs__link" onClick={() => void browse(crumb.path)}>
+                    {crumb.label}
+                  </button>
+                )}
+              </span>
+            ))}
+          </nav>
         )}
-      </div>
-      <div className="dc-ssh-footer">
-        <span className="dc-ssh-footer__note">
-          {loading ? <Skeleton width={120} height={10} /> : already ? t('settings.ssh.picker.already') : null}
-        </span>
-        <span className="dc-ssh-footer__spacer" />
-        <Button
-          variant="primary"
-          disabled={loading || already || !listing || !ready || error != null}
-          loading={adding}
-          onClick={() => void use()}
-        >
-          {t('settings.ssh.picker.use')}
-        </Button>
+        <div className="dc-ssh-folders" aria-busy={loading}>
+          {loading ? (
+            <SkeletonList
+              count={4}
+              ariaLabel={t('settings.ssh.picker.loading')}
+              rowProps={{ media: 16, mediaRadius: 4, lines: ['34%'], lineHeight: 12 }}
+              rowStyle={{ padding: '9px 12px' }}
+            />
+          ) : !ready ? (
+            <div className="dc-ssh-folders__empty">{t('settings.ssh.picker.connectFirst')}</div>
+          ) : error ? (
+            <div className="dc-ssh-folders__empty" role="alert">
+              {error}
+            </div>
+          ) : listing && listing.folders.length === 0 ? (
+            <div className="dc-ssh-folders__empty">
+              {t('settings.ssh.picker.noFolders', { folder: crumbsFor(listing).slice(-1)[0].label })}
+            </div>
+          ) : (
+            listing?.folders.map((folder) => (
+              <button key={folder.path} type="button" className="dc-ssh-folder" onClick={() => void browse(folder.path)}>
+                <Folder size={15} aria-hidden className="dc-ssh-folder__icon" />
+                <span className="dc-ssh-folder__name">{folder.name}</span>
+                {folder.saved && <span className="dc-ssh-folder__meta">{t('settings.ssh.added')}</span>}
+                <ChevronRight size={15} aria-hidden className="dc-ssh-folder__chevron" />
+              </button>
+            ))
+          )}
+        </div>
       </div>
     </SshDialogFrame>
   )

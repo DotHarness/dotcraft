@@ -17,7 +17,6 @@ export interface DesktopPluginMetadata {
 /** The app locales Desktop resolves to. A browser tag such as `zh-CN` normalizes into this set. */
 export type DesktopPluginLocale = "en" | "zh-Hans" | "ja" | "ko" | "es" | "fr" | "de";
 
-/** The four values Desktop derives its palette from; see the theme token contract. */
 export interface DesktopPluginThemeSeed {
   /** The base plane: the page in dark, the card in light. */
   readonly surface: string;
@@ -222,7 +221,6 @@ export interface DesktopPluginNavigation {
   openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
   openAutomation(automationId: string): void;
   openSkill(name: string): void;
-  /** Opens the thread and reveals the tool item with this call id in its conversation. */
   revealToolCall(threadId: string, callId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
 }
@@ -284,14 +282,20 @@ export interface DesktopPluginProjectActions {
     workspacePath: string,
     listener: (snapshot: DesktopPluginProjectActionsSnapshot) => void,
   ): DesktopPluginDispose;
-  select(workspacePath: string, environmentId: string): Promise<void>;
+  /** `null` selects No environment. */
+  select(workspacePath: string, environmentId: string | null): Promise<void>;
   run(request: { threadId: string; environmentId: string; actionId: string }): Promise<void>;
   openTerminal(request: { threadId: string }): Promise<void>;
-  /** Resolves to `null` when the user cancels or the saved action does not run on this platform. */
+  /**
+   * Saves the action as the most recent one without running it. Resolves to `null` when the user
+   * cancels or the saved action does not run on this platform.
+   */
   promptAddAction(request: {
     workspacePath: string;
     environmentId?: string;
   }): Promise<DesktopPluginSavedProjectAction | null>;
+  /** Opens Settings at the project's environments, on the environment when given; Back returns to the caller. */
+  openSettings(request: { workspacePath: string; environmentId?: string }): Promise<void>;
 }
 
 export interface DesktopPluginToastOptions {

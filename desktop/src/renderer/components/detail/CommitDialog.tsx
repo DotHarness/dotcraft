@@ -1,51 +1,18 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { GitBranch, GitCommitHorizontal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { useConversationStore } from '../../stores/conversationStore'
-import { threadFileSummaries } from '../../stores/turnDiffs'
-import { ModalHeader } from '../ui/ModalHeader'
-import { Button } from '../ui/Button'
-import { DisclosureChevron } from '../ui/DisclosureChevron'
-import { Textarea } from '../ui/Input'
+import { ChangeSubmitDialog } from './ChangeSubmitDialog'
 
 interface CommitDialogProps {
   workspacePath: string
-  /**
-   * Hands the (possibly empty) message off to the owner. The owner runs the
-   * async commit + toast lifecycle so it survives this dialog unmounting; the
-   * dialog never sits in a committing/generating state. Spec §16.5.
-   */
+  /** The owner runs the commit so it outlives this dialog; a blank message means autogenerate. */
   onCommit: (message: string) => void
   onClose: () => void
 }
 
-/** A blank message means autogenerate; the dialog hands off and closes. Spec §16.5. */
 export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogProps): JSX.Element {
   const t = useT()
-  const turnDiffs = useConversationStore((s) => s.turnDiffs)
-
-  const allFiles = useMemo(() => threadFileSummaries(turnDiffs), [turnDiffs])
-  const writtenFiles = allFiles.filter((f) => f.status === 'written')
-  const revertedCount = allFiles.length - writtenFiles.length
-
-  const [message, setMessage] = useState('')
   const [branch, setBranch] = useState<string | null>(null)
-  const [filesExpanded, setFilesExpanded] = useState(false)
-  const messageRef = useRef<HTMLTextAreaElement>(null)
-  const totalAdditions = writtenFiles.reduce((sum, file) => sum + file.additions, 0)
-  const totalDeletions = writtenFiles.reduce((sum, file) => sum + file.deletions, 0)
-  const hasFiles = writtenFiles.length > 0
-
-  useEffect(() => {
-    messageRef.current?.focus()
-
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   useEffect(() => {
     let cancelled = false
@@ -66,203 +33,35 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
     }
   }, [workspacePath])
 
-  function handleSubmit(): void {
-    if (!hasFiles) return
-    // Hand off and leave immediately — the owner runs the commit via toasts.
-    onCommit(message.trim())
-    onClose()
-  }
-
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="commit-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '16px',
-          boxShadow: 'var(--shadow-level-3)',
-          padding: '18px 24px 22px',
-          width: '440px',
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 96px)',
-          overflow: 'auto'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <ModalHeader
-          icon={<GitCommitHorizontal size={18} aria-hidden="true" />}
-          title={t('commit.title')}
-          titleId="commit-title"
-          onClose={onClose}
-          closeLabel={t('commit.close')}
-        />
-
-        <div style={infoRowStyle}>
-          <span style={infoLabelStyle}>{t('commit.branchLabel')}</span>
-          <span style={infoValueStyle}>
+  return (
+    <ChangeSubmitDialog
+      icon={<GitCommitHorizontal size={18} aria-hidden="true" />}
+      workspacePath={workspacePath}
+      target={{
+        label: t('commit.branchLabel'),
+        value: (
+          <>
             <GitBranch size={14} />
             {branch || t('commit.detachedHead')}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setFilesExpanded((v) => !v)}
-          aria-expanded={filesExpanded}
-          style={{
-            ...infoRowStyle,
-            width: '100%',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: 'inherit'
-          }}
-        >
-          <span style={infoLabelStyle}>{t('commit.changesLabel')}</span>
-          <span style={{ ...infoValueStyle, gap: '8px' }}>
-            <span>{t('commit.changesSummary', { files: writtenFiles.length })}</span>
-            <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
-            <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
-            <DisclosureChevron expanded={filesExpanded} />
-          </span>
-        </button>
-
-        {filesExpanded && (
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              borderRadius: '10px',
-              padding: '2px 4px',
-              margin: '2px 0 4px',
-              maxHeight: '180px',
-              overflowY: 'auto'
-            }}
-          >
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '6px 8px 2px' }}>
-              {t('commit.filesHeader', {
-                written: writtenFiles.length,
-                all: allFiles.length,
-                reverted:
-                  revertedCount > 0 ? t('commit.revertedSuffix', { count: revertedCount }) : ''
-              })}
-            </div>
-            {writtenFiles.map((file, idx) => (
-              <div
-                key={file.filePath}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 8px',
-                  borderTop: idx === 0 ? 'none' : '1px solid var(--glass-border)',
-                  fontSize: '12px'
-                }}
-              >
-                <span
-                  style={{
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    background: 'var(--info)',
-                    flexShrink: 0
-                  }}
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--text-primary)'
-                  }}
-                >
-                  {toRelativePath(file.filePath, workspacePath)}
-                </span>
-                <span style={{ display: 'flex', gap: '5px', fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrink: 0 }}>
-                  {file.additions > 0 && <span style={{ color: 'var(--success)' }}>+{file.additions}</span>}
-                  {file.deletions > 0 && <span style={{ color: 'var(--error)' }}>-{file.deletions}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ margin: '12px 0 6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-          {t('commit.messageLabel')}
-        </div>
-
-        <Textarea
-          ref={messageRef}
-          frameless
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault()
-              handleSubmit()
-            }
-          }}
-          rows={3}
-          placeholder={t('commit.placeholderAuto')}
-        />
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!hasFiles}
-          >
-            {t('commit.button')}
-          </Button>
-        </div>
-      </div>
-    </div>
+          </>
+        )
+      }}
+      copy={{
+        title: t('commit.title'),
+        close: t('commit.close'),
+        changesLabel: t('commit.changesLabel'),
+        changesSummary: (files) => t('commit.changesSummary', { files }),
+        filesHeader: ({ written, all, reverted }) => t('commit.filesHeader', {
+          written,
+          all,
+          reverted: reverted > 0 ? t('commit.revertedSuffix', { count: reverted }) : ''
+        }),
+        inputLabel: t('commit.messageLabel'),
+        placeholder: t('commit.placeholderAuto'),
+        submit: t('commit.button')
+      }}
+      onSubmit={onCommit}
+      onClose={onClose}
+    />
   )
-
-  return createPortal(dialog, document.body) as JSX.Element
-}
-
-const infoRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '9px 2px',
-  fontSize: '13px'
-}
-
-const infoLabelStyle: React.CSSProperties = {
-  color: 'var(--text-secondary)'
-}
-
-const infoValueStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  color: 'var(--text-primary)',
-  fontFamily: 'var(--font-mono)'
-}
-
-export function toRelativePath(filePath: string, workspacePath: string): string {
-  if (!workspacePath) return filePath
-  const ws = workspacePath.replace(/\\/g, '/').replace(/\/$/, '')
-  const fp = filePath.replace(/\\/g, '/')
-  if (fp.startsWith(ws + '/')) return fp.slice(ws.length + 1)
-  return filePath
 }

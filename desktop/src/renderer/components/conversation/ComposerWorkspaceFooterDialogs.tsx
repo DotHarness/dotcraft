@@ -1,7 +1,11 @@
-import { useEffect, type JSX } from 'react'
+import { GitBranch, ListChecks } from 'lucide-react'
+import { useEffect, useId, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input, Textarea } from '../ui/Input'
 import { Button } from '../ui/Button'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
+import { ModalHeader } from '../ui/ModalHeader'
+import styles from './ComposerWorkspaceFooterDialogs.module.css'
 
 export function normalizeBranchName(value: string): string {
   return value.trim().replace(/^\/+/, '')
@@ -32,6 +36,7 @@ export function CreateBranchDialog({
   onConfirm: () => void
 }): JSX.Element {
   const t = useT()
+  const titleId = useId()
   const error = branchNameError(value, t)
 
   useEffect(() => {
@@ -44,62 +49,31 @@ export function CreateBranchDialog({
   }, [busy, error, onCancel, onConfirm])
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
-      <div
-        style={{
-          width: '420px',
-          maxWidth: 'calc(100vw - 48px)',
-          padding: '22px',
-          borderRadius: '10px',
-          background: 'var(--bg-secondary)',
-          boxShadow: 'var(--shadow-level-3)'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>{title}</h2>
-        <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
-          {t('workspaceFooter.branchName')}
-          <Input
-            frameless
-            value={value}
-            autoFocus
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              height: '42px',
-              borderRadius: '8px',
-              background: 'var(--bg-tertiary)',
-              padding: '0 12px',
-              font: 'inherit'
-            }}
-          />
-        </label>
-        {error && <div style={{ marginTop: '8px', color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <Button
-            variant="primary"
-            disabled={Boolean(error) || busy}
-            onClick={onConfirm}
-          >
+    <ModalDialog
+      titleId={titleId}
+      width={420}
+      onDismiss={onCancel}
+      header={<ModalHeader icon={<GitBranch size={18} strokeWidth={2} aria-hidden />} title={title} titleId={titleId} />}
+      error={error}
+      footer={(
+        <ModalFooter>
+          <Button variant="primary" disabled={Boolean(error) || busy} onClick={onConfirm}>
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+      )}
+    >
+      <label className={styles.field}>
+        {t('workspaceFooter.branchName')}
+        <Input
+          frameless
+          value={value}
+          autoFocus
+          onChange={(e) => onChange(e.target.value)}
+          className={styles.input}
+        />
+      </label>
+    </ModalDialog>
   )
 }
 
@@ -117,6 +91,7 @@ export function CreateChangelistDialog({
   onConfirm: () => void
 }): JSX.Element {
   const t = useT()
+  const titleId = useId()
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -128,64 +103,36 @@ export function CreateChangelistDialog({
   }, [busy, onCancel, onConfirm])
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-changelist-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
-      <div
-        style={{
-          width: '420px',
-          maxWidth: 'calc(100vw - 48px)',
-          padding: '22px',
-          borderRadius: '10px',
-          background: 'var(--bg-secondary)',
-          boxShadow: 'var(--shadow-level-3)'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 id="create-changelist-title" style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>
-          {t('workspaceFooter.createChangelistTitle')}
-        </h2>
-        <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
-          {t('workspaceFooter.changelistDescription')}
-          <Textarea
-            frameless
-            value={value}
-            autoFocus
-            rows={4}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              minHeight: '96px',
-              borderRadius: '8px',
-              background: 'var(--bg-tertiary)',
-              padding: '10px 12px',
-              font: 'inherit'
-            }}
-          />
-        </label>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <Button
-            variant="primary"
-            disabled={busy}
-            onClick={onConfirm}
-          >
+    <ModalDialog
+      titleId={titleId}
+      width={420}
+      onDismiss={onCancel}
+      header={(
+        <ModalHeader
+          icon={<ListChecks size={18} strokeWidth={2} aria-hidden />}
+          title={t('workspaceFooter.createChangelistTitle')}
+          titleId={titleId}
+        />
+      )}
+      footer={(
+        <ModalFooter>
+          <Button variant="primary" disabled={busy} onClick={onConfirm}>
             {t('workspaceFooter.create')}
           </Button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+      )}
+    >
+      <label className={styles.field}>
+        {t('workspaceFooter.changelistDescription')}
+        <Textarea
+          frameless
+          value={value}
+          autoFocus
+          rows={4}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${styles.input} ${styles.textarea}`}
+        />
+      </label>
+    </ModalDialog>
   )
 }

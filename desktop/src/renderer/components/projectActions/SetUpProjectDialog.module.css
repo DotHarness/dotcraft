@@ -1,0 +1,24 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.script {
+  min-height: 96px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}

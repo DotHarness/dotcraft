@@ -1,7 +1,8 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { LayerBoundary } from '../../contexts/LayerContext'
+import { useEffect, useCallback, useId, useRef, useState } from 'react'
+import { useT } from '../../contexts/LocaleContext'
 import { Button } from './Button'
+import { ModalDialog, ModalFooter } from './ModalDialog'
+import styles from './ConfirmDialog.module.css'
 
 export interface ConfirmDialogOptions {
   title: string
@@ -26,7 +27,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  cancelLabel,
   danger = false,
   alert = false,
   alternateLabel,
@@ -34,10 +35,11 @@ export function ConfirmDialog({
   onCancel,
   onAlternate
 }: ConfirmDialogProps): JSX.Element {
+  const t = useT()
+  const titleId = useId()
   const initialFocusRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    // Focus cancel by default for safety; an alert has only its confirm button.
     initialFocusRef.current?.focus()
 
     function handleKeyDown(e: KeyboardEvent): void {
@@ -47,65 +49,17 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onCancel])
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--overlay-scrim)'
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '10px',
-          boxShadow: 'var(--shadow-level-3)',
-          padding: '24px',
-          width: '360px',
-          maxWidth: 'calc(100vw - 48px)'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2
-          id="confirm-title"
-          style={{
-            margin: '0 0 8px',
-            fontSize: '15px',
-            fontWeight: 600,
-            color: 'var(--text-primary)'
-          }}
-        >
-          {title}
-        </h2>
-        <p
-          style={{
-            margin: '0 0 20px',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.5,
-            whiteSpace: 'pre-line'
-          }}
-        >
-          {message}
-        </p>
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+  return (
+    <ModalDialog
+      titleId={titleId}
+      width={360}
+      onDismiss={onCancel}
+      header={<h2 id={titleId} className={styles.title}>{title}</h2>}
+      footer={(
+        <ModalFooter>
           {!alert && (
-            <Button
-              ref={initialFocusRef}
-              onClick={onCancel}
-              variant="secondary"
-            >
-              {cancelLabel}
+            <Button ref={initialFocusRef} onClick={onCancel} variant="secondary">
+              {cancelLabel ?? t('common.cancel')}
             </Button>
           )}
           {alternateLabel && onAlternate && (
@@ -121,16 +75,13 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+      )}
+    >
+      <p className={styles.message}>{message}</p>
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
-
-// Imperative API: shows a dialog and resolves with true/false, so callers do not
-// prop-drill dialog state through the tree.
 
 interface DialogState extends ConfirmDialogOptions {
   resolve: (value: ConfirmDialogChoice) => void
@@ -154,14 +105,9 @@ type ConfirmDialogWindow = Window & {
   __choiceDialog?: (opts: ConfirmDialogOptions) => ChoiceDialogPromise
 }
 
-/**
- * Global confirm dialog host — mount this once at the app root level.
- * Renders the dialog when triggered by `useConfirmDialog()`.
- */
 export function ConfirmDialogHost(): JSX.Element | null {
   const [state, setState] = useState<DialogState | null>(null)
 
-  // Expose the trigger function globally so useConfirmDialog() can reach it
   useEffect(() => {
     const choose = (opts: ConfirmDialogOptions): ChoiceDialogPromise => {
       let settle!: (value: ConfirmDialogChoice) => void
@@ -208,10 +154,6 @@ export function ConfirmDialogHost(): JSX.Element | null {
   )
 }
 
-/**
- * Returns a function to imperatively show a confirmation dialog.
- * Requires `<ConfirmDialogHost />` to be mounted at the app root.
- */
 export function useConfirmDialog(): (opts: ConfirmDialogOptions) => Promise<boolean> {
   return useCallback(
     (opts: ConfirmDialogOptions) => (window as ConfirmDialogWindow).__confirmDialog!(opts),
@@ -219,7 +161,6 @@ export function useConfirmDialog(): (opts: ConfirmDialogOptions) => Promise<bool
   )
 }
 
-/** Shows a dialog whose `alternateLabel` adds a third choice. */
 export function useChoiceDialog(): (opts: ConfirmDialogOptions) => Promise<ConfirmDialogChoice> {
   return useCallback(
     (opts: ConfirmDialogOptions) => (window as ConfirmDialogWindow).__choiceDialog!(opts),

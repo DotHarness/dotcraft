@@ -6,7 +6,9 @@ import type {
 import { translate } from '../../shared/locales'
 import { projectActionTerminalTabId, type ProjectEnvironmentsResult } from '../../shared/projectActions'
 import { requestAddProjectActionDialog } from '../components/projectActions/AddProjectActionDialog'
+import { openEnvironmentSettings } from '../stores/appNavigationStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { readDesktopPluginEnvironment } from './desktopPluginEnvironment'
@@ -60,7 +62,7 @@ export function onDesktopPluginProjectActionsChange(
   }
 }
 
-export async function selectDesktopPluginProjectEnvironment(workspacePath: string, environmentId: string): Promise<void> {
+export async function selectDesktopPluginProjectEnvironment(workspacePath: string, environmentId: string | null): Promise<void> {
   localWorkspace()
   await window.api.projectActions.select({ workspacePath, environmentId })
 }
@@ -70,10 +72,15 @@ export async function runDesktopPluginProjectAction(request: {
   environmentId: string
   actionId: string
 }): Promise<void> {
+  const fallbackWorkspacePath = localWorkspace()
+  const thread = threadOf(request.threadId)
+  const workspacePath = thread?.workspacePath || fallbackWorkspacePath
+  const worktreePath = thread?.worktree?.path || undefined
   const run = await window.api.projectActions.prepareRun({
-    workspacePath: localWorkspace(),
+    workspacePath,
     environmentId: request.environmentId,
-    actionId: request.actionId
+    actionId: request.actionId,
+    ...(worktreePath ? { worktreePath } : {})
   })
   const tabId = useViewerTabStore.getState().runInTerminal({
     threadId: request.threadId,
@@ -83,6 +90,22 @@ export async function runDesktopPluginProjectAction(request: {
     command: run.command
   })
   useUIStore.getState().setActiveViewerTab(tabId)
+}
+
+function threadOf(threadId: string) {
+  const { activeThread, threadList } = useThreadStore.getState()
+  return activeThread?.id === threadId ? activeThread : threadList.find((candidate) => candidate.id === threadId)
+}
+
+export async function openDesktopPluginProjectSettings(request: {
+  workspacePath: string
+  environmentId?: string
+}): Promise<void> {
+  localWorkspace()
+  openEnvironmentSettings({
+    projectPath: request.workspacePath,
+    ...(request.environmentId ? { environmentId: request.environmentId } : {})
+  })
 }
 
 export async function openDesktopPluginProjectTerminal(request: { threadId: string }): Promise<void> {

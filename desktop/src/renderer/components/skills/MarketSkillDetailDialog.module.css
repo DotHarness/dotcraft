@@ -1,0 +1,46 @@
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.metaItem {
+  min-width: 0;
+}
+
+.metaLabel {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-dimmed);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.metaValue {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readme {
+  min-height: 220px;
+}
+
+.status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.fallback {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

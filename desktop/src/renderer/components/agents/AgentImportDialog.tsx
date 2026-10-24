@@ -1,13 +1,12 @@
 import { useId, useMemo, useRef, useState, type DragEvent, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import { AlertTriangle, Box, Plug, Upload } from 'lucide-react'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { SegmentedControl } from '../settings/ui/SegmentedControl'
 import { useImportDialogFocus } from '../settings/panels/useImportDialogFocus'
 import { Button } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
 import { Input, Textarea } from '../ui/Input'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { RobotAvatar } from './RobotAvatar'
 import {
@@ -118,17 +117,13 @@ export function AgentImportDialog({ onImported, onClose }: AgentImportDialogProp
     ? [...preview.unresolved.skills, ...preview.unresolved.mcpServers, ...preview.unresolved.plugins]
     : []
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className={styles.scrim}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy && !reading) close()
-      }}
-    >
-      <div ref={dialogRef} className={styles.dialog} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      onDismiss={busy || reading ? undefined : close}
+      bodyClassName={styles.body}
+      header={(
         <ModalHeader
           icon={preview ? <RobotAvatar name={trimmedName} size={36} /> : <Upload size={18} strokeWidth={2} aria-hidden />}
           badgedIcon={!preview}
@@ -137,124 +132,123 @@ export function AgentImportDialog({ onImported, onClose }: AgentImportDialogProp
           description={preview ? t('agentBuilder.import.reviewDescription') : t('agentBuilder.import.description')}
           onClose={busy || reading ? undefined : close}
         />
-
-        {preview ? (
-          <div className={styles.body}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{t('agentBuilder.import.name')}</span>
-              <Input value={name} invalid={nameTaken} disabled={busy} onChange={(event) => setName(event.target.value)} />
-              {nameTaken && <span className={styles.fieldError}>{t('agentBuilder.import.nameTaken')}</span>}
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{t('agentBuilder.import.descriptionLabel')}</span>
-              <Textarea rows={2} value={description} disabled={busy} onChange={(event) => setDescription(event.target.value)} />
-            </label>
-            <div className={styles.fieldRow}>
-              <span className={styles.fieldLabel}>{t('agentBuilder.import.saveTo')}</span>
-              <SegmentedControl
-                value={source}
-                ariaLabel={t('agentBuilder.import.saveTo')}
-                disabled={busy}
-                onChange={setSource}
-                options={[
-                  { value: 'user', label: t('agentBuilder.import.saveToUser') },
-                  { value: 'workspace', label: t('agentBuilder.import.saveToWorkspace') }
-                ]}
-              />
-            </div>
-
-            {preview.problems.length > 0 && (
-              <div className={styles.section}>
-                <span className={styles.sectionTitle}>{t('agentBuilder.import.problems')}</span>
-                <ul className={styles.problems}>
-                  {preview.problems.map((problem) => <li key={problem}>{problem}</li>)}
-                </ul>
-              </div>
-            )}
-
-            {preview.packages.length > 0 && (
-              <div className={styles.section}>
-                <span className={styles.sectionTitle}>{t('agentBuilder.import.packages')}</span>
-                <div className={styles.rows}>
-                  {preview.packages.map((pkg) => (
-                    <ImportPackageRow
-                      key={packageKey(pkg)}
-                      pkg={pkg}
-                      checked={selected.has(packageKey(pkg))}
-                      disabled={busy}
-                      t={t}
-                      onChange={(checked) => setSelected((previous) => {
-                        const next = new Set(previous)
-                        if (checked) next.add(packageKey(pkg))
-                        else next.delete(packageKey(pkg))
-                        return next
-                      })}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {unresolved.length > 0 && (
-              <p className={styles.warning}>
-                <AlertTriangle size={14} strokeWidth={2} aria-hidden />
-                <span>{t('agentBuilder.import.unresolved', { names: unresolved.join(', ') })}</span>
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className={styles.body}>
-            <button
-              type="button"
-              className={styles.drop}
-              data-active={dragging || undefined}
-              data-busy={reading || undefined}
-              disabled={reading}
-              onClick={() => inputRef.current?.click()}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setDragging(true)
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-            >
-              <Upload size={20} strokeWidth={1.8} aria-hidden />
-              <span className={styles.dropTitle}>{reading ? t('agentBuilder.import.reading') : t('agentBuilder.import.dropPrompt')}</span>
-              <span className={styles.dropHint}>{t('agentBuilder.import.sizeLimit')}</span>
-            </button>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".zip,.md,application/zip,text/markdown"
-              hidden
-              onChange={(event) => {
-                void read(event.target.files?.[0])
-                event.target.value = ''
-              }}
-            />
-          </div>
-        )}
-
-        {error && <p role="alert" className={styles.error}>{error}</p>}
-
-        {preview && (
-          <div className={styles.footer}>
+      )}
+      error={error}
+      footer={preview && (
+        <ModalFooter
+          leading={(
             <Button variant="ghost" disabled={busy} onClick={chooseAnother}>
               {t('agentBuilder.import.another')}
             </Button>
-            <Button variant="secondary" disabled={busy} onClick={close}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="primary" loading={busy} disabled={!canImport} onClick={() => void confirm()}>
-              {t('agentBuilder.import.confirm')}
-            </Button>
+          )}
+        >
+          <Button variant="secondary" disabled={busy} onClick={close}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="primary" loading={busy} disabled={!canImport} onClick={() => void confirm()}>
+            {t('agentBuilder.import.confirm')}
+          </Button>
+        </ModalFooter>
+      )}
+    >
+      {preview ? (
+        <>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{t('agentBuilder.import.name')}</span>
+            <Input value={name} invalid={nameTaken} disabled={busy} onChange={(event) => setName(event.target.value)} />
+            {nameTaken && <span className={styles.fieldError}>{t('agentBuilder.import.nameTaken')}</span>}
+          </label>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{t('agentBuilder.import.descriptionLabel')}</span>
+            <Textarea rows={2} value={description} disabled={busy} onChange={(event) => setDescription(event.target.value)} />
+          </label>
+          <div className={styles.fieldRow}>
+            <span className={styles.fieldLabel}>{t('agentBuilder.import.saveTo')}</span>
+            <SegmentedControl
+              value={source}
+              ariaLabel={t('agentBuilder.import.saveTo')}
+              disabled={busy}
+              onChange={setSource}
+              options={[
+                { value: 'user', label: t('agentBuilder.import.saveToUser') },
+                { value: 'workspace', label: t('agentBuilder.import.saveToWorkspace') }
+              ]}
+            />
           </div>
-        )}
-      </div>
-    </div>
-  )
 
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
+          {preview.problems.length > 0 && (
+            <div className={styles.section}>
+              <span className={styles.sectionTitle}>{t('agentBuilder.import.problems')}</span>
+              <ul className={styles.problems}>
+                {preview.problems.map((problem) => <li key={problem}>{problem}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {preview.packages.length > 0 && (
+            <div className={styles.section}>
+              <span className={styles.sectionTitle}>{t('agentBuilder.import.packages')}</span>
+              <div className={styles.rows}>
+                {preview.packages.map((pkg) => (
+                  <ImportPackageRow
+                    key={packageKey(pkg)}
+                    pkg={pkg}
+                    checked={selected.has(packageKey(pkg))}
+                    disabled={busy}
+                    t={t}
+                    onChange={(checked) => setSelected((previous) => {
+                      const next = new Set(previous)
+                      if (checked) next.add(packageKey(pkg))
+                      else next.delete(packageKey(pkg))
+                      return next
+                    })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {unresolved.length > 0 && (
+            <p className={styles.warning}>
+              <AlertTriangle size={14} strokeWidth={2} aria-hidden />
+              <span>{t('agentBuilder.import.unresolved', { names: unresolved.join(', ') })}</span>
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className={styles.drop}
+            data-active={dragging || undefined}
+            data-busy={reading || undefined}
+            disabled={reading}
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+          >
+            <Upload size={20} strokeWidth={1.8} aria-hidden />
+            <span className={styles.dropTitle}>{reading ? t('agentBuilder.import.reading') : t('agentBuilder.import.dropPrompt')}</span>
+            <span className={styles.dropHint}>{t('agentBuilder.import.sizeLimit')}</span>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".zip,.md,application/zip,text/markdown"
+            hidden
+            onChange={(event) => {
+              void read(event.target.files?.[0])
+              event.target.value = ''
+            }}
+          />
+        </>
+      )}
+    </ModalDialog>
+  )
 }
 
 function ImportPackageRow({ pkg, checked, disabled, t, onChange }: {

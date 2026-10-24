@@ -99,14 +99,12 @@ export interface ProfileSettings {
 }
 
 export interface VoiceSettings {
-  /** Omitted follows the operating-system default. */
   deviceId?: string
   chatGptTranscription?: boolean
 }
 
 export interface AppSettings extends SidebarThreadOrderSettings {
   remoteDesktopPluginGrants?: string[]
-  /** Desktop follow-up behavior during an active turn; omitted defaults to steer. */
   followUpQueueMode?: FollowUpQueueMode
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
@@ -118,44 +116,26 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   /** Legacy local AppServer port settings retained only for reading older settings files. */
   webSocket?: WebSocketConnectionSettings
   remote?: RemoteConnectionSettings
-  /** Persisted Servers-surface connection target; tunnels are rebuilt from this on startup. */
   activeRemoteStack?: ActiveRemoteStackSettings
   activeRemoteProject?: ActiveRemoteProjectSettings
-  /** UI theme preference; omitted or invalid values are treated as light by the renderer. `system` follows the OS. */
   theme?: UiTheme
-  /** Custom accent color (`#rrggbb`); omitted uses the per-theme token default. */
   accent?: string
-  /** Per-variant background and contrast overrides; omitted uses the token defaults. */
   themeSeeds?: Record<ThemeVariant, ThemeSeedOverrides>
-  /** Code font size in px; omitted uses the token default. */
   codeFontSize?: number
-  /** Diff rendering style; omitted is treated as `color`. */
   diffMarkers?: DiffMarkerMode
-  /** Motion preference; omitted is treated as `system`. */
   reduceMotion?: ReduceMotionMode
-  /** Omitted defaults to true. */
   pointerCursors?: boolean
-  /** 1 = 100%; omitted defaults to 1. */
   interfaceZoom?: number
-  /** Omitted defaults to true. */
   translucentSidebar?: boolean
-  /** Omitted defaults to true. */
   welcomeBackdrop?: boolean
-  /** Display language (BCP 47); omitted or invalid values are treated as English */
   locale?: AppLocale
-  /** Renderer-only preference; omitted or invalid values are treated as true */
   showThinkingContent?: boolean
-  /** Omitted defaults to expanded. */
   projectsSectionCollapsed?: boolean
-  /** Omitted defaults to expanded. */
   pinnedSectionCollapsed?: boolean
-  /** Omitted defaults to expanded. */
   chatsSectionCollapsed?: boolean
-  /** Omitted keeps the conversation Summary pinned. */
   summaryHidden?: boolean
-  /** Omitted uses `Documents/DotCraft/Chats`. */
+  environmentSetupTipDismissed?: boolean
   chatsFolder?: string
-  /** Every custom Chats folder that has been in effect, so chats started there stay reachable. */
   chatsFolderHistory?: string[]
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
@@ -177,11 +157,9 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
   /** Bookmarked turn navigation entry ids (`<turnId>:<userItemId>`), keyed `<workspace>::<threadId>`. */
   turnBookmarksByThread?: Record<string, string[]>
-  /** Invitations this Desktop minted, so an arriving machine can be announced. */
   createdSatelliteInviteIds?: CreatedSatelliteInvite[]
   screenViewDockWidth?: number
   screenViewDockPosition?: { x: number; y: number }
-  /** Omitted while it equals the defaults. */
   pet?: PetSettings
 }
 
@@ -322,7 +300,6 @@ function normalizeAccentSetting(settings: AppSettings): string | undefined {
   return normalizeAccentHex(settings.accent) ?? undefined
 }
 
-/** Persist only the variants the user actually moved, so settings.json stays minimal. */
 function normalizeThemeSeedsSetting(settings: AppSettings): Record<ThemeVariant, ThemeSeedOverrides> | undefined {
   const seeds = normalizeThemeSeeds(settings.themeSeeds)
   const customized = Object.keys(seeds.dark).length > 0 || Object.keys(seeds.light).length > 0
@@ -333,7 +310,6 @@ function normalizeCodeFontSizeSetting(settings: AppSettings): number | undefined
   return normalizeCodeFontSize(settings.codeFontSize) ?? undefined
 }
 
-/** Persist only the non-default value so settings.json stays minimal. */
 function normalizeDiffMarkersSetting(settings: AppSettings): DiffMarkerMode | undefined {
   return settings.diffMarkers === 'sign' ? 'sign' : undefined
 }
@@ -375,6 +351,10 @@ function normalizeChatsSectionCollapsed(settings: AppSettings): boolean | undefi
 
 function normalizeSummaryHidden(settings: AppSettings): boolean | undefined {
   return settings.summaryHidden === true ? true : undefined
+}
+
+function normalizeEnvironmentSetupTipDismissed(settings: AppSettings): boolean | undefined {
+  return settings.environmentSetupTipDismissed === true ? true : undefined
 }
 
 function normalizeSidebarThreadOrderSettings(settings: AppSettings): void {
@@ -438,7 +418,6 @@ export function normalizeSatelliteRouteByThread(
   }
   if (entries.length === 0) return undefined
 
-  // Newest choices win when the map is over the cap.
   entries.sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
   return Object.fromEntries(entries.slice(0, SATELLITE_ROUTE_MAX_ENTRIES))
 }
@@ -559,7 +538,6 @@ export function normalizePinnedProjectIds(settings: AppSettings): string[] | und
   return normalized.length > 0 ? normalized : undefined
 }
 
-/** The primary folder is the Project identity and is never a member of this list. */
 function sanitizeSecondaryFolders(folders: unknown, primaryPath: string): string[] {
   if (!Array.isArray(folders)) return []
   const primaryKey = normalizeWorkspaceProjectKey(primaryPath)
@@ -624,6 +602,7 @@ export function loadSettings(): AppSettings {
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
       raw.summaryHidden = normalizeSummaryHidden(raw)
+      raw.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(raw)
       raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
       raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
@@ -659,7 +638,6 @@ export function loadSettings(): AppSettings {
       return raw
     }
   } catch {
-    // Ignore corrupt settings
   }
   return { locale: systemLocale }
 }
@@ -688,6 +666,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
     settings.summaryHidden = normalizeSummaryHidden(settings)
+    settings.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(settings)
     settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
     settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)
@@ -717,7 +696,6 @@ export function saveSettings(settings: AppSettings): void {
     settings.activeRemoteProject = normalizeActiveRemoteProject(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
-    // Non-fatal
   }
 }
 
@@ -725,12 +703,7 @@ export function getLocalProjectDetails(settings: AppSettings, path: string): Loc
   return settings.localProjectDetails?.[normalizeWorkspaceProjectKey(path)]
 }
 
-/**
- * A `previousPath` whose identity differs from `primaryFolder` moves the Project's
- * details and pinned, ordered, and collapsed state to the new key, while
- * `pinnedThreadIdsByWorkspace` is left alone because existing threads keep their
- * original workspace. Returns the normalized primary folder.
- */
+/** `pinnedThreadIdsByWorkspace` stays under the previous key because existing threads keep their original workspace. */
 export function saveLocalProjectDetails(
   settings: AppSettings,
   params: {

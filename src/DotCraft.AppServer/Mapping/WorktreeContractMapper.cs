@@ -92,6 +92,7 @@ internal static class WorktreeContractMapper
         Head = value.Head,
         OwnerKind = OmitIfNull(value.OwnerKind),
         OwnerId = OmitIfNull(value.OwnerId),
+        EnvironmentPath = OmitIfNull(value.EnvironmentPath),
         CreatedAt = value.CreatedAt,
         DirtyHandoff = value.DirtyHandoff is null
             ? default
@@ -106,6 +107,13 @@ internal static class WorktreeContractMapper
         CopiedFileCount = value.CopiedFileCount,
         DeletedFileCount = value.DeletedFileCount,
         TargetStashed = value.TargetStashed
+    };
+
+    public static Contract.WorktreeSetupResult ToContract(Domain.WorktreeSetupResult value) => new()
+    {
+        Status = value.Status,
+        ExitCode = value.ExitCode is { } exitCode ? new Protocol.Optional<int>(exitCode) : default,
+        OutputTail = value.OutputTail
     };
 
     public static Contract.ThreadWorktreeStatus ToContract(Domain.ThreadWorktreeStatus value) => new()

@@ -2,7 +2,9 @@ import { ipcMain, webContents, type IpcMainInvokeEvent } from 'electron'
 import type {
   AddProjectActionRequest,
   ProjectActionPreferences,
-  ProjectActionRunRequest
+  ProjectActionRunRequest,
+  ProjectSetupRunRequest,
+  WriteEnvironmentRequest
 } from '../../shared/projectActions'
 import { ProjectActionsService } from './service'
 
@@ -13,8 +15,14 @@ const CHANNELS = [
   'project-actions:subscribe',
   'project-actions:unsubscribe',
   'project-actions:select',
+  'project-actions:list-worktree-environments',
+  'project-actions:select-worktree-environment',
   'project-actions:prepare-run',
-  'project-actions:add'
+  'project-actions:prepare-setup',
+  'project-actions:add',
+  'project-actions:list-project-environments',
+  'project-actions:read-environment',
+  'project-actions:write-environment'
 ] as const
 
 interface ProjectActionsIpcDeps {
@@ -61,11 +69,23 @@ export function registerProjectActionsHandlers(deps: ProjectActionsIpcDeps): voi
   handleSafe('project-actions:unsubscribe', (event, workspacePath: string) => {
     service.unsubscribe(event.sender.id, workspacePath)
   })
-  handleSafe('project-actions:select', (_event, params: { workspacePath: string; environmentId: string }) =>
+  handleSafe('project-actions:select', (_event, params: { workspacePath: string; environmentId: string | null }) =>
     service.select(params?.workspacePath, params?.environmentId))
+  handleSafe('project-actions:list-worktree-environments', (_event, workspacePath: string) =>
+    service.listWorktreeEnvironments(workspacePath))
+  handleSafe('project-actions:select-worktree-environment', (_event, params: { workspacePath: string; environmentId: string | null }) =>
+    service.selectWorktreeEnvironment(params?.workspacePath, params?.environmentId))
   handleSafe('project-actions:prepare-run', (_event, request: ProjectActionRunRequest) =>
     service.prepareRun(request))
+  handleSafe('project-actions:prepare-setup', (_event, request: ProjectSetupRunRequest) =>
+    service.prepareSetup(request))
   handleSafe('project-actions:add', (_event, request: AddProjectActionRequest) => service.add(request))
+  handleSafe('project-actions:list-project-environments', (_event, projectPath: string) =>
+    service.listProjectEnvironments(projectPath))
+  handleSafe('project-actions:read-environment', (_event, params: { projectPath: string; path: string }) =>
+    service.readEnvironment(params))
+  handleSafe('project-actions:write-environment', (_event, request: WriteEnvironmentRequest) =>
+    service.writeEnvironment(request))
 }
 
 export function unregisterProjectActionsHandlers(): void {

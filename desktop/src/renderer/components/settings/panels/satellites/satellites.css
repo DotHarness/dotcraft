@@ -1,6 +1,3 @@
-/* Satellites and Share this PC. Row geometry comes from connectionsStyles; only
-   presentation that needs a selector lives here. */
-
 .dc-satellite-row {
   font-family: inherit;
 }
@@ -53,8 +50,6 @@
   flex-shrink: 0;
   color: var(--text-dimmed);
 }
-
-/* Detail */
 
 .dc-satellite-detail {
   display: flex;
@@ -158,32 +153,6 @@
   color: var(--text-dimmed);
 }
 
-/* Invite dialog */
-
-.dc-satellite-invite-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--overlay-scrim);
-}
-
-/* Portals outside the settings surface, so it keeps the standard control band. */
-.dc-satellite-invite-dialog {
-  box-sizing: border-box;
-  width: 460px;
-  max-width: 100%;
-  max-height: 100%;
-  overflow-y: auto;
-  padding: 24px;
-  border-radius: 12px;
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-level-3);
-}
-
 .dc-satellite-field__label {
   color: var(--text-primary);
   font-size: var(--type-ui-size);
@@ -196,7 +165,6 @@
   min-width: 0;
   flex-direction: column;
   gap: 6px;
-  margin-bottom: 20px;
 }
 
 .dc-satellite-invite-note {
@@ -207,11 +175,6 @@
   color: var(--text-secondary);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
-}
-
-
-.dc-satellite-invite-banner {
-  margin-bottom: 16px;
 }
 
 .dc-satellite-invite-banner__glyph {
@@ -233,15 +196,6 @@
   color: var(--text-secondary);
   font-size: 12px;
 }
-
-.dc-satellite-invite-foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Share this PC */
 
 .dc-share-row__text {
   display: flex;

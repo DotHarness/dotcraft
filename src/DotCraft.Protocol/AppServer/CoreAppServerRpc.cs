@@ -272,7 +272,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadUnsubscribeParams, global::DotCraft.Protocol.RpcEmpty> ThreadUnsubscribe = new("thread/unsubscribe", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<ThreadWorktreeHandoffParams, ThreadWorktreeHandoffResponse> ThreadWorktreeHandoff = new("thread/worktree/handoff", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
+    public static readonly RpcRequest<ThreadWorktreeHandoffParams, ThreadWorktreeHandoffResponse> ThreadWorktreeHandoff = new("thread/worktree/handoff", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: WorktreeHandoffErrors);
 
     public static readonly RpcRequest<ToolListParams, ToolListResult> ToolList = new("tool/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
@@ -306,9 +306,9 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<WorkspaceCommitMessageSuggestParams, WorkspaceCommitMessageSuggestResult> WorkspaceCommitMessageSuggest = new("workspace/commitMessage/suggest", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
-    public static readonly RpcRequest<WorktreeCreateAndForkParams, WorktreeCreateAndForkResult> WorktreeCreateAndFork = new("worktree/createAndFork", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
+    public static readonly RpcRequest<WorktreeCreateAndForkParams, WorktreeCreateAndForkResult> WorktreeCreateAndFork = new("worktree/createAndFork", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: WorktreeEnvironmentErrors);
 
-    public static readonly RpcRequest<WorktreeCreateAndStartParams, WorktreeCreateAndStartResult> WorktreeCreateAndStart = new("worktree/createAndStart", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
+    public static readonly RpcRequest<WorktreeCreateAndStartParams, WorktreeCreateAndStartResult> WorktreeCreateAndStart = new("worktree/createAndStart", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: WorktreeEnvironmentErrors);
 
     public static readonly RpcRequest<WorktreeListParams, WorktreeListResult> WorktreeList = new("worktree/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
@@ -316,6 +316,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<ThreadWorktreeHandoffProgressNotification> ThreadWorktreeHandoffProgress = new("thread/worktree/handoffProgress", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "gitWorktrees");
 
-    public static readonly RpcRequest<WorktreeRemoveParams, WorktreeRemoveResult> WorktreeRemove = new("worktree/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
+    public static readonly RpcRequest<WorktreeRemoveParams, WorktreeRemoveResult> WorktreeRemove = new("worktree/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: WorktreeEnvironmentErrors);
 
 }

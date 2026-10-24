@@ -25,12 +25,16 @@ function contains(parent: string, child: string): boolean {
   return path === '' || (!path.startsWith('..') && !isAbsolute(path))
 }
 
-/** A terminal may start in the workspace, a folder inside it, a parent that holds its project actions, or a chat's folder. */
 export function isTerminalCwdAllowed(workspacePath: string, cwd: string): boolean {
   if (!workspacePath || typeof cwd !== 'string' || !isAbsolute(cwd)) return false
   const workspace = resolve(workspacePath)
   const target = resolve(cwd)
   return contains(workspace, target) || contains(target, workspace) || chatFolderFor(workspacePath, cwd) !== null
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.values(value).every((entry) => typeof entry === 'string')
 }
 
 function windowOf(event: IpcMainInvokeEvent): BrowserWindow | null {
@@ -64,6 +68,7 @@ export function registerViewerTerminalHandlers(deps: ViewerTerminalIpcDeps): voi
     viewerTerminalManager.createTab(spawnWindow(event, params), params))
   handleSafe('viewer:terminal:restart', (event, params: TerminalSpawnParams & { command: string }) => {
     if (typeof params?.command !== 'string' || !params.command.trim()) throw new Error('A command is required')
+    if (params.env !== undefined && !isStringRecord(params.env)) throw new Error('Environment variables must be strings')
     return viewerTerminalManager.restartTab(spawnWindow(event, params), params)
   })
   handleSafe('viewer:terminal:attach', (event, params: { tabId: string }) => {

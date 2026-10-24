@@ -81,10 +81,6 @@ internal sealed class ThreadMaintenanceRegistration(
     }
 }
 
-/// <summary>
-/// Session Core implementation. Manages Thread/Turn/Item lifecycle, orchestrates agent
-/// execution, emits the structured event stream, and delegates persistence to SessionPersistenceService.
-/// </summary>
 public sealed partial class SessionService(
     AgentFactory agentFactory,
     ChatClientAgent? defaultAgent,
@@ -124,10 +120,8 @@ public sealed partial class SessionService(
         public int ReferenceCount { get; set; }
     }
 
-    /// <inheritdoc />
     public event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
 
-    // In-memory state
     private readonly ThreadManager _runtimeRegistry = new();
     private readonly Lock _threadLoadGatesLock = new();
     private readonly Dictionary<string, ThreadLoadGate> _threadLoadGates = new(StringComparer.Ordinal);
@@ -256,10 +250,8 @@ public sealed partial class SessionService(
     }
 
     /// <summary>
-    /// Prefers the parent's last sampled request over its loaded model history. The snapshot is the
-    /// exact message list the parent sent for the request that spawned this child, so inherited
-    /// leading items keep the byte shape the provider already cached. The loaded history is a
-    /// fallback: it lags by the in-flight turn and omits request-time context rendering.
+    /// Prefers the parent's last sampled request so inherited leading items keep the byte shape the
+    /// provider already cached. The loaded history lags by the in-flight turn and omits request-time context rendering.
     /// </summary>
     private IReadOnlyList<ChatMessage> ResolveParentForkSource(
         string parentThreadId,
@@ -366,28 +358,20 @@ public sealed partial class SessionService(
         return new GoalBroadcastSuppression(previous);
     }
 
-    /// <inheritdoc />
     public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<string>? ThreadDeletedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<SessionThread>? ThreadUpdatedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<ThreadGoal, string?>? ThreadGoalUpdatedForBroadcast { get; set; }
 
-    /// <inheritdoc />
     public Action<string>? ThreadGoalClearedForBroadcast { get; set; }
 
     private void PublishGoalUpdated(ThreadGoal goal, string? turnId)
@@ -407,10 +391,6 @@ public sealed partial class SessionService(
         public void Dispose() => SuppressGoalBroadcastContext.Value = previous;
     }
 
-    /// <summary>
-    /// Optional hook invoked after a session-backed SubAgent edge is created or changes status.
-    /// Hosts broadcast <c>subagent/graph/changed</c> so clients can refresh child thread metadata.
-    /// </summary>
     public Action<string, string>? SubAgentGraphChangedForBroadcast { get; set; }
 
     private ApprovalPolicy ResolveApprovalPolicy(ApprovalPolicy threadPolicy)
@@ -421,7 +401,6 @@ public sealed partial class SessionService(
         return _appConfigMonitor?.Current.Permissions.DefaultApprovalPolicy ?? ApprovalPolicy.Default;
     }
 
-    /// <inheritdoc />
     private Task RecordGoalUsageAsync(
         TurnKey turnKey,
         TokenUsageInfo latestTurnUsage,
@@ -461,11 +440,6 @@ public sealed partial class SessionService(
         return normalized;
     }
 
-    // =========================================================================
-    // Thread lifecycle
-    // =========================================================================
-
-    /// <inheritdoc/>
     public async Task<SessionThread> CreateThreadAsync(
         SessionIdentity identity,
         ThreadConfiguration? config = null,
@@ -477,103 +451,87 @@ public sealed partial class SessionService(
         bool ephemeral = false)
         => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source, ephemeral);
 
-    /// <inheritdoc/>
     public bool IsHiddenThread(string threadId) =>
         _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
 
-    /// <inheritdoc/>
     public SessionThread? TryGetLoadedThread(string threadId) =>
         _runtimeRegistry.TryGetThread(threadId, out var thread) ? thread : null;
 
-    /// <inheritdoc/>
     public async Task<SessionThread> ForkThreadAsync(
         string threadId,
         ThreadForkOptions? options = null,
         CancellationToken ct = default)
         => await ThreadCreation.ForkAsync(threadId, options, ct);
 
-    /// <inheritdoc/>
     public async Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(
         WorktreeCreateAndForkOptions options,
         CancellationToken ct = default) =>
-        await Worktrees.CreateAndForkAsync(options, ct);
+        await WorktreeCreation.CreateAndForkAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task<WorktreeCreateAndStartResult> CreateWorktreeAndStartAsync(
         WorktreeCreateAndStartOptions options,
         CancellationToken ct = default) =>
-        await Worktrees.CreateAndStartAsync(options, ct);
+        await WorktreeCreation.CreateAndStartAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task<WorktreeHandoffResult> HandoffThreadWorktreeAsync(
         WorktreeHandoffOptions options,
         CancellationToken ct = default) =>
         await Worktrees.HandoffAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task<WorktreeEnsureResult> EnsureManagedWorktreeAsync(
         WorktreeEnsureOptions options,
         CancellationToken ct = default) =>
         await Worktrees.EnsureAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task<SessionThread> ConfigureThreadExecutionWorkspaceAsync(
         ThreadExecutionWorkspaceOptions options,
         CancellationToken ct = default) =>
         await Worktrees.ConfigureExecutionWorkspaceAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task RemoveManagedWorktreeAsync(
         WorktreeRemoveOptions options,
         CancellationToken ct = default) =>
         await Worktrees.RemoveAsync(options, ct);
 
-    /// <inheritdoc/>
     public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default) =>
         await Worktrees.ListAsync(ct);
 
-    /// <inheritdoc/>
-    public async Task RemoveWorktreeAsync(string path, bool discardChanges, CancellationToken ct = default) =>
-        await Worktrees.RemoveByPathAsync(path, discardChanges, ct);
+    public async Task RemoveWorktreeAsync(
+        string path,
+        bool discardChanges,
+        bool skipCleanup = false,
+        CancellationToken ct = default) =>
+        await Worktrees.RemoveByPathAsync(path, discardChanges, skipCleanup, ct);
 
-    /// <inheritdoc/>
     public async Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
         string threadId,
         CancellationToken ct = default) =>
         await Worktrees.GetStatusAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public async Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadLifecycle.ResumeAsync(threadId, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
         => await Goals.GetAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public async Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default)
         => await Goals.GetStoredAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path)
         => Persistence.VisualizationWidgetStates.Load(NormalizeRequiredThreadId(threadId), path);
 
-    /// <inheritdoc/>
     public void SetVisualizationWidgetState(string threadId, string path, VisualizationWidgetState state)
         => Persistence.VisualizationWidgetStates.Save(NormalizeRequiredThreadId(threadId), path, state);
 
-    /// <inheritdoc/>
     public IReadOnlyList<GenerativeUiBlockState> GetGenerativeUiStates(string threadId)
         => Persistence.GenerativeUiStates.Load(NormalizeRequiredThreadId(threadId));
 
-    /// <inheritdoc/>
     public void SetGenerativeUiState(string threadId, string turnId, string itemId, int blockIndex, string? stateJson)
         => Persistence.GenerativeUiStates.Save(NormalizeRequiredThreadId(threadId), turnId, itemId, blockIndex, stateJson);
 
-    /// <inheritdoc/>
     public async Task<ThreadGoal> SetThreadGoalAsync(
         string threadId,
         ThreadGoalUpdate update,
@@ -590,14 +548,12 @@ public sealed partial class SessionService(
         return goal;
     }
 
-    /// <inheritdoc/>
     public async Task<ThreadGoalClearResult> ClearThreadGoalAsync(string threadId, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => Goals.ClearAsync(threadId, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
         await InvokeThreadCommandAsync(
@@ -608,14 +564,12 @@ public sealed partial class SessionService(
         await DeleteSideChatsAsync(threadId, ct);
     }
 
-    /// <inheritdoc/>
     public async Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadLifecycle.UnarchiveAsync(threadId, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)
     {
         var deleteOrder = await InvokeThreadCommandAsync(
@@ -628,7 +582,6 @@ public sealed partial class SessionService(
         await DeleteSideChatsAsync(threadId, ct);
     }
 
-    /// <inheritdoc/>
     public async Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
         SessionIdentity identity,
         bool includeArchived = false,
@@ -768,24 +721,20 @@ public sealed partial class SessionService(
         };
     }
 
-    /// <inheritdoc/>
     public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
         string threadId,
         bool replayRecent = false,
         CancellationToken ct = default)
         => ThreadAccess.Subscribe(threadId, replayRecent, ct);
 
-    /// <inheritdoc/>
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await ThreadAccess.GetThreadAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
         string threadId,
         CancellationToken ct = default) =>
         ThreadAccess.ReadThreadSnapshotAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
         string threadId,
         ThreadHistoryCursor? cursor,
@@ -794,7 +743,6 @@ public sealed partial class SessionService(
         CancellationToken ct = default) =>
         ThreadAccess.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
 
-    /// <inheritdoc/>
     public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
         string threadId,
         string? turnId,
@@ -804,15 +752,9 @@ public sealed partial class SessionService(
         CancellationToken ct = default) =>
         ThreadAccess.ListThreadItemsAsync(threadId, turnId, cursor, limit, direction, ct);
 
-    /// <inheritdoc/>
     public async Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default)
         => await ThreadAccess.EnsureThreadLoadedAsync(threadId, ct);
 
-    // =========================================================================
-    // Turn orchestration
-    // =========================================================================
-
-    /// <inheritdoc/>
     public Task ResolveApprovalAsync(
         string threadId,
         string turnId,
@@ -825,7 +767,6 @@ public sealed partial class SessionService(
                 ct)
             : Task.CompletedTask;
 
-    /// <inheritdoc/>
     public Task ResolveUserInputRequestAsync(
         string threadId,
         string turnId,
@@ -838,14 +779,12 @@ public sealed partial class SessionService(
                 ct)
             : Task.CompletedTask;
 
-    /// <inheritdoc/>
     public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default)
         => InvokeThreadCommandAsync(
             threadId,
             _ => TurnControl.CancelTurn(threadId, turnId),
             ct);
 
-    /// <inheritdoc/>
     public Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default)
         => _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
             ? runtime.Commands.InvokeAsync(
@@ -853,11 +792,9 @@ public sealed partial class SessionService(
                 ct)
             : Task.CompletedTask;
 
-    /// <inheritdoc/>
     public async Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default)
         => await TurnControl.CleanBackgroundTerminalsAsync(threadId, ct);
 
-    /// <inheritdoc/>
     public async Task<QueuedTurnInput> EnqueueTurnInputAsync(
         string threadId,
         IList<AIContent> content,
@@ -873,7 +810,6 @@ public sealed partial class SessionService(
             ct);
     }
 
-    /// <inheritdoc/>
     public async Task<string> SteerTurnAsync(
         string threadId,
         string expectedTurnId,
@@ -896,7 +832,6 @@ public sealed partial class SessionService(
             ct);
     }
 
-    /// <inheritdoc/>
     public async Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
         string threadId,
         string queuedInputId,
@@ -910,7 +845,6 @@ public sealed partial class SessionService(
         return result;
     }
 
-    /// <inheritdoc/>
     public async Task<IReadOnlyList<QueuedTurnInput>> ReorderQueuedTurnInputsAsync(
         string threadId,
         IReadOnlyList<string> orderedQueuedInputIds,
@@ -923,7 +857,6 @@ public sealed partial class SessionService(
             ct);
     }
 
-    /// <inheritdoc/>
     public async Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
         string queuedInputId,
@@ -935,7 +868,6 @@ public sealed partial class SessionService(
             commandCt => ThreadQueue.UpdateAsync(threadId, queuedInputId, expectedTurnId, status, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
@@ -977,7 +909,6 @@ public sealed partial class SessionService(
         return thread;
     }
 
-    /// <inheritdoc/>
     public async Task<ThreadCompactResult> CompactThreadAsync(string threadId, CancellationToken ct = default)
     {
         var work = await InvokeThreadCommandAsync(
@@ -987,18 +918,12 @@ public sealed partial class SessionService(
         return await work.ConfigureAwait(false);
     }
 
-    // =========================================================================
-    // Configuration
-    // =========================================================================
-
-    /// <inheritdoc/>
     public async Task SetThreadModeAsync(string threadId, string mode, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadConfig.SetModeAsync(threadId, mode, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task UpdateThreadConfigurationAsync(
         string threadId,
         ThreadConfiguration config,
@@ -1011,7 +936,6 @@ public sealed partial class SessionService(
             ct);
     }
 
-    /// <inheritdoc/>
     public async Task<SessionThread> UpdateThreadWorkspaceAsync(
         string threadId,
         string? cwd,
@@ -1029,7 +953,6 @@ public sealed partial class SessionService(
             ct);
     }
 
-    /// <inheritdoc/>
     public async Task<SessionThread> UpdateThreadSourceControlTargetAsync(
         string threadId,
         ThreadSourceControlTarget? target,
@@ -1066,14 +989,12 @@ public sealed partial class SessionService(
         }
     }
 
-    /// <inheritdoc />
     public async Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadConfig.RefreshAgentAsync(threadId, commandCt),
             ct);
 
-    /// <inheritdoc />
     public async Task<ToolExecutionResult> DispatchThreadToolAsync(
         string threadId,
         ToolName toolName,
@@ -1105,7 +1026,6 @@ public sealed partial class SessionService(
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
     public async Task<EffectiveToolSnapshot> GetEffectiveToolSnapshotAsync(
         string threadId,
         CancellationToken cancellationToken = default)
@@ -1135,7 +1055,6 @@ public sealed partial class SessionService(
             ?? throw new InvalidOperationException($"Thread '{threadId}' has no effective tool snapshot.");
     }
 
-    /// <inheritdoc />
     public async Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
         CancellationToken cancellationToken = default)
@@ -1157,7 +1076,6 @@ public sealed partial class SessionService(
         return runtime.McpManager ?? agentFactory.RuntimeContext.McpClientManager;
     }
 
-    /// <inheritdoc />
     public async Task SetBindingMcpServersAsync(
         string threadId,
         string bindingId,
@@ -1242,20 +1160,14 @@ public sealed partial class SessionService(
         thread.Turns.Any(turn => turn.Status is
             TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
 
-    /// <inheritdoc />
     public void InvalidateThreadAgents()
         => ThreadConfig.InvalidateAgents();
 
-    /// <inheritdoc/>
     public async Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
             commandCt => ThreadLifecycle.RenameAsync(threadId, displayName, commandCt),
             ct);
-
-    // =========================================================================
-    // Private helpers
-    // =========================================================================
 
     private CompactionPipeline GetCompactionPipelineForThread(string threadId) =>
         Maintenance.GetCompactionPipelineForThread(threadId);
@@ -1507,7 +1419,6 @@ public sealed partial class SessionService(
         }
     }
 
-    /// <inheritdoc/>
     public Task<string> StartQueuedTurnAsync(
         string threadId,
         string? queuedInputId = null,
@@ -1518,7 +1429,6 @@ public sealed partial class SessionService(
             commandCt => ThreadQueue.StartQueuedAsync(threadId, queuedInputId, observe, commandCt),
             ct);
 
-    /// <inheritdoc/>
     public async Task TryStartNextQueuedTurnAsync(string threadId, CancellationToken ct = default)
         => await InvokeThreadCommandAsync(
             threadId,
@@ -1570,9 +1480,7 @@ public sealed partial class SessionService(
     }
 
     /// <summary>
-    /// Records the wall-clock duration of a completed Turn into the trace store, feeding
-    /// the workspace "longest task" aggregate (spec §27A.5). Keyed by the thread's main
-    /// trace session (threadId), matching how token-usage trace events are recorded.
+    /// Keyed by the thread's main trace session (threadId), matching how token-usage trace events are recorded.
     /// </summary>
     private void RecordTurnDurationTrace(string threadId, SessionTurn turn)
     {
@@ -1591,10 +1499,6 @@ public sealed partial class SessionService(
 
     private ThreadEventBroker GetOrCreateBroker(string threadId) => _runtimeRegistry.GetBroker(threadId);
 
-    /// <summary>
-    /// Returns or creates an <see cref="AgentModeManager"/> for the given thread,
-    /// ensuring the mode manager reflects the requested <paramref name="mode"/>.
-    /// </summary>
     private AgentModeManager GetOrCreateModeManager(string threadId, AgentMode mode)
     {
         var runtime = _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)

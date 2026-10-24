@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.2 |
+| Version | 0.9.3 |
 | Status | Living |
-| Date | 2026-10-20 |
+| Date | 2026-10-24 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -360,15 +360,19 @@ interface DesktopPluginSubAgent {
 - `list(workspacePath)` returns the workspace's environments in discovery order — each with its
   `id`, `name`, file `path`, whether it is the default, an `error` when it needs attention, and its
   actions `{ id, name, icon, command }` for this platform, most recently run first — plus the
-  selected environment id.
+  selected environment id (`null` for No environment or when there are none).
 - `onChange(workspacePath, listener)` delivers the same result when an environment file, the
   selection, or the run order changes.
-- `select(workspacePath, environmentId)` changes the selected environment.
-- `run({ threadId, environmentId, actionId })` runs an action in the conversation's terminal.
+- `select(workspacePath, environmentId | null)` changes the selected environment; `null` selects No
+  environment.
+- `run({ threadId, environmentId, actionId })` runs an action in the conversation's terminal, in
+  the environment root inside the thread's execution workspace.
 - `openTerminal({ threadId })` opens a terminal tab at the workspace root.
-- `promptAddAction({ workspacePath, environmentId? })` opens the Host's add-action dialog and
-  resolves to `{ environmentId, action }`, or `null` when cancelled or when the action does not run
-  on this platform.
+- `promptAddAction({ workspacePath, environmentId? })` opens the Host's add-action dialog. Saving
+  makes the action the most recent one without running it. It resolves to `{ environmentId, action }`,
+  or `null` when cancelled or when the action does not run on this platform.
+- `openSettings({ workspacePath, environmentId? })` opens Settings › Worktrees › Environments at
+  that project, on the environment when given; Back returns to the caller.
 
 ### Host commands
 

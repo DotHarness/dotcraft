@@ -7,6 +7,9 @@ import { settingsDescriptionStyle } from '../../settingsTypography'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
+import { ScriptOutput } from '../../../worktreeCreation/ScriptOutput'
+import { removeAnyway, removeWorktree, type WorktreeRemovalOutcome } from './worktreeRemoval'
+import styles from './WorktreeSettingsGroup.module.css'
 
 interface WorktreeStatusWire {
   threadId?: string | null
@@ -31,6 +34,7 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
   const [worktrees, setWorktrees] = useState<WorktreeStatusWire[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
+  const [cleanupFailure, setCleanupFailure] = useState<Extract<WorktreeRemovalOutcome, { kind: 'cleanupFailed' }> | null>(null)
   const threads = useThreadStore((state) => state.threadList)
 
   useEffect(() => setPrefixDraft(savedPrefix), [savedPrefix])
@@ -70,19 +74,25 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
       if (!ok) return
     }
 
-    setRemovingPath(worktree.path)
-    try {
-      await window.api.appServer.sendRequest('worktree/remove', { path: worktree.path, discardChanges: hasWork })
+    await settleRemoval(worktree.path, () => removeWorktree(request, { path: worktree.path, discardChanges: hasWork }))
+  }
+
+  async function settleRemoval(path: string, run: () => Promise<WorktreeRemovalOutcome>): Promise<void> {
+    setRemovingPath(path)
+    setCleanupFailure(null)
+    const outcome = await run()
+    setRemovingPath(null)
+    if (outcome.kind === 'cleanupFailed') {
+      setCleanupFailure(outcome)
+    } else if (outcome.kind === 'failed') {
+      setLoadError(outcome.message)
+    } else {
       await reload()
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setRemovingPath(null)
     }
   }
 
   return (
-    <SettingsGroup title={t('settings.worktrees.title')}>
+    <SettingsGroup>
       <SettingsRow
         label={t('settings.worktrees.branchPrefix.label')}
         description={t('settings.worktrees.branchPrefix.description')}
@@ -113,7 +123,8 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
           worktree.hasUncommittedChanges ? t('settings.worktrees.uncommitted') : null,
           (worktree.aheadCount ?? 0) > 0 ? t('settings.worktrees.newCommits', { count: worktree.aheadCount ?? 0 }) : null
         ].filter(Boolean).join(' · ')
-        return (
+        const failure = cleanupFailure?.removal.path === worktree.path ? cleanupFailure : null
+        return [
           <SettingsRow
             key={worktree.path}
             label={worktree.branchName}
@@ -128,11 +139,36 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
                 {t('settings.worktrees.remove')}
               </Button>
             )}
-          />
-        )
+          />,
+          failure ? (
+            <SettingsRow
+              key={`${worktree.path}:cleanup`}
+              orientation="block"
+              label={t('settings.worktrees.cleanupFailed')}
+              description={failure.failure.exitCode === undefined
+                ? t('settings.worktrees.cleanupFailedDescription')
+                : t('settings.worktrees.cleanupExitCode', { code: failure.failure.exitCode })}
+              control={failure.failure.outputTail ? <ScriptOutput text={failure.failure.outputTail} /> : undefined}
+            >
+              <div className={styles.cleanupActions}>
+                <Button
+                  variant="danger"
+                  disabled={removingPath === worktree.path}
+                  onClick={() => { void settleRemoval(worktree.path, () => removeAnyway(request, failure)) }}
+                >
+                  {t('settings.worktrees.removeAnyway')}
+                </Button>
+              </div>
+            </SettingsRow>
+          ) : null
+        ]
       })}
     </SettingsGroup>
   )
+}
+
+function request(method: 'worktree/remove', params: { path: string; discardChanges: boolean; skipCleanup?: boolean }): Promise<unknown> {
+  return window.api.appServer.sendRequest(method, params)
 }
 
 const errorStyle: CSSProperties = {

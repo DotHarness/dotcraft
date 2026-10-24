@@ -40,6 +40,7 @@ import { registerDesktopPluginOpenUrlListener } from './desktopPluginOpenUrl'
 import {
   listDesktopPluginProjectActions,
   onDesktopPluginProjectActionsChange,
+  openDesktopPluginProjectSettings,
   openDesktopPluginProjectTerminal,
   promptDesktopPluginProjectAction,
   runDesktopPluginProjectAction,
@@ -170,6 +171,9 @@ export function createDesktopPluginHost(
       },
       promptAddAction(request) {
         return promptDesktopPluginProjectAction(request, (dismiss) => own(cleanups, dismiss))
+      },
+      openSettings(request) {
+        return openDesktopPluginProjectSettings({ workspacePath: request.workspacePath, environmentId: request.environmentId })
       }
     },
     navigation: {

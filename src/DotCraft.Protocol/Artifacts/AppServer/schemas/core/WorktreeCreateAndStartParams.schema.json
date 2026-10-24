@@ -78,6 +78,16 @@
         }
       ]
     },
+    "environmentPath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "historyMode": {
       "anyOf": [
         {
@@ -90,6 +100,16 @@
     },
     "identity": {
       "$ref": "./SessionIdentity.schema.json"
+    },
+    "operationId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "path": {
       "anyOf": [

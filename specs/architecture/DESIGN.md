@@ -505,6 +505,9 @@ Every expand/collapse toggle uses the shared disclosure chevron (`14px`, stroke
 for a row or section that opens in place (points right, turns `90deg`), reveal
 for content that opens below the control (points down, turns `180deg`). A chevron
 that is its own target sits in an icon button that exposes its expanded state.
+A labelled toggle that reveals more fields below it ("Advanced options") is the
+shared disclosure button: plain secondary text with a reveal chevron, no padding
+or fill, aligned with the field labels.
 
 ### Rail magnification
 
@@ -1049,6 +1052,16 @@ Dialogs with an identity icon share one header treatment:
   state. Enable/disable switches stay in the manage surface that owns them.
 
 The badge stays neutral unless the dialog's whole purpose is a semantic state.
+
+### Dialog layout
+
+Modal dialogs share one frame: the scrim, a neutral elevated frame, and a `24px`
+inset on every side. The header and footer stay fixed; only the body between them
+scrolls. The body reserves a stable gutter on both edges so its content keeps the
+same `24px` inset as the header and footer while the scrollbar sits in the frame's
+right inset, never against the content. A bounded list inside a dialog may scroll
+on its own; the frame itself never scrolls. Command palettes and media viewers are
+not dialogs and keep their own shells.
 
 ### Dialog actions
 

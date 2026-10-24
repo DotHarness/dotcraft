@@ -78,6 +78,16 @@
         }
       ]
     },
+    "environmentPath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "forkPoint": {
       "anyOf": [
         {
@@ -92,6 +102,16 @@
       "anyOf": [
         {
           "$ref": "./SessionIdentity.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "operationId": {
+      "anyOf": [
+        {
+          "type": "string"
         },
         {
           "type": "null"

@@ -23769,6 +23769,13 @@
           "const": null
         },
         {
+          "name": "environmentPath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "head",
           "type": "string",
           "required": false,
@@ -27670,6 +27677,24 @@
       "variants": []
     },
     {
+      "id": "core.WorktreeCancelCreateParams",
+      "name": "WorktreeCancelCreateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeCancelCreateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.WorktreeCreateAndForkParams",
       "name": "WorktreeCreateAndForkParams",
       "module": "core",
@@ -27727,6 +27752,13 @@
           "const": null
         },
         {
+          "name": "environmentPath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "forkPoint",
           "type": "core.ThreadForkPoint",
           "required": false,
@@ -27736,6 +27768,13 @@
         {
           "name": "identity",
           "type": "core.SessionIdentity",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "operationId",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
@@ -27765,6 +27804,13 @@
       "schema": "schemas/core/WorktreeCreateAndForkResult.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "setup",
+          "type": "core.WorktreeSetupResult",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
         {
           "name": "thread",
           "type": "core.SessionThread",
@@ -27840,6 +27886,13 @@
           "const": null
         },
         {
+          "name": "environmentPath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "historyMode",
           "type": "string",
           "required": false,
@@ -27851,6 +27904,13 @@
           "type": "core.SessionIdentity",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -27872,6 +27932,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "setup",
+          "type": "core.WorktreeSetupResult",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "thread",
           "type": "core.SessionThread",
           "required": false,
@@ -27882,6 +27949,38 @@
           "name": "worktree",
           "type": "core.ThreadWorktreeInfo",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeCreateProgressNotification",
+      "name": "WorktreeCreateProgressNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeCreateProgressNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "step",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -27937,6 +28036,13 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "skipCleanup",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -27949,6 +28055,149 @@
       "schema": "schemas/core/WorktreeRemoveResult.schema.json",
       "additionalProperties": true,
       "fields": [],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeRunSetupParams",
+      "name": "WorktreeRunSetupParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeRunSetupParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeRunSetupResult",
+      "name": "WorktreeRunSetupResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeRunSetupResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "setup",
+          "type": "core.WorktreeSetupResult",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeSetEnvironmentParams",
+      "name": "WorktreeSetEnvironmentParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeSetEnvironmentParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "environmentPath",
+          "type": "string",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeSetEnvironmentResult",
+      "name": "WorktreeSetEnvironmentResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeSetEnvironmentResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "worktree",
+          "type": "core.ThreadWorktreeInfo",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeSetupOutputNotification",
+      "name": "WorktreeSetupOutputNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeSetupOutputNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "delta",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeSetupResult",
+      "name": "WorktreeSetupResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeSetupResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "exitCode",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outputTail",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
       "variants": []
     },
     {
@@ -33202,7 +33451,12 @@
       "errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "WorktreeHandoffConflict",
+        "WorktreeInUse",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
@@ -33832,6 +34086,26 @@
       "stability": "stable"
     },
     {
+      "name": "worktree/cancelCreate",
+      "descriptorMember": "WorktreeCancelCreate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorktreeCancelCreateParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "worktree/createAndFork",
       "descriptorMember": "WorktreeCreateAndFork",
       "kind": "request",
@@ -33845,7 +34119,10 @@
       "errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
@@ -33865,8 +34142,27 @@
       "errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "worktree/createProgress",
+      "descriptorMember": "WorktreeCreateProgress",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.WorktreeCreateProgressNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
@@ -33905,8 +34201,73 @@
       "errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "worktree/runSetup",
+      "descriptorMember": "WorktreeRunSetup",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorktreeRunSetupParams",
+      "resultType": "core.WorktreeRunSetupResult",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "worktree/setEnvironment",
+      "descriptorMember": "WorktreeSetEnvironment",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorktreeSetEnvironmentParams",
+      "resultType": "core.WorktreeSetEnvironmentResult",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "worktree/setupOutput",
+      "descriptorMember": "WorktreeSetupOutput",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.WorktreeSetupOutputNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

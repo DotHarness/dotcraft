@@ -8,7 +8,8 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast, useToastStore } from '../../stores/toastStore'
-import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
+import { CommitDialog } from '../detail/CommitDialog'
+import { toRelativePath } from '../detail/diff/diffRows'
 import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
@@ -38,7 +39,6 @@ interface ThreadHeaderProps {
   pluginSurfaceContext?: DesktopPluginThreadSurfaceContext | null
 }
 
-/** Fixed header bar at the top of the conversation panel. Spec §10.2. */
 export function ThreadHeader({
   threadName,
   threadId,
@@ -170,10 +170,6 @@ export function ThreadHeader({
     void runThreadFork({ threadId, mode, t })
   }
 
-  /**
-   * Runs after the dialog closes: all feedback flows through toasts so the user is
-   * never held on the dialog. Spec §16.5.
-   */
   async function runCommit(message: string): Promise<void> {
     if (isPerforceWorkspace) {
       return

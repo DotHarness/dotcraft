@@ -19445,6 +19445,16 @@
             }
           ]
         },
+        "environmentPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "head": {
           "type": "string"
         },
@@ -22449,6 +22459,19 @@
       },
       "additionalProperties": true
     },
+    "WorktreeCancelCreateParams": {
+      "title": "WorktreeCancelCreateParams",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "operationId"
+      ]
+    },
     "WorktreeCreateAndForkParams": {
       "title": "WorktreeCreateAndForkParams",
       "type": "object",
@@ -22527,6 +22550,16 @@
             }
           ]
         },
+        "environmentPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "forkPoint": {
           "anyOf": [
             {
@@ -22541,6 +22574,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/SessionIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operationId": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -22567,6 +22610,9 @@
       "title": "WorktreeCreateAndForkResult",
       "type": "object",
       "properties": {
+        "setup": {
+          "$ref": "#/$defs/WorktreeSetupResult"
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
         },
@@ -22654,6 +22700,16 @@
             }
           ]
         },
+        "environmentPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "historyMode": {
           "anyOf": [
             {
@@ -22666,6 +22722,16 @@
         },
         "identity": {
           "$ref": "#/$defs/SessionIdentity"
+        },
+        "operationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "path": {
           "anyOf": [
@@ -22684,6 +22750,9 @@
       "title": "WorktreeCreateAndStartResult",
       "type": "object",
       "properties": {
+        "setup": {
+          "$ref": "#/$defs/WorktreeSetupResult"
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
         },
@@ -22692,6 +22761,27 @@
         }
       },
       "additionalProperties": true
+    },
+    "WorktreeCreateProgressNotification": {
+      "title": "WorktreeCreateProgressNotification",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "operationId",
+        "status",
+        "step"
+      ]
     },
     "WorktreeListParams": {
       "title": "WorktreeListParams",
@@ -22721,6 +22811,9 @@
         },
         "path": {
           "type": "string"
+        },
+        "skipCleanup": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -22730,6 +22823,109 @@
       "type": "object",
       "properties": {},
       "additionalProperties": true
+    },
+    "WorktreeRunSetupParams": {
+      "title": "WorktreeRunSetupParams",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "WorktreeRunSetupResult": {
+      "title": "WorktreeRunSetupResult",
+      "type": "object",
+      "properties": {
+        "setup": {
+          "$ref": "#/$defs/WorktreeSetupResult"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "setup"
+      ]
+    },
+    "WorktreeSetEnvironmentParams": {
+      "title": "WorktreeSetEnvironmentParams",
+      "type": "object",
+      "properties": {
+        "environmentPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "environmentPath",
+        "path"
+      ]
+    },
+    "WorktreeSetEnvironmentResult": {
+      "title": "WorktreeSetEnvironmentResult",
+      "type": "object",
+      "properties": {
+        "worktree": {
+          "$ref": "#/$defs/ThreadWorktreeInfo"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "worktree"
+      ]
+    },
+    "WorktreeSetupOutputNotification": {
+      "title": "WorktreeSetupOutputNotification",
+      "type": "object",
+      "properties": {
+        "delta": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "delta",
+        "operationId"
+      ]
+    },
+    "WorktreeSetupResult": {
+      "title": "WorktreeSetupResult",
+      "type": "object",
+      "properties": {
+        "exitCode": {
+          "type": "integer"
+        },
+        "outputTail": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "outputTail",
+        "status"
+      ]
     },
     "WorktreeStatusParams": {
       "title": "WorktreeStatusParams",

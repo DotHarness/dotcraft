@@ -1,78 +1,83 @@
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, join, resolve } from 'node:path'
-import {
-  isProjectActionIcon,
-  isProjectActionPlatform,
-  type ProjectActionDraft
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import type {
+  EnvironmentDocument,
+  ReadEnvironmentResult,
+  WriteEnvironmentResult
 } from '../../shared/projectActions'
-import { contentRevision, environmentsDirectory, type DiscoveredEnvironment } from './discovery'
-
-export type WriteProjectActionResult =
-  | { ok: true; path: string }
-  | { ok: false; reason: 'conflict' | 'failed' }
-
-function validDraft(draft: ProjectActionDraft): Record<string, string> | null {
-  const name = typeof draft?.name === 'string' ? draft.name.trim() : ''
-  const command = typeof draft?.command === 'string' ? draft.command.trim() : ''
-  if (!name || !command || !isProjectActionIcon(draft.icon)) return null
-  if (draft.platform !== undefined && !isProjectActionPlatform(draft.platform)) return null
-  return { name, icon: draft.icon, command, ...(draft.platform ? { platform: draft.platform } : {}) }
-}
-
-function serialize(document: Record<string, unknown>): string {
-  return `${JSON.stringify(document, null, 2)}\n`
-}
+import { contentRevision, DEFAULT_ENVIRONMENT_FILE, environmentFolders, environmentsDirectory } from './discovery'
+import { documentFromContent, serializeEnvironment } from './environmentDocument'
 
 function isErrorCode(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === code
 }
 
-export async function writeProjectAction(params: {
-  workspacePath: string
-  target: DiscoveredEnvironment | null
-  revision: string | null
-  draft: ProjectActionDraft
-}): Promise<WriteProjectActionResult> {
-  const action = validDraft(params.draft)
-  if (!action) return { ok: false, reason: 'failed' }
+export function environmentFilePath(projectPath: string, path: unknown): string | null {
+  if (typeof path !== 'string' || !isAbsolute(path)) return null
+  const resolved = resolve(path)
+  if (!basename(resolved).toLowerCase().endsWith('.json')) return null
+  const directory = dirname(resolved)
+  return environmentFolders(projectPath).some((folder) => environmentsDirectory(folder) === directory)
+    ? resolved
+    : null
+}
 
-  if (!params.target) {
-    if (params.revision !== null) return { ok: false, reason: 'conflict' }
-    const path = join(environmentsDirectory(resolve(params.workspacePath)), 'environment.json')
-    try {
-      await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, serialize({ version: 1, name: basename(resolve(params.workspacePath)), actions: [action] }), {
-        encoding: 'utf8',
-        flag: 'wx'
-      })
-      return { ok: true, path }
-    } catch (error) {
-      return { ok: false, reason: isErrorCode(error, 'EEXIST') ? 'conflict' : 'failed' }
-    }
-  }
+export function newEnvironmentPath(projectPath: string): string {
+  const directory = environmentsDirectory(projectPath)
+  let path = join(directory, DEFAULT_ENVIRONMENT_FILE)
+  for (let index = 2; existsSync(path); index++) path = join(directory, `environment-${index}.json`)
+  return path
+}
 
-  const path = params.target.path
-  let content: string
+async function readContent(path: string): Promise<string | null> {
   try {
-    content = await readFile(path, 'utf8')
+    return await readFile(path, 'utf8')
   } catch (error) {
-    return { ok: false, reason: isErrorCode(error, 'ENOENT') ? 'conflict' : 'failed' }
+    if (isErrorCode(error, 'ENOENT')) return null
+    throw error
   }
-  if (contentRevision(content) !== params.revision) return { ok: false, reason: 'conflict' }
+}
 
-  let document: unknown
+export async function readEnvironmentFile(path: string): Promise<ReadEnvironmentResult> {
+  let content: string | null
   try {
-    document = JSON.parse(content.replace(/^﻿/, ''))
+    content = await readContent(path)
   } catch {
     return { ok: false, reason: 'failed' }
   }
-  if (!document || typeof document !== 'object' || Array.isArray(document)) return { ok: false, reason: 'failed' }
-  const existing = (document as Record<string, unknown>).actions
-  if (existing !== undefined && !Array.isArray(existing)) return { ok: false, reason: 'failed' }
+  if (content === null) return { ok: true, path, revision: null, document: null }
+  const revision = contentRevision(content)
+  const parsed = documentFromContent(content)
+  return 'error' in parsed
+    ? { ok: true, path, revision, document: null, error: parsed.error }
+    : { ok: true, path, revision, document: parsed.document }
+}
+
+export async function writeEnvironmentFile(
+  path: string,
+  revision: string | null,
+  document: EnvironmentDocument
+): Promise<WriteEnvironmentResult> {
+  let existing: string | null
   try {
-    await writeFile(path, serialize({ ...document, actions: [...(existing ?? []), action] }), 'utf8')
-    return { ok: true, path }
+    existing = await readContent(path)
   } catch {
     return { ok: false, reason: 'failed' }
+  }
+  if (existing === null ? revision !== null : revision !== contentRevision(existing)) {
+    return { ok: false, reason: 'conflict' }
+  }
+  const content = serializeEnvironment(existing, document)
+  try {
+    if (existing === null) {
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, content, { encoding: 'utf8', flag: 'wx' })
+    } else if (content !== existing) {
+      await writeFile(path, content, 'utf8')
+    }
+    return { ok: true, path, revision: contentRevision(content) }
+  } catch (error) {
+    return { ok: false, reason: isErrorCode(error, 'EEXIST') ? 'conflict' : 'failed' }
   }
 }

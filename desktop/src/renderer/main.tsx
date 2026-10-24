@@ -13,6 +13,7 @@ import { HighlightProvider } from './highlight/react/HighlightProvider'
 import { CdpDebugIndicator } from './components/layout/CdpDebugIndicator'
 import { ColorPickerDialogHost } from './components/ui/ColorPickerDialog'
 import { AddProjectActionDialogHost } from './components/projectActions/AddProjectActionDialog'
+import { SetUpProjectDialogHost } from './components/projectActions/SetUpProjectDialog'
 import { SelectMenuHost } from './components/ui/SelectMenu'
 import './styles/index.css'
 import { observeDesktopPetOwnership } from './components/desktopPet/desktopPetOwnership'
@@ -33,8 +34,6 @@ const initialAppearance = window.api?.initialAppearance
 applyThemeSeeds(initialAppearance?.accent ?? null, initialAppearance?.themeSeeds)
 applyTheme(initialTheme, { syncTitleBarOverlay: !isPetWindow })
 
-// Apply the remaining (non-theme) appearance preferences once settings load. Defaults are
-// no-ops, so only users who customized see a one-tick adjustment after first paint.
 void window.api?.settings
   ?.get?.()
   .then((settings) => {
@@ -43,7 +42,6 @@ void window.api?.settings
     useUIStore.getState().setDiffMarkers(appearance.diffMarkers)
   })
   .catch(() => {
-    // Non-fatal: fall back to token defaults.
   })
 
 const rootElement = document.getElementById('root')
@@ -76,6 +74,7 @@ createRoot(rootElement).render(
         </div>
         <ColorPickerDialogHost />
         <AddProjectActionDialogHost />
+        <SetUpProjectDialogHost />
         <SelectMenuHost />
         </>}
       </HighlightProvider>

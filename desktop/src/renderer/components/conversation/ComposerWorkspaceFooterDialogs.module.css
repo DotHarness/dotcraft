@@ -1,0 +1,21 @@
+.field {
+  display: grid;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field .input {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  font: inherit;
+}
+
+.field .textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 10px 12px;
+}

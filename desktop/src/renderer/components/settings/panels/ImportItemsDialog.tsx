@@ -1,15 +1,13 @@
 import { useId, useRef, useState, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import type { ImportCandidate, ImportSelection, ImportItemReference } from '@dotcraft/sdk/contracts'
 
-import { LayerBoundary } from '../../../contexts/LayerContext'
 import { useT } from '../../../contexts/LocaleContext'
 import { Button } from '../../ui/Button'
+import { ModalDialog, ModalFooter } from '../../ui/ModalDialog'
 import { ModalHeader } from '../../ui/ModalHeader'
 import { ImportSourceIcon } from './ImportSourceIcon'
 import { ImportSelectionRows, importItemKey, selectionFor } from './ImportSelectionRows'
 import { importable } from './importPresentation'
-import styles from './ImportDialog.module.css'
 import { useImportDialogFocus } from './useImportDialogFocus'
 
 interface ImportItemsDialogProps {
@@ -54,17 +52,13 @@ export function ImportItemsDialog({
     }
   }
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className={styles.scrim}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose()
-      }}
-    >
-      <div ref={dialogRef} className={styles.dialog} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={560}
+      onDismiss={busy ? undefined : onClose}
+      header={(
         <ModalHeader
           icon={<ImportSourceIcon source={source} />}
           badgedIcon={false}
@@ -74,19 +68,10 @@ export function ImportItemsDialog({
           onClose={busy ? undefined : onClose}
           closeLabel={t('common.close')}
         />
-
-        <ImportSelectionRows
-          items={items}
-          selected={selected}
-          onChange={setSelected}
-          disabled={busy}
-          workspaceName={workspaceName}
-          workspacePath={workspacePath}
-        />
-
-        {error && <p role="alert" className={styles.error}>{error}</p>}
-
-        <div className={styles.footer}>
+      )}
+      error={error}
+      footer={(
+        <ModalFooter>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
             {t('common.cancel')}
           </Button>
@@ -98,10 +83,17 @@ export function ImportItemsDialog({
           >
             {t('settings.import.dialog.confirm')}
           </Button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+      )}
+    >
+      <ImportSelectionRows
+        items={items}
+        selected={selected}
+        onChange={setSelected}
+        disabled={busy}
+        workspaceName={workspaceName}
+        workspacePath={workspacePath}
+      />
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }

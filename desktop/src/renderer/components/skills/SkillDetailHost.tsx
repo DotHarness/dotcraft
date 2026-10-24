@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { LayerBoundary } from '../../contexts/LayerContext'
 import { useSkillDetailStore } from '../../stores/skillDetailStore'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
@@ -35,7 +34,7 @@ function SkillDetail({ name, onClose }: { name: string; onClose(): void }): JSX.
     return () => { current = false }
   }, [name])
 
-  return createPortal(
+  return (
     <LayerBoundary blocksNativeViews>
       <SkillDetailDialog
         skill={skill}
@@ -48,7 +47,6 @@ function SkillDetail({ name, onClose }: { name: string; onClose(): void }): JSX.
           stageSkillTryInChat(skill)
         }}
       />
-    </LayerBoundary>,
-    document.body
+    </LayerBoundary>
   )
 }

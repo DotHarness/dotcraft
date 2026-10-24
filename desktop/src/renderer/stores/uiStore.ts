@@ -4,6 +4,7 @@ import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
+import type { AppNavigationLocation } from './appNavigationStore'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { activeDetailScopeId } from '../utils/detailPanelScope'
@@ -27,25 +28,19 @@ const EXPLORER_DEFAULT_WIDTH = 260
 const EXPLORER_MIN_WIDTH = 180
 const EXPLORER_MAX_WIDTH = 480
 
-/** Timeout for pending welcome turn to prevent permanent residue */
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
 export type SystemDetailTab = 'changes' | 'plan' | 'subagents'
 export type ChangesDiffMode = 'inline' | 'split'
 
-/** @deprecated Use `ActiveDetailTab` instead. Kept for backwards compatibility. */
+/** @deprecated Use `ActiveDetailTab` instead. */
 export type DetailPanelTab = SystemDetailTab
 
-/**
- * `launcher` is the empty state: no system tab and no viewer tab is open, so the
- * panel shows the launcher card grid instead of a tab body.
- */
 export type ActiveDetailTab =
   | { kind: 'system'; id: SystemDetailTab }
   | { kind: 'viewer'; id: string }
   | { kind: 'launcher' }
 
-/** Canonical left-to-right order of the optional system tabs in the tab strip. */
 const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents']
 
 function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {
@@ -96,10 +91,6 @@ export interface PendingProjectThreadOpen {
   threadId: string
 }
 
-/**
- * First message to send after thread/read completes for a thread created from the
- * welcome screen (avoids optimistic UI being cleared by conversation reset).
- */
 export interface PendingWelcomeTurnInput {
   threadId: string
   text: string
@@ -107,7 +98,6 @@ export interface PendingWelcomeTurnInput {
   images?: ImageAttachment[]
   files?: ComposerFileAttachment[]
   appIds?: string[]
-  /** True when this first turn establishes the thread goal (durable "sent as goal"). */
   sentAsGoal?: boolean
 }
 
@@ -127,62 +117,45 @@ export interface PendingThreadCreation {
   threadId?: string
 }
 
+export interface EnvironmentSettingsTarget {
+  projectPath: string
+  environmentId?: string
+  create?: boolean
+  returnTo: AppNavigationLocation | null
+}
+
 export interface UIState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
   browserDownloadHistoryOpen: boolean
   activeSettingsTab: SettingsTab
+  environmentSettingsTarget: EnvironmentSettingsTarget | null
   /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
   selectedChannelKey: SelectedChannelKey
-  /** Monotonic request counter used by the Settings sidebar Back action. */
   settingsCloseRequestSeq: number
-  /** Monotonic request counter used by renderer-owned What's New entry points. */
   whatsNewOpenRequestSeq: number
-  /** User preference for whether the sidebar is collapsed when width allows it. */
   sidebarPreferredCollapsed: boolean
   sidebarCollapsed: boolean
   sidebarWidth: number
-  /** User preference for whether the active thread's detail panel is visible when width allows it. */
   detailPanelPreferredVisible: boolean
   detailPanelPreferredVisibleByThread: Record<string, boolean>
   detailPanelVisible: boolean
   detailPanelFullView: boolean
-  /** User preference for detail panel width as a share of the main work surface. */
   detailPanelWidthRatio: number
-  /** Last resolved detail panel width, used as a fallback before layout measurement. */
   detailPanelWidth: number
-  /** User preference for Agent Builder chat width as a share of the builder split surface. */
   agentBuilderChatWidthRatio: number
-  /** Last resolved Agent Builder chat pane width, used as a fallback before layout measurement. */
   agentBuilderChatWidth: number
   responsiveLayout: 'full' | 'no-detail' | 'collapsed'
   activeDetailTab: ActiveDetailTab
-  /**
-   * The optional system tabs currently open in the strip, in canonical order.
-   * Empty by default — they open via the launcher, the `+` menu, or agent
-   * auto-show, and can be closed.
-   */
   openSystemTabs: SystemDetailTab[]
-  /**
-   * Last active system tab, saved when the user switches to a viewer tab. Used as
-   * a fallback hint when the last viewer tab is closed — only honored if the tab
-   * is still present in `openSystemTabs`.
-   */
   lastActiveSystemTab: SystemDetailTab
   quickOpenVisible: boolean
   explorerVisible: boolean
-  /** Width (px) of the docked explorer sub-panel. */
   explorerWidth: number
-  /**
-   * One-shot absolute directory the explorer should expand to and scroll into
-   * view (set when a breadcrumb folder segment is clicked). Cleared by the
-   * explorer once consumed.
-   */
   explorerRevealPath: string | null
   selectedChangeKey: string | null
   changesDiffModeByThread: Record<string, ChangesDiffMode>
   changesWordWrap: boolean
-  /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
   composerPrefill: string | null
   composerImageAttachmentRequest: {
@@ -191,17 +164,12 @@ export interface UIState {
   } | null
   pendingWelcomeTurn: (PendingWelcomeTurnInput & { createdAt: number }) | null
   pendingThreadCreation: PendingThreadCreation | null
-  /** Background project thread click waiting for the target workspace's foreground thread list. */
   pendingProjectThreadOpen: PendingProjectThreadOpen | null
-  /** Unsent draft on ConversationWelcome, preserved across thread navigation. */
   welcomeDraft: WelcomeDraft | null
   /** Unsent welcome drafts keyed by normalized workspace path. */
   welcomeDraftsByWorkspace: Record<string, WelcomeDraft>
-  /** Workspace path currently mirrored in `welcomeDraft`. */
   welcomeDraftWorkspacePath: string | null
-  /** Per-turn dismissal marker for the plan approval composer. */
   planApprovalDismissed: Record<string, boolean>
-  /** User preference for rendering reasoning text in the conversation. */
   showThinkingContent: boolean
   projectsSectionCollapsed: boolean
   pinnedSectionCollapsed: boolean
@@ -212,9 +180,10 @@ export interface UIState {
 interface UIStore extends UIState {
   setActiveMainView(view: ActiveMainView): void
   setPluginCatalogSurface(surface: PluginCatalogSurface): void
-  /** Deselect current thread and open Welcome composer in conversation view. */
   goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
   setActiveSettingsTab(tab: SettingsTab): void
+  openEnvironmentSettings(target: EnvironmentSettingsTarget): void
+  clearEnvironmentSettingsTarget(): void
   setSelectedChannelKey(key: SelectedChannelKey): void
   requestCloseSettings(): void
   requestOpenWhatsNew(): void
@@ -229,50 +198,34 @@ interface UIStore extends UIState {
   setResponsiveLayout(layout: 'full' | 'no-detail' | 'collapsed'): void
   setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
   setAgentBuilderChatWidth(width: number, splitWidth?: number | null): void
-  /**
-   * Opens a system tab if not already open, makes it the active tab, and
-   * reveals the panel.
-   */
   setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions): void
-  /**
-   * Closes an open system tab. If it was active, falls back to the nearest
-   * remaining open system tab, else the given viewer tab, else the launcher.
-   */
   closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
-  /** Resets the detail panel to its empty state (no tabs open → launcher). */
   resetDetailTabs(): void
   syncDetailPanelForThread(scopeId: string | null, activeViewerTabId: string | null): void
-  /** Activates a viewer tab by its ID and makes the detail panel visible. */
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
-  /** Closes the viewer panel and falls back to an open system tab or the launcher. */
   closeViewerTab(options?: DetailRevealOptions): void
   setQuickOpenVisible(visible: boolean): void
   toggleExplorer(): void
   setExplorerVisible(visible: boolean): void
-  /** Set the docked explorer width (clamped to its min/max). */
   setExplorerWidth(width: number): void
-  /** Open the explorer and request it expand to / reveal the given directory. */
   revealInExplorer(absoluteDir: string): void
   consumeExplorerReveal(): void
   selectChangeKey(key: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
   toggleChangesWordWrap(): void
-  /** Open detail panel, switch to Changes tab, select the given row */
   showChangesForKey(key: string): void
   /** Auto-show detail panel once for a reason. Returns true when newly triggered. */
   maybeAutoShowForReason(reasonId: string): boolean
   resetAutoShowReasons(): void
   /** Set text to be picked up by InputComposer on its next mount. */
   setComposerPrefill(text: string): void
-  /** Read and clear the prefill text atomically. */
   consumeComposerPrefill(): string | null
   requestComposerImageAttachment(image: ComposerImageAttachmentRequest): void
   consumeComposerImageAttachmentRequest(): ComposerImageAttachmentRequest | null
   setPendingWelcomeTurn(payload: PendingWelcomeTurnInput | null): void
   setPendingThreadCreation(payload: PendingThreadCreation | null): void
   resolvePendingThreadCreation(requestId: string, threadId: string): void
-  /** If pending matches threadId, return payload and clear; otherwise return null. */
   consumePendingWelcomeTurnIfMatch(threadId: string): Omit<PendingWelcomeTurnInput, 'threadId'> | null
   cancelPendingWelcomeTurnForThread(threadId: string): void
   setPendingProjectThreadOpen(payload: PendingProjectThreadOpen | null): void
@@ -284,11 +237,8 @@ interface UIStore extends UIState {
   getWelcomeDraftForWorkspace(workspacePath: string): WelcomeDraft | null
   dismissPlanApproval(turnId: string): void
   setShowThinkingContent(visible: boolean): void
-  /** Toggle+persist whether the Projects sidebar section is collapsed. */
   setProjectsSectionCollapsed(collapsed: boolean): void
-  /** Toggle+persist whether the Pinned sidebar section is collapsed. */
   setPinnedSectionCollapsed(collapsed: boolean): void
-  /** Toggle+persist whether the Chats sidebar section is collapsed. */
   setChatsSectionCollapsed(collapsed: boolean): void
   resetPlanApprovalDismissed(): void
 }
@@ -353,6 +303,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   pluginCatalogSurface: 'plugins',
   browserDownloadHistoryOpen: false,
   activeSettingsTab: 'general',
+  environmentSettingsTarget: null,
   selectedChannelKey: null,
   settingsCloseRequestSeq: 0,
   whatsNewOpenRequestSeq: 0,
@@ -415,6 +366,19 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: normalizeSettingsTab(tab), browserDownloadHistoryOpen: false })
+  },
+
+  openEnvironmentSettings(target) {
+    set({
+      environmentSettingsTarget: target,
+      activeSettingsTab: 'worktrees',
+      browserDownloadHistoryOpen: false,
+      activeMainView: 'settings'
+    })
+  },
+
+  clearEnvironmentSettingsTarget() {
+    set({ environmentSettingsTarget: null })
   },
 
   setSelectedChannelKey(key) {

@@ -1,0 +1,109 @@
+.content {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 2px;
+  font-size: 13px;
+}
+
+.toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.label {
+  color: var(--text-secondary);
+}
+
+.value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.summary {
+  gap: 8px;
+}
+
+.control {
+  flex: 1;
+  min-width: 0;
+}
+
+.additions {
+  color: var(--success);
+}
+
+.deletions {
+  color: var(--error);
+}
+
+.files {
+  max-height: 180px;
+  margin: 2px 0 4px;
+  padding: 2px 4px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.filesHeader {
+  padding: 6px 8px 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.file + .file {
+  border-top: 1px solid var(--glass-border);
+}
+
+.fileDot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--info);
+}
+
+.filePath {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileStats {
+  display: flex;
+  flex-shrink: 0;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.inputLabel {
+  margin: 12px 0 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}

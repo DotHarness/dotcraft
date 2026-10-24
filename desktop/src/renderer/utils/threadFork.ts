@@ -2,6 +2,9 @@ import type { ServerCapabilities } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { addToast } from '../stores/toastStore'
+import { useConversationStore } from '../stores/conversationStore'
+import { isWorktreeCreationCancelled } from '../stores/worktreeCreationStore'
+import { createForkWorktreeThread } from './worktreeThreadCreation'
 import type { ThreadSummary } from '../types/thread'
 
 export type ThreadForkMode = 'local' | 'worktree'
@@ -37,23 +40,29 @@ export async function runThreadFork({
   forkPoint,
   t
 }: RunThreadForkOptions): Promise<ThreadSummary | null> {
+  const localParams = {
+    threadId,
+    ...(forkPoint ? { forkPoint: { ...forkPoint } } : {})
+  }
   try {
-    const result = await window.api.appServer.sendRequest(
-      mode === 'worktree' ? 'worktree/createAndFork' : 'thread/fork',
-      mode === 'worktree'
-        ? {
+    const { workspacePath, remoteWorkspaceActive } = useConversationStore.getState()
+    if (mode === 'worktree' && useThreadStore.getState().activeThreadId !== threadId) {
+      useThreadStore.getState().setActiveThreadId(threadId)
+      useUIStore.getState().setActiveMainView('conversation')
+    }
+    const thread = mode === 'worktree'
+      ? await createForkWorktreeThread({
+          sourceThreadId: threadId,
+          workspacePath,
+          local: !remoteWorkspaceActive,
+          params: {
             sourceThreadId: threadId,
             ...(forkPoint ? { forkPoint: { ...forkPoint } } : {}),
             copyDirtyChanges: true
-          }
-        : {
-            threadId,
-            ...(forkPoint ? { forkPoint: { ...forkPoint } } : {})
           },
-      mode === 'worktree' ? 180_000 : undefined
-    ) as unknown as ThreadForkResult
-
-    const thread = result.thread
+          localParams
+        })
+      : (await window.api.appServer.sendRequest('thread/fork', localParams) as unknown as ThreadForkResult).thread
     if (!thread?.id) {
       throw new Error(t('fork.toast.missingThread'))
     }
@@ -62,13 +71,14 @@ export async function runThreadFork({
     useThreadStore.getState().setActiveThreadId(thread.id)
     useUIStore.getState().setActiveMainView('conversation')
     addToast(
-      mode === 'worktree'
+      thread.worktree
         ? t('fork.toast.worktreeCreated')
         : t('fork.toast.localCreated'),
       'success'
     )
     return thread
   } catch (err) {
+    if (isWorktreeCreationCancelled(err)) return null
     addToast(
       t('fork.toast.failed', { error: err instanceof Error ? err.message : String(err) }),
       'error'

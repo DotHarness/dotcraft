@@ -13,141 +13,6 @@ public sealed partial class SessionService
     {
         private readonly SemaphoreSlim _moveLock = new(1, 1);
 
-        public async Task<WorktreeCreateAndForkResult> CreateAndForkAsync(
-            WorktreeCreateAndForkOptions options,
-            CancellationToken ct)
-        {
-            ArgumentNullException.ThrowIfNull(options);
-            var sourceThreadId = NormalizeRequiredThreadId(options.SourceThreadId);
-            var source = await owner.GetOrLoadThreadAsync(sourceThreadId, ct);
-            ThrowIfWorktreeIdentityMovesStateWorkspace(source, options.Identity);
-
-            var sourceExecutionWorkspace = ResolveEffectiveWorkspacePath(source);
-            var worktree = await ThreadWorktreeManager.CreateAsync(
-                source,
-                sourceExecutionWorkspace,
-                owner.DataPath,
-                options,
-                owner.WorktreeBranchPrefix,
-                owner.Logger,
-                ct);
-            if (source.Worktree is { } sourceWorktree)
-                worktree = worktree with { SourceWorkspacePath = sourceWorktree.SourceWorkspacePath };
-
-            var config = options.Config != null
-                ? ThreadConfigurationCloner.Clone(options.Config)
-                : source.Configuration != null
-                    ? ThreadConfigurationCloner.Clone(source.Configuration)
-                    : new ThreadConfiguration();
-            config.ExecutionWorkspaceOverride = worktree.Path;
-
-            var identity = options.Identity == null
-                ? null
-                : options.Identity with { WorkspacePath = source.WorkspacePath };
-
-            SessionThread thread;
-            try
-            {
-                thread = await owner.ForkThreadAsync(
-                    source.Id,
-                    new ThreadForkOptions
-                    {
-                        ForkPoint = options.ForkPoint,
-                        Identity = identity,
-                        Config = config,
-                        DisplayName = options.DisplayName,
-                        Worktree = worktree
-                    },
-                    ct);
-            }
-            catch
-            {
-                await DiscardAsync(worktree);
-                throw;
-            }
-
-            return new WorktreeCreateAndForkResult
-            {
-                Thread = thread,
-                Worktree = worktree
-            };
-        }
-
-        public async Task<WorktreeCreateAndStartResult> CreateAndStartAsync(
-            WorktreeCreateAndStartOptions options,
-            CancellationToken ct)
-        {
-            ArgumentNullException.ThrowIfNull(options);
-            var identity = options.Identity;
-            if (string.IsNullOrWhiteSpace(identity.WorkspacePath))
-                throw new ArgumentException("identity.workspacePath is required.");
-
-            var capturedConfig = owner.CaptureThreadConfigurationForNewThread(options.Config);
-            var threadId = SessionIdGenerator.NewThreadId();
-            var now = DateTimeOffset.UtcNow;
-            var thread = new SessionThread
-            {
-                Id = threadId,
-                WorkspacePath = identity.WorkspacePath,
-                UserId = identity.UserId,
-                OriginChannel = identity.ChannelName,
-                ChannelContext = identity.ChannelContext,
-                Status = ThreadStatus.Active,
-                CreatedAt = now,
-                LastActiveAt = now,
-                HistoryMode = options.HistoryMode,
-                Configuration = capturedConfig,
-                DisplayName = options.DisplayName,
-                Source = options.Source ?? ThreadSource.User()
-            };
-
-            if (identity.ChannelContext != null)
-                thread.Metadata["channelContext"] = identity.ChannelContext;
-
-            var sourceExecutionWorkspace = ResolveLocalWorkspacePath(thread);
-            var worktree = await ThreadWorktreeManager.CreateAsync(
-                thread,
-                sourceExecutionWorkspace,
-                owner.DataPath,
-                options,
-                owner.WorktreeBranchPrefix,
-                owner.Logger,
-                ct);
-
-            capturedConfig.ExecutionWorkspaceOverride = worktree.Path;
-            thread.Worktree = worktree;
-
-            owner._runtimeRegistry.SetThread(thread);
-            owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
-            var broker = owner.GetOrCreateBroker(thread.Id);
-
-            try
-            {
-                using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
-                    owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, ct));
-
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
-            }
-            catch
-            {
-                if (owner._runtimeRegistry.TryRemove(thread.Id, out var removed))
-                    await removed.DisposeAsync();
-                await DiscardAsync(worktree);
-                throw;
-            }
-
-            await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
-
-            broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
-            owner.ThreadCreatedForBroadcast?.Invoke(thread);
-
-            return new WorktreeCreateAndStartResult
-            {
-                Thread = thread,
-                Worktree = worktree
-            };
-        }
-
         public async Task<WorktreeHandoffResult> HandoffAsync(
             WorktreeHandoffOptions options,
             CancellationToken ct)
@@ -240,7 +105,8 @@ public sealed partial class SessionService
                     owner.DataPath,
                     options.Progress,
                     ct,
-                    owner.Logger);
+                    owner.Logger,
+                    () => owner.WorktreeEnvironments.EnsureCleanedUpAsync(currentWorktree, options.Progress, ct));
 
                 thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
                 thread.Configuration.ExecutionWorkspaceOverride = null;
@@ -356,6 +222,7 @@ public sealed partial class SessionService
                     var worktree = ResolveRemovalWorktree(options, thread);
                     if (worktree != null)
                     {
+                        await owner.WorktreeEnvironments.EnsureCleanedUpAsync(worktree, null, ct);
                         await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                             worktree,
                             owner.DataPath,
@@ -381,6 +248,7 @@ public sealed partial class SessionService
             var fallback = ResolveRemovalWorktree(options, thread: null);
             if (fallback != null)
             {
+                await owner.WorktreeEnvironments.EnsureCleanedUpAsync(fallback, null, ct);
                 await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                     fallback,
                     owner.DataPath,
@@ -538,6 +406,7 @@ public sealed partial class SessionService
                     return WorktreeExitResult.Refused(status);
                 if (await HasRunningTerminalInAsync(thread.Id, worktree.Path, ct))
                     throw new InvalidOperationException("A background command is still running in the worktree. Stop it first.");
+                await owner.WorktreeEnvironments.EnsureCleanedUpAsync(worktree, null, ct);
             }
 
             thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
@@ -549,7 +418,7 @@ public sealed partial class SessionService
             return WorktreeExitResult.Exited(worktree);
         }
 
-        public async Task RemoveByPathAsync(string path, bool discardChanges, CancellationToken ct)
+        public async Task RemoveByPathAsync(string path, bool discardChanges, bool skipCleanup, CancellationToken ct)
         {
             using var moves = await LockMovesAsync(ct);
             var fullPath = Path.GetFullPath(path);
@@ -567,6 +436,8 @@ public sealed partial class SessionService
 
             if (!discardChanges && (status.HasUncommittedChanges || status.HasCommitsAheadOfBase))
                 throw new InvalidOperationException("The worktree has uncommitted changes or new commits. Pass discardChanges to remove it anyway.");
+            if (!skipCleanup)
+                await owner.WorktreeEnvironments.EnsureCleanedUpAsync(status.Worktree, null, ct);
 
             await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(status.Worktree, owner.DataPath, deleteBranch: true, ct, owner.Logger);
             if (thread != null)
@@ -586,7 +457,9 @@ public sealed partial class SessionService
             await BestEffortAsync(async () =>
             {
                 var status = await ThreadWorktreeManager.GetStatusAsync(thread.Id, worktree, ct, owner.Logger);
-                if (status.Exists && status.IsGitWorktree && !status.HasUncommittedChanges)
+                if (!status.Exists || !status.IsGitWorktree || status.HasUncommittedChanges)
+                    return;
+                if (await owner.WorktreeEnvironments.TryCleanUpAsync(worktree, thread.Id, ct))
                     await ThreadWorktreeManager.RemoveCheckoutAsync(worktree, owner.DataPath, ct, owner.Logger);
             }, thread.Id);
         }
@@ -599,6 +472,8 @@ public sealed partial class SessionService
             {
                 var status = await ThreadWorktreeManager.GetStatusAsync(thread.Id, worktree, ct, owner.Logger);
                 if (status.Exists && status.HasUncommittedChanges)
+                    return;
+                if (!await owner.WorktreeEnvironments.TryCleanUpAsync(worktree, thread.Id, ct))
                     return;
                 await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                     worktree,
@@ -674,7 +549,7 @@ public sealed partial class SessionService
             };
         }
 
-        private async Task DiscardAsync(ThreadWorktreeInfo worktree) =>
+        public async Task DiscardAsync(ThreadWorktreeInfo worktree) =>
             await BestEffortAsync(
                 () => ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                     worktree,
@@ -739,22 +614,6 @@ public sealed partial class SessionService
                     : null,
                 CreatedAt = DateTimeOffset.UtcNow
             };
-        }
-
-        private static void ThrowIfWorktreeIdentityMovesStateWorkspace(
-            SessionThread source,
-            SessionIdentity? identity)
-        {
-            if (identity == null || string.IsNullOrWhiteSpace(identity.WorkspacePath))
-                return;
-
-            var requestedWorkspace = Path.GetFullPath(identity.WorkspacePath);
-            var sourceWorkspace = Path.GetFullPath(source.WorkspacePath);
-            if (!string.Equals(requestedWorkspace, sourceWorkspace, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException(
-                    "identity.workspacePath for worktree/createAndFork must match the source thread workspace; use executionWorkspaceOverride for the worktree path.");
-            }
         }
 
         private static string ResolveEffectiveWorkspacePath(SessionThread thread)
