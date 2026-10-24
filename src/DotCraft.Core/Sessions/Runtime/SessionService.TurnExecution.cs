@@ -961,7 +961,8 @@ public sealed partial class SessionService
                             ? traceRootThreadId
                             : subAgentSource.ParentThreadId,
                         expectsSharedInputPrefix: isFullHistoryFork,
-                        comparePromptPrefix: isFullHistoryFork);
+                        comparePromptPrefix: isFullHistoryFork,
+                        forkMode: subAgentSource.ForkTurns);
                 }
                 else
                 {

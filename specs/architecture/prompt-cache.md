@@ -182,6 +182,8 @@ When a full-history native SubAgent session is bound to its direct parent, traci
 
 A missing parent shape is `unavailable`.
 
+Every child trace binding records its fork mode: a SubAgent's `forkTurns` value, or the purpose of a cache-sharing fork. Fresh and bounded children establish an independent prefix, so readers must not treat their prefix or first-request cache reads as a defect.
+
 A full-history child inherits the anchor request's complete input ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)),
 so any shorter matched prefix is a defect.
 

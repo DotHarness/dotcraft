@@ -6,7 +6,9 @@ import { formatCount, formatPercent, formatRelative, plural, sessionTitle } from
 import { button, esc, icon, iconButton, mono } from '../core/html.js';
 import { registerHoverCard } from '../core/hovercard.js';
 import { state } from '../core/state.js';
-import { abnormalFinish, cacheVerdict, prefixText, rollbackText, troubleMarker } from './session-cache.js';
+import {
+  abnormalFinish, cacheVerdict, firstRequestText, forkModeText, inheritsParentContext, prefixText, rollbackText, troubleMarker
+} from './session-cache.js';
 
 export async function loadSessions() {
   const sessions = await fetchJson('/sessions');
@@ -32,7 +34,9 @@ function sessionCard(target) {
   if (session.rollbackCount > 0) rows.push(cardRow('undo2', rollbackText(session)));
   if (session.parentSessionKey) {
     rows.push(cardRow('gitBranch', `Started by <button type="button" class="dash-link" data-action="open-thread" data-thread="${esc(session.parentSessionKey)}">${esc(parent ? sessionTitle(parent) : session.parentSessionKey)}</button>`));
-    rows.push(cardRow('layers', prefixText(session.parentPrefix)));
+    rows.push(cardRow('layers', forkModeText(session)));
+    if (firstRequestText(session)) rows.push(cardRow('gauge', firstRequestText(session)));
+    if (inheritsParentContext(session) && session.parentPrefix) rows.push(cardRow('link2', prefixText(session.parentPrefix)));
   }
   if (children) rows.push(cardRow('gitFork', esc(plural(children, 'subagent'))));
   if (abnormalFinish(session)) rows.push(cardRow('circleAlert', esc(abnormalFinish(session))));

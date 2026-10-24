@@ -184,7 +184,8 @@ public sealed class TraceEvent
 public sealed record TraceSessionRelationshipDescriptor(
     string SessionKey,
     string? ParentSessionKey,
-    string BindingKind);
+    string BindingKind,
+    string? ForkMode);
 
 public sealed class TraceSession
 {

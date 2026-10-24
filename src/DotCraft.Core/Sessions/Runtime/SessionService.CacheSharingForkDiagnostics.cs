@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
@@ -6,11 +7,12 @@ public sealed partial class SessionService
 {
     private void BindCacheSharingForkTrace(SessionThread thread)
     {
-        if (CacheSharingFork.PurposeOf(thread) is null || thread.ForkedFromId is not { } parentId)
+        if (CacheSharingFork.PurposeOf(thread) is not { } purpose || thread.ForkedFromId is not { } parentId)
             return;
         var rootId = traceCollector?.ResolveRootThreadId(parentId) ?? parentId;
         traceCollector?.BindChildSession(thread.Id, rootId, parentId,
-            expectsSharedInputPrefix: true, comparePromptPrefix: true);
+            expectsSharedInputPrefix: true, comparePromptPrefix: true,
+            forkMode: JsonNamingPolicy.CamelCase.ConvertName(purpose.ToString()));
     }
 
     private void RecordPromptSuggestionOutcome(SessionThread thread, SessionTurn turn, bool started = false)

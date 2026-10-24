@@ -278,8 +278,25 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     {
         var stateRuntime = new WorkspaceStateDatabase(_craft);
         var writer = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
+        var startedAt = DateTimeOffset.UtcNow;
         writer.BindThreadMainSession("parent");
-        writer.BindChildSession("child", "parent", "parent");
+        writer.BindChildSession("child", "parent", "parent", forkMode: "all");
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "child",
+            Type = TraceEventType.TokenUsage,
+            Timestamp = startedAt,
+            InputTokens = 1000,
+            CachedInputTokens = 900
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "child",
+            Type = TraceEventType.TokenUsage,
+            Timestamp = startedAt.AddSeconds(1),
+            InputTokens = 2000,
+            CachedInputTokens = 0
+        });
         writer.Record(new TraceEvent
         {
             SessionKey = "parent",
@@ -303,6 +320,9 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             document.RootElement.EnumerateArray(),
             session => session.GetProperty("sessionKey").GetString() == "child");
         Assert.Equal("parent", child.GetProperty("parentSessionKey").GetString());
+        Assert.Equal("all", child.GetProperty("forkMode").GetString());
+        Assert.Equal(1000, child.GetProperty("firstRequest").GetProperty("inputTokens").GetInt64());
+        Assert.Equal(900, child.GetProperty("firstRequest").GetProperty("cachedInputTokens").GetInt64());
         var prefix = child.GetProperty("parentPrefix");
         Assert.Equal("diverged", prefix.GetProperty("status").GetString());
         Assert.Equal(2, prefix.GetProperty("matchedInputItemCount").GetInt32());
