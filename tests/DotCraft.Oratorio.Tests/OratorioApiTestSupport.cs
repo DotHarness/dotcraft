@@ -1139,6 +1139,8 @@ public enum FakeAppServerOutcome
     ReplyAfterBackgroundWork,
     ReplyOnSteer,
     SubmitReviewDraftAfterSteer,
+    SubmitReviewDraftOnSteer,
+    ReplyOnResumeAfterBackgroundWork,
     Disconnect
 }
 
@@ -1346,7 +1348,10 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
                 ToolResults.Add(result);
             },
             turnId => WakeTurnStarted?.Invoke(turnId) ?? Task.CompletedTask,
-            steer => SteerRequests.Add(steer)));
+            steer => SteerRequests.Add(steer))
+        {
+            LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt
+        });
     }
 }
 
@@ -1376,6 +1381,8 @@ internal sealed class FakeAppServerClient(
     private volatile bool _backgroundWork;
     private int _backgroundWorkChecks;
 
+    public Func<string?> LastSteeredPrompt { get; init; } = () => null;
+
     public bool SupportsDynamicToolRebind => true;
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
     public global::DotCraft.Sdk.AppBinding.DotCraftAppBindingClient AppBindings =>
@@ -1400,6 +1407,19 @@ internal sealed class FakeAppServerClient(
         _lastResumeRequest = new FakeAppServerThreadResumeRequest(threadId, dynamicTools, runtimeAdditionalContext);
         resumeThread(_lastResumeRequest);
         _notifications.Writer.TryWrite(Notification("thread/resumed", new { threadId }));
+        if (outcome == FakeAppServerOutcome.ReplyOnResumeAfterBackgroundWork)
+        {
+            _backgroundWork = true;
+            _ = Task.Run(async () =>
+            {
+                await _backgroundWorkObserved.Task;
+                _backgroundWork = false;
+                const string wakeTurnId = "turn-wake-1";
+                _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId = wakeTurnId }));
+                await SubmitDiscussionReplyAsync(threadId, wakeTurnId, "call-discussion-1", ExtractDiscussionTurnId(LastSteeredPrompt() ?? "", null));
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId = wakeTurnId }));
+            });
+        }
         return Task.CompletedTask;
     }
 
@@ -1842,6 +1862,16 @@ internal sealed class FakeAppServerClient(
                 _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId = wakeTurnId }));
                 await SubmitDiscussionReplyAsync(threadId, wakeTurnId, "call-discussion-1", ExtractDiscussionTurnId(prompt, null));
                 _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId = wakeTurnId }));
+                _notifications.Writer.TryComplete();
+            });
+        }
+        else if (outcome == FakeAppServerOutcome.SubmitReviewDraftOnSteer)
+        {
+            _ = Task.Run(async () =>
+            {
+                await _steered.Task;
+                await SubmitSummaryOnlyDraftAsync(threadId, turnId, "call-review-1", "Review summary before the question is answered.");
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
                 _notifications.Writer.TryComplete();
             });
         }

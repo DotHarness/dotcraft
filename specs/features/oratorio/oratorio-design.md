@@ -637,9 +637,10 @@ dispatched:
   the thread as its first review round would, at the current head, and asks the
   agent to answer only.
 
-Ask agent from Desktop is allowed only when the item is not archived and has a
-conversation thread that carries the discussion reply tool. Otherwise Oratorio
-rejects the request with a stable reason. A question steered into a run leaves
+Ask agent from Desktop is allowed only when the item is not archived and either
+has a conversation thread that carries the discussion reply tool or has an
+active AppServer run, whose thread the question is delivered into. Otherwise
+Oratorio rejects the request with a stable reason. A question steered into a run leaves
 that run's contract unchanged: a review run must still submit its draft.
 
 Discussion Turns of one item are answered in the order received. An item has at

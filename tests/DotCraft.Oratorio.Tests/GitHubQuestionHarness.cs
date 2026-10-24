@@ -69,6 +69,14 @@ internal sealed class GitHubQuestionHarness
             itemId,
             x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded && turn.ReplySourceWriteId != null));
 
+    public Task<ItemDetailResponse> WaitForReplyWriteAsync(string itemId, SourceWriteStatus status) =>
+        WaitForItemByIdAsync(
+            Client,
+            itemId,
+            x => x.DiscussionTurns.Any(turn =>
+                turn.Status == DiscussionTurnStatus.Succeeded &&
+                x.SourceWrites.Any(write => write.WriteId == turn.ReplySourceWriteId && write.Status == status)));
+
     public async Task<OratorioGitHubCommentCommand> LoadCommandAsync()
     {
         using var scope = App.Services.CreateScope();

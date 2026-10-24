@@ -139,6 +139,57 @@ public sealed class DiscussionTurnDelivery(
         await MarkDeliveredAsync(turn, bound.ThreadId, turnId, state.State, bound.ActiveTurnId is null ? "runTurn" : "steer", ct);
     }
 
+    public async Task AdoptFromEndedRunAsync(string discussionTurnId, CancellationToken ct)
+    {
+        var turn = await db.DiscussionTurns
+            .Include(x => x.Item)
+            .FirstOrDefaultAsync(x => x.DiscussionTurnId == discussionTurnId, ct);
+        if (turn?.Item is null || turn.Status != DiscussionTurnStatus.Running || turn.ThreadId is null || turn.AppServerEndpoint is null)
+        {
+            return;
+        }
+
+        if (sessions.Find(turn.ThreadId) is { } existing)
+        {
+            existing.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
+            await ReleaseFromRunAsync(turn, ct);
+            return;
+        }
+
+        var client = await clientFactory.ConnectAsync(turn.AppServerEndpoint, ct, endpointResolver.ResolveConfiguredToken());
+        var started = false;
+        try
+        {
+            var threadId = turn.ThreadId;
+            var toolSet = dynamicTools.CreateDiscussionToolSet();
+            BindDiscussionTools(client, () => threadId, toolSet.AllowedLocalNames);
+            var purpose = turn.ThreadContextJson is null ? RunPurpose.ReviewAnalysis : ConversationThreadContext.Purpose(turn.ThreadContextJson);
+            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, turn.Item.Kind, turn.Item.Source);
+            await client.ResumeThreadAsync(threadId, toolSet.Declarations, guidance, ct);
+            await client.SubscribeThreadAsync(threadId, ct);
+            var session = new DiscussionThreadSession(client, threadId);
+            session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
+            await ReleaseFromRunAsync(turn, ct);
+            sessions.Add(session);
+            sessionRunner.Start(session, awaitBackgroundWork: true);
+            started = true;
+        }
+        finally
+        {
+            if (!started)
+            {
+                await client.DisposeAsync();
+            }
+        }
+    }
+
+    private async Task ReleaseFromRunAsync(OratorioDiscussionTurn turn, CancellationToken ct)
+    {
+        turn.RunId = null;
+        turn.UpdatedAt = clock.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task<bool> TryDeliverIntoSessionAsync(
         OratorioDiscussionTurn turn,
         DiscussionQuestionInput question,
@@ -211,6 +262,13 @@ public sealed class DiscussionTurnDelivery(
             {
                 await FailAsync(turn, "runtimeAdditionalContextUnsupported", "The DotCraft AppServer does not support runtime additional context required by Oratorio discussion turns.");
                 return;
+            }
+
+            if (turn.Item!.Kind == ItemKind.PullRequest &&
+                ConversationThreadContext.Purpose(thread.ContextJson) == RunPurpose.ReviewAnalysis &&
+                ConversationThreadContext.UsesManagedWorktree(thread.ContextJson, out var baseWorkspacePath))
+            {
+                await PrepareWorkspaceAsync(turn, baseWorkspacePath, ct);
             }
 
             var toolSet = dynamicTools.CreateDiscussionToolSet();

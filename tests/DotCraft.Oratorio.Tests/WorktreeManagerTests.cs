@@ -40,6 +40,38 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
+    public async Task CleanupAsync_LeavesWorktreeALaterOwnerPrepared()
+    {
+        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
+        try
+        {
+            var manager = CreateManager(repository.Root);
+            WorktreePrepareRequest Request(string ownerId) => new(
+                ownerId,
+                "item-shared-path",
+                "github",
+                "pr:example-owner/oratorio#184",
+                "example-owner/oratorio",
+                "feature/review-target",
+                repository.ExpectedHeadSha,
+                repository.CheckoutPath);
+            var first = await manager.PrepareAsync(Request("run-earlier"), CancellationToken.None);
+            var second = await manager.PrepareAsync(Request("discussion-later"), CancellationToken.None);
+            Assert.Equal(first.WorktreePath, second.WorktreePath);
+
+            await manager.CleanupAsync(new WorktreeCleanupRequest("run-earlier", repository.CheckoutPath, first.WorktreePath), CancellationToken.None);
+            Assert.True(Directory.Exists(second.WorktreePath));
+
+            await manager.CleanupAsync(new WorktreeCleanupRequest("discussion-later", repository.CheckoutPath, second.WorktreePath), CancellationToken.None);
+            Assert.False(Directory.Exists(second.WorktreePath));
+        }
+        finally
+        {
+            DeleteDirectory(repository.Root);
+        }
+    }
+
+    [Fact]
     public async Task PrepareAsync_GitLabMergeRequestFetchesExactCommit_WhenLocalShaIsMissing()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/merge-requests/7/head", pushReviewRef: true, mismatchReviewRef: false);

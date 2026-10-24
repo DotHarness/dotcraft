@@ -56,12 +56,20 @@ public sealed class DiscussionTurnWorker(
 
         foreach (var turn in turns.Where(x => !_deliveringItems.ContainsKey(x.ItemId)))
         {
+            if (turn is { Status: DiscussionTurnStatus.Running, RunId: not null } && endedRuns.Contains(turn.RunId) && turn.StartedAt > expiredBefore)
+            {
+                if (_deliveringItems.TryAdd(turn.ItemId, turn.DiscussionTurnId))
+                {
+                    _ = Task.Run(() => AdoptAsync(turn.ItemId, turn.DiscussionTurnId, ct), ct);
+                }
+
+                continue;
+            }
+
             var (code, message) = turn switch
             {
                 { Status: DiscussionTurnStatus.Pending } when turn.CreatedAt <= expiredBefore =>
                     ("discussionDeliveryTimedOut", "The Agent Discussion Turn could not be delivered in time."),
-                { Status: DiscussionTurnStatus.Running, RunId: not null } when endedRuns.Contains(turn.RunId) =>
-                    ("discussionRunEnded", "The run carrying this question ended without a reply."),
                 { Status: DiscussionTurnStatus.Running, RunId: not null } when turn.StartedAt <= expiredBefore =>
                     ("discussionTurnTimedOut", "The Agent Discussion Turn timed out."),
                 { Status: DiscussionTurnStatus.Running, RunId: null } when !sessions.Holds(turn.DiscussionTurnId) =>
@@ -92,6 +100,32 @@ public sealed class DiscussionTurnWorker(
             {
                 _ = Task.Run(() => DeliverAsync(turn.ItemId, turn.DiscussionTurnId, ct), ct);
             }
+        }
+    }
+
+    private async Task AdoptAsync(string itemId, string discussionTurnId, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<DiscussionTurnDelivery>().AdoptFromEndedRunAsync(discussionTurnId, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Agent Discussion Turn {DiscussionTurnId} could not be followed after its run ended.", discussionTurnId);
+            using var scope = scopeFactory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<DiscussionTurnService>().FailAsync(
+                discussionTurnId,
+                "discussionRunEnded",
+                "The run carrying this question ended before it was answered.",
+                CancellationToken.None);
+        }
+        finally
+        {
+            _deliveringItems.TryRemove(itemId, out _);
         }
     }
 

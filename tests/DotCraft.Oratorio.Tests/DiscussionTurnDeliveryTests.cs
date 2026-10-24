@@ -98,6 +98,67 @@ public sealed class DiscussionTurnDeliveryTests
     }
 
     [Fact]
+    public async Task DesktopQuestionDuringFirstRun_IsSteeredIntoThatRun()
+    {
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitReviewDraftAfterSteer);
+        await using var app = CreateApp(fakeAppServer);
+        var client = app.CreateClient();
+        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
+        var itemId = Assert.Single(list!.Items, x => x.Kind == ItemKind.PullRequest).ItemId!;
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/dispatch",
+            new DispatchRequest("appServer", "First pass.", null, null));
+        var running = await WaitForItemByIdAsync(client, itemId, x => x.Runs.Any(run => run.Status == RunStatus.Running && run.TurnId != null));
+        var run = Assert.Single(running.Runs);
+
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/discussion-turns",
+            new DiscussionTurnRequest("Which files are in scope?", null, null));
+        var answered = await WaitForItemByIdAsync(
+            client,
+            itemId,
+            x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded) && x.Item.State == ItemState.AwaitingReview);
+
+        Assert.Equal(run.TurnId, Assert.Single(fakeAppServer.SteerRequests).ExpectedTurnId);
+        Assert.Equal(run.RunId, Assert.Single(answered.DiscussionTurns).RunId);
+    }
+
+    [Fact]
+    public async Task QuestionSteeredIntoReview_IsAnsweredAfterTheRunEndsWhileBackgroundWorkRuns()
+    {
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.ReplyOnResumeAfterBackgroundWork);
+        fakeAppServer.ScriptedOutcomes.Enqueue(FakeAppServerOutcome.SubmitReviewDraftOnSteer);
+        await using var app = CreateApp(fakeAppServer);
+        var client = app.CreateClient();
+        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
+        var itemId = Assert.Single(list!.Items, x => x.Kind == ItemKind.PullRequest).ItemId!;
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/dispatch",
+            new DispatchRequest("appServer", "First pass.", null, null));
+        await WaitForItemByIdAsync(client, itemId, x => x.Runs.Any(run => run.Status == RunStatus.Running && run.TurnId != null));
+
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/discussion-turns",
+            new DiscussionTurnRequest("Can a sub-agent check the migration?", null, null));
+        var answered = await WaitForItemByIdAsync(
+            client,
+            itemId,
+            x => x.DiscussionTurns.Any(turn => turn.Status is DiscussionTurnStatus.Succeeded or DiscussionTurnStatus.Failed));
+
+        var turn = Assert.Single(answered.DiscussionTurns);
+        Assert.Equal(DiscussionTurnStatus.Succeeded, turn.Status);
+        Assert.Null(turn.ErrorCode);
+        Assert.Equal(RunStatus.Succeeded, Assert.Single(answered.Runs).Status);
+        Assert.Contains(fakeAppServer.ThreadResumeRequests, request => request.ThreadId == turn.ThreadId);
+    }
+
+    [Fact]
     public async Task QuestionOnArchivedItem_IsRejected()
     {
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Success);

@@ -438,11 +438,11 @@ public sealed class GitHubApiClient(
         return results;
     }
 
-    private async Task<GitHubConditionalList<T>> GetConditionalPagesAsync<T>(GitHubRepositoryRef repository, string pathAndQuery, string? etag, CancellationToken ct, int maxPages = 10)
+    private async Task<GitHubConditionalList<T>> GetConditionalPagesAsync<T>(GitHubRepositoryRef repository, string pathAndQuery, string? etag, CancellationToken ct)
     {
         var results = new List<T>();
         string? firstPageETag = null;
-        for (var page = 1; page <= maxPages; page++)
+        for (var page = 1; ; page++)
         {
             using var request = await CreateRequestAsync(HttpMethod.Get, $"{pathAndQuery}&page={page}", repository, ct);
             if (page == 1 && !string.IsNullOrWhiteSpace(etag))
@@ -474,7 +474,7 @@ public sealed class GitHubApiClient(
     }
 
     private static string RepositoryCommentQuery(DateTimeOffset since) =>
-        $"sort=updated&direction=asc&since={Uri.EscapeDataString(since.UtcDateTime.ToString("O"))}&per_page=100";
+        $"sort=updated&direction=desc&since={Uri.EscapeDataString(since.UtcDateTime.ToString("O"))}&per_page=100";
 
     private static string StateQueryValue(GitHubListState state) =>
         state switch

@@ -18,12 +18,12 @@ public sealed class DiscussionSessionRunner(
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMilliseconds(250);
 
-    public void Start(DiscussionThreadSession session) =>
+    public void Start(DiscussionThreadSession session, bool awaitBackgroundWork = false) =>
         _ = Task.Run(async () =>
         {
             try
             {
-                await RunAsync(session, lifetime.ApplicationStopping);
+                await RunAsync(session, awaitBackgroundWork, lifetime.ApplicationStopping);
             }
             catch (OperationCanceledException) when (lifetime.ApplicationStopping.IsCancellationRequested)
             {
@@ -39,10 +39,10 @@ public sealed class DiscussionSessionRunner(
             }
         });
 
-    private async Task RunAsync(DiscussionThreadSession session, CancellationToken ct)
+    private async Task RunAsync(DiscussionThreadSession session, bool awaitBackgroundWork, CancellationToken ct)
     {
         var wait = new BackgroundWorkWait(BackgroundWorkWait.PollInterval(options.CurrentValue));
-        DateTimeOffset? settleStartedAt = null;
+        DateTimeOffset? settleStartedAt = awaitBackgroundWork ? await ScheduleWaitAsync(session, wait, ct) : null;
         using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await using var events = session.Client.ReadEventsAsync(readCts.Token).GetAsyncEnumerator(readCts.Token);
         Task<bool>? nextEvent = null;

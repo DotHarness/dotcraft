@@ -84,6 +84,14 @@ public static class ConversationThreadContext
             ReadTools(root));
     }
 
+    public static bool UsesManagedWorktree(string contextJson, out string baseWorkspacePath)
+    {
+        using var document = JsonDocument.Parse(contextJson);
+        var root = document.RootElement;
+        baseWorkspacePath = ReadWorkspace(root, "basePath", "BasePath") ?? "";
+        return baseWorkspacePath.Length > 0 && !SamePath(ReadWorkspace(root, "path", "Path"), baseWorkspacePath);
+    }
+
     public static RunPurpose Purpose(string contextJson)
     {
         try

@@ -102,6 +102,33 @@ public sealed class GitHubMentionQuestionTests
     }
 
     [Fact]
+    public async Task LaterQuestionOnExistingThread_PreparesTheWorktreeAgain()
+    {
+        var harness = new GitHubQuestionHarness(FakeAppServerOutcome.SubmitDiscussionReply);
+        await using var app = harness.App;
+        var itemId = await harness.SyncPullRequestAsync();
+        await harness.AskOnGitHubAsync(9511, $"@dotcraft-ai {Question}");
+        await harness.WaitForAnsweredAsync(itemId);
+        await WaitUntilAsync(async () =>
+        {
+            var detail = await harness.DetailAsync(itemId);
+            return detail.DiscussionTurns.All(turn => turn.Status == DiscussionTurnStatus.Succeeded);
+        });
+
+        await harness.AskOnGitHubAsync(9512, "@dotcraft-ai And the error path?");
+        var answered = await WaitForItemByIdAsync(
+            harness.Client,
+            itemId,
+            x => x.DiscussionTurns.Count(turn => turn.Status == DiscussionTurnStatus.Succeeded) == 2);
+
+        Assert.Equal(1, harness.AppServer.StartThreadCount);
+        Assert.Equal(2, harness.Worktrees.PrepareRequests.Count);
+        Assert.Equal(
+            answered.DiscussionTurns.Select(turn => turn.DiscussionTurnId).Order(StringComparer.Ordinal),
+            harness.Worktrees.PrepareRequests.Select(request => request.RunId).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task QuestionOnNeverReviewedPullRequest_StartsReusableThreadWithoutReviewWork()
     {
         var harness = new GitHubQuestionHarness(FakeAppServerOutcome.SubmitDiscussionReply);
@@ -146,10 +173,9 @@ public sealed class GitHubMentionQuestionTests
         harness.AppServer.Outcome = FakeAppServerOutcome.SubmitDiscussionReply;
         harness.GitHub.LoseNextIssueCommentResponseCount = 1;
         await harness.AskOnGitHubAsync(9504, $"@dotcraft-ai {Question}");
-        var answered = await harness.WaitForAnsweredAsync(itemId);
+        var answered = await harness.WaitForReplyWriteAsync(itemId, SourceWriteStatus.Failed);
         var turn = Assert.Single(answered.DiscussionTurns);
         var failed = Assert.Single(answered.SourceWrites, x => x.WriteId == turn.ReplySourceWriteId);
-        Assert.Equal(SourceWriteStatus.Failed, failed.Status);
 
         var retried = await PostAsync<ItemDetailResponse>(harness.Client, $"/api/v1/source-writes/{failed.WriteId}/retry", new { });
 

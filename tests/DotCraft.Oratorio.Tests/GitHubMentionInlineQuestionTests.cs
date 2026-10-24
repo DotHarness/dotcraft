@@ -78,10 +78,9 @@ public sealed class GitHubMentionInlineQuestionTests
         harness.AppServer.Outcome = FakeAppServerOutcome.SubmitDiscussionReply;
         harness.GitHub.LoseNextReviewCommentReplyResponseCount = 1;
         await harness.AskInlineOnGitHubAsync(9703, 9201, Path, 88, "@dotcraft-ai Why is this branch here?");
-        var answered = await harness.WaitForAnsweredAsync(itemId);
+        var answered = await harness.WaitForReplyWriteAsync(itemId, SourceWriteStatus.Failed);
         var turn = Assert.Single(answered.DiscussionTurns);
         var failed = Assert.Single(answered.SourceWrites, x => x.WriteId == turn.ReplySourceWriteId);
-        Assert.Equal(SourceWriteStatus.Failed, failed.Status);
 
         var retried = await PostAsync<ItemDetailResponse>(harness.Client, $"/api/v1/source-writes/{failed.WriteId}/retry", new { });
 

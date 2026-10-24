@@ -51,11 +51,19 @@ public sealed class DiscussionTurnService(
                 new Dictionary<string, object?> { ["itemId"] = item.ItemId });
         }
 
-        var thread = await threads.FindDiscussionThreadAsync(item.ItemId, ct)
-            ?? throw OratorioApiException.Conflict(
+        var thread = await threads.FindDiscussionThreadAsync(item.ItemId, ct);
+        var hasActiveRun = await db.Runs.AnyAsync(x =>
+            x.ItemId == item.ItemId &&
+            x.RunnerKind == "appServer" &&
+            (x.Status == RunStatus.Queued || x.Status == RunStatus.Dispatching || x.Status == RunStatus.Running),
+            ct);
+        if (thread is null && !hasActiveRun)
+        {
+            throw OratorioApiException.Conflict(
                 "noCompatibleDiscussionThread",
                 "Ask agent requires a conversation thread with the Oratorio discussion reply tool.",
                 new Dictionary<string, object?> { ["itemId"] = item.ItemId });
+        }
 
         var round = request.RoundNumber is not null
             ? await FindRoundByNumberAsync(item.ItemId, request.RoundNumber.Value, ct)
@@ -72,7 +80,7 @@ public sealed class DiscussionTurnService(
             Purpose = CommentPurpose.DiscussionQuestion,
             CreatedAt = now
         };
-        AddTurn(item, round, question, thread.ThreadId, EmptyToNull(request.ModelId), now);
+        AddTurn(item, round, question, thread?.ThreadId, EmptyToNull(request.ModelId), now);
         AddTimeline(item, round?.RoundId, TimelineEventKind.CommentAdded, ActorKind.Operator, "operator", "Agent question asked", question.Body, now);
         await db.SaveChangesAsync(ct);
         boardEvents.PublishTaskUpdated(item, now);

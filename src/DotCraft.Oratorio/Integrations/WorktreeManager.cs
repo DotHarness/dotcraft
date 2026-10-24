@@ -128,6 +128,12 @@ public sealed class WorktreeManager(
         await repoLock.WaitAsync(ct);
         try
         {
+            if (!await IsPreparedByAsync(metadataPath, request.RunId, ct))
+            {
+                logger.LogInformation("Skipped cleanup of managed Oratorio worktree {WorktreePath}; a later run or discussion prepared it.", worktreePath);
+                return;
+            }
+
             if (Directory.Exists(worktreePath))
             {
                 await GitAsync(repoRoot, ["worktree", "remove", "--force", worktreePath], ct);
@@ -417,6 +423,13 @@ public sealed class WorktreeManager(
             Path.Combine(worktreeRoot, MetadataDirectoryName, Path.GetFileName(worktreePath) + ".json"),
             JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }),
             ct);
+    }
+
+    private static async Task<bool> IsPreparedByAsync(string metadataPath, string ownerId, CancellationToken ct)
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(metadataPath, ct));
+        return document.RootElement.TryGetProperty("RunId", out var runId) &&
+            string.Equals(runId.GetString(), ownerId, StringComparison.Ordinal);
     }
 
     private static Task<string> GitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct) =>
