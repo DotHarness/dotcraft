@@ -14,6 +14,8 @@ public interface IAppServerRunCoordinator
 {
     void RegisterRun(string runId, IDotCraftAppServerClient client, string threadId, string? turnId);
     void UpdateRunStatus(string runId, string? turnId, string turnStatus);
+    void SetActiveTurn(string runId, string? turnId);
+    ActiveRunThread? FindRun(string runId);
     void UnregisterRun(string runId);
     Task<DrawerSnapshotResponse> GetSnapshotAsync(string runId, CancellationToken ct);
     Task<SubmitTurnResponse> SubmitTurnAsync(string runId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct);
@@ -21,6 +23,8 @@ public interface IAppServerRunCoordinator
     Task<bool> TryInterruptTurnAsync(string runId, CancellationToken ct);
     Task<IReadOnlyList<ModelInfoDto>> GetModelsAsync(string? endpointUrl, CancellationToken ct);
 }
+
+public sealed record ActiveRunThread(IDotCraftAppServerClient Client, string ThreadId, string? ActiveTurnId);
 
 public sealed class AppServerRunCoordinator(
     IServiceScopeFactory scopeFactory,
@@ -38,20 +42,33 @@ public sealed class AppServerRunCoordinator(
 
     public void RegisterRun(string runId, IDotCraftAppServerClient client, string threadId, string? turnId)
     {
-        _bindings[runId] = new RunBinding(client, threadId, turnId, "running");
+        _bindings[runId] = new RunBinding(client, threadId, turnId, "running", null);
     }
 
     public void UpdateRunStatus(string runId, string? turnId, string turnStatus)
     {
         _bindings.AddOrUpdate(
             runId,
-            _ => new RunBinding(null, "", turnId, turnStatus),
+            _ => new RunBinding(null, "", turnId, turnStatus, null),
             (_, existing) => existing with
             {
                 CurrentTurnId = string.IsNullOrWhiteSpace(turnId) ? existing.CurrentTurnId : turnId,
                 TurnStatus = turnStatus
             });
     }
+
+    public void SetActiveTurn(string runId, string? turnId)
+    {
+        _bindings.AddOrUpdate(
+            runId,
+            _ => new RunBinding(null, "", turnId, "running", turnId),
+            (_, existing) => existing with { ActiveTurnId = turnId });
+    }
+
+    public ActiveRunThread? FindRun(string runId) =>
+        _bindings.TryGetValue(runId, out var binding) && binding.Client is not null && !string.IsNullOrWhiteSpace(binding.ThreadId)
+            ? new ActiveRunThread(binding.Client, binding.ThreadId, binding.ActiveTurnId)
+            : null;
 
     public void UnregisterRun(string runId)
     {
@@ -218,5 +235,6 @@ public sealed class AppServerRunCoordinator(
         IDotCraftAppServerClient? Client,
         string ThreadId,
         string? CurrentTurnId,
-        string TurnStatus);
+        string TurnStatus,
+        string? ActiveTurnId);
 }

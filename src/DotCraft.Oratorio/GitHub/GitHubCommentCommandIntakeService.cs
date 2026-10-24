@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Data;
@@ -14,7 +13,6 @@ public enum GitHubCommentCommandIntakeDisposition
     NotApplicable,
     NotCommand,
     InvalidCommand,
-    UnsupportedCommand,
     Queued,
     Rejected,
     Existing,
@@ -45,173 +43,141 @@ public sealed class GitHubCommentCommandIntakeService(
         ["OWNER", "MEMBER", "COLLABORATOR"],
         StringComparer.OrdinalIgnoreCase);
 
-    public async Task<GitHubCommentCommandIntakeResult> IntakeAsync(
+    public Task<GitHubCommentCommandIntakeResult> IntakeWebhookAsync(
+        string eventName,
         string body,
         string? deliveryId,
         CancellationToken ct)
     {
-        JsonDocument document;
-        try
+        var read = GitHubCommentWebhookReader.Read(eventName, body);
+        if (read.IsMalformed)
         {
-            document = JsonDocument.Parse(body);
+            return Task.FromResult(new GitHubCommentCommandIntakeResult(
+                GitHubCommentCommandIntakeDisposition.Malformed,
+                ErrorCode: read.ErrorCode,
+                ErrorMessage: read.ErrorMessage));
         }
-        catch (JsonException)
-        {
-            return Malformed("githubWebhookPayloadInvalid", "GitHub issue_comment payload was not valid JSON.");
-        }
 
-        using (document)
-        {
-            var root = document.RootElement;
-            var action = ReadString(root, "action");
-            if (!string.Equals(action, "created", StringComparison.OrdinalIgnoreCase))
-            {
-                return new GitHubCommentCommandIntakeResult(GitHubCommentCommandIntakeDisposition.NotApplicable);
-            }
-
-            if (!TryGetObject(root, "issue", out var issue) || !issue.TryGetProperty("pull_request", out _))
-            {
-                return new GitHubCommentCommandIntakeResult(GitHubCommentCommandIntakeDisposition.NotApplicable);
-            }
-
-            if (!TryGetObject(root, "comment", out var comment))
-            {
-                return Malformed("githubCommentMissing", "GitHub issue_comment payload did not include a comment.");
-            }
-
-            var commentBody = ReadString(comment, "body");
-            if (commentBody is null)
-            {
-                return Malformed("githubCommentBodyMissing", "GitHub issue_comment payload did not include comment.body.");
-            }
-
-            var parsed = parser.Parse(commentBody);
-            if (parsed.Status != GitHubCommentCommandParseStatus.Parsed)
-            {
-                return new GitHubCommentCommandIntakeResult(parsed.Status switch
-                {
-                    GitHubCommentCommandParseStatus.NotCommand => GitHubCommentCommandIntakeDisposition.NotCommand,
-                    GitHubCommentCommandParseStatus.Invalid => GitHubCommentCommandIntakeDisposition.InvalidCommand,
-                    GitHubCommentCommandParseStatus.Unsupported => GitHubCommentCommandIntakeDisposition.UnsupportedCommand,
-                    _ => throw new InvalidOperationException($"Unexpected command parse status: {parsed.Status}")
-                }, ErrorCode: parsed.ErrorCode);
-            }
-
-            var sourceCommentId = ReadIdentifier(comment, "id");
-            var repository = ReadNestedString(root, "repository", "full_name");
-            var pullRequestNumber = ReadInt32(issue, "number");
-            if (string.IsNullOrWhiteSpace(sourceCommentId) ||
-                string.IsNullOrWhiteSpace(repository) ||
-                pullRequestNumber is null or <= 0)
-            {
-                return Malformed(
-                    "githubCommentCommandTargetInvalid",
-                    "GitHub review command requires comment.id, repository.full_name, and a positive issue.number.");
-            }
-
-            var normalizedRepository = SourceProjectKey.NormalizeGitHubRepository(repository);
-            if (normalizedRepository is null)
-            {
-                return Malformed(
-                    "githubCommentCommandRepositoryInvalid",
-                    "GitHub review command repository must use owner/name form.");
-            }
-
-            var existing = await db.GitHubCommentCommands
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.SourceCommentId == sourceCommentId, ct);
-            if (existing is not null)
-            {
-                return FromExisting(existing);
-            }
-
-            var actorLogin = ReadNestedString(root, "sender", "login")
-                ?? ReadNestedString(comment, "user", "login")
-                ?? "";
-            var senderType = ReadNestedString(root, "sender", "type")
-                ?? ReadNestedString(comment, "user", "type");
-            var association = ReadString(comment, "author_association") ?? "";
-            var rejection = ResolveRejection(normalizedRepository, actorLogin, senderType, association);
-            var now = clock.UtcNow;
-            var command = new OratorioGitHubCommentCommand
-            {
-                DeliveryId = EmptyToNull(deliveryId),
-                SourceCommentId = sourceCommentId,
-                Repository = normalizedRepository,
-                PullRequestNumber = pullRequestNumber.Value,
-                ActorLogin = actorLogin,
-                AuthorAssociation = association,
-                CommandKind = parsed.CommandKind!.Value,
-                Focus = parsed.Focus,
-                Status = rejection is null ? GitHubCommentCommandStatus.Queued : GitHubCommentCommandStatus.Rejected,
-                ErrorCode = rejection?.Code,
-                ErrorMessage = rejection?.Message,
-                CreatedAt = now,
-                UpdatedAt = now,
-                CompletedAt = rejection is null ? null : now
-            };
-
-            db.GitHubCommentCommands.Add(command);
-            try
-            {
-                await db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException)
-            {
-                db.ChangeTracker.Clear();
-                existing = await db.GitHubCommentCommands
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.SourceCommentId == sourceCommentId, ct);
-                if (existing is null)
-                {
-                    throw;
-                }
-
-                return FromExisting(existing);
-            }
-
-            return new GitHubCommentCommandIntakeResult(
-                rejection is null
-                    ? GitHubCommentCommandIntakeDisposition.Queued
-                    : GitHubCommentCommandIntakeDisposition.Rejected,
-                command,
-                ErrorCode: command.ErrorCode,
-                ErrorMessage: command.ErrorMessage);
-        }
+        return read.Candidate is null
+            ? Task.FromResult(new GitHubCommentCommandIntakeResult(GitHubCommentCommandIntakeDisposition.NotApplicable))
+            : IntakeAsync(read.Candidate, deliveryId, ct);
     }
 
-    private (string Code, string Message)? ResolveRejection(
-        string repository,
-        string actorLogin,
-        string? senderType,
-        string association)
+    public async Task<GitHubCommentCommandIntakeResult> IntakeAsync(
+        GitHubCommentCandidate candidate,
+        string? deliveryId,
+        CancellationToken ct)
     {
-        if (string.Equals(senderType, "Bot", StringComparison.OrdinalIgnoreCase))
+        if (candidate.IsBotAuthor)
         {
-            return ("githubCommentCommandBotRejected", "GitHub bot comments cannot trigger Oratorio review.");
+            return new GitHubCommentCommandIntakeResult(GitHubCommentCommandIntakeDisposition.NotApplicable);
         }
 
-        if (string.IsNullOrWhiteSpace(actorLogin) || !AllowedAssociations.Contains(association))
+        var parsed = parser.Parse(candidate.Body);
+        switch (parsed.Status)
+        {
+            case GitHubCommentCommandParseStatus.NotCommand:
+                return new GitHubCommentCommandIntakeResult(GitHubCommentCommandIntakeDisposition.NotCommand);
+            case GitHubCommentCommandParseStatus.Invalid:
+                return new GitHubCommentCommandIntakeResult(
+                    GitHubCommentCommandIntakeDisposition.InvalidCommand,
+                    ErrorCode: parsed.ErrorCode);
+        }
+
+        var sourceCommentId = candidate.SourceCommentId;
+        var existing = await FindExistingAsync(sourceCommentId, ct);
+        if (existing is not null)
+        {
+            return FromExisting(existing);
+        }
+
+        var rejection = ResolveRejection(candidate);
+        var now = clock.UtcNow;
+        var command = new OratorioGitHubCommentCommand
+        {
+            DeliveryId = string.IsNullOrWhiteSpace(deliveryId) ? null : deliveryId.Trim(),
+            SourceCommentId = sourceCommentId,
+            CommentKind = candidate.Kind,
+            CommentId = candidate.CommentId,
+            CommentUrl = candidate.HtmlUrl,
+            CommentCreatedAt = candidate.CreatedAt,
+            ThreadRootCommentId = candidate.Kind == GitHubCommentKind.ReviewComment
+                ? candidate.InReplyToId ?? candidate.CommentId
+                : null,
+            Path = candidate.Path,
+            Line = candidate.Line,
+            Repository = candidate.Repository,
+            PullRequestNumber = candidate.PullRequestNumber,
+            ActorLogin = candidate.AuthorLogin,
+            AuthorAssociation = candidate.AuthorAssociation,
+            CommandKind = parsed.CommandKind!.Value,
+            Focus = parsed.Focus,
+            Question = parsed.Question,
+            Status = rejection is null ? GitHubCommentCommandStatus.Queued : GitHubCommentCommandStatus.Rejected,
+            ErrorCode = rejection?.Code,
+            ErrorMessage = rejection?.Message,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CompletedAt = rejection is null ? null : now
+        };
+
+        db.GitHubCommentCommands.Add(command);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            existing = await FindExistingAsync(sourceCommentId, ct);
+            if (existing is null)
+            {
+                throw;
+            }
+
+            return FromExisting(existing);
+        }
+
+        return new GitHubCommentCommandIntakeResult(
+            rejection is null
+                ? GitHubCommentCommandIntakeDisposition.Queued
+                : GitHubCommentCommandIntakeDisposition.Rejected,
+            command,
+            ErrorCode: command.ErrorCode,
+            ErrorMessage: command.ErrorMessage);
+    }
+
+    public static bool HasWorkspaceMapping(DotCraftOptions options, string repository) =>
+        options.RepositoryWorkspaceRoutes.Any(route =>
+            SourceProjectKey.AreEquivalent(route.Project, repository) &&
+            !string.IsNullOrWhiteSpace(route.WorkspacePath));
+
+    private Task<OratorioGitHubCommentCommand?> FindExistingAsync(string sourceCommentId, CancellationToken ct) =>
+        db.GitHubCommentCommands
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.SourceCommentId == sourceCommentId, ct);
+
+    private (string Code, string Message)? ResolveRejection(GitHubCommentCandidate candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate.AuthorLogin) || !AllowedAssociations.Contains(candidate.AuthorAssociation))
         {
             return (
                 "githubCommentCommandActorUnauthorized",
-                "GitHub review command requires an OWNER, MEMBER, or COLLABORATOR actor.");
+                "GitHub comment commands require an OWNER, MEMBER, or COLLABORATOR actor.");
         }
 
-        if (!gitHubOptions.CurrentValue.Repositories.Any(x => SourceProjectKey.AreEquivalent(x, repository)))
+        if (!gitHubOptions.CurrentValue.Repositories.Any(x => SourceProjectKey.AreEquivalent(x, candidate.Repository)))
         {
             return (
                 "githubCommentCommandRepositoryNotConfigured",
-                $"Repository '{repository}' is not configured in Oratorio.");
+                $"Repository '{candidate.Repository}' is not configured in Oratorio.");
         }
 
-        if (!dotCraftOptions.CurrentValue.RepositoryWorkspaceRoutes.Any(route =>
-                SourceProjectKey.AreEquivalent(route.Project, repository) &&
-                !string.IsNullOrWhiteSpace(route.WorkspacePath)))
+        if (!HasWorkspaceMapping(dotCraftOptions.CurrentValue, candidate.Repository))
         {
             return (
                 "githubCommentCommandWorkspaceNotConfigured",
-                $"Repository '{repository}' does not have an Oratorio workspace mapping.");
+                $"Repository '{candidate.Repository}' does not have an Oratorio workspace mapping.");
         }
 
         return null;
@@ -229,53 +195,4 @@ public sealed class GitHubCommentCommandIntakeService(
             Duplicate: true,
             ErrorCode: command.ErrorCode,
             ErrorMessage: command.ErrorMessage);
-
-    private static GitHubCommentCommandIntakeResult Malformed(string errorCode, string message) =>
-        new(GitHubCommentCommandIntakeDisposition.Malformed, ErrorCode: errorCode, ErrorMessage: message);
-
-    private static bool TryGetObject(JsonElement element, string propertyName, out JsonElement value)
-    {
-        if (element.TryGetProperty(propertyName, out value) && value.ValueKind == JsonValueKind.Object)
-        {
-            return true;
-        }
-
-        value = default;
-        return false;
-    }
-
-    private static string? ReadString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-
-    private static string? ReadNestedString(JsonElement element, string objectName, string propertyName) =>
-        TryGetObject(element, objectName, out var nested)
-            ? ReadString(nested, propertyName)
-            : null;
-
-    private static string? ReadIdentifier(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var value))
-        {
-            return null;
-        }
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.Number => value.GetRawText(),
-            JsonValueKind.String => value.GetString(),
-            _ => null
-        };
-    }
-
-    private static int? ReadInt32(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value) &&
-        value.ValueKind == JsonValueKind.Number &&
-        value.TryGetInt32(out var number)
-            ? number
-            : null;
-
-    private static string? EmptyToNull(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

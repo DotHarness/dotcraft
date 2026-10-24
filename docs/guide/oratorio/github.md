@@ -13,6 +13,7 @@ Grant the permissions your enabled operations need, and nothing more:
 | **Import issues and pull requests** | Issues and pull requests: read |
 | **Read files and discussion** | Pull requests: read, contents: read |
 | **Publish comments and reviews** | Issues and pull requests: write |
+| **Answer `@dotcraft-ai` comments** | Issues and pull requests: write |
 | **Publish the review check** | Checks: write |
 | **Deliver a pull request** | Contents and pull requests: write |
 
@@ -29,9 +30,33 @@ Then generate a private key for the App. You'll need the App ID and that key whi
 
 Add more repositories by running the flow again. Private repositories need no extra setup. Oratorio fetches review targets into the mapped checkout with the App installation credentials, so that checkout doesn't need stored Git credentials of its own.
 
+## Ask Oratorio from a pull request
+
+Owners, members, and collaborators of a connected repository can address Oratorio on any open pull request. Start a pull request comment, an inline review comment, or a reply in a review thread with `@dotcraft-ai`.
+
+To request a review of the current head, post:
+
+```text
+@dotcraft-ai review
+```
+
+To point one review at a specific concern, use `/review` and add the concern on the same line, for example `@dotcraft-ai /review security regressions`.
+
+Anything else after the mention is a question:
+
+```text
+@dotcraft-ai Why does the refresh path keep the old token?
+```
+
+Oratorio reacts with 👀 when it accepts a comment, then answers where you asked: in the pull request conversation, or in the review thread for an inline comment. A question never starts a review or changes the task.
+
+To push back on one of Oratorio's findings, reply `@dotcraft-ai` in that finding's review thread. If the discussion shows the finding doesn't apply or is already handled, Oratorio dismisses it and resolves the thread, and still replies to you.
+
+No webhook is needed. Oratorio picks up new comments within about 30 seconds, and it ignores comments posted before the repository was connected. Reactions and replies appear on GitHub once writes are on.
+
 ## Enable webhook delivery
 
-Sync doesn't depend on webhooks, but the GitHub comment command does. A local-only Desktop normally can't receive GitHub cloud webhooks, and manual and scheduled sync still work.
+Webhooks are optional. Sync and `@dotcraft-ai` comments work without them, and a webhook only gets events to Oratorio sooner. A local-only Desktop normally can't receive GitHub cloud webhooks.
 
 If you run a remote [DotCraft Stack](../../self-hosting/server-deployment), expose only the restricted webhook endpoint:
 
@@ -42,14 +67,6 @@ dotcraft stack webhook enable \
 ```
 
 Set the GitHub App webhook URL to the endpoint the command prints, paste the generated secret into the App, keep SSL verification enabled, then subscribe to the issue comment, issue, pull request, review, and review comment events your workflow uses.
-
-After that, anyone with collaborator access can request a review on a connected, still-open pull request by posting a comment containing only:
-
-```text
-@dotcraft-ai review
-```
-
-To point one review at a specific concern, add it after the command, for example `@dotcraft-ai review for security regressions`.
 
 ## Related docs
 

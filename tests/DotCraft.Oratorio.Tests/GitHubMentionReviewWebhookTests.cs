@@ -16,6 +16,9 @@ namespace DotCraft.Oratorio.Tests;
 
 public sealed class GitHubMentionReviewWebhookTests
 {
+    private const string IssueCommentEvent = "issue_comment";
+    private const string ReviewCommentEvent = "pull_request_review_comment";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
@@ -26,7 +29,7 @@ public sealed class GitHubMentionReviewWebhookTests
     {
         await using var app = new TestOratorioApp(DisableHostedServices);
         var client = app.CreateClient();
-        var payload = BuildPayload("@dotcraft-ai review for security regressions");
+        var payload = BuildPayload("@dotcraft-ai /review security regressions");
 
         var firstResponse = await SendWebhookAsync(client, payload, "delivery-1");
         Assert.Equal(HttpStatusCode.Accepted, firstResponse.StatusCode);
@@ -45,7 +48,9 @@ public sealed class GitHubMentionReviewWebhookTests
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
         var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
-        Assert.Equal("9001", command.SourceCommentId);
+        Assert.Equal("issue-comment:9001", command.SourceCommentId);
+        Assert.Equal(GitHubCommentKind.Conversation, command.CommentKind);
+        Assert.Equal(9001, command.CommentId);
         Assert.Equal("delivery-1", command.DeliveryId);
         Assert.Equal("example-owner/oratorio", command.Repository);
         Assert.Equal(184, command.PullRequestNumber);
@@ -57,30 +62,44 @@ public sealed class GitHubMentionReviewWebhookTests
         Assert.Empty(await db.Runs.AsNoTracking().ToListAsync());
     }
 
-    [Theory]
-    [InlineData("User", "CONTRIBUTOR", "githubCommentCommandActorUnauthorized")]
-    [InlineData("Bot", "OWNER", "githubCommentCommandBotRejected")]
-    public async Task IneligibleActor_IsPersistedAsRejected(
-        string senderType,
-        string association,
-        string expectedError)
+    [Fact]
+    public async Task InlineReviewComment_IsRecordedAsReviewCommentCommand()
     {
         await using var app = new TestOratorioApp(DisableHostedServices);
         var client = app.CreateClient();
-        var payload = BuildPayload("@dotcraft-ai review", senderType: senderType, association: association);
+        var payload = BuildPayload("@dotcraft-ai review", eventName: ReviewCommentEvent);
+
+        var response = await SendWebhookAsync(client, payload, "delivery-inline", eventName: ReviewCommentEvent);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
+        Assert.Equal("review-comment:9001", command.SourceCommentId);
+        Assert.Equal(GitHubCommentKind.ReviewComment, command.CommentKind);
+        Assert.Equal(184, command.PullRequestNumber);
+        Assert.Equal(GitHubCommentCommandStatus.Queued, command.Status);
+    }
+
+    [Fact]
+    public async Task UnaffiliatedActor_IsPersistedAsRejected()
+    {
+        await using var app = new TestOratorioApp(DisableHostedServices);
+        var client = app.CreateClient();
+        var payload = BuildPayload("@dotcraft-ai review", association: "CONTRIBUTOR");
 
         var response = await SendWebhookAsync(client, payload, "delivery-rejected");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<GitHubCommentCommandWebhookResponse>(JsonOptions);
         Assert.NotNull(result);
         Assert.Equal(GitHubCommentCommandStatus.Rejected, result.Status);
-        Assert.Equal(expectedError, result.ErrorCode);
+        Assert.Equal("githubCommentCommandActorUnauthorized", result.ErrorCode);
 
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
         var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
         Assert.Equal(GitHubCommentCommandStatus.Rejected, command.Status);
-        Assert.Equal(expectedError, command.ErrorCode);
+        Assert.Equal("githubCommentCommandActorUnauthorized", command.ErrorCode);
         Assert.NotNull(command.CompletedAt);
         Assert.Empty(await db.Runs.AsNoTracking().ToListAsync());
     }
@@ -123,17 +142,19 @@ public sealed class GitHubMentionReviewWebhookTests
         Assert.Equal("githubCommentCommandWorkspaceNotConfigured", command.ErrorCode);
     }
 
-    [Fact]
-    public async Task IssueCommentWithoutWebhookSecret_FailsClosed()
+    [Theory]
+    [InlineData(IssueCommentEvent)]
+    [InlineData(ReviewCommentEvent)]
+    public async Task CommentEventWithoutWebhookSecret_FailsClosed(string eventName)
     {
         await using var app = new TestOratorioApp(DisableHostedServices, settings: new Dictionary<string, string?>
         {
             ["Oratorio:GitHub:WebhookSecret"] = ""
         });
         var client = app.CreateClient();
-        var payload = BuildPayload("@dotcraft-ai review");
+        var payload = BuildPayload("@dotcraft-ai review", eventName: eventName);
 
-        var response = await SendWebhookAsync(client, payload, "delivery-no-secret");
+        var response = await SendWebhookAsync(client, payload, "delivery-no-secret", eventName: eventName);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("githubWebhookSecretRequired", document.RootElement.GetProperty("error").GetString());
@@ -159,12 +180,13 @@ public sealed class GitHubMentionReviewWebhookTests
     }
 
     [Theory]
-    [InlineData("@dotcraft-ai implement this", true)]
-    [InlineData("@dotcraft-ai review\nthanks", true)]
-    [InlineData("@dotcraft-ai review", false)]
-    public async Task NonCommandOrNonPullRequest_FallsBackToExistingSync_WithoutPersistingCommand(
+    [InlineData("@dotcraft-ai", true, "User")]
+    [InlineData("@dotcraft-ai review", false, "User")]
+    [InlineData("@dotcraft-ai review", true, "Bot")]
+    public async Task NonReviewCommandBotOrNonPullRequest_FallsBackToExistingSync_WithoutPersistingCommand(
         string body,
-        bool isPullRequest)
+        bool isPullRequest,
+        string senderType)
     {
         var fakeGitHub = new FakeGitHubApiClient();
         await using var app = new TestOratorioApp(services =>
@@ -174,7 +196,7 @@ public sealed class GitHubMentionReviewWebhookTests
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
         });
         var client = app.CreateClient();
-        var payload = BuildPayload(body, isPullRequest: isPullRequest);
+        var payload = BuildPayload(body, senderType: senderType, isPullRequest: isPullRequest);
 
         var response = await SendWebhookAsync(client, payload, "delivery-no-command");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -185,8 +207,41 @@ public sealed class GitHubMentionReviewWebhookTests
         Assert.Empty(await db.Runs.AsNoTracking().ToListAsync());
     }
 
+    [Fact]
+    public async Task ConversationQuestion_IsQueuedWithQuestionText()
+    {
+        await using var app = new TestOratorioApp(DisableHostedServices);
+        var client = app.CreateClient();
+
+        var response = await SendWebhookAsync(client, BuildPayload("@dotcraft-ai review\nthanks"), "delivery-question");
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
+        Assert.Equal(GitHubCommentCommandKind.Question, command.CommandKind);
+        Assert.Equal(GitHubCommentCommandStatus.Queued, command.Status);
+        Assert.Equal("review\nthanks", command.Question);
+        Assert.Null(command.Focus);
+    }
+
+    [Fact]
+    public async Task InlineQuestion_IsNotPersisted()
+    {
+        await using var app = new TestOratorioApp(DisableHostedServices);
+        var client = app.CreateClient();
+
+        var response = await SendWebhookAsync(client, BuildPayload("@dotcraft-ai why is this needed?", eventName: ReviewCommentEvent), "delivery-inline-question");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        Assert.Empty(await db.GitHubCommentCommands.AsNoTracking().ToListAsync());
+    }
+
     [Theory]
-    [InlineData("issue_comment", "edited")]
+    [InlineData(IssueCommentEvent, "edited")]
+    [InlineData(ReviewCommentEvent, "edited")]
     [InlineData("pull_request", "created")]
     public async Task OtherEventOrAction_DoesNotPersistCommand(
         string eventName,
@@ -200,7 +255,7 @@ public sealed class GitHubMentionReviewWebhookTests
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
         });
         var client = app.CreateClient();
-        var payload = BuildPayload("@dotcraft-ai review", action: action);
+        var payload = BuildPayload("@dotcraft-ai review", action: action, eventName: eventName);
 
         var response = await SendWebhookAsync(
             client,
@@ -220,7 +275,7 @@ public sealed class GitHubMentionReviewWebhookTests
         string payload,
         string deliveryId,
         string? signature = null,
-        string eventName = "issue_comment")
+        string eventName = IssueCommentEvent)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/sources/github/webhook")
         {
@@ -240,8 +295,30 @@ public sealed class GitHubMentionReviewWebhookTests
         string senderType = "User",
         string association = "MEMBER",
         bool isPullRequest = true,
-        string action = "created")
+        string action = "created",
+        string eventName = IssueCommentEvent)
     {
+        var payload = new Dictionary<string, object?>
+        {
+            ["action"] = action,
+            ["repository"] = new { full_name = repository },
+            ["comment"] = new
+            {
+                id = 9001,
+                body,
+                author_association = association,
+                html_url = $"https://github.example.test/{repository}/pull/184#issuecomment-9001",
+                created_at = "2026-05-02T13:00:00Z",
+                user = new { login = "example-reviewer", type = senderType }
+            },
+            ["sender"] = new { login = "example-reviewer", type = senderType }
+        };
+        if (eventName == ReviewCommentEvent)
+        {
+            payload["pull_request"] = new { number = 184 };
+            return JsonSerializer.Serialize(payload);
+        }
+
         var issue = new Dictionary<string, object?>
         {
             ["number"] = 184
@@ -254,20 +331,8 @@ public sealed class GitHubMentionReviewWebhookTests
             };
         }
 
-        return JsonSerializer.Serialize(new
-        {
-            action,
-            repository = new { full_name = repository },
-            issue,
-            comment = new
-            {
-                id = 9001,
-                body,
-                author_association = association,
-                user = new { login = "example-reviewer", type = senderType }
-            },
-            sender = new { login = "example-reviewer", type = senderType }
-        });
+        payload["issue"] = issue;
+        return JsonSerializer.Serialize(payload);
     }
 
     private static string Sign(string body, string secret) =>

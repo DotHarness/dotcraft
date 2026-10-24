@@ -18,6 +18,7 @@ public sealed class GitHubSourceService(
     GitHubSyncCoordinator syncCoordinator,
     GitHubCommentCommandIntakeService commentCommands,
     TaskBoardPlacementService taskBoardPlacement,
+    GitHubAppIdentity appIdentity,
     IClock clock)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -85,14 +86,14 @@ public sealed class GitHubSourceService(
     {
         var body = await ReadBodyAsync(request, ct);
         var eventName = request.Headers["X-GitHub-Event"].FirstOrDefault();
-        if (string.Equals(eventName, "issue_comment", StringComparison.OrdinalIgnoreCase) &&
-            !credentials.Resolve(options.CurrentValue).HasWebhookSecret)
+        var isCommentEvent = GitHubCommentWebhookReader.IsCommentEvent(eventName);
+        if (isCommentEvent && !credentials.Resolve(options.CurrentValue).HasWebhookSecret)
         {
             return Results.Json(
                 new
                 {
                     error = "githubWebhookSecretRequired",
-                    message = "GitHub issue_comment command intake requires a configured webhook secret."
+                    message = "GitHub comment command intake requires a configured webhook secret."
                 },
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }
@@ -108,9 +109,10 @@ public sealed class GitHubSourceService(
             return Results.BadRequest(new { error = "repositoryMissing", message = "GitHub webhook payload did not include a repository full_name." });
         }
 
-        if (string.Equals(eventName, "issue_comment", StringComparison.OrdinalIgnoreCase))
+        if (isCommentEvent)
         {
-            var intake = await commentCommands.IntakeAsync(
+            var intake = await commentCommands.IntakeWebhookAsync(
+                eventName!,
                 body,
                 request.Headers["X-GitHub-Delivery"].FirstOrDefault(),
                 ct);
@@ -119,7 +121,7 @@ public sealed class GitHubSourceService(
                 return Results.BadRequest(new
                 {
                     error = intake.ErrorCode ?? "githubWebhookPayloadInvalid",
-                    message = intake.ErrorMessage ?? "GitHub issue_comment payload was invalid."
+                    message = intake.ErrorMessage ?? "GitHub comment payload was invalid."
                 });
             }
 
@@ -241,10 +243,12 @@ public sealed class GitHubSourceService(
         }
 
         await UpsertItemAsync(ToSyncItem(repository, pull), clock.UtcNow, detailsHydrated: false, ct);
-        return await db.Items.FirstAsync(
-            x => x.Source == "github" && x.ExternalId == $"pr:{repository.FullName}#{number}",
-            ct);
+        var externalId = PullRequestExternalId(repository, number);
+        return await db.Items.FirstAsync(x => x.Source == "github" && x.ExternalId == externalId, ct);
     }
+
+    public static string PullRequestExternalId(GitHubRepositoryRef repository, int number) =>
+        $"pr:{repository.FullName}#{number}";
 
     public async Task HydrateItemDetailsAsync(OratorioItem item, CancellationToken ct)
     {
@@ -272,17 +276,23 @@ public sealed class GitHubSourceService(
         var now = clock.UtcNow;
         try
         {
-            var issueComments = await client.ListIssueCommentsAsync(repository, number, ct);
+            var ownLogin = await appIdentity.GetBotLoginAsync(ct);
+            var issueComments = (await client.ListIssueCommentsAsync(repository, number, ct) ?? [])
+                .Where(x => !GitHubAppIdentity.IsAuthoredBy(x.User, ownLogin))
+                .ToArray();
             IReadOnlyList<GitHubReview> reviews = [];
             IReadOnlyList<GitHubReviewComment> reviewComments = [];
             if (item.Kind == ItemKind.PullRequest)
             {
                 reviews = await client.ListPullRequestReviewsAsync(repository, number, ct);
-                reviewComments = await client.ListPullRequestReviewCommentsAsync(repository, number, ct);
+                reviewComments = (await client.ListPullRequestReviewCommentsAsync(repository, number, ct))
+                    .Where(x => !GitHubAppIdentity.IsAuthoredBy(x.User, ownLogin))
+                    .ToArray();
             }
 
-            var importedComments = (issueComments ?? []).Select(ToImportedIssueComment)
-                .Concat(reviews.Where(x => !string.IsNullOrWhiteSpace(x.Body)).Select(ToImportedReview))
+            var importedReviews = reviews.Where(x => !GitHubAppIdentity.IsAuthoredBy(x.User, ownLogin)).ToArray();
+            var importedComments = issueComments.Select(ToImportedIssueComment)
+                .Concat(importedReviews.Where(x => !string.IsNullOrWhiteSpace(x.Body)).Select(ToImportedReview))
                 .Concat(reviewComments.Select(ToImportedReviewComment))
                 .ToArray();
 
@@ -299,7 +309,7 @@ public sealed class GitHubSourceService(
                 },
                 reviewState = item.Kind == ItemKind.PullRequest ? AggregateReviewState(reviews) : "none",
                 issueComments = importedComments.Where(x => x.SourceCommentId.StartsWith("issue-comment:", StringComparison.Ordinal)),
-                reviews = reviews.Select(x => new { x.Id, x.State, x.Body, x.HtmlUrl, user = x.User?.Login, x.SubmittedAt }),
+                reviews = importedReviews.Select(x => new { x.Id, x.State, x.Body, x.HtmlUrl, user = x.User?.Login, x.SubmittedAt }),
                 reviewComments = reviewComments.Select(x => new { x.Id, x.Body, x.HtmlUrl, x.Path, x.Line, x.OriginalLine, user = x.User?.Login, x.UpdatedAt })
             });
             await UpsertSourceSnapshotAsync(item, payloadJson, now, ct);
@@ -491,8 +501,12 @@ public sealed class GitHubSourceService(
 
             existing.Item = item;
             existing.AuthorName = sourceComment.AuthorName;
-            existing.Body = sourceComment.Body;
-            existing.Purpose = CommentPurpose.SourceContext;
+            if (existing.Purpose != CommentPurpose.DiscussionQuestion)
+            {
+                existing.Body = sourceComment.Body;
+                existing.Purpose = CommentPurpose.SourceContext;
+            }
+
             existing.ExternalUrl = sourceComment.HtmlUrl;
             existing.SourceUpdatedAt = sourceComment.UpdatedAt;
         }

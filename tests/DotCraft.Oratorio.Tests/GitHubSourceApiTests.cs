@@ -928,6 +928,48 @@ public sealed class GitHubSourceApiTests
     }
 
     [Fact]
+    public async Task GitHubApiClient_RepositoryCommentScan_ReadsNewestFirstAcrossAllPages()
+    {
+        const int total = 1050;
+        var queries = new List<string>();
+        var handler = new CapturingHandler(request =>
+        {
+            var query = request.RequestUri!.Query;
+            queries.Add(query);
+            var page = int.Parse(System.Web.HttpUtility.ParseQueryString(query)["page"]!);
+            var comments = Enumerable.Range((page - 1) * 100, Math.Max(0, Math.Min(100, total - (page - 1) * 100)))
+                .Select(index => new
+                {
+                    id = index + 1,
+                    body = "comment",
+                    html_url = $"https://github.example.test/dotcraft/oratorio/pull/1#issuecomment-{index + 1}",
+                    issue_url = "https://api.github.test/repos/dotcraft/oratorio/issues/1",
+                    user = new { login = "reviewer", type = "User" },
+                    created_at = "2026-05-02T13:00:00Z",
+                    updated_at = "2026-05-02T13:00:00Z"
+                });
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(comments), Encoding.UTF8, "application/json")
+            };
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue($"\"page-{page}\"");
+            return response;
+        });
+        var client = CreateGitHubApiClient(handler);
+
+        var result = await client.ListRepositoryIssueCommentsAsync(
+            new GitHubRepositoryRef("dotcraft", "oratorio"),
+            DateTimeOffset.Parse("2026-05-02T12:58:00Z"),
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.NotModified);
+        Assert.Equal(total, result.Items.Count);
+        Assert.Equal("\"page-1\"", result.ETag);
+        Assert.All(queries, query => Assert.Contains("direction=desc", query, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GitHubApiClient_WriteFailure_IncludesGitHubResponseBody()
     {
         var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)

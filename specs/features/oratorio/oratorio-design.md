@@ -166,9 +166,9 @@ Required lifecycle behavior:
   task status and are not on the default Active board.
 - Imported source comments are source context, not operator feedback, and never
   count as requested follow-up work on their own. The bounded exceptions are:
-  - a pull request conversation command accepted through verified command
-    intake, which may request a read-only review of an already configured
-    repository; and
+  - a pull request mention accepted through mention intake ([GitHub
+    Mentions](./github-mentions.md)), which may request a read-only review or
+    ask a question of an already configured repository; and
   - human review comments on the generated pull or merge request of an
     originating implementation item, which feed that item's next round under
     the gated Implementation Follow-up loop (§6.2, §8).
@@ -305,8 +305,10 @@ GitHub read sync normalizes:
 
 Read failures are visible to operators and never corrupt existing item history.
 
-Verified source commands may request a read-only review through the normal
-dispatch boundary. Ordinary imported comments never dispatch work.
+Accepted pull request mentions may request a read-only review through the
+normal dispatch boundary or ask a question through a Discussion Turn ([GitHub
+Mentions](./github-mentions.md)). Ordinary imported comments never dispatch
+work.
 
 Closed issues and closed or merged pull requests are archived automatically
 when no run is active. If a source item reopens and it was archived because of
@@ -606,44 +608,67 @@ hidden requirements of the current round.
 
 ### 6.3 Agent Discussion Turns
 
-Operators can ask the agent a question about completed AppServer work from the
-task's Discussion without dispatching a new round.
+Operators can ask the agent a question about an item from the task's
+Discussion, and collaborators can ask about a pull request from GitHub
+([GitHub Mentions](./github-mentions.md)), without dispatching a new round.
 
 - **Add comment** records internal operator feedback for the record and later
   rounds.
 - **Ask agent** records an operator question and starts a Discussion Turn.
+- A pull request question accepted from GitHub starts a Discussion Turn whose
+  origin is that comment.
 - Re-review is the explicit way to review new commits; a comment or question
   never creates a review round.
 - A Discussion Turn never creates a round or run, never changes the item's
-  lifecycle, current run or check state, and writes to a source only to resolve
-  a review finding (§6.4).
+  lifecycle, current run or check state, and writes to a source only to publish
+  the reply of a source-originated question or to resolve a review finding
+  (§6.4).
 - Questions and replies appear in the same Discussion history as comments, but
   their purpose keeps them out of next-round feedback by default.
 
-Ask agent is allowed only when the item is not archived, dispatching or
-running; its latest successful AppServer run left a reusable compact-prompt
-thread that carries the discussion reply tool; and no Discussion Turn is
-already pending or running. Otherwise Oratorio rejects the request with a stable
-reason instead of dispatching a new round.
+A Discussion Turn runs on the item's conversation thread: the thread its review
+or work rounds use (§8). It is delivered by the thread's state when it is
+dispatched:
+
+- while a turn is running on the thread, whether a run's turn or another
+  Discussion Turn's, the question is steered into that turn;
+- otherwise it starts a new turn on the thread;
+- a source-originated question on a pull request that has no thread yet starts
+  the thread as its first review round would, at the current head, and asks the
+  agent to answer only.
+
+Ask agent from Desktop is allowed only when the item is not archived and either
+has a conversation thread that carries the discussion reply tool or has an
+active AppServer run, whose thread the question is delivered into. Otherwise
+Oratorio rejects the request with a stable reason. A question steered into a run leaves
+that run's contract unchanged: a review run must still submit its draft.
+
+Discussion Turns of one item are answered in the order received. An item has at
+most one Discussion Turn that is waiting to be delivered; the next one waits
+until it has been delivered.
 
 The agent answers through the **discussion reply tool**, which Oratorio
 declares on every thread it creates so the thread's tool set stays
 prompt-cache friendly. The tool takes the Discussion Turn being answered and a
-Markdown reply. It succeeds only for the pending or running Discussion Turn on
-the current thread and turn; a mismatched thread or turn, an unknown or
-completed turn, or an empty reply fails with a stable reason. A call that
-arrives before Oratorio has recorded the turn binds the Discussion Turn to the
-call's turn. On success Oratorio records one agent reply comment, links it to
-the Discussion Turn, marks the turn succeeded and pushes a board update. Calls
-made during ordinary runs with no pending Discussion Turn fail.
+Markdown reply. It succeeds only for a delivered, unanswered Discussion Turn on
+the calling thread; an unknown, answered or other-thread turn, or an empty
+reply, fails with a stable reason. On success Oratorio records one agent reply
+comment, links it to the Discussion Turn, marks the turn succeeded, publishes
+the reply when the question came from a source, and pushes a board update.
 
-Discussion prompts are short and incremental: the task, the question and its
-Discussion Turn, the latest run summary when available, and a pointer to the
-stable Oratorio discussion guidance. They never restate full source snapshots,
-round history, imported comment history or stable tool rules. When the item
-has open published findings, the prompt may list them so the agent can resolve
-one the discussion concludes is handled (§6.4). Discussion Turns require
-AppServer support for rebinding run tools and for runtime guidance.
+A Discussion Turn finishes when its reply is recorded. When the turn carrying
+it ends without a reply, Oratorio keeps waiting while the thread has background
+work and follows the turns that task notifications start on the thread, then
+fails the Discussion Turn only after no background work remains and a short
+settle period passes. The run timeout bounds the whole wait.
+
+Discussion inputs are short and incremental: the question and its Discussion
+Turn, who asked and from where, the thread state changes the thread has not been
+told (§8), and, when the item has open published findings, those findings so the
+agent can resolve one the discussion concludes is handled (§6.4). They never
+restate full source snapshots, round history, imported comment history or
+stable tool rules. Discussion Turns require AppServer support for rebinding run
+tools, for steering, and for runtime guidance.
 
 ### 6.4 Review Finding Resolution
 
@@ -783,8 +808,9 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
 - records the thread, turn, prompt context, summary and errors.
 
 Prompt context for AppServer rounds includes the current source snapshot, the
-round and attempt, the operator's dispatch note, imported source comments,
-operator comments, prior run summaries and errors, and workspace, repository,
+round and attempt, the operator's dispatch note, imported source comments
+other than those authored by Oratorio's own provider identity, operator
+comments, prior run summaries and errors, and workspace, repository,
 branch and head commit when available.
 
 For an implementation run on an originating item with a generated pull or merge
@@ -817,13 +843,28 @@ of falling back to prompt injection.
 
 Thread reuse:
 
-- Oratorio may reuse the item's latest successful AppServer thread when it used
-  compact prompts, the workspace is the same, and the required run tools match
-  exactly. Otherwise it starts a new compact-prompt thread and records why.
+- The item's conversation thread is the latest thread a successful AppServer
+  run or a Discussion Turn left for it. Oratorio reuses it when it used compact
+  prompts, the workspace is the same, and the required run tools match exactly.
+  Otherwise it starts a new compact-prompt thread and records why.
 - A reused thread still gets a new turn and a new run.
 - New threads receive the full compact context. Reused threads receive only the
-  incremental request, new feedback, source changes and required metadata, and
-  never repeat the compact prompt already in the thread.
+  incremental request, new feedback, thread state changes and required
+  metadata, and never repeat the compact prompt already in the thread.
+
+Thread state:
+
+- Oratorio records, per thread, the item state it last told the agent: for a
+  pull or merge request the head and base commits, the source state (open,
+  closed, merged), the draft flag and the set of open published findings.
+- Before each input it sends on a thread — a run's turn, a Discussion Turn or a
+  steered question — Oratorio compares the current state with that record and
+  adds only the facts that changed. An unchanged state adds nothing; a new
+  thread is told the full state.
+- The record advances only once the input is accepted by AppServer, so a
+  rejected or retried input repeats the change rather than losing it.
+- Thread state is Oratorio-owned turn input, never DotCraft world state or
+  thread-stable guidance.
 - Re-review runs use ordinary review prompts. On a reused thread the
   incremental input names the old and new head commits and asks the agent to
   review the latest head, focusing on new changes when useful.

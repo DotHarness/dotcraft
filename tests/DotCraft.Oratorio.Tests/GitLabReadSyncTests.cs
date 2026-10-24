@@ -286,6 +286,7 @@ public sealed class GitLabReadSyncTests
         Assert.Equal(SourceDetailsStatus.Current, detail.Item.SourceDetailsStatus);
         Assert.Contains(detail.Comments!, x => x.Source == "gitlab" && x.Purpose == CommentPurpose.SourceContext && x.SourceCommentId!.StartsWith("mr-note:", StringComparison.Ordinal));
         Assert.Contains(detail.Comments!, x => x.Source == "gitlab" && x.Purpose == CommentPurpose.SourceContext && x.SourceCommentId!.StartsWith("mr-discussion-note:", StringComparison.Ordinal));
+        Assert.DoesNotContain(detail.Comments!, x => x.SourceCommentId?.EndsWith(":402", StringComparison.Ordinal) == true);
         Assert.NotNull(detail.SourceSnapshot);
         Assert.Contains("diff_refs", detail.SourceSnapshot!.PayloadJson ?? "", StringComparison.OrdinalIgnoreCase);
     }
@@ -1381,6 +1382,9 @@ public sealed class GitLabReadSyncTests
         public Task<GitLabProject> GetProjectAsync(GitLabProjectRef project, CancellationToken ct) =>
             Task.FromResult(new GitLabProject(99, ProjectPath, "https://gitlab.example.test/group/subgroup/project", "main"));
 
+        public Task<GitLabUser> GetTokenUserAsync(GitLabProjectRef project, CancellationToken ct) =>
+            Task.FromResult(new GitLabUser(900, "project_99_bot", "Oratorio", null));
+
         public Task<IReadOnlyList<GitLabIssue>> ListIssuesAsync(GitLabProjectRef project, GitLabListState state, DateTimeOffset? updatedAfter, CancellationToken ct)
         {
             if (CancelingIssueProjects.Contains(project.ProjectPath))
@@ -1423,7 +1427,8 @@ public sealed class GitLabReadSyncTests
         public Task<IReadOnlyList<GitLabNote>> ListMergeRequestNotesAsync(GitLabProjectRef project, int iid, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<GitLabNote>>(
             [
-                new(401, "Please keep subgroup paths encoded.", new GitLabUser(4, "reviewer", "Reviewer", null), Now, Now, false, null, iid, "https://gitlab.example.test/group/subgroup/project/-/merge_requests/7#note_401")
+                new(401, "Please keep subgroup paths encoded.", new GitLabUser(4, "reviewer", "Reviewer", null), Now, Now, false, null, iid, "https://gitlab.example.test/group/subgroup/project/-/merge_requests/7#note_401"),
+                new(402, "Oratorio review summary from an earlier round.", new GitLabUser(900, "project_99_bot", "Oratorio", null), Now, Now, false, null, iid, "https://gitlab.example.test/group/subgroup/project/-/merge_requests/7#note_402")
             ]);
 
         public Task<IReadOnlyList<GitLabDiscussion>> ListMergeRequestDiscussionsAsync(GitLabProjectRef project, int iid, CancellationToken ct) =>
