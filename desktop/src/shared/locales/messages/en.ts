@@ -2370,8 +2370,6 @@ export const MESSAGES_EN = {
   'plugins.installDialog.connectStep': 'Connect {{name}}',
   'plugins.installDialog.linkOpened': 'Link opened',
   'plugins.installDialog.waitingForApp': 'Waiting for confirmation in the app',
-  'plugins.installDialog.completeStep': 'Setup complete',
-  'plugins.installDialog.allAppsConnected': 'Required apps are authorized',
   'plugins.installDialog.installed': 'Installed',
   'plugins.installDialog.required': 'Required',
   'plugins.filter.label': 'Filter plugins',

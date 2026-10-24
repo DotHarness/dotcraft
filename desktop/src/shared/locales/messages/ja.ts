@@ -2276,8 +2276,6 @@ export const MESSAGES_JA = {
   'plugins.installDialog.connectStep': '{{name}} を接続',
   'plugins.installDialog.linkOpened': 'リンクが開かれました',
   'plugins.installDialog.waitingForApp': 'アプリでの確認を待っています',
-  'plugins.installDialog.completeStep': 'セットアップが完了しました',
-  'plugins.installDialog.allAppsConnected': '必要なアプリは許可されています',
   'plugins.detail.contents': '収録内容',
   'plugins.detail.noContents': '表示できる収録内容はありません。',
   'plugins.detail.about': '概要',

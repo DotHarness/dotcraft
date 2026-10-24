@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -32,12 +32,14 @@ export function PluginInstallDialog({
   installing,
   onInstall,
   onTrust,
+  onSetupComplete,
   onClose
 }: {
   plugin: PluginEntry
   installing?: boolean
   onInstall: () => Promise<void> | void
   onTrust?: () => Promise<void> | void
+  onSetupComplete?: () => void
   onClose: () => void
 }): JSX.Element {
   const t = useT()
@@ -93,12 +95,20 @@ export function PluginInstallDialog({
     if (appsNeedingConnection.length > 0) {
       return {
         stage: appsNeedingConnection.some((setupApp) => setupApp.handoffOpened) ? 'handoffOpened' : 'appConnect',
-        apps: appsNeedingConnection
+        apps: setupApps
       }
     }
 
     return { stage: 'complete', apps: setupApps }
   }, [hasApps, needsTrust, plugin.installed, setupApps])
+
+  const setupFinished = setupStage.stage === 'complete'
+  const completionReported = useRef(false)
+  useEffect(() => {
+    if (!setupFinished || completionReported.current) return
+    completionReported.current = true
+    ;(onSetupComplete ?? onClose)()
+  }, [onClose, onSetupComplete, setupFinished])
 
   const dialogTitle = plugin.installed && (hasApps || needsTrust)
     ? t('plugins.installDialog.setupTitle', { name: title })
@@ -217,31 +227,36 @@ export function PluginInstallDialog({
           <Divider />
           <SectionTitle>{t('plugins.detail.contents')}</SectionTitle>
           <ContentChips plugin={plugin} />
-          <Divider />
-          <SectionTitle>{t('plugins.detail.capabilities')}</SectionTitle>
-          <div style={chips}>
-            {capabilities.map((capability) => <span key={capability} style={chip}>{capability}</span>)}
-          </div>
+          {capabilities.length > 0 && (
+            <>
+              <Divider />
+              <SectionTitle>{t('plugins.detail.capabilities')}</SectionTitle>
+              <div style={chips}>
+                {capabilities.map((capability) => <span key={capability} style={chip}>{capability}</span>)}
+              </div>
+            </>
+          )}
         </div>
 
-        {setupStage.stage === 'pluginInstall' ? (
-          <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} style={{ width: '100%' }}>
-            {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
-          </Button>
-        ) : (
-          <CurrentSetupStage
-            stage={setupStage.stage}
-            apps={setupStage.apps}
-            trustName={title}
-            busyKey={busyKey}
-            onTrust={onTrust ? () => run('plugin:trust', async () => { await onTrust() }) : undefined}
-            onClose={onClose}
-            onConnect={handleConnect}
-            onInstallNative={handleInstallNative}
-            onRefresh={() => { void run('setup:refresh', refreshAppSetup) }}
-            t={t}
-          />
-        )}
+        <div style={setupArea}>
+          {setupStage.stage === 'pluginInstall' ? (
+            <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} style={{ width: '100%' }}>
+              {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
+            </Button>
+          ) : (
+            <CurrentSetupStage
+              stage={setupStage.stage}
+              apps={setupStage.apps}
+              trustName={title}
+              busyKey={busyKey}
+              onTrust={onTrust ? () => run('plugin:trust', async () => { await onTrust() }) : undefined}
+              onConnect={handleConnect}
+              onInstallNative={handleInstallNative}
+              onRefresh={() => { void run('setup:refresh', refreshAppSetup) }}
+              t={t}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -277,7 +292,6 @@ function CurrentSetupStage({
   apps,
   trustName,
   busyKey,
-  onClose,
   onConnect,
   onInstallNative,
   onRefresh,
@@ -288,13 +302,12 @@ function CurrentSetupStage({
   apps: AppSetupState[]
   trustName: string
   busyKey: string | null
-  onClose: () => void
   onConnect: (app: PluginAppInfo) => Promise<void>
   onInstallNative: (app: PluginAppInfo) => Promise<void>
   onRefresh: () => void
   onTrust?: () => void
   t: ReturnType<typeof useT>
-}): JSX.Element {
+}): JSX.Element | null {
   if (stage === 'trustRequired') {
     return (
       <SetupPanel
@@ -316,21 +329,7 @@ function CurrentSetupStage({
     )
   }
 
-  if (stage === 'complete') {
-    return (
-      <>
-        <SetupPanel
-          complete
-          title={t('plugins.installDialog.completeStep')}
-          status={t('plugins.installDialog.allAppsConnected')}
-        />
-        <Button size="prominent" variant="primary" onClick={onClose} style={{ width: '100%' }}>
-          <Check size={13} aria-hidden />
-          {t('common.close')}
-        </Button>
-      </>
-    )
-  }
+  if (stage === 'complete') return null
 
   const nativeStage = stage === 'nativeAppRequired' || stage === 'nativeAppPending'
   const title = nativeStage
@@ -338,7 +337,7 @@ function CurrentSetupStage({
     : t('plugins.installDialog.connectRequired')
   const status = nativeStage
     ? t('plugins.installDialog.nativeStep', { name: apps.map((setupApp) => setupApp.app.nativeApplication?.displayName || setupApp.app.displayName).join(', ') })
-    : t('plugins.installDialog.connectStep', { name: apps.map((setupApp) => setupApp.app.displayName).join(', ') })
+    : t('plugins.installDialog.connectStep', { name: apps.filter((setupApp) => !setupApp.connected).map((setupApp) => setupApp.app.displayName).join(', ') })
 
   return (
     <SetupPanel title={title} status={status}>
@@ -361,14 +360,12 @@ function CurrentSetupStage({
 }
 
 function SetupPanel({
-  complete,
   tone,
   title,
   status,
   details,
   children
 }: {
-  complete?: boolean
   tone?: 'warning'
   title: string
   status: string
@@ -377,10 +374,10 @@ function SetupPanel({
 }): JSX.Element {
   return (
     <div style={tone === 'warning' ? warningSetupPanel : setupPanel}>
-      <span style={tone === 'warning' ? warningSetupIcon : setupIcon(complete === true)}>
+      <span style={tone === 'warning' ? warningSetupIcon : setupIcon}>
         {tone === 'warning'
           ? <AlertTriangle size={13} aria-hidden />
-          : complete ? <Check size={13} aria-hidden /> : <Link2 size={13} aria-hidden />}
+          : <Link2 size={13} aria-hidden />}
       </span>
       <span style={stepBody}>
         <strong style={stepTitle}>{title}</strong>
@@ -410,6 +407,8 @@ function AppSetupRow({
   t: ReturnType<typeof useT>
 }): JSX.Element {
   const { app, liveApp, nativeStatus, nativeOpened, handoffOpened } = setupApp
+  const nativeStage = stage === 'nativeAppRequired' || stage === 'nativeAppPending'
+  const connected = setupApp.connected && !nativeStage
   const waitingForApp = stage === 'handoffOpened' && handoffOpened
   const nativePending = nativeStatus !== 'missing' || nativeOpened
   return (
@@ -417,14 +416,21 @@ function AppSetupRow({
       <AppSetupIcon app={app} />
       <span style={appSetupBody}>
         <strong style={stepTitle}>{app.displayName}</strong>
-        <span style={muted}>
-          {stage === 'nativeAppRequired' || stage === 'nativeAppPending'
-            ? nativePending ? t('plugins.installDialog.nativePending') : nativeStatusLabel(nativeStatus, t)
-            : waitingForApp ? t('plugins.installDialog.waitingForApp') : connectionStatusLabel(liveApp, t)}
-        </span>
+        {!connected && (
+          <span style={muted}>
+            {stage === 'nativeAppRequired' || stage === 'nativeAppPending'
+              ? nativePending ? t('plugins.installDialog.nativePending') : nativeStatusLabel(nativeStatus, t)
+              : waitingForApp ? t('plugins.installDialog.waitingForApp') : connectionStatusLabel(liveApp, t)}
+          </span>
+        )}
       </span>
       <span style={appSetupActions}>
-        {stage === 'nativeAppRequired' || stage === 'nativeAppPending' ? (
+        {connected ? (
+          <Button size="sm" disabled variant="secondary">
+            <Check size={13} aria-hidden />
+            {t('appBinding.connection.connected')}
+          </Button>
+        ) : stage === 'nativeAppRequired' || stage === 'nativeAppPending' ? (
           nativePending ? (
             <Button size="sm" onClick={onRefresh} disabled={busyKey != null} variant="secondary">
               <RefreshCw size={13} aria-hidden />
@@ -531,6 +537,7 @@ const dotTrail: CSSProperties = { color: 'var(--text-dimmed)', letterSpacing: 2 
 const titleStyle: CSSProperties = { margin: '18px 0 4px', textAlign: 'center', fontSize: 22, fontWeight: 700 }
 const subtitleStyle: CSSProperties = { textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 24 }
 const infoCard: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 12, padding: 16, marginBottom: 18 }
+const setupArea: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 }
 const cardTitleLine: CSSProperties = { fontSize: 14 }
 const muted: CSSProperties = { marginTop: 8, color: 'var(--text-secondary)', fontSize: 12 }
 const divider: CSSProperties = { height: 1, backgroundColor: 'var(--border-subtle)', margin: '16px 0' }
@@ -554,19 +561,19 @@ const warningSetupIcon: CSSProperties = {
   background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
   color: 'var(--warning)'
 }
-const setupIcon = (complete: boolean): CSSProperties => ({
+const setupIcon: CSSProperties = {
   width: 24,
   height: 24,
   borderRadius: 999,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: complete ? 'var(--success-bg)' : 'var(--bg-tertiary)',
-  color: complete ? 'var(--success)' : 'var(--text-secondary)',
+  background: 'var(--bg-tertiary)',
+  color: 'var(--text-secondary)',
   fontSize: 12,
   fontWeight: 700,
   flex: '0 0 auto'
-})
+}
 const stepBody: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }
 const stepTitle: CSSProperties = { color: 'var(--text-primary)', fontSize: 13 }
 const stepAction: CSSProperties = { gridColumn: '2', display: 'flex', width: '100%', minWidth: 0 }

@@ -37,7 +37,6 @@ export function ImportedPluginTrust({ pluginIds, onDone }: { pluginIds: string[]
         await store.setPluginTrusted(current.id, true)
         await store.fetchPlugins()
         if (!current.enabled) await store.togglePluginEnabled(current.id, true)
-        advance()
       }}
     />
   )

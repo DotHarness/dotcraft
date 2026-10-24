@@ -2276,8 +2276,6 @@ export const MESSAGES_FR = {
   'plugins.installDialog.connectStep': 'Connecter {{name}}',
   'plugins.installDialog.linkOpened': 'Lien ouvert',
   'plugins.installDialog.waitingForApp': 'En attente de confirmation dans l\'application',
-  'plugins.installDialog.completeStep': 'Configuration terminée',
-  'plugins.installDialog.allAppsConnected': 'Les applications requises sont autorisées',
   'plugins.detail.contents': 'Contenu inclus',
   'plugins.detail.noContents': 'Aucun contenu inclus à afficher.',
   'plugins.detail.about': 'À propos',

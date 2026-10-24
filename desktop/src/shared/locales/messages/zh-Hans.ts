@@ -2332,8 +2332,6 @@ export const MESSAGES_ZH_HANS = {
   'plugins.installDialog.connectStep': '连接 {{name}}',
   'plugins.installDialog.linkOpened': '已打开链接',
   'plugins.installDialog.waitingForApp': '正在等待应用内确认',
-  'plugins.installDialog.completeStep': '设置完成',
-  'plugins.installDialog.allAppsConnected': '必需应用已授权',
   'plugins.installDialog.installed': '已安装',
   'plugins.installDialog.required': '需要完成',
   'plugins.filter.label': '筛选插件',

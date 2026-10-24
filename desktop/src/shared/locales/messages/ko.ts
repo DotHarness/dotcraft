@@ -2278,8 +2278,6 @@ export const MESSAGES_KO = {
   'plugins.installDialog.connectStep': '{{name}} 연결',
   'plugins.installDialog.linkOpened': '링크가 열렸습니다',
   'plugins.installDialog.waitingForApp': '앱에서 확인을 기다리는 중',
-  'plugins.installDialog.completeStep': '설정 완료',
-  'plugins.installDialog.allAppsConnected': '필수 앱이 승인되었습니다.',
   'plugins.detail.contents': '포함된 콘텐츠',
   'plugins.detail.noContents': '표시할 포함 콘텐츠가 없습니다.',
   'plugins.detail.about': '소개',

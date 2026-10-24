@@ -110,6 +110,7 @@ export function PluginsView(): JSX.Element {
   const [publisherFilter, setPublisherFilter] = useState<PublisherFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [installTarget, setInstallTarget] = useState<PluginEntry | null>(null)
+  const [announceInstall, setAnnounceInstall] = useState(false)
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [togglingPluginIds, setTogglingPluginIds] = useState<ReadonlySet<string>>(() => new Set())
   const [enablingPluginId, setEnablingPluginId] = useState<string | null>(null)
@@ -193,23 +194,27 @@ export function PluginsView(): JSX.Element {
     <PluginInstallDialog
       plugin={installDialogPlugin}
       installing={installingId === installDialogPlugin.id}
-      onClose={() => setInstallTarget(null)}
+      onClose={closeInstallDialog}
+      onSetupComplete={() => {
+        if (announceInstall) announceInstalled(installDialogPlugin)
+        closeInstallDialog()
+      }}
       onInstall={async () => {
         try {
           setInstallingId(installDialogPlugin.id)
-          // Copying the bundle is not authority: an in-process plugin still owes the trust step.
+          // Copying the bundle is not authority: an in-process plugin may still owe the trust step.
           const keepOpenForSetup = (installDialogPlugin.apps ?? []).length > 0 || installDialogPlugin.dotnet != null
           await installPlugin(installDialogPlugin.id)
           await fetchSkills()
           await fetchPlugins()
           await selectPlugin(installDialogPlugin.id)
-          setInstallTarget(keepOpenForSetup
-            ? { ...installDialogPlugin, installed: true, enabled: true, installable: false }
-            : null)
-          showPluginInstalledToast(installDialogPlugin, {
-            message: t('plugins.installSuccess', { name: pluginTitle(installDialogPlugin) }),
-            ...(keepOpenForSetup ? {} : { tryLabel: t('plugins.tryNow') })
-          })
+          if (keepOpenForSetup) {
+            setAnnounceInstall(true)
+            setInstallTarget({ ...installDialogPlugin, installed: true, enabled: true, installable: false })
+          } else {
+            setInstallTarget(null)
+            announceInstalled(installDialogPlugin)
+          }
         } catch {
           addToast(t('plugins.installFailed'), 'error')
         } finally {
@@ -220,10 +225,21 @@ export function PluginsView(): JSX.Element {
         await setPluginTrusted(installDialogPlugin.id, true)
         await fetchPlugins()
         if (!installDialogPlugin.enabled) await togglePluginEnabled(installDialogPlugin.id, true)
-        if ((installDialogPlugin.apps ?? []).length === 0) setInstallTarget(null)
       }}
     />
   ) : null
+
+  function closeInstallDialog(): void {
+    setInstallTarget(null)
+    setAnnounceInstall(false)
+  }
+
+  function announceInstalled(plugin: PluginEntry): void {
+    showPluginInstalledToast(plugin, {
+      message: t('plugins.installSuccess', { name: pluginTitle(plugin) }),
+      tryLabel: t('plugins.tryNow')
+    })
+  }
 
   // The skill mention is only staged when the skill actually resolves, so the composer
   // never shows a chip that cannot be resolved.
@@ -331,12 +347,11 @@ export function PluginsView(): JSX.Element {
       if (installed) await selectPlugin(installed.id)
       // Only now is it known whether the folder carried in-process code, and the trust step
       // it owes is the same one a catalog install completes.
-      if (installed?.dotnet) setInstallTarget(installed)
-      if (installed) {
-        showPluginInstalledToast(installed, {
-          message: t('plugins.installSuccess', { name: pluginTitle(installed) }),
-          ...(installed.dotnet ? {} : { tryLabel: t('plugins.tryNow') })
-        })
+      if (installed?.dotnet) {
+        setAnnounceInstall(true)
+        setInstallTarget(installed)
+      } else if (installed) {
+        announceInstalled(installed)
       }
     } catch (err) {
       const detail = err instanceof Error ? extractInstallErrorDetail(err.message) : ''
@@ -387,11 +402,12 @@ export function PluginsView(): JSX.Element {
         return
       }
       const needsSetup = (installed.apps ?? []).length > 0 || installed.dotnet != null
-      showPluginInstalledToast(installed, {
-        message: t('plugins.installSuccess', { name: pluginTitle(installed) }),
-        ...(needsSetup ? {} : { tryLabel: t('plugins.tryNow') })
-      })
-      if (needsSetup) setInstallTarget(installed)
+      if (needsSetup) {
+        setAnnounceInstall(true)
+        setInstallTarget(installed)
+      } else {
+        announceInstalled(installed)
+      }
     } catch {
       addToast(t('plugins.installFailed'), 'error')
     } finally {
