@@ -441,7 +441,7 @@ public sealed partial class SessionService
             config.ToolProfile,
             providerCapabilities,
             threadRuntimeState.NextToolSnapshotRevision(),
-            ToolPlanningThreadClassifier.Classify(thread),
+            ToolPlanningThreadClassifier.ClassifyToolSurface(thread),
             config.ProviderId,
             config.Model,
             toolContext.WorkspaceRoots,

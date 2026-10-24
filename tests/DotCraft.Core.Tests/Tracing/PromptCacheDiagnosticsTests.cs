@@ -41,6 +41,24 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
         Assert.Equal(1, root.GetProperty("childRequestIndex").GetInt32());
     }
 
+    [Fact]
+    public void SubAgentPrefixDiagnostic_AnchorStaysOnTheSpawningRequest()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a", "b"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent", expectsSharedInputPrefix: true);
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a", "b", "spawn", "spawned"]), 2, 1);
+        collector.BindChildSession("child", "parent", "parent", expectsSharedInputPrefix: true);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a", "b", "task"]), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        Assert.Equal("compatible", metadata.RootElement.GetProperty("status").GetString());
+        Assert.Equal(1, metadata.RootElement.GetProperty("parentRequestIndex").GetInt32());
+    }
+
     [Theory]
     [InlineData("model")]
     [InlineData("tools")]
@@ -63,7 +81,7 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
     [Theory]
     [InlineData("different", 1)]
     [InlineData("shorter", 1)]
-    public void SubAgentPrefixDiagnostic_RetainedPrefixReportsExpectedSuffixDivergence(string scenario, int divergenceIndex)
+    public void SubAgentPrefixDiagnostic_IncompleteInheritedInputIsStaticShared(string scenario, int divergenceIndex)
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
@@ -79,9 +97,9 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
         var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
         using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("compatible", root.GetProperty("status").GetString());
+        Assert.Equal("staticShared", root.GetProperty("status").GetString());
         Assert.Equal(divergenceIndex, root.GetProperty("divergenceIndex").GetInt32());
-        Assert.Empty(root.GetProperty("changedFields").EnumerateArray());
+        Assert.Equal(["inputPrefix"], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
         Assert.False(root.GetProperty("exactParentInputPrefix").GetBoolean());
     }
 

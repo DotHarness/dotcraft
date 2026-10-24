@@ -1,4 +1,4 @@
-import { formatCount, formatDateTime, formatDuration, plural, truncateMiddle } from '../core/format.js';
+import { formatCount, formatDateTime, formatDuration, plural } from '../core/format.js';
 import { copyButton } from '../core/clipboard.js';
 import { button, chevron, esc, facts, icon, iconButton, kv, mono, errorNotice, skeleton } from '../core/html.js';
 
@@ -113,11 +113,9 @@ export function dreamRunCard(run) {
   return `<div class="dash-hovercard__header">
       <span class="dash-hovercard__title">${esc(dreamTitle(run))}</span>
       <span class="dash-hovercard__meta">${esc(status.label)}</span>
+      <span class="dash-hovercard__actions">${copyButton(run.id, 'Copy run ID')}</span>
     </div>
-    ${rows.join('')}
-    <div class="dash-hovercard__footer">
-      <span class="dash-inline-list">${mono(truncateMiddle(run.id, 30))}${copyButton(run.id, 'Copy run ID')}</span>
-    </div>`;
+    ${rows.join('')}`;
 }
 
 export function dreamRunDetail(run, data) {

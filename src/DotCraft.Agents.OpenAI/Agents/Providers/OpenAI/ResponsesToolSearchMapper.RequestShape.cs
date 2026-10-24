@@ -185,9 +185,7 @@ internal static partial class ResponsesToolSearchMapper
         ChatOptions? options,
         bool removesUnsupportedOAuthResponsesFields)
     {
-        var inputItemHashes = input
-            .Select(static item => item == null ? HashUtf8String("null") : HashJsonNode(item))
-            .ToArray();
+        var inputItemHashes = HashInputItems(input);
         var maxOutputTokensRequested = options?.MaxOutputTokens;
         var maxOutputTokensRemovedByOAuthRewrite = maxOutputTokensRequested.HasValue && removesUnsupportedOAuthResponsesFields;
 
@@ -226,9 +224,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             InputHash = HashJsonNode(input),
             InputItemCount = input.Count,
-            InputItemHashes = input.Select(static item => item == null
-                ? HashUtf8String("null")
-                : HashJsonNode(item)).ToArray(),
+            InputItemHashes = HashInputItems(input),
             InputBytes = Encoding.UTF8.GetByteCount(input.ToJsonString(JsonOptions)),
             InputItemIdEligibleCount = identity.EligibleCount,
             InputItemIdPresentCount = identity.PresentCount,
@@ -279,6 +275,23 @@ internal static partial class ResponsesToolSearchMapper
 
     private static string HashJsonNode(JsonNode node) =>
         HashUtf8String(node.ToJsonString(JsonOptions));
+
+    /// <summary>Item ids are thread-scoped, so they are left out to keep equal content comparable across threads.</summary>
+    private static string[] HashInputItems(JsonArray input) => input
+        .Select(static item => item switch
+        {
+            null => HashUtf8String("null"),
+            JsonObject { } entry when entry.ContainsKey("id") => HashJsonNode(WithoutId(entry)),
+            _ => HashJsonNode(item)
+        })
+        .ToArray();
+
+    private static JsonObject WithoutId(JsonObject item)
+    {
+        var copy = (JsonObject)item.DeepClone();
+        copy.Remove("id");
+        return copy;
+    }
 
     private static string? HashJsonStringValue(string? value) =>
         value == null ? null : HashUtf8Bytes(JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions));

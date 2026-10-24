@@ -5,7 +5,23 @@ namespace DotCraft.Sessions;
 /// <summary>Derives the trusted tool-planning thread kind from persisted Session state.</summary>
 internal static class ToolPlanningThreadClassifier
 {
+    public const string InheritedToolSurfaceKey = "dotcraft.subagent.toolSurface";
+
     private const string AutomationsChannelName = "automations";
+
+    /// <summary>
+    /// Shapes the model-visible tool surface. A full-history SubAgent keeps its parent's surface so the
+    /// cached prefix survives, while <see cref="Classify"/> still governs what it may execute.
+    /// </summary>
+    public static ToolPlanningThreadKind ClassifyToolSurface(SessionThread thread)
+    {
+        var kind = Classify(thread);
+        return kind == ToolPlanningThreadKind.SubAgentChild
+               && thread.Metadata.TryGetValue(InheritedToolSurfaceKey, out var inherited)
+               && Enum.TryParse<ToolPlanningThreadKind>(inherited, out var parentKind)
+            ? parentKind
+            : kind;
+    }
 
     public static ToolPlanningThreadKind Classify(SessionThread thread)
     {

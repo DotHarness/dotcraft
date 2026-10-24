@@ -123,7 +123,8 @@ public sealed class ToolDispatcher(
             snapshot.Revision,
             DateTimeOffset.UtcNow,
             request.Origin,
-            request.WorkspacePath);
+            request.WorkspacePath,
+            TurnServices: request.TurnServices);
 
         // Resolved once per dispatch so a concurrent mutation cannot split the started and terminal projections across different recorders.
         var recorder = ResolveRecorder(request.ThreadId);

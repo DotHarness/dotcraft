@@ -3,10 +3,12 @@ import { fetchJson } from '../core/api.js';
 import { showTextDialog } from '../core/dialog.js';
 import { copyButton } from '../core/clipboard.js';
 import { formatCount, formatPercent, formatRelative, plural, sessionTitle } from '../core/format.js';
-import { button, esc, icon, iconButton, mono } from '../core/html.js';
+import { esc, icon, iconButton } from '../core/html.js';
 import { registerHoverCard } from '../core/hovercard.js';
 import { state } from '../core/state.js';
-import { abnormalFinish, cacheVerdict, prefixText, rollbackText, troubleMarker } from './session-cache.js';
+import {
+  abnormalFinish, cacheVerdict, firstRequestText, forkModeText, inheritsParentContext, prefixText, rollbackText, troubleMarker
+} from './session-cache.js';
 
 export async function loadSessions() {
   const sessions = await fetchJson('/sessions');
@@ -18,8 +20,8 @@ export function findSession(key) {
   return state.sessions.find(session => session.sessionKey === key) ?? null;
 }
 
-function cardRow(iconName, html) {
-  return `<div class="dash-hovercard__row">${icon(iconName, 14)}<span>${html}</span></div>`;
+function cardRow(iconName, html, className = '') {
+  return `<div class="dash-hovercard__row${className ? ` ${className}` : ''}">${icon(iconName, 14)}<span>${html}</span></div>`;
 }
 
 function sessionCard(target) {
@@ -31,21 +33,23 @@ function sessionCard(target) {
   const rows = [cardRow('database', cacheVerdict(session))];
   if (session.rollbackCount > 0) rows.push(cardRow('undo2', rollbackText(session)));
   if (session.parentSessionKey) {
-    rows.push(cardRow('gitBranch', `Started by <button type="button" class="dash-link" data-action="open-thread" data-thread="${esc(session.parentSessionKey)}">${esc(parent ? sessionTitle(parent) : session.parentSessionKey)}</button>`));
-    rows.push(cardRow('layers', prefixText(session.parentPrefix)));
+    rows.push(cardRow('gitBranch', `Started by <button type="button" class="dash-link" data-action="open-thread" data-thread="${esc(session.parentSessionKey)}">${esc(parent ? sessionTitle(parent) : session.parentSessionKey)}</button>`, 'dash-hovercard__row--single'));
+    rows.push(cardRow('layers', forkModeText(session)));
+    if (firstRequestText(session)) rows.push(cardRow('gauge', firstRequestText(session)));
+    if (inheritsParentContext(session) && session.parentPrefix) rows.push(cardRow('link2', prefixText(session.parentPrefix)));
   }
   if (children) rows.push(cardRow('gitFork', esc(plural(children, 'subagent'))));
   if (abnormalFinish(session)) rows.push(cardRow('circleAlert', esc(abnormalFinish(session))));
   rows.push(cardRow('wrench', tools.length ? `<span data-tooltip="${esc(tools.join(', '))}">${esc(plural(tools.length, 'tool'))}</span>` : 'No tools recorded'));
+  const systemPrompt = session.finalSystemPrompt
+    ? iconButton('fileText', 'System prompt', { size: 24, iconSize: 13, attributes: { 'data-tooltip': 'System prompt', 'data-action': 'show-system-prompt', 'data-thread': session.sessionKey } })
+    : '';
   return `<div class="dash-hovercard__header">
       <span class="dash-hovercard__title">${esc(sessionTitle(session))}</span>
       <span class="dash-hovercard__meta">${formatRelative(session.lastActivityAt)}</span>
+      <span class="dash-hovercard__actions">${copyButton(session.sessionKey, 'Copy thread ID')}${systemPrompt}</span>
     </div>
-    ${rows.join('')}
-    <div class="dash-hovercard__footer">
-      <span class="dash-inline-list">${mono(session.sessionKey)}${copyButton(session.sessionKey, 'Copy thread ID')}</span>
-      ${session.finalSystemPrompt ? button('System prompt', { variant: 'ghost', size: 'sm', iconName: 'fileText', attributes: { 'data-action': 'show-system-prompt', 'data-thread': session.sessionKey } }) : ''}
-    </div>`;
+    ${rows.join('')}`;
 }
 
 registerHoverCard('session', sessionCard);

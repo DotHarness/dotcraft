@@ -961,7 +961,8 @@ public sealed partial class SessionService
                             ? traceRootThreadId
                             : subAgentSource.ParentThreadId,
                         expectsSharedInputPrefix: isFullHistoryFork,
-                        comparePromptPrefix: isFullHistoryFork);
+                        comparePromptPrefix: isFullHistoryFork,
+                        forkMode: subAgentSource.ForkTurns);
                 }
                 else
                 {
@@ -1239,6 +1240,33 @@ public sealed partial class SessionService
                         ForegroundHandOverToken = () => GetForegroundHandOverToken(turn.Id)
                     });
                 using var foregroundHandOver = RegisterForegroundHandOver(turn.Id);
+                var isTopLevelThread = thread.Source.SubAgent == null;
+                var turnToolServices = new TurnToolServices
+                {
+                    IsTopLevelThread = isTopLevelThread,
+                    UserCoordination = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
+                        ? new UserCoordinationRuntimeContext(SendUserMessageAsync, SleepAsync)
+                        : null,
+                    RequestUserInput = isTopLevelThread
+                        ? new RequestUserInputRuntimeContext(async questions =>
+                        {
+                            var requestId = Guid.NewGuid().ToString("N")[..12];
+                            return await userInputRequestService.RequestAsync(
+                                requestId,
+                                questions,
+                                turnMode == AgentMode.Plan);
+                        })
+                        : null,
+                    Worktree = isTopLevelThread
+                        ? new WorktreeToolRuntimeContext(
+                            (name, path, toolCt) => Worktrees.EnterAsync(threadId, name, path, toolLocation, toolCt),
+                            (remove, discard, toolCt) => Worktrees.ExitAsync(threadId, remove, discard, toolLocation, toolCt),
+                            () => toolLocation.Directory)
+                        : null,
+                    Goal = GoalsEnabled && turnMode != AgentMode.Plan && isTopLevelThread
+                        ? new GoalToolRuntimeContext(this, threadId, turn.Id)
+                        : null
+                };
                 using var toolExecutionScope = ToolExecutionRuntimeScope.Set(
                     new ToolExecutionRuntimeContext
                     {
@@ -1249,37 +1277,12 @@ public sealed partial class SessionService
                         EmitItemStarted = eventChannel.EmitItemStarted,
                         EmitItemDelta = eventChannel.EmitItemDelta,
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
-                        SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle
+                        SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle,
+                        TurnServices = turnToolServices
                     });
                 using var turnDiffScope = TurnDiffTrackerScope.Set(turnRuntime.DiffTracker);
                 if (turnRuntime != null)
                     turnRuntime.NextToolItemSequence = NextItemSeq;
-                using var goalToolScope = GoalsEnabled
-                    && turnMode != AgentMode.Plan
-                    && thread.Source.SubAgent == null
-                        ? GoalToolRuntimeScope.Set(new GoalToolRuntimeContext(this, threadId, turn.Id))
-                        : null;
-                using var worktreeToolScope = thread.Source.SubAgent == null
-                    ? WorktreeToolRuntimeScope.Set(new WorktreeToolRuntimeContext(
-                        (name, path, toolCt) => Worktrees.EnterAsync(threadId, name, path, toolLocation, toolCt),
-                        (remove, discard, toolCt) => Worktrees.ExitAsync(threadId, remove, discard, toolLocation, toolCt),
-                        () => toolLocation.Directory))
-                    : null;
-                using var requestUserInputScope = thread.Source.SubAgent == null
-                        ? RequestUserInputRuntimeScope.Set(new RequestUserInputRuntimeContext(async questions =>
-                        {
-                            var requestId = Guid.NewGuid().ToString("N")[..12];
-                            return await userInputRequestService.RequestAsync(
-                                requestId,
-                                questions,
-                                turnMode == AgentMode.Plan);
-                        }))
-                        : null;
-                using var userCoordinationScope = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
-                    ? UserCoordinationRuntimeScope.Set(new UserCoordinationRuntimeContext(
-                        SendUserMessageAsync,
-                        SleepAsync))
-                    : null;
                 using var subAgentSessionScope = SubAgentSessionScope.Set(new SubAgentSessionContext
                 {
                     SessionService = this,

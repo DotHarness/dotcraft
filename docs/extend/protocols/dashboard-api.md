@@ -106,7 +106,13 @@ Returns runtime summary, including session count, recent events, and module stat
 
 ### `GET /dashboard/api/sessions`
 
-Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, `expectedSharedPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. `status` is `compatible` when the static prefix matches and an ordered input prefix was retained, `staticShared` when the static prefix matches but no input item was retained, `diverged` when a leading request component changed, or `unavailable` when the parent shape was missing. `expectedSharedPrefix` is true only when the child inherited parent turns, so a `staticShared` child that was spawned fresh is not a defect. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
+Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`, `forkMode`, and `firstRequest`.
+
+`forkMode` is the SubAgent `forkTurns` value (`all`, `none`, or a positive integer string), the cache-sharing fork purpose (`promptSuggestion`, `memoryExtraction`, or `sideChat`), or `null` when it was not recorded. Only `all` and the fork purposes inherit the parent's cache prefix; `none` and turn counts start an independent context.
+
+`firstRequest` holds `inputTokens` and `cachedInputTokens` from the child's first model request, or `null` before one completes.
+
+`parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, `expectedSharedPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. `status` is `compatible` when the static prefix matches and the child's input begins with the parent request's complete input, `staticShared` when the static prefix matches but the inherited input was not copied intact, `diverged` when a leading request component changed, or `unavailable` when the parent shape was missing. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
 
 ### `GET /dashboard/api/sessions/{sessionKey}/events`
 

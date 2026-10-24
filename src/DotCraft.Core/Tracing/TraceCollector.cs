@@ -1161,9 +1161,10 @@ public sealed partial class TraceCollector(TraceStore store) : IModelRuntimeDiag
         string parentSessionKey,
         DateTimeOffset? createdAt = null,
         bool expectsSharedInputPrefix = false,
-        bool comparePromptPrefix = true)
+        bool comparePromptPrefix = true,
+        string? forkMode = null)
     {
-        store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt);
+        store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt, forkMode);
         if (comparePromptPrefix)
             _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey, expectsSharedInputPrefix);
     }

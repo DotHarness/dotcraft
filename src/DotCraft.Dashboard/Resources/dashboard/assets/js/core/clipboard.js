@@ -3,7 +3,7 @@ import { iconButton } from './html.js';
 import { showToast } from './toast.js';
 
 export function copyButton(value, label) {
-  return iconButton('copy', label, { size: 24, iconSize: 13, attributes: { 'data-action': 'copy-value', 'data-value': value } });
+  return iconButton('copy', label, { size: 24, iconSize: 13, attributes: { 'data-tooltip': label, 'data-action': 'copy-value', 'data-value': value } });
 }
 
 onAction('click', {

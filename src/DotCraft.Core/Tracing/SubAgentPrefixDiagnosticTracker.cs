@@ -129,15 +129,12 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
         }
 
         var exactParentInputPrefix = matchedInputItemCount == parent.InputItemHashes.Count;
-        var retainsInputPrefix = matchedInputItemCount > 0;
         var staticPrefixCompatible = changedFields.Count == 0;
-        if (!retainsInputPrefix)
+        if (!exactParentInputPrefix)
             changedFields.Add("inputPrefix");
 
-        // A broken static prefix is always a defect. An empty input prefix is only reported as a
-        // separate grade, because a child spawned without inherited turns has nothing to share.
         var status = staticPrefixCompatible
-            ? retainsInputPrefix ? "compatible" : "staticShared"
+            ? exactParentInputPrefix ? "compatible" : "staticShared"
             : "diverged";
         return CreateEvent(childSessionKey, child, timestamp, status, new
         {

@@ -301,7 +301,8 @@ internal static class WorkspaceStateSchema
                     root_thread_id TEXT,
                     parent_session_key TEXT,
                     binding_kind TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    fork_mode TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_trace_bindings_root_thread
@@ -372,6 +373,7 @@ internal static class WorkspaceStateSchema
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "speed", "TEXT");
         EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
+        EnsureColumn(connection, "trace_session_bindings", "fork_mode", "TEXT");
         EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");
         EnsureColumn(connection, "trace_sessions", "last_reasoning_effort", "TEXT");
 

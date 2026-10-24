@@ -127,11 +127,15 @@ public static class DashBoardMiddleware
             var prefixDiagnostics = traceStore.GetLatestEvents(
                 sessionKeys,
                 TraceEventType.SubAgentPrefixDiagnostic);
+            var firstUsages = traceStore.GetFirstEvents(
+                relationships.Values.Where(static r => r.ParentSessionKey != null).Select(static r => r.SessionKey),
+                TraceEventType.TokenUsage);
             var result = sessions.Select(s =>
             {
                 descriptors.TryGetValue(s.SessionKey, out var descriptor);
                 relationships.TryGetValue(s.SessionKey, out var relationship);
                 prefixDiagnostics.TryGetValue(s.SessionKey, out var prefixDiagnostic);
+                firstUsages.TryGetValue(s.SessionKey, out var firstUsage);
                 var rootThreadId = descriptor?.RootThreadId ?? s.SessionKey;
                 return new
                 {
@@ -171,6 +175,10 @@ public static class DashBoardMiddleware
                     rootThreadId = descriptor?.RootThreadId,
                     parentSessionKey = relationship?.ParentSessionKey,
                     parentPrefix = BuildParentPrefixSummary(prefixDiagnostic),
+                    forkMode = relationship?.ForkMode,
+                    firstRequest = firstUsage == null
+                        ? null
+                        : new { inputTokens = firstUsage.InputTokens, cachedInputTokens = firstUsage.CachedInputTokens },
                     bindingKind = relationship?.BindingKind ?? descriptor?.BindingKind ?? "unbound",
                     deletionScope = descriptor?.DeletionScope ?? SessionPersistenceDeletionScopes.TraceOnly,
                     rollbackCount = threadOperationStore.CountThreadRollbacks(rootThreadId)

@@ -7,7 +7,7 @@ namespace DotCraft.Core.Tests.Sessions;
 public sealed class NativeSubAgentForkMaterializationTests
 {
     [Fact]
-    public void BuildHistory_RetainsStableItemsAndDropsAssistantAndToolTraffic()
+    public void BuildHistory_KeepsAssistantReasoningAndToolTrafficInOrder()
     {
         var history = new List<ChatMessage>
         {
@@ -17,10 +17,6 @@ public sealed class NativeSubAgentForkMaterializationTests
             new(ChatRole.Assistant,
             [
                 new TextReasoningContent("reasoning"),
-                new TextContent("final answer")
-            ]),
-            new(ChatRole.Assistant,
-            [
                 new TextContent("calling a tool"),
                 new FunctionCallContent("call-1", "ReadFile")
             ]),
@@ -30,16 +26,26 @@ public sealed class NativeSubAgentForkMaterializationTests
 
         var forked = SessionService.BuildNativeSubAgentForkHistory(history);
 
-        Assert.Collection(
-            forked,
-            message => Assert.Equal(ChatRole.System, message.Role),
-            message => Assert.Equal(new ChatRole("developer"), message.Role),
-            message => Assert.Equal(ChatRole.User, message.Role),
-            message => Assert.Equal(ChatRole.User, message.Role));
-        Assert.DoesNotContain(forked, static message => message.Role == ChatRole.Assistant);
-        Assert.DoesNotContain(
-            forked.SelectMany(static message => message.Contents),
-            static content => content is TextReasoningContent or FunctionCallContent or FunctionResultContent);
+        Assert.Equal(history.Select(static message => message.Role), forked.Select(static message => message.Role));
+        Assert.Equal(
+            history.SelectMany(static message => message.Contents).Select(static content => content.GetType()),
+            forked.SelectMany(static message => message.Contents).Select(static content => content.GetType()));
+    }
+
+    [Fact]
+    public void BuildHistory_RepairsCallsWithoutResults()
+    {
+        var history = new List<ChatMessage>
+        {
+            new(ChatRole.User, "task"),
+            new(ChatRole.Assistant, [new FunctionCallContent("call-spawn", "SpawnAgent")])
+        };
+
+        var forked = SessionService.BuildNativeSubAgentForkHistory(history);
+
+        var result = Assert.IsType<FunctionResultContent>(Assert.Single(forked[^1].Contents));
+        Assert.Equal(ChatRole.Tool, forked[^1].Role);
+        Assert.Equal("call-spawn", result.CallId);
     }
 
     [Fact]

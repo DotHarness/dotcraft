@@ -55,38 +55,22 @@ public sealed record WorktreeToolRuntimeContext(
     Func<bool, bool, CancellationToken, Task<WorktreeExitResult>> ExitAsync,
     Func<string> CurrentDirectory);
 
-/// <summary>Async-local scope for the worktree tools. Session Core sets it while executing a top-level turn.</summary>
-public static class WorktreeToolRuntimeScope
-{
-    private static readonly AsyncLocal<WorktreeToolRuntimeContext?> CurrentContext = new();
-
-    public static WorktreeToolRuntimeContext? Current => CurrentContext.Value;
-
-    public static IDisposable Set(WorktreeToolRuntimeContext context)
-    {
-        var previous = CurrentContext.Value;
-        CurrentContext.Value = context;
-        return new ScopeHandle(previous);
-    }
-
-    private sealed class ScopeHandle(WorktreeToolRuntimeContext? previous) : IDisposable
-    {
-        public void Dispose() => CurrentContext.Value = previous;
-    }
-}
-
 internal sealed class WorktreeToolMethods
 {
     private const string Unavailable = "Error: Worktree tools are only available inside a conversation turn.";
+    private const string TopLevelOnly = "Error: Worktree tools can only be used by a top-level thread.";
 
     [GeneratedTool]
     [Description("Move this conversation into an isolated Git worktree on a new branch, so its changes stay out of the user's checkout. Use it only when the user or project instructions ask for a worktree; for other branch work, use git. The worktree starts from the current HEAD without uncommitted changes. Your later tool calls run in the worktree.")]
     public async Task<string> EnterWorktree(
+        ToolInvocationContext invocation,
         [Description("Name for the new branch.")] string? name = null,
         [Description("An existing worktree to enter instead of creating one.")] string? path = null,
         CancellationToken cancellationToken = default)
     {
-        if (WorktreeToolRuntimeScope.Current is not { } context)
+        if (invocation.TurnServices is { IsTopLevelThread: false })
+            return TopLevelOnly;
+        if (invocation.TurnServices?.Worktree is not { } context)
             return Unavailable;
         if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(path))
             return "Error: Pass either name or path, not both.";
@@ -105,11 +89,14 @@ internal sealed class WorktreeToolMethods
     [GeneratedTool]
     [Description("Move this conversation back to the local checkout. Use it only when the user asks. `keep` leaves the worktree and its branch on disk; `remove` deletes both. Changes are not moved to the local checkout.")]
     public async Task<string> ExitWorktree(
+        ToolInvocationContext invocation,
         [Description("keep or remove.")] ExitWorktreeAction action,
         [Description("Remove even when the worktree has uncommitted changes or new commits. Set it only after the user confirms.")] bool discardChanges = false,
         CancellationToken cancellationToken = default)
     {
-        if (WorktreeToolRuntimeScope.Current is not { } context)
+        if (invocation.TurnServices is { IsTopLevelThread: false })
+            return TopLevelOnly;
+        if (invocation.TurnServices?.Worktree is not { } context)
             return Unavailable;
 
         try

@@ -1,10 +1,16 @@
-import { formatRelative, plural, shortHash } from '../core/format.js';
+import { formatPercent, formatRelative, plural, shortHash } from '../core/format.js';
 import { esc, facts, mono, statusIndicator } from '../core/html.js';
 
 const FIELD_CHANGE = {
   both: 'System prompt and tool schema changed',
   tools: 'Tool schema changed',
   prompt: 'System prompt changed'
+};
+
+const FORK_PURPOSES = {
+  promptSuggestion: 'Prompt suggestion fork',
+  memoryExtraction: 'Memory extraction fork',
+  sideChat: 'Side chat fork'
 };
 
 const FINISH_LABELS = {
@@ -19,14 +25,21 @@ export function abnormalFinish(session) {
   return FINISH_LABELS[reason.toLowerCase()] ?? reason;
 }
 
-function lostInheritedInput(prefix) {
-  return prefix?.status === 'staticShared' && prefix.expectedSharedPrefix === true;
+export function inheritsParentContext(session) {
+  return session.forkMode === 'all' || Object.hasOwn(FORK_PURPOSES, session.forkMode ?? '');
+}
+
+function prefixSignal(session) {
+  if (!inheritsParentContext(session)) return '';
+  if (session.parentPrefix?.status === 'staticShared') return 'Inherited history changed';
+  if (session.parentPrefix?.status === 'diverged') return 'Cache prefix differs';
+  return '';
 }
 
 // One short label per row, trouble first, so a list shows where to look.
 function cacheSignal(session) {
-  if (lostInheritedInput(session.parentPrefix)) return 'Inherited cache lost';
-  if (session.parentPrefix?.status === 'diverged') return 'Cache prefix differs';
+  const prefix = prefixSignal(session);
+  if (prefix) return prefix;
   if (session.lastPromptCacheChangeKind === 'drift' || session.promptDriftCount > 0) return 'Cache changed';
   if (session.rollbackCount > 0) return 'Rolled back';
   return '';
@@ -68,11 +81,22 @@ export function rollbackText(session) {
   return session.rollbackCount > 0 ? withDot('warning', plural(session.rollbackCount, 'rollback')) : 'None';
 }
 
+export function forkModeText(session) {
+  const mode = session.forkMode;
+  if (mode === 'all') return 'Inherits the full conversation';
+  if (mode === 'none') return 'Fresh context';
+  if (/^\d+$/.test(mode ?? '')) return esc(`Inherits the last ${plural(Number(mode), 'turn')}`);
+  return FORK_PURPOSES[mode] ?? '<span class="dash-dim">Fork mode not recorded</span>';
+}
+
+export function firstRequestText(session) {
+  const input = session.firstRequest?.inputTokens;
+  return input ? esc(`First request ${formatPercent((session.firstRequest.cachedInputTokens ?? 0) / input, 0)} cached`) : '';
+}
+
 export function prefixText(prefix) {
-  if (!prefix) return '<span class="dash-dim">Prefix not recorded</span>';
-  if (prefix.status === 'compatible') return esc(`Shared cache prefix with ${plural(prefix.matchedInputItemCount ?? 0, 'item')}`);
-  if (lostInheritedInput(prefix)) return withDot('warning', 'Static prefix shared, inherited input lost');
-  if (prefix.status === 'staticShared') return 'Static prefix shared';
-  if (prefix.status === 'diverged') return withDot('warning', 'Parent static prefix diverged');
-  return '<span class="dash-dim">Prefix unavailable</span>';
+  if (prefix.status === 'compatible') return 'Reuses the parent cache prefix';
+  if (prefix.status === 'staticShared') return withDot('warning', 'Inherited history was not copied intact');
+  if (prefix.status === 'diverged') return withDot('warning', 'Prompt or tools differ from the parent');
+  return '<span class="dash-dim">Parent prefix unavailable</span>';
 }

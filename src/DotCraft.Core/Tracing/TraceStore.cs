@@ -350,8 +350,9 @@ public sealed class TraceStore
         string sessionKey,
         string rootThreadId,
         string parentSessionKey,
-        DateTimeOffset? createdAt = null)
-        => _bindingStore?.BindThreadChild(sessionKey, rootThreadId, parentSessionKey, createdAt);
+        DateTimeOffset? createdAt = null,
+        string? forkMode = null)
+        => _bindingStore?.BindThreadChild(sessionKey, rootThreadId, parentSessionKey, createdAt, forkMode);
 
     public TraceSessionDeletionDescriptor DescribeSessionDeletion(string sessionKey)
     {
@@ -421,7 +422,8 @@ public sealed class TraceStore
             static pair => new TraceSessionRelationshipDescriptor(
                 pair.Value.SessionKey,
                 pair.Value.ParentSessionKey,
-                pair.Value.BindingKind.ToStorageValue()),
+                pair.Value.BindingKind.ToStorageValue(),
+                pair.Value.ForkMode),
             StringComparer.Ordinal);
     }
 
@@ -430,7 +432,16 @@ public sealed class TraceStore
     /// </summary>
     public Dictionary<string, TraceEvent> GetLatestEvents(
         IEnumerable<string> sessionKeys,
-        TraceEventType type)
+        TraceEventType type) => GetBoundaryEvents(sessionKeys, type, latest: true);
+
+    public Dictionary<string, TraceEvent> GetFirstEvents(
+        IEnumerable<string> sessionKeys,
+        TraceEventType type) => GetBoundaryEvents(sessionKeys, type, latest: false);
+
+    private Dictionary<string, TraceEvent> GetBoundaryEvents(
+        IEnumerable<string> sessionKeys,
+        TraceEventType type,
+        bool latest)
     {
         var keys = sessionKeys
             .Where(k => !string.IsNullOrWhiteSpace(k))
@@ -447,13 +458,13 @@ public sealed class TraceStore
                 if (!_sessions.TryGetValue(key, out var session))
                     continue;
 
-                var latest = session.Events
-                    .Where(evt => evt.Type == type)
-                    .OrderByDescending(evt => evt.Timestamp)
-                    .ThenByDescending(evt => evt.Id, StringComparer.Ordinal)
+                var matching = session.Events.Where(evt => evt.Type == type);
+                var boundary = (latest
+                        ? matching.OrderByDescending(evt => evt.Timestamp).ThenByDescending(evt => evt.Id, StringComparer.Ordinal)
+                        : matching.OrderBy(evt => evt.Timestamp).ThenBy(evt => evt.Id, StringComparer.Ordinal))
                     .FirstOrDefault();
-                if (latest != null)
-                    inMemory[key] = latest;
+                if (boundary != null)
+                    inMemory[key] = boundary;
             }
 
             return inMemory;
@@ -471,12 +482,13 @@ public sealed class TraceStore
         }
 
         command.Parameters.AddWithValue("$type", type.ToString());
+        var order = latest ? "DESC" : "ASC";
         command.CommandText = $"""
             SELECT session_key, event_json
             FROM trace_events
             WHERE type = $type
               AND session_key IN ({string.Join(", ", placeholders)})
-            ORDER BY timestamp DESC, id DESC
+            ORDER BY timestamp {order}, id {order}
             """;
 
         var result = new Dictionary<string, TraceEvent>(StringComparer.Ordinal);

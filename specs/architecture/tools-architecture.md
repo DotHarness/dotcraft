@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.2 |
+| Version | 0.9.3 |
 | Status | Living |
-| Date | 2026-10-22 |
+| Date | 2026-10-24 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -249,7 +249,7 @@ A definition MAY declare a freeform input: a raw string constrained by a grammar
 | `EffectiveToolSnapshot` | Per-Turn registration set plus canonical, composite-provider, and flat-alias indexes. |
 | `ToolPresentationDescriptor` | Trusted `PresentationId` plus bounded renderer options; no free-form renderer selector. |
 
-`ToolPlanningThreadKind` is a trusted Session-derived classification (`UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, `Unknown`), derived once from persisted thread origin, source, visibility, and configuration. Sources treat `Unknown` as ineligible for privileged entrypoint tools and do not replace this classification with channel-name denylists.
+`ToolPlanningThreadKind` is a trusted Session-derived classification (`UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, `Unknown`), derived once from persisted thread origin, source, visibility, and configuration. Sources treat `Unknown` as ineligible for privileged entrypoint tools and do not replace this classification with channel-name denylists. A native full-history SubAgent plans its model-visible tools with its parent's classification, so its schema matches the parent's, while execution authority stays `SubAgentChild`.
 
 Modules contribute tools only through tool sources and the typed contracts above.
 
@@ -268,6 +268,8 @@ Native and .NET plugin authors SHOULD implement ordinary tools as methods marked
 A tool's trusted presentation is part of its declaration: `[ToolPresentation(id, Operation = ...)]` plus bounded `[ToolPresentationOption(key, value)]` options, validated against a 4,096-byte option budget. Sources MUST NOT select presentation by tool name. Provenance still decides which renderers may honor it, so the same declaration on a plugin tool selects only plugin renderers. Core may add one option derived from an invocation when recording its item, only for a fact Core alone resolves: `memory`, which marks a file tool call targeting the Thread's memory store.
 
 A method MAY request one required, by-value `ToolInvocationContext` parameter for live invocation identity. That parameter and `CancellationToken` are excluded from the model schema and JSON binding, and model arguments cannot override them. Each invocation receives its own context; a function that requires context fails before its business method runs when none is supplied. Task isolation remains the business service's responsibility.
+
+A tool that acts on the invoking thread or its active Turn, such as asking the user, sending an asynchronous user message, waiting, moving into a worktree, or reading and changing the thread goal, resolves both from the context and never from ambient execution state. Session execution supplies the Turn's services in the context, together with whether the invoking thread is top-level. Tools reserved for top-level threads check that flag when called and reject other callers with a stable error, so a child spawned from inside a parent Turn cannot reach its parent's services. Host invocations without a Turn receive no Turn services.
 
 Methods returning `ToolExecutionResult` (directly or as a task) keep the result object; it has no generated output schema, and a null result is `tool_result_invalid`. Methods returning `AIContent` or a collection of it return model content, also without an output schema. Other return values keep their serialization. An explicit business result, including an uncertain external outcome, is never overwritten by the adapter, and returning an envelope cannot acquire host-private result authority.
 
@@ -299,7 +301,7 @@ A stall watchdog checks running terminals every 5 seconds. A terminal stalls whe
 
 ### 7.5 Worktree tools
 
-`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time.
+`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time. A native full-history SubAgent inherits them with its parent's schema and has its calls rejected.
 
 - `EnterWorktree` takes an optional `name` or an optional `path`. Without `path` it creates a worktree on a new branch from the current `HEAD`, named from `name` when given; uncommitted changes are not copied. `path` re-enters a managed worktree of this workspace that no other thread is bound to. It fails when the thread is already in a worktree.
 - `ExitWorktree` takes `action` (`keep` or `remove`) and optional `discardChanges`. `keep` leaves the worktree and its branch on disk; `remove` deletes both and is refused, listing what would be lost, when the worktree has uncommitted changes or commits beyond its base unless `discardChanges` is true. Neither moves changes into the local checkout. `remove` is refused while a background terminal started in the worktree is running.

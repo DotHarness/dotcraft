@@ -401,6 +401,13 @@ html[data-theme="light"] .dc-toast__surface[data-tone] {
   font-size: var(--type-secondary-size);
 }
 
+.dash-hovercard__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  margin: -3px -5px -3px -4px;
+}
+
 .dash-hovercard__row {
   display: flex;
   align-items: flex-start;
@@ -408,6 +415,10 @@ html[data-theme="light"] .dc-toast__surface[data-tone] {
   min-height: 28px;
   padding: 5px 11px;
   color: var(--text-secondary);
+}
+
+.dash-hovercard__row:last-child {
+  padding-bottom: 9px;
 }
 
 .dash-hovercard__row > svg {
@@ -424,12 +435,13 @@ html[data-theme="light"] .dc-toast__surface[data-tone] {
   min-width: 0;
 }
 
-.dash-hovercard__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 6px 6px 11px;
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 4px;
+.dash-hovercard__row--single > span {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.dash-hovercard__row--single .dash-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

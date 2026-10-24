@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-24 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -131,18 +131,24 @@ callers queue a later task.
 
 | `forkTurns` | Context behavior | Native model behavior | Runtime binding behavior |
 |-------------|------------------|-----------------------|--------------------------|
-| `all` or omitted | Materializes the parent's complete stable model context. | Inherits the parent's complete preference. Overrides are disabled. | Snapshots eligible direct-parent tool and client bindings. |
+| `all` or omitted | Copies the parent's provider-visible history unchanged. | Inherits the parent's complete preference. Overrides are disabled. | Snapshots eligible direct-parent tool and client bindings. |
 | `none` | Starts without parent conversation Turns. | Resolves a fresh-child preference and permits authorized overrides. | Does not inherit parent runtime bindings. |
 | Positive integer | Copies the selected trailing stable Turns and active user input. | Resolves a bounded-child preference and permits authorized overrides. | Does not inherit parent runtime bindings. |
 
-A native full-history fork materializes the parent's effective model context before the first child
-sampling: it copies ordered system, developer, and user material, drops assistant, reasoning, and tool
-traffic, then appends the role guidance and initial task. Stable reference-context pages (including the
+A native full-history fork keeps the parent's prompt-cache prefix, so its first request reads the
+parent's cached history instead of paying for it again. Before the first child sampling, it copies
+the input of the parent request that issued the spawn, in order and unchanged, including assistant,
+reasoning, and tool items. When that request is unavailable, it copies the parent's stored model
+history, and each inherited tool call without a result receives a fixed synthetic result. The role
+guidance and initial task follow the inherited history. Stable reference-context pages (including the
 parent's exact `AGENTS.md` snapshot for an environment-compatible child) and eligible bindings are
-snapshotted at creation; later parent changes do not propagate. The child's base instructions and
-model-visible tool schema match the parent's; role restrictions narrow invocation policy without
-changing that prefix, though trust-tier gating may withhold capabilities never reachable from
-delegated threads.
+snapshotted at creation; later parent changes do not propagate.
+
+The child's base instructions, system prompt sections, and model-visible tool schema match the
+parent's byte for byte. Tools reserved for top-level threads (`RequestUserInput`,
+`SendUserMessageAsync`, `EnterWorktree`, and `ExitWorktree`) stay declared and reject the child's
+calls at execution with a stable error. Role restrictions likewise narrow invocation policy without
+changing the prefix.
 
 Fresh and bounded children rebuild their model context from the child configuration, establish an
 independent prefix, and do not inherit client-owned dynamic tools, browser transport, or other

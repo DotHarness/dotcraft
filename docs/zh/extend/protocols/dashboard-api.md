@@ -102,7 +102,13 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 ### `GET /dashboard/api/sessions`
 
-返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`。存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值包括：静态前缀一致且保留了有序 input 前缀时为 `compatible`，静态前缀一致但没有保留任何 input 项时为 `staticShared`，前导请求组件发生变化时为 `diverged`，缺少父会话形状时为 `unavailable`。`expectedSharedPrefix` 只有在子会话继承了父会话轮次时为 true，因此全新启动的子会话出现 `staticShared` 不是缺陷。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
+返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`、`forkMode` 和 `firstRequest`。
+
+`forkMode` 是 SubAgent 的 `forkTurns` 值（`all`、`none` 或正整数字符串），或缓存共享分叉的用途（`promptSuggestion`、`memoryExtraction` 或 `sideChat`），未记录时为 `null`。只有 `all` 和这些分叉用途会继承父会话的缓存前缀；`none` 和轮数会建立独立的上下文。
+
+`firstRequest` 包含子会话第一次模型请求的 `inputTokens` 和 `cachedInputTokens`，第一次请求完成前为 `null`。
+
+`parentPrefix` 在没有诊断记录时为 `null`。存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值包括：静态前缀一致且子会话 input 以父会话请求的完整 input 开头时为 `compatible`，静态前缀一致但继承的 input 没有完整复制时为 `staticShared`，前导请求组件发生变化时为 `diverged`，缺少父会话形状时为 `unavailable`。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
 
 ### `GET /dashboard/api/sessions/{sessionKey}/events`
 

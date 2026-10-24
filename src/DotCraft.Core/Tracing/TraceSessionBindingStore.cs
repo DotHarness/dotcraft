@@ -14,7 +14,8 @@ internal sealed record TraceSessionBinding(
     string? RootThreadId,
     string? ParentSessionKey,
     TraceSessionBindingKind BindingKind,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? ForkMode = null);
 
 internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRuntime)
 {
@@ -44,14 +45,16 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
         string sessionKey,
         string rootThreadId,
         string parentSessionKey,
-        DateTimeOffset? createdAt = null)
+        DateTimeOffset? createdAt = null,
+        string? forkMode = null)
     {
         var binding = new TraceSessionBinding(
             sessionKey,
             rootThreadId,
             parentSessionKey,
             TraceSessionBindingKind.ThreadChild,
-            createdAt ?? DateTimeOffset.UtcNow);
+            createdAt ?? DateTimeOffset.UtcNow,
+            forkMode);
         UpsertBinding(binding);
     }
 
@@ -60,7 +63,7 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at
+            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at, fork_mode
             FROM trace_session_bindings
             WHERE session_key = $session_key
             LIMIT 1
@@ -94,7 +97,7 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
         }
 
         command.CommandText = $"""
-            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at
+            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at, fork_mode
             FROM trace_session_bindings
             WHERE session_key IN ({string.Join(", ", placeholders)})
             """;
@@ -114,7 +117,7 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at
+            SELECT session_key, root_thread_id, parent_session_key, binding_kind, created_at, fork_mode
             FROM trace_session_bindings
             WHERE root_thread_id = $root_thread_id
             ORDER BY created_at, session_key
@@ -185,24 +188,28 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
                 root_thread_id,
                 parent_session_key,
                 binding_kind,
-                created_at
+                created_at,
+                fork_mode
             ) VALUES (
                 $session_key,
                 $root_thread_id,
                 $parent_session_key,
                 $binding_kind,
-                $created_at
+                $created_at,
+                $fork_mode
             )
             ON CONFLICT(session_key) DO UPDATE SET
                 root_thread_id = excluded.root_thread_id,
                 parent_session_key = excluded.parent_session_key,
-                binding_kind = excluded.binding_kind
+                binding_kind = excluded.binding_kind,
+                fork_mode = excluded.fork_mode
             """;
         command.Parameters.AddWithValue("$session_key", binding.SessionKey);
         command.Parameters.AddWithValue("$root_thread_id", (object?)binding.RootThreadId ?? DBNull.Value);
         command.Parameters.AddWithValue("$parent_session_key", (object?)binding.ParentSessionKey ?? DBNull.Value);
         command.Parameters.AddWithValue("$binding_kind", binding.BindingKind.ToStorageValue());
         command.Parameters.AddWithValue("$created_at", binding.CreatedAt.UtcDateTime.ToString("O"));
+        command.Parameters.AddWithValue("$fork_mode", (object?)binding.ForkMode ?? DBNull.Value);
         command.ExecuteNonQuery();
     }
 
@@ -268,7 +275,8 @@ internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRunti
             reader.IsDBNull(1) ? null : reader.GetString(1),
             reader.IsDBNull(2) ? null : reader.GetString(2),
             TraceSessionBindingKindExtensions.FromStorageValue(reader.GetString(3)),
-            DateTimeOffset.Parse(reader.GetString(4)));
+            DateTimeOffset.Parse(reader.GetString(4)),
+            reader.IsDBNull(5) ? null : reader.GetString(5));
     }
 
     private static string? TryGetParentSessionKey(string sessionKey)

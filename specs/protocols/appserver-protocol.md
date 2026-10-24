@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-22 |
+| **Date** | 2026-10-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -975,7 +975,7 @@ This is the only non-interactive fallback. Approvals in any other turn, includin
 
 ### 7.5 Model-Initiated User Input Requests
 
-The root-thread `RequestUserInput` tool asks the client for structured input; SubAgents do not receive it. The sequence mirrors approvals: `item/started` (`userInputRequest`) → `item/tool/requestUserInput` (server request) → client response → `item/tool/requestUserInput/resolved`. The turn is `waitingInput` meanwhile.
+The root-thread `RequestUserInput` tool asks the client for structured input; a SubAgent call is rejected before any request reaches the client. The sequence mirrors approvals: `item/started` (`userInputRequest`) → `item/tool/requestUserInput` (server request) → client response → `item/tool/requestUserInput/resolved`. The turn is `waitingInput` meanwhile.
 
 **Params**: `threadId`, `turnId`, `itemId`, `requestId`, `questions` (one to three), and required `isBlocking`.
 
