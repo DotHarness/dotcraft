@@ -7,6 +7,7 @@ using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Plugins;
 using DotCraft.Persistence;
+using DotCraft.Persistence.Upgrades;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
 using DotCraft.Tools;
@@ -611,6 +612,16 @@ public sealed partial class ThreadStore : IAsyncDisposable
     }
 
     public Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
+
+    public IAsyncDisposable StartBackgroundUpgrade() => WorkspaceUpgrades.StartInBackground(this);
+
+    internal async Task WithExclusiveRolloutAsync(string threadId, Action<string> work, CancellationToken ct)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        await _rolloutStore.CloseThreadAsync(threadId, ct);
+        if (_rolloutStore.ResolveExistingPath(threadId) is { } path)
+            work(path);
+    }
 
     private async Task TryProjectHistoryAsync(
         string threadId,
