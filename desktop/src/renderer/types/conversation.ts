@@ -207,8 +207,6 @@ export interface ConversationItem {
   duration?: number
   createdAt: string
   completedAt?: string
-  /** Elapsed seconds from createdAt to completedAt (reasoning indicator) */
-  elapsedSeconds?: number
   approvalRequestId?: string
   approvalType?: ApprovalType
   approvalOperation?: string
@@ -497,41 +495,6 @@ function mapInputPart(raw: unknown): InputPart | null {
   }
 }
 
-function normalizeElapsedSeconds(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
-  return Math.max(0, Math.round(value))
-}
-
-function elapsedSecondsFromTimestamps(
-  createdAt: string | undefined,
-  completedAt: string | undefined
-): number | undefined {
-  if (!createdAt || !completedAt) return undefined
-
-  const createdMs = Date.parse(createdAt)
-  const completedMs = Date.parse(completedAt)
-  if (!Number.isFinite(createdMs) || !Number.isFinite(completedMs) || completedMs < createdMs) {
-    return undefined
-  }
-
-  return Math.max(1, Math.round((completedMs - createdMs) / 1000))
-}
-
-function mapReasoningElapsedSeconds(
-  type: ItemType,
-  raw: Record<string, unknown>,
-  payload: Record<string, unknown>,
-  createdAt: string,
-  completedAt: string | undefined
-): number | undefined {
-  if (type !== 'reasoningContent') return undefined
-
-  const explicitElapsed = normalizeElapsedSeconds(
-    (raw.elapsedSeconds as unknown) ?? (payload.elapsedSeconds as unknown)
-  )
-  return explicitElapsed ?? elapsedSecondsFromTimestamps(createdAt, completedAt)
-}
-
 /** Read-only private iframe descriptor surfaced on persisted tool items. */
 export interface ToolUiDescriptor {
   resourceUri: string
@@ -763,8 +726,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     sentAsGoal: (raw.sentAsGoal as boolean | undefined) ?? (payload.sentAsGoal as boolean | undefined),
     systemNotice: type === 'systemNotice' ? mapSystemNotice(raw, payload) : undefined,
     createdAt,
-    completedAt,
-    elapsedSeconds: mapReasoningElapsedSeconds(type, raw, payload, createdAt, completedAt)
+    completedAt
   }
 }
 

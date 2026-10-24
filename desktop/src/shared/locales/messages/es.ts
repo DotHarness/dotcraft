@@ -3192,7 +3192,7 @@ export const MESSAGES_ES = {
   'conversation.archivedNotice': 'Esta conversación está archivada.',
   'conversation.thinking.streaming': 'Pensando',
   'conversation.thinking.waitingForAnswer': 'Esperando tu respuesta',
-  'conversation.thinking.completed': 'Pensamiento {{seconds}}s',
+  'conversation.thinking.completed': 'Razonamiento',
   'conversation.thinking.expandTooltip': 'Haga clic para ampliar el razonamiento',
   'conversation.thinking.statusTooltip': 'DotCraft está pensando',
   'conversation.editTextarea': 'Editar texto del mensaje',

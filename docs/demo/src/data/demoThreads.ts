@@ -200,7 +200,6 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           reasoning: s.reasoning,
           createdAt: minutesAgo(132),
           completedAt: minutesAgo(131),
-          elapsedSeconds: 9
         },
         {
           id: t('i-rg-call'),
@@ -348,7 +347,6 @@ function buildPlanTurns(threadId: string, s: PlanThreadStrings): Array<Record<st
           reasoning: s.reasoning,
           createdAt: minutesAgo(45),
           completedAt: minutesAgo(44),
-          elapsedSeconds: 14
         },
         {
           id: t('i-plan-call'),

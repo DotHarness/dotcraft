@@ -1,5 +1,5 @@
 ---
-version: "0.9.1"
+version: "0.9.3"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1281,7 +1281,8 @@ cards with their own surface take none. The summary stays one line and ellipsize
 The Thinking row takes the same slot with the thinking glyph, drawn in the row's
 text colour: while reasoning runs, three separate drops gather, fuse into a core
 that swells, and burst apart on a 3s loop. A finished Thought row, and reduced
-motion, show one still round dot. Its liquid edge softens with the rendered pixel
+motion, show one still round dot. When a turn's working line stops, its glyph
+loops on to the fused pose and settles into the dot before fading out. Its liquid edge softens with the rendered pixel
 size so a 16px glyph keeps an antialiased outline.
 
 | Activity | Icon |

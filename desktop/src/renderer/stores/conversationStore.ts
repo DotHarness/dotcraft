@@ -315,8 +315,6 @@ interface ConversationState {
   /** Wall-clock ms when the latest agent message delta arrived. UI-only. */
   streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
-  /** Wall-clock ms when streaming reasoning started (for elapsed display) */
-  streamingReasoningStartedAt: number | null
   activeItemId: string | null
   /** Wall-clock ms when the current turn started */
   turnStartedAt: number | null
@@ -489,7 +487,6 @@ const initialState: ConversationState = {
   streamingMessage: '',
   streamingMessageLastDeltaAt: null,
   streamingReasoning: '',
-  streamingReasoningStartedAt: null,
   activeItemId: null,
   turnStartedAt: null,
   inputTokens: 0,
@@ -1596,7 +1593,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',
         streamingMessageLastDeltaAt: preserveEmptyRealtimeSnapshot ? state.streamingMessageLastDeltaAt : null,
         streamingReasoning: preserveEmptyRealtimeSnapshot ? state.streamingReasoning : '',
-        streamingReasoningStartedAt: preserveEmptyRealtimeSnapshot ? state.streamingReasoningStartedAt : null,
         activeItemId: preserveEmptyRealtimeSnapshot ? state.activeItemId : null,
         turnStartedAt: activeTurn
           ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
@@ -1647,7 +1643,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           streamingMessage: '',
           streamingMessageLastDeltaAt: null,
           streamingReasoning: '',
-          streamingReasoningStartedAt: null,
           activeItemId: null,
           turnStartedAt: Date.now(),
           inputTokens: 0,
@@ -1680,7 +1675,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         streamingMessage: '',
         streamingMessageLastDeltaAt: null,
         streamingReasoning: '',
-        streamingReasoningStartedAt: null,
         activeItemId: null,
         turnStartedAt: Date.now(),
         inputTokens: 0,
@@ -1718,7 +1712,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         streamingMessage: '',
         streamingMessageLastDeltaAt: null,
         streamingReasoning: '',
-        streamingReasoningStartedAt: null,
         activeItemId: null,
         turnStartedAt: null,
         systemLabel: null,
@@ -1754,7 +1747,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
       streamingReasoning: '',
-      streamingReasoningStartedAt: null,
       activeItemId: null,
       turnStartedAt: null,
       systemLabel: null,
@@ -1788,7 +1780,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
       streamingReasoning: '',
-      streamingReasoningStartedAt: null,
       activeItemId: null,
       turnStartedAt: null,
       systemLabel: null,
@@ -1838,7 +1829,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }
       set((state) => ({
         streamingReasoning: '',
-        streamingReasoningStartedAt: Date.now(),
         activeItemId: itemId,
         turns: state.turns.map((t) =>
           t.id === turnId && !t.items.some((existing) => existing.id === newItem.id)
@@ -2355,17 +2345,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         .find((t) => t.id === turnId)
         ?.items.some((i) => i.id === itemId && i.type === 'reasoningContent' && i.status === 'completed')
       if (alreadyCommitted) {
-        set({ streamingReasoning: '', streamingReasoningStartedAt: null, activeItemId: null })
+        set({ streamingReasoning: '', activeItemId: null })
         return
       }
       const finalText = state.streamingReasoning || ((item?.text as string) ?? (item?.content as string) ?? '')
-      const startedAt = state.streamingReasoningStartedAt
-      const elapsed = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0
       const completedAt = (item?.completedAt as string) ?? new Date().toISOString()
       set((s) => {
         const turn = s.turns.find((t) => t.id === turnId)
         if (!turn) {
-          return { streamingReasoning: '', streamingReasoningStartedAt: null, activeItemId: null }
+          return { streamingReasoning: '', activeItemId: null }
         }
         const hasPlaceholder = turn.items.some((i) => i.id === itemId && i.type === 'reasoningContent')
         const nextItems = hasPlaceholder
@@ -2375,7 +2363,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                     ...i,
                     status: 'completed' as const,
                     reasoning: finalText,
-                    elapsedSeconds: elapsed,
                     completedAt
                   }
                 : i
@@ -2387,7 +2374,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                 type: 'reasoningContent' as const,
                 status: 'completed' as const,
                 reasoning: finalText,
-                elapsedSeconds: elapsed,
                 createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
                 completedAt
               }
@@ -2397,7 +2383,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
             t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
           ),
           streamingReasoning: '',
-          streamingReasoningStartedAt: null,
           activeItemId: null
         }
       })
@@ -2824,7 +2809,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
       streamingReasoning: '',
-      streamingReasoningStartedAt: null,
       activeItemId: null,
       turnStartedAt: Date.now(),
       inputTokens: 0,
@@ -2843,7 +2827,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
       streamingReasoning: '',
-      streamingReasoningStartedAt: null,
       activeItemId: null,
       turnStartedAt: null,
       streamRetry: state.streamRetry?.turnId === turnId ? null : state.streamRetry

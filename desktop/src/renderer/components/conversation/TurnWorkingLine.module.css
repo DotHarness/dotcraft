@@ -1,0 +1,59 @@
+.line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  color: var(--text-dimmed);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+}
+
+.line[data-after-tool] {
+  margin-top: calc(var(--conversation-tool-run-gap) - var(--conversation-tool-assistant-gap));
+}
+
+.glyph {
+  display: flex;
+  flex-shrink: 0;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.line[data-exited] .glyph {
+  opacity: 0;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.label[data-visible='true'] {
+  opacity: 1;
+}
+
+.text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: label-in 180ms var(--ease-standard);
+}
+
+@keyframes label-in {
+  from { opacity: 0; }
+}
+
+:global(html[data-reduce-motion='on']) :is(.glyph, .label, .text) {
+  transition: none;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) :is(.glyph, .label, .text) {
+    transition: none;
+    animation: none;
+  }
+}

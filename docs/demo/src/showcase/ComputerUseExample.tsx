@@ -57,11 +57,11 @@ function turnFor(entry: AssistantEntry): ConversationTurn {
   }
 }
 
-function ConversationEntry({ entry }: { entry: Entry }): JSX.Element {
+function ConversationEntry({ entry, last }: { entry: Entry; last: boolean }): JSX.Element {
   if (entry.kind === 'user') return <UserMessageBlock messageId={`cu-user-${entry.id}`} text={entry.text} />
   const turn = turnFor(entry)
   const running = turn.status === 'running'
-  return <AgentResponseBlock turn={turn} isRunning={running} isLastTurn showIdleThinkingFallback={entry.thinking} readOnly />
+  return <AgentResponseBlock turn={turn} isRunning={running} isLastTurn={last} showWorkingLine={running} readOnly />
 }
 
 function approvalRequest(script: ComputerUseScript, director: ComputerUseDirector): PendingApproval {
@@ -153,7 +153,7 @@ export function ComputerUseExample({ example, chapter }: { example: string; chap
           </header>
           <div ref={scrollRef} className="cu-chat__scroll">
             <ConversationColumn className="dc-conversation-column-stack">
-              {scene.entries.map((entry) => <ConversationEntry key={entry.id} entry={entry} />)}
+              {scene.entries.map((entry, index) => <ConversationEntry key={entry.id} entry={entry} last={index === scene.entries.length - 1} />)}
             </ConversationColumn>
           </div>
           {scene.gate === 'approval' && (

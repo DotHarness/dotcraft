@@ -103,13 +103,13 @@ describe('turn layout', () => {
     expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'toolGroup', 'thinking'])
     expect(transcript[1]).toMatchObject({ status: 'working', endedAt: null, children: [] })
     expect(transcript[2]).toMatchObject({ active: true, label: [{ part: 'explored', many: true }] })
-    expect(transcript[3]).toMatchObject({ visible: true, heading: 'Reading the config' })
+    expect(transcript[3]).toMatchObject({ heading: 'Reading the config', reasoning: { live: false }, quiet: false })
 
     const calling = buildTranscript(history([...items, item('toolCall', { ...core('ReadFile'), callId: 'c3', arguments: { path: 'c.ts' } })], 'running'))
-    expect(calling.at(-1)).toMatchObject({ kind: 'thinking', visible: true })
+    expect(calling.at(-1)).toMatchObject({ kind: 'thinking', heading: 'Reading the config' })
 
     const rethinking = buildTranscript(history([...items, item('reasoningContent', { text: '' }, { status: 'started', completedAt: null })], 'running'))
-    expect(rethinking.at(-1)).toMatchObject({ kind: 'thinking', visible: true, heading: 'Reading the config' })
+    expect(rethinking.at(-1)).toMatchObject({ kind: 'thinking', heading: 'Reading the config', reasoning: { live: true } })
   })
 
   it('groups consecutive calls of different kinds into one row naming each kind of work', () => {

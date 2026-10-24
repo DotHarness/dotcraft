@@ -46,7 +46,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
           isRunning={running}
           isLastTurn={isLastTurn}
-          showIdleThinkingFallback={running && !live?.text}
+          showWorkingLine={running}
           activeItemIdOverride={live?.itemId ?? null}
           shellRuntimeScope="none"
           readOnly

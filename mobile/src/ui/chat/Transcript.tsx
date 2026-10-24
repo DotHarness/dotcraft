@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
@@ -21,6 +21,7 @@ import { useReducedMotion } from '../motion'
 import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
 import { TurnChangesCard } from './Changes'
+import { ThinkingGlyph } from './ThinkingGlyph'
 import { FileChip, SkillChip } from './Chips'
 import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
@@ -168,32 +169,112 @@ function Disclosure({ open }: { open: boolean }) {
   )
 }
 
-/** The running turn's one Thinking status: it keeps its height and fades, so the transcript never jumps. */
-function ThinkingSlot({ entry }: { entry: Extract<TranscriptEntry, { kind: 'thinking' }> }) {
+const HOLD_MS = 2000
+const EXIT_DELAY_MS = 300
+
+type ThinkingEntry = Extract<TranscriptEntry, { kind: 'thinking' }>
+
+interface WorkingLabel {
+  text: string
+  live: boolean
+}
+
+interface ReasoningStage {
+  id: string
+  stage: 'live' | 'hold' | 'done'
+}
+
+function useWorkingLabel(entry: ThinkingEntry): WorkingLabel | null {
   const { t } = useI18n()
-  const reduced = useReducedMotion()
-  const [opacity] = useState(() => new Animated.Value(entry.visible ? 1 : 0))
+  const live = entry.working && entry.reasoning?.live ? entry.reasoning.id : null
+  const [span, setSpan] = useState<ReasoningStage | null>(null)
+  if (live && span?.id !== live) setSpan({ id: live, stage: 'live' })
+  if (!live && span?.stage === 'live') setSpan({ id: span.id, stage: 'hold' })
+  const startedAt = useRef(0)
+
   useEffect(() => {
-    const target = entry.visible ? 1 : 0
+    if (span?.stage === 'live') startedAt.current = Date.now()
+    if (span?.stage === 'hold') {
+      const timer = setTimeout(() => setSpan({ id: span.id, stage: 'done' }), Math.max(0, HOLD_MS - (Date.now() - startedAt.current)))
+      return () => clearTimeout(timer)
+    }
+  }, [span])
+
+  if (!entry.working) return null
+  const thinking = { text: entry.heading ?? t('chat.thinking'), live: true }
+  if (span?.stage === 'live' || span?.stage === 'hold') return thinking
+  return entry.quiet ? thinking : null
+}
+
+export function useKeptWorkingLine(transcript: TranscriptEntry[], scope: string): TranscriptEntry[] {
+  const last = transcript.at(-1)
+  const [kept, setKept] = useState<{ scope: string; id: string } | null>(null)
+  if (last?.kind === 'thinking' && (kept?.id !== last.id || kept.scope !== scope)) setKept({ scope, id: last.id })
+  if (kept && (kept.scope !== scope || last?.kind === 'user')) setKept(null)
+  if (!kept || kept.scope !== scope || !last || last.kind === 'thinking' || last.kind === 'user') return transcript
+  return [...transcript, { kind: 'thinking', id: kept.id, working: false, heading: null, reasoning: null, quiet: false }]
+}
+
+function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean }) {
+  const { colors } = useTheme()
+  const reduced = useReducedMotion()
+  const label = useWorkingLabel(entry)
+  const [engaged, setEngaged] = useState(entry.working)
+  const [settled, setSettled] = useState(false)
+  if (entry.working && !engaged) setEngaged(true)
+  if (entry.working && settled) setSettled(false)
+  const [shown, setShown] = useState(label)
+  if (label && (label.text !== shown?.text || label.live !== shown.live)) setShown(label)
+  const labelled = label !== null
+  const [labelOpacity] = useState(() => new Animated.Value(labelled ? 1 : 0))
+  const [glyphOpacity] = useState(() => new Animated.Value(1))
+
+  useEffect(() => {
+    const target = labelled ? 1 : 0
     if (reduced) {
-      opacity.setValue(target)
+      labelOpacity.setValue(target)
       return
     }
-    const animation = Animated.timing(opacity, { toValue: target, duration: 180, useNativeDriver: nativeDriver })
+    const animation = Animated.timing(labelOpacity, { toValue: target, duration: 180, useNativeDriver: nativeDriver })
     animation.start()
     return () => animation.stop()
-  }, [entry.visible, opacity, reduced])
+  }, [labelled, labelOpacity, reduced])
+
+  useEffect(() => {
+    const target = settled ? 0 : 1
+    if (reduced) {
+      glyphOpacity.setValue(target)
+      return
+    }
+    const animation = Animated.timing(glyphOpacity, {
+      toValue: target,
+      duration: 180,
+      delay: settled ? EXIT_DELAY_MS : 0,
+      useNativeDriver: nativeDriver,
+    })
+    animation.start()
+    return () => animation.stop()
+  }, [settled, glyphOpacity, reduced])
+
+  if (!engaged) return null
   return (
-    <Animated.View
-      accessibilityLiveRegion={entry.visible ? 'polite' : 'none'}
-      importantForAccessibility={entry.visible ? 'auto' : 'no-hide-descendants'}
-      accessibilityElementsHidden={!entry.visible}
-      style={[styles.thinking, { opacity }]}
-    >
-      <RunningShimmer active={entry.visible} textStyle={[type.text, styles.line]}>
-        {entry.heading ?? t('chat.thinking')}
-      </RunningShimmer>
-    </Animated.View>
+    <View style={[styles.working, tight ? styles.tight : undefined]}>
+      <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ opacity: glyphOpacity }}>
+        <ThinkingGlyph thinking={entry.working} color={colors.textSecondary} onSettled={() => setSettled(true)} />
+      </Animated.View>
+      {shown ? (
+        <Animated.View
+          accessibilityLiveRegion={label ? 'polite' : 'none'}
+          importantForAccessibility={label ? 'auto' : 'no-hide-descendants'}
+          accessibilityElementsHidden={!label}
+          style={[styles.shrink, { opacity: labelOpacity }]}
+        >
+          <RunningShimmer key={`${shown.text}:${shown.live}`} active={shown.live} textStyle={[type.text, styles.line, { color: colors.textSecondary }]}>
+            {shown.text}
+          </RunningShimmer>
+        </Animated.View>
+      ) : null}
+    </View>
   )
 }
 
@@ -498,7 +579,7 @@ export function TranscriptLine({
         </View>
       )
     case 'thinking':
-      return <ThinkingSlot entry={entry} />
+      return <WorkingLine entry={entry} tight={toolish(previous)} />
     case 'tool':
       return (
         <View style={tight ? styles.tight : undefined}>
@@ -571,7 +652,7 @@ const styles = StyleSheet.create({
   changes: { marginTop: 10 },
   copy: { alignSelf: 'flex-start', marginTop: 4, marginLeft: -6 },
   tight: { marginTop: -6 },
-  thinking: { minHeight: 22 },
+  working: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
   process: { flexDirection: 'row', gap: 6, minWidth: 0 },
   failure: { flexDirection: 'row', gap: 12, padding: 14, borderWidth: 1, borderRadius: metrics.noticeRadius },
   failureText: { flex: 1, minWidth: 0, gap: 2 },

@@ -116,7 +116,7 @@ describe('wireItemToConversationItem', () => {
     expect(unknown.triggerKind).toBeUndefined()
   })
 
-  it('maps reasoning text and elapsed seconds', () => {
+  it('maps reasoning text', () => {
     const reasoning = (fields: Record<string, unknown>) => wireItemToConversationItem({
       id: 'r',
       type: 'reasoningContent',
@@ -126,9 +126,7 @@ describe('wireItemToConversationItem', () => {
       ...fields
     })
 
-    expect(reasoning({ completedAt: '2025-01-01T00:00:02.400Z' })).toMatchObject({ reasoning: 'thinking', elapsedSeconds: 2 })
-    expect(reasoning({ completedAt: '2025-01-01T00:00:00.100Z' }).elapsedSeconds).toBe(1)
-    expect(reasoning({ completedAt: '2025-01-01T00:00:02.000Z', elapsedSeconds: 7 }).elapsedSeconds).toBe(7)
+    expect(reasoning({ completedAt: '2025-01-01T00:00:02.400Z' })).toMatchObject({ reasoning: 'thinking' })
   })
 
   it('maps dynamicToolCall payload fields and display result', () => {

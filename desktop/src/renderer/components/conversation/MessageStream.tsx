@@ -299,13 +299,12 @@ function MessageStreamContent(): JSX.Element {
                       activeTurnId
                     })}
                     streamingMessage={isActiveTurn ? streamingMessage : ''}
-                    streamingMessageLastDeltaAt={isActiveTurn ? streamingMessageLastDeltaAt : null}
                     streamingReasoning={isActiveTurn ? streamingReasoning : ''}
                     isRunning={
                       (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
                       isActiveTurn
                     }
-                    showIdleThinkingFallback={
+                    showWorkingLine={
                       turnStatus === 'running' &&
                       isActiveTurn &&
                       !systemLabel
@@ -398,10 +397,9 @@ interface TurnBlockProps {
   turn: ConversationTurn
   historicalToolContentMode: HistoricalToolContentMode
   streamingMessage: string
-  streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
   isRunning: boolean
-  showIdleThinkingFallback: boolean
+  showWorkingLine: boolean
   isActiveTurn: boolean
   isLastTurn: boolean
   isFirstTurn: boolean
@@ -418,10 +416,9 @@ const TurnBlock = memo(function TurnBlock({
   turn,
   historicalToolContentMode,
   streamingMessage,
-  streamingMessageLastDeltaAt,
   streamingReasoning,
   isRunning,
-  showIdleThinkingFallback,
+  showWorkingLine,
   isActiveTurn,
   isLastTurn,
   isFirstTurn,
@@ -476,10 +473,9 @@ const TurnBlock = memo(function TurnBlock({
       <AgentResponseBlock
         turn={turn}
         streamingMessage={streamingMessage}
-        streamingMessageLastDeltaAt={streamingMessageLastDeltaAt}
         streamingReasoning={streamingReasoning}
         isRunning={isRunning}
-        showIdleThinkingFallback={showIdleThinkingFallback}
+        showWorkingLine={showWorkingLine}
         isLastTurn={isLastTurn}
         historicalToolContentMode={historicalToolContentMode}
       />
@@ -491,10 +487,9 @@ function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps):
   return previous.turn === next.turn &&
     previous.historicalToolContentMode === next.historicalToolContentMode &&
     previous.streamingMessage === next.streamingMessage &&
-    previous.streamingMessageLastDeltaAt === next.streamingMessageLastDeltaAt &&
     previous.streamingReasoning === next.streamingReasoning &&
     previous.isRunning === next.isRunning &&
-    previous.showIdleThinkingFallback === next.showIdleThinkingFallback &&
+    previous.showWorkingLine === next.showWorkingLine &&
     previous.isActiveTurn === next.isActiveTurn &&
     previous.isLastTurn === next.isLastTurn &&
     previous.isFirstTurn === next.isFirstTurn &&

@@ -3192,7 +3192,7 @@ export const MESSAGES_JA = {
   'conversation.archivedNotice': 'この会話はアーカイブされています。',
   'conversation.thinking.streaming': '考え中',
   'conversation.thinking.waitingForAnswer': '回答を待っています',
-  'conversation.thinking.completed': '{{seconds}}s と考えました',
+  'conversation.thinking.completed': '思考',
   'conversation.thinking.expandTooltip': 'クリックして推論を展開します',
   'conversation.thinking.statusTooltip': 'ドットクラフトは考えています',
   'conversation.editTextarea': 'メッセージテキストを編集する',

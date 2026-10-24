@@ -3192,7 +3192,7 @@ export const MESSAGES_KO = {
   'conversation.archivedNotice': '이 대화는 보관되었습니다.',
   'conversation.thinking.streaming': '생각하다',
   'conversation.thinking.waitingForAnswer': '답변을 기다리는 중',
-  'conversation.thinking.completed': '{{seconds}}s 생각',
+  'conversation.thinking.completed': '생각',
   'conversation.thinking.expandTooltip': '추론을 확장하려면 클릭하세요.',
   'conversation.thinking.statusTooltip': 'DotCraft는 생각하고 있습니다.',
   'conversation.editTextarea': '메시지 텍스트 편집',

@@ -98,7 +98,14 @@ export type TranscriptEntry =
       copy: boolean
       changes: TurnChanges | null
     }
-  | { kind: 'thinking'; id: string; visible: boolean; heading: string | null }
+  | {
+      kind: 'thinking'
+      id: string
+      working: boolean
+      heading: string | null
+      reasoning: { id: string; live: boolean } | null
+      quiet: boolean
+    }
   | {
       kind: 'tool'
       id: string
@@ -529,18 +536,7 @@ function showsWork(entry: TranscriptEntry): boolean {
   }
 }
 
-function hidesThinking(entry: TranscriptEntry): boolean {
-  return (entry.kind === 'assistant' && entry.streaming) || (entry.kind === 'image' && entry.status === 'inProgress')
-}
-
-function lastIsFinalReply(entries: TranscriptEntry[]): boolean {
-  const last = entries.at(-1)
-  return last?.kind === 'assistant' && !last.streaming && last.phase !== 'commentary'
-}
-
-function thinkingEntry(turnId: string, body: TranscriptEntry[], heading: string | null): TranscriptEntry {
-  return { kind: 'thinking', id: `thinking-${turnId}`, visible: !body.some(hidesThinking) && !lastIsFinalReply(body), heading }
-}
+type Reasoning = Extract<TranscriptEntry, { kind: 'thinking' }>['reasoning']
 
 function layoutTurn(
   turnId: string,
@@ -550,13 +546,16 @@ function layoutTurn(
   changes: TurnChanges | null,
   origin: TaskWake | null = null,
   heading: string | null = null,
+  reasoning: Reasoning = null,
   stoppedByYou = false,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
   const opening = entries.slice(0, start)
   const body = groupTools(entries.slice(start), running)
-  const tail = running ? [thinkingEntry(turnId, body, heading)] : []
+  const tail: TranscriptEntry[] = running
+    ? [{ kind: 'thinking', id: `thinking-${turnId}`, working: true, heading, reasoning, quiet: body.length === 0 }]
+    : []
   const completed = !running && turn?.status === 'completed'
   const final =
     turn?.status === 'failed'
@@ -606,7 +605,7 @@ function latestIn(entries: TranscriptEntry[]): LatestActivity | null {
       case 'tool':
         return { kind: 'tool', verb: entry.verb, subject: entry.subject }
       case 'thinking':
-        if (entry.visible && !entries.some(showsWork)) return { kind: 'thinking' }
+        if (entry.working && !entries.some(showsWork)) return { kind: 'thinking' }
         break
       case 'assistant':
         if (entry.streaming) return { kind: 'replying' }
@@ -661,6 +660,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
   let live = false
   let wake: TaskWake | null = null
   let heading: string | null = null
+  let reasoning: Reasoning = null
   let threadActions: TranscriptEntry[] = []
 
   const closeTurn = (turnId: string) => {
@@ -674,12 +674,13 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
     }
     out.push(...threadActions)
     const changes = turn?.status === 'completed' ? turnChanges(history, turnId, workspacePath) : null
-    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake, heading, stopped.has(turnId)))
+    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake, heading, reasoning, stopped.has(turnId)))
     out = []
     threadActions = []
     live = false
     wake = null
     heading = null
+    reasoning = null
   }
 
   let currentTurn: string | null = null
@@ -739,6 +740,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
       }
       case 'reasoningContent': {
         heading = thinkingStatus(str(payload.text)) ?? heading
+        reasoning = { id: entryId(item), live: !isComplete(item) }
         break
       }
       case 'toolCall':

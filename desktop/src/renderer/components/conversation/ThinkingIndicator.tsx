@@ -6,16 +6,13 @@ import { ThinkingGlyph } from './ThinkingGlyph'
 import { ToolCollapseChevron } from './ToolDisclosure'
 
 interface ThinkingIndicatorProps {
-  elapsedSeconds?: number
   reasoning?: string
   statusText?: string
   /** True while the agent is still reasoning (live streaming) */
   streaming?: boolean
 }
 
-/** Collapsible "Thought Xs" indicator for agent reasoning. Spec §10.3.3. */
 export function ThinkingIndicator({
-  elapsedSeconds,
   reasoning,
   statusText,
   streaming = false
@@ -26,7 +23,7 @@ export function ThinkingIndicator({
 
   const label = streaming
     ? statusText || t('conversation.thinking.streaming')
-    : t('conversation.thinking.completed', { seconds: elapsedSeconds ?? 0 })
+    : t('conversation.thinking.completed')
 
   return (
     <div className="dc-thinking-indicator">

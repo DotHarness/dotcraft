@@ -2047,7 +2047,7 @@ export const MESSAGES_ZH_HANS = {
   'conversation.archivedNotice': '此会话已归档。',
   'conversation.thinking.streaming': '正在思考',
   'conversation.thinking.waitingForAnswer': '正在等待你的回答',
-  'conversation.thinking.completed': '思考 {{seconds}} 秒',
+  'conversation.thinking.completed': '思考',
   'conversation.thinking.expandTooltip': '点击展开思考内容',
   'conversation.thinking.statusTooltip': 'DotCraft 正在思考',
   'conversation.selection.addToChat': '添加到聊天',

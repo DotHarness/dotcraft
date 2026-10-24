@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
 | **Date** | 2026-10-22 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -173,7 +173,8 @@ A client that displays multiple workspaces routes each notification with the wor
 - A running turn shows one activity timing boundary with the turn's process beneath it. An explicit final-phase assistant message freezes the duration and folds the process in place before the turn completes; providers without phase metadata fold on completion. Commentary never triggers an early fold. Final replies and persistent results stay outside the folded process.
 - A cancelled turn keeps partial replies and tool results expanded and replaces the activity boundary with one stop status. Only a stop requested by this window is attributed to the user; other interruptions use neutral wording. Duration comes from valid start and completion timestamps and is omitted otherwise. Raw cancellation reasons are not appended to conversation text.
 - `Turn.error` is the canonical user-facing turn failure. If the same failure is also retained as an Error item, Desktop presents it once.
-- While a turn is running, the conversation always shows visible activity. The turn's activity ends with one Thinking status slot that keeps its height for the whole running turn, sitting right below the last row at the same spacing as tool rows, so content never jumps. It stays visible through reasoning and tool calls and fades out only while assistant text streams, an image is being generated, an approval is pending, or the latest answer has completed. Streaming assistant text that stops receiving deltas briefly is treated as stalled and shows the status until the next delta. While the turn waits on a user-input request, the slot says it is waiting for the user's answer.
+- While a turn is running, the conversation always shows visible activity. The turn ends with one working line, below everything else in the turn at the same spacing as tool rows, mounted for the whole run so content never jumps. Its thinking glyph loops while the turn works. Its label shows the latest reasoning title while reasoning streams, and keeps a finished reasoning's title until it has shown for two seconds. Otherwise the label shows only while nothing else in the turn is on screen, and while the turn waits on a user-input request it says it is waiting for the user's answer.
+- When the turn stops working (it ends, sleeps, or waits on an approval), the glyph loops on to its fused pose, settles into the still dot, and fades out. The line keeps its space while its turn is the latest, so the reply does not move, and gives it up in the same frame as the next message appears. A turn opened after it stopped has no working line.
 - Conversation Markdown renders math: display math between `$$` or `\[ \]` lines and inline `\( \)`, `\[ \]`, or `$$ $$`. A single `$` stays text, delimiters in code stay literal, and an unparseable formula shows its source. Copying a formula copies its TeX. Raw HTML in replies shows as text except a line break.
 
 ### 4.3 Item Events
@@ -182,7 +183,7 @@ A client that displays multiple workspaces routes each notification with the wor
 |---------------|-------------|
 | `item/started` | New agent work becomes visible in the current thread. |
 | `item/agentMessage/delta` | Agent text streams incrementally. |
-| `item/reasoning/delta` | Updates the Thinking status title; the reasoning body is shown only when the user enables thinking content. |
+| `item/reasoning/delta` | Updates the working line's title; the reasoning body is shown only when the user enables thinking content. |
 | `item/toolCall/argumentsDelta` | Tool argument construction streams. Known built-in tools show a bespoke running label and, where useful, a progressive preview; unknown tools (including MCP and module tools) show a generic placeholder without raw argument JSON. |
 | `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Shell output and status merge by `threadId + callId` into the matching shell tool row. |
 | `item/commandExecution/outputDelta` | Fallback for sessions without `terminal/*`; the same output is never rendered twice. |
@@ -190,7 +191,7 @@ A client that displays multiple workspaces routes each notification with the wor
 | `item/completed` | The final item replaces any in-progress representation. A trusted presentation descriptor may select a local renderer, and an eligible terminal `mcpToolCall` may advertise a live MCP Apps View; generic fallback remains available. |
 | `item/usage/delta` | Context usage indicators refresh; deltas accumulate for the active turn and are reconciled by `turn/completed.tokenUsage`. |
 
-- The Thinking status title is the last readable line of the turn's latest reasoning that has one, so between reasoning blocks it keeps the previous title instead of returning to the generic label; with no readable reasoning yet it is a localized Thinking label. When thinking content is shown, reasoning between tool calls is listed in order inside the tool group without splitting it.
+- The working line's title is the last readable line of the turn's latest reasoning that has one, so between reasoning blocks it keeps the previous title instead of returning to the generic label; with no readable reasoning yet it is a localized Thinking label. When thinking content is shown, reasoning between tool calls is listed in order inside the tool group without splitting it.
 - Remote Tool Host transfers render as a tool row naming the item, direction, machine, and state, with the source and destination route, live byte and file progress, and final counts. Failure preserves the last progress and reason. Historical results without totals show known statistics only and never borrow the current route. Raw JSON is not rendered.
 
 ### 4.4 Approval Events
@@ -387,7 +388,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **Tool rows**
 
 - Tool output stays readable in-thread and distinguishable from conversational text.
-- Consecutive tool calls share one collapsed row that names what its calls did, one phrase per kind of work, without counts. Commentary, user messages, and calls with a surface of their own (subagents, stopped tasks, channel messages, plans, automations, workflow launches, answered questions, live MCP App Views, plugin-rendered tools, image views) end a group. Reasoning, background task notifications, and assistant messages without text never end a group, and to-do updates are not shown. While the turn runs, the trailing group names the call in progress; the Thinking status lives only in the turn's status slot. Rows never expand on their own. A failed call stays in its group and shows its failure in the expanded output.
+- Consecutive tool calls share one collapsed row that names what its calls did, one phrase per kind of work, without counts. Commentary, user messages, and calls with a surface of their own (subagents, stopped tasks, channel messages, plans, automations, workflow launches, answered questions, live MCP App Views, plugin-rendered tools, image views) end a group. Reasoning, background task notifications, and assistant messages without text never end a group, and to-do updates are not shown. While the turn runs, the trailing group names the call in progress; the Thinking status lives only in the turn's working line. Rows never expand on their own. A failed call stays in its group and shows its failure in the expanded output.
 - Desktop and the mobile client decide rendering, grouping, and labels only from the trusted presentation (`CoreNative` source, presentation id, and operation), never from tool names, so a renamed server tool keeps its rendering and an untrusted tool cannot borrow one. A presentation lacking an operation renders with its family's generic labels. Desktop's own runtime thread tools ([5.14](#514-desktop-runtime-thread-tools)), Code Mode, and the Dynamic Workflow launch are identified by name and source instead.
 - `TaskStop` (`core.task`/`stop`) renders as one row naming what stopped (background terminal, subagent, or workflow) and its label; it expands only to show a subagent's last message.
 - `SendChannelMessage` (`core.channel`) renders as one row naming the destination chat; expanding shows the sent text and attachments; a failure keeps the row and shows the error.

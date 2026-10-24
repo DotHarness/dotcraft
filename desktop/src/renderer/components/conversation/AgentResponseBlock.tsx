@@ -3,8 +3,8 @@ import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { ThinkingStatusSlot } from './ThinkingStatusSlot'
-import { useTurnThinkingStatus } from './turnThinkingStatus'
+import { TurnWorkingLine } from './TurnWorkingLine'
+import { useTurnThinkingLabel } from './turnThinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { AgentMessage } from './AgentMessage'
@@ -49,12 +49,10 @@ import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 interface AgentResponseBlockProps {
   turn: ConversationTurn
   streamingMessage?: string
-  streamingMessageLastDeltaAt?: number | null
   streamingReasoning?: string
   isRunning?: boolean
   isLastTurn?: boolean
-  /** Show a UI-only Thinking row when an active running turn has no live visible work. */
-  showIdleThinkingFallback?: boolean
+  showWorkingLine?: boolean
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
   /** Keeps assistant/user text and plans visible while avoiding historical tool-detail mounts. */
@@ -74,6 +72,7 @@ function normalizedErrorMessage(message: string | undefined): string {
 interface ConversationRenderNode {
   key: string
   kind: ConversationNodeKind
+  lastKind?: ConversationNodeKind
   node: ReactNode
 }
 
@@ -83,11 +82,10 @@ const LABEL_HOLD_MS = 1000
 export const AgentResponseBlock = memo(function AgentResponseBlock({
   turn,
   streamingMessage = '',
-  streamingMessageLastDeltaAt = null,
   streamingReasoning = '',
   isRunning = false,
   isLastTurn = false,
-  showIdleThinkingFallback = false,
+  showWorkingLine = false,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
   historicalToolContentMode = 'full',
@@ -126,7 +124,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const renderReasoning = (item: ConversationItem): ReactNode => {
     if (!showThinkingContent) return null
     const streaming = isRunning && item.status === 'streaming' && item.id === activeItemId
-    return <ThinkingIndicator key={item.id} elapsedSeconds={item.elapsedSeconds} reasoning={reasoningText(item)} streaming={streaming} />
+    return <ThinkingIndicator key={item.id} reasoning={reasoningText(item)} streaming={streaming} />
   }
 
   const isBlankMessage = (item: ConversationItem): boolean => {
@@ -268,13 +266,14 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
   const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
-  const thinkingStatus = useTurnThinkingStatus({
+  const working = showWorkingLine && isRunning && !isSleeping
+  const thinkingLabel = useTurnThinkingLabel({
     items: renderableItems,
-    enabled: showIdleThinkingFallback && isRunning && !isSleeping,
+    working,
     activeItemId,
     streamingMessage,
-    streamingMessageLastDeltaAt,
     streamingReasoning,
+    showsReasoning: showThinkingContent,
     waitingForAnswer: pendingUserInput != null
   })
   const lastFinalAgentMessageIndex = activity.finalIndex
@@ -290,14 +289,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       : null
   const collapsesIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
-  const thinkingStatusNode: ConversationRenderNode = {
-    key: `thinking-status-${turn.id}`,
-    kind: 'assistant',
-    node: <ThinkingStatusSlot status={thinkingStatus} />
-  }
   const activitySummary = (intermediateNodes: ConversationRenderNode[]): ConversationRenderNode => ({
     key: `turn-activity-${turn.id}`,
     kind: 'other',
+    lastKind: intermediateNodes.at(-1)?.kind,
     node: (
       <TurnActivitySummary
         status={activity.status!}
@@ -335,7 +330,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       intermediateNodes.push(...renderItemSequence(renderableItems.slice(segmentStart, boundary)))
       segmentStart = boundary + 1
     }
-    if (thinkingStatus.reserved && activity.status === 'working') intermediateNodes.push(thinkingStatusNode)
     renderNodes.push(activitySummary(intermediateNodes))
     renderNodes.push(...pinnedIndices.flatMap((pinnedIndex) => renderItemSequence([renderableItems[pinnedIndex]])))
     renderNodes.push(...renderItemSequence(renderableItems.slice(splitIndex)))
@@ -343,7 +337,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
-  if (thinkingStatus.reserved && activity.status !== 'working') renderNodes.push(thinkingStatusNode)
+  const lastNode = renderNodes.at(-1)
+  const lastKind = lastNode && (lastNode.lastKind ?? lastNode.kind)
 
   const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
     (item) => item.type === 'error' &&
@@ -363,6 +358,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       )}
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
+
+      <TurnWorkingLine working={working} label={thinkingLabel} keepSpace={isLastTurn} afterTool={lastKind === 'tool'} />
     </div>
   )
 })

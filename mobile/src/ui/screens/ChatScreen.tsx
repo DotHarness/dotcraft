@@ -31,7 +31,7 @@ import { ImageReaderContext } from '../chat/Images'
 import { ScrollToBottom } from '../chat/ScrollToBottom'
 import { StatusPopover } from '../chat/StatusPopover'
 import { LiveSignals, RetryContext, ThreadLinksContext, type ThreadLinks } from '../chat/TimelineMarkers'
-import { TranscriptLine } from '../chat/Transcript'
+import { TranscriptLine, useKeptWorkingLine } from '../chat/Transcript'
 import { Screen, useRefreshControl } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
@@ -94,6 +94,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     () => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath, { stopped, spawnedFrom }) : []),
     [detail, stopped, spawnedFrom],
   )
+  const lines = useKeptWorkingLine(transcript, key)
   const chatTaskSources = state.tasks[key]
   const activeTurnId = chat?.runtime?.activeTurnId ?? null
   const tasks = useMemo(() => chatTasks(chatTaskSources, activeTurnId), [chatTaskSources, activeTurnId])
@@ -249,11 +250,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                   <ChangesOpenerContext.Provider value={openChanges}>
                     <ThreadLinksContext.Provider value={threadLinks}>
                       <RetryContext.Provider value={retry}>
-                        {transcript.map((entry, index) => (
+                        {lines.map((entry, index) => (
                           <TranscriptLine
                             key={entry.id}
-                            entry={entry.kind === 'thinking' && decision ? { ...entry, visible: false } : entry}
-                            previous={transcript[index - 1]}
+                            entry={entry.kind === 'thinking' && decision ? { ...entry, working: false } : entry}
+                            previous={lines[index - 1]}
                             workspacePath={workspacePath}
                           />
                         ))}

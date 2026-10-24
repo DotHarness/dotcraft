@@ -2080,7 +2080,7 @@ export const MESSAGES_EN = {
   'conversation.archivedNotice': 'This conversation is archived.',
   'conversation.thinking.streaming': 'Thinking',
   'conversation.thinking.waitingForAnswer': 'Waiting for your answer',
-  'conversation.thinking.completed': 'Thought {{seconds}}s',
+  'conversation.thinking.completed': 'Thought',
   'conversation.thinking.expandTooltip': 'Click to expand reasoning',
   'conversation.thinking.statusTooltip': 'DotCraft is thinking',
   'conversation.selection.addToChat': 'Add to chat',

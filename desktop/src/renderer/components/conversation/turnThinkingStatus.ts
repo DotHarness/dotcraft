@@ -1,45 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ConversationItem } from '../../types/conversation'
-import { isToolLikeItemType } from '../../types/conversation'
 import { extractThinkingStatus } from './thinkingStatus'
 
-const STREAMING_MESSAGE_STALL_MS = 2000
+const HOLD_MS = 2000
 
 export interface TurnThinkingStatusInput {
   items: ConversationItem[]
-  /** The block may show the status at all: the active running turn, not sleeping. */
-  enabled: boolean
+  working: boolean
   activeItemId: string | null
   streamingMessage: string
-  streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
+  showsReasoning: boolean
   waitingForAnswer: boolean
 }
 
-export interface TurnThinkingStatus {
-  /** The slot keeps its height while the turn runs. */
-  reserved: boolean
-  visible: boolean
-  waitingForAnswer: boolean
-  /** Latest readable reasoning title in the turn, or undefined for the generic label. */
-  heading?: string
+export type TurnThinkingLabel =
+  | { kind: 'thinking'; heading?: string }
+  | { kind: 'waitingForAnswer' }
+
+interface ReasoningStage {
+  id: string
+  stage: 'live' | 'hold' | 'done'
 }
 
-export function useTurnThinkingStatus(input: TurnThinkingStatusInput): TurnThinkingStatus {
-  const stalled = useStreamingMessageStall({
-    enabled: input.enabled
-      && input.streamingMessage.trim().length > 0
-      && hasActiveStreamingAgentMessage(input.items, input.activeItemId),
-    lastDeltaAt: input.streamingMessageLastDeltaAt
-  })
-  if (!input.enabled) return { reserved: false, visible: false, waitingForAnswer: false }
-  if (input.waitingForAnswer) return { reserved: true, visible: true, waitingForAnswer: true }
-  return {
-    reserved: true,
-    visible: !isOtherProgressVisible({ ...input, streamingMessageStalled: stalled }),
-    waitingForAnswer: false,
-    heading: latestThinkingHeading(input.items, input.activeItemId, input.streamingReasoning)
-  }
+export function useTurnThinkingLabel(input: TurnThinkingStatusInput): TurnThinkingLabel | null {
+  const live = input.working
+    ? input.items.find((item) => item.type === 'reasoningContent' && item.status === 'streaming' && item.id === input.activeItemId)
+    : undefined
+  const [span, setSpan] = useState<ReasoningStage | null>(null)
+  if (live && span?.id !== live.id) setSpan({ id: live.id, stage: 'live' })
+  if (!live && span?.stage === 'live') setSpan({ id: span.id, stage: 'hold' })
+  const startedAt = useRef(0)
+
+  useEffect(() => {
+    if (span?.stage === 'live') startedAt.current = Date.now()
+    if (span?.stage === 'hold') {
+      const timer = setTimeout(() => setSpan({ id: span.id, stage: 'done' }), Math.max(0, HOLD_MS - (Date.now() - startedAt.current)))
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [span])
+
+  if (!input.working) return null
+  if (input.waitingForAnswer) return { kind: 'waitingForAnswer' }
+  const heading = latestThinkingHeading(input.items, input.activeItemId, input.streamingReasoning)
+  if (span?.stage === 'live' || span?.stage === 'hold') return { kind: 'thinking', heading }
+  return hasVisibleWork(input) ? null : { kind: 'thinking', heading }
 }
 
 function latestThinkingHeading(
@@ -57,58 +63,11 @@ function latestThinkingHeading(
   return undefined
 }
 
-function isOtherProgressVisible({
-  items,
-  activeItemId,
-  streamingMessage,
-  streamingMessageStalled
-}: TurnThinkingStatusInput & { streamingMessageStalled: boolean }): boolean {
-  if (isAnswerSettled(items)) return true
+function hasVisibleWork({ items, activeItemId, streamingMessage, showsReasoning }: TurnThinkingStatusInput): boolean {
   return items.some((item) => {
-    if (item.type === 'agentMessage' && item.status === 'streaming' && item.id === activeItemId) {
-      return streamingMessage.trim().length > 0 && !streamingMessageStalled
-    }
-    if (item.type === 'imageGeneration' && (item.imageGenerationStatus === 'inProgress' || item.status === 'started')) {
-      return true
-    }
-    return item.type === 'approvalCard' && item.approvalState === 'pending'
+    if (item.type === 'reasoningContent') return showsReasoning
+    if (item.type !== 'agentMessage') return true
+    const text = item.status === 'streaming' && item.id === activeItemId ? streamingMessage : item.text ?? ''
+    return text.trim().length > 0
   })
-}
-
-function isAnswerSettled(items: ConversationItem[]): boolean {
-  for (let index = items.length - 1; index >= 0; index--) {
-    const item = items[index]!
-    if (item.type === 'agentMessage') return item.status === 'completed' && item.deliveryMode !== 'async'
-    if (
-      item.type === 'reasoningContent'
-      || item.type === 'userMessage'
-      || isToolLikeItemType(item.type)
-      || item.type === 'webSearch'
-      || item.type === 'imageGeneration'
-      || item.type === 'approvalCard'
-    ) {
-      return false
-    }
-  }
-  return false
-}
-
-function hasActiveStreamingAgentMessage(items: ConversationItem[], activeItemId: string | null): boolean {
-  return items.some((item) => item.type === 'agentMessage' && item.status === 'streaming' && item.id === activeItemId)
-}
-
-function useStreamingMessageStall({ enabled, lastDeltaAt }: { enabled: boolean; lastDeltaAt: number | null | undefined }): boolean {
-  const [, forceTick] = useState(0)
-
-  useEffect(() => {
-    if (!enabled || lastDeltaAt == null) return undefined
-    const elapsedMs = Date.now() - lastDeltaAt
-    if (elapsedMs >= STREAMING_MESSAGE_STALL_MS) return undefined
-    const timeoutId = setTimeout(() => forceTick((value) => value + 1), STREAMING_MESSAGE_STALL_MS - elapsedMs)
-    return () => clearTimeout(timeoutId)
-  }, [enabled, lastDeltaAt])
-
-  if (!enabled) return false
-  if (lastDeltaAt == null) return true
-  return Date.now() - lastDeltaAt >= STREAMING_MESSAGE_STALL_MS
 }
