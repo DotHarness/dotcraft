@@ -269,7 +269,7 @@ function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean })
           accessibilityElementsHidden={!label}
           style={[styles.shrink, { opacity: labelOpacity }]}
         >
-          <RunningShimmer key={`${shown.text}:${shown.live}`} active={shown.live} textStyle={[type.text, styles.line, { color: colors.textSecondary }]}>
+          <RunningShimmer active={shown.live} textStyle={[type.text, styles.line, { color: colors.textSecondary }]}>
             {shown.text}
           </RunningShimmer>
         </Animated.View>

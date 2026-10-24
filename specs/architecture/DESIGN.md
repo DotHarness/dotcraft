@@ -1291,12 +1291,17 @@ in `--warning`. A failed call's row stays neutral; the failure reads in the
 expanded output. Rows that already lead with an identity mark (subagents) and
 cards with their own surface take none. The summary stays one line and ellipsizes.
 
-The Thinking row takes the same slot with the thinking glyph, drawn in the row's
-text colour: while reasoning runs, three separate drops gather, fuse into a core
-that swells, and burst apart on a 3s loop. A finished Thought row, and reduced
-motion, show one still round dot. When a turn's working line stops, its glyph
-loops on to the fused pose and settles into the dot before fading out. Its liquid edge softens with the rendered pixel
-size so a 16px glyph keeps an antialiased outline.
+A Thought row takes the same slot with a line icon at the tool icons' stroke
+weight: three drops on an orbit around the core. It stays static while the
+reasoning streams, because the turn's working line already shows that the turn is
+thinking.
+
+The working line leads with the thinking glyph, drawn in the row's text colour:
+while the turn works, three separate drops gather, fuse into a core that swells,
+and burst apart on a 3s loop; reduced motion shows one still round dot. When the
+turn stops, the glyph loops on to the fused pose and settles into the dot before
+fading out. Its liquid edge softens with the rendered pixel size so a 16px glyph
+keeps an antialiased outline.
 
 | Activity | Icon |
 |---|---|

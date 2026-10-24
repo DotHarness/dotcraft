@@ -624,18 +624,30 @@ export function latestActivity(history: ChatHistory): LatestActivity | null {
   return latestIn(buildTranscript(history))
 }
 
-export function thinkingStatus(reasoning: string): string | null {
-  const line = reasoning
-    .split(/\r?\n/)
-    .map((value) => value.replace(/<!--.*?-->/g, '').trim())
-    .filter(Boolean)
-    .at(-1)
-  if (!line) return null
-  const text = line
-    .replace(/^#+\s*/, '')
+function plainLine(line: string): string {
+  return line
+    .replace(/<!--.*?(?:-->|$)/g, '')
+    .replace(/^#{1,6}\s+/, '')
     .replace(/(\*\*|__|\*|_|`)/g, '')
     .trim()
-  return text || null
+}
+
+export function thinkingStatus(reasoning: string, complete = false): string | null {
+  for (const raw of reasoning.split(/\r?\n/).reverse()) {
+    const line = raw.replace(/<!--.*?-->/g, '').trim()
+    const heading = /^#{1,6}\s+(.+)$/.exec(line)?.[1] ?? /^(\*\*|__)((?:(?!\1).)+)\1$/.exec(line)?.[2]
+    const text = heading ? plainLine(heading) : ''
+    if (text) return text
+  }
+  const paragraphs = reasoning.split(/\r?\n[\t ]*\r?\n/)
+  for (let index = paragraphs.length - 1; index >= 0; index--) {
+    const paragraph = paragraphs[index].trimStart()
+    const newline = paragraph.search(/\r?\n/)
+    if (newline === -1 && index === paragraphs.length - 1 && !complete) continue
+    const lead = plainLine(newline === -1 ? paragraph : paragraph.slice(0, newline))
+    if (lead) return lead
+  }
+  return null
 }
 
 export function buildTranscript(history: ChatHistory, workspacePath: string | null = null, options: TranscriptOptions = {}): TranscriptEntry[] {
@@ -739,7 +751,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
         break
       }
       case 'reasoningContent': {
-        heading = thinkingStatus(str(payload.text)) ?? heading
+        heading = thinkingStatus(str(payload.text), isComplete(item)) ?? heading
         reasoning = { id: entryId(item), live: !isComplete(item) }
         break
       }

@@ -15,7 +15,7 @@ export interface TurnThinkingStatusInput {
 }
 
 export type TurnThinkingLabel =
-  | { kind: 'thinking'; heading?: string }
+  | { kind: 'thinking'; title?: string }
   | { kind: 'waitingForAnswer' }
 
 interface ReasoningStage {
@@ -43,12 +43,12 @@ export function useTurnThinkingLabel(input: TurnThinkingStatusInput): TurnThinki
 
   if (!input.working) return null
   if (input.waitingForAnswer) return { kind: 'waitingForAnswer' }
-  const heading = latestThinkingHeading(input.items, input.activeItemId, input.streamingReasoning)
-  if (span?.stage === 'live' || span?.stage === 'hold') return { kind: 'thinking', heading }
-  return hasVisibleWork(input) ? null : { kind: 'thinking', heading }
+  const title = latestThinkingTitle(input.items, input.activeItemId, input.streamingReasoning)
+  if (span?.stage === 'live' || span?.stage === 'hold') return { kind: 'thinking', title }
+  return hasVisibleWork(input) ? null : { kind: 'thinking', title }
 }
 
-function latestThinkingHeading(
+function latestThinkingTitle(
   items: readonly ConversationItem[],
   activeItemId: string | null,
   streamingReasoning: string
@@ -56,9 +56,9 @@ function latestThinkingHeading(
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!
     if (item.type !== 'reasoningContent') continue
-    const text = item.status === 'streaming' && item.id === activeItemId ? streamingReasoning : item.reasoning ?? ''
-    const heading = extractThinkingStatus(text)
-    if (heading) return heading
+    const live = item.status === 'streaming' && item.id === activeItemId
+    const title = extractThinkingStatus(live ? streamingReasoning : item.reasoning ?? '', !live)
+    if (title) return title
   }
   return undefined
 }

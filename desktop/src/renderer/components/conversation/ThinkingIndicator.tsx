@@ -1,29 +1,12 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { RunningShimmer } from '../ui/RunningShimmer'
-import { ThinkingGlyph } from './ThinkingGlyph'
 import { ToolCollapseChevron } from './ToolDisclosure'
 
-interface ThinkingIndicatorProps {
-  reasoning?: string
-  statusText?: string
-  /** True while the agent is still reasoning (live streaming) */
-  streaming?: boolean
-}
-
-export function ThinkingIndicator({
-  reasoning,
-  statusText,
-  streaming = false
-}: ThinkingIndicatorProps): JSX.Element {
+export function ThinkingIndicator({ reasoning }: { reasoning?: string }): JSX.Element {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
   const canExpand = !!reasoning
-
-  const label = streaming
-    ? statusText || t('conversation.thinking.streaming')
-    : t('conversation.thinking.completed')
 
   return (
     <div className="dc-thinking-indicator">
@@ -53,13 +36,10 @@ export function ThinkingIndicator({
               maxWidth: '100%'
             }}
           >
-            <ThinkingGlyph thinking={streaming} />
-            <RunningShimmer
-              active={streaming}
-              style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-            >
-              {label}
-            </RunningShimmer>
+            <ThoughtIcon />
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t('conversation.thinking.completed')}
+            </span>
             {canExpand && (
               <ToolCollapseChevron expanded={expanded} visible={expanded} />
             )}
@@ -87,5 +67,17 @@ export function ThinkingIndicator({
         </div>
       )}
     </div>
+  )
+}
+
+function ThoughtIcon(): JSX.Element {
+  return (
+    <svg className="dc-tool-row-icon" width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx={12} cy={12} r={8} stroke="currentColor" strokeWidth={1.6} />
+      {[0, 120, 240].map((angle) => (
+        <circle key={angle} cx={12} cy={4} r={2.4} transform={`rotate(${angle} 12 12)`} fill="currentColor" />
+      ))}
+      <circle cx={12} cy={12} r={2.2} fill="currentColor" />
+    </svg>
   )
 }

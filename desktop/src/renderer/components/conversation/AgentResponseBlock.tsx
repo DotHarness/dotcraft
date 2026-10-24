@@ -123,8 +123,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const renderReasoning = (item: ConversationItem): ReactNode => {
     if (!showThinkingContent) return null
-    const streaming = isRunning && item.status === 'streaming' && item.id === activeItemId
-    return <ThinkingIndicator key={item.id} reasoning={reasoningText(item)} streaming={streaming} />
+    return <ThinkingIndicator key={item.id} reasoning={reasoningText(item)} />
   }
 
   const isBlankMessage = (item: ConversationItem): boolean => {

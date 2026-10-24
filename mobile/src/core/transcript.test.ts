@@ -218,8 +218,14 @@ describe('turn changes', () => {
 })
 
 describe('thinking status', () => {
-  it('reads the last line of streaming reasoning without its emphasis', () => {
+  it('reads the latest heading line, else the first line of the latest written paragraph, without emphasis', () => {
     expect(thinkingStatus('Plan first.\n\n**Checking the lockfile**\n<!-- note -->')).toBe('Checking the lockfile')
+    expect(thinkingStatus('## Reading the config\nThe lockfile pins an old version')).toBe('Reading the config')
+    expect(thinkingStatus('**Checking** the lockfile next\n\nmore')).toBe('Checking the lockfile next')
+    expect(thinkingStatus('The user wants release notes')).toBeNull()
+    expect(thinkingStatus('The user wants release notes', true)).toBe('The user wants release notes')
+    expect(thinkingStatus('The user wants release notes.\n\nLet me start')).toBe('The user wants release notes.')
+    expect(thinkingStatus('The user wants release notes.\n\nLet me run `git log`.\n')).toBe('Let me run git log.')
     expect(thinkingStatus('  ')).toBeNull()
   })
 })

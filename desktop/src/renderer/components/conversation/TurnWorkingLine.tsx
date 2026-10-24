@@ -27,7 +27,7 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool }: {
 
   const current: ShownLabel | null = label == null ? null
     : label.kind === 'waitingForAnswer' ? { text: t('conversation.thinking.waitingForAnswer'), live: true }
-    : { text: label.heading || t('conversation.thinking.streaming'), live: true }
+    : { text: label.title || t('conversation.thinking.streaming'), live: true }
   const [shown, setShown] = useState(current)
   if (current && (current.text !== shown?.text || current.live !== shown.live)) setShown(current)
 
@@ -45,7 +45,7 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool }: {
       </span>
       {shown ? (
         <span className={styles.label} data-visible={current ? 'true' : 'false'} aria-hidden={!current}>
-          <RunningShimmer key={`${shown.text}:${shown.live}`} active={shown.live} className={styles.text}>
+          <RunningShimmer active={shown.live} className={styles.text}>
             {shown.text}
           </RunningShimmer>
         </span>
