@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-25 |
 
 ## Identity and ownership
 
@@ -27,6 +27,8 @@ configuration readable but fail model operations without fallback.
 configuration. Without a backend ID, existing protocol, authentication and endpoint defaults remain
 unchanged. Explicit backends validate their own settings and declared protocol/authentication choices.
 They do not inherit HTTP endpoints, API-key requirements or protocol-based hosted capabilities.
+Their model catalog reports each model's display name and reasoning capability; built-in
+protocol catalogs never describe backend models.
 
 Desktop lists backend instances with every other provider and creates them from the same editor.
 Backend-specific options use typed controls in a plugin settings surface. `BackendSettings` holds

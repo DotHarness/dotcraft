@@ -131,29 +131,24 @@ public static class ProviderContractMapper
         var defaultId = models.Any(model => string.Equals(model.Id, preferred, StringComparison.Ordinal))
             ? preferred
             : models.FirstOrDefault()?.Id;
-        return [.. models.Select(model => BuildModelCatalogItem(config, protocol, endpoint, model, model.Id == defaultId, includeUltra))];
-    }
-
-    private static Contract.ModelCatalogItem BuildModelCatalogItem(
-        AppConfig config,
-        string? protocol,
-        string? endpoint,
-        ModelCatalogEntry model,
-        bool isDefault,
-        bool includeUltra) => new()
+        var backend = ModelProviderResolver.IsBackendProvider(config, providerId);
+        return [.. models.Select(model => new Contract.ModelCatalogItem
         {
             Id = model.Id,
-            IsDefault = isDefault,
+            DisplayName = OmitIfBlank(model.DisplayName),
+            IsDefault = model.Id == defaultId,
             OwnedBy = model.OwnedBy,
             CreatedAt = model.CreatedAt,
-            Reasoning = MapReasoningCapability(ModelThinkingAdapterResolver.ResolveReasoningCapability(
-                config,
-                protocol,
-                endpoint,
-                model.Id), includeUltra),
-            Speed = MapSpeedCapability(config, protocol, model.Id),
+            Reasoning = MapReasoningCapability(
+                ModelThinkingAdapterResolver.ResolveReasoningCapability(config, providerId, protocol, endpoint, model),
+                includeUltra),
+            Speed = backend ? null : MapSpeedCapability(config, protocol, model.Id),
             ContextWindow = ModelCatalog.Resolve(config, model.Id)
-        };
+        })];
+    }
+
+    private static Protocol.Optional<string> OmitIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? default(Protocol.Optional<string>) : value.Trim();
 
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
     {

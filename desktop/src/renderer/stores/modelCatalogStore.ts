@@ -27,6 +27,7 @@ export interface ModelReasoningCapability {
 
 export interface ModelCatalogItem {
   id: string
+  displayName?: string
   ownedBy?: string
   createdAt?: string
   reasoning?: ModelReasoningCapability | null
@@ -149,15 +150,17 @@ function parseContextWindow(value: unknown): number | null {
 export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
   const typed = payload as {
     success?: boolean
-    models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; speed?: unknown; Speed?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
+    models?: Array<{ id?: string; Id?: string; displayName?: unknown; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; speed?: unknown; Speed?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
   }
   if (!typed.success || !Array.isArray(typed.models)) return []
   const byId = new Map<string, ModelCatalogItem>()
   for (const model of typed.models) {
     const id = String(model.id ?? model.Id ?? '').trim()
     if (!id || byId.has(id)) continue
+    const displayName = typeof model.displayName === 'string' ? model.displayName.trim() : ''
     byId.set(id, {
       id,
+      ...(displayName ? { displayName } : {}),
       ownedBy: typeof (model.ownedBy ?? model.OwnedBy) === 'string' ? String(model.ownedBy ?? model.OwnedBy) : undefined,
       createdAt: typeof (model.createdAt ?? model.CreatedAt) === 'string' ? String(model.createdAt ?? model.CreatedAt) : undefined,
       reasoning: parseReasoningCapability(model.reasoning ?? model.Reasoning),

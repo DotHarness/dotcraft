@@ -11,6 +11,9 @@
       "type": "string",
       "format": "date-time"
     },
+    "displayName": {
+      "type": "string"
+    },
     "id": {
       "type": "string"
     },

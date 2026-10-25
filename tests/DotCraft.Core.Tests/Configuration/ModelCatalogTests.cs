@@ -327,6 +327,13 @@ public sealed class ModelCatalogTests : IDisposable
             workspacePath));
     }
 
+    [Fact]
+    public void SupportsFast_ReturnsFalseForPluginBackendProtocol()
+    {
+        Assert.True(ModelCatalog.SupportsFast(ModelProviderProtocols.Anthropic, "claude-opus-5-5"));
+        Assert.False(ModelCatalog.SupportsFast("claude-code", "claude-opus-5-5"));
+    }
+
     private string WriteConfig(string directoryName, string json)
     {
         var directory = Path.Combine(_root, directoryName);

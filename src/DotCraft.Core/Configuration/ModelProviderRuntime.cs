@@ -102,6 +102,11 @@ public static partial class ModelProviderResolver
             $"Model provider '{providerId}' is not configured. {MissingProviderMessage}");
     }
 
+    public static bool IsBackendProvider(AppConfig config, string? providerId) =>
+        providerId is not null
+        && config.Providers.TryGetValue(providerId, out var provider)
+        && !string.IsNullOrWhiteSpace(provider.BackendId);
+
     public static bool ResolveImageGenerationSupport(AppConfig.ModelProviderConfig provider)
     {
         ArgumentNullException.ThrowIfNull(provider);

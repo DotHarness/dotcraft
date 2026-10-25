@@ -487,7 +487,10 @@ export function ModelPicker({
     if (speedDiffers) onSpeedChange?.(defaultSpeed)
   }
 
-  const modelLabel = modelName === 'Default' ? t('composer.defaultModel') : modelName
+  const labelFor = (model: string): string => model === 'Default'
+    ? t('composer.defaultModel')
+    : modelCatalog.find((item) => item.id === model)?.displayName ?? model
+  const modelLabel = labelFor(modelName)
   const reasoningDisplayLabel = reasoningValueLabel(t, effectiveReasoning)
 
   return (
@@ -780,7 +783,7 @@ export function ModelPicker({
                           key={model}
                           selected={model === modelName || (model === 'Default' && modelName === 'Default')}
                           highlighted={submenuHighlight === index}
-                          label={model === 'Default' ? t('composer.defaultModel') : model}
+                          label={labelFor(model)}
                           onHover={() => setSubmenuHighlight(index)}
                           onSelect={() => selectModel(model)}
                         />

@@ -41,11 +41,7 @@ public static class ModelPreferenceRules
         if (!TryResolveRuntime(config, providerId, normalized.Model, out var runtime))
             return normalized;
 
-        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            config,
-            runtime.Protocol,
-            runtime.EndPoint,
-            normalized.Model);
+        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, runtime);
         if (reasoning is { SupportsDisable: false })
         {
             normalized.Reasoning.Enabled = true;
@@ -71,11 +67,7 @@ public static class ModelPreferenceRules
         if (!TryResolveRuntime(config, providerId, normalized.Model, out var runtime))
             return normalized;
 
-        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            config,
-            runtime.Protocol,
-            runtime.EndPoint,
-            normalized.Model);
+        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, runtime);
         if (reasoning != null)
         {
             if (!normalized.Reasoning.Enabled && !reasoning.SupportsDisable)
@@ -112,11 +104,7 @@ public static class ModelPreferenceRules
             return null;
         }
 
-        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            config,
-            runtime.Protocol,
-            runtime.EndPoint,
-            runtime.Model);
+        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, runtime);
         if (capability == null)
             return null;
         if (!reasoning.Enabled)

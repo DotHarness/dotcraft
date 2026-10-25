@@ -29,7 +29,7 @@ public static class ModelThinkingAdapterResolver
             GlobalPath(config),
             WorkspacePath(config));
 
-    public static ModelThinkingAdapterCatalog.ReasoningCapabilityData? ResolveReasoningCapability(
+    private static ModelThinkingAdapterCatalog.ReasoningCapabilityData? ResolveReasoningCapability(
         AppConfig config,
         string? protocol,
         string? endpoint,
@@ -40,6 +40,40 @@ public static class ModelThinkingAdapterResolver
             model,
             GlobalPath(config),
             WorkspacePath(config));
+
+    /// <summary>Backend models are described only by what their backend reports.</summary>
+    public static ModelThinkingAdapterCatalog.ReasoningCapabilityData? ResolveReasoningCapability(
+        AppConfig config,
+        EffectiveModelRuntime runtime) =>
+        runtime.BackendId is null
+            ? ResolveReasoningCapability(config, runtime.Protocol, runtime.EndPoint, runtime.Model)
+            : null;
+
+    public static ModelThinkingAdapterCatalog.ReasoningCapabilityData? ResolveReasoningCapability(
+        AppConfig config,
+        string? providerId,
+        string? protocol,
+        string? endpoint,
+        ModelCatalogEntry model)
+    {
+        if (model.Reasoning is { } reported)
+            return FromReported(reported);
+        return ModelProviderResolver.IsBackendProvider(config, providerId)
+            ? null
+            : ResolveReasoningCapability(config, protocol, endpoint, model.Id);
+    }
+
+    private static ModelThinkingAdapterCatalog.ReasoningCapabilityData FromReported(ModelReasoningSupport reported)
+    {
+        var capability = new ModelThinkingAdapterCatalog.ReasoningCapabilityData
+        {
+            SupportsDisable = reported.SupportsDisable,
+            DefaultEffort = reported.DefaultEffort
+        };
+        capability.SupportedEfforts.AddRange(reported.SupportedEfforts.Select(static effort => new ModelThinkingAdapterCatalog.ReasoningEffortOptionData(effort)));
+        capability.NormalizeDefaults();
+        return capability;
+    }
 
     private static string? GlobalPath(AppConfig config) =>
         ModelThinkingAdapterCatalog.CatalogPathForConfig(config.GlobalConfigPath);

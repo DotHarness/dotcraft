@@ -210,6 +210,19 @@ describe('modelCatalogStore', () => {
     ])
   })
 
+  it('keeps a non-blank displayName from model/list', async () => {
+    appServerListModels.mockResolvedValueOnce({
+      success: true,
+      models: [{ id: 'opus[1m]', displayName: ' Opus ' }, { id: 'haiku', displayName: '  ' }]
+    })
+
+    await useModelCatalogStore.getState().loadIfNeeded()
+
+    const models = useModelCatalogStore.getState().models
+    expect(models.find((model) => model.id === 'opus[1m]')?.displayName).toBe('Opus')
+    expect(models.find((model) => model.id === 'haiku')).not.toHaveProperty('displayName')
+  })
+
   it('reuses catalogs across preference changes, provider switches and the resolved default provider', async () => {
     appServerListModels.mockImplementation(async (providerId) => ({
       success: true, providerId: providerId ?? 'one', models: [{ id: providerId ?? 'one' }]

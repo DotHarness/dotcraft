@@ -110,8 +110,10 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
             .Select(static model => new ModelCatalogEntry
             {
                 Id = model.Id,
+                DisplayName = model.DisplayName,
                 OwnedBy = model.OwnedBy,
-                CreatedAt = model.CreatedAt
+                CreatedAt = model.CreatedAt,
+                Reasoning = model.Reasoning
             })
             .ToList()
     };

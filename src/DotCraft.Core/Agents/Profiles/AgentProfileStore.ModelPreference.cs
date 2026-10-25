@@ -28,11 +28,7 @@ public sealed partial class AgentProfileStore
                 [Error("PinnedProviderUnavailable", $"Pinned provider '{profilePreference.ProviderId}' is not runnable in the current workspace.")]);
         }
 
-        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            appConfig,
-            runtime.Protocol,
-            runtime.EndPoint,
-            runtime.Model);
+        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(appConfig, runtime);
         var preference = ModelPreferenceRules.Normalize(
             appConfig,
             runtime.ProviderId,
