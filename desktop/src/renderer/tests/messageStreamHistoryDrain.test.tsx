@@ -86,7 +86,7 @@ function serveThread(turnCount: number): FakeHistoryServer {
   const server = createFakeHistoryServer(THREAD, turnCount)
   installDesktopApiMock({
     settings: { get: async () => ({ locale: 'en' }) },
-    appServer: { sendRequest: server.request },
+    appServer: { sendRequest: server.request, sendRequestRaw: async () => ({}), onNotificationRaw: () => () => undefined },
     workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
   })
   return server

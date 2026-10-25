@@ -1,7 +1,9 @@
 import type { JSX } from 'react'
+import { Globe } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
 import { Button } from '../../../ui/Button'
+import { ProviderMark } from '../../../ui/ProviderMark'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SegmentedControl } from '../../ui/SegmentedControl'
@@ -56,26 +58,31 @@ export function WebSearchSettingsGroup({
   const options: SettingsSelectOption[] = [
     {
       value: 'Auto',
+      icon: <Globe size={15} strokeWidth={1.75} />,
       label: t('settings.llm.webSearch.auto'),
       description: t('settings.llm.webSearch.autoDescription')
     },
     {
       value: 'Exa',
+      icon: <ProviderMark kind="exa" size={15} />,
       label: 'Exa',
       description: t('settings.llm.webSearch.exaDescription')
     },
     {
       value: 'Bing',
+      icon: <ProviderMark kind="bing" size={15} />,
       label: 'Bing',
       description: t('settings.llm.webSearch.bingDescription')
     },
     {
       value: 'DeepSeek',
+      icon: <ProviderMark kind="deepseek" size={15} />,
       label: 'DeepSeek',
       description: t('settings.llm.webSearch.deepSeekDescription')
     },
     {
       value: 'ChatGPT',
+      icon: <ProviderMark kind="openai" size={15} />,
       label: 'ChatGPT',
       disabled: !chatGptReady,
       description: chatGptReady
@@ -131,6 +138,8 @@ export function WebSearchSettingsGroup({
               value={selected}
               options={options}
               adaptiveWidth={false}
+              menuMinWidth={280}
+              menuAlign="end"
               disabled={service.pending}
               ariaLabel={t('settings.llm.webSearch.service')}
               onValueChange={(value) => void service.set(value)}

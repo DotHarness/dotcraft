@@ -364,7 +364,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
 
-      <TurnWorkingLine working={working} label={thinkingLabel} keepSpace={isLastTurn} afterTool={lastKind === 'tool'} />
+      <TurnWorkingLine
+        working={working}
+        label={thinkingLabel}
+        keepSpace={isLastTurn}
+        afterTool={lastKind === 'tool'}
+        tasksThreadId={isLastTurn && !readOnly ? turn.threadId : null}
+      />
     </div>
   )
 })

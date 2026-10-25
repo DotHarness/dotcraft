@@ -1302,6 +1302,13 @@ and burst apart on a 3s loop; reduced motion shows one still round dot. When the
 turn stops, the glyph fades out at once. Its liquid edge softens with the rendered pixel size so a 16px glyph
 keeps an antialiased outline.
 
+A running-task count on the working line reads as a quiet action in the line's
+colour, lifting to `--text-primary` on hover. It
+leads the label with a `·` between them so the two never read as one phrase; the
+label ellipsizes and the count never does. On a stopped turn the count stands
+alone behind a 6px dot that pulses in the glyph's slot and holds still under
+reduced motion.
+
 | Activity | Icon |
 |---|---|
 | Command run | terminal |

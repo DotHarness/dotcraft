@@ -38,7 +38,11 @@ describe('MessageStream', () => {
         settings: {
           get: async () => ({ locale: 'en' })
         },
-        appServer: { sendRequest: appServerSendRequest },
+        appServer: {
+          sendRequest: appServerSendRequest,
+          sendRequestRaw: async () => ({}),
+          onNotificationRaw: () => () => undefined
+        },
         workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
       })
   })

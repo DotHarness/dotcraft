@@ -54,11 +54,16 @@ export function setSummaryPinned(pinned: boolean): void {
 }
 
 export function toggleSummary(): void {
-  if (isPanelLayout(current.layout)) {
-    setSummaryPinned(!current.pinned)
-    return
-  }
-  update({ popoverOpen: !current.popoverOpen })
+  setSummaryShown(!isSummaryShown(current))
+}
+
+function isSummaryShown(view: SummaryView): boolean {
+  return isPanelLayout(view.layout) ? view.pinned : view.popoverOpen
+}
+
+export function setSummaryShown(shown: boolean): void {
+  if (isPanelLayout(current.layout)) setSummaryPinned(shown)
+  else update({ popoverOpen: shown })
 }
 
 export function resetView(): void {

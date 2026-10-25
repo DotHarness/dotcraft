@@ -61,3 +61,28 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
   }, [services, threadId])
   return state
 }
+
+function runningTaskCount(state: SummaryState | null): number {
+  if (!state) return 0
+  const working = state.subagents.filter((agent) => agent.state === 'working' || agent.state === 'waiting').length
+  return state.terminals.length + state.workflows.length + working
+}
+
+export function useRunningTaskCount(services: SummaryServices, threadId: string | null): number {
+  const [count, setCount] = useState(() => threadId ? runningTaskCount(entryFor(services, threadId).state) : 0)
+  useEffect(() => {
+    if (!threadId) {
+      setCount(0)
+      return
+    }
+    const entry = entryFor(services, threadId)
+    const listener = (state: SummaryState): void => setCount(runningTaskCount(state))
+    setCount(runningTaskCount(entry.state))
+    entry.listeners.add(listener)
+    return () => {
+      entry.listeners.delete(listener)
+      evictIdleFeeds()
+    }
+  }, [services, threadId])
+  return count
+}
