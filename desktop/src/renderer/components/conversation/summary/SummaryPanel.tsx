@@ -39,6 +39,7 @@ function SubagentsRow({ services, state }: {
         type="button"
         className="conversation-summary-row conversation-summary-row--action conversation-summary-row--subagents"
         aria-label={`${t('summary.openSubagents')}: ${meta ? `${label}, ${meta}` : label}`}
+        data-muted={working.length === 0 || undefined}
         onClick={() => services.navigation.openDetailPanel('subagents')}
       >
         <span className="conversation-summary-avatars" aria-hidden="true">
