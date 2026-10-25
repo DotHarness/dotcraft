@@ -494,6 +494,32 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   and repeated refreshes of one source for one chat coalesce into one request at a time. Background
   tasks never mark the chat itself as running.
 
+### 8.3.1 Runtime update budget
+
+Text deltas are losslessly coalesced per thread in fixed 50 ms windows; subsequent deltas do not
+postpone the window. Each batch updates history once. Item and turn lifecycle changes, diffs,
+approvals, questions and terminal states flush earlier text before taking effect immediately.
+History recovery keeps its snapshot-and-replay ordering; queues from a disconnected or replaced
+connection never enter a newer connection's state.
+
+The renderer subscribes to the state slices it displays. Unrelated threads and account-usage
+updates do not rebuild a chat's transcript. Unchanged item and turn projections retain their
+identity, with invalidation for associated results, turn state, history replacement and workspace
+path changes. Changes summaries and details share parsed diffs; text-only updates do not parse
+unchanged diffs, and a closed Changes sheet does not derive its details.
+
+Offline snapshots retain complete Turns, including an oversized newest Turn. Only changes to
+persisted data schedule a save: after 400 ms idle, or at most two seconds after the first unsaved
+change during continuous updates. Terminal states and moving to the background request an immediate
+save. Writes run asynchronously, one at a time, coalescing waiting work to the newest snapshot;
+clearing or removing a pairing cannot be undone by an older write. Serialization remains on the
+JS thread, but unchanged detail projections are reused and unrelated notifications do not trigger it.
+Snapshots are written to a temporary file before replacing the previous file.
+
+The thinking glyph retains its shape, three-second cycle, colour, filter and reduced-motion state.
+On Android its per-frame SVG properties run on the UI animation runtime, without React state
+updates on the JS thread. An unfocused chat or backgrounded app stops its invisible glyph animation.
+
 ### 8.4 Mascot
 
 The app renders the DotCraft mascot with the shared `@dotcraft/avatar` package, so it matches

@@ -6,7 +6,8 @@ import { LiveSession, type LiveNotifier } from './liveSession'
 import type { PairingOffer } from './pairing'
 import type { PinnedNative } from './pinned'
 import { PinnedSockets } from './sockets'
-import { initialState, persistable, reducer, type Action, type ComputerRecord, type MobileState, type PersistedState } from './state'
+import { initialState, reducer, type Action, type ComputerRecord, type MobileState, type PersistedState } from './state'
+import { SessionPersistence } from './sessionPersistence'
 import { createStore, type Store } from './store'
 
 export { CantStartProjectError } from './computerLink'
@@ -49,13 +50,13 @@ export class MobileSession {
   private pairingGateway: GatewayClient | null = null
   private foreground = true
   private network: string | null = null
-  private saveHandle: unknown = null
+  private readonly persistence: SessionPersistence
   private booted = false
 
   constructor(private readonly platform: SessionPlatform) {
     this.sockets = new PinnedSockets(platform.native)
     this.timers = platform.timers ?? systemTimers
-    this.store.subscribe(() => this.scheduleSave())
+    this.persistence = new SessionPersistence(platform.storage, this.timers, this.store)
     this.live = platform.live
       ? new LiveSession(platform.live, {
           store: this.store,
@@ -128,11 +129,12 @@ export class MobileSession {
       return
     }
     if (!this.live?.enterBackground()) this.sleep()
+    else void this.persistence.flush()
   }
 
   private sleep(): void {
     for (const link of this.links.values()) link.sleep()
-    this.flushSave()
+    void this.persistence.flush()
   }
 
   networkChanged(network: string): void {
@@ -148,7 +150,7 @@ export class MobileSession {
     this.links.delete(computerId)
     forgetImages(computerId)
     this.dispatch({ type: 'forgotten', computerId, revoked })
-    this.flushSave()
+    await this.persistence.flush()
     await this.platform.credentials.clear(computerId)
   }
 
@@ -209,7 +211,7 @@ export class MobileSession {
     const link = this.link(computer, result.credential)
     this.dispatch({ type: 'paired', computer })
     this.dispatch({ type: 'pairing', pairing: { step: 'connected', name: computer.name } })
-    this.flushSave()
+    await this.persistence.flush()
     void previous?.removeDevice()
     void link.connect()
   }
@@ -224,21 +226,9 @@ export class MobileSession {
     this.dispatch({ type: 'pairing', pairing: { step: 'idle' } })
   }
 
-  private scheduleSave(): void {
-    if (this.saveHandle !== null) this.timers.clearTimeout(this.saveHandle)
-    this.saveHandle = this.timers.setTimeout(() => this.flushSave(), 400)
-  }
-
-  private flushSave(): void {
-    if (this.saveHandle !== null) this.timers.clearTimeout(this.saveHandle)
-    this.saveHandle = null
-    if (!this.state.hydrated) return
-    if (this.state.order.length === 0) void this.platform.storage.clear()
-    else void this.platform.storage.save(persistable(this.state))
-  }
-
   dispose(): void {
     for (const link of this.links.values()) link.halt()
     this.sockets.dispose()
+    this.persistence.dispose()
   }
 }

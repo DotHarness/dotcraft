@@ -1,15 +1,13 @@
-import type { ToolEntry, ToolVerb, TranscriptEntry } from './transcript'
+import type { ToolEntry, ToolVerb, TranscriptEntry } from './transcriptTypes'
 
 export type ToolGroupPart = 'calledTool' | 'created' | 'edited' | 'explored' | 'ran' | 'searchedWeb' | 'fetched'
 
-/** One phrase per kind of work, in Desktop's order, without counts; `many` picks the plural phrase. */
 export type ToolGroupLabel = { part: ToolGroupPart; many: boolean }[]
 
 type GroupKind = 'tool' | 'write' | 'explore' | 'shell' | 'search' | 'fetch'
 
 const GROUP_ORDER: readonly GroupKind[] = ['tool', 'write', 'explore', 'shell', 'search', 'fetch']
 
-/** Calls with a surface of their own never join a group, as on Desktop. */
 const OWN_ROW_VERBS = new Set<ToolVerb>([
   'spawned',
   'messaged',
@@ -29,7 +27,12 @@ function groupKind(item: ToolEntry): GroupKind {
 
 function byGroupKind(items: ToolEntry[]): Map<GroupKind, ToolEntry[]> {
   const kinds = new Map<GroupKind, ToolEntry[]>()
-  for (const item of items) kinds.set(groupKind(item), [...(kinds.get(groupKind(item)) ?? []), item])
+  for (const item of items) {
+    const kind = groupKind(item)
+    const entries = kinds.get(kind)
+    if (entries) entries.push(item)
+    else kinds.set(kind, [item])
+  }
   return new Map(GROUP_ORDER.filter((kind) => kinds.has(kind)).map((kind) => [kind, kinds.get(kind)!]))
 }
 
@@ -40,8 +43,8 @@ function writeLabel(items: ToolEntry[]): { part: ToolGroupPart; many: boolean } 
   return created > 0 && created === paths.size ? { part: 'created', many: created > 1 } : { part: 'edited', many: paths.size > 1 }
 }
 
-function groupLabel(items: ToolEntry[]): ToolGroupLabel {
-  return [...byGroupKind(items)].map(([kind, entries]) => {
+function groupLabel(kinds: Map<GroupKind, ToolEntry[]>): ToolGroupLabel {
+  return [...kinds].map(([kind, entries]) => {
     const many = entries.length > 1
     switch (kind) {
       case 'tool':
@@ -61,11 +64,12 @@ function groupLabel(items: ToolEntry[]): ToolGroupLabel {
 }
 
 function toolGroup(items: ToolEntry[], active: boolean): Extract<TranscriptEntry, { kind: 'toolGroup' }> {
+  const kinds = byGroupKind(items)
   return {
     kind: 'toolGroup',
     id: `group-${items[0].id}`,
-    label: groupLabel(items),
-    icon: byGroupKind(items).values().next().value![0].icon,
+    label: groupLabel(kinds),
+    icon: kinds.values().next().value![0].icon,
     failed: items.some((item) => item.failed && item.category !== 'shell'),
     active,
     children: items,
@@ -92,7 +96,6 @@ function settledRun(items: ToolEntry[]): TranscriptEntry[] {
   return out
 }
 
-/** Splits a run at calls with a row of their own; the trailing segment of a running turn is one active row. */
 function aggregate(run: ToolEntry[], active: boolean): TranscriptEntry[] {
   const out: TranscriptEntry[] = []
   let segment: ToolEntry[] = []

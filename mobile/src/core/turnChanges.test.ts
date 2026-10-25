@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem } from './history'
-import { parseUnifiedDiff, runningTurnChanges, turnChanges } from './turnChanges'
+import { createChangesProjector, parseUnifiedDiff, runningTurnChanges, turnChanges } from './turnChanges'
 
 const UPDATE = [
   'diff --git a/src/store.ts b/src/store.ts',
@@ -70,6 +70,39 @@ describe('unified diff parsing', () => {
   it('decodes quoted names and tolerates Windows line endings', () => {
     const quoted = ['diff --git "a/\\346\\226\\207.txt" "b/\\346\\226\\207.txt"', '--- "a/\\346\\226\\207.txt"', '+++ "b/\\346\\226\\207.txt"', '@@ -1 +1 @@', '-a', '+b', ''].join('\r\n')
     expect(parseUnifiedDiff(quoted)).toMatchObject([{ path: '文.txt', added: 1, removed: 1 }])
+  })
+})
+
+describe('change projection reuse', () => {
+  it('shares results across text updates but refreshes recorded changes and resets its cache', () => {
+    const projector = createChangesProjector()
+    const file = result('t1', 'r1', [{ path: 'src/store.ts', diff: UPDATE, additions: 3, deletions: 2 }])
+    const initial = history([file], ['t1'])
+    const changes = projector.project(initial, 't1')
+    const text: HistoryItem = { ...file, id: 'text', type: 'reasoningContent', payload: { text: 'Thinking' } }
+    const updated = { ...initial, items: [...initial.items, text] }
+    expect(projector.project(updated, 't1')).toBe(changes)
+    const corrected = { ...updated, items: [result('t1', 'r1', [{ path: 'src/store.ts', additions: 7, deletions: 1 }]), text] }
+    expect(projector.project(corrected, 't1')).toMatchObject({ added: 7, removed: 1 })
+    const replaced = history([], ['t1'])
+    expect(projector.project(replaced, 't1')).toBeNull()
+    projector.clear()
+    expect(projector.project(initial, 't1')).toEqual(changes)
+    expect(projector.project(initial, 't1')).not.toBe(changes)
+  })
+
+  it('reuses authoritative diff results despite unrelated recorded changes and falls back when removed', () => {
+    const projector = createChangesProjector()
+    const initial = history([], ['t1'], { t1: CREATE })
+    const changes = projector.project(initial, 't1')
+    const recorded = result('t1', 'r1', [{ path: 'src/store.ts', additions: 3, deletions: 2 }])
+    const updated = { ...initial, items: [recorded] }
+    expect(projector.project(updated, 't1')).toBe(changes)
+    const running = { ...updated, turns: [{ id: 't1', status: 'running', error: null }] }
+    expect(projector.running(running)).toBe(changes)
+    const fallback = { ...running, diffs: { t1: '' } }
+    expect(projector.project(fallback, 't1')).toMatchObject({ files: [{ path: 'src/store.ts' }], added: 3, removed: 2 })
+    expect(projector.running({ ...fallback, turns: [{ id: 't1', status: 'completed', error: null }] })).toBeNull()
   })
 })
 

@@ -67,6 +67,14 @@ describe('pinned socket transport', () => {
     await expect(transport.writeMessage({})).rejects.toBeInstanceOf(TransportClosed)
   })
 
+  it('discards unread frames once the connection ends', async () => {
+    const native = new ScriptedNative()
+    const transport = await openTransport(native)
+    native.emit({ type: 'message', text: JSON.stringify({ method: 'stale/request', id: 1 }) })
+    native.emit({ type: 'close', code: 1001, reason: 'gatewayOff' })
+    await expect(transport.readMessage()).rejects.toBeInstanceOf(TransportClosed)
+  })
+
   it('carries a full wire client handshake and server requests', async () => {
     const native = new ScriptedNative()
     const transport = await openTransport(native)

@@ -2,9 +2,11 @@ import { useRouter } from 'expo-router'
 import { useCallback, useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ComputerProvider, useComputer, useMobileState, useSession } from '../../app-state/SessionContext'
+import { ComputerProvider, useComputerSelector, useMobileSelector, useSession } from '../../app-state/SessionContext'
 import { needsYou } from '../../core/chatState'
 import { EMPTY_DRAFT } from '../../core/draft'
+import { chatListState } from '../../core/listSelection'
+import { shallowEqual } from '../../core/selection'
 import {
   computerStatus,
   isReachable,
@@ -50,36 +52,43 @@ function statusTone(status: ComputerStatus, colors: ReturnType<typeof useTheme>[
   return status === 'connecting' ? colors.accent : colors.textDimmed
 }
 
-function ComputerChips() {
-  const state = useMobileState()
+function ComputerChip({ id, selected }: { id: string; selected: boolean }) {
   const session = useSession()
   const { colors } = useTheme()
-  if (state.order.length === 0) return null
+  const computer = useMobileSelector((state) => {
+    const entry = state.computers[id]
+    return entry ? { name: entry.computer.name, status: computerStatus(entry) } : null
+  }, shallowEqual)
+  if (!computer) return null
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={() => session.select(id)}
+      style={({ pressed }) => [
+        styles.chip,
+        selected && { backgroundColor: colors.bgSecondary, borderColor: colors.borderDefault },
+        pressed && { backgroundColor: colors.roundFill },
+      ]}
+    >
+      <View style={[styles.dot, { backgroundColor: statusTone(computer.status, colors) }]} />
+      <Icon name="monitor" size={14} color={colors.textSecondary} strokeWidth={2} />
+      <Txt numberOfLines={1} tone={selected ? undefined : 'secondary'}>
+        {computer.name}
+      </Txt>
+    </Pressable>
+  )
+}
+
+function ComputerChips() {
+  const order = useMobileSelector((state) => state.order)
+  const selected = useMobileSelector((state) => state.selected)
+  if (order.length === 0) return null
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chips}>
-      {state.order.map((id) => {
-        const computer = state.computers[id]
-        const selected = id === state.selected
-        return (
-          <Pressable
-            key={id}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            onPress={() => session.select(id)}
-            style={({ pressed }) => [
-              styles.chip,
-              selected && { backgroundColor: colors.bgSecondary, borderColor: colors.borderDefault },
-              pressed && { backgroundColor: colors.roundFill },
-            ]}
-          >
-            <View style={[styles.dot, { backgroundColor: statusTone(computerStatus(computer), colors) }]} />
-            <Icon name="monitor" size={14} color={colors.textSecondary} strokeWidth={2} />
-            <Txt numberOfLines={1} tone={selected ? undefined : 'secondary'}>
-              {computer.computer.name}
-            </Txt>
-          </Pressable>
-        )
-      })}
+      {order.map((id) => (
+        <ComputerChip key={id} id={id} selected={id === selected} />
+      ))}
     </ScrollView>
   )
 }
@@ -87,7 +96,7 @@ function ComputerChips() {
 function IdentityChanged() {
   const session = useSession()
   const { t } = useI18n()
-  const { computer } = useComputer()
+  const computer = useComputerSelector((state) => state.computer)
   return (
     <View style={styles.identity}>
       <View>
@@ -101,10 +110,10 @@ function IdentityChanged() {
 }
 
 function RevokedNotice() {
-  const state = useMobileState()
+  const revokedBy = useMobileSelector((state) => state.revokedBy)
   const session = useSession()
   const { t } = useI18n()
-  if (!state.revokedBy) return null
+  if (!revokedBy) return null
   return (
     <Notice
       icon="info"
@@ -115,13 +124,13 @@ function RevokedNotice() {
         </PhoneButton>
       }
     >
-      {t('pair.revoked', { computer: state.revokedBy })}
+      {t('pair.revoked', { computer: revokedBy })}
     </Notice>
   )
 }
 
 export function HomeScreen() {
-  const selected = useMobileState().selected
+  const selected = useMobileSelector((state) => state.selected)
   if (!selected) return <Screen>{null}</Screen>
   return (
     <ComputerProvider key={selected} computerId={selected}>
@@ -131,7 +140,7 @@ export function HomeScreen() {
 }
 
 function ComputerHome() {
-  const state = useComputer()
+  const state = useComputerSelector(chatListState, shallowEqual)
   const router = useRouter()
   const { t } = useI18n()
   const { colors } = useTheme()

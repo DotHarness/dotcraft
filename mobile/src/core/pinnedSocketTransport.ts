@@ -40,9 +40,9 @@ export class PinnedSocketTransport implements Transport {
   }
 
   async readMessage(): Promise<Record<string, unknown>> {
+    if (this.ended) throw new TransportClosed()
     const frame = this.frames.shift()
     if (frame) return frame
-    if (this.ended) throw new TransportClosed()
     return await new Promise((resolve, reject) => this.readers.push({ resolve, reject }))
   }
 
@@ -58,6 +58,7 @@ export class PinnedSocketTransport implements Transport {
   }
 
   private receive(text: string): void {
+    if (this.ended) return
     const message = JSON.parse(text) as Record<string, unknown>
     const reader = this.readers.shift()
     if (reader) reader.resolve(message)
@@ -67,6 +68,7 @@ export class PinnedSocketTransport implements Transport {
   private finish(end: SocketEnd): void {
     if (this.ended) return
     this.ended = end
+    this.frames.length = 0
     this.endListener?.(end)
     for (const reader of this.readers.splice(0)) reader.reject(new TransportClosed())
   }

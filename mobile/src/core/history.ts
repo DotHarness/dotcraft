@@ -42,9 +42,17 @@ export interface TurnPageEntry {
   items: SessionItem[]
 }
 
+export interface HistoryDelta {
+  kind: 'delta'
+  itemId: string
+  turnId: string
+  itemType: 'agentMessage' | 'reasoningContent'
+  delta: string
+}
+
 export type HistoryEvent =
   | { kind: 'item'; item: SessionItem }
-  | { kind: 'delta'; itemId: string; turnId: string; itemType: 'agentMessage' | 'reasoningContent'; delta: string }
+  | HistoryDelta
   | { kind: 'turn'; turn: SessionTurn }
   | { kind: 'diff'; turnId: string; diff: string }
 
@@ -142,21 +150,39 @@ function upsertItem(history: ChatHistory, incoming: HistoryItem): ChatHistory {
   return { ...history, items, echoes }
 }
 
-function appendDelta(history: ChatHistory, delta: Extract<HistoryEvent, { kind: 'delta' }>): ChatHistory {
-  const index = indexOf(history, delta.turnId, delta.itemId)
-  if (index < 0) {
-    const item: HistoryItem = {
-      id: delta.itemId,
-      turnId: delta.turnId,
-      type: delta.itemType,
-      status: 'started',
-      payload: { text: '' },
-      createdAt: '',
-      completedAt: null,
-      partial: true,
+export function applyDeltas(history: ChatHistory, deltas: readonly HistoryDelta[]): ChatHistory {
+  if (deltas.length === 0) return history
+  const indexes = new Map(history.items.map((item, index) => [JSON.stringify([item.turnId, item.id]), index]))
+  let items = history.items
+  for (const delta of deltas) {
+    const key = JSON.stringify([delta.turnId, delta.itemId])
+    const index = indexes.get(key)
+    if (index === undefined) {
+      if (items === history.items) items = [...items]
+      indexes.set(key, items.length)
+      items.push({
+        id: delta.itemId,
+        turnId: delta.turnId,
+        type: delta.itemType,
+        status: 'started',
+        payload: { text: '' },
+        createdAt: '',
+        completedAt: null,
+        partial: true,
+      })
+      continue
     }
-    return { ...history, items: [...history.items, item] }
+    const existing = items[index]
+    if (isComplete(existing) || existing.partial) continue
+    if (items === history.items) items = [...items]
+    items[index] = { ...existing, payload: { ...existing.payload, text: textOf(existing) + delta.delta } }
   }
+  return items === history.items ? history : { ...history, items }
+}
+
+function appendDelta(history: ChatHistory, delta: HistoryDelta): ChatHistory {
+  const index = indexOf(history, delta.turnId, delta.itemId)
+  if (index < 0) return applyDeltas(history, [delta])
   const existing = history.items[index]
   if (isComplete(existing) || existing.partial) return history
   const items = [...history.items]
@@ -186,6 +212,18 @@ export function applyEvent(history: ChatHistory, event: HistoryEvent): ChatHisto
     case 'diff':
       return { ...history, diffs: { ...history.diffs, [event.turnId]: event.diff } }
   }
+}
+
+export function applyEvents(history: ChatHistory, events: readonly HistoryEvent[]): ChatHistory {
+  let pending: HistoryDelta[] = []
+  for (const event of events) {
+    if (event.kind === 'delta') pending.push(event)
+    else {
+      history = applyEvent(applyDeltas(history, pending), event)
+      pending = []
+    }
+  }
+  return applyDeltas(history, pending)
 }
 
 export function restoreEchoes(history: ChatHistory, echoes: Echo[]): ChatHistory {

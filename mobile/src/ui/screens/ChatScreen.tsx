@@ -1,181 +1,162 @@
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useComputer, useComputerLink } from '../../app-state/SessionContext'
-import { awaitsPlanConfirmation, isLive, type ChatState } from '../../core/chatState'
-import { usedShare } from '../../core/contextUsage'
+import { useComputerLink, useComputerSelector } from '../../app-state/SessionContext'
+import { awaitsPlanConfirmation, isLive } from '../../core/chatState'
 import { waitingDecisions } from '../../core/decisions'
 import { plainMessage } from '../../core/draft'
 import { chatTasks } from '../../core/backgroundTasks'
-import { chatKey, computerStatus, isReachable, NO_SIGNALS, projectById, stateOf, type PendingRequest } from '../../core/state'
+import { chatKey, computerStatus, isReachable, projectById, stateOf, type ComputerState, type PendingRequest } from '../../core/state'
+import { shallowEqual } from '../../core/selection'
 import { workspaceFile } from '../../core/links'
 import { controlsOf, offersPlanMode, type ChatControls } from '../../core/threadConfig'
-import { buildTranscript } from '../../core/transcript'
-import { runningTurnChanges, turnChanges } from '../../core/turnChanges'
+import { createChangesProjector } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
 import { TasksPill, TasksSheet } from '../chat/BackgroundTasks'
-import { ChangesOpenerContext, ChangesPill, ChangesSheet } from '../chat/Changes'
-import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
+import { ChangesPill, ChangesSheet } from '../chat/Changes'
+import { BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
+import { ChatStatus } from '../chat/ChatStatus'
+import { ChatTranscript } from '../chat/ChatTranscript'
 import { FileViewerContext } from '../chat/Chips'
 import { Composer } from '../chat/Composer'
 import { Dock, pendingSends, useModels, useReferences } from '../chat/NewChat'
 import { catalogItem, ComposerControls, type ControlChange } from '../chat/ComposerControls'
-import { ContextRing } from '../chat/ContextRing'
 import type { DecisionActions } from '../chat/DecisionBodies'
-import { DecisionCard } from '../chat/DecisionCard'
 import { FileSheet } from '../chat/FileSheet'
 import { imageScope } from '../../core/imageCache'
 import { ImageReaderContext } from '../chat/Images'
-import { ScrollToBottom } from '../chat/ScrollToBottom'
-import { StatusPopover } from '../chat/StatusPopover'
-import { LiveSignals, RetryContext, ThreadLinksContext, type ThreadLinks } from '../chat/TimelineMarkers'
-import { TranscriptLine, useKeptWorkingLine } from '../chat/Transcript'
-import { Screen, useRefreshControl } from '../layout'
-import { MascotNote, MascotTransition } from '../mascot/Mascot'
-import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
+import type { ThreadLinks } from '../chat/TimelineMarkers'
+import { Screen } from '../layout'
+import { MascotTransition } from '../mascot/Mascot'
 import { chatTitle, projectIcon, projectTitle } from '../rows'
-import { RunningShimmer } from '../RunningShimmer'
-import { metrics, type, useTheme } from '../theme'
+import { metrics } from '../theme'
 import { chatHref } from './HomeScreen'
 
-/** How close to the top, in points, the transcript reads its next older page. */
-const OLDER_THRESHOLD = 800
+const NO_PENDING: PendingRequest[] = []
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
   const key = chatKey(projectId, threadId)
-  const state = useComputer()
+  const selectShell = useCallback(
+    (computer: ComputerState) => {
+      const detail = computer.details[key]
+      return {
+        chat: computer.chats[key],
+        project: projectById(computer, projectId),
+        computer: computer.computer,
+        status: computerStatus(computer),
+        phase: computer.phases[projectId],
+        config: detail?.config,
+        workspacePath: detail?.effectiveWorkspacePath ?? null,
+        catchingUp: !detail || (detail.loading && detail.history.items.length === 0),
+        hasHistory: (detail?.history.turns.length ?? 0) > 0,
+        lastTurnId: detail?.history.turns.at(-1)?.id,
+        pending: computer.pending[key] ?? NO_PENDING,
+        taskSources: computer.tasks[key],
+      }
+    },
+    [key, projectId],
+  )
+  const state = useComputerSelector(selectShell, shallowEqual)
   const session = useComputerLink()
   const router = useRouter()
   const { t } = useI18n()
-  const { colors } = useTheme()
-  const viewport = useRef(0)
   const [dismissedPlan, setDismissedPlan] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [statusOpen, setStatusOpen] = useState(false)
-  const [changesOpen, setChangesOpen] = useState(false)
   const [changesTurn, setChangesTurn] = useState<string | null>(null)
   const [openPath, setOpenPath] = useState<string | null>(null)
   const [tasksOpen, setTasksOpen] = useState(false)
-  const scroller = useRef<ScrollView>(null)
-  const pinned = useRef(true)
-  const jumping = useRef(false)
-  const [away, setAway] = useState(false)
   const [dockHeight, setDockHeight] = useState(0)
   const [pendingSend, setPendingSend] = useState(() => pendingSends.get(key))
-  const refreshControl = useRefreshControl(key, BAR_HEIGHT)
+  const [changesProjector] = useState(createChangesProjector)
 
+  useEffect(() => () => changesProjector.clear(), [changesProjector])
   useEffect(() => {
     pendingSends.delete(key)
   }, [key])
-
   useEffect(() => {
     session.openChat(key)
     return () => session.closeChat(key)
   }, [key, session])
 
-  const chat = state.chats[key]
-  const detail = state.details[key]
-  const project = projectById(state, projectId)
-  const projectName = project ? projectTitle(project, t) : ''
-  const computer = state.computer
-  const status = computerStatus(state)
+  const { chat, project, computer, status, pending, workspacePath } = state
   const online = isReachable(status)
-  const running = project?.running ?? false
-  const live = online && running
-  const ready = state.phases[projectId] === 'ready'
-  const chatState: ChatState = chat ? stateOf(chat) : 'done'
-  const pending: PendingRequest[] = state.pending[key] ?? []
-  const signals = state.signals[key] ?? NO_SIGNALS
-  const stopped = signals.stopped
-  const spawnedFrom = chat?.spawnedFrom ?? null
-  const transcript = useMemo(
-    () => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath, { stopped, spawnedFrom }) : []),
-    [detail, stopped, spawnedFrom],
-  )
-  const lines = useKeptWorkingLine(transcript, key)
-  const chatTaskSources = state.tasks[key]
+  const live = online && (project?.running ?? false)
+  const ready = state.phase === 'ready'
+  const chatState = chat ? stateOf(chat) : 'done'
+  const working = isLive(chatState)
   const activeTurnId = chat?.runtime?.activeTurnId ?? null
-  const tasks = useMemo(() => chatTasks(chatTaskSources, activeTurnId), [chatTaskSources, activeTurnId])
-  const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
-  const profile = chat?.profileId ? (detail?.profileName ?? chat.profileId) : null
-  const configured = controlsOf(detail?.config, state.models[projectId]?.approvalDefault ?? 'prompt')
+  const tasks = useMemo(() => chatTasks(state.taskSources, activeTurnId), [state.taskSources, activeTurnId])
+  const catchingUp = live && state.catchingUp
+  const selectApproval = useCallback((computer: ComputerState) => computer.models[projectId]?.approvalDefault ?? 'prompt', [projectId])
+  const approvalDefault = useComputerSelector(selectApproval)
+  const configured = controlsOf(state.config, approvalDefault)
   const models = useModels(projectId, ready, configured.providerId)
   const controls: ChatControls = { ...configured, providerId: configured.providerId ?? models?.defaultProviderId ?? null }
   const references = useReferences(projectId, ready)
-  const planMode = detail?.config?.mode === 'plan'
-  const planTurn = awaitsPlanConfirmation(chat?.runtime ?? null, detail?.config?.mode) ? (detail?.history.turns.at(-1)?.id ?? key) : null
-  const decisions = waitingDecisions(pending, planTurn !== dismissedPlan ? planTurn : null)
+  const planMode = state.config?.mode === 'plan'
+  const planTurn = awaitsPlanConfirmation(chat?.runtime ?? null, state.config?.mode) ? (state.lastTurnId ?? key) : null
+  const decisions = useMemo(
+    () => waitingDecisions(pending, planTurn !== dismissedPlan ? planTurn : null),
+    [pending, planTurn, dismissedPlan],
+  )
   const decision = live ? (decisions[0] ?? null) : null
   const insets = useSafeAreaInsets()
-  const canPlan = offersPlanMode(detail?.config, chat?.profileId)
-  const runningChanges = useMemo(() => (detail && isLive(chatState) ? runningTurnChanges(detail.history, detail.effectiveWorkspacePath) : null), [detail, chatState])
-  const changes = useMemo(() => (detail && changesTurn ? turnChanges(detail.history, changesTurn, detail.effectiveWorkspacePath) : null), [detail, changesTurn])
-  const openChanges = useCallback((turnId: string) => {
-    setChangesTurn(turnId)
-    setChangesOpen(true)
-  }, [])
+  const canPlan = offersPlanMode(state.config, chat?.profileId)
+  const selectRunningChanges = useCallback(
+    (computer: ComputerState) => {
+      const detail = computer.details[key]
+      const summary = computer.chats[key]
+      return detail && summary && isLive(stateOf(summary)) ? changesProjector.running(detail.history, detail.effectiveWorkspacePath) : null
+    },
+    [key, changesProjector],
+  )
+  const runningChanges = useComputerSelector(selectRunningChanges)
+  const selectChanges = useCallback(
+    (computer: ComputerState) => {
+      const detail = computer.details[key]
+      return detail && changesTurn ? changesProjector.project(detail.history, changesTurn, detail.effectiveWorkspacePath) : null
+    },
+    [key, changesTurn, changesProjector],
+  )
+  const changes = useComputerSelector(selectChanges)
+  const openChanges = useCallback((turnId: string) => setChangesTurn(turnId), [])
   const readFile = useCallback((path: string) => session.readFile(projectId, path), [projectId, session])
-  const computerId = state.computer.id
   const reading = ready && models?.fileSystem === true
   const imageReader = useMemo(
-    () => ({ scope: imageScope(computerId, projectId), read: reading ? readFile : null }),
-    [computerId, projectId, readFile, reading],
+    () => ({ scope: imageScope(computer.id, projectId), read: reading ? readFile : null }),
+    [computer.id, projectId, readFile, reading],
   )
   const openFile = models?.fileSystem === true ? setOpenPath : null
-  const liveSignals = !signals.compacting && chat?.runtime?.maintenanceKind === 'compacting' ? { ...signals, compacting: 'manual' as const } : signals
-  const chats = state.chats
-  const retry = live && ready && !isLive(chatState) && !chat?.runtime?.maintenanceKind ? () => session.retry(key) : null
-  const threadLinks: ThreadLinks = {
-    open: (threadId) => router.push(chatHref(computer.id, chatKey(projectId, threadId))),
-    title: (threadId) => chats[chatKey(projectId, threadId)]?.title ?? null,
-  }
-  const canCompact =
-    ready && models?.canCompact === true && (detail?.history.turns.length ?? 0) > 0 && !isLive(chatState) && !chat?.runtime?.maintenanceKind
-  const workspacePath = detail?.effectiveWorkspacePath ?? null
+  const retry = useMemo(
+    () => (live && ready && !working && !chat?.runtime?.maintenanceKind ? () => session.retry(key) : null),
+    [live, ready, working, chat?.runtime?.maintenanceKind, session, key],
+  )
+  const threadLinks = useMemo<ThreadLinks>(
+    () => ({
+      open: (id) => router.push(chatHref(computer.id, chatKey(projectId, id))),
+      title: (id) => session.store.getState()?.chats[chatKey(projectId, id)]?.title ?? null,
+    }),
+    [computer.id, projectId, router, session],
+  )
+  const canCompact = ready && models?.canCompact === true && state.hasHistory && !working && !chat?.runtime?.maintenanceKind
   const docked = !catchingUp && live && !decision
   const inset = docked ? dockHeight : insets.bottom
-  const usageProviderId = controls.providerId ?? models?.defaultProviderId ?? null
-
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
-  const olderCursor = detail?.history.olderCursor ?? null
-  const loadingOlder = detail?.loadingOlder === true
-  const loadOlder = () => {
-    if (olderCursor && !loadingOlder && live) void session.loadOlder(key).catch(() => undefined)
-  }
-
-  const track = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
-    if (contentOffset.y < OLDER_THRESHOLD) loadOlder()
-    const atEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
-    if (jumping.current && !atEnd) return
-    jumping.current = false
-    pinned.current = atEnd
-    setAway(!atEnd)
-  }
-
-  const jumpToEnd = () => {
-    jumping.current = true
-    pinned.current = true
-    setAway(false)
-    scroller.current?.scrollToEnd({ animated: true })
-  }
-
-  const openStatus = () => {
-    setStatusOpen(true)
-    void session.loadUsage(projectId, usageProviderId).catch(() => undefined)
-  }
-
-  const actions: DecisionActions = {
-    decide: (requestId, choice) => session.decide(key, requestId, choice),
-    answer: (requestId, answers) => session.answer(key, requestId, answers),
-    dismissQuestion: (request) => session.dismissQuestion(key, request),
-    implement: () => session.implementPlan(key),
-    feedback: (text) => session.send(key, plainMessage(text)),
-    dismissPlan: () => setDismissedPlan(planTurn),
-  }
-
+  const projectName = project ? projectTitle(project, t) : ''
+  const onTasks = useCallback(() => setTasksOpen(true), [])
+  const actions = useMemo<DecisionActions>(
+    () => ({
+      decide: (requestId, choice) => session.decide(key, requestId, choice),
+      answer: (requestId, answers) => session.answer(key, requestId, answers),
+      dismissQuestion: (request) => session.dismissQuestion(key, request),
+      implement: () => session.implementPlan(key),
+      feedback: (text) => session.send(key, plainMessage(text)),
+      dismissPlan: () => setDismissedPlan(planTurn),
+    }),
+    [session, key, planTurn],
+  )
   const change = (next: ControlChange) => {
     if (next.kind === 'provider') return Promise.resolve()
     if (next.kind !== 'model') return session.updateConfig(key, next)
@@ -189,92 +170,27 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           {catchingUp ? (
             <MascotTransition line={t('chat.catchingUp')} />
           ) : (
-            <ScrollView
-              ref={scroller}
-              style={styles.fill}
-              contentContainerStyle={[styles.transcript, { paddingBottom: inset + (docked ? 32 : 16) }]}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              showsVerticalScrollIndicator={false}
-              scrollEventThrottle={64}
-              refreshControl={refreshControl}
-              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-              onScroll={track}
-              onScrollBeginDrag={() => {
-                jumping.current = false
-              }}
-              onScrollEndDrag={track}
-              onMomentumScrollEnd={track}
-              onContentSizeChange={(_width, height) => {
-                if (height < viewport.current + OLDER_THRESHOLD) loadOlder()
-                if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
-              }}
-              onLayout={({ nativeEvent }) => {
-                viewport.current = nativeEvent.layout.height
-                if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
-              }}
-            >
-              {loadingOlder ? (
-                <RunningShimmer style={styles.older} textStyle={[type.meta, { color: colors.textDimmed }]}>
-                  {t('chat.loadingOlder')}
-                </RunningShimmer>
-              ) : null}
-              {!online ? <ReadOnlyNotice status={status} computer={computer.name} /> : null}
-              {online && project && !running ? (
-                <Notice
-                  icon="info"
-                  action={
-                    <PhoneButton
-                      variant="outline"
-                      compact
-                      loading={state.phases[projectId] === 'starting'}
-                      disabled={status !== 'online'}
-                      onPress={() => void session.startProject(projectId)}
-                    >
-                      {t('notice.start')}
-                    </PhoneButton>
-                  }
-                >
-                  {state.phases[projectId] === 'cantStart'
-                    ? t('project.cantStart', { computer: computer.name, project: projectName })
-                    : t('notice.projectStopped', { project: projectName, computer: computer.name })}
-                </Notice>
-              ) : null}
-              {transcript.length === 0 && detail && !detail.loading ? (
-                <MascotNote moment="greeting" profile={profile}>
-                  {t('newChat.runsOn', { computer: computer.name, project: projectName })}
-                </MascotNote>
-              ) : null}
-              <FileViewerContext.Provider value={openFile}>
-                <ImageReaderContext.Provider value={imageReader}>
-                  <ChangesOpenerContext.Provider value={openChanges}>
-                    <ThreadLinksContext.Provider value={threadLinks}>
-                      <RetryContext.Provider value={retry}>
-                        {lines.map((entry, index) => (
-                          <TranscriptLine
-                            key={entry.id}
-                            entry={entry.kind === 'thinking' && decision ? { ...entry, working: false } : entry}
-                            previous={lines[index - 1]}
-                            workspacePath={workspacePath}
-                          />
-                        ))}
-                      </RetryContext.Provider>
-                    </ThreadLinksContext.Provider>
-                  </ChangesOpenerContext.Provider>
-                </ImageReaderContext.Provider>
-              </FileViewerContext.Provider>
-              <LiveSignals signals={liveSignals} />
-              {decision ? (
-                <View style={styles.decision}>
-                  {tasks.running.length > 0 ? (
-                    <View style={[styles.pills, styles.decisionPills]}>
-                      <TasksPill count={tasks.running.length} onPress={() => setTasksOpen(true)} />
-                    </View>
-                  ) : null}
-                  <DecisionCard key={decision.requestId} decision={decision} count={decisions.length} disabled={!ready} actions={actions} />
-                </View>
-              ) : null}
-            </ScrollView>
+            <ChatTranscript
+              key={key}
+              chatKey={key}
+              projectId={projectId}
+              inset={inset}
+              docked={docked}
+              live={live}
+              ready={ready}
+              working={working}
+              decision={decision}
+              decisionCount={decisions.length}
+              actions={actions}
+              runningTasks={tasks.running.length}
+              onTasks={onTasks}
+              openFile={openFile}
+              imageReader={imageReader}
+              openChanges={openChanges}
+              changesProjector={changesProjector}
+              threadLinks={threadLinks}
+              retry={retry}
+            />
           )}
           <ChatBar
             title={title}
@@ -284,7 +200,13 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
             onBack={() => router.back()}
             trailing={
               <>
-                <ContextRing used={detail?.context ? usedShare(detail.context) : null} onPress={openStatus} />
+                <ChatStatus
+                  chatKey={key}
+                  threadId={threadId}
+                  projectId={projectId}
+                  providerId={controls.providerId}
+                  folder={workspacePath}
+                />
                 <BarButton icon="ellipsisVertical" label={t('chat.menu')} onPress={() => setMenuOpen(true)} />
               </>
             }
@@ -294,9 +216,14 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               floating
               above={
                 runningChanges || tasks.running.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll} contentContainerStyle={[styles.pills, styles.pillRow]}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.pillScroll}
+                    contentContainerStyle={[styles.pills, styles.pillRow]}
+                  >
                     {runningChanges ? <ChangesPill changes={runningChanges} onPress={() => openChanges(runningChanges.turnId)} /> : null}
-                    {tasks.running.length > 0 ? <TasksPill count={tasks.running.length} onPress={() => setTasksOpen(true)} /> : null}
+                    {tasks.running.length > 0 ? <TasksPill count={tasks.running.length} onPress={onTasks} /> : null}
                   </ScrollView>
                 ) : null
               }
@@ -307,7 +234,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 autoFocus={pendingSend !== undefined}
                 pendingSend={pendingSend}
                 onPendingSettled={() => setPendingSend(undefined)}
-                running={isLive(chatState)}
+                running={working}
                 canSend={ready}
                 canAttachFiles={models?.fileSystem === true}
                 canPlan={canPlan}
@@ -321,14 +248,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               />
             </Dock>
           ) : null}
-          {catchingUp ? null : (
-            <ScrollToBottom
-              visible={away}
-              working={isLive(chatState)}
-              bottom={inset + 16}
-              onPress={jumpToEnd}
-            />
-          )}
         </View>
       </KeyboardAvoidingView>
       <ChatMenu
@@ -339,25 +258,22 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         canFork={models?.canFork === true}
         onClose={() => setMenuOpen(false)}
         onRename={(name) => void session.rename(key, name).catch(() => undefined)}
-        onFork={() => void session.fork(key).then((forked) => router.replace(chatHref(computer.id, forked)), () => undefined)}
+        onFork={() =>
+          void session.fork(key).then(
+            (forked) => router.replace(chatHref(computer.id, forked)),
+            () => undefined,
+          )
+        }
         onArchive={() => {
           router.back()
           void session.archive(key).catch(() => undefined)
         }}
       />
-      <StatusPopover
-        visible={statusOpen}
-        chatId={threadId}
-        folder={workspacePath}
-        context={detail?.context ?? null}
-        usage={usageProviderId ? (models?.usage[usageProviderId] ?? null) : null}
-        onClose={() => setStatusOpen(false)}
-      />
       {changes ? (
         <ChangesSheet
           changes={changes}
-          visible={changesOpen}
-          onClose={() => setChangesOpen(false)}
+          visible
+          onClose={() => setChangesTurn(null)}
           onOpenFile={openFile ? (path) => openFile(workspaceFile(path, workspacePath)) : null}
         />
       ) : null}
@@ -379,11 +295,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
-  decision: { marginTop: 'auto' },
-  older: { alignSelf: 'center' },
   pills: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  decisionPills: { marginBottom: 12 },
   pillScroll: { flexGrow: 0, marginVertical: -6, marginHorizontal: -metrics.gutter },
   pillRow: { flexGrow: 1, paddingVertical: 6, paddingHorizontal: metrics.gutter },
 })

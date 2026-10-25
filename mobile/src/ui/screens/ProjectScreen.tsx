@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
-import { useComputer } from '../../app-state/SessionContext'
+import { useComputerSelector } from '../../app-state/SessionContext'
 import { EMPTY_DRAFT } from '../../core/draft'
+import { chatListState } from '../../core/listSelection'
+import { shallowEqual } from '../../core/selection'
 import { computerStatus, projectById, projectChats } from '../../core/state'
 import { useI18n } from '../../i18n'
 import { BAR_HEIGHT, ChatBar } from '../chat/ChatBar'
@@ -15,7 +17,7 @@ import { metrics } from '../theme'
 import { chatHref } from './HomeScreen'
 
 export function ProjectScreen({ projectId, compose = false }: { projectId: string; compose?: boolean }) {
-  const state = useComputer()
+  const state = useComputerSelector(chatListState, shallowEqual)
   const router = useRouter()
   const { t } = useI18n()
   const [composing, setComposing] = useState(compose)

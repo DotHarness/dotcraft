@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { BackHandler, Keyboard, KeyboardAvoidingView, LayoutAnimation, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { useComputer, useComputerLink } from '../../app-state/SessionContext'
+import { useComputerLink, useComputerSelector } from '../../app-state/SessionContext'
 import { draftTitle, EMPTY_DRAFT, isEmptyDraft, type MessageDraft, type ReferenceEntry } from '../../core/draft'
+import { chatListState } from '../../core/listSelection'
+import { shallowEqual } from '../../core/selection'
 import { CantStartProjectError } from '../../core/session'
 import { computerStatus, projectById, type ComputerState, type ProjectModels } from '../../core/state'
 import { startConfig, type ChatControls, type NewChatChoices } from '../../core/threadConfig'
@@ -70,7 +72,8 @@ export function Dock({
 
 export function useModels(projectId: string, ready: boolean, providerId: string | null): ProjectModels | undefined {
   const session = useComputerLink()
-  const models = useComputer().models[projectId]
+  const selectModels = useCallback((state: ComputerState) => state.models[projectId], [projectId])
+  const models = useComputerSelector(selectModels)
   const listable = ready && models?.canListModels === true
   const loaded = providerId ? Boolean(models?.catalogs[providerId]) : false
   useEffect(() => {
@@ -85,22 +88,24 @@ const NO_REFERENCES: ReferenceEntry[] = []
 
 export function useReferences(projectId: string, ready: boolean): ReferenceEntry[] {
   const session = useComputerLink()
-  const state = useComputer()
-  const models = state.models[projectId]
+  const selectModels = useCallback((state: ComputerState) => state.models[projectId], [projectId])
+  const models = useComputerSelector(selectModels)
+  const selectReferences = useCallback((state: ComputerState) => state.references[projectId] ?? NO_REFERENCES, [projectId])
+  const references = useComputerSelector(selectReferences)
   const listable = ready && (models?.canListCommands === true || models?.canListSkills === true)
   useEffect(() => {
     if (listable) void session.loadReferences(projectId).catch(() => undefined)
   }, [listable, projectId, session])
-  return state.references[projectId] ?? NO_REFERENCES
+  return references
 }
 
-function needsStartOf(state: ComputerState, projectId: string): boolean {
+function needsStartOf(state: Pick<ComputerState, 'projects' | 'link' | 'accessOff' | 'phases'>, projectId: string): boolean {
   const project = projectById(state, projectId)
   return Boolean(project && !project.running && computerStatus(state) === 'online' && state.phases[projectId] !== 'cantStart')
 }
 
 export function useProjectStart(projectId: string | null) {
-  const state = useComputer()
+  const state = useComputerSelector(chatListState, shallowEqual)
   const session = useComputerLink()
   const phase = projectId ? state.phases[projectId] : undefined
   const needsStart = projectId ? needsStartOf(state, projectId) : false
@@ -188,7 +193,7 @@ export function NewChatPane({
   onCollapse: () => void
   onCreated: (key: string) => void
 }) {
-  const state = useComputer()
+  const state = useComputerSelector(chatListState, shallowEqual)
   const session = useComputerLink()
   const { t } = useI18n()
   const { colors } = useTheme()

@@ -1,4 +1,4 @@
-import { isComplete, type ChatHistory } from './history'
+import { isComplete, type ChatHistory, type HistoryItem } from './history'
 import { decodeUtf8, encodeUtf8 } from './utf8'
 
 export interface DiffLine {
@@ -194,36 +194,108 @@ function lineCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
-function recordedChanges(history: ChatHistory, turnId: string): FileChange[] {
-  return history.items.flatMap((item) => {
-    if (item.turnId !== turnId || item.type !== 'toolResult') return []
-    const content = item.payload.structuredContent as { kind?: string; changes?: FileChangeEntry[] } | undefined
-    if (content?.kind !== 'fileChange' || !Array.isArray(content.changes)) return []
-    return content.changes.flatMap((entry): FileChange[] => {
-      if (typeof entry.path !== 'string' || !entry.path) return []
-      const parsed = typeof entry.diff === 'string' && entry.diff ? parseUnifiedDiff(entry.diff)[0] : undefined
-      const added = lineCount(entry.additions)
-      const removed = lineCount(entry.deletions)
-      const hunks = parsed?.hunks ?? []
-      return [{ path: entry.path, added, removed, hunks, truncated: entry.truncated === true || (hunks.length === 0 && added + removed > 0) }]
-    })
+function recordedChanges(item: HistoryItem): FileChange[] {
+  const content = item.payload.structuredContent as { kind?: string; changes?: FileChangeEntry[] } | undefined
+  if (content?.kind !== 'fileChange' || !Array.isArray(content.changes)) return []
+  return content.changes.flatMap((entry): FileChange[] => {
+    if (typeof entry.path !== 'string' || !entry.path) return []
+    const parsed = typeof entry.diff === 'string' && entry.diff ? parseUnifiedDiff(entry.diff)[0] : undefined
+    const added = lineCount(entry.additions)
+    const removed = lineCount(entry.deletions)
+    const hunks = parsed?.hunks ?? []
+    return [{ path: entry.path, added, removed, hunks, truncated: entry.truncated === true || (hunks.length === 0 && added + removed > 0) }]
   })
 }
 
-export function turnChanges(history: ChatHistory, turnId: string, workspacePath: string | null): TurnChanges | null {
-  const live = history.diffs?.[turnId]
-  const parsed = live ? parseUnifiedDiff(live) : []
-  const files = mergeByPath(parsed.length > 0 ? parsed : recordedChanges(history, turnId), workspacePath)
-  if (files.length === 0) return null
+function fileChangeItem(item: HistoryItem): boolean {
+  return item.type === 'toolResult' && (item.payload.structuredContent as { kind?: string } | undefined)?.kind === 'fileChange'
+}
+
+interface CachedChanges {
+  live: string | undefined
+  sources: readonly HistoryItem[]
+  authoritative: boolean
+  workspacePath: string | null
+  value: TurnChanges | null
+}
+
+export interface ChangesProjector {
+  project(history: ChatHistory, turnId: string, workspacePath?: string | null): TurnChanges | null
+  running(history: ChatHistory, workspacePath?: string | null): TurnChanges | null
+  clear(): void
+}
+
+export function createChangesProjector(): ChangesProjector {
+  let indexedItems: HistoryItem[] | null = null
+  let sources = new Map<string, HistoryItem[]>()
+  let recorded = new WeakMap<HistoryItem, FileChange[]>()
+  const cache = new Map<string, CachedChanges>()
+
+  function index(history: ChatHistory) {
+    if (history.items === indexedItems) return
+    indexedItems = history.items
+    const next = new Map<string, HistoryItem[]>()
+    for (const item of history.items) {
+      if (!fileChangeItem(item)) continue
+      const entries = next.get(item.turnId)
+      if (entries) entries.push(item)
+      else next.set(item.turnId, [item])
+    }
+    for (const [id, items] of next) {
+      const previous = sources.get(id)
+      if (previous && items.length === previous.length && items.every((item, i) => item === previous[i])) next.set(id, previous)
+    }
+    sources = next
+    const loaded = new Set(history.turns.map((turn) => turn.id))
+    for (const id of cache.keys()) if (!loaded.has(id)) cache.delete(id)
+  }
+
+  function project(history: ChatHistory, turnId: string, workspacePath: string | null = null): TurnChanges | null {
+    index(history)
+    const live = history.diffs?.[turnId]
+    const items = sources.get(turnId) ?? EMPTY_SOURCES
+    const previous = cache.get(turnId)
+    if (previous && previous.live === live && (previous.authoritative || previous.sources === items) && previous.workspacePath === workspacePath) return previous.value
+    const parsed = live ? parseUnifiedDiff(live) : []
+    const files = mergeByPath(parsed.length > 0 ? parsed : items.flatMap((item) => {
+      let changes = recorded.get(item)
+      if (!changes) {
+        changes = recordedChanges(item)
+        recorded.set(item, changes)
+      }
+      return changes
+    }), workspacePath)
+    const value = files.length === 0 ? null : {
+      turnId,
+      files,
+      added: files.reduce((sum, file) => sum + file.added, 0),
+      removed: files.reduce((sum, file) => sum + file.removed, 0),
+    }
+    cache.set(turnId, { live, sources: items, authoritative: parsed.length > 0, workspacePath, value })
+    return value
+  }
+
   return {
-    turnId,
-    files,
-    added: files.reduce((sum, file) => sum + file.added, 0),
-    removed: files.reduce((sum, file) => sum + file.removed, 0),
+    project,
+    running(history, workspacePath = null) {
+      const turn = history.turns.at(-1)
+      return turn && !isComplete(turn) ? project(history, turn.id, workspacePath) : null
+    },
+    clear() {
+      indexedItems = null
+      sources.clear()
+      recorded = new WeakMap()
+      cache.clear()
+    },
   }
 }
 
+const EMPTY_SOURCES: readonly HistoryItem[] = []
+
+export function turnChanges(history: ChatHistory, turnId: string, workspacePath: string | null): TurnChanges | null {
+  return createChangesProjector().project(history, turnId, workspacePath)
+}
+
 export function runningTurnChanges(history: ChatHistory, workspacePath: string | null): TurnChanges | null {
-  const turn = history.turns.at(-1)
-  return turn && !isComplete(turn) ? turnChanges(history, turn.id, workspacePath) : null
+  return createChangesProjector().running(history, workspacePath)
 }

@@ -7,6 +7,7 @@ import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type Appr
 import type { PinnedSockets, SocketEnd, SocketHandle } from './sockets'
 import { projectById, type Action, type ComputerAction, type ComputerState, type MobileState, type PendingRequest } from './state'
 import type { Store } from './store'
+import { selectStore } from './selection'
 import type { ConfigChange } from './threadConfig'
 
 export class CantStartProjectError extends Error {
@@ -42,10 +43,10 @@ export class ComputerLink {
     root: Store<MobileState, Action>,
     private readonly host: ComputerLinkHost,
   ) {
+    const selected = selectStore(root, (state) => state.computers[id])
     this.store = {
-      getState: () => root.getState().computers[id],
+      ...selected,
       dispatch: (action) => root.dispatch({ type: 'computer', computerId: id, action }),
-      subscribe: (listener) => root.subscribe(listener),
     }
     this.reconnector = new Reconnector(() => void this.connect(true), host.timers, host.random)
   }
@@ -244,6 +245,7 @@ export class ComputerLink {
       gateway: this.gateway,
       store: this.store,
       appVersion: this.host.appVersion,
+      timers: this.host.timers,
       openThreads: () => this.openThreads(projectId),
       onLost: (end) => this.projectLost(projectId, connection, end, generation),
     })

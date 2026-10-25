@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useComputerSelector } from '../../app-state/SessionContext'
 import type { DividerKind, MessageOrigin, OriginMark, ThreadAction, TranscriptEntry } from '../../core/transcript'
 import type { ChatSignals } from '../../core/state'
 import { useI18n } from '../../i18n'
@@ -132,7 +133,8 @@ export function ThreadActionCard({ action }: { action: ThreadAction }) {
   const { colors } = useTheme()
   const links = useContext(ThreadLinksContext)
   const title = t(action.kind === 'created' ? 'threadAction.created' : 'threadAction.messaged')
-  const name = links?.title(action.threadId) ?? action.name ?? t('threadAction.untitled')
+  const linkedTitle = useComputerSelector(() => links?.title(action.threadId) ?? null)
+  const name = linkedTitle ?? action.name ?? t('threadAction.untitled')
   const subtitle = action.queued ? t('threadAction.queued') : name
   return (
     <Pressable

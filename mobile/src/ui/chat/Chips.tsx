@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard'
 import { createContext, useContext, useState } from 'react'
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native'
-import { useComputer } from '../../app-state/SessionContext'
+import { useComputerSelector } from '../../app-state/SessionContext'
 import { baseName } from '../../core/transcript'
 import { useI18n } from '../../i18n'
 import { Icon, type IconName } from '../icons'
@@ -48,7 +48,7 @@ function Ref({
 export function FilePath({ path, note }: { path: string; note?: string }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const computer = useComputer().computer.name ?? ''
+  const computer = useComputerSelector((state) => state.computer.name) ?? ''
   const [copied, setCopied] = useState(false)
   return (
     <>

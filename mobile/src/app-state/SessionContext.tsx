@@ -1,10 +1,12 @@
 import * as Network from 'expo-network'
 import { useRouter } from 'expo-router'
-import { createContext, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { AppState } from 'react-native'
 import type { ComputerLink } from '../core/computerLink'
 import type { MobileSession } from '../core/session'
 import type { ComputerState, MobileState } from '../core/state'
+import { selectStore } from '../core/selection'
+import { selectComputerStore } from '../core/computerSelection'
 import type { AppRuntime, DemoHooks } from './runtime'
 
 const RuntimeContext = createContext<AppRuntime | null>(null)
@@ -40,21 +42,28 @@ export function useDemo(): DemoHooks | null {
   return useRuntime().demo
 }
 
-export function useMobileState(): MobileState {
+export function useMobileSelector<T>(select: (state: MobileState) => T, equal: (left: T, right: T) => boolean = Object.is): T {
   const { store } = useRuntime().session
-  return useSyncExternalStore(store.subscribe, store.getState, store.getState)
+  const selected = useMemo(() => selectStore(store, select, equal), [store, select, equal])
+  return useSyncExternalStore(selected.subscribe, selected.getState, selected.getState)
+}
+
+const wholeState = (state: MobileState) => state
+
+export function useMobileState(): MobileState {
+  return useMobileSelector(wholeState)
 }
 
 export function ComputerProvider({ computerId, children }: { computerId: string; children: ReactNode }) {
-  const state = useMobileState()
+  const present = useMobileSelector((state) => Boolean(state.computers[computerId]))
+  const gone = useMobileSelector((state) => state.hydrated && !state.computers[computerId])
   const router = useRouter()
-  const gone = state.hydrated && !state.computers[computerId]
   useEffect(() => {
     if (!gone) return
     if (router.canDismiss()) router.dismissAll()
     else router.replace('/')
   }, [gone, router])
-  if (!state.computers[computerId]) return null
+  if (!present) return null
   return <ComputerContext.Provider value={computerId}>{children}</ComputerContext.Provider>
 }
 
@@ -64,8 +73,15 @@ function useComputerId(): string {
   return computerId
 }
 
+export function useComputerSelector<T>(select: (state: ComputerState) => T, equal: (left: T, right: T) => boolean = Object.is): T {
+  const computerId = useComputerId()
+  const { store } = useSession()
+  const selected = useMemo(() => selectComputerStore(store, computerId, select, equal), [computerId, store, select, equal])
+  return useSyncExternalStore(selected.subscribe, selected.getState, selected.getState)
+}
+
 export function useComputer(): ComputerState {
-  return useMobileState().computers[useComputerId()]
+  return useComputerSelector((state) => state)
 }
 
 export function useComputerLink(): ComputerLink {

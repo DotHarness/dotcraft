@@ -6,14 +6,17 @@ import type {
   ItemNotification,
   ProviderListResult,
   SessionThread,
+  ServerNotificationMethods,
   ThreadConfiguration,
-  ThreadItemsListResult,
   ThreadRuntimeState,
   TurnNotification,
   UserInputResponseResult,
 } from '@dotcraft/sdk/contracts'
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
 import { providerUsage } from './accountUsage'
+import type { Timers } from './backoff'
+import { StreamBatch } from './streamBatch'
+import { readTurnPage } from './projectHistory'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
 import type { BackgroundTask } from './backgroundTasks'
 import { BackgroundTaskSync } from './backgroundTaskSync'
@@ -24,13 +27,12 @@ import { systemEventSignals, turnSignals } from './signals'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
 import {
-  applyEvent,
+  applyEvents,
   emptyHistory,
   historyFromTurns,
   restoreEchoes,
   type HistoryEvent,
   type HistoryItem,
-  type TurnPageEntry,
 } from './history'
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
@@ -40,11 +42,6 @@ import { chatKey, NO_SIGNALS, type ChatSignals, type ChatSummary, type ComputerA
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
-
-/** Whole Turns per history page, as on Desktop: a fast first paint, and older pages load on demand. */
-const TURN_PAGE = 5
-/** Items per request while reading one Turn; the server's maximum. */
-const TURN_ITEM_PAGE = 500
 
 const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated', 'terminal/outputDelta']
 
@@ -83,6 +80,7 @@ export interface ProjectConnectionOptions {
   gateway: GatewayClient
   store: Store<ComputerState, ComputerAction>
   appVersion: string
+  timers?: Timers
   openThreads(): string[]
   onLost(end: SocketEnd): void
 }
@@ -115,14 +113,20 @@ export class ProjectConnection {
   private readonly held = new Map<string, { resolve: (result: object) => void; reject: (error: Error) => void }>()
   private readonly subscribed = new Set<string>()
   private readonly capturing = new Map<string, HistoryEvent[]>()
+  private readonly syncing = new Map<string, Promise<void>>()
   private readonly loadingOlder = new Set<string>()
   private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
   private readonly catalogs = new Map<string, Promise<void>>()
   private references: Promise<void> | null = null
   private tasks: BackgroundTaskSync | null = null
+  private readonly stream: StreamBatch
 
-  constructor(private readonly options: ProjectConnectionOptions) {}
+  constructor(private readonly options: ProjectConnectionOptions) {
+    this.stream = new StreamBatch((threadId, deltas) => {
+      if (this.subscribed.has(threadId)) this.store.dispatch({ type: 'historyBatch', key: this.key(threadId), deltas })
+    }, options.timers)
+  }
 
   get projectId(): string {
     return this.options.projectId
@@ -164,8 +168,14 @@ export class ProjectConnection {
     this.client = client
     this.register(client)
     transport.onEnd((end) => {
+      if (this.client !== client) return
+      this.stream.flush()
+      for (const threadId of [...this.capturing.keys()]) this.flushCaptured(threadId)
+      this.client = null
       this.readyValue = false
       this.held.clear()
+      this.subscribed.clear()
+      this.capturing.clear()
       if (!this.closing) this.options.onLost(end)
     })
     await client.initialize({
@@ -179,6 +189,7 @@ export class ProjectConnection {
       optOutNotifications: OPTED_OUT_NOTIFICATIONS,
       extraCapabilities: { backgroundTerminals: true },
     })
+    if (this.client !== client || this.closing) throw new NotConnectedError()
     const capabilities = client.initializeResult?.capabilities
     this.store.dispatch({
       type: 'capabilities',
@@ -197,6 +208,7 @@ export class ProjectConnection {
     const tasks = new BackgroundTaskSync(client, this.projectId, this.store)
     this.tasks = tasks
     await Promise.all([this.loadThreads(client), this.loadApprovalDefault(client).catch(() => undefined)])
+    if (this.client !== client || this.closing) throw new NotConnectedError()
     this.readyValue = true
     const open = this.options.openThreads()
     tasks.reloadKnown(open)
@@ -204,12 +216,16 @@ export class ProjectConnection {
   }
 
   async close(): Promise<void> {
+    this.stream.flush()
+    for (const threadId of [...this.capturing.keys()]) this.flushCaptured(threadId)
     this.closing = true
     this.readyValue = false
     this.held.clear()
     this.subscribed.clear()
     this.capturing.clear()
-    await this.client?.stop()
+    const client = this.client
+    this.client = null
+    await client?.stop()
   }
 
   private requireClient(): DotCraftWireClient {
@@ -218,6 +234,14 @@ export class ProjectConnection {
   }
 
   private register(client: DotCraftWireClient): void {
+    const on = <M extends keyof ServerNotificationMethods>(method: M, handler: (params: ServerNotificationMethods[M]['params']) => void) =>
+      client.on(method, (params) => {
+        if (this.client !== client || this.closing) return
+        const scope = params as { threadId?: string; thread?: { id: string }; turn?: { threadId: string } }
+        const threadId = scope.threadId ?? scope.thread?.id ?? scope.turn?.threadId
+        if (threadId && method !== 'item/agentMessage/delta' && method !== 'item/reasoning/delta') this.stream.flush(threadId)
+        handler(params)
+      })
     client.registerServerRequestHandler('item/approval/request', (_id, params) =>
       this.hold<ApprovalResponseResult>(params.threadId, {
         kind: 'approval',
@@ -238,7 +262,7 @@ export class ProjectConnection {
       }),
     )
 
-    client.on('thread/status/changed', ({ threadId, runtime }) => {
+    on('thread/status/changed', ({ threadId, runtime }) => {
       if (!threadId) return
       if (!this.store.getState().chats[this.key(threadId)]) {
         if (!this.tasks?.childChanged(threadId)) this.lookUp(client, threadId)
@@ -246,53 +270,53 @@ export class ProjectConnection {
       }
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
     })
-    client.on('thread/started', ({ thread }) => this.threadSeen(thread))
-    client.on('thread/updated', ({ thread }) => {
+    on('thread/started', ({ thread }) => this.threadSeen(thread))
+    on('thread/updated', ({ thread }) => {
       if (thread.configuration && this.subscribed.has(thread.id)) {
         this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
       }
     })
-    client.on('thread/renamed', ({ threadId, displayName }) => {
+    on('thread/renamed', ({ threadId, displayName }) => {
       if (threadId && displayName) this.patch(threadId, { title: displayName })
     })
-    client.on('thread/deleted', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
-    client.on('thread/archived', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
+    on('thread/deleted', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
+    on('thread/archived', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
     const turn = (failed: boolean | null) => (params: TurnNotification) => {
       this.route(params.turn.threadId, { kind: 'turn', turn: params.turn })
       this.signal(params.turn.threadId, (signals) => turnSignals(signals, params.turn))
       this.patch(params.turn.threadId, { updatedAt: now(), ...(failed === null ? {} : { lastTurnFailed: failed }) })
     }
-    client.on('turn/started', turn(null))
-    client.on('turn/completed', turn(false))
-    client.on('turn/failed', turn(true))
-    client.on('turn/cancelled', turn(false))
+    on('turn/started', turn(null))
+    on('turn/completed', turn(false))
+    on('turn/failed', turn(true))
+    on('turn/cancelled', turn(false))
     const item = (params: ItemNotification) => this.route(params.threadId, { kind: 'item', item: params.item })
-    client.on('item/started', item)
-    client.on('item/completed', item)
+    on('item/started', item)
+    on('item/completed', item)
     const delta = (itemType: 'agentMessage' | 'reasoningContent') => (params: ItemDeltaNotification) => {
       if (!params.itemId || !params.turnId) return
       this.route(params.threadId, { kind: 'delta', itemId: params.itemId, turnId: params.turnId, itemType, delta: params.delta })
     }
-    client.on('item/agentMessage/delta', delta('agentMessage'))
-    client.on('item/reasoning/delta', delta('reasoningContent'))
+    on('item/agentMessage/delta', delta('agentMessage'))
+    on('item/reasoning/delta', delta('reasoningContent'))
     const resolved = (params: ItemNotification) => {
       const { requestId } = params.item.payload as { requestId: string }
       this.held.delete(requestId)
       this.store.dispatch({ type: 'pendingRemoved', key: this.key(params.threadId), requestId })
       item(params)
     }
-    client.on('item/approval/resolved', resolved)
-    client.on('item/tool/requestUserInput/resolved', resolved)
-    client.on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
-    client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
-    client.on('system/event', (params) => {
+    on('item/approval/resolved', resolved)
+    on('item/tool/requestUserInput/resolved', resolved)
+    on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
+    on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
+    on('system/event', (params) => {
       this.contextChanged(params.threadId, systemEventUpdate(params))
       if (params.threadId) this.signal(params.threadId, (signals) => systemEventSignals(signals, params))
     })
-    client.on('provider/auth/usage/updated', (params) =>
+    on('provider/auth/usage/updated', (params) =>
       this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: params.providerId, usage: providerUsage(params) }),
     )
-    client.on('config/changed', ({ regions }) => {
+    on('config/changed', ({ regions }) => {
       if (changesWorkspaceApproval(regions)) void this.loadApprovalDefault(client).catch(() => undefined)
     })
   }
@@ -349,12 +373,28 @@ export class ProjectConnection {
   }
 
   private route(threadId: string, event: HistoryEvent): void {
+    if (this.closing || !this.client) return
     const buffer = this.capturing.get(threadId)
     if (buffer) buffer.push(event)
-    else if (this.subscribed.has(threadId)) this.store.dispatch({ type: 'history', key: this.key(threadId), event })
+    else if (this.subscribed.has(threadId)) {
+      if (event.kind === 'delta') this.stream.push(threadId, event)
+      else this.store.dispatch({ type: 'history', key: this.key(threadId), event })
+    }
+  }
+
+  private flushCaptured(threadId: string): boolean {
+    const events = this.capturing.get(threadId)
+    if (!events) return false
+    this.capturing.delete(threadId)
+    const key = this.key(threadId)
+    const detail = this.store.getState().details[key]
+    if (detail) this.store.dispatch({ type: 'detailLoaded', key, ...detail, history: applyEvents(detail.history, events) })
+    return true
   }
 
   private hold<R extends object>(threadId: string, request: PendingRequest): Promise<R> {
+    if (this.closing || !this.client) throw new NotConnectedError()
+    this.stream.flush(threadId)
     this.ensureSummary(threadId)
     return new Promise<R>((resolve, reject) => {
       this.held.set(request.requestId, { resolve: resolve as (result: object) => void, reject })
@@ -400,23 +440,36 @@ export class ProjectConnection {
     return this.subscribed.has(threadId)
   }
 
-  async syncChat(threadId: string): Promise<void> {
+  syncChat(threadId: string): Promise<void> {
+    const current = this.syncing.get(threadId)
+    if (current && this.capturing.has(threadId)) return current
+    const loading = this.readChat(threadId).finally(() => {
+      if (this.syncing.get(threadId) === loading) this.syncing.delete(threadId)
+    })
+    this.syncing.set(threadId, loading)
+    return loading
+  }
+
+  private async readChat(threadId: string): Promise<void> {
     const client = this.requireClient()
     const key = this.key(threadId)
+    this.stream.flush(threadId)
     const buffer: HistoryEvent[] = []
     this.capturing.set(threadId, buffer)
     this.store.dispatch({ type: 'detailLoading', key })
     try {
       if (!this.subscribed.has(threadId)) {
         await client.request('thread/subscribe', { threadId })
+        if (this.client !== client || this.capturing.get(threadId) !== buffer) return
         this.subscribed.add(threadId)
       }
-      const [read, page] = await Promise.all([client.request('thread/read', { threadId }), this.readTurnPage(client, threadId, null)])
+      const [read, page] = await Promise.all([client.request('thread/read', { threadId }), readTurnPage(client, threadId, null)])
       const thread = read.thread
       const profileId = thread.configuration?.agentProfileId
       const profileName = profileId ? await this.profileName(client, profileId) : null
+      if (this.client !== client || this.capturing.get(threadId) !== buffer) return
       const history = restoreEchoes(
-        buffer.reduce(applyEvent, historyFromTurns(page.turns, page.nextCursor)),
+        applyEvents(historyFromTurns(page.turns, page.nextCursor), buffer),
         this.store.getState().details[key]?.history.echoes ?? [],
       )
       this.threadSeen(thread)
@@ -435,10 +488,10 @@ export class ProjectConnection {
       void this.tasks?.load(threadId).catch(() => undefined)
     } catch (error) {
       const existing = this.store.getState().details[key]
-      if (existing) this.store.dispatch({ type: 'detailLoaded', key, ...existing })
+      if (existing && this.client === client && this.capturing.get(threadId) === buffer) this.flushCaptured(threadId)
       throw error
     } finally {
-      this.capturing.delete(threadId)
+      if (this.capturing.get(threadId) === buffer) this.capturing.delete(threadId)
     }
   }
 
@@ -450,44 +503,12 @@ export class ProjectConnection {
     this.loadingOlder.add(threadId)
     this.store.dispatch({ type: 'olderLoading', key, value: true })
     try {
-      const page = await this.readTurnPage(this.requireClient(), threadId, cursor)
+      const page = await readTurnPage(this.requireClient(), threadId, cursor)
       this.store.dispatch({ type: 'olderLoaded', key, cursor, turns: page.turns, olderCursor: page.nextCursor })
     } finally {
       this.loadingOlder.delete(threadId)
       this.store.dispatch({ type: 'olderLoading', key, value: false })
     }
-  }
-
-  /** Reads one descending page of Turns and every Item of each, returned oldest first. */
-  private async readTurnPage(
-    client: DotCraftWireClient,
-    threadId: string,
-    cursor: string | null,
-  ): Promise<{ turns: TurnPageEntry[]; nextCursor: string | null }> {
-    const page = await client.request('thread/turns/list', { threadId, limit: TURN_PAGE, sortDirection: 'descending', ...(cursor ? { cursor } : {}) })
-    const turns = await Promise.all(
-      [...page.data].reverse().map(async (turn) => ({ turn, items: await this.readTurnItems(client, threadId, turn.id) })),
-    )
-    return { turns, nextCursor: page.nextCursor ?? null }
-  }
-
-  private async readTurnItems(client: DotCraftWireClient, threadId: string, turnId: string): Promise<TurnPageEntry['items']> {
-    const items: TurnPageEntry['items'] = []
-    let cursor: string | null = null
-    do {
-      const page: ThreadItemsListResult = await client.request('thread/items/list', {
-        threadId,
-        turnId,
-        limit: TURN_ITEM_PAGE,
-        sortDirection: 'ascending',
-        ...(cursor ? { cursor } : {}),
-      })
-      items.push(...page.data.map((entry) => entry.item))
-      const next: string | null = page.nextCursor ?? null
-      if (next !== null && next === cursor) throw new Error(`thread/items/list returned an unchanged cursor for turn ${turnId}`)
-      cursor = next
-    } while (cursor !== null)
-    return items
   }
 
   private dropAnswered(key: string, items: HistoryItem[]): void {
@@ -502,7 +523,9 @@ export class ProjectConnection {
   }
 
   async unsubscribe(threadId: string): Promise<void> {
-    if (!this.subscribed.delete(threadId)) return
+    this.stream.flush(threadId)
+    const capturing = this.flushCaptured(threadId)
+    if (!this.subscribed.delete(threadId) && !capturing) return
     await this.client?.request('thread/unsubscribe', { threadId }).catch(() => undefined)
   }
 
@@ -722,6 +745,7 @@ export class ProjectConnection {
   }
 
   async stop(threadId: string): Promise<void> {
+    this.stream.flush(threadId)
     const client = this.requireClient()
     let turnId = this.store.getState().chats[this.key(threadId)]?.runtime?.activeTurnId
     if (!turnId) turnId = (await client.request('thread/read', { threadId })).thread.runtime.activeTurnId
@@ -748,6 +772,7 @@ export class ProjectConnection {
   }
 
   private release(threadId: string, requestId: string, result: object): void {
+    this.stream.flush(threadId)
     const held = this.held.get(requestId)
     if (!held) return
     this.held.delete(requestId)

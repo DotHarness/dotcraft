@@ -1,24 +1,24 @@
-import { File, Paths } from 'expo-file-system'
+import { deleteAsync, documentDirectory, moveAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy'
 import type { StateStorage } from '../core/session'
 import type { PersistedState } from '../core/state'
 
-const file = () => new File(Paths.document, 'dotcraft-mobile.json')
+const path = `${documentDirectory}dotcraft-mobile.json`
+const temporary = `${path}.tmp`
 
 export const stateStorage: StateStorage = {
   async load() {
-    const target = file()
-    if (!target.exists) return null
     try {
-      return JSON.parse(await target.text()) as PersistedState
+      return JSON.parse(await readAsStringAsync(path)) as PersistedState
     } catch {
       return null
     }
   },
   async save(state) {
-    file().write(JSON.stringify(state))
+    await writeAsStringAsync(temporary, JSON.stringify(state))
+    await moveAsync({ from: temporary, to: path })
   },
   async clear() {
-    const target = file()
-    if (target.exists) target.delete()
+    await deleteAsync(temporary, { idempotent: true })
+    await deleteAsync(path, { idempotent: true })
   },
 }

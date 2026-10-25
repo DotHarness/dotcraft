@@ -5,7 +5,12 @@ import { useI18n } from '../../i18n'
 import { ProjectRow } from '../rows'
 import { SheetHeader, SheetLayer } from '../Sheet'
 
-export function ProjectPicker({ state, visible, onClose, onPick }: { state: ComputerState; visible: boolean; onClose: () => void; onPick: (id: string) => void }) {
+export function ProjectPicker({ state, visible, onClose, onPick }: {
+  state: Pick<ComputerState, 'computer' | 'projects' | 'chats'>
+  visible: boolean
+  onClose: () => void
+  onPick: (id: string) => void
+}) {
   const { t } = useI18n()
   const projects = useMemo(() => projectsByRecentUse(state), [state])
   return (

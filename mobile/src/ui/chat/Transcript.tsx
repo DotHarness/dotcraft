@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
@@ -510,7 +510,7 @@ function UserText({ segments, workspacePath }: { segments: UserSegment[]; worksp
   )
 }
 
-export function TranscriptLine({
+export const TranscriptLine = memo(function TranscriptLine({
   entry,
   previous,
   workspacePath,
@@ -616,7 +616,7 @@ export function TranscriptLine({
         </View>
       )
   }
-}
+})
 
 const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },

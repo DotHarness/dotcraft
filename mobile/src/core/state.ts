@@ -6,13 +6,13 @@ import { applyContext, type ContextUpdate, type ContextUsage } from './contextUs
 import type { ReferenceEntry } from './draft'
 import type { RelayInfo } from './gateway'
 import {
+  applyDeltas,
   applyEvent,
   emptyHistory,
   prependTurns,
   type ChatHistory,
   type Echo,
   type HistoryEvent,
-  type HistoryItem,
   type TurnPageEntry,
 } from './history'
 import type { PairingOffer } from './pairing'
@@ -205,6 +205,7 @@ export type ComputerAction =
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
   | { type: 'providers'; projectId: string; providers: ProjectModels['providers'] }
   | { type: 'history'; key: string; event: HistoryEvent }
+  | { type: 'historyBatch'; key: string; deltas: Extract<HistoryEvent, { kind: 'delta' }>[] }
   | { type: 'olderLoading'; key: string; value: boolean }
   | { type: 'olderLoaded'; key: string; cursor: string; turns: TurnPageEntry[]; olderCursor: string | null }
   | { type: 'echo'; key: string; echo: Echo }
@@ -440,6 +441,12 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       return patchModels(state, action.projectId, { providers: action.providers })
     case 'history':
       return patchDetail(state, action.key, (history) => applyEvent(history, action.event))
+    case 'historyBatch': {
+      const detail = state.details[action.key]
+      if (!detail) return state
+      const history = applyDeltas(detail.history, action.deltas)
+      return history === detail.history ? state : patchDetail(state, action.key, () => history)
+    }
     case 'echo':
       return patchDetail(state, action.key, (history) => ({ ...history, echoes: [...history.echoes, action.echo] }))
     case 'echoDropped':
@@ -525,62 +532,7 @@ export function projectsByRecentUse(state: Pick<ComputerState, 'projects' | 'cha
   return [...state.projects].sort((left, right) => score(right) - score(left))
 }
 
-function withoutImageData(item: HistoryItem): HistoryItem {
-  if (item.type === 'imageGeneration') return { ...item, payload: { ...item.payload, result: undefined, imageDropped: true } }
-  const parts = item.payload.nativeInputParts
-  if (item.type === 'userMessage' && Array.isArray(parts)) {
-    return { ...item, payload: { ...item.payload, nativeInputParts: parts.filter((part: { type?: string }) => part.type !== 'image') } }
-  }
-  const contentItems = item.payload.contentItems
-  if (!Array.isArray(contentItems)) return item
-  return { ...item, payload: { ...item.payload, contentItems: contentItems.filter((entry: { type?: string }) => entry.type !== 'image') } }
-}
-
-const PERSISTED_ITEMS = 200
-
-/** Keeps the newest whole Turns within the Item budget, so the offline copy never holds part of a Turn. */
-function trimmed(history: ChatHistory): ChatHistory {
-  const counts = new Map<string, number>()
-  for (const item of history.items) counts.set(item.turnId, (counts.get(item.turnId) ?? 0) + 1)
-  const kept = new Set<string>()
-  let total = 0
-  for (const turn of [...history.turns].reverse()) {
-    total += counts.get(turn.id) ?? 0
-    if (total > PERSISTED_ITEMS && kept.size > 0) break
-    kept.add(turn.id)
-  }
-  return {
-    items: history.items.filter((item) => kept.has(item.turnId)).map(withoutImageData),
-    turns: history.turns.filter((turn) => kept.has(turn.id)),
-    echoes: [],
-  }
-}
-
-function persistableComputer(state: ComputerState): PersistedComputer {
-  const details: PersistedComputer['details'] = {}
-  const keys = Object.keys(state.details)
-    .filter((key) => state.chats[key])
-    .sort((left, right) => byRecent(state.chats[left], state.chats[right]))
-    .slice(0, 8)
-  for (const key of keys) {
-    const detail = state.details[key]
-    details[key] = { ...detail, loading: false, history: trimmed(detail.history) }
-  }
-  return {
-    computer: state.computer,
-    accessOff: state.accessOff,
-    syncedAt: state.syncedAt,
-    projects: state.projects,
-    chats: state.chats,
-    details,
-  }
-}
-
-export function persistable(state: MobileState): PersistedState {
-  const computers: PersistedState['computers'] = {}
-  for (const id of state.order) computers[id] = persistableComputer(state.computers[id])
-  return { order: state.order, selected: state.selected, computers }
-}
+export { persistable } from './persistenceSnapshot'
 
 export function selectedComputer(state: MobileState): ComputerState | null {
   return state.selected ? (state.computers[state.selected] ?? null) : null

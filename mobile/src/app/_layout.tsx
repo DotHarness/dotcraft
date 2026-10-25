@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { Animated, Easing, Image, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { createRuntime } from '../app-state/createRuntime'
-import { RuntimeProvider, useMobileState } from '../app-state/SessionContext'
+import { RuntimeProvider, useMobileSelector } from '../app-state/SessionContext'
 import { I18nContext, useDeviceI18n } from '../i18n'
 import { useColorScheme } from '../ui/colorScheme'
 import { nativeDriver } from '../ui/parts'
@@ -55,17 +55,18 @@ function Splash({ ready }: { ready: boolean }) {
 }
 
 function Gate() {
-  const state = useMobileState()
+  const hydrated = useMobileSelector((state) => state.hydrated)
+  const computerCount = useMobileSelector((state) => state.order.length)
   const router = useRouter()
   const segments = useSegments()
   const { colors } = useTheme()
   const top = segments[0] as string | undefined
 
   useEffect(() => {
-    if (!state.hydrated || state.order.length > 0 || top === 'pair') return
+    if (!hydrated || computerCount > 0 || top === 'pair') return
     if (router.canDismiss()) router.dismissAll()
     router.replace('/pair')
-  }, [router, state.hydrated, state.order.length, top])
+  }, [router, hydrated, computerCount, top])
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.surfaceBottom }]}>
@@ -81,7 +82,7 @@ function Gate() {
           },
         })}
       />
-      <Splash ready={state.hydrated} />
+      <Splash ready={hydrated} />
     </View>
   )
 }
