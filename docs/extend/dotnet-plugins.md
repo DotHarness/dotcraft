@@ -158,7 +158,7 @@ The activation context carries both directions of the plugin model:
 | **`ContentRoot` / `DataRoot` / `WorkspaceRoot`** | The generation's read-only shadow copy, the plugin's mutable data directory, and the workspace. |
 | **`Settings`** | This plugin's effective settings, snapshotted for the activation generation. |
 
-Treat `ContentRoot` as read-only and put mutable state under `DataRoot`. The host resolves `DataRoot` to `<UserDataPath>/plugins/<id>/data` when `UserDataPath` is configured, and to `<DataPath>/plugin-data/<id>` otherwise. Hooks and LSP processes from the same plugin receive the same directory through `DOTCRAFT_PLUGIN_DATA`.
+Treat `ContentRoot` as read-only and put mutable state under `DataRoot`. The host resolves `DataRoot` to `<UserDataPath>/plugin-data/<id>` when `UserDataPath` is configured, and to `<DataPath>/plugin-data/<id>` otherwise. Hooks and LSP processes from the same plugin receive the same directory through `DOTCRAFT_PLUGIN_DATA`.
 
 Make every `Contributions.Add` call from inside `ActivateAsync`. The host seals the registrar when activation commits, so later calls from background work are rejected. To change a generation's contribution set, change its inputs and let runtime reconciliation restart the generation.
 

@@ -393,7 +393,7 @@ public static class PluginDataPaths
     {
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
-        return paths.UserData.ResolveOrNull("plugins", pluginId, "data")
+        return paths.UserData.ResolveOrNull("plugin-data", pluginId)
                ?? paths.Data.Resolve("plugin-data", pluginId);
     }
 }

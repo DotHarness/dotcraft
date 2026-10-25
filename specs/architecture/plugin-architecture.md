@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.4 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-25 |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -175,9 +175,10 @@ namespace and never overwrite an unparseable document. Concurrent changes to dif
 are retained; the same namespace is last-writer-wins. Unsetting a key removes that scope's override.
 Disabling, removing, or reinstalling a plugin does not remove its configuration.
 
-Plugin host-side data is stored at `<UserDataPath>/plugins/<pluginId>/data`, or at
-`<DataPath>/plugin-data/<pluginId>` when no user-data root is configured. Hook, LSP, and .NET
-contributions share this directory. The renderer receives no data-directory path or general file API.
+Plugin host-side data is stored at `<UserDataPath>/plugin-data/<pluginId>`, or at
+`<DataPath>/plugin-data/<pluginId>` when no user-data root is configured. It lies outside every
+plugin root, so writing it never changes a plugin's content fingerprint, and removing or
+reinstalling the plugin keeps it. Hook, LSP, and .NET contributions share this directory. The renderer receives no data-directory path or general file API.
 
 ### .NET manifest
 

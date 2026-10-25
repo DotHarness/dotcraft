@@ -60,7 +60,7 @@ The root object is keyed directly by canonical plugin id:
 
 Effective settings resolve as schema defaults, then personal values, then workspace values. Objects merge recursively; arrays and scalar values replace the lower layer. A namespace is rejected as a whole when it contains an undeclared field or an invalid value. Removing a workspace value reveals the personal value or schema default below it.
 
-These files are for small JSON configuration, not blobs, databases, or caches. Plugin data remains separate at `<UserDataPath>/plugins/<id>/data` when `UserDataPath` is configured, or `<DataPath>/plugin-data/<id>` otherwise. Disabling, removing, or reinstalling a plugin does not delete either its configuration namespace or data directory.
+These files are for small JSON configuration, not blobs, databases, or caches. Plugin data remains separate at `<UserDataPath>/plugin-data/<id>` when `UserDataPath` is configured, or `<DataPath>/plugin-data/<id>` otherwise. Disabling, removing, or reinstalling a plugin does not delete either its configuration namespace or data directory.
 
 ## MCP servers
 

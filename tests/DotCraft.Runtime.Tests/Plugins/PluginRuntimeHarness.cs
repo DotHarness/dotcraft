@@ -36,7 +36,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
     public string PluginRoot(string pluginId) => Path.Combine(Workspace, ".craft", "plugins", pluginId);
 
     public string DataPath(string pluginId, string fileName) =>
-        Path.Combine(Root, "user-data", "plugins", pluginId, "data", fileName);
+        Path.Combine(Root, "user-data", "plugin-data", pluginId, fileName);
 
     public string GenerationsRoot => Path.Combine(Workspace, ".craft", "runtime");
 

@@ -172,7 +172,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
             Assert.Contains("review__normalize", provider.Client.LastToolNames);
             Assert.DoesNotContain("review__publish", provider.Client.LastToolNames);
 
-            var journal = Path.Combine(_harness.Root, "user-data", "plugins", ProviderId, "data", "activity.log");
+            var journal = Path.Combine(_harness.Root, "user-data", "plugin-data", ProviderId, "activity.log");
             await WaitForJournalAsync(
                 journal,
                 "plugin activated",

@@ -61,6 +61,45 @@ public sealed class DotNetPluginTrustRuntimeTests : IDisposable
     }
 
     [Fact]
+    public async Task UserGlobalPlugin_StaysTrustedAfterWritingItsData()
+    {
+        const string id = "trust.global-data";
+        WritePluginBundle(
+            Path.Combine(_harness.Root, "user-data", "plugins", id),
+            id,
+            "GlobalData.Plugin",
+            """
+            using System.IO;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DotCraft.Plugins;
+            namespace GlobalData;
+            public sealed class Plugin : IDotCraftPlugin
+            {
+                public ValueTask ActivateAsync(IPluginActivationContext context, CancellationToken cancellationToken)
+                {
+                    Directory.CreateDirectory(context.DataRoot);
+                    File.WriteAllText(Path.Combine(context.DataRoot, "state.txt"), "written");
+                    return ValueTask.CompletedTask;
+                }
+            }
+            """);
+        await using (var first = _harness.CreateManager(trustInstalled: false))
+        {
+            await first.StartAsync(CancellationToken.None);
+            await first.TrustAsync(id);
+            AssertState(Plugin(first, id), PluginDotnetRuntimeState.Active);
+        }
+        await using var restarted = _harness.CreateManager(trustInstalled: false);
+        await restarted.StartAsync(CancellationToken.None);
+
+        var plugin = Plugin(restarted, id);
+        AssertState(plugin, PluginDotnetRuntimeState.Active);
+        Assert.Equal(PluginDotnetTrustStatus.Trusted, plugin.TrustStatus);
+        Assert.True(File.Exists(_harness.DataPath(id, "state.txt")));
+    }
+
+    [Fact]
     public async Task Trust_WithoutADurableStoreDoesNotActivateThePlugin()
     {
         _harness.WriteNoop("trust.no-store");
