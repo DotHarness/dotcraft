@@ -5,7 +5,7 @@ import { ThinkingGlyph } from './ThinkingGlyph'
 import type { TurnThinkingLabel } from './turnThinkingStatus'
 import styles from './TurnWorkingLine.module.css'
 
-const EXIT_DELAY_MS = 300
+const FADE_MS = 180
 
 interface ShownLabel { text: string; live: boolean }
 
@@ -17,13 +17,9 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool }: {
 }): JSX.Element | null {
   const t = useT()
   const [engaged, setEngaged] = useState(working)
-  const [settled, setSettled] = useState(false)
-  const [exited, setExited] = useState(false)
+  const [faded, setFaded] = useState(!working)
   if (working && !engaged) setEngaged(true)
-  if (working && (settled || exited)) {
-    setSettled(false)
-    setExited(false)
-  }
+  if (working && faded) setFaded(false)
 
   const current: ShownLabel | null = label == null ? null
     : label.kind === 'waitingForAnswer' ? { text: t('conversation.thinking.waitingForAnswer'), live: true }
@@ -32,16 +28,16 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool }: {
   if (current && (current.text !== shown?.text || current.live !== shown.live)) setShown(current)
 
   useEffect(() => {
-    if (!settled) return undefined
-    const timer = setTimeout(() => setExited(true), EXIT_DELAY_MS)
+    if (working) return undefined
+    const timer = setTimeout(() => setFaded(true), FADE_MS)
     return () => clearTimeout(timer)
-  }, [settled])
+  }, [working])
 
   if (!engaged || (!working && !keepSpace)) return null
   return (
-    <div className={styles.line} data-after-tool={afterTool || undefined} data-exited={exited || undefined} data-testid="turn-working-line">
+    <div className={styles.line} data-after-tool={afterTool || undefined} data-exited={!working || undefined} data-testid="turn-working-line">
       <span className={styles.glyph}>
-        <ThinkingGlyph thinking={working} onSettled={() => setSettled(true)} />
+        <ThinkingGlyph thinking={!faded} />
       </span>
       {shown ? (
         <span className={styles.label} data-visible={current ? 'true' : 'false'} aria-hidden={!current}>

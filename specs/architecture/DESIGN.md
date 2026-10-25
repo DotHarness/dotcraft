@@ -1299,8 +1299,7 @@ thinking.
 The working line leads with the thinking glyph, drawn in the row's text colour:
 while the turn works, three separate drops gather, fuse into a core that swells,
 and burst apart on a 3s loop; reduced motion shows one still round dot. When the
-turn stops, the glyph loops on to the fused pose and settles into the dot before
-fading out. Its liquid edge softens with the rendered pixel size so a 16px glyph
+turn stops, the glyph fades out at once. Its liquid edge softens with the rendered pixel size so a 16px glyph
 keeps an antialiased outline.
 
 | Activity | Icon |

@@ -34,14 +34,6 @@
   animation: core-swell 3s ease-in-out infinite;
 }
 
-.glyph[data-settling] .core {
-  animation: core-settle 640ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-
-@keyframes core-settle {
-  from { transform: scale(var(--core-from)); }
-}
-
 @keyframes spin-third {
   to { transform: rotate(120deg); }
 }

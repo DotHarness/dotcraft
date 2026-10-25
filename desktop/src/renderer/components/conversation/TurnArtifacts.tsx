@@ -104,7 +104,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
               style={artifactBodyButtonStyle}
             >
               <span style={artifactIconStyle}>
-                {isHtml ? <Globe2 size={22} strokeWidth={1.8} /> : <FileText size={22} strokeWidth={1.8} />}
+                {isHtml ? <Globe2 size={20} strokeWidth={1.5} /> : <FileText size={20} strokeWidth={1.5} />}
               </span>
               <span style={artifactTextWrapStyle}>
                 <span style={artifactTitleStyle}>
@@ -147,8 +147,8 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
 const artifactCardStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: '12px',
-  padding: '0 14px 0 0',
+  gap: '10px',
+  padding: '0 12px 0 0',
   border: '1px solid var(--border-default)',
   borderRadius: '8px',
   background: 'var(--bg-primary)',
@@ -159,11 +159,11 @@ const artifactCardStyle: CSSProperties = {
 const artifactBodyButtonStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  minHeight: '68px',
+  minHeight: '64px',
   display: 'flex',
   alignItems: 'center',
-  gap: '12px',
-  padding: '12px 0 12px 14px',
+  gap: '10px',
+  padding: '12px 0 12px 12px',
   border: 'none',
   background: 'transparent',
   color: 'inherit',
@@ -173,9 +173,9 @@ const artifactBodyButtonStyle: CSSProperties = {
 }
 
 const artifactIconStyle: CSSProperties = {
-  width: '44px',
-  height: '44px',
-  borderRadius: '10px',
+  width: '40px',
+  height: '40px',
+  borderRadius: '8px',
   background: 'var(--bg-secondary)',
   color: 'var(--text-secondary)',
   display: 'inline-flex',
