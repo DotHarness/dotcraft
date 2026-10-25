@@ -40,8 +40,13 @@ import net from 'net'
 import { DesktopAppServerClient, type InitializeResult } from './DesktopAppServerClient'
 import {
   handleDesktopRuntimeThreadToolCall,
-  resetDesktopThreadToolBindings
+  resetDesktopThreadToolBindings,
+  threadTaskConnection,
+  type DesktopAppServerRequestOptions
 } from './desktopRuntimeThreadTools'
+import { createDesktopThreadTasks, registerThreadTasksIpc } from './threadTasks/threadTasksIpc'
+import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
+import { normalizeNewTaskPromptMode, type ThreadTask } from '../shared/threadTasks'
 import {
   createDesktopHubClient,
   resolveDesktopBinarySource,
@@ -158,7 +163,7 @@ import {
   type TopLevelMenuId
 } from '../shared/locales'
 import { ensureTrayProcess, openDesktopWindow, runTrayProcess, stopTrayProcess } from './trayManager'
-import { createWindowAttentionNotifier } from './windowAttentionNotifier'
+import { createWindowAttentionNotifier, NEW_TASK_OFFER_ATTENTION } from './windowAttentionNotifier'
 import {
   registerDesktopProcess,
   type DesktopProcessRegistrationHandle
@@ -224,6 +229,7 @@ import {
 let mainWindow: BrowserWindow | null = null
 let wireClient: DesktopAppServerClient | null = null
 const notifyWindowAttention = createWindowAttentionNotifier()
+let threadTasks: DesktopThreadTasks | null = null
 const userInputAutoResolution = new UserInputAutoResolutionCoordinator({
   onResolve: (bridgeId) => {
     resolveServerRequestBridge(bridgeId, { answers: {} })
@@ -667,6 +673,53 @@ function publishWorkspaceActivation(endpoint: WorkspaceActivationEndpoint): void
   }
 }
 
+function desktopThreadToolOptions(): DesktopAppServerRequestOptions {
+  return {
+    supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true,
+    ...(isLocalChatsForeground()
+      ? { createChatFolder: (firstMessage: string) => createChatFolderFromSettings(sharedSettings, firstMessage) }
+      : {}),
+    settingsHost: {
+      getSettings: () => sharedSettings,
+      updateSettings: updateSharedSettings,
+      onPinnedThreadIdsChanged: (workspacePath, threadIds) => {
+        broadcastPinnedThreadIdsChanged({ workspacePath, threadIds })
+      }
+    },
+    tasks: getThreadTasks()
+  }
+}
+
+function getThreadTasks(): DesktopThreadTasks {
+  threadTasks ??= createDesktopThreadTasks({
+    filePath: join(app.getPath('userData'), 'thread-tasks.json'),
+    getNewTaskPrompt: () => normalizeNewTaskPromptMode(sharedSettings.newTaskPrompt),
+    notifyOffer: notifyNewTaskOffer
+  })
+  return threadTasks
+}
+
+function notifyNewTaskOffer(task: ThreadTask): void {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  const entry = [...workspaceConnections.values()].find((candidate) => candidate.client === wireClient)
+  void notifyWindowAttention(NEW_TASK_OFFER_ATTENTION, { threadId: task.threadId, turnId: task.turnId, requestId: task.id }, {
+    connectionKind: entry?.kind ?? 'local',
+    window: win,
+    settings: sharedSettings,
+    threads: entry?.threads ?? [],
+    openThread: (threadId) => {
+      showWindowSafely(win)
+      sendOpenThread(win, threadId)
+    }
+  }).catch(console.warn)
+}
+
+function resetThreadToolState(): void {
+  resetDesktopThreadToolBindings()
+  getThreadTasks().abandonAllOffers()
+}
+
 async function handleServerRequestInMain(method: string, params: unknown): Promise<unknown | undefined> {
   if (!mainWindow || mainWindow.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
@@ -677,19 +730,7 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
     if (!client) {
       return undefined
     }
-    return handleDesktopRuntimeThreadToolCall(client, params, getProtocolWorkspacePath(), {
-      supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true,
-      ...(isLocalChatsForeground()
-        ? { createChatFolder: (firstMessage: string) => createChatFolderFromSettings(sharedSettings, firstMessage) }
-        : {}),
-      settingsHost: {
-        getSettings: () => sharedSettings,
-        updateSettings: updateSharedSettings,
-        onPinnedThreadIdsChanged: (workspacePath, threadIds) => {
-          broadcastPinnedThreadIdsChanged({ workspacePath, threadIds })
-        }
-      }
-    })
+    return handleDesktopRuntimeThreadToolCall(client, params, getProtocolWorkspacePath(), desktopThreadToolOptions())
   }
 
   if (method === 'ext/nodeRepl/evaluate') {
@@ -2219,7 +2260,7 @@ async function connectViaWebSocket(
   }
   const win = mainWindow!
   lastAppServerWsUrl = wsUrl
-  resetDesktopThreadToolBindings()
+  resetThreadToolState()
   emitConnectionStatus(win, { status: 'connecting' })
   reregisterIpcForWorkspace(workspacePath)
 
@@ -2273,6 +2314,7 @@ async function connectViaWebSocket(
   client.onNotification((method, params) => {
     if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
+      getThreadTasks().handleNotification(method, params)
       const turnEvent = readBrowserTurnNotification(method, params)
       if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
       const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
@@ -2321,7 +2363,7 @@ async function connectViaWebSocket(
   ): void => {
     if (initialFailureEmitted || !isCurrentConnectAttempt()) return
     initialFailureEmitted = true
-    resetDesktopThreadToolBindings()
+    resetThreadToolState()
     if (mainWindow && !mainWindow.isDestroyed()) {
       emitConnectionStatus(mainWindow, {
         status: 'error',
@@ -2356,7 +2398,7 @@ async function connectViaWebSocket(
     connectedOnce = true
     clearActiveRemoteReconnectTimer()
     activeRemoteReconnectAttempt = 0
-    resetDesktopThreadToolBindings()
+    resetThreadToolState()
     if (mainWindow && !mainWindow.isDestroyed()) {
       emitConnectionStatus(mainWindow, {
         status: 'connected',
@@ -2380,7 +2422,7 @@ async function connectViaWebSocket(
     emitWorkspaceProjects()
     if (entry.role === 'secondary') return
     if (!isCurrentForegroundClient()) return
-    resetDesktopThreadToolBindings()
+    resetThreadToolState()
     if (!connectedOnce && options.initialDisconnectIsError) {
       if (!initialFailureEmitted) {
         emitInitialConnectionFailure(
@@ -2553,7 +2595,7 @@ function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
   setActiveRemoteProject(null)
   previousLocalForegroundWorkspacePath = null
   lastRemoteStackLocalPort = null
-  resetDesktopThreadToolBindings()
+  resetThreadToolState()
   reregisterIpcForWorkspace(entry.workspacePath)
   ensureWorkspaceActivation(entry.workspacePath)
   emitCurrentWorkspaceStatus(entry.workspacePath)
@@ -2613,6 +2655,7 @@ function createSecondaryWorkspaceConnection(
   client.onNotification((method, params) => {
     if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
+      getThreadTasks().handleNotification(method, params)
       const turnEvent = readBrowserTurnNotification(method, params)
       if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
       const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
@@ -2911,6 +2954,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
     },
     onAppServerRequestCompleted: (client, method, params, result, requestGeneration) => {
       observeAppServerRequestCompletion(client, method, params, result, requestGeneration)
+      getThreadTasks().observeUserRequest(method, params)
     },
     getUserInputAutoResolutionSnapshot: () => userInputAutoResolution.getSnapshot(),
     onUserInputConversationPresented: (threadId) => {
@@ -3527,6 +3571,13 @@ app.whenReady().then(async () => {
     isChatGptTranscriptionEnabled: () => sharedSettings.voice?.chatGptTranscription !== false
   })
   sharedSettings = loadSettings()
+  registerThreadTasksIpc({
+    tasks: getThreadTasks(),
+    getConnection: () => {
+      const client = wireClient
+      return client ? threadTaskConnection(client, getProtocolWorkspacePath(), desktopThreadToolOptions()) : null
+    }
+  })
   registerOratorioIpc(
     () => getProtocolWorkspacePath() || null,
     () => createHubClient(sharedSettings),

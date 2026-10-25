@@ -14,7 +14,8 @@ import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
 import { TurnAutomations } from './TurnAutomations'
-import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
+import { isThreadActionToolItem, parseThreadToolAction, threadTaskCardKind } from '../../utils/threadToolDisplay'
+import { TurnThreadTaskCards } from './threadTasks/TurnThreadTaskCards'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
@@ -160,7 +161,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     while (i < itemsToRender.length) {
       const item = itemsToRender[i]
 
-      if (isToolRunItem(item)) {
+      if (threadTaskCardKind(item)) {
+        const taskItems = defaultRenderableItems.filter((candidate) => threadTaskCardKind(candidate))
+        if (taskItems[0] === item && !readOnly) {
+          nodes.push({ key: `thread-tasks-${item.id}`, kind: 'tool', node: <TurnThreadTaskCards threadId={turn.threadId} items={taskItems} /> })
+        }
+      } else if (isToolRunItem(item)) {
         const toolRun: ConversationItem[] = [item]
         while (i + 1 < itemsToRender.length && (isToolRunItem(itemsToRender[i + 1]) || isBlankMessage(itemsToRender[i + 1]))) {
           i++
@@ -635,7 +641,7 @@ function isToolRowItem(item: ConversationItem): boolean {
 }
 
 function isToolRunItem(item: ConversationItem): boolean {
-  return isToolRowItem(item) || item.type === 'reasoningContent'
+  return (isToolRowItem(item) || item.type === 'reasoningContent') && threadTaskCardKind(item) == null
 }
 
 function resolveCoreFallbackPlan(item: ConversationItem) {
@@ -710,6 +716,8 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, beforeIndex)
   if (workflowIndex >= 0) indices.add(workflowIndex)
+  const taskCardIndex = findFirstThreadTaskIndexBefore(items, beforeIndex)
+  if (taskCardIndex >= 0) indices.add(taskCardIndex)
   return Array.from(indices).sort((a, b) => a - b)
 }
 
@@ -722,7 +730,13 @@ function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, items.length)
   if (workflowIndex >= 0) indices.add(workflowIndex)
+  const taskCardIndex = findFirstThreadTaskIndexBefore(items, items.length)
+  if (taskCardIndex >= 0) indices.add(taskCardIndex)
   return indices
+}
+
+function findFirstThreadTaskIndexBefore(items: ConversationItem[], beforeIndex: number): number {
+  return items.slice(0, beforeIndex).findIndex((item) => threadTaskCardKind(item) != null)
 }
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
@@ -774,7 +788,7 @@ function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {
   if (item.type === 'error') return true
   if (item.type === 'systemNotice') return true
   if (isCompletedImageGenerationResult(item)) return true
-  return isCreatePlanItem(item) || isSuccessfulWorkflowLaunchItem(item)
+  return isCreatePlanItem(item) || isSuccessfulWorkflowLaunchItem(item) || threadTaskCardKind(item) != null
 }
 
 function isTrimmedHistoryCollapsedItem(item: ConversationItem): boolean {

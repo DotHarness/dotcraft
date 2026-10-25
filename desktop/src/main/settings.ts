@@ -32,6 +32,7 @@ import {
   type SidebarThreadOrderSettings
 } from '../shared/sidebarThreadOrder'
 import { normalizeSidebarDestinationPins, type SidebarDestinationPins } from '../shared/sidebarDestinations'
+import type { NewTaskPromptMode } from '../shared/threadTasks'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -108,6 +109,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   sidebarDestinationPins?: SidebarDestinationPins
   remoteDesktopPluginGrants?: string[]
   followUpQueueMode?: FollowUpQueueMode
+  newTaskPrompt?: NewTaskPromptMode
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
   modulesDirectory?: string
@@ -335,6 +337,10 @@ function normalizeTranslucentSidebarSetting(settings: AppSettings): boolean | un
 
 function normalizeWelcomeBackdropSetting(settings: AppSettings): boolean | undefined {
   return settings.welcomeBackdrop === false ? false : undefined
+}
+
+function normalizeNewTaskPromptSetting(settings: AppSettings): NewTaskPromptMode | undefined {
+  return settings.newTaskPrompt === 'newThread' || settings.newTaskPrompt === 'here' ? settings.newTaskPrompt : undefined
 }
 
 function normalizeShowThinkingContent(settings: AppSettings): boolean | undefined {
@@ -600,6 +606,7 @@ export function loadSettings(): AppSettings {
       raw.notifications = normalizeNotificationSettings(raw)
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
+      raw.newTaskPrompt = normalizeNewTaskPromptSetting(raw)
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
@@ -665,6 +672,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.notifications = normalizeNotificationSettings(settings)
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
+    settings.newTaskPrompt = normalizeNewTaskPromptSetting(settings)
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)

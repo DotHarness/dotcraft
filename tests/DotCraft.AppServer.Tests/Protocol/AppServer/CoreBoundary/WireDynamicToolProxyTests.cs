@@ -197,6 +197,32 @@ public sealed class WireDynamicToolProxyTests
     }
 
     [Fact]
+    public async Task CallbackWaitsWithoutTimeoutUntilConnectionDrops()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = new PendingTransport();
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+
+        var dispatch = new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "test" },
+            new ToolInvocationRequest(
+                "thread_test", "turn_001", "call_pending", ToolInvocationAudience.Model)).AsTask();
+        await transport.Requested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(Timeout.InfiniteTimeSpan, transport.Timeout);
+        Assert.False(dispatch.IsCompleted);
+
+        transport.Response.TrySetCanceled();
+        var result = await dispatch.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.DynamicDisconnected, result.Error?.Code);
+    }
+
+    [Fact]
     public async Task ApprovalHintIsHandledByCommonDispatcherBeforeCallback()
     {
         var proxy = new WireDynamicToolProxy();
@@ -377,6 +403,32 @@ public sealed class WireDynamicToolProxyTests
             ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = text }],
             StructuredContent = structuredContent
         });
+
+    private sealed class PendingTransport : IAppServerTransport
+    {
+        public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<AppServerIncomingMessage> Response { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TimeSpan? Timeout { get; private set; }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+            string method,
+            object? @params,
+            CancellationToken ct = default,
+            TimeSpan? timeout = null)
+        {
+            Timeout = timeout;
+            Requested.TrySetResult();
+            return Response.Task;
+        }
+    }
 
     private sealed class RecordingTransport(object result) : IAppServerTransport
     {

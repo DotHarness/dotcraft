@@ -18,6 +18,8 @@
     <EmbeddedResource Include="Skills\BuiltIn\**\*" />
     <EmbeddedResource Include="Commands\Custom\BuiltIn\**\*" />
     <EmbeddedResource Include="Agents\Profiles\BuiltIn\**\*" />
+    <EmbeddedResource Include="Prompts\**\*.md"
+                      LogicalName="DotCraft.Prompts.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

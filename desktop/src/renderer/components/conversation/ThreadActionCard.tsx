@@ -5,6 +5,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadToolAction } from '../../utils/threadToolDisplay'
 import { Button } from '../ui/Button'
+import { RunningShimmer } from '../ui/RunningShimmer'
 
 interface ThreadActionCardProps {
   action: ThreadToolAction
@@ -16,6 +17,7 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
   const liveName = useThreadStore((s) =>
     s.threadList.find((thread) => thread.id === action.threadId)?.displayName
   )
+  const working = useThreadStore((s) => s.runningTurnThreadIds.has(action.threadId))
 
   const name = (liveName ?? action.displayName)?.trim() || t('threadActionCard.untitled')
   const isCreated = action.kind === 'created'
@@ -42,7 +44,7 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
         </span>
         <span style={textWrapStyle}>
           <span style={titleStyle}>{title}</span>
-          <span style={subtitleStyle}>{subtitle}</span>
+          <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>
         </span>
       </button>
       <Button variant="outlineGhost" size="toolbar" onClick={openChat} style={{ flexShrink: 0 }}>

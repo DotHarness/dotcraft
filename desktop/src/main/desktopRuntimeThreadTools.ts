@@ -1,7 +1,16 @@
 import { readThreadTool } from './desktopReadThread'
 import { readThreadToolDefinition } from './desktopReadThreadContract'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
-import { STANDALONE_CHAT_INSTRUCTIONS } from '../shared/chatFolders'
+import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection } from './threadTasks/childThreads'
+import {
+  CREATE_THREAD_DESCRIPTION,
+  CREATE_THREAD_PROPERTIES,
+  DISMISS_PROPOSAL_DESCRIPTION,
+  DISMISS_PROPOSAL_PROPERTIES,
+  THREAD_COORDINATION_GUIDANCE
+} from './threadTasks/threadTaskPrompts'
+import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
+import { createThreadTool, dismissProposalTool } from './threadTasks/threadTaskTools'
 
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
@@ -52,6 +61,7 @@ export interface DesktopAppServerRequestOptions {
   supportsDynamicToolRebind?: boolean
   settingsHost?: DesktopThreadToolSettingsHost
   createChatFolder?: (firstMessage: string) => Promise<string>
+  tasks?: DesktopThreadTasks
 }
 
 export interface DesktopThreadToolSettingsHost {
@@ -104,6 +114,7 @@ interface ThreadWire extends ThreadSummaryWire {
 
 const TOOL_NAMES = new Set([
   'CreateThread',
+  'DismissProposal',
   'ListThreads',
   'ReadThread',
   'SendMessageToThread',
@@ -114,7 +125,7 @@ const TOOL_NAMES = new Set([
 
 const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
   kind: 'application',
-  value: 'When the user asks to create, inspect, continue, pin, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived, SetThreadPinned.'
+  value: THREAD_COORDINATION_GUIDANCE
 }
 
 // Bound-tool state is connection-local; reconnecting gives AppServer a new callback target.
@@ -135,20 +146,11 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'CreateThread',
-      description: 'Create a new DotCraft thread in the current Desktop workspace and start its initial prompt.',
+      description: CREATE_THREAD_DESCRIPTION,
       inputSchema: {
         type: 'object',
-        properties: {
-          prompt: { type: 'string', description: 'Initial prompt for the new thread.' },
-          displayName: { type: 'string', description: 'Optional display name for the created thread.' },
-          model: { type: 'string', description: 'Optional per-thread model override for the created thread.' },
-          reasoningEffort: {
-            type: 'string',
-            enum: ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'],
-            description: 'Optional per-thread reasoning effort for the created thread.'
-          }
-        },
-        required: ['prompt'],
+        properties: CREATE_THREAD_PROPERTIES,
+        required: [],
         additionalProperties: false
       },
       outputSchema: {
@@ -156,10 +158,24 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         properties: {
           thread: { type: 'object' },
           turn: { type: 'object' },
-          started: { type: 'boolean' }
+          started: { type: 'boolean' },
+          task: { type: 'object' },
+          outcome: { type: 'string' }
         }
       },
       display: { title: 'Create thread', subtitle: 'Desktop' }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'DismissProposal',
+      description: DISMISS_PROPOSAL_DESCRIPTION,
+      inputSchema: {
+        type: 'object',
+        properties: DISMISS_PROPOSAL_PROPERTIES,
+        required: ['taskId'],
+        additionalProperties: false
+      },
+      display: { title: 'Dismiss proposal', subtitle: 'Desktop' }
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -400,7 +416,9 @@ export async function handleDesktopRuntimeThreadToolCall(
   try {
     switch (p.tool) {
       case 'CreateThread':
-        return await createThreadTool(client, args, workspacePath, options, p.threadId)
+        return await createThreadTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
+      case 'DismissProposal':
+        return dismissProposalTool(options.tasks, args, p)
       case 'ListThreads':
         return await listThreadsTool(client, args, workspacePath, options)
       case 'ReadThread':
@@ -421,98 +439,16 @@ export async function handleDesktopRuntimeThreadToolCall(
   }
 }
 
-async function createThreadTool(
+export function threadTaskConnection(
   client: AppServerRequestClient,
-  args: Record<string, unknown>,
   workspacePath: string,
-  options: DesktopAppServerRequestOptions,
-  callerThreadId?: string
-): Promise<DynamicToolCallResult> {
-  const prompt = requiredNonEmptyString(args, 'prompt')
-  if (prompt.ok === false) return prompt.error
-  const displayName = optionalNonEmptyString(args, 'displayName')
-  if (displayName?.ok === false) return displayName.error
-  const model = optionalNonEmptyString(args, 'model')
-  if (model?.ok === false) return model.error
-  const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
-  if (reasoningEffort?.ok === false) return reasoningEffort.error
-  if (!workspacePath.trim()) {
-    return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
+  options: DesktopAppServerRequestOptions
+): ThreadTaskConnection {
+  return {
+    workspacePath,
+    request: (method, params, timeoutMs) => sendDesktopAppServerRequest(client, method, params, timeoutMs, options),
+    ...(options.createChatFolder ? { createChatFolder: options.createChatFolder } : {})
   }
-
-  const startParams: JsonObject = {
-    identity: desktopIdentity(workspacePath),
-    historyMode: 'server'
-  }
-  if (displayName?.value) {
-    startParams.displayName = displayName.value
-  }
-  // Record which thread spawned this one so the new thread's first user message can
-  // link back to its source (the calling thread). Kept as a non-subagent origin.
-  if (callerThreadId && callerThreadId.trim()) {
-    startParams.spawnedFromThreadId = callerThreadId.trim()
-  }
-  const config: JsonObject = {}
-  if (model?.value) {
-    config.model = model.value
-  }
-  if (reasoningEffort?.value) {
-    config.reasoning = buildReasoningConfig(reasoningEffort.value)
-  }
-  if (options.createChatFolder) {
-    startParams.cwd = await options.createChatFolder(prompt.value)
-    config.developerInstructions = STANDALONE_CHAT_INSTRUCTIONS
-  }
-  if (Object.keys(config).length > 0) {
-    startParams.config = config
-  }
-
-  const startResult = await sendDesktopAppServerRequest<{ thread?: ThreadSummaryWire }>(
-    client,
-    'thread/start',
-    startParams,
-    undefined,
-    options
-  )
-  const thread = startResult.thread
-  const threadId = thread?.id
-  if (!threadId) {
-    return fail('AppServerRequestFailed', 'thread/start did not return a thread id.')
-  }
-
-  let turnResult: { turn?: JsonObject }
-  try {
-    turnResult = await sendDesktopAppServerRequest<{ turn?: JsonObject }>(
-      client,
-      'turn/start',
-      {
-        threadId,
-        input: [{ type: 'text', text: prompt.value }],
-        identity: desktopIdentity(workspacePath)
-      },
-      undefined,
-      options
-    )
-  } catch (error) {
-    return fail(
-      'AppServerRequestFailed',
-      `Created thread ${formatThreadTitle(thread)} but failed to start its initial turn: ${requestErrorMessage(error)}`,
-      {
-        thread,
-        turn: null,
-        started: false
-      }
-    )
-  }
-
-  return ok(
-    `Created thread ${formatThreadTitle(thread)} and started its initial turn.`,
-    {
-      thread,
-      turn: turnResult.turn ?? null,
-      started: Boolean(turnResult.turn)
-    }
-  )
 }
 
 async function listThreadsTool(
@@ -793,15 +729,6 @@ function trackClient(client: AppServerRequestClient): void {
   visualizationBindingPromises = new Map<string, Promise<void>>()
 }
 
-function desktopIdentity(workspacePath: string): JsonObject {
-  return {
-    channelName: 'dotcraft-desktop',
-    userId: 'local',
-    channelContext: `workspace:${workspacePath}`,
-    workspacePath
-  }
-}
-
 function ok(text: string, structuredContent?: unknown): DynamicToolCallResult {
   return {
     success: true,
@@ -925,14 +852,6 @@ function optionalInteger(
   return { ok: true, value }
 }
 
-function buildReasoningConfig(effort: ReasoningEffortValue, existing?: Record<string, unknown>): JsonObject {
-  return {
-    enabled: true,
-    effort,
-    output: firstString(existing?.output, existing?.Output) ?? 'full'
-  }
-}
-
 function buildConfigWithReasoningEffort(config: JsonObject | null | undefined, effort: ReasoningEffortValue): JsonObject {
   const next = cloneJsonObject(config) ?? { mode: 'agent' }
   const existingReasoning = isRecord(next.reasoning)
@@ -1001,11 +920,6 @@ function summarizeThread(thread: ThreadSummaryWire): JsonObject {
   }
 }
 
-function formatThreadTitle(thread: ThreadSummaryWire | undefined): string {
-  const title = thread?.displayName?.trim()
-  return title ? `"${title}" (${thread?.id ?? 'unknown'})` : (thread?.id ?? 'unknown')
-}
-
 function formatThreadSummaryLine(thread: JsonObject): string {
   const title = typeof thread.displayName === 'string' && thread.displayName.trim()
     ? thread.displayName.trim()
@@ -1033,13 +947,6 @@ function stringProperty(value: unknown, key: string): string | null {
   const property = value[key]
   if (typeof property !== 'string' || property.trim() === '') return null
   return property
-}
-
-function firstString(...values: unknown[]): string | null {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim() !== '') return value
-  }
-  return null
 }
 
 function requestErrorMessage(error: unknown): string {
