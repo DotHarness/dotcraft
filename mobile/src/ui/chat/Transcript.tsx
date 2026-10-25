@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
@@ -169,8 +169,6 @@ function Disclosure({ open }: { open: boolean }) {
   )
 }
 
-const HOLD_MS = 2000
-
 type ThinkingEntry = Extract<TranscriptEntry, { kind: 'thinking' }>
 
 interface WorkingLabel {
@@ -178,31 +176,10 @@ interface WorkingLabel {
   live: boolean
 }
 
-interface ReasoningStage {
-  id: string
-  stage: 'live' | 'hold' | 'done'
-}
-
 function useWorkingLabel(entry: ThinkingEntry): WorkingLabel | null {
   const { t } = useI18n()
-  const live = entry.working && entry.reasoning?.live ? entry.reasoning.id : null
-  const [span, setSpan] = useState<ReasoningStage | null>(null)
-  if (live && span?.id !== live) setSpan({ id: live, stage: 'live' })
-  if (!live && span?.stage === 'live') setSpan({ id: span.id, stage: 'hold' })
-  const startedAt = useRef(0)
-
-  useEffect(() => {
-    if (span?.stage === 'live') startedAt.current = Date.now()
-    if (span?.stage === 'hold') {
-      const timer = setTimeout(() => setSpan({ id: span.id, stage: 'done' }), Math.max(0, HOLD_MS - (Date.now() - startedAt.current)))
-      return () => clearTimeout(timer)
-    }
-  }, [span])
-
   if (!entry.working) return null
-  const thinking = { text: entry.heading ?? t('chat.thinking'), live: true }
-  if (span?.stage === 'live' || span?.stage === 'hold') return thinking
-  return entry.quiet ? thinking : null
+  return { text: entry.heading ?? t('chat.thinking'), live: true }
 }
 
 export function useKeptWorkingLine(transcript: TranscriptEntry[], scope: string): TranscriptEntry[] {
@@ -211,7 +188,7 @@ export function useKeptWorkingLine(transcript: TranscriptEntry[], scope: string)
   if (last?.kind === 'thinking' && (kept?.id !== last.id || kept.scope !== scope)) setKept({ scope, id: last.id })
   if (kept && (kept.scope !== scope || last?.kind === 'user')) setKept(null)
   if (!kept || kept.scope !== scope || !last || last.kind === 'thinking' || last.kind === 'user') return transcript
-  return [...transcript, { kind: 'thinking', id: kept.id, working: false, heading: null, reasoning: null, quiet: false }]
+  return [...transcript, { kind: 'thinking', id: kept.id, working: false, heading: null }]
 }
 
 function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean }) {

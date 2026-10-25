@@ -30,8 +30,6 @@ export function stabilizeEntries(next: TranscriptEntry[], previous: TranscriptEn
       }
     } else if (entry.kind === 'activity' && old.kind === 'activity') {
       entry = { ...entry, children: stabilizeEntries(entry.children, old.children) }
-    } else if (entry.kind === 'thinking' && old.kind === 'thinking' && entry.reasoning?.id === old.reasoning?.id && entry.reasoning?.live === old.reasoning?.live) {
-      entry = { ...entry, reasoning: old.reasoning }
     }
     return sameFields(entry, old) ? old : entry
   })
@@ -58,8 +56,6 @@ export function showsWork(entry: TranscriptEntry): boolean {
   }
 }
 
-type Reasoning = Extract<TranscriptEntry, { kind: 'thinking' }>['reasoning']
-
 export function layoutTurn(
   turnId: string,
   turn: HistoryTurn | undefined,
@@ -68,7 +64,6 @@ export function layoutTurn(
   changes: TurnChanges | null,
   origin: TaskWake | null = null,
   heading: string | null = null,
-  reasoning: Reasoning = null,
   stoppedByYou = false,
 ): TranscriptEntry[] {
   let start = 0
@@ -76,7 +71,7 @@ export function layoutTurn(
   const opening = entries.slice(0, start)
   const body = groupTools(entries.slice(start), running)
   const tail: TranscriptEntry[] = running
-    ? [{ kind: 'thinking', id: `thinking-${turnId}`, working: true, heading, reasoning, quiet: body.length === 0 }]
+    ? [{ kind: 'thinking', id: `thinking-${turnId}`, working: true, heading }]
     : []
   const completed = !running && turn?.status === 'completed'
   const final =

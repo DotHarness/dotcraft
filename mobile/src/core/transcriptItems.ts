@@ -15,7 +15,6 @@ interface ItemContext {
 export interface ItemProjection {
   entry?: TranscriptEntry
   heading?: string | null
-  reasoning?: Extract<TranscriptEntry, { kind: 'thinking' }>['reasoning']
   wake?: TaskWake
   action?: Extract<TranscriptEntry, { kind: 'threadAction' }>
 }
@@ -112,7 +111,7 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
       return text ? { entry: { kind: 'assistant', id, text, streaming: !isComplete(item), phase: phase === 'commentary' || phase === 'final' ? phase : null, at: item.createdAt, copy: false, changes: null } } : {}
     }
     case 'reasoningContent':
-      return { heading: thinkingStatus(str(payload.text), isComplete(item)), reasoning: { id, live: !isComplete(item) } }
+      return { heading: thinkingStatus(str(payload.text), isComplete(item)) }
     case 'toolCall':
     case 'mcpToolCall':
     case 'dynamicToolCall': {

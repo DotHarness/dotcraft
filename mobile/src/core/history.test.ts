@@ -49,7 +49,7 @@ describe('history catch-up', () => {
     expect(buildTranscript(next)).toMatchObject([
       { kind: 'user', id: 't1/a', text: 'go', added: false },
       { kind: 'assistant', id: 't1/m', text: 'Hello there', streaming: false },
-      { kind: 'thinking', quiet: false },
+      { kind: 'thinking' },
     ])
   })
 
@@ -61,11 +61,11 @@ describe('history catch-up', () => {
     const doubled = apply(pages, { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: 'Partial' })
     expect(buildTranscript(doubled)).toMatchObject([
       { kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true },
-      { kind: 'thinking', quiet: false },
+      { kind: 'thinking' },
     ])
 
     const missed = apply(emptyHistory(), { kind: 'delta', itemId: 'n', turnId: 't1', itemType: 'agentMessage', delta: 'middle of a sentence' })
-    expect(buildTranscript(missed)).toMatchObject([{ kind: 'thinking', quiet: true }])
+    expect(buildTranscript(missed)).toMatchObject([{ kind: 'thinking' }])
     const done = apply(missed, { kind: 'item', item: item('n', 'agentMessage', { text: 'The start of the middle of a sentence' }) })
     expect(buildTranscript(done)).toMatchObject([{ kind: 'assistant', id: 't1/n', text: 'The start of the middle of a sentence', streaming: false }])
   })

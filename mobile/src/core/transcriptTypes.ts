@@ -100,8 +100,6 @@ export type TranscriptEntry =
       id: string
       working: boolean
       heading: string | null
-      reasoning: { id: string; live: boolean } | null
-      quiet: boolean
     }
   | {
       kind: 'tool'

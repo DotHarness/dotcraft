@@ -126,7 +126,6 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         let live = false
         let wake: TaskWake | null = null
         let heading: string | null = null
-        let reasoning: Extract<TranscriptEntry, { kind: 'thinking' }>['reasoning'] = null
         let origin = fallbackOrigin
         for (const item of chunk.items) {
           if (!isComplete(item)) live = true
@@ -146,7 +145,6 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           }
           if (projection.wake && !wake && !body.some((entry) => entry.kind === 'user')) wake = projection.wake
           if (projection.heading !== undefined) heading = projection.heading ?? heading
-          if (projection.reasoning) reasoning = projection.reasoning
           const action = projection.action
           if (action && !actions.some((entry) => entry.action.kind === action.action.kind && entry.action.threadId === action.action.threadId)) actions.push(action)
         }
@@ -156,7 +154,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           if (last >= 0) body[last] = { ...(body[last] as Extract<TranscriptEntry, { kind: 'failure' }>), retry: { delay: retry } }
         }
         body.push(...actions)
-        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, reasoning, wasStopped), old?.entries ?? [])
+        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped), old?.entries ?? [])
         const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), stopped: wasStopped, retry, changes: turnChanges, entries }
         nextCache.set(key, next)
         output.push(...entries)
