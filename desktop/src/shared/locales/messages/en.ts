@@ -582,7 +582,6 @@ export const MESSAGES_EN = {
   'settings.sidebar.group.personal': 'Personal',
   'settings.sidebar.group.integrations': 'Integrations',
   'settings.sidebar.group.coding': 'Coding',
-  'settings.sidebar.group.archived': 'Archived',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': 'Manage lifecycle hooks from config and enabled plugins.',
   'settings.hooks.refresh': 'Refresh hooks',

@@ -615,7 +615,6 @@ export const MESSAGES_ES = {
   'settings.sidebar.group.personal': 'Personal',
   'settings.sidebar.group.integrations': 'Integraciones',
   'settings.sidebar.group.coding': 'Código',
-  'settings.sidebar.group.archived': 'Archivado',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': 'Administra hooks de ciclo de vida desde la configuración y plugins activos.',
   'settings.hooks.refresh': 'Actualizar hooks',

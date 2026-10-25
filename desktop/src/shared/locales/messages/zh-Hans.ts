@@ -707,7 +707,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.sidebar.group.personal': '个人',
   'settings.sidebar.group.integrations': '集成',
   'settings.sidebar.group.coding': '编码',
-  'settings.sidebar.group.archived': '归档',
   'settings.hooks.title': '钩子',
   'settings.hooks.description': '管理来自配置和已启用插件的生命周期钩子。',
   'settings.hooks.refresh': '刷新钩子',

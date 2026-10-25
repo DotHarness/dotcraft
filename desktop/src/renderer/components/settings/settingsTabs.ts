@@ -32,7 +32,7 @@ export interface SettingsTabDefinition {
   group: SettingsTabGroup
 }
 
-export type SettingsTabGroup = 'personal' | 'integrations' | 'coding' | 'archived'
+export type SettingsTabGroup = 'personal' | 'integrations' | 'coding'
 
 export interface SettingsTabOptions {
   personalizationAvailable: boolean
@@ -53,6 +53,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   tabs.push(
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
     { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
+    { id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive, group: 'personal' },
     { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' }
   )
 
@@ -96,7 +97,6 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   if (options.subAgentEnabled) {
     tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot, group: 'coding' })
   }
-  tabs.push({ id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive, group: 'archived' })
 
   return tabs
 }

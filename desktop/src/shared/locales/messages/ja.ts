@@ -615,7 +615,6 @@ export const MESSAGES_JA = {
   'settings.sidebar.group.personal': '個人',
   'settings.sidebar.group.integrations': '連携',
   'settings.sidebar.group.coding': 'コーディング',
-  'settings.sidebar.group.archived': 'アーカイブ',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': '設定と有効なプラグインからライフサイクル hook を管理します。',
   'settings.hooks.refresh': 'Hooks を更新',

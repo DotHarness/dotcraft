@@ -145,8 +145,6 @@ function settingsGroupLabel(group: SettingsTabGroup, t: ReturnType<typeof useT>)
       return t('settings.sidebar.group.integrations')
     case 'coding':
       return t('settings.sidebar.group.coding')
-    case 'archived':
-      return t('settings.sidebar.group.archived')
   }
 }
 

@@ -615,7 +615,6 @@ export const MESSAGES_KO = {
   'settings.sidebar.group.personal': '개인',
   'settings.sidebar.group.integrations': '연동',
   'settings.sidebar.group.coding': '코딩',
-  'settings.sidebar.group.archived': '보관됨',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': '설정과 활성화된 플러그인의 라이프사이클 hooks를 관리합니다.',
   'settings.hooks.refresh': 'Hooks 새로 고침',
