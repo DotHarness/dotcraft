@@ -122,6 +122,17 @@ describe('CreateThread proposals', () => {
     }))
     expect(harness.store.snapshot(PARENT).tasks.map((task) => task.state)).toEqual(['started', 'started'])
   })
+
+  it('starts a proposal with reasoning off when the card turns it off', async () => {
+    const harness = createHarness()
+    harness.composerTurn('turn-1')
+    const task = await propose(harness, 'Quick rename', { reasoningEffort: 'high' })
+
+    await harness.tasks.startProposals(connection(harness), PARENT, [task.id], { reasoningEffort: 'off' })
+
+    const start = harness.calls().find(([method]) => method === 'thread/start')?.[1] as { config: { reasoning: unknown } }
+    expect(start.config.reasoning).toEqual({ enabled: false, output: 'full' })
+  })
 })
 
 describe('thread task store', () => {

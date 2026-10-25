@@ -62,7 +62,8 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
     if (options.providerId && options.model) config.providerId = options.providerId
   }
   const effort = options.reasoningEffort ?? spec.defaults.reasoningEffort
-  if (effort) config.reasoning = buildReasoningConfig(effort)
+  if (effort === 'off') config.reasoning = { enabled: false, output: 'full' }
+  else if (effort) config.reasoning = buildReasoningConfig(effort)
   if (options.approvalPolicy) config.approvalPolicy = options.approvalPolicy
 
   const params: JsonObject = {

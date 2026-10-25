@@ -49,7 +49,7 @@ export interface ThreadTaskStartOptions {
   approvalPolicy?: ThreadTaskApprovalPolicy
   providerId?: string
   model?: string
-  reasoningEffort?: ThreadTaskReasoningEffort
+  reasoningEffort?: ThreadTaskReasoningEffort | 'off'
 }
 
 export interface ThreadTasksSnapshot {

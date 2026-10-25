@@ -58,7 +58,7 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
         ...(modelTouched ? {
           providerId: model.providerId || undefined,
           model: model.modelName,
-          ...(reasoning !== 'default' && reasoning !== 'off' ? { reasoningEffort: reasoning } : {})
+          ...(reasoning !== 'default' ? { reasoningEffort: reasoning } : {})
         } : {})
       }
     }

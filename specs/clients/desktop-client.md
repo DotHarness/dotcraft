@@ -665,7 +665,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 **Starting from a card**
 
 - The renderer lists a thread's records and observes their changes, answers an offer (New chat with start options, or Do it here), starts one or several proposals with start options (Start all), dismisses a proposal, and marks a proposal handled here.
-- Start options are the work location (`local`, or `worktree` with an optional base ref, branch name, and environment through `worktree/createAndStart`), approval policy (`prompt` or `autoApprove`), model, and reasoning effort. Unset options fall back to the proposal's defaults, then the workspace defaults.
+- Start options are the work location (`local`, or `worktree` with an optional base ref, branch name, and environment through `worktree/createAndStart`), approval policy (`prompt` or `autoApprove`), model, and reasoning effort or reasoning turned off. Unset options fall back to the proposal's defaults, then the workspace defaults.
 - A proposal's Do it here is a renderer action: it sends `Do this task here: “{title}”` through the normal composer path and marks the proposal handled here.
 
 **New task prompt setting**
