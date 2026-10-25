@@ -34,10 +34,9 @@ internal static class SubAgentModelCatalogSnapshots
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var items = result.Success
             ? result.Models
-                .Select(static model => model.Id.Trim())
-                .Where(model => model.Length > 0 && seen.Add(model))
+                .Where(model => model.Id.Trim() is { Length: > 0 } id && seen.Add(id))
                 .Take(MaxModelOverrides)
-                .Select(model => CreateItem(config, result.Protocol, result.EndPoint, model))
+                .Select(model => CreateItem(config, result, model))
                 .ToList()
             : [];
 
@@ -142,18 +141,18 @@ internal static class SubAgentModelCatalogSnapshots
 
     private static SubAgentModelCatalogItem CreateItem(
         AppConfig config,
-        string? protocol,
-        string? endpoint,
-        string model)
+        ModelCatalogResult result,
+        ModelCatalogEntry model)
     {
         var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
             config,
-            protocol,
-            endpoint,
+            result.ProviderId,
+            result.Protocol,
+            result.EndPoint,
             model);
         return new SubAgentModelCatalogItem
         {
-            Id = model,
+            Id = model.Id.Trim(),
             SupportedReasoningEfforts = capability?.SupportedEfforts
                 .Select(static option => option.Effort.ToModelReasoningEffort())
                 .Distinct()

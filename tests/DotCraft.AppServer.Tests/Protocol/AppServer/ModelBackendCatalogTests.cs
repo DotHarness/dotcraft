@@ -10,7 +10,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class ModelBackendCatalogTests
 {
     [Fact]
-    public async Task ModelListUsesBackendReportedNamesAndReasoning()
+    public async Task ModelListDescribesBackendModelsOnlyFromTheBackend()
     {
         var root = Path.Combine(Path.GetTempPath(), "backend-catalog-" + Guid.NewGuid().ToString("N"));
         var contributions = new ContributionRegistry();
@@ -36,7 +36,7 @@ public sealed class ModelBackendCatalogTests
             var opus = models["claude-opus-5-5"];
             Assert.Equal("Opus", opus.GetProperty("displayName").GetString());
             var reasoning = opus.GetProperty("reasoning");
-            Assert.False(reasoning.GetProperty("supportsDisable").GetBoolean());
+            Assert.True(reasoning.GetProperty("supportsDisable").GetBoolean());
             Assert.Equal(["low", "high"], reasoning.GetProperty("supportedEfforts").EnumerateArray()
                 .Select(option => option.GetProperty("effort").GetString()));
             Assert.Equal("high", reasoning.GetProperty("defaultEffort").GetString());
@@ -66,8 +66,8 @@ public sealed class ModelBackendCatalogTests
     private sealed class Source : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider
     {
         public IModelBackend Backend => this;
-        public ModelBackendDescriptor Descriptor => new("catalog-demo", "Catalog demo", "test", ["test"], [], new ModelProviderCapabilities());
-        public IReadOnlyCollection<string> Protocols => ["test"];
+        public ModelBackendDescriptor Descriptor => new("catalog-demo", "Catalog demo", "anthropic", ["anthropic"], [], new ModelProviderCapabilities());
+        public IReadOnlyCollection<string> Protocols => ["anthropic"];
         public IModelProvider CreateProvider(ModelBackendContext context) => this;
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
         public object? GetService(Type type, object? key = null) => type.IsInstanceOfType(this) ? this : null;
@@ -80,7 +80,7 @@ public sealed class ModelBackendCatalogTests
                 {
                     Id = "claude-opus-5-5",
                     DisplayName = "Opus",
-                    Reasoning = new(false, [ProviderReasoningEffort.Low, ProviderReasoningEffort.High], ProviderReasoningEffort.High)
+                    Reasoning = new(true, [ProviderReasoningEffort.Low, ProviderReasoningEffort.High], ProviderReasoningEffort.High)
                 },
                 new() { Id = "claude-haiku-4-5" }
             ]
