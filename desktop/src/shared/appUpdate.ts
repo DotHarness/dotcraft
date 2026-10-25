@@ -18,6 +18,7 @@ export interface AppUpdateProgress {
   transferredBytes: number
   totalBytes: number
   percent: number
+  bytesPerSecond: number
 }
 
 export interface AppUpdateState {

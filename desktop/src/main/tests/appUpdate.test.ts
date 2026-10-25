@@ -38,7 +38,8 @@ describe('AppUpdateService', () => {
 
     await service.checkForUpdates()
     updater.emit('update-available', { version: '0.7.4', releaseNotes: '<p>Notes</p>' })
-    updater.emit('download-progress', { transferred: 50, total: 100, percent: 50 })
+    updater.emit('download-progress', { transferred: 50, total: 100, percent: 50, bytesPerSecond: 25 })
+    expect(service.getState().progress).toEqual({ transferredBytes: 50, totalBytes: 100, percent: 50, bytesPerSecond: 25 })
     service.install()
     expect(updater.quitAndInstall).not.toHaveBeenCalled()
 
@@ -58,7 +59,7 @@ describe('AppUpdateService', () => {
     const updater = new FakeUpdater()
     const { service } = createService(updater)
     updater.emit('update-available', { version: '0.7.4' })
-    updater.emit('download-progress', { transferred: 1, total: 2, percent: 50 })
+    updater.emit('download-progress', { transferred: 1, total: 2, percent: 50, bytesPerSecond: 1 })
     await service.checkForUpdates()
     updater.emit('update-downloaded', { version: '0.7.4' })
     await service.checkForUpdates()

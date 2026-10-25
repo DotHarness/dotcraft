@@ -1,9 +1,10 @@
-import { useEffect, useId, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useId, useMemo, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { AlertCircle, CheckCircle2, Download, ExternalLink } from 'lucide-react'
 import DOMPurify from 'dompurify'
 
-import type { AppUpdateState } from '../../../shared/appUpdate'
+import type { AppUpdateProgress, AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
@@ -48,11 +49,9 @@ export function AppUpdateDialog({
 
   const primaryLabel = downloaded
     ? t('update.restart')
-    : downloading
-      ? t('update.downloading')
-      : failed
-        ? t('update.retry')
-        : t('update.download')
+    : failed
+      ? t('update.retry')
+      : t('update.download')
 
   return (
     <ModalDialog
@@ -60,6 +59,7 @@ export function AppUpdateDialog({
       width={620}
       maxHeight={720}
       onDismiss={onClose}
+      bodyClassName={styles.body}
       header={(
         <ModalHeader
           icon={downloaded ? <CheckCircle2 size={18} aria-hidden /> : <Download size={18} aria-hidden />}
@@ -81,15 +81,16 @@ export function AppUpdateDialog({
       footer={(
         <ModalFooter
           leading={update?.htmlUrl ? (
-            <Button
-              variant="ghost"
-              iconLeft={<ExternalLink size={14} strokeWidth={2} aria-hidden="true" />}
+            <button
+              type="button"
+              className={`dc-quiet-action ${styles.release}`}
               onClick={() => {
                 void window.api.shell.openExternal(update.htmlUrl)
               }}
             >
+              <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
               {t('update.viewRelease')}
-            </Button>
+            </button>
           ) : undefined}
         >
           {failed && (
@@ -97,14 +98,18 @@ export function AppUpdateDialog({
               {t('update.cancel')}
             </Button>
           )}
-          <Button
-            variant="primary"
-            onClick={downloaded ? onInstall : onDownload}
-            disabled={!update || downloading}
-            loading={downloading}
-          >
-            {primaryLabel}
-          </Button>
+          {downloading ? (
+            <DownloadProgress progress={progress} />
+          ) : (
+            <Button
+              variant="primary"
+              className={styles.primary}
+              onClick={downloaded ? onInstall : onDownload}
+              disabled={!update}
+            >
+              {primaryLabel}
+            </Button>
+          )}
         </ModalFooter>
       )}
     >
@@ -125,33 +130,39 @@ export function AppUpdateDialog({
       ) : (
         <p className={styles.checking}>{t('update.checkingBody')}</p>
       )}
-
-      {downloading && (
-        <div className={styles.progress}>
-          <div className={styles.progressLabel}>
-            <span>{t('update.downloading')}</span>
-            <span className={styles.progressBytes}>
-              {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? 0)}
-              {' · '}
-              {Math.round(progress?.percent ?? 0)}%
-            </span>
-          </div>
-          <div className={styles.progressTrack}>
-            <div
-              className={styles.progressFill}
-              style={{ width: `${Math.max(0, Math.min(100, progress?.percent ?? 0))}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {downloaded && (
-        <div className={styles.success}>
-          <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
-          {t('update.readyToRestart')}
-        </div>
-      )}
     </ModalDialog>
+  )
+}
+
+function DownloadProgress({ progress }: { progress?: AppUpdateProgress }): JSX.Element {
+  const t = useT()
+  const percent = Math.round(Math.max(0, Math.min(100, progress?.percent ?? 0)))
+  const label = t('update.downloadingPercent', { percent })
+  const detail = progress && progress.bytesPerSecond > 0
+    ? t('update.transferDetail', {
+        transferred: formatBytes(progress.transferredBytes),
+        total: formatBytes(progress.totalBytes),
+        speed: formatBytes(progress.bytesPerSecond)
+      })
+    : ''
+  return (
+    <ActionTooltip label={detail}>
+      <span
+        className={`${styles.primary} ${styles.progress}`}
+        role="progressbar"
+        tabIndex={0}
+        aria-label={t('update.downloadProgressAria')}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        style={{ '--progress': `${percent}%` } as CSSProperties}
+      >
+        <span className={styles.progressLabel}><span className="dc-button__label">{label}</span></span>
+        <span className={styles.progressFill} aria-hidden="true">
+          <span className={styles.progressLabel}><span className="dc-button__label">{label}</span></span>
+        </span>
+      </span>
+    </ActionTooltip>
   )
 }
 

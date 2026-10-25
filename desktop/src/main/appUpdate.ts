@@ -84,7 +84,8 @@ export class AppUpdateService {
         progress: {
           transferredBytes: progress.transferred,
           totalBytes: progress.total,
-          percent: progress.percent
+          percent: progress.percent,
+          bytesPerSecond: progress.bytesPerSecond
         }
       })
     })

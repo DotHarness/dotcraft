@@ -985,6 +985,7 @@ Packaged Windows builds update themselves from GitHub Releases. Other platforms 
 - Desktop checks at startup and periodically (not while downloading or ready), reading the release feed and `latest.yml`, not the GitHub REST API.
 - A newer version downloads in the background, verified against its SHA-512, differentially when the running version's block map is published. A verified download makes the update ready; restarting installs it silently into the same installation. A ready update survives restarts.
 - Manual checks from the Help menu report up-to-date or failure; background failures stay silent.
+- The update dialog's primary action carries the download: it shows the percentage while the update downloads, its tooltip gives the transferred size and speed, and the same action then restarts into the update. Only the release notes scroll.
 - Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` per Windows architecture and one `latest.yml` listing all; the updater selects the installer for the running architecture.
 
 ### 6.15 Phones

@@ -1,6 +1,11 @@
-.notes {
-  flex-shrink: 0;
+.body {
+  overflow: hidden;
+}
+
+.body > .notes {
+  flex: 0 1 auto;
   min-height: 120px;
+  overflow-y: auto;
   padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -18,49 +23,73 @@
   line-height: var(--type-body-line-height);
 }
 
+.release {
+  gap: 6px;
+  height: var(--button-height);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 120ms ease;
+}
+
+.release:hover {
+  color: var(--text-primary);
+}
+
+/* One width for Download, Downloading N%, and Restart to update, so the slot never jumps. */
+.primary {
+  min-width: 148px;
+}
+
 .progress {
-  flex-shrink: 0;
-  margin-top: 4px;
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  height: var(--button-height);
+  overflow: hidden;
+  border-radius: var(--button-text-radius);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+
+.progress:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
 }
 
 .progressLabel {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 7px;
-  color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
-}
-
-.progressBytes {
-  flex: 0 0 auto;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--button-padding-x);
   font-variant-numeric: tabular-nums;
 }
 
-.progressTrack {
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--bg-tertiary);
-}
-
 .progressFill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  transition: width 120ms ease;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  clip-path: inset(0 calc(100% - var(--progress)) 0 0);
+  transition: clip-path 240ms ease;
 }
 
-.success {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 7px;
-  margin-top: 2px;
-  color: var(--success);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
+:global(html[data-reduce-motion='on']) .progressFill {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) .progressFill {
+    transition: none;
+  }
 }
 
 .error {
