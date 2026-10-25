@@ -169,11 +169,14 @@ describe('thread task store', () => {
     const offer = first.add({ ...base, kind: 'offer', title: 'Offer' }).task
     const accepted = first.add({ ...base, kind: 'offer', title: 'Accepted' }).task
     first.update(PARENT, accepted.id, { state: 'accepted', childThreadId: 'thread-child' })
+    const launching = first.add({ ...base, kind: 'proposal', title: 'Launching', prompt: 'Brief' }).task
+    first.update(PARENT, launching.id, { state: 'starting', childThreadId: 'thread-launching' })
 
     const reloaded = new ThreadTaskStore(filePath)
 
     expect(reloaded.get(PARENT, proposal.id)).toEqual(expect.objectContaining({ state: 'pending', prompt: 'Brief' }))
     expect(reloaded.get(PARENT, offer.id)?.state).toBe('notAnswered')
     expect(reloaded.get(PARENT, accepted.id)).toEqual(expect.objectContaining({ state: 'accepted', childThreadId: 'thread-child' }))
+    expect(reloaded.get(PARENT, launching.id)?.state).toBe('started')
   })
 })

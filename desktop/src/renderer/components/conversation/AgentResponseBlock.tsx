@@ -162,8 +162,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       const item = itemsToRender[i]
 
       if (threadTaskCardKind(item)) {
-        const taskItems = renderableItems.filter((candidate) => threadTaskCardKind(candidate))
-        if (taskItems[0] === item) {
+        const taskItems = defaultRenderableItems.filter((candidate) => threadTaskCardKind(candidate))
+        if (taskItems[0] === item && !readOnly) {
           nodes.push({ key: `thread-tasks-${item.id}`, kind: 'tool', node: <TurnThreadTaskCards threadId={turn.threadId} items={taskItems} /> })
         }
       } else if (isToolRunItem(item)) {
@@ -716,6 +716,8 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, beforeIndex)
   if (workflowIndex >= 0) indices.add(workflowIndex)
+  const taskCardIndex = findFirstThreadTaskIndexBefore(items, beforeIndex)
+  if (taskCardIndex >= 0) indices.add(taskCardIndex)
   return Array.from(indices).sort((a, b) => a - b)
 }
 
@@ -728,7 +730,13 @@ function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set
   if (imageIndex >= 0) indices.add(imageIndex)
   const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, items.length)
   if (workflowIndex >= 0) indices.add(workflowIndex)
+  const taskCardIndex = findFirstThreadTaskIndexBefore(items, items.length)
+  if (taskCardIndex >= 0) indices.add(taskCardIndex)
   return indices
+}
+
+function findFirstThreadTaskIndexBefore(items: ConversationItem[], beforeIndex: number): number {
+  return items.slice(0, beforeIndex).findIndex((item) => threadTaskCardKind(item) != null)
 }
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
@@ -780,7 +788,7 @@ function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {
   if (item.type === 'error') return true
   if (item.type === 'systemNotice') return true
   if (isCompletedImageGenerationResult(item)) return true
-  return isCreatePlanItem(item) || isSuccessfulWorkflowLaunchItem(item)
+  return isCreatePlanItem(item) || isSuccessfulWorkflowLaunchItem(item) || threadTaskCardKind(item) != null
 }
 
 function isTrimmedHistoryCollapsedItem(item: ConversationItem): boolean {

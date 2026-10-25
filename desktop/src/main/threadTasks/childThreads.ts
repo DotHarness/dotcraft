@@ -72,7 +72,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   }
 
   if (options.workLocation === 'worktree') {
-    const result = await connection.request<{ thread?: ChildThreadWire }>(
+    const result = await connection.request<{ thread?: ChildThreadWire; setup?: { status?: string; outputTail?: string } }>(
       'worktree/createAndStart',
       {
         ...params,
@@ -84,7 +84,12 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
       },
       options.environmentPath ? null : WORKTREE_CREATION_TIMEOUT_MS
     )
-    return requireThread(result.thread, 'worktree/createAndStart')
+    const thread = requireThread(result.thread, 'worktree/createAndStart')
+    if (result.setup?.status === 'failed') {
+      const tail = result.setup.outputTail?.trim()
+      throw new Error(tail ? `The worktree environment setup failed: ${tail}` : 'The worktree environment setup failed.')
+    }
+    return thread
   }
 
   const callerThreadId = spec.callerThreadId?.trim()

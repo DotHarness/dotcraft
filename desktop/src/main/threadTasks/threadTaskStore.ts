@@ -168,6 +168,7 @@ function isLive(task: ThreadTask): boolean {
 
 function recoverAfterRestart(task: ThreadTask): ThreadTask {
   if (task.kind === 'offer' && task.state === 'pending') return { ...task, state: 'notAnswered' }
+  if (task.kind === 'proposal' && task.state === 'starting' && task.childThreadId) return { ...task, state: 'started' }
   if (task.state === 'starting') return { ...task, state: task.kind === 'offer' ? 'accepted' : 'pending' }
   return task
 }

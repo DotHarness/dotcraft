@@ -410,7 +410,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **General**
 
 - A fullscreen overlay covering an embedded native view blocks that view for its whole lifetime; the native view is restored only after the last blocker closes. Ordinary menus and popovers do not block.
-- `CreateThread` offers and proposals ([5.14](#514-desktop-runtime-thread-tools)) render as task cards at the position of their calls, in place of the tool rows; a Turn's proposals share one card. An offer card asks whether to start the task in its own chat and answers the waiting call; proposal cards start, dismiss, or keep a proposal here. Options on a card opens the Welcome composer's permission, model, and location controls for the new chat. Answered cards collapse into their outcome; a started offer leaves only the created-chat card, and a started proposal becomes a row that opens its chat.
+- `CreateThread` offers and proposals ([5.14](#514-desktop-runtime-thread-tools)) render as task cards at the position of their calls, in place of the tool rows; a Turn's proposals share one card, which stays outside the collapsed Turn summary. Read-only transcripts show no task cards. An offer card asks whether to start the task in its own chat and answers the waiting call; proposal cards start, dismiss, or keep a proposal here. Options on a card opens the Welcome composer's permission, model, and location controls for the new chat. Answered cards collapse into their outcome; a started offer leaves only the created-chat card, and a started proposal becomes a row that opens its chat.
 - The created-chat card at the end of a Turn shimmers the chat's name while that chat has a running Turn.
 - Durable user-actionable result cards and available interactive Views stay outside collapsed Turn summaries. The latest successful Dynamic Workflow launch in a Turn is such a result and appears before the final assistant message; failed launches are ordinary tool history.
 - The client may reveal related context automatically when new changes or plans appear, based on relevance.
@@ -644,8 +644,8 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - `offer` is for a task the user's latest message names. It stores an offer, shows the card, and keeps the `item/tool/call` open without a timeout ([AppServer §11.3](../protocols/appserver-protocol.md#113-itemtoolcall)) until the offer is resolved:
   - **New chat**: Desktop creates the chat at once with the start options chosen on the card and no first Turn. The result tells the agent to call `CreateThread` again with exactly `proposalId`, `prompt`, and `background`; that call starts the chat's first Turn with that brief.
   - **Do it here**: the result tells the agent to do the task in this chat.
-  - **Typed past**: the user sends a new message on that thread from Desktop (`turn/start`, `turn/enqueue`, or `turn/steer`) while the offer waits. The offer closes, and the result tells the agent to deal with that message first.
-  - **Not started**: New chat was chosen but creating the chat failed. The user sees why, and the result tells the agent to do the task here.
+  - **Typed past**: the user sends a new message on that thread from Desktop (`turn/start`, `turn/enqueue`, or `turn/steer`) while the offer still waits for an answer. The offer closes, and the result tells the agent to deal with that message first.
+  - **Not started**: New chat was chosen but creating the chat failed, including a worktree whose environment setup failed. The user sees why, and the result tells the agent to do the task here.
   - **Abandoned**: the Turn is interrupted, cancelled, failed, or completed, or Desktop's connection drops or is replaced, before an answer. The card is marked not answered, and the agent does nothing further with it.
   - While an offer waits and the window is not focused, Desktop shows a system notification under the Questions notification switch; clicking it opens the chat. Auto modes never notify.
 - `proposalId` starts a waiting proposal exactly as proposed, or sends the brief of an accepted offer. For a proposal, `title`, `prompt`, and `background` may restate the brief. Any other argument refuses the call unless a `prompt` is given, in which case the extra arguments are ignored and the result says so. A proposal that is no longer waiting, expired, withdrawn, or unknown is refused with a result that says why.
@@ -660,7 +660,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 - Proposals and offers are stored per thread in Desktop's per-user state and survive restarts. A record holds the `task_` + 8 hex id, the tool call id, title, brief, background, default model and reasoning effort, kind (`offer` or `proposal`), state, creation time, and the started chat's id.
 - A thread keeps at most 20 records. Adding another removes the oldest, and the result names the waiting proposals that were removed. A waiting proposal expires after 7 days.
-- On load, an offer that was still waiting is marked not answered; an accepted offer keeps waiting for its brief.
+- On load, an offer that was still waiting is marked not answered; an accepted offer keeps waiting for its brief; a proposal that was starting and already has its chat is marked started.
 
 **Starting from a card**
 

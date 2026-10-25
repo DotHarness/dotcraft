@@ -85,7 +85,9 @@ export class DesktopThreadTasks {
     if (USER_INPUT_METHODS.has(method)) {
       this.autoStarts.delete(threadId)
       for (const [taskId, waiter] of this.waiters) {
-        if (waiter.threadId === threadId) this.finish(taskId, 'notAnswered', {}, (task) => ({ kind: 'kept', task, typedPast: true }))
+        if (waiter.threadId === threadId && this.host.store.get(threadId, taskId)?.state === 'pending') {
+          this.finish(taskId, 'notAnswered', {}, (task) => ({ kind: 'kept', task, typedPast: true }))
+        }
       }
     } else if (method === 'turn/interrupt' && typeof params.turnId === 'string') {
       this.abandonTurn(threadId, params.turnId)

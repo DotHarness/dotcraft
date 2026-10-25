@@ -105,6 +105,45 @@ describe('CreateThread offers', () => {
     expect(harness.store.get(PARENT, task.id)?.state).toBe('failed')
   })
 
+  it('reports unstarted when the worktree environment setup fails', async () => {
+    const harness = createHarness({
+      handler: (method) => (method === 'worktree/createAndStart'
+        ? { thread: { id: 'thread-child-1' }, setup: { status: 'failed', outputTail: 'npm ERR! install failed' } }
+        : undefined)
+    })
+    const { result, task } = await pendingOffer(harness)
+
+    const answer = await harness.tasks.answerOffer(
+      { workspacePath: 'w', request: harness.client.sendRequest },
+      PARENT,
+      task.id,
+      { choice: 'newThread', options: { workLocation: 'worktree' } }
+    )
+
+    expect(answer.ok).toBe(false)
+    expect(structured(await result).outcome).toBe('unstarted')
+    expect(harness.calls().some(([method]) => method === 'turn/start')).toBe(false)
+  })
+
+  it('keeps an accepted offer when the user sends a message while its chat is being created', async () => {
+    let release: (value: unknown) => void = () => undefined
+    const harness = createHarness({
+      handler: (method) => (method === 'thread/start'
+        ? new Promise((resolve) => { release = resolve })
+        : undefined)
+    })
+    const { result, task } = await pendingOffer(harness)
+
+    const answer = harness.tasks.answerOffer({ workspacePath: 'w', request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
+    await vi.waitFor(() => expect(harness.store.get(PARENT, task.id)?.state).toBe('starting'))
+    harness.tasks.observeUserRequest('turn/start', { threadId: PARENT })
+    release({ thread: { id: 'thread-child-1' } })
+
+    expect(await answer).toEqual({ ok: true })
+    expect(structured(await result).outcome).toBe('accepted')
+    expect(harness.store.get(PARENT, task.id)?.childThreadId).toBe('thread-child-1')
+  })
+
   it('shows no card when the turn did not come from the Desktop composer', async () => {
     const harness = createHarness()
     harness.composerTurn('turn-mobile', { originChannel: 'dotcraft-mobile' })

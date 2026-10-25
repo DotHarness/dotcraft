@@ -124,7 +124,6 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
             <span>{t('threadTask.model')}</span>
             <ModelPicker
               providerId={model.providerId}
-              providerOptions={model.providerOptions}
               modelName={model.modelName}
               modelOptions={model.modelOptions}
               modelCatalog={model.modelCatalog}
@@ -136,7 +135,6 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
               errorMessage={model.modelCatalogError ? (model.modelCatalogErrorMessage || t('composer.modelListError')) : null}
               disabled={model.modelDisabled}
               onChange={(next) => { setModelTouched(true); model.onModelChange(next) }}
-              onProviderChange={(next) => { setModelTouched(true); model.onProviderChange(next) }}
               allowDefaultModel={false}
               onReasoningChange={(next) => { setModelTouched(true); model.onReasoningChange(next) }}
               onSpeedChange={model.onSpeedChange}
