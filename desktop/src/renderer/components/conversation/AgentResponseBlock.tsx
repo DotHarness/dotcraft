@@ -4,7 +4,7 @@ import type { ConversationItem, ConversationTurn } from '../../types/conversatio
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { TurnWorkingLine } from './TurnWorkingLine'
-import { useTurnThinkingLabel } from './turnThinkingStatus'
+import { turnThinkingLabel } from './turnThinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { AgentMessage } from './AgentMessage'
@@ -272,13 +272,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
   const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
   const working = showWorkingLine && isRunning && !isSleeping
-  const thinkingLabel = useTurnThinkingLabel({
+  const thinkingLabel = turnThinkingLabel({
     items: renderableItems,
     working,
     activeItemId,
-    streamingMessage,
     streamingReasoning,
-    showsReasoning: showThinkingContent,
     waitingForAnswer: pendingUserInput != null
   })
   const lastFinalAgentMessageIndex = activity.finalIndex
