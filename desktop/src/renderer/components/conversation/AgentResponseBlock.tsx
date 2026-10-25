@@ -175,6 +175,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         const isTrailingRun = itemsToRender[i] === renderableItems[renderableItems.length - 1]
         const entries = planToolRunRender(toolRun, { isRunning, isTrailingRun })
         const runNodes = entries.map(renderToolRunEntry)
+        const images = getToolOutputImages(toolRun)
 
         if (entries.every((entry) => entry.kind === 'reasoning')) {
           entries.forEach((entry, index) => {
@@ -188,6 +189,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             kind: 'tool',
             node: <ToolRunStack>{runNodes}</ToolRunStack>
           })
+          if (images.length > 0) {
+            nodes.push({
+              key: `tool-images-${item.id}`,
+              kind: 'tool',
+              node: <ImageViewRow images={images} />
+            })
+          }
         }
       } else if (item.type === 'imageGeneration') {
         nodes.push({
@@ -459,47 +467,42 @@ const userFlowItemStyle: CSSProperties = {
 }
 
 function renderAggregatedEntry(
-  entry: Extract<AggregatedToolCall, { kind: 'single' | 'subagents' | 'images' }>,
+  entry: Extract<AggregatedToolCall, { kind: 'single' | 'subagents' }>,
   threadId: string,
   turnId: string,
   turnRunning: boolean,
   shellRuntimeScope: ShellRuntimeScope
 ): ReactNode {
   if (entry.kind === 'single') {
-    const images = getToolOutputImages([entry.item])
-    return (
-      <ToolEntryWithOutputs key={entry.item.id} images={images}>
-        {getSubAgentChipDisplay(entry.item) != null ? (
-          <SubAgentGroupChips
-            items={[entry.item]}
-            threadId={threadId}
-            turnId={turnId}
-            turnRunning={turnRunning}
-            shellRuntimeScope={shellRuntimeScope}
-          />
-        ) : (
-          <ToolItemRow
-            item={entry.item}
-            threadId={threadId}
-            turnId={turnId}
-            turnRunning={turnRunning}
-            shellRuntimeScope={shellRuntimeScope}
-          />
-        )}
-      </ToolEntryWithOutputs>
-    )
-  }
-  if (entry.kind === 'images') return <ImageViewRow key={`images-${entry.items[0].id}`} items={entry.items} />
-  return (
-    <ToolEntryWithOutputs key={`tools-${entry.items[0].id}`} images={getToolOutputImages(entry.items)}>
+    return getSubAgentChipDisplay(entry.item) != null ? (
       <SubAgentGroupChips
-        items={entry.items}
+        key={entry.item.id}
+        items={[entry.item]}
         threadId={threadId}
         turnId={turnId}
         turnRunning={turnRunning}
         shellRuntimeScope={shellRuntimeScope}
       />
-    </ToolEntryWithOutputs>
+    ) : (
+      <ToolItemRow
+        key={entry.item.id}
+        item={entry.item}
+        threadId={threadId}
+        turnId={turnId}
+        turnRunning={turnRunning}
+        shellRuntimeScope={shellRuntimeScope}
+      />
+    )
+  }
+  return (
+    <SubAgentGroupChips
+      key={`tools-${entry.items[0].id}`}
+      items={entry.items}
+      threadId={threadId}
+      turnId={turnId}
+      turnRunning={turnRunning}
+      shellRuntimeScope={shellRuntimeScope}
+    />
   )
 }
 
@@ -507,10 +510,9 @@ function ToolItemRow(props: ComponentProps<typeof ToolCallCard>): JSX.Element {
   return props.item.type === 'webSearch' ? <WebSearchItemRow item={props.item} /> : <ToolCallCard {...props} />
 }
 
-function ImageViewRow({ items }: { items: ConversationItem[] }): JSX.Element {
+function ImageViewRow({ images }: { images: ToolOutputImageItem[] }): JSX.Element {
   const locale = useLocale()
   const [expanded, setExpanded] = useState(false)
-  const images = getToolOutputImages(items)
   return (
     <ToolDisclosure
       expanded={expanded}
@@ -598,9 +600,7 @@ function ToolActivityRow({
     >
       <div className="dc-tool-children">
         {items.map((item) => item.type === 'reasoningContent' ? renderReasoning(item) : (
-          <ToolEntryWithOutputs key={item.id} images={getToolOutputImages([item])}>
-            <ToolItemRow item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
-          </ToolEntryWithOutputs>
+          <ToolItemRow key={item.id} item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
         ))}
       </div>
     </ToolDisclosure>

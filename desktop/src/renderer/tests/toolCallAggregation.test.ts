@@ -192,7 +192,7 @@ describe('planToolRunRender', () => {
     ])
   })
 
-  it('folds memory updates and other tools into the group but views images on their own row', () => {
+  it('keeps image-bearing tools in the activity group', () => {
     const image = { contentItems: [{ type: 'image' as const, dataBase64: 'AA==', mediaType: 'image/png' }] }
     expect(shape([
       makeItem(WRITE, 'WriteFile', '1'),
@@ -202,9 +202,7 @@ describe('planToolRunRender', () => {
       makeItem(SHELL, 'Exec', '5'),
       { id: '6', type: 'mcpToolCall', status: 'completed', toolName: 'lookup', createdAt: new Date().toISOString() }
     ])).toEqual([
-      ['group', ['1', '2']],
-      ['images', ['3', '4']],
-      ['group', ['5', '6']]
+      ['group', ['1', '2', '3', '4', '5', '6']]
     ])
   })
 })

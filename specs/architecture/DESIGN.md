@@ -886,7 +886,9 @@ arrive, not by a generic spinner or a "Loading…" label. The shared skeleton is
   is still streaming; never hold arrived content behind a spinner.
 - One running signal per surface. If a surface already shows it is working (a
   shimmering label, growing diff text, a streaming caret), do not add a spinner or
-  an elapsed-time counter beside it.
+  an elapsed-time counter beside it. The running tool row keeps only its shimmering
+  label and, for file edits, its diff stats; elapsed time belongs to the turn
+  activity line.
 - A shimmering label dims to `--shimmer-base` and, every four seconds, carries one
   highlight that reaches `--shimmer-peak` only at its centre. The band is half the
   label's width up to 80px and crosses at a steady 450px per second, taking at least
@@ -1330,6 +1332,8 @@ reduced motion.
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
 | Any other tool | wrench |
+
+Tool output images never nest in a tool group. The calls that produced them keep their rows in the group, while one `Viewed an image` / `Viewed N images` disclosure sits below the run, collapsed to its summary.
 
 A web search row is one two-tone line: the action in tertiary text at 90% (under
 the running shimmer while it runs), then the query, URL, or pattern in tertiary at

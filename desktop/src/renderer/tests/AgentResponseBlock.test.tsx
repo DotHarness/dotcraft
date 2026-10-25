@@ -49,6 +49,54 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('AgentResponseBlock tool output images', () => {
+  beforeEach(() => {
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest: vi.fn().mockResolvedValue({}) },
+      shell: { openExternal: vi.fn().mockResolvedValue(undefined) }
+    })
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+  })
+
+  it('shows images from a tool result in their own expandable row', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-tool-image',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-10T11:50:00.000Z',
+      completedAt: '2026-06-10T11:50:01.000Z',
+      items: [{
+        id: 'tool-image',
+        type: 'toolCall',
+        status: 'completed',
+        toolCallId: 'call-image',
+        toolName: 'ReadFile',
+        source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+        presentation: { presentationId: 'core.read-file', options: { operation: 'read' } },
+        arguments: { path: 'diagram.png' },
+        contentItems: [
+          { type: 'text', text: 'Viewed diagram.png' },
+          { type: 'image', mediaType: 'image/png', dataBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=' }
+        ],
+        success: true,
+        createdAt: '2026-06-10T11:50:00.500Z'
+      }]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const imageRow = screen.getByRole('button', { name: 'Viewed an image' })
+    expect(imageRow).toBeInTheDocument()
+    fireEvent.click(imageRow)
+    expect(screen.getAllByTestId('tool-output-image')).toHaveLength(1)
+  })
+})
+
 describe('AgentResponseBlock interactive card pinning', () => {
   beforeEach(() => {
     installDesktopApiMock({

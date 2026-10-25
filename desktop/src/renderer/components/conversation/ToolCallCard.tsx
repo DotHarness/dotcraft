@@ -230,7 +230,6 @@ export const ToolCallCard = memo(function ToolCallCard({
   const workspacePath = useTranscriptWorkspacePath()
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
 
   const toolName = item.toolName ?? 'tool'
   const pluginRenderer = useDesktopPluginRegistry((state) => {
@@ -265,7 +264,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     : args
   const isRunning = isToolItemLive(item, { turnRunning })
   const shellBackgroundState = resolveShellBackgroundState(item, { turnRunning })
-  const liveInTurn = isRunning && shellBackgroundState == null
   const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
   const conversationShellRuntime = useConversationStore((state) =>
     shellRuntimeScope === 'conversation' && item.toolCallId
@@ -279,21 +277,6 @@ export const ToolCallCard = memo(function ToolCallCard({
   const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillManageTool || skillManageDisplay?.result?.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
-
-  useEffect(() => {
-    const start = item.createdAt ? new Date(item.createdAt).getTime() : Date.now()
-    if (!liveInTurn) {
-      setElapsedMs(Math.max(0, Date.now() - start))
-      return
-    }
-    setElapsedMs(Math.max(0, Date.now() - start))
-    const interval = setInterval(() => {
-      setElapsedMs(Math.max(0, Date.now() - start))
-    }, 100)
-    return () => clearInterval(interval)
-  }, [liveInTurn, item.createdAt])
-
-  const runningElapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
 
   const fileDiff = useTranscriptItemDiff(item.id, isStreamingFileTool)
   const streamingFileDiff = useConversationStore((s) =>
@@ -473,14 +456,9 @@ export const ToolCallCard = memo(function ToolCallCard({
     ) : (
       <RunningShimmer className="dc-tool-row-running-label">{runningDisplayLabel}</RunningShimmer>
     )
-    const runningAccessory = (
-      <>
-        {!runningExpanded && renderableStreamingFileDiff && (
-          <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
-        )}
-        {liveInTurn && <span>{runningElapsedLabel}</span>}
-      </>
-    )
+    const runningAccessory = !runningExpanded && renderableStreamingFileDiff
+      ? <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
+      : undefined
 
     return (
       <ToolDisclosure

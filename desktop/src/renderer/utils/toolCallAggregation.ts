@@ -12,13 +12,12 @@ export type AggregatedToolCall =
   | { kind: 'group'; items: ConversationItem[] }
   | { kind: 'active'; items: ConversationItem[] }
   | { kind: 'subagents'; items: ConversationItem[] }
-  | { kind: 'images'; items: ConversationItem[] }
 
 interface ToolItemLiveContext {
   turnRunning?: boolean
 }
 
-type ToolRunRole = 'grouped' | 'own' | 'subagent' | 'images'
+type ToolRunRole = 'grouped' | 'own' | 'subagent'
 
 const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput', 'task', 'channel'])
 
@@ -28,7 +27,6 @@ function getToolRunRole(item: ConversationItem): ToolRunRole {
   const presentationId = item.presentation?.presentationId
   if (presentationId && resolveDesktopPluginToolRenderer(presentationId)) return 'own'
   const plan = resolveCoreToolRenderPlan(item)
-  if (plan?.family === 'readFile' && item.contentItems?.some((content) => content.type === 'image')) return 'images'
   if (plan?.family === 'subagent') {
     return plan.options.operation === 'spawn' ? 'subagent' : 'own'
   }
@@ -134,9 +132,7 @@ export function planToolRunRender(
     const items = [item]
     const joins = (next: ConversationItem): boolean => role !== 'own' && !isReasoning(next) && getToolRunRole(next) === role
     while (i + 1 < run.length && joins(run[i + 1])) items.push(run[++i])
-    entries.push(role === 'images' ? { kind: 'images', items }
-      : items.length > 1 ? { kind: 'subagents', items }
-        : { kind: 'single', item })
+    entries.push(items.length > 1 ? { kind: 'subagents', items } : { kind: 'single', item })
   }
   flushSegment(context.isRunning && context.isTrailingRun)
   return entries
