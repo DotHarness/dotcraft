@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, statSync } from 'fs'
 import { spawnSync } from 'child_process'
 import path from 'path'
-import { extractFile, listPackage } from '@electron/asar'
+import { createHash } from 'crypto'
+import { extractFile, listPackage, statFile } from '@electron/asar'
 
 const cwd = process.cwd()
 const distDir = process.env.DOTCRAFT_DIST_DIR
@@ -115,6 +116,7 @@ function verifyResourcesDir(target) {
 
 function verifyDesktopPetPreload(appAsar) {
   const preloadBundle = extractAsarText(appAsar, 'out/preload/pet.js')
+  if (preloadBundle === null) return
   const relativeModule = /(?:require\s*\(|from\s+|import\s*\()\s*['"]\./.exec(preloadBundle)
   if (relativeModule) {
     fail(`Sandboxed desktop-pet preload has a relative module dependency: ${relativeModule[0]}`)
@@ -203,7 +205,14 @@ function extractAsarText(appAsar, entryPath) {
 
   for (const candidate of candidates) {
     try {
-      return extractFile(appAsar, candidate).toString('utf8')
+      const content = extractFile(appAsar, candidate)
+      const { integrity } = statFile(appAsar, candidate)
+      if (integrity?.algorithm === 'SHA256'
+          && createHash('sha256').update(content).digest('hex') !== integrity.hash) {
+        fail(`Archive integrity mismatch for ${entryPath}. Files may have changed during packaging; rebuild the package.`)
+        return null
+      }
+      return content.toString('utf8')
     } catch (error) {
       if (!String(error?.message ?? error).includes('was not found in this archive')) {
         throw error
@@ -212,7 +221,7 @@ function extractAsarText(appAsar, entryPath) {
   }
 
   fail(`Missing ${entryPath} in app.asar.`)
-  return ''
+  return null
 }
 
 function resolveRipgrepPath(unpackedRoot, platform, arch) {

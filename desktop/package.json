@@ -149,6 +149,7 @@
     ],
     "files": [
       "out/**/*",
+      "!node_modules/@dotcraft/sdk/{src,packages,samples,scripts}/**/*",
       "!node_modules/@fugood/node-whisper-*-cuda/**",
       "!node_modules/@fugood/node-whisper-*-vulkan/**",
       "!node_modules/@fugood/node-whisper-wasm/**",
