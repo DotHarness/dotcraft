@@ -346,3 +346,51 @@ async function captureHandleMessageOptions(evt: OneBotMessageEvent): Promise<Rec
   assert.ok(captured);
   return captured;
 }
+
+test("QQAdapter marks forwarded messages with the ack reaction and forwards even when it fails", async () => {
+  const adapter = new QQAdapter() as unknown as {
+    oneBot: { sendAction: (action: Record<string, unknown>) => Promise<Record<string, unknown>> } | null;
+    permission: QQPermissionService;
+    ackReactionEmoji: string;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+    handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
+  };
+  const events: string[] = [];
+  let failure: "none" | "retcode" | "throw" = "none";
+  adapter.oneBot = {
+    sendAction: async (action) => {
+      events.push(`${action.action}:${JSON.stringify(action.params)}`);
+      if (failure === "throw") throw new Error("not supported");
+      return failure === "retcode" ? { status: "failed", retcode: 1200 } : { status: "ok", retcode: 0 };
+    },
+  };
+  adapter.permission = new QQPermissionService({ adminUsers: [456] });
+  adapter.handleMessage = async () => {
+    events.push("forwarded");
+  };
+  const privateText = (messageId: number): OneBotMessageEvent => ({
+    post_type: "message",
+    message_type: "private",
+    message_id: messageId,
+    user_id: 456,
+    message: [{ type: "text", data: { text: "hello" } }],
+  });
+
+  await adapter.handleOneBotMessage(privateText(1));
+  failure = "retcode";
+  await adapter.handleOneBotMessage(privateText(2));
+  failure = "throw";
+  await adapter.handleOneBotMessage(privateText(3));
+  adapter.ackReactionEmoji = "GLANCE";
+  await adapter.handleOneBotMessage(privateText(4));
+
+  assert.deepEqual(events, [
+    'set_msg_emoji_like:{"message_id":1,"emoji_id":"128064","set":true}',
+    "forwarded",
+    'set_msg_emoji_like:{"message_id":2,"emoji_id":"128064","set":true}',
+    "forwarded",
+    'set_msg_emoji_like:{"message_id":3,"emoji_id":"128064","set":true}',
+    "forwarded",
+    "forwarded",
+  ]);
+});

@@ -79,7 +79,8 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
     "whitelistedUsers": [],
     "whitelistedGroups": [],
     "approvalTimeoutMs": 60000,
-    "requireMentionInGroups": true
+    "requireMentionInGroups": true,
+    "ackReactionEmoji": "128064"
   }
 }
 ```
@@ -96,6 +97,7 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 | `qq.whitelistedGroups` | QQ group IDs whose members may chat with DotCraft. | `[]` |
 | `qq.approvalTimeoutMs` | Approval timeout in milliseconds. | `60000` |
 | `qq.requireMentionInGroups` | Require @mention in QQ groups. | `true` |
+| `qq.ackReactionEmoji` | QQ emoji ID used to acknowledge handled messages, such as `128064` (👀) or `128076` (👌). | `128064` |
 
 ### WeCom
 

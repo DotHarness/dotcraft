@@ -79,7 +79,8 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
     "whitelistedUsers": [],
     "whitelistedGroups": [],
     "approvalTimeoutMs": 60000,
-    "requireMentionInGroups": true
+    "requireMentionInGroups": true,
+    "ackReactionEmoji": "128064"
   }
 }
 ```
@@ -96,6 +97,7 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 | `qq.whitelistedGroups` | 允许群成员与 DotCraft 对话的 QQ 群 ID。 | `[]` |
 | `qq.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `60000` |
 | `qq.requireMentionInGroups` | QQ 群聊是否需要 @ 机器人。 | `true` |
+| `qq.ackReactionEmoji` | 标记已处理消息的 QQ 表情 ID，例如 `128064`（👀）或 `128076`（👌）。 | `128064` |
 
 ### 企业微信 / WeCom
 

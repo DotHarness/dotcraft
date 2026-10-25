@@ -233,6 +233,10 @@ export function sendPrivateMessageAction(userId: string, message: OneBotMessageS
   return { action: "send_private_msg", params: { user_id: Number(userId), message } };
 }
 
+export function setMsgEmojiLikeAction(messageId: number, emojiId: string): OneBotAction {
+  return { action: "set_msg_emoji_like", params: { message_id: messageId, emoji_id: emojiId, set: true } };
+}
+
 export function uploadGroupFileAction(
   groupId: string,
   file: string,

@@ -32,7 +32,9 @@ import {
   getImageUrl,
   getPlainText,
   getSenderName,
+  isActionOk,
   normalizeMessageSegments,
+  setMsgEmojiLikeAction,
   textSegment,
   type OneBotMessageEvent,
 } from "./onebot.js";
@@ -40,6 +42,8 @@ import { qqDeliveryCapabilities, sendQQMessage } from "./qq-send.js";
 import type { QQConfig } from "./qq-config.js";
 import { QQPermissionService, normalizeIds } from "./permission.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
+
+const DEFAULT_ACK_REACTION_EMOJI = "128064";
 
 type PendingUserInput = {
   channelContext: string;
@@ -101,6 +105,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private requireMentionInGroups = true;
   private approvalTimeoutMs = 60_000;
+  private ackReactionEmoji = DEFAULT_ACK_REACTION_EMOJI;
 
   constructor() {
     super("qq", "dotcraft-qq", "0.1.0", [
@@ -184,6 +189,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     this.permission = new QQPermissionService(config.qq);
     this.requireMentionInGroups = config.qq.requireMentionInGroups ?? true;
     this.approvalTimeoutMs = config.qq.approvalTimeoutMs ?? 60_000;
+    this.ackReactionEmoji = config.qq.ackReactionEmoji?.trim() || DEFAULT_ACK_REACTION_EMOJI;
 
     try {
       const server = new OneBotReverseWsServer(
@@ -422,6 +428,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     }
 
     this.lastSenderByContext.set(channelContext, senderId);
+    await this.addAckReaction(evt.message_id);
 
     await this.handleMessage({
       userId: threadUserId,
@@ -433,6 +440,22 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       directTarget,
       inputParts: inputParts.length > 0 ? inputParts : undefined,
     });
+  }
+
+  private async addAckReaction(messageId: number | undefined): Promise<void> {
+    if (messageId === undefined) return;
+    if (!/^\d+$/.test(this.ackReactionEmoji)) {
+      console.warn(`[qq] ackReactionEmoji '${this.ackReactionEmoji}' is not a numeric QQ emoji id; reaction skipped`);
+      return;
+    }
+    try {
+      const response = await this.requireOneBot().sendAction(setMsgEmojiLikeAction(messageId, this.ackReactionEmoji));
+      if (!isActionOk(response)) {
+        console.warn(`[qq] ack reaction failed for message ${messageId}: ${response.wording || response.message || response.retcode}`);
+      }
+    } catch (error) {
+      console.warn(`[qq] ack reaction failed for message ${messageId}:`, error instanceof Error ? error.message : error);
+    }
   }
 
   private async buildInputParts(segments: ReturnType<typeof normalizeMessageSegments>, fallbackText: string): Promise<InputPart[]> {
