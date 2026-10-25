@@ -40,7 +40,7 @@
 
 .dc-icon-button.dc-sidebar-icon-button[data-active] {
   background: var(--sidebar-control-active);
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 /* Menu/popover open state stays neutral; `active` remains reserved for selection. */

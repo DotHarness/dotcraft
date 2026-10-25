@@ -526,6 +526,12 @@ and icon position and grows only in width (over `--duration-expand` on
 neighbor. The in-browser Annotate control is the reference case. Ordinary toggles
 stay icon-only and show their pressed state with the neutral `active` tone.
 
+### Sidebar selection
+
+The current sidebar destination looks the same in the expanded rows and the
+collapsed rail: `--sidebar-control-active` behind it and `--text-primary` on its
+icon and label. Accent never marks the current destination.
+
 ### Navigation icon motion
 
 Sidebar destinations answer hover and keyboard focus with one short glyph motion,
