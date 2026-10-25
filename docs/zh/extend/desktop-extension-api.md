@@ -1,6 +1,6 @@
-# Desktop Plugin API
+# 桌面扩展 API
 
-本页是受信任 Desktop Plugin 的 API 参考。要创建并构建第一个插件，请先读[开发 Desktop Plugin](./desktop-plugins)。
+本页是受信任桌面扩展的 API 参考。要创建并构建第一个插件，请先读[开发桌面扩展](./desktop-extensions)。
 
 ## 使用四个内核原语
 
@@ -648,7 +648,7 @@ if (!result.isError) showItems(result.structuredContent);
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
 
-`CatalogPage` 让主视图使用与 Desktop 插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。
+`CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。
 
 `AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
 
@@ -801,21 +801,21 @@ Desktop 的整套配色都由四个种子值派生，下表是插件可以读的
 
 ## 有意识地使用 DOM 与 CSS
 
-Desktop Plugin 可以访问 renderer DOM，也可以加载全局 CSS，DotCraft 不会阻止。但 DotCraft 自己的 DOM 结构、class 名、私有 CSS 变量、store 与业务组件都不是公共契约。已有公共 surface 或 service 时优先用它们，直接操作 DOM 或 CSS 的维护成本由插件自己承担。
+桌面扩展可以访问 renderer DOM，也可以加载全局 CSS，DotCraft 不会阻止。但 DotCraft 自己的 DOM 结构、class 名、私有 CSS 变量、store 与业务组件都不是公共契约。已有公共 surface 或 service 时优先用它们，直接操作 DOM 或 CSS 的维护成本由插件自己承担。
 
 ## 分离 UI 与后端职责
 
-自定义背景、Composer decoration、wrapper、plugin surface、renderer service 或 renderer event 只需要 Desktop Plugin。DotCraft 不会为纯 UI 创建对应的 C# 或 AppServer API。
+自定义背景、Composer decoration、wrapper、plugin surface、renderer service 或 renderer event 只需要桌面扩展。DotCraft 不会为纯 UI 创建对应的 C# 或 AppServer API。
 
-如果功能需要 backend execution、durable host-owned state、Agent tools 或 hooks、其他客户端，或者跨进程与远程协调，再添加 [.NET plugin](./dotnet-plugins) 或 AppServer contract。一个 plugin bundle 可以同时包含这两种模块，但不会仅因为其中一种存在就要求另一种。
+如果功能需要 backend execution、durable host-owned state、Agent tools 或 hooks、其他客户端，或者跨进程与远程协调，再添加 [.NET 扩展](./dotnet-extensions) 或 AppServer contract。一个 plugin bundle 可以同时包含这两种模块，但不会仅因为其中一种存在就要求另一种。
 
 ## Generation 与重新加载生命周期
 
-Desktop 把整个 content revision 作为一个 generation 激活，并对它调用一次 `activate`。刷新一个没有变化的 revision 不产生任何效果。更新 revision 时，Desktop 先 dispose 旧 generation，再激活新的。构建与刷新的具体步骤见[开发 Desktop Plugin](./desktop-plugins)。
+Desktop 把整个 content revision 作为一个 generation 激活，并对它调用一次 `activate`。刷新一个没有变化的 revision 不产生任何效果。更新 revision 时，Desktop 先 dispose 旧 generation，再激活新的。构建与刷新的具体步骤见[开发桌面扩展](./desktop-extensions)。
 
 禁用或替换 revision 时，Desktop 会立即撤销 Host 持有的注册，不会等待插件尚未完成的 `activate()` 或 `dispose()` Promise。迟到的 activation 结果已经过期，不会再发布。
 
-Revision 是开发迭代的单元。Desktop Plugin 不内置 file watcher、HMR、只重载组件或局部更新 generation 的机制。重新构建后，再刷新或重新启用插件。
+Revision 是开发迭代的单元。桌面扩展不内置 file watcher、HMR、只重载组件或局部更新 generation 的机制。重新构建后，再刷新或重新启用插件。
 
 连接远端工作区后，Desktop 会在你授权该工作区在本机运行插件界面后下载插件的 Desktop 产物，并校验现有 content revision。缓存不是另一份插件安装，配置和服务端贡献仍属于远端工作区。之后安装和更新插件沿用该工作区的授权。可在插件页面撤销授权或重试加载失败的界面。
 

@@ -47,7 +47,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
             return DotNetPluginBuildPreparation.Failed(
                 [Error(
                     FileAccessFailedCode,
-                    "The .NET plugin project could not be read or staged.",
+                    "The .NET extension project could not be read or staged.",
                     pluginId,
                     phase: "filesystem")]);
         }
@@ -58,7 +58,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
         var dataRoot = new DotCraftPathRoot(dataPath);
         var workspaceRoot = Path.GetDirectoryName(dataRoot.RootPath)
                             ?? throw new ArgumentException(
-                                "The .NET plugin data root must belong to a workspace.",
+                                "The .NET extension data root must belong to a workspace.",
                                 nameof(dataPath));
         var projectRoot = dataRoot.Resolve("plugin-projects", pluginId);
         var sourceRoot = dataRoot.Resolve("plugin-projects", pluginId, "src");
@@ -66,7 +66,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
         if (!Directory.Exists(projectRoot))
         {
             return DotNetPluginBuildPreparation.Failed(
-                [Error(ProjectMissingCode, "The .NET plugin project does not exist.", pluginId)]);
+                [Error(ProjectMissingCode, "The .NET extension project does not exist.", pluginId)]);
         }
 
         var initialParse = PluginManifestParser.Load(pluginRoot);
@@ -119,7 +119,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
             return DotNetPluginBuildPreparation.Failed(
                 [Error(
                     SourceLinkUnsupportedCode,
-                    "The .NET plugin source tree cannot contain filesystem links.",
+                    "The .NET extension source tree cannot contain filesystem links.",
                     pluginId,
                     sourceLink)]);
         }
@@ -135,7 +135,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
         if (sourceFiles.Length == 0)
         {
             return DotNetPluginBuildPreparation.Failed(
-                [Error(SourceMissingCode, "The .NET plugin project contains no C# source files.", pluginId, "src")]);
+                [Error(SourceMissingCode, "The .NET extension project contains no C# source files.", pluginId, "src")]);
         }
 
         var stagingRoot = Path.Combine(projectRoot, $".plugin-stage-{Guid.NewGuid():N}");

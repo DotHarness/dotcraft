@@ -41,7 +41,7 @@ try {
     tarballName(desktopPluginPackage.name, desktopPluginPackage.version),
   );
   assert.ok(existsSync(sdkTarball), `Missing packed SDK: ${sdkTarball}`);
-  assert.ok(existsSync(desktopPluginTarball), `Missing packed Desktop Plugin SDK: ${desktopPluginTarball}`);
+  assert.ok(existsSync(desktopPluginTarball), `Missing packed Desktop extension SDK: ${desktopPluginTarball}`);
 
   const packageJson = `${JSON.stringify({
     name: "desktop-plugin-consumer",
@@ -78,8 +78,8 @@ import "./index.css";
 function MainView({ host }: DesktopPluginViewProps) {
   return (
     <main className="plugin-main-view">
-      <h1>Desktop Plugin Consumer</h1>
-      <Button onClick={() => host.ui.showToast({ message: "Desktop Plugin Consumer is active." })}>
+      <h1>Desktop Extension Consumer</h1>
+      <Button onClick={() => host.ui.showToast({ message: "Desktop Extension Consumer is active." })}>
         Verify plugin
       </Button>
     </main>
@@ -90,7 +90,7 @@ export const activate: DesktopPluginActivate = () => ({
   mainViews: [
     {
       id: "main",
-      label: { default: "Desktop Plugin Consumer" },
+      label: { default: "Desktop Extension Consumer" },
       order: 80,
       component: MainView,
     },
@@ -122,7 +122,7 @@ export const activate: DesktopPluginActivate = () => ({
   assert.doesNotMatch(moduleOutput, /["']react(?:-dom)?(?:\/[^"']*)?["']/);
   assert.match(moduleOutput, /dotcraft\.desktop-plugin\.runtime/);
   assert.ok(existsSync(join(projectRoot, "dist", "index.css")));
-  console.log(`Verified isolated Desktop Plugin consumer for ${sdkPackage.version}.`);
+  console.log(`Verified isolated Desktop extension consumer for ${sdkPackage.version}.`);
 } finally {
   rmSync(workRoot, { recursive: true, force: true });
 }

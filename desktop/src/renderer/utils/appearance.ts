@@ -69,7 +69,7 @@ export function applyThemeSeeds(
   window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail }))
 }
 
-/** Apply the winning Desktop Plugin theme layer over the user's Appearance seed. */
+/** Apply the winning Desktop extension theme layer over the user's Appearance seed. */
 export function applyDesktopPluginThemeSeedOverride(
   seeds: Partial<Record<ThemeVariant, Partial<ThemeSeed>>> | null
 ): void {

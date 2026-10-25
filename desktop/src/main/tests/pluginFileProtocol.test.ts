@@ -74,7 +74,7 @@ function writePluginRoot(root: string, pluginId = 'fixture.desktop', version = '
   }), 'utf8')
 }
 
-describe('Desktop Plugin module protocol', () => {
+describe('Desktop extension module protocol', () => {
   it('matches the shared Core revision fixture including directory entries', async () => {
     const root = createPluginRoot()
     const revision = await computeDesktopPluginRevision(join(root, 'desktop', 'dist'), {

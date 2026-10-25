@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.3 |
+| Version | 0.9.5 |
 | Status | Living |
-| Date | 2026-10-24 |
+| Date | 2026-10-25 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -263,7 +263,7 @@ Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, chan
 
 ### 7.2 Strongly typed tool implementations
 
-Native and .NET plugin authors SHOULD implement ordinary tools as methods marked `[Tool]` or `[GeneratedTool]`, with typed business parameters and constructor-supplied services; a tool source supplies namespace, exposure, and policy, and the shared adapter owns registration and argument conversion. `[ToolDeclaration]` and custom runtimes remain available for specialized adapters. The generator also emits a per-type factory returning every executable tool on one instance.
+Native and .NET extension authors SHOULD implement ordinary tools as methods marked `[Tool]` or `[GeneratedTool]`, with typed business parameters and constructor-supplied services; a tool source supplies namespace, exposure, and policy, and the shared adapter owns registration and argument conversion. `[ToolDeclaration]` and custom runtimes remain available for specialized adapters. The generator also emits a per-type factory returning every executable tool on one instance.
 
 A tool's trusted presentation is part of its declaration: `[ToolPresentation(id, Operation = ...)]` plus bounded `[ToolPresentationOption(key, value)]` options, validated against a 4,096-byte option budget. Sources MUST NOT select presentation by tool name. Provenance still decides which renderers may honor it, so the same declaration on a plugin tool selects only plugin renderers. Core may add one option derived from an invocation when recording its item, only for a fact Core alone resolves: `memory`, which marks a file tool call targeting the Thread's memory store.
 

@@ -1,4 +1,4 @@
-# Desktop Plugin Authoring
+# Desktop Extension Authoring
 
 Use Desktop authoring when a DotCraft Plugin needs local UI such as a main view or settings page.
 
@@ -76,4 +76,4 @@ npm run build
 
 The build script type-checks the source, then runs `dotcraft-plugin build` to compile `src/index.tsx` into `dist/index.mjs` and imported CSS into `dist/index.css`. Treat `dist/` as generated output and do not edit it. Build it before DotCraft discovers the local plugin or before packaging it, then refresh DotCraft, enable the plugin, and open its main view.
 
-Desktop Plugins execute as trusted renderer code. Installing and enabling the plugin is the trust decision; the Host API is a stable authoring contract, not a sandbox. Use MCP Apps for untrusted interactive tool UI.
+Desktop extensions execute as trusted renderer code. Installing and enabling the plugin is the trust decision; the Host API is a stable authoring contract, not a sandbox. Use MCP Apps for untrusted interactive tool UI.

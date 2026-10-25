@@ -207,7 +207,7 @@ function reportUnknownCoreSurface(pluginId: string, surface: string): void {
   if (!CORE_SURFACE_ROOTS.has(root)) return
   if (CORE_SURFACES.has(surface)) return
   console.warn(
-    `Desktop Plugin '${pluginId}' registered into '${surface}', which Core does not define. `
+    `Desktop extension '${pluginId}' registered into '${surface}', which Core does not define. `
       + 'Check the spelling; the registration stays and renders only if a surface with that name is mounted.'
   )
 }
@@ -281,7 +281,7 @@ export function isDesktopPluginContributionAvailable<TContext>(
     return contribution.isAvailable?.(context) ?? true
   } catch (error) {
     console.error(
-      `Desktop Plugin contribution '${contribution.pluginId}/${contribution.id}' availability failed:`,
+      `Desktop extension contribution '${contribution.pluginId}/${contribution.id}' availability failed:`,
       error
     )
     return false

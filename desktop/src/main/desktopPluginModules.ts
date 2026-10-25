@@ -35,7 +35,7 @@ export class DesktopPluginModules {
   async context(): Promise<DesktopPluginSource> {
     const connection = this.options.connection()
     const snapshot = connection.remote && connection.supported ? await connection.list() : null
-    if (this.disposed || this.options.connection().identity !== connection.identity) throw new Error('Desktop plugin source changed.')
+    if (this.disposed || this.options.connection().identity !== connection.identity) throw new Error('Desktop extension source changed.')
     const workspacePath = snapshot?.workspacePath || connection.workspacePath
     if (connection.remote && connection.supported && !snapshot?.workspacePath) throw new Error('Remote plugin workspace identity is missing.')
     const sourceKey = connection.remote
@@ -62,9 +62,9 @@ export class DesktopPluginModules {
   }
 
   async setTrusted(sourceKey: string, trusted: boolean): Promise<DesktopPluginSource> {
-    if (typeof trusted !== 'boolean') throw new Error('Invalid Desktop plugin authorization.')
+    if (typeof trusted !== 'boolean') throw new Error('Invalid Desktop extension authorization.')
     const context = await this.context()
-    if (!context.remote || !context.supported || context.sourceKey !== sourceKey) throw new Error('Desktop plugin source changed.')
+    if (!context.remote || !context.supported || context.sourceKey !== sourceKey) throw new Error('Desktop extension source changed.')
     const grants = this.options.grants().filter(key => key !== sourceKey)
     if (trusted) grants.push(sourceKey)
     await this.options.saveGrants(grants)
@@ -79,11 +79,11 @@ export class DesktopPluginModules {
     const epoch = this.epoch
     const connection = this.options.connection()
     const job = this.queue.catch(() => {}).then(async () => {
-      if (connection.remote && !connection.supported) throw new Error('Remote server does not support Desktop plugin artifacts.')
+      if (connection.remote && !connection.supported) throw new Error('Remote server does not support Desktop extension artifacts.')
       const current = () => !this.disposed && this.epoch === epoch
         && this.options.connection().identity === connection.identity
         && (!connection.remote || this.options.grants().includes(request.sourceKey ?? ''))
-      if (!current() || this.source?.sourceKey !== request.sourceKey) throw new Error('Desktop plugin source changed or is not authorized.')
+      if (!current() || this.source?.sourceKey !== request.sourceKey) throw new Error('Desktop extension source changed or is not authorized.')
       let rootPath = request.rootPath
       if (connection.remote) {
         rootPath = await this.options.cache.prepare(request.sourceKey!, request, connection.read, current)
@@ -91,15 +91,15 @@ export class DesktopPluginModules {
         this.snapshot = snapshot
         if (snapshot.workspacePath !== this.source?.workspacePath || !snapshot.plugins?.some(plugin =>
           plugin.id?.toLowerCase() === request.pluginId.toLowerCase() && plugin.installed && plugin.enabled
-          && plugin.desktop?.revision === request.revision)) throw new Error('Remote Desktop plugin changed. Refresh the plugin list.')
+          && plugin.desktop?.revision === request.revision)) throw new Error('Remote Desktop extension changed. Refresh the plugin list.')
       }
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
       const route: DesktopPluginModuleRoute = await registerDesktopPluginModuleRoute({ ...request, rootPath }, {
         cached: connection.remote
       })
       if (!current()) {
         removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey)
-        throw new Error('Desktop plugin source changed.')
+        throw new Error('Desktop extension source changed.')
       }
       this.active.set(routeKey(request), request)
       await this.prune()
@@ -140,7 +140,7 @@ export class DesktopPluginModules {
     for (const request of this.active.values()) {
       if (request.sourceKey === this.source.sourceKey) add(request.pluginId, request.revision)
     }
-    await this.options.cache.prune(this.source.sourceKey, keep).catch(error => console.error('Desktop plugin cache cleanup failed:', error))
+    await this.options.cache.prune(this.source.sourceKey, keep).catch(error => console.error('Desktop extension cache cleanup failed:', error))
   }
 }
 

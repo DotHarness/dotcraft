@@ -30,7 +30,7 @@ internal sealed class DotNetPluginAuthoringToolSource : IToolSource
     internal const string Id = "dotnet-plugin-authoring";
 
     private const string NamespaceDescription =
-        "Inspect the current DotCraft managed plugin API and build workspace .NET plugin projects.";
+        "Inspect the current DotCraft managed plugin API and build workspace .NET extension projects.";
 
     private readonly AppConfig _config;
     private readonly DotNetPluginRuntimeManager _runtime;
@@ -140,7 +140,7 @@ internal sealed class DotNetPluginAuthoringToolMethods(
     [GeneratedTool(Name = "Build")]
     [Description("Compile, preflight, publish, and activate one project under .craft/plugin-projects. The new contributions become available on the next Turn.")]
     public async Task<DotNetPluginBuildResult> BuildAsync(
-        [Description("Canonical id of the workspace .NET plugin project to build.")] string pluginId,
+        [Description("Canonical id of the workspace .NET extension project to build.")] string pluginId,
         CancellationToken cancellationToken = default)
     {
         using var preparation = new DotNetPluginCompiler(references.Value).Prepare(dataPath, pluginId);

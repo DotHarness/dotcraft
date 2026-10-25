@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.4 |
+| **Version** | 0.9.5 |
 | **Status** | Living |
 | **Date** | 2026-10-25 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
+| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -1380,7 +1380,7 @@ Only `workspace` skills and `user` skills under the user-data `skills/` root are
 
 ### 18B.1 Plugin Management Methods
 
-`capabilities.pluginManagement` gates the `plugin/*` methods below and `plugin/snapshot/updated`. It does not gate `plugin/config/*` ([Section 18B.2](#18b2-plugin-configuration-methods)); `plugin/desktop/read` additionally requires `capabilities.desktopPluginArtifacts`. Plugin structure, bundled MCP servers, and contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle, trust model, states, and unload semantics are defined in [.NET Plugin Runtime](../architecture/dotnet-plugins.md). These methods project them.
+`capabilities.pluginManagement` gates the `plugin/*` methods below and `plugin/snapshot/updated`. It does not gate `plugin/config/*` ([Section 18B.2](#18b2-plugin-configuration-methods)); `plugin/desktop/read` additionally requires `capabilities.desktopPluginArtifacts`. Plugin structure, bundled MCP servers, and contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle, trust model, states, and unload semantics are defined in [.NET Extension Runtime](../architecture/dotnet-plugins.md). These methods project them.
 
 `installed`, configured `enabled`, `dotnetRuntime.state`, and `dotnetRuntime.trustStatus` are separate facts. A `dotnet` plugin's runtime state affects only its in-process contributions, never its Skills, MCP or LSP servers, Hooks, Apps, Desktop module, Workflows, or interface metadata. Listing or viewing a plugin never loads plugin code.
 
@@ -2345,7 +2345,7 @@ Error and warning codes: `P4ExecutableNotFound`, `P4ExecutableInvalid`, `P4Confi
 
 ## 25B. File System Methods
 
-These methods let a client that does not share the AppServer host's file system (a paired phone, or a Desktop Plugin against a remote workspace) read, inspect, change, and watch host paths. Gated by `capabilities.fileSystem`.
+These methods let a client that does not share the AppServer host's file system (a paired phone, or a Desktop extension against a remote workspace) read, inspect, change, and watch host paths. Gated by `capabilities.fileSystem`.
 
 | Method | Params | Result |
 |---|---|---|
@@ -2375,7 +2375,7 @@ Rules:
 
 ## 25C. Command Execution Methods
 
-`command/exec` runs one program on the AppServer host outside any thread and returns its buffered output, for clients that do not share the host (such as Desktop Plugins). Gated by `capabilities.commandExec`.
+`command/exec` runs one program on the AppServer host outside any thread and returns its buffered output, for clients that do not share the host (such as Desktop extensions). Gated by `capabilities.commandExec`.
 
 | Method | Params | Result |
 |---|---|---|

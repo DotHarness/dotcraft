@@ -385,7 +385,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dotnet",
         action="store_true",
-        help="Create a source-based .NET plugin project for DotCraft authoring tools.",
+        help="Create a source-based .NET extension project for DotCraft authoring tools.",
     )
     parser.add_argument(
         "--path",
@@ -421,7 +421,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--with-desktop",
         action="store_true",
-        help="Create a source-based Desktop Plugin with a minimal main view.",
+        help="Create a source-based Desktop extension with a minimal main view.",
     )
     parser.add_argument("--with-assets", action="store_true", help="Create plugin-level SVG icon/logo placeholders.")
     parser.add_argument("--force", action="store_true", help="Overwrite generated files that already exist.")
@@ -469,7 +469,7 @@ def main() -> None:
         (plugin_root / "lib").mkdir(parents=True, exist_ok=True)
         if args.with_desktop:
             write_desktop_source(plugin_root, plugin_id, host_version, args.force)
-        print(f"Created .NET plugin project: {project_root}")
+        print(f"Created .NET extension project: {project_root}")
         print(f"Plugin source: {project_root / 'src' / 'Plugin.cs'}")
         print(f"Plugin manifest: {manifest_path}")
         if args.with_desktop:

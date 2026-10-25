@@ -110,7 +110,7 @@ beforeEach(() => {
 
 afterEach(() => act(() => clearDesktopPluginRegistry()))
 
-describe('Desktop Plugin contribution registry', () => {
+describe('Desktop extension contribution registry', () => {
   it('uses deterministic visible and exact tool-renderer ordering across owners', () => {
     publishDesktopPluginGeneration(generation('z.plugin', {
       commands: [activeCommand('z.plugin', 'later', 20)],
@@ -199,7 +199,7 @@ describe('Desktop Plugin contribution registry', () => {
   })
 })
 
-describe('Desktop Plugin contribution outlets', () => {
+describe('Desktop extension contribution outlets', () => {
   it('isolates a failed plugin renderer and renders the Core fallback', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const renderer = {

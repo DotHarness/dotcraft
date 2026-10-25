@@ -1,7 +1,7 @@
 # @dotcraft/plugin
 
 `@dotcraft/plugin` provides the public contracts, React runtime bindings, and build command for
-trusted DotCraft Desktop Plugins. Use Node.js 20 or later with React 19 and `react-dom` 19.
+trusted DotCraft Desktop extensions. Use Node.js 20 or later with React 19 and `react-dom` 19.
 
 ## Install
 
@@ -23,5 +23,5 @@ export const activate: DesktopPluginActivate = (host) => {
 
 ## Documentation
 
-- [Build a Desktop Plugin](https://www.dotcraft.net/extend/desktop-plugins)
-- [Desktop Plugin API](https://www.dotcraft.net/extend/desktop-plugin-api)
+- [Build a Desktop extension](https://www.dotcraft.net/extend/desktop-extensions)
+- [Desktop extension API](https://www.dotcraft.net/extend/desktop-extension-api)

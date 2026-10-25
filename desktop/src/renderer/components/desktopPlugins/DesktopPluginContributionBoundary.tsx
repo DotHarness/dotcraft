@@ -24,7 +24,7 @@ export class DesktopPluginContributionBoundary extends Component<
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error(`Desktop Plugin contribution '${this.props.identity}' failed to render:`, error, info.componentStack)
+    console.error(`Desktop extension contribution '${this.props.identity}' failed to render:`, error, info.componentStack)
   }
 
   override render(): ReactNode {

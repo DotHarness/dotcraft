@@ -12,7 +12,7 @@ Tools decide what the agent can do: edit files, run commands, reach the web, con
 | **Plugins** | Packaged skills, tools, workflows, apps, panels, and [lifecycle hooks](./hooks) |
 | **MCP servers** | Tools provided by a local process or a remote service |
 
-Wherever a capability comes from, the agent's tool calls still pass through workspace boundaries, approvals, and security settings. Executable Desktop and .NET plugins are the exception. They have their own trust boundary, described below.
+Wherever a capability comes from, the agent's tool calls still pass through workspace boundaries, approvals, and security settings. Executable Desktop and .NET extensions are the exception. They have their own trust boundary, described below.
 
 ## Install a plugin
 
@@ -65,7 +65,7 @@ $plugin-creator Create a plugin that packages my project review workflow.
 
 The skill sets up the plugin structure and walks you through testing it locally. Use a plugin when you want to hand a capability to other people. A workflow that only serves one project is fine as a plain skill.
 
-For executable modules, start with [Build a Desktop Plugin](../extend/desktop-plugins) or [Build a .NET plugin](../extend/dotnet-plugins). For packaging and distribution, see the [Plugin Market guide](../extend/plugin-market).
+For executable modules, start with [Build a Desktop extension](../extend/desktop-extensions) or [Build a .NET extension](../extend/dotnet-extensions). For packaging and distribution, see the [Plugin Market guide](../extend/plugin-market).
 
 ## Connect an MCP server
 
@@ -80,7 +80,7 @@ Pass tokens and other secrets through environment variables. Select **Test conne
 
 Install only plugins you trust, and connect only servers you trust. Check the publisher, the capabilities it declares, the source links, and the account permissions it asks for. Manifest capability labels describe a plugin; they neither grant nor restrict executable permissions.
 
-Agent tool calls keep going through tool policy and approvals. Executable plugins are different. Desktop Plugin code runs as trusted code in Desktop's renderer once the plugin is enabled. .NET Plugin code runs inside the DotCraft host with that process's filesystem, network, credential, native interop, and OS authority, requires an explicit grant for the accepted plugin id and fingerprint, and isn't bound by the workspace boundary or approvals that apply to tool calls. Use MCP when executable code needs a process boundary.
+Agent tool calls keep going through tool policy and approvals. Executable plugins are different. Desktop extension code runs as trusted code in Desktop's renderer once the plugin is enabled. .NET extension code runs inside the DotCraft host with that process's filesystem, network, credential, native interop, and OS authority, requires an explicit grant for the accepted plugin id and fingerprint, and isn't bound by the workspace boundary or approvals that apply to tool calls. Use MCP when executable code needs a process boundary.
 
 Hooks that arrive with a plugin stay inactive until you review and trust them in **Settings → Hooks**.
 

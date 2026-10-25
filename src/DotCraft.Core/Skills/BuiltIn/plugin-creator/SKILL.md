@@ -1,14 +1,14 @@
 ---
 name: plugin-creator
-description: Create and scaffold DotCraft local plugins, including project-local managed .NET plugins, Desktop Plugins, plugin-contained skills, MCP configuration, hooks, and assets. Use when developing or maintaining a DotCraft plugin bundle.
+description: Create and scaffold DotCraft local plugins, including project-local managed .NET extensions, Desktop extensions, plugin-contained skills, MCP configuration, hooks, and assets. Use when developing or maintaining a DotCraft plugin bundle.
 ---
 
 # Plugin Creator
 
 Use this skill when the user wants to create, scaffold, or maintain a DotCraft plugin directory.
 
-For a managed .NET plugin, read `references/dotnet-authoring.md` and use the .NET authoring mode.
-For a Desktop Plugin, read `references/desktop-authoring.md` and use `--with-desktop`.
+For a managed .NET extension, read `references/dotnet-authoring.md` and use the .NET authoring mode.
+For a Desktop extension, read `references/desktop-authoring.md` and use `--with-desktop`.
 When one plugin needs both, read both references and use `--dotnet --with-desktop`; the creator generates one bundle and one plugin id.
 For other plugin contributions, use the local bundle workflow below.
 
@@ -40,7 +40,7 @@ python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" -
 - Create `skills/<skill-name>/SKILL.md`; `--skill-name` defaults to the plugin id.
 - Add `--with-mcp` to create a plugin-bundled `.mcp.json` placeholder.
 - Add `--with-hooks` to create a plugin-bundled `hooks/hooks.json` placeholder.
-- Add `--with-desktop` to create a source-based Desktop Plugin with one main view, including alongside `--dotnet`.
+- Add `--with-desktop` to create a source-based Desktop extension with one main view, including alongside `--dotnet`.
 - Add `--with-assets` to create plugin-level icon/logo placeholders.
 
 ## Manifest Rules
@@ -50,9 +50,9 @@ DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, l
 - Skill-only plugins are valid when `skills` points to a plugin-contained skills directory.
 - MCP-only plugins are valid when `mcpServers` points to a plugin-bundled MCP config or a root `.mcp.json` exists.
 - Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
-- Desktop Plugins declare one inline `desktop` entry, an optional contribution description, and optional styles inside `./desktop/dist/`.
+- Desktop extensions declare one inline `desktop` entry, an optional contribution description, and optional styles inside `./desktop/dist/`.
 - Interface-only plugins are valid for catalog or UI metadata.
-- Managed plugins declare `dotnet` metadata and contribute in-process behavior, such as native Tools, through the .NET plugin contribution points.
+- Managed plugins declare `dotnet` metadata and contribute in-process behavior, such as native Tools, through the .NET extension contribution points.
 - Manifest fields `tools`, `functions`, and `processes` are unsupported and must not be generated.
 - Out-of-process executable capabilities can be exposed through MCP.
 - Thread-scoped AppServer client callbacks should use Runtime Dynamic Tools, not plugin manifest fields.

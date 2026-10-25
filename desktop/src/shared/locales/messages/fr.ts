@@ -3715,7 +3715,7 @@ export const MESSAGES_FR = {
   'slashSearch.hint': 'Tapez pour filtrer les commandes ou les compétences',
   'slashSearch.noDescription': 'Pas de description',
   'slashSearch.commandsGroup': 'Commandes',
-  'slashSearch.desktopCommandsGroup': 'Plugins de bureau',
+  'slashSearch.desktopCommandsGroup': 'Extensions de bureau',
   'slashSearch.skillsGroup': 'Compétences',
   'desktopPlugins.remote.authorize': 'Exécuter les interfaces des plugins distants',
   'desktopPlugins.remote.confirm': 'Les plugins de {{workspace}} exécuteront du code sur cet ordinateur et pourront accéder à Desktop, aux fichiers et aux services connectés. Autoriser cet espace, y compris les installations et mises à jour futures ?',

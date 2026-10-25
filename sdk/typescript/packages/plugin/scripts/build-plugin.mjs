@@ -29,11 +29,11 @@ async function buildDesktopPlugin(projectRoot = process.cwd()) {
   const entry = join(root, "src", "index.tsx");
   const outdir = join(root, "dist");
   if (!existsSync(entry)) {
-    throw new Error("Desktop Plugin entry not found: src/index.tsx");
+    throw new Error("Desktop extension entry not found: src/index.tsx");
   }
   for (const proxy of proxyEntries.values()) {
     if (!existsSync(proxy)) {
-      throw new Error("Build @dotcraft/plugin before building a Desktop Plugin.");
+      throw new Error("Build @dotcraft/plugin before building a Desktop extension.");
     }
   }
 
@@ -64,14 +64,14 @@ async function buildDesktopPlugin(projectRoot = process.cwd()) {
       /(?:^|[/\\])node_modules[/\\]react(?:-dom)?[/\\]/.test(input),
     );
     if (bundledReact) {
-      throw new Error("Desktop Plugin output contains a private React runtime.");
+      throw new Error("Desktop extension output contains a private React runtime.");
     }
 
     for (const output of walkFiles(staging)) {
       if (!output.endsWith(".mjs")) continue;
       const source = readFileSync(output, "utf8");
       if (/\b(?:from|import)\s*\(?\s*["']react(?:-dom)?(?:\/[^"']*)?["']/.test(source)) {
-        throw new Error(`Desktop Plugin output contains a bare React import: ${relativeSourcePath(staging, output)}`);
+        throw new Error(`Desktop extension output contains a bare React import: ${relativeSourcePath(staging, output)}`);
       }
     }
 
@@ -90,7 +90,7 @@ function runtimeProxyPlugin() {
         buildContext.onResolve({ filter: new RegExp(`^${escapeRegExp(specifier)}$`) }, () => ({ path: proxy }));
       }
       buildContext.onResolve({ filter: /^react(?:\/.*)?$|^react-dom(?:\/.*)?$/ }, (args) => ({
-        errors: [{ text: `Unsupported React entry point '${args.path}' in a Desktop Plugin.` }],
+        errors: [{ text: `Unsupported React entry point '${args.path}' in a Desktop extension.` }],
       }));
     },
   };

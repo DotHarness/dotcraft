@@ -171,15 +171,15 @@ export const enSections: DocSection[] = [
   {
     text: 'Extend',
     base: '/extend/',
-    link: '/extend/desktop-plugins',
+    link: '/extend/desktop-extensions',
     groups: [
       {
         text: 'Plugins',
         items: [
-          { text: withIcon('dashboard', 'Desktop Plugins'), link: '/extend/desktop-plugins' },
-          { text: withIcon('code', 'Desktop Plugin API'), link: '/extend/desktop-plugin-api' },
-          { text: withIcon('dotnet', '.NET Plugins'), link: '/extend/dotnet-plugins' },
-          { text: withIcon('code', '.NET Plugin API'), link: '/extend/dotnet-plugin-api' },
+          { text: withIcon('dashboard', 'Desktop Extensions'), link: '/extend/desktop-extensions' },
+          { text: withIcon('code', 'Desktop Extension API'), link: '/extend/desktop-extension-api' },
+          { text: withIcon('dotnet', '.NET Extensions'), link: '/extend/dotnet-extensions' },
+          { text: withIcon('code', '.NET Extension API'), link: '/extend/dotnet-extension-api' },
           { text: withIcon('package', 'Plugin Market'), link: '/extend/plugin-market' }
         ]
       },
@@ -422,15 +422,15 @@ export const zhSections: DocSection[] = [
   {
     text: '扩展',
     base: '/zh/extend/',
-    link: '/zh/extend/desktop-plugins',
+    link: '/zh/extend/desktop-extensions',
     groups: [
       {
         text: '插件',
         items: [
-          { text: withIcon('dashboard', 'Desktop Plugins'), link: '/zh/extend/desktop-plugins' },
-          { text: withIcon('code', 'Desktop Plugin API'), link: '/zh/extend/desktop-plugin-api' },
-          { text: withIcon('dotnet', '.NET 插件'), link: '/zh/extend/dotnet-plugins' },
-          { text: withIcon('code', '.NET 插件 API'), link: '/zh/extend/dotnet-plugin-api' },
+          { text: withIcon('dashboard', '桌面扩展'), link: '/zh/extend/desktop-extensions' },
+          { text: withIcon('code', '桌面扩展 API'), link: '/zh/extend/desktop-extension-api' },
+          { text: withIcon('dotnet', '.NET 扩展'), link: '/zh/extend/dotnet-extensions' },
+          { text: withIcon('code', '.NET 扩展 API'), link: '/zh/extend/dotnet-extension-api' },
           { text: withIcon('package', '插件市场'), link: '/zh/extend/plugin-market' }
         ]
       },

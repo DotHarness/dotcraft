@@ -1,4 +1,4 @@
-# Managed .NET plugin authoring
+# Managed .NET extension authoring
 
 Use the deployed creator to scaffold a project under `.craft/plugin-projects/<plugin-id>`:
 

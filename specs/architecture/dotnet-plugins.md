@@ -1,12 +1,12 @@
-# DotCraft .NET Plugin Architecture
+# DotCraft .NET Extension Architecture
 
 | Field | Value |
 |---|---|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.5 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-25 |
 
-This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
+This specification defines trusted, in-process .NET extensions. The shared plugin manifest,
 discovery, installation, and content contributions remain owned by
 [Plugin Architecture](plugin-architecture.md). A bundle may contain both content and .NET
 contributions.
@@ -17,7 +17,7 @@ DotCraft combines two extension paths:
 
 - Built-ins and compiled modules use direct, strongly typed contribution contracts on the host's
   normal hot paths.
-- Trusted .NET plugins use the same contracts through a generation boundary that stages
+- Trusted .NET extensions use the same contracts through a generation boundary that stages
   registration, controls calls, and supports best-effort unload.
 
 The following invariants are normative:
@@ -46,7 +46,7 @@ installation, enablement, and trust as separate decisions:
 - Trust grants live in the machine-local `dotnet-plugin-trust.json` authority file next to global
   configuration. This file is not part of configuration layering and cannot be overridden by a
   workspace.
-- An enabled installed .NET plugin activates only when the exact pair of canonical plugin id and
+- An enabled installed .NET extension activates only when the exact pair of canonical plugin id and
   accepted .NET execution fingerprint has a durable grant. Several fingerprints for one plugin id may
   remain granted at the same time.
 - `plugin/setTrusted` identifies the plugin; the server computes the currently accepted
@@ -244,7 +244,7 @@ Resources and background work belong to `IPluginLifetime`. Contribution instance
 those resources; they must not dispose them. Raw threads, static subscriptions, native callbacks,
 and untracked tasks can pin a generation and are plugin defects.
 
-`DataRoot` uses the host-side plugin data directory defined by [Plugin Architecture](plugin-architecture.md). A settings mutation that affects a .NET plugin follows the
+`DataRoot` uses the host-side plugin data directory defined by [Plugin Architecture](plugin-architecture.md). A settings mutation that affects a .NET extension follows the
 normal quiesce, write, and reconcile lifecycle. Quiesce failure writes nothing. Write failure
 restores the old generation. A successful write restarts the plugin and every required dependent
 generation so each activation receives a coherent new snapshot.
@@ -370,7 +370,7 @@ generation.
 
 ### 7.6 Agent authoring build
 
-The built-in `$plugin-creator` is the authoring entry point. It creates .NET plugin projects under
+The built-in `$plugin-creator` is the authoring entry point. It creates .NET extension projects under
 the workspace data root:
 
 ```text

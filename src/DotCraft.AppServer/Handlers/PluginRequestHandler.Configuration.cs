@@ -41,7 +41,7 @@ internal sealed partial class PluginRequestHandler
         {
             throw AppServerErrors.PluginConfiguration(
                 PluginConfigStore.WriteFailed,
-                "The .NET plugin runtime coordinator is unavailable; no configuration was written.");
+                "The .NET extension runtime coordinator is unavailable; no configuration was written.");
         }
         var commitToken = EnterMutationCommit(cancellationToken);
         PluginRuntimeMutationResult? quiesce = null;

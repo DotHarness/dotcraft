@@ -97,7 +97,7 @@ function refresh(pluginId: string, entry: PluginSettingsEntry): void {
   void readDesktopPluginSettings(pluginId).then((snapshot) => {
     if (entries.get(pluginId) !== entry || entry.issued !== issued) return
     publish(pluginId, snapshot)
-  }, (readError) => console.error('Desktop Plugin settings re-read failed:', readError))
+  }, (readError) => console.error('Desktop extension settings re-read failed:', readError))
 }
 
 function publish(pluginId: string, snapshot: SettingsSnapshot): void {
@@ -110,7 +110,7 @@ function publish(pluginId: string, snapshot: SettingsSnapshot): void {
     try {
       listener(snapshot)
     } catch (error) {
-      console.error('Desktop Plugin settings listener failed:', error)
+      console.error('Desktop extension settings listener failed:', error)
     }
   }
 }

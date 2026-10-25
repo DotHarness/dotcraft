@@ -34,7 +34,7 @@ The generator owns schema generation and typed argument binding. Describe each m
 
 ### Access live invocation identity only when needed
 
-Most tools need only typed parameters, constructor-injected services, and an optional `CancellationToken`. Request `ToolInvocationContext` only when the method needs the live calling identity, and return `ToolExecutionResult` only when it needs explicit success or failure semantics. See [Write typed tools](../dotnet-plugins#write-typed-tools) for both contracts.
+Most tools need only typed parameters, constructor-injected services, and an optional `CancellationToken`. Request `ToolInvocationContext` only when the method needs the live calling identity, and return `ToolExecutionResult` only when it needs explicit success or failure semantics. See [Write typed tools](../dotnet-extensions#write-typed-tools) for both contracts.
 
 ## Register the source
 

@@ -15,7 +15,7 @@ internal static class PluginDotnetFingerprint
         var parsed = PluginManifestParser.Load(pluginRoot);
         var manifest = parsed.Manifest;
         if (manifest?.Dotnet == null)
-            throw new InvalidOperationException("A valid .NET plugin manifest is required.");
+            throw new InvalidOperationException("A valid .NET extension manifest is required.");
 
         return Compute(manifest);
     }
@@ -24,7 +24,7 @@ internal static class PluginDotnetFingerprint
     {
         ArgumentNullException.ThrowIfNull(manifest);
         var dotnet = manifest.Dotnet
-                     ?? throw new InvalidOperationException("A .NET plugin manifest is required.");
+                     ?? throw new InvalidOperationException("A .NET extension manifest is required.");
         return PluginContentTree.Fingerprint(
             manifest.RootPath,
             BuildPrefix(manifest, dotnet),

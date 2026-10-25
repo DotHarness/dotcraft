@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace DotCraft.Plugins;
 
-/// <summary>Observable lifecycle state of one structurally admitted .NET plugin.</summary>
+/// <summary>Observable lifecycle state of one structurally admitted .NET extension.</summary>
 public enum PluginDotnetRuntimeState
 {
     /// <summary>Not running, and activatable when enabled.</summary>
@@ -40,7 +40,7 @@ public sealed record PluginRuntimeToolInfo(
     string Name,
     string Description);
 
-/// <summary>Immutable process-local runtime projection for one .NET plugin.</summary>
+/// <summary>Immutable process-local runtime projection for one .NET extension.</summary>
 /// <param name="DependencyObservations">Declared direct dependencies projected against this runtime snapshot, or <see langword="null"/> when unavailable.</param>
 public sealed record PluginDotnetRuntimeInfo(
     string PluginId,
@@ -55,13 +55,13 @@ public sealed record PluginDotnetRuntimeInfo(
     IReadOnlyList<PluginDependencyObservation>? DependencyObservations = null,
     bool Enabled = true);
 
-/// <summary>Monotonically revised immutable .NET plugin runtime snapshot.</summary>
+/// <summary>Monotonically revised immutable .NET extension runtime snapshot.</summary>
 public sealed record PluginRuntimeSnapshot(
     long Revision,
     IReadOnlyList<PluginDotnetRuntimeInfo> Plugins,
     IReadOnlyList<PluginDiagnostic> Diagnostics);
 
-/// <summary>Describes one semantic change to the process-local .NET plugin runtime snapshot.</summary>
+/// <summary>Describes one semantic change to the process-local .NET extension runtime snapshot.</summary>
 public sealed class PluginRuntimeSnapshotChangedEventArgs(
     PluginRuntimeSnapshot snapshot,
     IReadOnlyList<string> pluginIds) : EventArgs

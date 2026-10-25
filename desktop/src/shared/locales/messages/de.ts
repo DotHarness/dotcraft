@@ -3715,7 +3715,7 @@ export const MESSAGES_DE = {
   'slashSearch.hint': 'Geben Sie ein, um Befehle oder Fertigkeiten zu filtern',
   'slashSearch.noDescription': 'Keine Beschreibung',
   'slashSearch.commandsGroup': 'Befehle',
-  'slashSearch.desktopCommandsGroup': 'Desktop-Plugins',
+  'slashSearch.desktopCommandsGroup': 'Desktop-Erweiterungen',
   'slashSearch.skillsGroup': 'Fähigkeiten',
   'desktopPlugins.remote.authorize': 'Oberflächen entfernter Plugins ausführen',
   'desktopPlugins.remote.confirm': 'Plugins aus {{workspace}} führen Oberflächencode auf diesem Computer aus und können auf Desktop, Dateien und verbundene Dienste zugreifen. Diesen Arbeitsbereich einschließlich künftiger Installationen und Updates zulassen?',

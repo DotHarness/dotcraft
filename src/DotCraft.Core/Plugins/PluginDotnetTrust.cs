@@ -2,7 +2,7 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Plugins;
 
-/// <summary>Fingerprint-bound trust state of one .NET plugin bundle. Every plugin needs an explicit grant, including built-ins.</summary>
+/// <summary>Fingerprint-bound trust state of one .NET extension bundle. Every plugin needs an explicit grant, including built-ins.</summary>
 public enum PluginDotnetTrustStatus
 {
     /// <summary>No grant exists for this plugin.</summary>
@@ -39,7 +39,7 @@ internal sealed class PluginDotnetTrustChangedEventArgs(IReadOnlyList<string> pl
 internal sealed class PluginTrustPersistenceException(string message, Exception? inner = null)
     : InvalidOperationException(message, inner);
 
-/// <summary>Resolves and mutates the fingerprint-bound trust that gates .NET plugin activation.</summary>
+/// <summary>Resolves and mutates the fingerprint-bound trust that gates .NET extension activation.</summary>
 /// <remarks>Grants come from a machine-local authority beside the global config, never from merged
 /// workspace configuration: a repository must not pre-authorize its own in-process code.</remarks>
 internal sealed class PluginDotnetTrust
@@ -153,7 +153,7 @@ internal sealed class PluginDotnetTrust
 
     private IPluginDotnetTrustStore RequireStore() =>
         _store ?? throw new PluginTrustPersistenceException(
-            "A machine-local authority path is required to persist .NET plugin trust.");
+            "A machine-local authority path is required to persist .NET extension trust.");
 
     private void OnStoreChanged(object? sender, EventArgs args)
     {

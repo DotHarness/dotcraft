@@ -1,6 +1,6 @@
-# .NET Plugin API 与生命周期
+# .NET 扩展 API 与生命周期
 
-本参考页介绍贡献契约、类型化依赖、信任与 generation 生命周期。要创建并构建插件，先读[开发 .NET 插件](./dotnet-plugins)。
+本参考页介绍贡献契约、类型化依赖、信任与 generation 生命周期。要创建并构建插件，先读[开发 .NET 扩展](./dotnet-extensions)。
 
 ![三个能力层级作用于同一份贡献点装配结果：Tier A 按序追加一项，Tier B 在句柄存续期间遮蔽具名默认项，Tier C 返回最终结果](/dotnet-plugin-tiers.svg)
 
@@ -154,7 +154,7 @@ context.Contributions.Add<IWorldStateSection>(new ReviewWorldState(service));
 
 `Snapshot` 抛出异常的分节在该次请求中不提供基线。`RenderDiff` 抛出异常的分节会在下一次请求时重试。两者都不会让 Turn 失败。
 
-分节只在 Agent 采样时运行，所以 thread 空闲期间发生的变化会在它下一个 Turn 开始时才送达模型。要让 Agent 对变化做出反应，按[向 thread 推送事件](./dotnet-plugins#push-events-into-a-thread)的方式向 thread 推送输入。状态只属于某一个 thread 时，用 `ContributionOptions.ForThread(threadId)` 注册。
+分节只在 Agent 采样时运行，所以 thread 空闲期间发生的变化会在它下一个 Turn 开始时才送达模型。要让 Agent 对变化做出反应，按[向 thread 推送事件](./dotnet-extensions#push-events-into-a-thread)的方式向 thread 推送输入。状态只属于某一个 thread 时，用 `ContributionOptions.ForThread(threadId)` 注册。
 
 ### Tier B —— 替换具名默认项
 
@@ -255,5 +255,5 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 ## 相关文档
 
 - [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample)——覆盖本页每个贡献点的可运行 bundle。
-- [.NET Plugin 架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——这些契约的规范原文。
-- [Desktop Plugins](./desktop-plugins)——同一个 bundle 的界面部分。
+- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——这些契约的规范原文。
+- [桌面扩展](./desktop-extensions)——同一个 bundle 的界面部分。

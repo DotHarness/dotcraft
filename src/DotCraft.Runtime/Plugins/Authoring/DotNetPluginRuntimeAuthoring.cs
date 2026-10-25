@@ -22,7 +22,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             || string.IsNullOrWhiteSpace(preparation.ProjectPluginRoot)
             || string.IsNullOrWhiteSpace(preparation.ProjectWorkspaceRoot))
         {
-            throw new ArgumentException("A successful .NET plugin build preparation is required.", nameof(preparation));
+            throw new ArgumentException("A successful .NET extension build preparation is required.", nameof(preparation));
         }
 
         ThrowIfDisposed();

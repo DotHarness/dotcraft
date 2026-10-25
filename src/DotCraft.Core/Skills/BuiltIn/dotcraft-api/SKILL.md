@@ -1,6 +1,6 @@
 ---
 name: dotcraft-api
-description: Build applications with DotCraft's public SDKs, Harness, AppServer protocol, Channel adapters and modules, App Binding, dynamic tools, Desktop or .NET plugins, and MCP Apps. Use when connecting to, embedding, or publicly extending DotCraft; not for changing DotCraft itself.
+description: Build applications with DotCraft's public SDKs, Harness, AppServer protocol, Channel adapters and modules, App Binding, dynamic tools, Desktop or .NET extensions, and MCP Apps. Use when connecting to, embedding, or publicly extending DotCraft; not for changing DotCraft itself.
 ---
 
 # DotCraft API
@@ -26,7 +26,7 @@ The site describes the latest public release. Do not use a repository checkout, 
 
 When writing code, inspect the project's package manifest and the installed package declarations:
 
-- TypeScript: `@dotcraft/sdk` and its exported `.d.ts` files; `@dotcraft/plugin` for Desktop plugins.
+- TypeScript: `@dotcraft/sdk` and its exported `.d.ts` files; `@dotcraft/plugin` for Desktop extensions.
 - .NET client: `DotCraft.Sdk` and the bundled `DotCraft.Protocol` assembly.
 - In-process hosting and managed plugins: `DotCraft.Harness` and its bundled public assemblies.
 
@@ -40,7 +40,7 @@ Do not invent a method, DTO, event, option, or manifest field. If neither the of
 | Harness | A .NET application that owns and runs the agent runtime in-process. |
 | AppServer protocol | A custom client or unsupported language that implements JSON-RPC directly. |
 | Channel adapter or module | A TypeScript integration that connects a messaging platform, optionally packaged for discovery and lifecycle management by DotCraft hosts. |
-| Public extension | App Binding, Runtime Dynamic Tools, Desktop plugins, managed .NET plugins, or MCP Apps. |
+| Public extension | App Binding, Runtime Dynamic Tools, Desktop extensions, managed .NET extensions, or MCP Apps. |
 
 Configuring an installed DotCraft workspace is a product-usage task rather than API development. Plugin scaffolding belongs to the plugin-creation workflow; this skill explains the public contracts used by the result.
 

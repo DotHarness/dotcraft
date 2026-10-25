@@ -468,7 +468,7 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it('proxies Desktop Plugin App Surface GET requests through the resolved endpoint', async () => {
+  it('proxies Desktop extension App Surface GET requests through the resolved endpoint', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
       surfaceId: 'board',
@@ -508,7 +508,7 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it('posts Desktop Plugin App Surface JSON and rejects expired resolutions', async () => {
+  it('posts Desktop extension App Surface JSON and rejects expired resolutions', async () => {
     const sendRequest = vi.fn()
       .mockResolvedValueOnce({
         appId: 'com.example.workflow',
@@ -555,7 +555,7 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it('rejects unsafe Desktop Plugin App Surface paths before fetching', async () => {
+  it('rejects unsafe Desktop extension App Surface paths before fetching', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
       surfaceId: 'board',
@@ -580,7 +580,7 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it('enforces the Desktop Plugin App Surface response size limit', async () => {
+  it('enforces the Desktop extension App Surface response size limit', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
       surfaceId: 'board',

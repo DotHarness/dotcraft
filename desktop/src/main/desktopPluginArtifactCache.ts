@@ -29,10 +29,10 @@ export class DesktopPluginArtifactCache {
     const target = path.join(parent, request.revision)
     try {
       await verifyBundle(target, request)
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
       return target
     } catch {
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
     }
     await fs.mkdir(parent, { recursive: true })
     const staging = await fs.mkdtemp(path.join(parent, '.download-'))
@@ -45,7 +45,7 @@ export class DesktopPluginArtifactCache {
         let offset = 0
         let total: number | undefined
         do {
-          if (!current()) throw new Error('Desktop plugin source changed.')
+          if (!current()) throw new Error('Desktop extension source changed.')
           const chunk = await read({ id: request.pluginId, revision: request.revision, offset })
           if (!Number.isSafeInteger(chunk.totalBytes) || chunk.totalBytes <= 0 || chunk.totalBytes > MAX_ARCHIVE_BYTES
             || (total !== undefined && total !== chunk.totalBytes)) throw new Error('Invalid Desktop artifact length.')
@@ -58,12 +58,12 @@ export class DesktopPluginArtifactCache {
         } while (offset < total)
         complete = true
       } finally { await file.close() }
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
       await extractDesktopArtifact(await fs.readFile(archivePath), bundlePath)
       await verifyBundle(bundlePath, request)
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
       await fs.rm(target, { recursive: true, force: true })
-      if (!current()) throw new Error('Desktop plugin source changed.')
+      if (!current()) throw new Error('Desktop extension source changed.')
       await fs.rename(bundlePath, target)
       return target
     } finally {

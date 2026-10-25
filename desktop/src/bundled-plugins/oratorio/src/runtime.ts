@@ -10,7 +10,7 @@ export function installOratorioHost(host: DesktopPluginHost): () => void {
 }
 
 export function oratorioHost(): DesktopPluginHost {
-  if (!activeHost) throw new Error('Oratorio Desktop Plugin is not active.')
+  if (!activeHost) throw new Error('Oratorio Desktop extension is not active.')
   return activeHost
 }
 

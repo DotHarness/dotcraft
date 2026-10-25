@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.3 |
+| Version | 0.9.5 |
 | Status | Draft |
-| Date | 2026-10-22 |
+| Date | 2026-10-25 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -42,7 +42,7 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 - Running the agent on the phone, or in a cloud service.
 - Editing settings, providers, plugins, skills, automations, or Agent Profiles from the phone.
 - Editing files, browsing the computer's folders, typing into terminals, the in-app browser, or
-  Desktop plugin surfaces.
+  Desktop extension surfaces.
 - Controlling a computer that belongs to someone else. A pairing grants the phone the authority of
   the computer's signed-in user, and the product says so.
 - iOS. The app ships for Android; the wire contract stays platform-neutral.

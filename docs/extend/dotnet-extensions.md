@@ -1,19 +1,19 @@
-# Build a .NET plugin
+# Build a .NET extension
 
-A .NET plugin runs **inside the DotCraft process**. Where an MCP server talks to DotCraft across a boundary, a .NET plugin composes the kernel from within: it contributes tools, prompt sections, middleware, and lifecycle observers through named contribution points, and it resolves host services to build those contributions out of DotCraft's own parts.
+A .NET extension runs **inside the DotCraft process**. Where an MCP server talks to DotCraft across a boundary, a .NET extension composes the kernel from within: it contributes tools, prompt sections, middleware, and lifecycle observers through named contribution points, and it resolves host services to build those contributions out of DotCraft's own parts.
 
 This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../guide/plugins-tools); for the manifest fields every plugin shares, see [Plugin Market](./plugin-market).
 
 > [!CAUTION]
-> A .NET plugin loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
+> A .NET extension loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
 
-![.NET plugin authoring and runtime topology](/dotnet-plugin-topology.svg)
+![.NET extension authoring and runtime topology](/dotnet-plugin-topology.svg)
 
 The runnable [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) contains two bundles, covers every public .NET contribution point, verifies the built result through the host's preflight and runtime, and includes Desktop presentation for one tool.
 
 ## Create with DotCraft
 
-Ask `$plugin-creator` to create a .NET plugin in the current workspace. It creates a persistent source project and a standard development bundle:
+Ask `$plugin-creator` to create a .NET extension in the current workspace. It creates a persistent source project and a standard development bundle:
 
 ```text
 .craft/plugin-projects/<plugin-id>/
@@ -35,7 +35,7 @@ The Turn that performs the build keeps its frozen tool snapshot. New plugin tool
 
 ## Prepare a prebuilt bundle
 
-A .NET plugin is an ordinary DotCraft plugin directory with a `dotnet` contribution. For an externally built plugin, include every managed and native dependency before installation. Discovery, installation, and activation do not restore NuGet packages, run MSBuild, or compile source.
+A .NET extension is an ordinary DotCraft plugin directory with a `dotnet` contribution. For an externally built plugin, include every managed and native dependency before installation. Discovery, installation, and activation do not restore NuGet packages, run MSBuild, or compile source.
 
 ```text
 acme.review-core/
@@ -175,7 +175,7 @@ Its descriptor declares the backend ID, supported protocols, authentication meth
 `CreateProvider(ModelBackendContext)` returns an `IModelProvider` for each configured instance.
 Backend IDs must be unique.
 
-The [.NET plugin sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+The [.NET extension sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
 demonstrates model discovery, chat and interactive login. After enabling and trusting Review Core,
 add its backend to configuration:
 
@@ -313,9 +313,9 @@ Construct the sink in `ActivateAsync` with `context.Services` and resolve the se
 
 Input you push starts a Turn, and that Turn raises signals and lifecycle callbacks of its own. A plugin that pushes input in response to those can wake the thread indefinitely. Push only for external changes, skip an event identical to the last one you delivered, and cap the number of consecutive wakes no user input has interrupted. Both queueing and steering throw `InvalidOperationException` for an archived thread.
 
-For the complete contribution catalog, ordering, typed exports, trust, and generation lifecycle, see [.NET Plugin API and lifecycle](./dotnet-plugin-api).
+For the complete contribution catalog, ordering, typed exports, trust, and generation lifecycle, see [.NET extension API and lifecycle](./dotnet-extension-api).
 
 ## Related docs
 
-- [Desktop Plugins](./desktop-plugins) — add a Desktop surface to the same bundle.
-- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source behind this page.
+- [Desktop extensions](./desktop-extensions) — add a Desktop surface to the same bundle.
+- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source behind this page.

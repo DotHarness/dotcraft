@@ -26,7 +26,7 @@ interface DesktopPluginModule { activate: DesktopPluginActivate }
 
 export function requireDesktopPluginModule(value: unknown): DesktopPluginModule {
   if (!isRecord(value) || typeof value.activate !== 'function') {
-    throw new Error('Desktop Plugin entry must export activate(host).')
+    throw new Error('Desktop extension entry must export activate(host).')
   }
   return value as unknown as DesktopPluginModule
 }
@@ -38,7 +38,7 @@ export function validateActivation(
   host: DesktopPluginHost,
   value: unknown
 ): DesktopPluginGeneration {
-  if (!isRecord(value)) throw new Error('Desktop Plugin activate(host) must return an activation object.')
+  if (!isRecord(value)) throw new Error('Desktop extension activate(host) must return an activation object.')
   const allowedKeys = new Set([
     'mainViews',
     'settingsPages',
@@ -49,9 +49,9 @@ export function validateActivation(
     'dispose'
   ])
   const unknownKind = Object.keys(value).find((key) => !allowedKeys.has(key))
-  if (unknownKind) throw new Error(`Desktop Plugin activation contains unknown contribution '${unknownKind}'.`)
+  if (unknownKind) throw new Error(`Desktop extension activation contains unknown contribution '${unknownKind}'.`)
   if (value.dispose != null && typeof value.dispose !== 'function') {
-    throw new Error('Desktop Plugin activation dispose must be a function.')
+    throw new Error('Desktop extension activation dispose must be a function.')
   }
   const ids = new Set<string>()
   const active = { pluginId, revision, host }
@@ -129,7 +129,7 @@ function validateViewContributions<T extends {
   return contributionArray(value, kind).map((candidate) => {
     validateLabeledContribution(candidate, kind, ids)
     if (typeof candidate.component !== 'function') {
-      throw new Error(`Desktop Plugin ${kind} '${candidate.id}' requires a component.`)
+      throw new Error(`Desktop extension ${kind} '${candidate.id}' requires a component.`)
     }
     return candidate as unknown as T
   })
@@ -146,10 +146,10 @@ function validateCallbackContributions<T extends {
     validateLabeledContribution(candidate, kind, ids)
     if (candidate.description != null) validateLocalizedText(candidate.description, `${kind} '${candidate.id}' description`)
     if (candidate.isAvailable != null && typeof candidate.isAvailable !== 'function') {
-      throw new Error(`Desktop Plugin ${kind} '${candidate.id}' has an invalid availability predicate.`)
+      throw new Error(`Desktop extension ${kind} '${candidate.id}' has an invalid availability predicate.`)
     }
     if (typeof candidate.execute !== 'function') {
-      throw new Error(`Desktop Plugin ${kind} '${candidate.id}' requires execute.`)
+      throw new Error(`Desktop extension ${kind} '${candidate.id}' requires execute.`)
     }
     return candidate as unknown as T
   })
@@ -160,13 +160,13 @@ function validateToolRenderers(value: unknown, ids: Set<string>): DesktopPluginT
     validateContributionId(candidate, 'tool renderer', ids)
     if (typeof candidate.presentationId !== 'string' || !candidate.presentationId.trim()
       || candidate.presentationId !== candidate.presentationId.trim()) {
-      throw new Error(`Desktop Plugin tool renderer '${candidate.id}' requires a presentationId.`)
+      throw new Error(`Desktop extension tool renderer '${candidate.id}' requires a presentationId.`)
     }
     if (candidate.priority != null && (typeof candidate.priority !== 'number' || !Number.isFinite(candidate.priority))) {
-      throw new Error(`Desktop Plugin tool renderer '${candidate.id}' has an invalid priority.`)
+      throw new Error(`Desktop extension tool renderer '${candidate.id}' has an invalid priority.`)
     }
     if (typeof candidate.component !== 'function') {
-      throw new Error(`Desktop Plugin tool renderer '${candidate.id}' requires a component.`)
+      throw new Error(`Desktop extension tool renderer '${candidate.id}' requires a component.`)
     }
     return candidate as unknown as DesktopPluginToolRendererContribution
   })
@@ -174,9 +174,9 @@ function validateToolRenderers(value: unknown, ids: Set<string>): DesktopPluginT
 
 function contributionArray(value: unknown, kind: string): Record<string, unknown>[] {
   if (value == null) return []
-  if (!Array.isArray(value)) throw new Error(`Desktop Plugin ${kind} contributions must be an array.`)
+  if (!Array.isArray(value)) throw new Error(`Desktop extension ${kind} contributions must be an array.`)
   return value.map((candidate) => {
-    if (!isRecord(candidate)) throw new Error(`Desktop Plugin ${kind} contribution must be an object.`)
+    if (!isRecord(candidate)) throw new Error(`Desktop extension ${kind} contribution must be an object.`)
     return candidate
   })
 }
@@ -185,23 +185,23 @@ function validateLabeledContribution(candidate: Record<string, unknown>, kind: s
   validateContributionId(candidate, kind, ids)
   validateLocalizedText(candidate.label, `${kind} '${candidate.id}' label`)
   if (candidate.order != null && (typeof candidate.order !== 'number' || !Number.isFinite(candidate.order))) {
-    throw new Error(`Desktop Plugin ${kind} '${candidate.id}' has an invalid order.`)
+    throw new Error(`Desktop extension ${kind} '${candidate.id}' has an invalid order.`)
   }
 }
 
 function validateContributionId(candidate: Record<string, unknown>, kind: string, ids: Set<string>): void {
   if (typeof candidate.id !== 'string' || !candidate.id.trim()) {
-    throw new Error(`Desktop Plugin ${kind} id is required.`)
+    throw new Error(`Desktop extension ${kind} id is required.`)
   }
   if (candidate.id !== candidate.id.trim() || ids.has(candidate.id)) {
-    throw new Error(`Desktop Plugin ${kind} id '${candidate.id}' is duplicated or invalid.`)
+    throw new Error(`Desktop extension ${kind} id '${candidate.id}' is duplicated or invalid.`)
   }
   ids.add(candidate.id)
 }
 
 function validateLocalizedText(value: unknown, field: string): void {
   if (!isRecord(value) || typeof value.default !== 'string' || !value.default.trim()) {
-    throw new Error(`Desktop Plugin ${field} is required.`)
+    throw new Error(`Desktop extension ${field} is required.`)
   }
 }
 

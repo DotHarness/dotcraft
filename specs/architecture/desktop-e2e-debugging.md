@@ -2,16 +2,16 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.1 |
+| Version | 0.9.5 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-25 |
 
 This specification defines explicit CDP startup, the renderer readiness driver, and
 non-owning automation attachment. It does not define a scenario suite or state-reset service.
 
 ## Architecture
 
-Electron owns the CDP endpoint from process startup. The active Desktop Plugin generation owns
+Electron owns the CDP endpoint from process startup. The active Desktop extension generation owns
 its renderer driver. An automation
 client owns only its CDP connection, never the Desktop, tray, Hub, or AppServer lifecycle.
 
@@ -56,7 +56,7 @@ The supported attachment flow uses the repository's official Playwright CLI depe
 
 CDP is unauthenticated and highly privileged. Only explicit startup and caller-provided loopback
 endpoints are supported; the workflow does not advertise, discover, or scan for instances.
-Desktop Plugin trust does not add a second CDP permission system.
+Desktop extension trust does not add a second CDP permission system.
 
 ## State and lifecycle
 

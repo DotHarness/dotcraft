@@ -1,6 +1,6 @@
-# Desktop Plugin API
+# Desktop extension API
 
-This page is the API reference for trusted Desktop Plugins. To create and build your first plugin, start with [Build a Desktop Plugin](./desktop-plugins).
+This page is the API reference for trusted Desktop extensions. To create and build your first plugin, start with [Build a Desktop extension](./desktop-extensions).
 
 ## Use the four kernel primitives
 
@@ -807,21 +807,21 @@ Every other custom property is private, including `--composer-*`, `--sidebar-*`,
 
 ## Use DOM and CSS deliberately
 
-Desktop Plugins may access the renderer DOM and load global CSS, and DotCraft does not block either. Its DOM structure, class names, private CSS variables, stores, and feature components are still not public contracts. Prefer a public surface or service when one exists, and expect to carry the maintenance cost of anything you reach through DOM or CSS instead.
+Desktop extensions may access the renderer DOM and load global CSS, and DotCraft does not block either. Its DOM structure, class names, private CSS variables, stores, and feature components are still not public contracts. Prefer a public surface or service when one exists, and expect to carry the maintenance cost of anything you reach through DOM or CSS instead.
 
 ## Keep UI and backend responsibilities separate
 
-A custom background, Composer decoration, wrapper, plugin surface, renderer service, or renderer event needs only a Desktop Plugin. DotCraft does not create matching C# or AppServer APIs for pure UI.
+A custom background, Composer decoration, wrapper, plugin surface, renderer service, or renderer event needs only a Desktop extension. DotCraft does not create matching C# or AppServer APIs for pure UI.
 
-Add a [.NET plugin](./dotnet-plugins) or AppServer contract when the feature needs backend execution, durable host-owned state, Agent tools or hooks, another client, or cross-process and remote coordination. One plugin bundle may contain both modules, but neither is required solely because the other exists.
+Add a [.NET extension](./dotnet-extensions) or AppServer contract when the feature needs backend execution, durable host-owned state, Agent tools or hooks, another client, or cross-process and remote coordination. One plugin bundle may contain both modules, but neither is required solely because the other exists.
 
 ## Generation and reload lifecycle
 
-Desktop activates the whole content revision as one generation and calls `activate` once for it. Refreshing an unchanged revision is a no-op. An updated revision disposes the previous generation before activating the new one. The build and refresh steps live in [Build a Desktop Plugin](./desktop-plugins).
+Desktop activates the whole content revision as one generation and calls `activate` once for it. Refreshing an unchanged revision is a no-op. An updated revision disposes the previous generation before activating the new one. The build and refresh steps live in [Build a Desktop extension](./desktop-extensions).
 
 Disabling or replacing a revision withdraws Host-owned registrations immediately. Desktop does not wait for an unfinished plugin `activate()` or `dispose()` promise before continuing, and a late activation result is stale and cannot publish.
 
-The revision is the development iteration unit. Desktop Plugins do not have a built-in file watcher, HMR, component-only reload, or partial-generation update. Rebuild, then refresh or re-enable the plugin.
+The revision is the development iteration unit. Desktop extensions do not have a built-in file watcher, HMR, component-only reload, or partial-generation update. Rebuild, then refresh or re-enable the plugin.
 
 With a remote workspace, Desktop downloads the installed plugin's Desktop output after you authorize that workspace to run plugin interfaces on this computer. It verifies the existing content revision before loading. The cache is not another plugin installation: configuration and server-side contributions remain in the remote workspace. Future installs and updates use the remembered workspace grant. Revoke it or retry a failed interface from the Plugins page.
 

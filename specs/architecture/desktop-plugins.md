@@ -1,28 +1,28 @@
-# Desktop Plugins
+# Desktop Extensions
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.3 |
+| Version | 0.9.5 |
 | Status | Living |
-| Date | 2026-10-24 |
+| Date | 2026-10-25 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
 
-Desktop Plugins are fully trusted, client-local TypeScript/React modules owned by a DotCraft Plugin. They run in the Desktop renderer itself and may improve, extend, wrap, or replace the UI that loaded them. Bundled and user-installed plugins use the same manifest, SDK, React runtime, activation path, and revision lifecycle.
+Desktop extensions are fully trusted, client-local TypeScript/React modules owned by a DotCraft Plugin. They run in the Desktop renderer itself and may improve, extend, wrap, or replace the UI that loaded them. Bundled and user-installed plugins use the same manifest, SDK, React runtime, activation path, and revision lifecycle.
 
-The Desktop Plugin runtime has four kernel primitives:
+The Desktop extension runtime has four kernel primitives:
 
 - `effect` owns setup and cleanup;
 - `ui.add`, `ui.replace`, and `ui.wrap` compose named surfaces;
 - `services.provide` and `services.use` share renderer-local contracts;
 - `events.on` and `events.emit` provide renderer-local notifications.
 
-Six contribution families provide convenience APIs for common integrations. They are built on the runtime, not a closed list of what a Desktop Plugin may change.
+Six contribution families provide convenience APIs for common integrations. They are built on the runtime, not a closed list of what a Desktop extension may change.
 
 ## Trust and runtime model
 
-Desktop Plugin code executes in the same renderer realm as DotCraft. Installation and enablement are the trust decision. There is no permission system, JavaScript sandbox, process boundary, or separate Extension Host for Desktop Plugins.
+Desktop extension code executes in the same renderer realm as DotCraft. Installation and enablement are the trust decision. There is no permission system, JavaScript sandbox, process boundary, or separate extension host process for Desktop extensions.
 
 Plugins may use the public SDK, the renderer DOM, browser APIs, global CSS, and the preload API. Only the public SDK is a compatibility contract; DotCraft may change internal elements, class names, stores, and component structure without preserving plugins that depend on them. This distinction is about compatibility, not access control.
 
@@ -288,7 +288,7 @@ Verified cache entries survive disconnects; superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
 
 Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 
@@ -400,4 +400,4 @@ change delivery to built-in surfaces. Bridged server requests have one responder
 
 ## .NET and AppServer boundary
 
-Pure UI stays in the Desktop Plugin; Core does not mirror surfaces, renderer services, or renderer events into C#. A .NET plugin or AppServer contract is needed only for backend execution, durable host-owned state, Agent tools or hooks, other clients, or cross-process coordination. A bundle may ship both modules, but neither requires the other. Renderer composition does not alter Agent prompts, tools, or backend authority.
+Pure UI stays in the Desktop extension; Core does not mirror surfaces, renderer services, or renderer events into C#. A .NET extension or AppServer contract is needed only for backend execution, durable host-owned state, Agent tools or hooks, other clients, or cross-process coordination. A bundle may ship both modules, but neither requires the other. Renderer composition does not alter Agent prompts, tools, or backend authority.

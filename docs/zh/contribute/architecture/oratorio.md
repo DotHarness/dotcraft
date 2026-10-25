@@ -2,7 +2,7 @@
 
 本文面向 DotCraft 贡献者，说明内置 [Oratorio](../../guide/oratorio/) 工作流的集成边界。
 
-![Oratorio 集成边界：Desktop Renderer 与内置 desktop plugin 位于 typed IPC 边界一侧，始终拿不到 endpoint 与凭据。Desktop Main 在另一侧持有两者，并且只有 Main 与 Oratorio Server 交换请求和事件，而 Hub 只负责启动、从不代理](/oratorio-boundaries-topology.svg)
+![Oratorio 集成边界：Desktop Renderer 与内置桌面扩展位于 typed IPC 边界一侧，始终拿不到 endpoint 与凭据。Desktop Main 在另一侧持有两者，并且只有 Main 与 Oratorio Server 交换请求和事件，而 Hub 只负责启动、从不代理](/oratorio-boundaries-topology.svg)
 
 ## 组件边界
 
@@ -12,7 +12,7 @@
 | **DotCraft Hub** | 启动并监管已注册的用户级 `oratorio` managed service，不代理 Oratorio 业务请求。 |
 | **Desktop Main** | 解析本地或远程服务访问、注入 bearer、校验允许的 route，并持有实时连接。 |
 | **Desktop Renderer** | 通过 typed IPC 渲染 Board、任务详情和 Settings，不获取 endpoint 或 bearer。 |
-| **内置 Desktop Plugin** | 通过公共 Desktop Plugin 激活契约注册 Oratorio 视图与 Settings page。 |
+| **内置桌面扩展** | 通过公共桌面扩展激活契约注册 Oratorio 视图与 Settings page。 |
 
 本地 Desktop 会在首次使用时请求 Hub 确保随包提供的 Server 已运行。远程 Desktop 则从当前 [DotCraft Stack](../../self-hosting/server-deployment) 解析 Oratorio 服务。两种模式下，Renderer 请求都经过同一个 Main process 边界。
 
@@ -41,5 +41,5 @@ Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式�
 ## 相关文档
 
 - [Hub 协议](../../extend/protocols/hub)——Desktop 用来确保 `oratorio` managed service 已运行的接口。
-- [开发 Desktop Plugin](../../extend/desktop-plugins)——内置插件注册 Oratorio 视图所用的激活契约。
+- [开发桌面扩展](../../extend/desktop-extensions)——内置插件注册 Oratorio 视图所用的激活契约。
 - [DotCraft App](../../extend/app-binding)——Main 转交的 connect 与 bind handoff 背后的授权模型。

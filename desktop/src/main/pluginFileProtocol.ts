@@ -77,17 +77,17 @@ export async function registerDesktopPluginModuleRoute(
   options: DesktopPluginModuleRouteOptions = {}
 ): Promise<DesktopPluginModuleRoute> {
   const pluginId = normalizePluginId(request.pluginId)
-  if (!pluginId) throw new Error('Desktop Plugin id is invalid.')
-  if (!request.version) throw new Error('Desktop Plugin version is required.')
-  if (!/^[0-9a-f]{64}$/.test(request.revision)) throw new Error('Desktop Plugin revision is invalid.')
+  if (!pluginId) throw new Error('Desktop extension id is invalid.')
+  if (!request.version) throw new Error('Desktop extension version is required.')
+  if (!/^[0-9a-f]{64}$/.test(request.revision)) throw new Error('Desktop extension revision is invalid.')
 
   const rootPath = await resolveLocalPluginRoot(request.rootPath)
   const bundle = await readDesktopPluginBundle(rootPath)
   if (normalizePluginId(bundle.pluginId) !== pluginId) {
-    throw new Error('Desktop Plugin root id does not match the snapshot.')
+    throw new Error('Desktop extension root id does not match the snapshot.')
   }
-  if (!options.cached && bundle.version !== request.version) throw new Error('Desktop Plugin version does not match local code.')
-  if (bundle.revision !== request.revision) throw new Error('Desktop Plugin revision does not match local code.')
+  if (!options.cached && bundle.version !== request.version) throw new Error('Desktop extension version does not match local code.')
+  if (bundle.revision !== request.revision) throw new Error('Desktop extension revision does not match local code.')
 
   const key = routeKey(pluginId, request.revision, request.sourceKey)
   if (!moduleRoutes.has(key)) {
@@ -123,8 +123,8 @@ export function clearDesktopPluginModuleRoutes(): void {
 
 export function buildPluginFileUrl(pluginId: string, revision: string, relativePath: string, sourceKey?: string): string {
   const id = normalizePluginId(pluginId)
-  if (!id) throw new Error('Desktop Plugin id is required.')
-  if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Desktop Plugin revision is invalid.')
+  if (!id) throw new Error('Desktop extension id is required.')
+  if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Desktop extension revision is invalid.')
   const normalized = normalizeRouteRelativePath(relativePath)
   const encodedPath = normalized.split('/').map((segment) => encodeURIComponent(segment)).join('/')
   if (sourceKey && !/^[0-9a-f]{64}$/.test(sourceKey)) throw new Error('Invalid plugin source.')
@@ -166,9 +166,9 @@ export function pluginUrlToRoute(url: string): {
   sourceKey?: string
 } {
   const parsed = new URL(url)
-  if (parsed.protocol !== `${PLUGIN_FILE_SCHEME}:`) throw new Error('Invalid Desktop Plugin URL scheme.')
+  if (parsed.protocol !== `${PLUGIN_FILE_SCHEME}:`) throw new Error('Invalid Desktop extension URL scheme.')
   const pluginId = normalizePluginId(decodeURIComponent(parsed.hostname))
-  if (!pluginId) throw new Error('Invalid Desktop Plugin URL host.')
+  if (!pluginId) throw new Error('Invalid Desktop extension URL host.')
   const segments = parsed.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment))
   let sourceKey: string | undefined
   if (segments[0] === 'source') {
@@ -177,7 +177,7 @@ export function pluginUrlToRoute(url: string): {
   }
   if (sourceKey !== undefined && !/^[0-9a-f]{64}$/.test(sourceKey)) throw new Error('Invalid plugin source.')
   const revision = segments.shift() ?? ''
-  if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Invalid Desktop Plugin URL revision.')
+  if (!/^[0-9a-f]{64}$/.test(revision)) throw new Error('Invalid Desktop extension URL revision.')
   return {
     pluginId,
     revision,
@@ -222,13 +222,13 @@ export async function computeDesktopPluginRevision(
           totalBytes += count
           fileBytes += count
           if (totalBytes > MAX_TREE_BYTES) {
-            throw new Error('Desktop Plugin output exceeds the 512 MiB content limit.')
+            throw new Error('Desktop extension output exceeds the 512 MiB content limit.')
           }
           hash.update(buffer.subarray(0, count))
         }
       } while (count > 0)
       if (fileBytes !== contentLength || (await file.stat()).size !== contentLength) {
-        throw new Error('Desktop Plugin output changed while its revision was being computed.')
+        throw new Error('Desktop extension output changed while its revision was being computed.')
       }
     } finally {
       await file.close()
@@ -254,7 +254,7 @@ export async function readDesktopPluginBundle(rootPath: string): Promise<{
   const declaredDistRoot = path.join(rootPath, 'desktop', 'dist')
   await rejectFilesystemLink(declaredDistRoot)
   const distRoot = await fs.realpath(declaredDistRoot)
-  if (!isPathWithin(distRoot, rootPath)) throw new Error('Desktop Plugin output must stay inside its plugin root.')
+  if (!isPathWithin(distRoot, rootPath)) throw new Error('Desktop extension output must stay inside its plugin root.')
   await requireDeclaredFile(rootPath, desktop.entry)
   for (const style of desktop.styles) await requireDeclaredFile(rootPath, style)
   return {
@@ -267,16 +267,16 @@ export async function readDesktopPluginBundle(rootPath: string): Promise<{
 }
 
 function parseDesktopManifest(value: unknown): DesktopPluginManifest {
-  if (!isRecord(value)) throw new Error('Desktop Plugin manifest is missing desktop.')
-  if (typeof value.entry !== 'string') throw new Error('Desktop Plugin entry is required.')
+  if (!isRecord(value)) throw new Error('Desktop extension manifest is missing desktop.')
+  if (typeof value.entry !== 'string') throw new Error('Desktop extension entry is required.')
   validateDesktopPath(value.entry, '.mjs')
   const rawStyles = value.styles == null ? [] : value.styles
-  if (!Array.isArray(rawStyles)) throw new Error('Desktop Plugin styles must be an array.')
+  if (!Array.isArray(rawStyles)) throw new Error('Desktop extension styles must be an array.')
   const styles: string[] = []
   for (const style of rawStyles) {
-    if (typeof style !== 'string') throw new Error('Desktop Plugin style path is invalid.')
+    if (typeof style !== 'string') throw new Error('Desktop extension style path is invalid.')
     validateDesktopPath(style, '.css')
-    if (styles.includes(style)) throw new Error(`Desktop Plugin style '${style}' is duplicated.`)
+    if (styles.includes(style)) throw new Error(`Desktop extension style '${style}' is duplicated.`)
     styles.push(style)
   }
   return { entry: value.entry, styles }
@@ -284,19 +284,19 @@ function parseDesktopManifest(value: unknown): DesktopPluginManifest {
 
 function validateDesktopPath(value: string, extension: '.mjs' | '.css'): void {
   if (!value.startsWith(DESKTOP_OUTPUT_PREFIX) || !value.endsWith(extension) || value.includes('\\')) {
-    throw new Error(`Desktop Plugin path must be a ${extension} file under ./desktop/dist/.`)
+    throw new Error(`Desktop extension path must be a ${extension} file under ./desktop/dist/.`)
   }
   const segments = value.slice(DESKTOP_OUTPUT_PREFIX.length).split('/')
   if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
-    throw new Error('Desktop Plugin path contains an invalid segment.')
+    throw new Error('Desktop extension path contains an invalid segment.')
   }
 }
 
 async function requireDeclaredFile(rootPath: string, manifestPath: string): Promise<void> {
   const outputRoot = path.join(rootPath, 'desktop', 'dist')
   const resolved = await fs.realpath(path.join(rootPath, ...manifestPath.slice(2).split('/')))
-  if (!isPathWithin(resolved, outputRoot)) throw new Error('Desktop Plugin file escaped desktop/dist.')
-  if (!(await fs.stat(resolved)).isFile()) throw new Error('Desktop Plugin path must reference a file.')
+  if (!isPathWithin(resolved, outputRoot)) throw new Error('Desktop extension file escaped desktop/dist.')
+  if (!(await fs.stat(resolved)).isFile()) throw new Error('Desktop extension path must reference a file.')
 }
 
 async function enumerateDesktopTree(distRoot: string): Promise<TreeEntry[]> {
@@ -308,15 +308,15 @@ async function enumerateDesktopTree(distRoot: string): Promise<TreeEntry[]> {
   while (pending.length > 0) {
     const current = pending.pop()!
     if (current.depth >= MAX_TREE_DEPTH) {
-      throw new Error('Desktop Plugin output exceeds the directory depth limit.')
+      throw new Error('Desktop extension output exceeds the directory depth limit.')
     }
     for (const child of await fs.readdir(current.absolutePath, { withFileTypes: true })) {
       const absolutePath = path.join(current.absolutePath, child.name)
       const stat = await fs.lstat(absolutePath)
-      if (stat.isSymbolicLink()) throw new Error('Desktop Plugin output cannot contain filesystem links.')
+      if (stat.isSymbolicLink()) throw new Error('Desktop extension output cannot contain filesystem links.')
       entryCount += 1
       if (entryCount > MAX_TREE_ENTRIES) {
-        throw new Error('Desktop Plugin output contains too many filesystem entries.')
+        throw new Error('Desktop extension output contains too many filesystem entries.')
       }
       const relativePath = path.relative(distRoot, absolutePath).replace(/\\/g, '/')
       if (child.isDirectory()) {
@@ -324,7 +324,7 @@ async function enumerateDesktopTree(distRoot: string): Promise<TreeEntry[]> {
         pending.push({ absolutePath, depth: current.depth + 1 })
       } else if (child.isFile()) {
         fileCount += 1
-        if (fileCount > MAX_TREE_FILES) throw new Error('Desktop Plugin output contains too many files.')
+        if (fileCount > MAX_TREE_FILES) throw new Error('Desktop extension output contains too many files.')
         result.push({ relativePath, absolutePath, directory: false })
       }
     }
@@ -364,13 +364,13 @@ async function materializeDesktopSnapshot(
               totalBytes += count
               fileBytes += count
               if (totalBytes > MAX_TREE_BYTES) {
-                throw new Error('Desktop Plugin output exceeds the 512 MiB content limit.')
+                throw new Error('Desktop extension output exceeds the 512 MiB content limit.')
               }
               await target.writeFile(buffer.subarray(0, count))
             }
           } while (count > 0)
           if (fileBytes !== contentLength || (await source.stat()).size !== contentLength) {
-            throw new Error('Desktop Plugin output changed while its snapshot was being created.')
+            throw new Error('Desktop extension output changed while its snapshot was being created.')
           }
         } finally {
           await target.close()
@@ -382,7 +382,7 @@ async function materializeDesktopSnapshot(
     }
 
     if (await computeDesktopPluginRevision(snapshotRoot, desktop) !== expectedRevision) {
-      throw new Error('Desktop Plugin output changed while its snapshot was being created.')
+      throw new Error('Desktop extension output changed while its snapshot was being created.')
     }
     return snapshotRoot
   } catch (error) {
@@ -397,7 +397,7 @@ function disposeModuleRoute(route: ModuleRoute): void {
 }
 
 async function resolveLocalPluginRoot(rootPath: string): Promise<string> {
-  if (!path.isAbsolute(rootPath)) throw new Error('Desktop Plugin root must be absolute.')
+  if (!path.isAbsolute(rootPath)) throw new Error('Desktop extension root must be absolute.')
   await rejectFilesystemLink(rootPath)
   return fs.realpath(path.resolve(rootPath))
 }
@@ -420,7 +420,7 @@ function treeEntryHeader(kind: 0 | 1, pathLength: number, contentLength: number)
 
 async function rejectFilesystemLink(targetPath: string): Promise<void> {
   if ((await fs.lstat(targetPath)).isSymbolicLink()) {
-    throw new Error('Desktop Plugin output cannot contain filesystem links.')
+    throw new Error('Desktop extension output cannot contain filesystem links.')
   }
 }
 
@@ -429,10 +429,10 @@ function distRelativePath(manifestPath: string): string {
 }
 
 function normalizeRouteRelativePath(value: string): string {
-  if (!value || value.includes('\\')) throw new Error('Desktop Plugin route path is invalid.')
+  if (!value || value.includes('\\')) throw new Error('Desktop extension route path is invalid.')
   const segments = value.split('/')
   if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
-    throw new Error('Desktop Plugin route path is invalid.')
+    throw new Error('Desktop extension route path is invalid.')
   }
   return segments.join('/')
 }

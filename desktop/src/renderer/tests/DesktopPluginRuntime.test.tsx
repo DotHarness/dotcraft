@@ -53,7 +53,7 @@ function plugin(revision = revisionA, enabled = true): PluginEntry {
 function namedPlugin(id: string, revision = revisionA, enabled = true): PluginEntry {
   return {
     id,
-    displayName: `${id} Desktop Plugin`,
+    displayName: `${id} Desktop extension`,
     version: '1.0.0',
     enabled,
     installed: true,
@@ -139,7 +139,7 @@ describe('DesktopPluginRuntime', () => {
     const generation = useDesktopPluginRegistry.getState().generations.get('fixture.desktop')
     expect(generation?.revision).toBe(revisionA)
     expect(generation?.mainViews[0]?.host).toMatchObject({
-      plugin: { id: 'fixture.desktop', version: '1.0.0', displayName: 'fixture.desktop Desktop Plugin' }
+      plugin: { id: 'fixture.desktop', version: '1.0.0', displayName: 'fixture.desktop Desktop extension' }
     })
     expect(document.head.querySelectorAll('link[data-dotcraft-desktop-plugin]')).toHaveLength(1)
 
@@ -285,7 +285,7 @@ describe('DesktopPluginRuntime', () => {
 
     expect(useDesktopPluginRegistry.getState().generations.size).toBe(0)
     expect(useToastStore.getState().toasts.map((toast) => toast.message))
-      .toContain("Desktop Plugin activation contains unknown contribution 'commnads'.")
+      .toContain("Desktop extension activation contains unknown contribution 'commnads'.")
     error.mockRestore()
   })
 

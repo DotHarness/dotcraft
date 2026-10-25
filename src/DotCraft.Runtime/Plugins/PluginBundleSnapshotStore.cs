@@ -61,7 +61,7 @@ internal sealed partial class PluginBundleSnapshotStore : IDisposable
             if (parsed.Manifest?.Dotnet == null)
             {
                 throw new InvalidOperationException(
-                    $"Copied plugin '{plugin.Manifest.Id}' no longer has an admitted .NET plugin manifest.");
+                    $"Copied plugin '{plugin.Manifest.Id}' no longer has an admitted .NET extension manifest.");
             }
             if (!PluginIds.EqualsCanonical(parsed.Manifest.Id, plugin.Manifest.Id))
             {

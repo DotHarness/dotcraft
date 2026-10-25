@@ -24,9 +24,9 @@ using DotCraft.AppServerTestClient;
 //    stream-retry-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider stream retry smoke scenarios
 //    dotnet-plugin-smoke --bundles <dir> [--report <json>]
-//                                  -- Run the managed .NET plugin sample through a real AppServer/provider
+//                                  -- Run the managed .NET extension sample through a real AppServer/provider
 //    dotnet-plugin-authoring-smoke [--report <json>]
-//                                  -- Create, build, invoke, and hot reload an agent-authored .NET plugin
+//                                  -- Create, build, invoke, and hot reload an agent-authored .NET extension
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void Usage()
@@ -84,13 +84,13 @@ static void Usage()
                               [--report <report.json>] [--work-root <dir>]
                               [--timeout-minutes <n>] [--keep-workspace]
               Install, trust, activate, invoke, restart, disable, and remove the managed
-              .NET plugin sample through a real AppServer and the selected local provider.
+              .NET extension sample through a real AppServer and the selected local provider.
 
           dotnet-plugin-authoring-smoke [--provider-id <id>] [--model <model>]
                                          [--report <report.json>] [--work-root <dir>]
                                          [--timeout-minutes <n>] [--keep-workspace]
               Use the built-in creator, Roslyn build Tool, and a real local provider to
-              create, invoke, edit, and hot reload an isolated managed .NET plugin.
+              create, invoke, edit, and hot reload an isolated managed .NET extension.
         """);
 }
 

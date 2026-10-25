@@ -1,6 +1,6 @@
-# .NET Plugin API and lifecycle
+# .NET extension API and lifecycle
 
-This reference covers contribution contracts, typed dependencies, trust, and generation lifecycle. To create and build a plugin, start with [Build a .NET plugin](./dotnet-plugins).
+This reference covers contribution contracts, typed dependencies, trust, and generation lifecycle. To create and build a plugin, start with [Build a .NET extension](./dotnet-extensions).
 
 ![Three contribution tiers acting on one contribution point's assembled output: Tier A adds an item in order, Tier B shadows a named default while its handle lives, and Tier C returns the final result](/dotnet-plugin-tiers.svg)
 
@@ -154,7 +154,7 @@ A `null` snapshot leaves no baseline, so `RenderDiff` runs on every request unti
 
 A section that throws from `Snapshot` contributes no baseline for that request. One that throws from `RenderDiff` is retried on the next request. Neither fails the Turn.
 
-Sections run only while the agent samples, so a change made while the thread is idle reaches the model at the start of its next Turn. To make the agent act on a change, push input into the thread as described in [Push events into a thread](./dotnet-plugins#push-events-into-a-thread). Register with `ContributionOptions.ForThread(threadId)` when the state belongs to one thread.
+Sections run only while the agent samples, so a change made while the thread is idle reaches the model at the start of its next Turn. To make the agent act on a change, push input into the thread as described in [Push events into a thread](./dotnet-extensions#push-events-into-a-thread). Register with `ContributionOptions.ForThread(threadId)` when the state belongs to one thread.
 
 ### Tier B — replace a named default
 
@@ -255,5 +255,5 @@ Installation, enablement, trust, and removal are separate AppServer operations. 
 ## Related docs
 
 - [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) — a runnable bundle that exercises every contribution point on this page.
-- [.NET Plugin architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source for these contracts.
-- [Desktop Plugins](./desktop-plugins) — the UI half of a bundle that also ships .NET code.
+- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source for these contracts.
+- [Desktop extensions](./desktop-extensions) — the UI half of a bundle that also ships .NET code.

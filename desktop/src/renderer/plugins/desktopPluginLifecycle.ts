@@ -195,7 +195,7 @@ export class DesktopPluginRuntime {
       this.dependencies.onActivated?.(pluginId)
     } catch (error) {
       if (this.current(pluginId, token, target)) {
-        console.error(`Desktop Plugin '${pluginId}' activation failed:`, error)
+        console.error(`Desktop extension '${pluginId}' activation failed:`, error)
         this.dependencies.onError?.(pluginId, error)
         showToast({
           message: error instanceof Error ? error.message : String(error),
@@ -240,7 +240,7 @@ export class DesktopPluginRuntime {
 
   private async removeModule(pluginId: string, revision: string, sourceKey?: string): Promise<void> {
     await this.dependencies.removeModule({ pluginId, revision, ...(sourceKey ? { sourceKey } : {}) }).catch((error: unknown) => {
-      console.error(`Desktop Plugin '${pluginId}' module cleanup failed:`, error)
+      console.error(`Desktop extension '${pluginId}' module cleanup failed:`, error)
     })
   }
 

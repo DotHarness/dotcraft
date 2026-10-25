@@ -3715,7 +3715,7 @@ export const MESSAGES_ES = {
   'slashSearch.hint': 'Escribe para filtrar comandos o habilidades',
   'slashSearch.noDescription': 'Sin descripción',
   'slashSearch.commandsGroup': 'Comandos',
-  'slashSearch.desktopCommandsGroup': 'Plugins de escritorio',
+  'slashSearch.desktopCommandsGroup': 'Extensiones de escritorio',
   'slashSearch.skillsGroup': 'Habilidades',
   'desktopPlugins.remote.authorize': 'Ejecutar interfaces de plugins remotos',
   'desktopPlugins.remote.confirm': 'Los plugins de {{workspace}} ejecutarán código de interfaz en este equipo con acceso a Desktop, archivos y servicios conectados. ¿Permitir este espacio, incluidas futuras instalaciones y actualizaciones?',

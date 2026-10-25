@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace DotCraft.Plugins;
 
-/// <summary>Performs non-executing metadata validation for a structurally admitted .NET plugin bundle.</summary>
+/// <summary>Performs non-executing metadata validation for a structurally admitted .NET extension bundle.</summary>
 internal static class PluginDotnetMetadataInspector
 {
     /// <summary>The single target framework moniker this Host loads plugin bundles for.</summary>

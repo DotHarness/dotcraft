@@ -65,7 +65,7 @@ function startWatching(): void {
       try {
         listener(next)
       } catch (error) {
-        console.error('Desktop Plugin environment listener failed:', error)
+        console.error('Desktop extension environment listener failed:', error)
       }
     }
   }

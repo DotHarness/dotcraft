@@ -73,7 +73,7 @@ afterEach(() => {
   for (const scope of scopes.splice(0)) disposeDesktopPluginCleanupScope(scope)
 })
 
-describe('Desktop Plugin navigation.openExternal', () => {
+describe('Desktop extension navigation.openExternal', () => {
   it('opens web URLs in the browser, handles DotCraft links in Desktop, and rejects other schemes', async () => {
     const openExternal = vi.fn().mockResolvedValue(undefined)
     const openDesktopLink = vi.fn().mockResolvedValue(undefined)
@@ -93,7 +93,7 @@ describe('Desktop Plugin navigation.openExternal', () => {
   })
 })
 
-describe('Desktop Plugin open targets', () => {
+describe('Desktop extension open targets', () => {
   const targets = [
     { id: 'vscode', label: 'VS Code', iconKey: 'editor', iconDataUrl: 'data:image/png;base64,AA' },
     { id: 'fileManager', label: 'File Explorer', labelKey: 'openTargets.fileManager', iconKey: 'fileManager' },
@@ -141,7 +141,7 @@ describe('Desktop Plugin open targets', () => {
   })
 })
 
-describe('Desktop Plugin ui.pickFolder', () => {
+describe('Desktop extension ui.pickFolder', () => {
   it('passes the localized title to the folder dialog and returns its choice', async () => {
     const pickFolder = vi.fn()
       .mockResolvedValueOnce('C:\\Projects\\alpha')
@@ -155,7 +155,7 @@ describe('Desktop Plugin ui.pickFolder', () => {
   })
 })
 
-describe('Desktop Plugin mcp.callTool', () => {
+describe('Desktop extension mcp.callTool', () => {
   it('shares one hidden deny-approval thread across plugins and concurrent first calls', async () => {
     const server = appServer((params) => ({ content: [{ type: 'text', text: String(params.tool) }] }))
 

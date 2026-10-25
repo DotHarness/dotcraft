@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.9.5 |
 | **Status** | Draft |
-| **Date** | 2026-10-24 |
-| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop Plugins](../architecture/desktop-plugins.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md), [Design System](../architecture/DESIGN.md) |
+| **Date** | 2026-10-25 |
+| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop Extensions](../architecture/desktop-plugins.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md), [Design System](../architecture/DESIGN.md) |
 
 Purpose: define local environments, which tell DotCraft how to prepare a project's worktrees, how to clean them up, and which commands a conversation can run for that project.
 
@@ -41,7 +41,7 @@ A local environment is a file in a project that declares a setup script, a clean
 
 ## 3. Architecture boundary
 
-- **Desktop** owns environment discovery, the editor, selection, and actions. Its trusted host process reads and writes environment files of local projects; the renderer and Desktop Plugins reach them through host APIs.
+- **Desktop** owns environment discovery, the editor, selection, and actions. Its trusted host process reads and writes environment files of local projects; the renderer and Desktop extensions reach them through host APIs.
 - **Core** owns script execution in the worktree lifecycle. It reads only the environment file a worktree-creation request names (§8), and records it on the worktree so cleanup (§9) and later runs use the same file.
 - The environment file format (§4) is the contract between them. Each side validates what it reads; neither trusts the other's parse.
 

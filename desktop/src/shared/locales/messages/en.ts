@@ -2920,7 +2920,7 @@ export const MESSAGES_EN = {
   'slashSearch.hint': 'Type to filter commands or skills',
   'slashSearch.noDescription': 'No description',
   'slashSearch.commandsGroup': 'Commands',
-  'slashSearch.desktopCommandsGroup': 'Desktop plugins',
+  'slashSearch.desktopCommandsGroup': 'Desktop extensions',
   'slashSearch.skillsGroup': 'Skills',
   'desktopPlugins.remote.authorize': 'Run remote plugin interfaces',
   'desktopPlugins.remote.confirm': 'Plugins from {{workspace}} will run interface code on this computer with access to Desktop, files and connected services. Allow this workspace, including future plugin installs and updates?',

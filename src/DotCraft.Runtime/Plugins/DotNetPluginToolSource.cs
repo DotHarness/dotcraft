@@ -11,7 +11,7 @@ namespace DotCraft.Runtime;
 /// </summary>
 internal sealed class DotNetPluginToolSource : IToolSource, IThreadScopedToolSource, IThreadForkToolBindingSource
 {
-    /// <summary>The stable identifier of the aggregate .NET plugin Tool source.</summary>
+    /// <summary>The stable identifier of the aggregate .NET extension Tool source.</summary>
     public const string Id = "dotnet-plugins";
 
     private readonly IContributionView _contributions;

@@ -72,7 +72,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             catch (Exception exception)
             {
                 _logger?.LogError(
-                    "Failed to converge .NET plugin trust changes for {PluginIds}. FailureType: {FailureType}.",
+                    "Failed to converge .NET extension trust changes for {PluginIds}. FailureType: {FailureType}.",
                     string.Join(",", pluginIds),
                     exception.GetType().Name);
             }

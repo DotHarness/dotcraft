@@ -19,7 +19,7 @@ export function installDesktopPluginRuntime(runtime: DesktopPluginRuntime): void
 export function readDesktopPluginRuntime(): DesktopPluginRuntime {
   const runtime = runtimeGlobal()[runtimeKey];
   if (!runtime) {
-    throw new Error("DotCraft Desktop Plugin runtime is not installed.");
+    throw new Error("DotCraft Desktop extension runtime is not installed.");
   }
   return runtime;
 }

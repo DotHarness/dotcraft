@@ -47,7 +47,7 @@ internal sealed partial class PluginRequestHandler
                 if (plugin?.Manifest.Desktop == null)
                     throw DesktopArtifactError("DesktopArtifactUnavailable", "The plugin has no enabled installed Desktop contribution.");
                 if (plugin.Manifest.Desktop.Revision != p.Revision)
-                    throw DesktopArtifactError("DesktopArtifactChanged", "The Desktop plugin revision changed. Refresh the plugin list.");
+                    throw DesktopArtifactError("DesktopArtifactChanged", "The Desktop extension revision changed. Refresh the plugin list.");
                 if (p.Offset == 0)
                 {
                     _desktopArtifact = PluginDesktopArtifact.Create(plugin.Manifest, p.Revision);
@@ -74,7 +74,7 @@ internal sealed partial class PluginRequestHandler
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
             ResetDesktopArtifact();
-            throw DesktopArtifactError("DesktopArtifactInvalid", "The Desktop plugin artifact could not be read.");
+            throw DesktopArtifactError("DesktopArtifactInvalid", "The Desktop extension artifact could not be read.");
         }
         catch
         {

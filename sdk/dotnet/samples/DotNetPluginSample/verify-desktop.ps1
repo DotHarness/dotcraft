@@ -34,9 +34,9 @@ try {
     Push-Location $desktopSdkRoot
     try {
         npm run build
-        if ($LASTEXITCODE -ne 0) { throw 'Desktop Plugin SDK build failed.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Desktop extension SDK build failed.' }
         npm pack --pack-destination $packagesRoot
-        if ($LASTEXITCODE -ne 0) { throw 'Desktop Plugin SDK pack failed.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Desktop extension SDK pack failed.' }
     }
     finally {
         Pop-Location
@@ -50,7 +50,7 @@ try {
         npm install --no-save --package-lock=false --fund=false --audit=false $sdkPackage $desktopPackage
         if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
         npm run build
-        if ($LASTEXITCODE -ne 0) { throw 'Desktop Plugin build failed.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Desktop extension build failed.' }
     }
     finally {
         Pop-Location
@@ -65,7 +65,7 @@ foreach ($module in $modules) {
     $desktopRoot = [IO.Path]::GetFullPath((Join-Path $sample ('bundles/' + $module.Bundle + '/desktop')))
     $target = [IO.Path]::GetFullPath((Join-Path $desktopRoot 'dist'))
     if (-not $target.StartsWith($desktopRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Desktop Plugin output for $($module.Bundle) is outside the sample bundle."
+        throw "Desktop extension output for $($module.Bundle) is outside the sample bundle."
     }
     if (Test-Path -LiteralPath $target) {
         Remove-Item -LiteralPath $target -Recurse -Force
@@ -73,12 +73,12 @@ foreach ($module in $modules) {
     Copy-Item -LiteralPath $sourceDist -Destination $target -Recurse
 
     if (-not (Test-Path -LiteralPath (Join-Path $target 'index.mjs'))) {
-        throw "Desktop Plugin $($module.Bundle) build did not produce index.mjs."
+        throw "Desktop extension $($module.Bundle) build did not produce index.mjs."
     }
     if (-not (Test-Path -LiteralPath (Join-Path $target 'index.css'))) {
-        throw "Desktop Plugin $($module.Bundle) build did not produce index.css."
+        throw "Desktop extension $($module.Bundle) build did not produce index.css."
     }
     if ($module.Source -eq 'Core' -and -not (Get-ChildItem -LiteralPath (Join-Path $target 'assets') -Filter 'review-workspace-*.svg' -File -ErrorAction SilentlyContinue)) {
-        throw 'Desktop Plugin acme.review-core build did not produce its background asset.'
+        throw 'Desktop extension acme.review-core build did not produce its background asset.'
     }
 }

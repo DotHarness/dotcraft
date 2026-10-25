@@ -75,16 +75,16 @@
   <g transform="translate(70,93) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="5" width="16.4" height="14" rx="2"/><path d="M3.8,9.2 H20.2"/><circle cx="6.6" cy="7.1" r="0.9" fill="#1a1c1f" stroke="none"/></g>
   <text x="98" y="108" class="title">Desktop Renderer</text>
   <text x="70" y="130" class="body">never sees the endpoint or credential</text>
-  <rect x="52" y="172" width="288" height="74" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <rect x="52" y="172" width="288" height="74" rx="10" class="plain" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
   <g transform="translate(70,185) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,3.8 L20,8 12,12.2 4,8 Z" stroke-linejoin="round"/><path d="M4.5,12.5 L12,16.5 19.5,12.5 M4.5,16.5 L12,20.5 19.5,16.5"/></g>
-  <text x="98" y="200" class="title">Bundled desktop plugin</text>
+  <text x="98" y="200" class="title">Bundled Desktop extension</text>
   <text x="70" y="222" class="body">registers the view and settings page</text>
   <rect x="460" y="80" width="288" height="74" rx="10" class="accent"/>
   <g transform="translate(478,93) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,3.4 L18.8,6 V11.4 C18.8,15.7 16,18.6 12,20.4 C8,18.6 5.2,15.7 5.2,11.4 V6 Z"/><path d="M8.9,11.6 l2.3,2.3 4,-4.4"/></g>
   <text x="506" y="108" class="title">Desktop Main</text>
   <text x="478" y="130" class="body">holds the endpoint and the credential</text>
   <text x="52" y="288" class="eyebrow">OUTSIDE DESKTOP</text>
-  <rect x="52" y="298" width="288" height="74" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <rect x="52" y="298" width="288" height="74" rx="10" class="plain" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
   <g transform="translate(70,311) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M17.2,12.0 L19.6,12.0 M15.7,15.7 L17.4,17.4 M12.0,17.2 L12.0,19.6 M8.3,15.7 L6.6,17.4 M6.8,12.0 L4.4,12.0 M8.3,8.3 L6.6,6.6 M12.0,6.8 L12.0,4.4 M15.7,8.3 L17.4,6.6"/></g>
   <text x="98" y="326" class="title">DotCraft Hub</text>
   <text x="70" y="348" class="body">starts the built-in one, never a proxy</text>

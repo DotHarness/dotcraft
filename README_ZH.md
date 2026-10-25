@@ -17,7 +17,7 @@ DotCraft 是一个开源的 Agent Runtime，运行在你自己的机器上。用
 ## 为什么选择 DotCraft？
 
 - **一个 Agent，多个入口：** Desktop、CLI、IDE、手机和聊天机器人共用同一个工作区，在一处开始的任务可以在另一处接着做。你还可以通过 SSH 连接服务器上的 DotCraft，或借助卫星让 Agent 在另一台电脑上工作。
-- **可以在它之上构建：** 把 DotCraft Desktop 背后的运行时嵌入你的 .NET 应用，或通过 SDK 和 App Binding 接入现有产品。.NET 插件可以添加工具、命令和生命周期逻辑，Agent 能自己编写插件，并在宿主运行时直接替换。React 插件可以改造 Desktop 的界面。
+- **可以在它之上构建：** 把 DotCraft Desktop 背后的运行时嵌入你的 .NET 应用，或通过 SDK 和 App Binding 接入现有产品。.NET 扩展可以添加工具、命令和生命周期逻辑，Agent 能自己编写插件，并在宿主运行时直接替换。React 插件可以改造 Desktop 的界面。
 - **部署和成本由你掌控：** 在本地或自己的服务器上运行，选用兼容的模型提供商或 ChatGPT 订阅。提示词前缀保持逐字节稳定，提高缓存复用率。
 - **团队共享模型：** 在一台机器上集中保存 API key 和登录，团队其他机器上的 DotCraft 都通过它调用模型，无需各自保存密钥或直连模型提供商。
 
@@ -117,7 +117,7 @@ const result = await thread.run("Check contrast in dark mode.");
 console.log(result.text);
 ```
 
-[Harness 指南](https://www.dotcraft.net/zh/extend/harness/) · [.NET 插件](https://www.dotcraft.net/zh/extend/dotnet-plugins) · [SDK 快速开始](https://www.dotcraft.net/zh/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/extend/app-binding) · [Desktop 插件](https://www.dotcraft.net/zh/extend/desktop-plugins)
+[Harness 指南](https://www.dotcraft.net/zh/extend/harness/) · [.NET 扩展](https://www.dotcraft.net/zh/extend/dotnet-extensions) · [SDK 快速开始](https://www.dotcraft.net/zh/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/extend/app-binding) · [桌面扩展](https://www.dotcraft.net/zh/extend/desktop-extensions)
 
 ## 更多
 

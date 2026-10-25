@@ -119,7 +119,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             }
             catch (Exception)
             {
-                _logger?.LogWarning("A .NET plugin runtime snapshot subscriber failed.");
+                _logger?.LogWarning("A .NET extension runtime snapshot subscriber failed.");
             }
         }
     }
@@ -194,7 +194,7 @@ internal sealed partial class DotNetPluginRuntimeManager
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            _logger?.LogWarning("Describing .NET plugin Tools failed.");
+            _logger?.LogWarning("Describing .NET extension Tools failed.");
         }
     }
 

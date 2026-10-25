@@ -2871,7 +2871,7 @@ export const MESSAGES_ZH_HANS = {
   'slashSearch.hint': '输入以筛选命令或技能',
   'slashSearch.noDescription': '无描述',
   'slashSearch.commandsGroup': '命令',
-  'slashSearch.desktopCommandsGroup': '桌面插件',
+  'slashSearch.desktopCommandsGroup': '桌面扩展',
   'slashSearch.skillsGroup': '技能',
   'desktopPlugins.remote.authorize': '允许运行远端插件界面',
   'desktopPlugins.remote.confirm': '来自 {{workspace}} 的插件将在这台电脑执行界面代码，并可访问 Desktop、文件和已连接服务。是否允许此工作区，包括今后的插件安装和更新？',

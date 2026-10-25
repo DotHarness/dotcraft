@@ -48,7 +48,7 @@ function startWatching(): void {
       try {
         listener(next)
       } catch (error) {
-        console.error('Desktop Plugin session listener failed:', error)
+        console.error('Desktop extension session listener failed:', error)
       }
     }
   }

@@ -220,7 +220,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
         }
         catch (Exception)
         {
-            _logger?.LogError("Failed to accept .NET plugin bundle {PluginId}.", plugin.Manifest.Id);
+            _logger?.LogError("Failed to accept .NET extension bundle {PluginId}.", plugin.Manifest.Id);
             return;
         }
 

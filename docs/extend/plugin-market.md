@@ -135,7 +135,7 @@ Discovery reads only sources already available on disk. Listing plugins does not
 
 ### Install
 
-Installing copies the selected plugin into `~/.craft/plugins/<id>`, where every workspace of that user discovers it, and validates its manifest. DotCraft loads enabled contributions through the normal plugin lifecycle. Catalog entries that are not installed, and installed plugins that are disabled, contribute no skills, tools, apps, servers, hooks, or Desktop Plugin UI.
+Installing copies the selected plugin into `~/.craft/plugins/<id>`, where every workspace of that user discovers it, and validates its manifest. DotCraft loads enabled contributions through the normal plugin lifecycle. Catalog entries that are not installed, and installed plugins that are disabled, contribute no skills, tools, apps, servers, hooks, or Desktop extension UI.
 
 ### Remove
 
@@ -160,10 +160,10 @@ See [AppServer Protocol](./protocols/appserver#plugin-marketplaces) for request 
 - A marketplace path cannot escape its marketplace root.
 - DotCraft does not store source credentials.
 - A plugin contributes runtime behavior only after it is installed, and only in workspaces that have not turned it off.
-- Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop Plugin executes its trusted renderer code and is the trust decision for that module.
-- Installing or enabling a [.NET plugin](./dotnet-plugin-api) does not grant it managed execution trust. Its accepted plugin id and fingerprint need an explicit grant before any managed code loads.
+- Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop extension executes its trusted renderer code and is the trust decision for that module.
+- Installing or enabling a [.NET extension](./dotnet-extension-api) does not grant it managed execution trust. Its accepted plugin id and fingerprint need an explicit grant before any managed code loads.
 
 ## Related docs
 
 - [Official DotCraft plugin marketplace](https://github.com/DotHarness/dotcraft-plugins) — a real marketplace repository to model yours on.
-- [Desktop Plugins](./desktop-plugins) — read this before publishing a plugin that ships a Desktop surface.
+- [Desktop extensions](./desktop-extensions) — read this before publishing a plugin that ships a Desktop surface.

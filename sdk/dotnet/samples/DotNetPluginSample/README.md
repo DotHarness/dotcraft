@@ -1,6 +1,6 @@
-# .NET plugin sample
+# .NET extension sample
 
-This sample contains two .NET and Desktop plugin bundles that demonstrate contribution points,
+This sample contains two plugin bundles with .NET and Desktop extensions that demonstrate contribution points,
 plugin dependencies, a typed backend service, and open renderer composition across plugins.
 
 - `acme.review-core` contributes Host behavior, exports `IReviewService`, installs a Desktop
@@ -53,7 +53,7 @@ generation.
 In model settings, create a provider using **Local review demo**, sign in with `demo`, and select
 `review-echo`. Responses echo the latest user message locally.
 
-For CLI login, use the [example configuration](../../../../docs/extend/dotnet-plugins.md#provide-a-model-backend)
+For CLI login, use the [example configuration](../../../../docs/extend/dotnet-extensions.md#provide-a-model-backend)
 and run this command from the workspace:
 
 ```sh
@@ -71,5 +71,5 @@ Run the bundles through a real AppServer and the current local Model Provider:
 Pass `-ProviderId` or `-Model` to override the current selection. The smoke test uses an isolated
 temporary workspace and removes it after the run.
 
-For authoring details, see [Build a .NET plugin](../../../../docs/extend/dotnet-plugins.md)
-and [Desktop Plugins](../../../../docs/extend/desktop-plugins.md).
+For authoring details, see [Build a .NET extension](../../../../docs/extend/dotnet-extensions.md)
+and [Desktop extensions](../../../../docs/extend/desktop-extensions.md).

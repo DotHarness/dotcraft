@@ -1,11 +1,11 @@
-# Build a Desktop Plugin
+# Build a Desktop extension
 
-A Desktop Plugin adds fully trusted TypeScript and React behavior to DotCraft Desktop. It runs inside the renderer and can extend Core UI, replace or wrap public surfaces, expose services, react to events, and provide new surfaces for other plugins.
+A Desktop extension adds fully trusted TypeScript and React behavior to DotCraft Desktop. It runs inside the renderer and can extend Core UI, replace or wrap public surfaces, expose services, react to events, and provide new surfaces for other plugins.
 
 This page targets plugin authors. Use `$plugin-creator` for the recommended project layout and `@dotcraft/plugin` for the public runtime, React components, and build command.
 
 > [!CAUTION]
-> Installing and enabling a Desktop Plugin executes it in DotCraft's renderer. Desktop Plugins have no permission layer, sandbox, or separate Extension Host. Install only code you trust. Use [MCP Apps](./mcp-apps) when interactive tool content must remain sandboxed.
+> Installing and enabling a Desktop extension executes it in DotCraft's renderer. Desktop extensions have no permission layer, sandbox, or separate extension host process. Install only code you trust. Use [MCP Apps](./mcp-apps) when interactive tool content must remain sandboxed.
 
 ## Create the plugin
 
@@ -86,9 +86,9 @@ Build before DotCraft discovers or packages the plugin. Refresh the plugin list,
 
 See [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) for two runnable bundles that each ship .NET and Desktop modules. The Core plugin replaces the background, wraps the app, and owns a renderer service, an event, and a custom surface. The Consumer adds Composer controls and contributes UI to the Core-owned surface.
 
-For the complete surface catalog, contexts, composition semantics, Host API, and generation lifecycle, see [Desktop Plugin API](./desktop-plugin-api).
+For the complete surface catalog, contexts, composition semantics, Host API, and generation lifecycle, see [Desktop extension API](./desktop-extension-api).
 
 ## Related docs
 
-- [Build a .NET plugin](./dotnet-plugins) — add the managed half to the same bundle when the feature needs backend execution or Agent tools.
+- [Build a .NET extension](./dotnet-extensions) — add the managed half to the same bundle when the feature needs backend execution or Agent tools.
 - [Plugin Market](./plugin-market) — publish the built plugin so other people can install it.

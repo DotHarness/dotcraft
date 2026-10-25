@@ -129,7 +129,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 }
 ```
 
-## .NET Plugin
+## .NET extension
 
 ```json
 {
@@ -153,7 +153,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 
 `version`, `dotnet.minHostVersion`, `dotnet.entryAssembly`, and `dotnet.entryType` are required. `exportedApiAssemblies` is optional and lists separate contract assemblies; the entry assembly cannot be exported. `dependencies` is valid only with `dotnet` and maps a direct provider plugin id to the minimum version in one compatibility line.
 
-## Desktop Plugin
+## Desktop extension
 
 ```json
 {
@@ -217,6 +217,6 @@ Matching `settings.schema.json`:
 - Settings field keys are case-insensitive and unique. A `defaultValue` must satisfy the field type, `options`, `min`, and `max` constraints.
 - `desktop.description` optionally describes the Desktop contribution shown in plugin content lists.
 - `desktop.entry` must name an `.mjs` file inside `./desktop/dist/`; each `desktop.styles` entry must name a `.css` file in the same output tree.
-- Desktop Plugin bundles are trusted local modules loaded after the plugin is installed and enabled.
+- Desktop extension bundles are trusted local modules loaded after the plugin is installed and enabled.
 - Plugin icon and logo assets own their complete visual treatment. Include a background in the asset when it needs one for theme contrast; otherwise keep the asset transparent.
 - `tools`, `functions`, and `processes` are unsupported manifest fields. Managed plugins contribute native Tools from their C# implementation.

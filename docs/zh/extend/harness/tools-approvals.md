@@ -34,7 +34,7 @@ public sealed class ClockToolSource : AIFunctionToolSource
 
 ### 按需获取真实调用身份
 
-多数工具只需要强类型参数、构造函数注入的服务，以及可选的 `CancellationToken`。只有方法需要真实调用身份时才请求 `ToolInvocationContext`，需要显式表达成功或失败时才返回 `ToolExecutionResult`。两项契约见[编写强类型工具](../dotnet-plugins#write-typed-tools)。
+多数工具只需要强类型参数、构造函数注入的服务，以及可选的 `CancellationToken`。只有方法需要真实调用身份时才请求 `ToolInvocationContext`，需要显式表达成功或失败时才返回 `ToolExecutionResult`。两项契约见[编写强类型工具](../dotnet-extensions#write-typed-tools)。
 
 ## 注册工具来源
 

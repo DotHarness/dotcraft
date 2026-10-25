@@ -1,6 +1,6 @@
 # Remote tool calls
 
-Remote tool calls let an Agent use file, Shell, LSP, and opted-in .NET plugin tools on another machine. Remote Tool Host is the execution component on that machine. This page covers command-line setup and integration outside DotCraft Desktop.
+Remote tool calls let an Agent use file, Shell, LSP, and opted-in .NET extension tools on another machine. Remote Tool Host is the execution component on that machine. This page covers command-line setup and integration outside DotCraft Desktop.
 
 ![The Agent machine routes tool calls through the Hub to the execution host on the shared machine](/remote-tool-host-topology.svg)
 
@@ -88,7 +88,7 @@ Transfers use the existing connection and enforce both machines' file policies. 
 
 ## Skill and plugin resources
 
-.NET plugin tools that support remote calls use the Agent's accepted plugin bundles and effective settings. Connect prepares the complete bundles and their .NET dependencies on the remote workspace automatically, including deferred tools. No separate plugin installation is needed there. Changes are prepared before the next Turn uses its tool snapshot. MCP and runtime dynamic tools remain local.
+.NET extension tools that support remote calls use the Agent's accepted plugin bundles and effective settings. Connect prepares the complete bundles and their .NET dependencies on the remote workspace automatically, including deferred tools. No separate plugin installation is needed there. Changes are prepared before the next Turn uses its tool snapshot. MCP and runtime dynamic tools remain local.
 
 Under workspace-preferred authorization, the remote owner approves the exact plugin fingerprints before any plugin code loads. Full access permits automatic activation. Disconnect releases the thread's plugin state, and the last workspace lease drains the plugin runtime. Verified bundle files remain available for reuse.
 

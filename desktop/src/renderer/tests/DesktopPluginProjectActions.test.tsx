@@ -67,7 +67,7 @@ afterEach(() => {
   for (const scope of scopes.splice(0)) disposeDesktopPluginCleanupScope(scope)
 })
 
-describe('Desktop Plugin projectActions', () => {
+describe('Desktop extension projectActions', () => {
   it('lists environments without their internal revision and rejects in a remote workspace', async () => {
     const list = vi.fn().mockResolvedValue(result(['dev']))
     installDesktopApiMock({ projectActions: { list } })

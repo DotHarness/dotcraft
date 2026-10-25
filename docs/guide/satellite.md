@@ -40,7 +40,7 @@ The agent can read and change files in that folder. Other file access and local 
 
 After the other person allows the connection, find the PC in **Settings → Connections → Satellites**. Open **Run on** below the conversation composer, select the remote PC and its workspace, and submit your task.
 
-File, Shell, language tools, and .NET plugin tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
+File, Shell, language tools, and .NET extension tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
 
 The agent can also access files on your own PC without changing this selection, and copy files or folders between the two PCs when needed. For example: “Upload my local checker CLI to the remote workspace and run it there.” Replacing existing files requires the overwrite option.
 

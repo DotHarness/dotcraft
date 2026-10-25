@@ -270,7 +270,7 @@ public static partial class PluginManifestParser
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginVersion",
-                "Desktop Plugin version is required and must use canonical MAJOR.MINOR.PATCH format.",
+                "Desktop extension version is required and must use canonical MAJOR.MINOR.PATCH format.",
                 raw.Id,
                 path: manifestPath));
         }

@@ -28,7 +28,7 @@ function stories(text: { name: string; line: string; alt: string; links: string[
   const shape = [
     { icon: 'monitor', src: 'dotcraft/docs/tour-desktop', hrefs: ['/start/desktop', '/start/'] },
     { icon: 'bot', src: 'dotcraft/docs/tour-agents', hrefs: ['/guide/agent-profiles', '/guide/subagents', '/guide/automations'], team: true },
-    { icon: 'puzzle', src: 'dotcraft/docs/tour-plugins', hrefs: ['/extend/dotnet-plugins', '/extend/desktop-plugins'] },
+    { icon: 'puzzle', src: 'dotcraft/docs/tour-plugins', hrefs: ['/extend/dotnet-extensions', '/extend/desktop-extensions'] },
     { icon: 'blocks', src: 'dotcraft/docs/tour-apps', hrefs: ['/extend/harness/', '/extend/app-binding', '/extend/sdks/'] }
   ]
   return shape.map((story, index) => ({
@@ -82,7 +82,7 @@ export const homeCopy = {
       stories: stories([
         { name: 'DotCraft Desktop', line: 'Plan, build, review, and automate in one app.', alt: 'DotCraft Desktop working through a Ship dark mode plan: two subagents run, the in-app browser checks the settings page, and a weekly contrast check is set up as an automation', links: ['Desktop', 'Getting Started'] },
         { name: 'Agent Builder + Profiles', line: 'Build your own Agent team through conversation.', alt: 'Agent Builder turning a short description into a contrast-checker agent with its own avatar, tools and skills', links: ['Agent Profiles', 'Subagents', 'Automations'] },
-        { name: 'Plugins', line: 'Extend the runtime in C#, and Desktop in TypeScript.', alt: 'A .NET plugin adding review tools and lifecycle hooks, then a Desktop plugin changing the app wallpaper', links: ['.NET Plugins', 'Desktop Plugins'] },
+        { name: 'Plugins', line: 'Extend the runtime in C#, and Desktop in TypeScript.', alt: 'A .NET extension adding review tools and lifecycle hooks, then a Desktop extension changing the app wallpaper', links: ['.NET Extensions', 'Desktop Extensions'] },
         { name: 'Built for applications', line: 'Bring DotCraft into your own product.', alt: 'Code that hosts DotCraft Harness in a .NET app, binds a connected app to a thread, and streams a reply with the SDK', links: ['DotCraft Harness', 'DotCraft App', 'SDKs'] }
       ])
     },
@@ -137,7 +137,7 @@ export const homeCopy = {
       stories: stories([
         { name: 'DotCraft Desktop', line: '规划、执行、审阅和自动化，都在一个桌面应用里完成。', alt: 'DotCraft Desktop 按「Ship dark mode」计划推进：两个子智能体并行工作，应用内浏览器检查设置页，再把每周对比度检查设为自动化任务', links: ['Desktop', '快速开始'] },
         { name: 'Agent Builder + Profiles', line: '通过对话，打造属于你的 Agent 团队。', alt: 'Agent Builder 把一段描述变成 contrast-checker Agent，带上它自己的形象、工具和技能', links: ['Agent Profiles', 'Subagents', '自动化'] },
-        { name: '插件', line: '用 C# 扩展运行时，用 TypeScript 扩展 Desktop。', alt: '一个 .NET 插件添加评审工具和生命周期钩子，再由一个 Desktop 插件更换应用壁纸', links: ['.NET 插件', 'Desktop Plugins'] },
+        { name: '插件', line: '用 C# 扩展运行时，用 TypeScript 扩展 Desktop。', alt: '一个 .NET 扩展添加评审工具和生命周期钩子，再由一个桌面扩展更换应用壁纸', links: ['.NET 扩展', '桌面扩展'] },
         { name: '为应用而生', line: '把 DotCraft 带进你自己的产品。', alt: '在 .NET 应用中托管 DotCraft Harness、把已连接的应用绑定到线程，并用 SDK 流式输出回复的代码', links: ['DotCraft Harness', 'DotCraft App', 'SDK'] }
       ])
     },

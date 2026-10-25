@@ -22,7 +22,7 @@ internal sealed partial class DotNetPluginRuntimeManager
                 return NotApplied(
                     canonicalId,
                     "PluginRuntimeNotDeclared",
-                    "The selected plugin has no accepted .NET plugin runtime snapshot.");
+                    "The selected plugin has no accepted .NET extension runtime snapshot.");
             }
 
             bool granted;
@@ -34,7 +34,7 @@ internal sealed partial class DotNetPluginRuntimeManager
                 when (exception is PluginTrustPersistenceException or IOException or UnauthorizedAccessException)
             {
                 // A grant that cannot be persisted must not activate anything.
-                _logger?.LogWarning("Could not persist trust for .NET plugin {PluginId}.", canonicalId);
+                _logger?.LogWarning("Could not persist trust for .NET extension {PluginId}.", canonicalId);
                 return NotApplied(
                     canonicalId,
                     "PluginTrustNotPersisted",
@@ -71,7 +71,7 @@ internal sealed partial class DotNetPluginRuntimeManager
                 return NotApplied(
                     canonicalId,
                     "PluginRuntimeNotDeclared",
-                    "The selected plugin has no accepted .NET plugin runtime snapshot.");
+                    "The selected plugin has no accepted .NET extension runtime snapshot.");
             }
 
             var affected = ReplanIdsFor(canonicalId);
@@ -83,7 +83,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             catch (Exception exception)
                 when (exception is PluginTrustPersistenceException or IOException or UnauthorizedAccessException)
             {
-                _logger?.LogWarning("Could not revoke trust for .NET plugin {PluginId}.", canonicalId);
+                _logger?.LogWarning("Could not revoke trust for .NET extension {PluginId}.", canonicalId);
                 return NotApplied(
                     canonicalId,
                     "PluginTrustNotPersisted",

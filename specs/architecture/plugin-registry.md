@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.5 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-25 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -232,8 +232,8 @@ Content validation:
 Runtime boundaries:
 
 - Adding a marketplace only makes its plugins visible as installable catalog entries. No plugin contributes runtime behavior until the user installs it.
-- Desktop Plugins are trusted installed code and load only after installation and enablement.
-- App Binding, MCP/LSP, dynamic tools, and Desktop Plugins retain the lifecycle and consent rules in their owning specifications.
+- Desktop extensions are trusted installed code and load only after installation and enablement.
+- App Binding, MCP/LSP, dynamic tools, and Desktop extensions retain the lifecycle and consent rules in their owning specifications.
 
 Review expectations for the official marketplace: check misleading metadata, missing referenced files, unsupported contribution types, and obvious provenance problems.
 

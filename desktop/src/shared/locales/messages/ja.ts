@@ -3715,7 +3715,7 @@ export const MESSAGES_JA = {
   'slashSearch.hint': '入力してコマンドまたはスキルをフィルタリングします',
   'slashSearch.noDescription': '説明なし',
   'slashSearch.commandsGroup': 'コマンド',
-  'slashSearch.desktopCommandsGroup': 'デスクトッププラグイン',
+  'slashSearch.desktopCommandsGroup': 'デスクトップ拡張機能',
   'slashSearch.skillsGroup': 'スキル',
   'desktopPlugins.remote.authorize': 'リモートプラグインの画面を実行',
   'desktopPlugins.remote.confirm': '{{workspace}} のプラグインは、このコンピューターで画面コードを実行し、Desktop、ファイル、接続済みサービスにアクセスできます。今後のインストールと更新を含め、このワークスペースを許可しますか？',

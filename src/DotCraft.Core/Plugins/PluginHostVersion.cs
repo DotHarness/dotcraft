@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace DotCraft.Plugins;
 
-/// <summary>The Host identity a .NET plugin bundle is validated against by the metadata preflight.</summary>
+/// <summary>The Host identity a .NET extension bundle is validated against by the metadata preflight.</summary>
 internal sealed record PluginHostVersion(Version Product)
 {
     /// <summary>The simple name of the assembly that carries the plugin API surface.</summary>

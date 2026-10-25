@@ -1,19 +1,19 @@
-# 开发 .NET 插件
+# 开发 .NET 扩展
 
-.NET 插件运行在 **DotCraft 进程内部**。MCP 服务器隔着边界与 DotCraft 通信，而 .NET 插件是从内部参与内核组装：它在具名贡献点上贡献工具、提示词分节、中间件和生命周期观察者，并可以解析宿主服务，用 DotCraft 自身的部件搭建这些贡献。
+.NET 扩展运行在 **DotCraft 进程内部**。MCP 服务器隔着边界与 DotCraft 通信，而 .NET 扩展是从内部参与内核组装：它在具名贡献点上贡献工具、提示词分节、中间件和生命周期观察者，并可以解析宿主服务，用 DotCraft 自身的部件搭建这些贡献。
 
 本页面向插件开发者。插件的用户视角见[插件与工具](../guide/plugins-tools)。所有插件共用的清单字段见[插件市场](./plugin-market)。
 
 > [!CAUTION]
-> .NET 插件把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型。安全性取决于你选择构建或信任哪些代码，而不是运行时边界。需要真正的信任边界时请使用 MCP。
+> .NET 扩展把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型。安全性取决于你选择构建或信任哪些代码，而不是运行时边界。需要真正的信任边界时请使用 MCP。
 
-![.NET 插件开发与运行时拓扑](/dotnet-plugin-topology.svg)
+![.NET 扩展开发与运行时拓扑](/dotnet-plugin-topology.svg)
 
 可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个 bundle、覆盖全部公共 .NET 贡献点、通过宿主的预检与运行时校验构建产物，并为其中一个工具提供 Desktop 呈现。
 
 ## 使用 DotCraft 创建
 
-让 `$plugin-creator` 在当前工作区创建 .NET 插件。它会生成持久化的源码项目与标准开发 bundle：
+让 `$plugin-creator` 在当前工作区创建 .NET 扩展。它会生成持久化的源码项目与标准开发 bundle：
 
 ```text
 .craft/plugin-projects/<plugin-id>/
@@ -35,7 +35,7 @@
 
 ## 准备预构建 bundle
 
-.NET 插件就是一个带 `dotnet` 贡献的普通 DotCraft 插件目录。对于外部构建的插件，请在安装前放入全部托管与原生依赖。发现、安装和激活过程不会还原 NuGet 包、运行 MSBuild 或编译源码。
+.NET 扩展就是一个带 `dotnet` 贡献的普通 DotCraft 插件目录。对于外部构建的插件，请在安装前放入全部托管与原生依赖。发现、安装和激活过程不会还原 NuGet 包、运行 MSBuild 或编译源码。
 
 ```text
 acme.review-core/
@@ -175,7 +175,7 @@ internal sealed class PluginTool : AIFunctionToolSource
 `CreateProvider(ModelBackendContext)` 为每个配置实例返回 `IModelProvider`。
 后端 ID 必须唯一。
 
-[.NET 插件示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+[.NET 扩展示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
 演示模型发现、聊天和交互式登录。启用并信任 Review Core 后，在配置中添加其后端：
 
 ```json
@@ -309,9 +309,9 @@ internal sealed class EditorEventSink(IServiceProvider services)
 
 你推送的输入会启动一个 Turn，这个 Turn 又会产生自己的信号和生命周期回调。插件如果对这些回调再推送输入，就可能无休止地唤醒 thread。只为外部变化推送输入，跳过与上一次投递相同的事件，并限制在没有用户输入打断的情况下连续唤醒的次数。对已归档的 thread，入队和引导都会抛出 `InvalidOperationException`。
 
-完整的贡献点目录、排序规则、类型化导出、信任与 generation 生命周期见 [.NET Plugin API 与生命周期](./dotnet-plugin-api)。
+完整的贡献点目录、排序规则、类型化导出、信任与 generation 生命周期见 [.NET 扩展 API 与生命周期](./dotnet-extension-api)。
 
 ## 相关文档
 
-- [Desktop Plugins](./desktop-plugins)——给同一个 bundle 加上 Desktop 界面。
-- [.NET Plugin 架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——本页行为背后的规范原文。
+- [桌面扩展](./desktop-extensions)——给同一个 bundle 加上 Desktop 界面。
+- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——本页行为背后的规范原文。

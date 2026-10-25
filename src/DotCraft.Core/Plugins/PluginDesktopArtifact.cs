@@ -21,7 +21,7 @@ public sealed class PluginDesktopArtifact : IDisposable
     {
         var desktop = manifest.Desktop ?? throw new InvalidOperationException("Plugin has no Desktop contribution.");
         if (desktop.Revision != revision)
-            throw new InvalidOperationException("Desktop plugin revision changed.");
+            throw new InvalidOperationException("Desktop extension revision changed.");
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-desktop-artifact-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -29,7 +29,7 @@ public sealed class PluginDesktopArtifact : IDisposable
             var dist = Path.Combine(bundle, "desktop", "dist");
             var copiedRevision = PluginDesktopRevision.Copy(manifest.RootPath, dist, desktop.Entry, desktop.Styles);
             if (copiedRevision != revision)
-                throw new IOException("Desktop plugin changed while its artifact was being created.");
+                throw new IOException("Desktop extension changed while its artifact was being created.");
             Directory.CreateDirectory(Path.Combine(bundle, ".craft-plugin"));
             File.WriteAllText(Path.Combine(bundle, ".craft-plugin", "plugin.json"), JsonSerializer.Serialize(new
             {

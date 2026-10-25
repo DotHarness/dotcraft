@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.5 |
 | Status | Draft |
-| Date | 2026-10-19 |
+| Date | 2026-10-25 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -71,7 +71,7 @@ Hub integration and the connection-management tools in §6 belong to its product
 
 `ToolRpcAttribute` is a parameterless method marker used alongside `ToolAttribute` or
 `GeneratedToolAttribute` or `ToolDeclarationAttribute`. It means that a Core Native tool or an
-accepted .NET plugin tool MAY be exported by a Remote Tool Host and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
+accepted .NET extension tool MAY be exported by a Remote Tool Host and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
 changes no approval policy, and has no effect on direct method calls.
 
 The generated tool declaration and generated catalog descriptor MUST carry an `RpcEligible`
@@ -103,7 +103,7 @@ The hash excludes runtime-binding identity, presentation metadata, workspace pat
 instance provenance, and connection state. Object properties are ordinally sorted recursively and
 numbers use their canonical JSON representation before SHA-256 is calculated.
 
-The Host exports RPC-eligible Core Native registrations and prepared .NET plugin registrations.
+The Host exports RPC-eligible Core Native registrations and prepared .NET extension registrations.
 A `PluginNative` label alone does not qualify a source: the Agent runtime must own its accepted
 bundle and live generation. Every exported MCP tool carries this metadata:
 
@@ -667,7 +667,7 @@ Transfer does not provide automatic version isolation or cleanup. Copying a plug
 activate it or install CLI dependencies. Local binary/env availability is not evidence of remote
 availability. Neither arbitrary shell commands nor Skill prose are rewritten.
 
-## 13. Prepared .NET plugin execution
+## 13. Prepared .NET extension execution
 
 The Agent's accepted plugin bundles and effective tool snapshot are authoritative. Before publishing
 a connection, and before sampling a new Turn on an existing connection, the Agent prepares every

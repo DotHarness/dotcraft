@@ -179,7 +179,7 @@ describe('remote Desktop artifacts', () => {
     const source = await manager.context()
     expect(source.trusted).toBe(false)
     await expect(manager.register({ ...f.request, rootPath: join(f.root, 'original'), sourceKey: source.sourceKey }))
-      .rejects.toThrow('does not support Desktop plugin artifacts')
+      .rejects.toThrow('does not support Desktop extension artifacts')
     expect(f.read).not.toHaveBeenCalled()
     expect(connection.list).not.toHaveBeenCalled()
     manager.dispose()

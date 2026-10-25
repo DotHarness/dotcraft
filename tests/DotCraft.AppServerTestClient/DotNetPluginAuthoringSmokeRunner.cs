@@ -459,7 +459,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
             ? "The DotNetPlugin tools were discovered in the previous Turn. Do not call SearchTools again."
             : "Search for the deferred DotNetPlugin tools in this Turn.";
         return $"""
-        This is an isolated .NET plugin authoring smoke test. Use tools; do not answer from memory.
+        This is an isolated .NET extension authoring smoke test. Use tools; do not answer from memory.
         First load the built-in `plugin-creator` skill with SkillView and follow its managed .NET workflow.
         Do not use a shell. Read the deployed creator reference or scaffold script when you need the current template.
         With workspace file tools, create exactly `.craft/plugin-projects/{PluginId}` with `src/Plugin.cs`

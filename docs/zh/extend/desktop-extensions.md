@@ -1,11 +1,11 @@
-# 开发 Desktop Plugin
+# 开发桌面扩展
 
-Desktop Plugin 可以为 DotCraft Desktop 添加完全可信的 TypeScript 与 React 行为。它直接运行在 renderer 中，可以扩展 Core UI、替换或包装公共 surface、提供 service、响应 event，也可以创建供其他插件扩展的新 surface。
+桌面扩展可以为 DotCraft Desktop 添加完全可信的 TypeScript 与 React 行为。它直接运行在 renderer 中，可以扩展 Core UI、替换或包装公共 surface、提供 service、响应 event，也可以创建供其他插件扩展的新 surface。
 
 本页面面向插件开发者。使用 `$plugin-creator` 生成推荐的项目结构，并通过 `@dotcraft/plugin` 使用公共 runtime、React 组件与构建命令。
 
 > [!CAUTION]
-> 安装并启用 Desktop Plugin 会在 DotCraft renderer 中执行它。Desktop Plugin 没有权限层、沙箱或独立的 Extension Host。请只安装你信任的代码。如果交互式工具内容必须在沙箱中运行，请使用 [MCP Apps](./mcp-apps)。
+> 安装并启用桌面扩展会在 DotCraft renderer 中执行它。桌面扩展没有权限层、沙箱或独立的扩展宿主进程。请只安装你信任的代码。如果交互式工具内容必须在沙箱中运行，请使用 [MCP Apps](./mcp-apps)。
 
 ## 创建插件
 
@@ -86,9 +86,9 @@ npm run build
 
 可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个同时带 .NET 与 Desktop 的 bundle。Core 插件替换背景、包装整个应用，并拥有一个 renderer service、一个 event 与一个自定义 surface。Consumer 插件添加 Composer 控件，并向 Core 拥有的 surface 注入 UI。
 
-完整的 surface 目录、context、组合语义、Host API 与 generation 生命周期请参阅 [Desktop Plugin API](./desktop-plugin-api)。
+完整的 surface 目录、context、组合语义、Host API 与 generation 生命周期请参阅 [桌面扩展 API](./desktop-extension-api)。
 
 ## 相关文档
 
-- [开发 .NET 插件](./dotnet-plugins)——功能需要后端执行或 Agent 工具时，为同一个 bundle 补上 .NET 模块。
+- [开发 .NET 扩展](./dotnet-extensions)——功能需要后端执行或 Agent 工具时，为同一个 bundle 补上 .NET 模块。
 - [插件市场](./plugin-market)——把构建好的插件发布出去，供其他人安装。

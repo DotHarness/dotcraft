@@ -443,6 +443,6 @@ export async function callCleanup(cleanup: () => void | Promise<void>): Promise<
   try {
     await cleanup()
   } catch (error) {
-    console.error('Desktop Plugin cleanup failed:', error)
+    console.error('Desktop extension cleanup failed:', error)
   }
 }

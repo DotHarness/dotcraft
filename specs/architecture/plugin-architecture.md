@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.4 |
+| **Version** | 0.9.5 |
 | **Status** | Living |
 | **Date** | 2026-10-25 |
 
@@ -24,9 +24,9 @@ Contributions:
 4. **Lifecycle Hooks**: plugin-contained hook declarations.
 5. **LSP Servers**: plugin-contained language server descriptors.
 6. **App Descriptors**: App Binding descriptors that make app connection and thread binding flows visible.
-7. **Desktop Plugins**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
+7. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
 8. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
-9. **.NET Plugins**: plugin-contained managed assemblies admitted by the host runtime.
+9. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
 10. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. External reusable services use MCP.
@@ -352,7 +352,7 @@ are installable but contribute nothing to agent context.
 
 Installing, removing, enabling, or disabling a plugin publishes the revision of the layer it wrote,
 so every other AppServer of the same user rediscovers plugins and refreshes contributions without a
-restart, including stopping or adopting a .NET plugin whose bundle was removed, added, or changed.
+restart, including stopping or adopting a .NET extension whose bundle was removed, added, or changed.
 
 ## 9. Consumer boundaries
 

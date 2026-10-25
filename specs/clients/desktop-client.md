@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.9.5 |
 | **Status** | Living |
 | **Date** | 2026-10-25 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -51,7 +51,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 ## 3. Connection and Session Lifecycle
 
-Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transports are owned by the trusted host side of the application; the UI reaches them only through an authorized projection and never opens a transport itself. Desktop does not maintain a parallel JSON-RPC or Hub implementation and consumes the generated protocol contracts rather than restating payload shapes. Desktop Plugin calls use the same connection routing and remain scoped to the foreground workspace.
+Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transports are owned by the trusted host side of the application; the UI reaches them only through an authorized projection and never opens a transport itself. Desktop does not maintain a parallel JSON-RPC or Hub implementation and consumes the generated protocol contracts rather than restating payload shapes. Desktop extension calls use the same connection routing and remain scoped to the foreground workspace.
 
 ### 3.1 Workspace Entry
 
@@ -101,7 +101,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Window state may be remembered, but protocol state never leaks across workspaces.
 - A switch resets the active thread selection unless the new workspace has a valid remembered equivalent.
 - Workspace-scoped panels and capabilities are rehydrated from the new foreground AppServer; secondary workspace state never drives them.
-- During local-to-local switching, unchanged plugins keep their instances, icons, and usable sidebar entries. The target workspace's complete plugin catalog determines additions, removals, and replacements according to the [Desktop Plugin lifecycle](../architecture/desktop-plugins.md#runtime-lifecycle).
+- During local-to-local switching, unchanged plugins keep their instances, icons, and usable sidebar entries. The target workspace's complete plugin catalog determines additions, removals, and replacements according to the [Desktop extension lifecycle](../architecture/desktop-plugins.md#runtime-lifecycle).
 
 ### 3.6 Multiple Windows
 
@@ -274,7 +274,7 @@ The starting point names the foreground project and lets the user switch project
 4. When creation succeeds, the thread becomes active and Desktop submits the staged first message after the thread is restored, without patching thread configuration in between. If the user opened another thread meanwhile, Desktop leaves them there and still starts the message on the created thread. Anything typed into the creating state's composer is carried to the created thread as a draft.
 5. If creation fails, Desktop returns the user to the originating surface with the submitted content restored and reports the failure. No thread is left behind.
 
-`dotcraft://threads/new?path=<dir>&prompt=<text>` opens the new-chat surface from the operating system or from a Desktop Plugin via `navigation.openExternal`. An existing local directory in `path` is added to the project list if needed and selected; a non-blank `prompt` is placed in the composer and never sent. No thread is created until the user sends.
+`dotcraft://threads/new?path=<dir>&prompt=<text>` opens the new-chat surface from the operating system or from a Desktop extension via `navigation.openExternal`. An existing local directory in `path` is added to the project list if needed and selected; a non-blank `prompt` is placed in the composer and never sent. No thread is created until the user sends.
 
 When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` during creation with only the model overlays the Agent Profile start contract allows. It does not override Profile-owned approval, tool, skill, plugin, MCP, or instruction policy.
 
@@ -383,7 +383,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 
 - The thread header carries a Summary toggle beside the Detail Panel toggle. When the conversation leaves room beside its reading column, the Summary is a card pinned there; the toggle pins and unpins it, and the choice persists across restarts (pinned by default). Without room, the toggle opens the Summary as a popover under the button that closes on Escape or an outside click.
 - The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); and its environment: the changed-line totals (opens Changes) and the workspace's project actions. With nothing to show it says so.
-- The Summary is Core content of the `conversation.aside.trailing` seat ([Desktop Plugins](../architecture/desktop-plugins.md)), so a Desktop Plugin can add to, wrap, or replace it there.
+- The Summary is Core content of the `conversation.aside.trailing` seat ([Desktop Extensions](../architecture/desktop-plugins.md)), so a Desktop extension can add to, wrap, or replace it there.
 
 **Tool rows**
 
@@ -417,7 +417,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 
 #### 5.8.1 Trusted Local Renderers
 
-Desktop consumes the exact `PresentationId` projected by the server. An active Desktop Plugin renderer for that id takes precedence, then the Core renderer, then the generic tool card. Tool payloads never provide module paths or executable code, and an unavailable id falls back without changing tool execution authority. Desktop resolves renderers in one place, and pinning, grouping, labels, and render plans consume that result. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
+Desktop consumes the exact `PresentationId` projected by the server. An active Desktop extension renderer for that id takes precedence, then the Core renderer, then the generic tool card. Tool payloads never provide module paths or executable code, and an unavailable id falls back without changing tool execution authority. Desktop resolves renderers in one place, and pinning, grouping, labels, and render plans consume that result. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
 
 #### 5.8.2 MCP Apps Interactive Tool Views
 
@@ -745,14 +745,14 @@ Desktop presents app-principal connection and thread binding as separate workflo
 - Connecting an app is the user's decision to use it in the workspace. Every conversation started from Welcome binds each installed, enabled, connected app that requires an external connection; there is no per-conversation picker, and existing conversations' bindings do not change.
 - The first message creates and opens the thread; Desktop enables and awaits those bindings, then starts the Turn. A failed binding is reported as a warning and the Turn starts without that app.
 
-#### 6.1.3 Desktop Plugins
+#### 6.1.3 Desktop Extensions
 
 Installed and enabled plugins may contribute trusted Desktop modules through the inline `desktop` manifest declaration. Desktop derives entry points and content revision from AppServer plugin discovery rather than hardcoding plugin ids.
 
 - Plugin-provided views appear only while the owning plugin is installed and enabled. If the current view's plugin is disabled, removed, or no longer declares it, Desktop moves to a built-in fallback view.
 - Desktop modules load from local installed plugin files or a verified local cache of a remote plugin's Desktop output; Desktop never executes JavaScript from remote URLs.
 - A remote AppServer must advertise `desktopPluginArtifacts` for Desktop to download and activate its plugin interfaces. Without it, Desktop skips them and explains the required server update; it never substitutes a local package or resolves a remote path locally.
-- Desktop Plugin code is trusted local renderer code. Installing and enabling the plugin is the local trust decision; remote interfaces additionally require a client-side grant per remote workspace. Bundled and user-installed plugins share one host API and lifecycle.
+- Desktop extension code is trusted local renderer code. Installing and enabling the plugin is the local trust decision; remote interfaces additionally require a client-side grant per remote workspace. Bundled and user-installed plugins share one host API and lifecycle.
 - App Surface access goes through the trusted host's proxy, which follows the App Surface rules in [App Binding](../protocols/app-binding.md#32-app-surface-registry).
 - A failed plugin load shows an error state for that contribution without breaking core conversation workflows.
 

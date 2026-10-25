@@ -50,7 +50,7 @@ function activeThread(id: string): void {
 function plugin(enabled = true): PluginEntry {
   return {
     id: 'fixture.desktop',
-    displayName: 'Fixture Desktop Plugin',
+    displayName: 'Fixture Desktop extension',
     version: '1.0.0',
     enabled,
     installed: true,

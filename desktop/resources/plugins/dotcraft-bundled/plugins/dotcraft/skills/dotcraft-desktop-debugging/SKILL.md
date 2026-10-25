@@ -59,7 +59,7 @@ npx --no-install playwright-cli -s=dotcraft run-code "async page => page.evaluat
 - For a stable multi-step sequence, use one inline `run-code` command. Keep inline code short and limited to the requested UI flow.
 - Operate on the workspace and profile already selected by Desktop. Do not seed, reset, or mutate private application stores unless the user explicitly authorizes a separate product-state change.
 - Store useful screenshots or traces under `.craft/attachments/`. Remove incidental CLI output after the investigation.
-- The Desktop plugin driver is deliberately narrow. Do not depend on private preload APIs, renderer stores, or application globals.
+- The Desktop extension driver is deliberately narrow. Do not depend on private preload APIs, renderer stores, or application globals.
 
 ## Detach Safely
 
