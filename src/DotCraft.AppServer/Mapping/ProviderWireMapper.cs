@@ -143,17 +143,35 @@ public static class ProviderContractMapper
         bool includeUltra) => new()
         {
             Id = model.Id,
+            DisplayName = OmitIfBlank(model.DisplayName),
             IsDefault = isDefault,
             OwnedBy = model.OwnedBy,
             CreatedAt = model.CreatedAt,
-            Reasoning = MapReasoningCapability(ModelThinkingAdapterResolver.ResolveReasoningCapability(
-                config,
-                protocol,
-                endpoint,
-                model.Id), includeUltra),
+            Reasoning = MapReasoningCapability(model.Reasoning is { } reported
+                ? ToCapabilityData(reported)
+                : ModelThinkingAdapterResolver.ResolveReasoningCapability(
+                    config,
+                    protocol,
+                    endpoint,
+                    model.Id), includeUltra),
             Speed = MapSpeedCapability(config, protocol, model.Id),
             ContextWindow = ModelCatalog.Resolve(config, model.Id)
         };
+
+    private static ModelThinkingAdapterCatalog.ReasoningCapabilityData ToCapabilityData(ModelReasoningSupport reported)
+    {
+        var capability = new ModelThinkingAdapterCatalog.ReasoningCapabilityData
+        {
+            SupportsDisable = reported.SupportsDisable,
+            DefaultEffort = reported.DefaultEffort
+        };
+        capability.SupportedEfforts.AddRange(reported.SupportedEfforts.Select(static effort => new ModelThinkingAdapterCatalog.ReasoningEffortOptionData(effort)));
+        capability.NormalizeDefaults();
+        return capability;
+    }
+
+    private static Protocol.Optional<string> OmitIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? default(Protocol.Optional<string>) : value.Trim();
 
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
     {

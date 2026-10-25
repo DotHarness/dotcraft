@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.9.4 |
 | **Status** | Living |
-| **Date** | 2026-10-24 |
+| **Date** | 2026-10-25 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -1731,7 +1731,8 @@ Non-obvious fields:
 ### 21.4 `ModelCatalogItem` Wire DTO
 
 - `id`: the model id used in provider preferences and thread configuration. `ownedBy` may be empty.
-- `reasoning`: optional server-authored capability metadata; clients use it rather than hardcoding compatibility. `supportsDisable` (an Off choice is allowed), `supportedEfforts` (`effort` among `low`, `medium`, `high`, `extraHigh`, `max`, `ultra`, plus a display `label`; `ultra` is advertised only when the model supports `max` and the Dynamic Workflow runtime is available), `defaultEffort`, `supportedOutputs` (`none`, `summary`, `full`), `defaultOutput`.
+- `displayName`: optional name clients show instead of `id`.
+- `reasoning`: optional server-authored capability metadata; clients use it rather than hardcoding compatibility. A model backend's own catalog supplies it for that backend's models; otherwise it comes from the merged model catalog for the built-in protocols. `supportsDisable` (an Off choice is allowed), `supportedEfforts` (`effort` among `low`, `medium`, `high`, `extraHigh`, `max`, `ultra`, plus a display `label`; `ultra` is advertised only when the model supports `max` and the Dynamic Workflow runtime is available), `defaultEffort`, `supportedOutputs` (`none`, `summary`, `full`), `defaultOutput`.
 - `speed`: optional `supportedModes` (Fast-capable models list `standard` and `fast`) and `defaultMode` (`standard`). When missing, clients must not offer Fast.
 - `contextWindow`: raw model capacity from the merged model catalog, independent of compaction limits.
 - `isDefault`: exactly one `true` in a non-empty list — the model of the provider's effective preference (workspace over personal, as `thread/start` resolves it), or the first item when there is no preference or its model is not listed. Since `thread/start` without a model fails when the provider has no preference, a client starting on a default it did not read from a preference names `providerId` and `model` explicitly.

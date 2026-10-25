@@ -138,6 +138,19 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ResolveReasoningCapability_ReturnsNullForPluginBackendProtocol()
+    {
+        Assert.NotNull(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+            protocol: ModelProviderProtocols.Anthropic,
+            endpoint: null,
+            model: "claude-opus-5-5"));
+        Assert.Null(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+            protocol: "claude-code",
+            endpoint: null,
+            model: "claude-opus-5-5"));
+    }
+
+    [Fact]
     public void LoadJson_IgnoresInvalidEntries()
     {
         var catalog = ModelThinkingAdapterCatalog.LoadJson("""

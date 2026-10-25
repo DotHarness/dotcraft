@@ -379,11 +379,9 @@ public static class ModelCatalog
     {
         public HashSet<string> Protocols { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public bool Matches(string? protocol)
-        {
-            var normalizedProtocol = ModelProviderProtocols.Normalize(protocol);
-            return Protocols.Contains(normalizedProtocol);
-        }
+        public bool Matches(string? protocol) =>
+            ModelProviderProtocols.TryNormalize(protocol, out var normalizedProtocol)
+            && Protocols.Contains(normalizedProtocol);
 
         public FastCapabilityData Clone()
         {

@@ -8,31 +8,26 @@ public static class ModelProviderProtocols
     public const string OpenAI = OpenAIChatCompletions;
     public const string Anthropic = "anthropic";
 
-    public static string Normalize(string? protocol)
+    public static string Normalize(string? protocol) =>
+        TryNormalize(protocol, out var normalized)
+            ? normalized
+            : throw new ArgumentException($"Unsupported model provider protocol '{protocol}'.", nameof(protocol));
+
+    public static bool TryNormalize(string? protocol, out string normalized)
     {
-        var normalized = protocol?.Trim().ToLowerInvariant();
-        return normalized switch
+        normalized = protocol?.Trim().ToLowerInvariant() switch
         {
             "" or null => OpenAIChatCompletions,
             OpenAIChatCompletions => OpenAIChatCompletions,
             OpenAIResponses => OpenAIResponses,
             Anthropic => Anthropic,
-            _ => throw new ArgumentException($"Unsupported model provider protocol '{protocol}'.", nameof(protocol))
+            _ => string.Empty
         };
+        return normalized.Length > 0;
     }
 
-    public static bool IsOpenAIProtocol(string? protocol)
-    {
-        try
-        {
-            var normalized = Normalize(protocol);
-            return normalized is OpenAIChatCompletions or OpenAIResponses;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
+    public static bool IsOpenAIProtocol(string? protocol) =>
+        TryNormalize(protocol, out var normalized) && normalized is OpenAIChatCompletions or OpenAIResponses;
 
     public static bool IsOpenAIResponses(string? protocol) =>
         string.Equals(Normalize(protocol), OpenAIResponses, StringComparison.OrdinalIgnoreCase);
@@ -191,9 +186,17 @@ public enum ModelCatalogErrorCode
 public sealed class ModelCatalogEntry
 {
     public string Id { get; set; } = string.Empty;
+    public string? DisplayName { get; set; }
     public string OwnedBy { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>Reasoning choices reported by the provider; null defers to the built-in protocol catalog.</summary>
+    public ModelReasoningSupport? Reasoning { get; set; }
 }
+
+public sealed record ModelReasoningSupport(
+    bool SupportsDisable,
+    IReadOnlyList<ProviderReasoningEffort> SupportedEfforts,
+    ProviderReasoningEffort DefaultEffort);
 
 /// <summary>A provider-neutral model catalog operation result.</summary>
 public sealed class ModelCatalogResult

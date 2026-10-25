@@ -2525,6 +2525,7 @@ export interface MemoryResetResult {
 export interface ModelCatalogItem {
   contextWindow?: number;
   createdAt?: string;
+  displayName?: string;
   id?: string;
   isDefault?: boolean;
   ownedBy?: string;

@@ -612,9 +612,9 @@ public static class ModelThinkingAdapterCatalog
 
         public bool Matches(string? protocol, string? endpoint, string? model)
         {
-            var normalizedProtocol = string.IsNullOrWhiteSpace(protocol)
-                ? null
-                : ModelProviderProtocols.Normalize(protocol);
+            string? normalizedProtocol = null;
+            if (!string.IsNullOrWhiteSpace(protocol) && !ModelProviderProtocols.TryNormalize(protocol, out normalizedProtocol))
+                return false;
             if (Protocols.Count > 0
                 && (string.IsNullOrWhiteSpace(normalizedProtocol)
                     || (!Protocols.Contains(normalizedProtocol)
