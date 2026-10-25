@@ -3339,7 +3339,7 @@ export const MESSAGES_FR = {
   'plugins.manage.count.apps': 'Applications {{count}}',
   'plugins.manage.count.mcp': 'MCP {{count}}',
   'plugins.source.plugin': 'Plugin',
-  'plugins.content.desktopPlugin': 'Plugin de bureau',
+  'plugins.content.desktop': 'Extension de bureau',
   'skills.heroTitle': 'Donnez à DotCraft la capacité dont vous avez besoin',
   'skills.intro': 'Étendez l\'agent avec des compétences de démarque. Activez ou désactivez chaque compétence pour cet espace de travail.',
   'skills.refresh': 'Actualiser',

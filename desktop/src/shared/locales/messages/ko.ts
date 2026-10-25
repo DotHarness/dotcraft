@@ -3339,7 +3339,7 @@ export const MESSAGES_KO = {
   'plugins.manage.count.apps': '앱 {{count}}',
   'plugins.manage.count.mcp': 'MCP {{count}}',
   'plugins.source.plugin': '플러그인',
-  'plugins.content.desktopPlugin': '데스크탑 플러그인',
+  'plugins.content.desktop': '데스크탑 확장',
   'skills.heroTitle': 'DotCraft에 필요한 기능을 제공하세요',
   'skills.intro': '마크다운 기술로 에이전트를 확장하세요. 이 작업 영역에 대한 각 기술을 활성화하거나 비활성화합니다.',
   'skills.refresh': '새로고침',

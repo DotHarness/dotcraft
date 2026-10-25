@@ -3339,7 +3339,7 @@ export const MESSAGES_ES = {
   'plugins.manage.count.apps': 'Aplicaciones {{count}}',
   'plugins.manage.count.mcp': 'MCP {{count}}',
   'plugins.source.plugin': 'Complemento',
-  'plugins.content.desktopPlugin': 'Plugin de escritorio',
+  'plugins.content.desktop': 'Extensión de escritorio',
   'skills.heroTitle': 'Dale a DotCraft la habilidad que necesitas',
   'skills.intro': 'Amplíe al agente con habilidades de rebajas. Habilite o deshabilite cada habilidad para este espacio de trabajo.',
   'skills.refresh': 'Actualizar',

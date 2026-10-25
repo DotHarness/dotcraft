@@ -17,7 +17,7 @@ export function getPluginDesktopContent(
   return [{
     key: 'desktop-plugin',
     title: plugin.interface?.displayName || plugin.displayName,
-    kind: t('plugins.content.desktopPlugin'),
+    kind: t('plugins.content.desktop'),
     description: plugin.desktop.description || plugin.interface?.shortDescription || plugin.description || ''
   }]
 }

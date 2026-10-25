@@ -3339,7 +3339,7 @@ export const MESSAGES_JA = {
   'plugins.manage.count.apps': 'アプリ {{count}}',
   'plugins.manage.count.mcp': 'MCP {{count}}',
   'plugins.source.plugin': 'プラグイン',
-  'plugins.content.desktopPlugin': 'デスクトッププラグイン',
+  'plugins.content.desktop': 'デスクトップ拡張機能',
   'skills.heroTitle': 'DotCraft に必要な機能を与えます',
   'skills.intro': 'マークダウン スキルでエージェントを拡張します。このワークスペースの各スキルを有効または無効にします。',
   'skills.refresh': 'リフレッシュ',

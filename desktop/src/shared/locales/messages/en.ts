@@ -2410,7 +2410,7 @@ export const MESSAGES_EN = {
   'plugins.disabled': 'Disabled',
   'plugins.defaultPromptFallback': 'Use this plugin in the current conversation',
   'plugins.content.app': 'App',
-  'plugins.content.desktopPlugin': 'Desktop Plugin',
+  'plugins.content.desktop': 'Desktop extension',
   'plugins.content.dotnet': '.NET extension',
   'plugins.content.hooks': 'Hooks',
   'plugins.content.hooks.title': 'Lifecycle hooks',

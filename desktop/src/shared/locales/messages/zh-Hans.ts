@@ -2372,7 +2372,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.disabled': '已禁用',
   'plugins.defaultPromptFallback': '在当前对话中使用这个插件',
   'plugins.content.app': '应用',
-  'plugins.content.desktopPlugin': '桌面插件',
+  'plugins.content.desktop': '桌面扩展',
   'plugins.content.dotnet': '.NET 扩展',
   'plugins.content.hooks': '钩子',
   'plugins.content.hooks.title': '生命周期钩子',
