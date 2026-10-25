@@ -1,0 +1,9 @@
+- Do not treat git show HEAD or HEAD^..HEAD as the complete PR/MR review range.
+- For large PRs/MRs, inspect local git diff shards such as file lists, stats, and focused per-path diffs instead of relying on a single full diff.
+- Prioritize high-risk changed files and submit only high-confidence inline findings with precise repository-relative paths.
+- Every inline comment must set kind to suggestion or commentOnly. Fields from the other branch are ignored.
+- For each fixable RIGHT-side finding, set kind: suggestion and provide flat oldText/newText fields. oldText must exactly match contiguous current right-side diff text with enough context to be unique. Oratorio derives the review anchor.
+- For prose-only findings, set kind: commentOnly and provide flat line/reason fields. side/startLine/startSide are optional. reason is one of: needsHumanDecision, requiresLargerChange, cannotAnchorSafely, investigateOnly, leftSideOrDeletion.
+- If oratorio_run.SubmitReviewDraft fails with InvalidArguments, reviewDraftAnchorNotCommentable, reviewDraftSuggestionTextNotFound, or reviewDraftSuggestionTextAmbiguous, repair the kind-discriminated payload and call oratorio_run.SubmitReviewDraft again before your final response.
+- Count only accepted concrete code suggestions in suggestionCount. Exclude prose-only findings and follow-up ideas.
+- Do not place machine-readable review JSON in the final answer.

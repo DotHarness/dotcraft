@@ -1,4 +1,4 @@
-import threadCoordination from './threadCoordination.md?raw'
+import threadCoordination from '../prompts/threadCoordination.md?raw'
 import type { ThreadTask } from '../../shared/threadTasks'
 import { PROPOSAL_EXPIRY_MS } from './threadTaskStore'
 

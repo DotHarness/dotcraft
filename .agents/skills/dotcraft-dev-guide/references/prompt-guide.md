@@ -23,6 +23,14 @@ When researching a design, verify the relevant source and its activation conditi
 
 Keep the information needed to select an action available at the point of selection. Load detailed procedures when they become relevant. Enforce permissions and required invariants in runtime code as appropriate.
 
+## Store prompt text for review
+
+Keep model-facing prose in its own `.md` file when the text is a system prompt, guidance section, or session instruction of more than a few lines and has few or no runtime values. Put the file under its assembly's `Prompts/` folder, one subfolder per feature when there are several; Desktop main-process prompts go under `desktop/src/main/prompts/`. C# embeds the file as a resource and reads it once; Desktop imports it with `?raw`. The file holds the exact text, and its final line break is not part of the prompt.
+
+Keep tool descriptions, parameter descriptions, schemas, and result messages built from runtime values in code, beside the schema or logic they describe. C# tool `[Description]` text stays in attributes because the tool generator reads it at compile time.
+
+When moving text into a file, compare the assembled prompt before and after; the move must not change a byte.
+
 ## Write concise instructions
 
 - State the usual action with a concrete verb and target. Add conditions when they change the action.

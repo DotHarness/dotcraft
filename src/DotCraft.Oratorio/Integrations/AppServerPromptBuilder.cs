@@ -12,55 +12,17 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTrac
     public const string RuntimeContextVersion = "oratorio-runtime-context-v2";
     public const string ThreadStateWorkspaceMode = "base";
 
-    private const string RunContractInstructions = """
-        Oratorio owns this DotCraft thread's board/run lifecycle. Follow the current turn facts and use only the Oratorio runtime tools exposed for that turn.
-        - Oratorio performs external delivery. Do not push, merge, approve, request changes, create PRs/MRs, or mutate GitHub/GitLab directly.
-        - Propose separate work with oratorio_run.SubmitFollowUpDraft when available.
-        - Use oratorio_run.SubmitDiscussionReply only when the current turn is an Agent Discussion Turn.
-        """;
+    private static readonly string RunContractInstructions = OratorioPrompts.Read("run-contract");
 
-    private const string DiscussionTurnInstructions = """
-        Agent Discussion Turns:
-        - When the user turn identifies an Oratorio Agent Discussion Turn, answer only that operator question.
-        - Call oratorio_run.SubmitDiscussionReply with the discussionTurnId supplied in the user turn/context and your Markdown reply.
-        - You may use oratorio_run.ResolveReviewFinding to resolve a listed open finding when the discussion establishes that it is a non-issue or already handled. Otherwise leave it open.
-        - Do not modify files or turn the question into follow-up work.
-        """;
+    private static readonly string DiscussionTurnInstructions = OratorioPrompts.Read("discussion-turn");
 
-    private const string ReviewDraftIntroInstructions = """
-        During Oratorio PR/MR review-analysis runs when oratorio_run.SubmitReviewDraft is available:
-        - Call oratorio_run.SubmitReviewDraft with the final draft. Retry when the tool reports a correctable payload or anchor error.
-        - Clean review: summary.body `No issues found.`, majorCount 0, minorCount 0, suggestionCount 0, comments: [].
-        - Findings review: summary.body `Found N issue.` or `Found N issues.`, with details in inline comments.
-        - Prioritize actionable bugs and investigation flags.
-        - Severity: RED for high-confidence correctness, security, data-loss, or workflow bugs. YELLOW for lower-confidence, maintainability, or investigation findings.
-        - Inline comments: concise problem title, natural reviewer prose explaining failure mode and impact, and a short fix direction when useful.
-        """;
+    private static readonly string ReviewDraftIntroInstructions = OratorioPrompts.Read("review-draft-intro");
 
-    private const string ReviewDraftDiffInstructions = """
-        - Do not treat git show HEAD or HEAD^..HEAD as the complete PR/MR review range.
-        - For large PRs/MRs, inspect local git diff shards such as file lists, stats, and focused per-path diffs instead of relying on a single full diff.
-        - Prioritize high-risk changed files and submit only high-confidence inline findings with precise repository-relative paths.
-        - Every inline comment must set kind to suggestion or commentOnly. Fields from the other branch are ignored.
-        - For each fixable RIGHT-side finding, set kind: suggestion and provide flat oldText/newText fields. oldText must exactly match contiguous current right-side diff text with enough context to be unique. Oratorio derives the review anchor.
-        - For prose-only findings, set kind: commentOnly and provide flat line/reason fields. side/startLine/startSide are optional. reason is one of: needsHumanDecision, requiresLargerChange, cannotAnchorSafely, investigateOnly, leftSideOrDeletion.
-        - If oratorio_run.SubmitReviewDraft fails with InvalidArguments, reviewDraftAnchorNotCommentable, reviewDraftSuggestionTextNotFound, or reviewDraftSuggestionTextAmbiguous, repair the kind-discriminated payload and call oratorio_run.SubmitReviewDraft again before your final response.
-        - Count only accepted concrete code suggestions in suggestionCount. Exclude prose-only findings and follow-up ideas.
-        - Do not place machine-readable review JSON in the final answer.
-        """;
+    private static readonly string ReviewDraftDiffInstructions = OratorioPrompts.Read("review-draft-diff");
 
-    private const string ImplementationDraftInstructions = """
-        During Oratorio implementation runs when oratorio_run.SubmitImplementationDraft is available:
-        - Modify only files inside the Oratorio-managed execution worktree named in the user turn.
-        - When your implementation draft is ready, call oratorio_run.SubmitImplementationDraft with summary, tests, risks, changedFiles, proposedCommitMessage, proposedPrTitle, and proposedPrBody.
-        - Do not place machine-readable implementation JSON in the final answer.
-        """;
+    private static readonly string ImplementationDraftInstructions = OratorioPrompts.Read("implementation-draft");
 
-    private const string FollowUpDraftInstructions = """
-        During Oratorio review or implementation runs when oratorio_run.SubmitFollowUpDraft is available:
-        - If you identify follow-up work that should be split from the current round, call oratorio_run.SubmitFollowUpDraft with proposals.
-        - Follow-up drafts are advisory, not hidden requirements for this round.
-        """;
+    private static readonly string FollowUpDraftInstructions = OratorioPrompts.Read("follow-up-draft");
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

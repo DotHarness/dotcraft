@@ -31,6 +31,8 @@
     <!-- Bundled MCP Apps served through standard resources/read from the single executable. -->
     <EmbeddedResource Include="UiResources\*.html"
                       LogicalName="DotCraft.Oratorio.UiResources.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Prompts\*.md"
+                      LogicalName="DotCraft.Oratorio.Prompts.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
