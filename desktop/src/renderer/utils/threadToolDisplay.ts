@@ -75,3 +75,12 @@ export function parseThreadToolAction(item: ConversationItem): ThreadToolAction 
 
   return null
 }
+
+export function threadTaskCardKind(item: ConversationItem): 'offer' | 'proposal' | null {
+  if (!matchesThreadTool(item, CREATE_THREAD_TOOL_NAME)) return null
+  const args = item.arguments
+  if (!args || typeof args.proposalId === 'string') return null
+  if (args.initiation === 'offer') return 'offer'
+  if (args.initiation === 'ownInitiative') return 'proposal'
+  return null
+}

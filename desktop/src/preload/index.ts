@@ -121,6 +121,15 @@ import type {
   VoiceTranscriptionInput
 } from '../shared/voice'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
+import {
+  THREAD_TASKS_CHANGED_CHANNEL,
+  type NewTaskPromptMode,
+  type ThreadOfferAnswer,
+  type ThreadTaskActionResult,
+  type ThreadTaskStartOptions,
+  type ThreadTaskStartResult,
+  type ThreadTasksSnapshot
+} from '../shared/threadTasks'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -1504,6 +1513,29 @@ const api = {
     }
   },
 
+  threadTasks: {
+    list(threadId: string): Promise<ThreadTasksSnapshot> {
+      return ipcRenderer.invoke('threadTasks:list', threadId)
+    },
+    onChanged(listener: (snapshot: ThreadTasksSnapshot) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, snapshot: ThreadTasksSnapshot): void => listener(snapshot)
+      ipcRenderer.on(THREAD_TASKS_CHANGED_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(THREAD_TASKS_CHANGED_CHANNEL, wrapped)
+    },
+    answerOffer(params: { threadId: string; taskId: string; answer: ThreadOfferAnswer }): Promise<ThreadTaskActionResult> {
+      return ipcRenderer.invoke('threadTasks:answer-offer', params)
+    },
+    start(params: { threadId: string; taskIds: string[]; options?: ThreadTaskStartOptions }): Promise<ThreadTaskStartResult[]> {
+      return ipcRenderer.invoke('threadTasks:start', params)
+    },
+    dismiss(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
+      return ipcRenderer.invoke('threadTasks:dismiss', params)
+    },
+    markKeptHere(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
+      return ipcRenderer.invoke('threadTasks:mark-kept-here', params)
+    }
+  },
+
   projectActions: {
     list(workspacePath: string): Promise<ProjectEnvironmentsResult> {
       return ipcRenderer.invoke('project-actions:list', workspacePath)
@@ -1582,6 +1614,7 @@ const api = {
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
+      newTaskPrompt?: NewTaskPromptMode
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
@@ -1670,6 +1703,7 @@ const api = {
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
+      newTaskPrompt?: NewTaskPromptMode
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean

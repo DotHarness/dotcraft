@@ -14,7 +14,8 @@ import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
 import { TurnAutomations } from './TurnAutomations'
-import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
+import { isThreadActionToolItem, parseThreadToolAction, threadTaskCardKind } from '../../utils/threadToolDisplay'
+import { TurnThreadTaskCards } from './threadTasks/TurnThreadTaskCards'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
@@ -160,7 +161,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     while (i < itemsToRender.length) {
       const item = itemsToRender[i]
 
-      if (isToolRunItem(item)) {
+      if (threadTaskCardKind(item)) {
+        const taskItems = renderableItems.filter((candidate) => threadTaskCardKind(candidate))
+        if (taskItems[0] === item) {
+          nodes.push({ key: `thread-tasks-${item.id}`, kind: 'tool', node: <TurnThreadTaskCards threadId={turn.threadId} items={taskItems} /> })
+        }
+      } else if (isToolRunItem(item)) {
         const toolRun: ConversationItem[] = [item]
         while (i + 1 < itemsToRender.length && (isToolRunItem(itemsToRender[i + 1]) || isBlankMessage(itemsToRender[i + 1]))) {
           i++
@@ -635,7 +641,7 @@ function isToolRowItem(item: ConversationItem): boolean {
 }
 
 function isToolRunItem(item: ConversationItem): boolean {
-  return isToolRowItem(item) || item.type === 'reasoningContent'
+  return (isToolRowItem(item) || item.type === 'reasoningContent') && threadTaskCardKind(item) == null
 }
 
 function resolveCoreFallbackPlan(item: ConversationItem) {

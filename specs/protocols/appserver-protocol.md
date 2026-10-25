@@ -1157,7 +1157,8 @@ Invocation of a Runtime Dynamic Tool declared through `dynamicTools`. **Directio
 
 - `contentItems` accepts validated text and image items; an image has `mediaType` and exactly one of a non-data `url` or `dataBase64`. A successful model-visible call needs at least one useful text item.
 - `_meta`, `_meta.ui`, `structuredResult`, and UI resource fields are invalid.
-- Standard error codes: `DynamicToolUnavailable`, `DynamicToolDisconnected`, `DynamicToolTimeout`, `DynamicToolCancelled`, `DynamicToolUnauthorized`, `DynamicToolProtocolError`, `DynamicToolResultInvalid`. Disconnect, timeout, cancellation, or an invalid result complete the `dynamicToolCall` item as failed with the corresponding category.
+- The call has no timeout: the server waits for the client's response until the client answers, its connection closes, or the Turn is cancelled. A client may keep a call open while it asks the user.
+- Standard error codes: `DynamicToolUnavailable`, `DynamicToolDisconnected`, `DynamicToolCancelled`, `DynamicToolUnauthorized`, `DynamicToolProtocolError`, `DynamicToolResultInvalid`. Disconnect, cancellation, or an invalid result complete the `dynamicToolCall` item as failed with the corresponding category.
 
 #### 11.3.1 Interactive Tool UI boundary
 

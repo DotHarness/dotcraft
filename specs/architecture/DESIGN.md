@@ -1568,6 +1568,30 @@ glyph in `--text-tertiary`, elapsed time in `--text-secondary`); a failed run us
 the `--error-text` alert icon and the reason; a completed run shows nothing. A stop
 is never presented as an error.
 
+### Task cards
+
+An offer to start a task in its own chat, and tasks the agent suggests, are one
+card in the transcript at the position of the calls that raised them, in place of
+their tool rows.
+
+- The card is the created-chat surface (`--bg-primary`, `--border-default`, 8px
+  radius) with a quiet header band: the new-chat glyph, the question or the
+  suggested-task count, and at most one ghost action on its trailing edge (Don't
+  ask again, Start all). Each task is a row below a hairline.
+- A row is the task title in medium weight, then its actions: a ghost Options on
+  the leading edge, a ghost Do it here and a primary Start or New chat on the
+  trailing edge. An offer shows Esc and the platform Enter chord on those two
+  buttons. Only settings that differ from this chat appear beside Options.
+- Options opens a glass popover holding the Welcome composer's own permission,
+  model, and location controls, so a new chat is configured exactly as from the
+  Welcome screen. Clicking a suggested task's title opens its brief in the same
+  popover surface.
+- An answered task collapses into one line, its title and a secondary status
+  word. A started task becomes a row with an Open chat button. Status is words,
+  never sidebar marks.
+- The created-chat card keeps its form. While the chat it opened runs, its
+  subtitle carries the running shimmer; nothing else changes.
+
 ### Interactive tool UI
 
 MCP tools may render an interactive UI in a sandboxed frame, following MCP Apps.

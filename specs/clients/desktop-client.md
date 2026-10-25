@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-24 |
+| **Date** | 2026-10-25 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -410,6 +410,8 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **General**
 
 - A fullscreen overlay covering an embedded native view blocks that view for its whole lifetime; the native view is restored only after the last blocker closes. Ordinary menus and popovers do not block.
+- `CreateThread` offers and proposals ([5.14](#514-desktop-runtime-thread-tools)) render as task cards at the position of their calls, in place of the tool rows; a Turn's proposals share one card. An offer card asks whether to start the task in its own chat and answers the waiting call; proposal cards start, dismiss, or keep a proposal here. Options on a card opens the Welcome composer's permission, model, and location controls for the new chat. Answered cards collapse into their outcome; a started offer leaves only the created-chat card, and a started proposal becomes a row that opens its chat.
+- The created-chat card at the end of a Turn shimmers the chat's name while that chat has a running Turn.
 - Durable user-actionable result cards and available interactive Views stay outside collapsed Turn summaries. The latest successful Dynamic Workflow launch in a Turn is such a result and appears before the final assistant message; failed launches are ordinary tool history.
 - The client may reveal related context automatically when new changes or plans appear, based on relevance.
 
@@ -615,24 +617,61 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`. No other model-visible aliases exist.
+- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`. No other model-visible aliases exist.
 - They are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery.
-- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`), a concise hint to search for the relevant thread tool before background thread management.
+- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, plus the rules for starting other chats: how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call.
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
 **Behavior**
 
-- Tools call ordinary AppServer methods. `SetThreadPinned` is the only Desktop-local mutation and only updates Desktop settings.
-- `CreateThread` requires a prompt; an optional display name becomes the title. It calls `thread/start` in the current workspace, then `turn/start`. The originating thread is recorded as a sibling source, never a subagent relationship. The user's active conversation does not change.
+- Tools call ordinary AppServer methods. `SetThreadPinned` only updates Desktop settings; proposals and offers are Desktop-local state.
 - `ListThreads` calls `thread/list` with optional `query`, `limit` (default 20, max 100), `cursor`, and `includeArchived`, returning a page summary with `nextCursor` and `totalMatched`.
 - `ReadThread` reads the header and newest complete Turns without resuming, subscribing, or selecting the thread. Arguments: `threadId`, optional Turn `cursor`, `turnLimit` (default 1, 1–10), `includeOutputs` (default false), `maxOutputCharsPerItem` (default 2,000, 0–20,000); invalid arguments fail. Turns are fully hydrated or the call fails. The result `{ schemaVersion: 1, thread, page, turns }` appears in both structured and text content: full user/assistant text and typed Item metadata, media as references, materialized input snapshots ahead of `contextRef`, optional outputs with truncation metadata, newest-first pagination, and a bounded summary of queued inputs with their total count.
 - `SendMessageToThread` sends a turn without stealing focus. If the target is running, waiting, or in blocking maintenance, it uses `turn/enqueue`, or fails as busy when unavailable.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`; visible state updates through normal broadcasts.
 - `SetThreadPinned` rejects archived and subagent threads when pinning and updates the project-scoped pin preference so the sidebar updates immediately.
-- Optional `reasoningEffort` on create or send is applied through thread configuration (`thread/config/update`) and affects queued and future Turns, not the active Turn. Unsupported options fail rather than being ignored.
-- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input. Background-changed threads update sidebar indicators without forcing navigation.
-- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, or `AppServerRequestFailed`.
+- Optional `reasoningEffort` on send is applied through thread configuration (`thread/config/update`) and affects queued and future Turns, not the active Turn. Unsupported options fail rather than being ignored.
+- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, or `CreateThread` shows an offer. Background-changed threads update sidebar indicators without forcing navigation.
+- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, or `AppServerRequestFailed`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
+
+**Starting chats: `CreateThread`**
+
+- Arguments: `initiation` (`userAsked`, `offer`, or `ownInitiative`; required unless `proposalId`), `title` (under 60 characters; required unless `proposalId`; becomes the new chat's title), `prompt` (the brief; required for `userAsked` and `ownInitiative`, absent for `offer`), `background` (context for someone who has not seen this conversation), `proposalId`, `model`, and `reasoningEffort`.
+- A new chat starts in the current workspace with `spawnedFromThreadId` set to the calling thread, recorded as a sibling source, never a subagent relationship; worktree starts are not linked because `worktree/createAndStart` has no such field. Its first message is the brief, preceded by the background when given. The user's active conversation does not change.
+- `userAsked` creates the chat and starts its first Turn now. The result keeps the `{ thread, turn, started }` shape, so the conversation shows the created-chat card.
+- `ownInitiative` stores a proposal on the calling thread and returns at once with its `taskId`. Nothing runs until the user starts it from its card, or tells the agent to, which then calls `CreateThread` with only `proposalId`.
+- `offer` is for a task the user's latest message names. It stores an offer, shows the card, and keeps the `item/tool/call` open without a timeout ([AppServer §11.3](../protocols/appserver-protocol.md#113-itemtoolcall)) until the offer is resolved:
+  - **New chat**: Desktop creates the chat at once with the start options chosen on the card and no first Turn. The result tells the agent to call `CreateThread` again with exactly `proposalId`, `prompt`, and `background`; that call starts the chat's first Turn with that brief.
+  - **Do it here**: the result tells the agent to do the task in this chat.
+  - **Typed past**: the user sends a new message on that thread from Desktop (`turn/start`, `turn/enqueue`, or `turn/steer`) while the offer waits. The offer closes, and the result tells the agent to deal with that message first.
+  - **Not started**: New chat was chosen but creating the chat failed. The user sees why, and the result tells the agent to do the task here.
+  - **Abandoned**: the Turn is interrupted, cancelled, failed, or completed, or Desktop's connection drops or is replaced, before an answer. The card is marked not answered, and the agent does nothing further with it.
+  - While an offer waits and the window is not focused, Desktop shows a system notification under the Questions notification switch; clicking it opens the chat. Auto modes never notify.
+- `proposalId` starts a waiting proposal exactly as proposed, or sends the brief of an accepted offer. For a proposal, `title`, `prompt`, and `background` may restate the brief. Any other argument refuses the call unless a `prompt` is given, in which case the extra arguments are ignored and the result says so. A proposal that is no longer waiting, expired, withdrawn, or unknown is refused with a result that says why.
+- `DismissProposal(taskId, reason?)` withdraws a waiting proposal. Results distinguish withdrawn, already started or handled here, already withdrawn, expired, being started, and unknown ids.
+
+**Who can see the card**
+
+- A card can be seen only when the calling Turn came from a person at a Desktop composer: the Turn's `originChannel` is `dotcraft-desktop` and its user message carries no `triggerKind` (background task notifications, subagent input, workflows, automations, goals, apps). Desktop learns this from the `turn/started` notification it receives for the Turn. When it has not seen one, it reads the Turn from `thread/turns/list` and its first item from `thread/items/list`. A Turn whose origin cannot be read counts as nobody's.
+- When nobody can see the card, an `offer` returns a "No card was shown" result telling the agent to do the task in this chat, and `ownInitiative` returns a "Nothing was proposed" result telling the agent not to mention a card.
+
+**Proposal storage**
+
+- Proposals and offers are stored per thread in Desktop's per-user state and survive restarts. A record holds the `task_` + 8 hex id, the tool call id, title, brief, background, default model and reasoning effort, kind (`offer` or `proposal`), state, creation time, and the started chat's id.
+- A thread keeps at most 20 records. Adding another removes the oldest, and the result names the waiting proposals that were removed. A waiting proposal expires after 7 days.
+- On load, an offer that was still waiting is marked not answered; an accepted offer keeps waiting for its brief.
+
+**Starting from a card**
+
+- The renderer lists a thread's records and observes their changes, answers an offer (New chat with start options, or Do it here), starts one or several proposals with start options (Start all), dismisses a proposal, and marks a proposal handled here.
+- Start options are the work location (`local`, or `worktree` with an optional base ref, branch name, and environment through `worktree/createAndStart`), approval policy (`prompt` or `autoApprove`), model, and reasoning effort. Unset options fall back to the proposal's defaults, then the workspace defaults.
+- A proposal's Do it here is a renderer action: it sends `Do this task here: “{title}”` through the normal composer path and marks the proposal handled here.
+
+**New task prompt setting**
+
+- The Desktop-local `newTaskPrompt` preference decides what an `offer` does: `ask` (default) shows the card; `newThread` accepts it at once as New chat with default start options, at most 10 times per thread since the user's last message there, after which it asks; `here` returns a "No card was shown" result at once.
+- The nobody rule applies first. The offer card's Don't ask again menu sets the preference to `newThread` or `here` and answers the offer the same way.
 
 ### 5.14.1 File References from Context Menus
 
@@ -785,6 +824,10 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies only when no focused Desktop window has that workspace in the foreground, and clicking opens the chat.
 - When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, and Docker, or no tray), the window notifies itself under the same switches while unfocused.
 - Each request notifies at most once; a replay after reconnect or thread switch does not notify again.
+
+**New tasks**
+
+- A personal setting chooses `newTaskPrompt` ([5.14](#514-desktop-runtime-thread-tools)): ask each time (default), always start a new chat, or always do it here. A failed save keeps the previous choice.
 
 **Personalization and memory**
 

@@ -302,7 +302,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
                 Contract.AppServerRpc.DynamicToolCall,
                 requestParams,
                 cancellationToken,
-                TimeSpan.FromSeconds(120));
+                Timeout.InfiniteTimeSpan);
 
             if (response.Error.HasValue)
                 return Failed("DynamicToolProtocolError", response.Error.Value.ToString());
@@ -318,9 +318,13 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
                 ? result
                 : Failed("DynamicToolResultInvalid", resultError);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return Failed("DynamicToolTimeout", $"Dynamic tool '{spec.Name}' timed out while waiting for client response.");
+            return Failed("DynamicToolCancelled", $"Dynamic tool '{spec.Name}' was cancelled before the client responded.");
+        }
+        catch (OperationCanceledException)
+        {
+            return Failed("DynamicToolDisconnected", $"Dynamic tool '{spec.Name}' lost its client connection before it responded.");
         }
         catch (Exception ex)
         {
@@ -621,7 +625,8 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
             var stableCode = result.ErrorCode switch
             {
                 "DynamicToolUnavailable" => ToolErrorCodes.DynamicDisconnected,
-                "DynamicToolTimeout" => ToolErrorCodes.Timeout,
+                "DynamicToolDisconnected" => ToolErrorCodes.DynamicDisconnected,
+                "DynamicToolCancelled" => ToolErrorCodes.Cancelled,
                 "DynamicToolProtocolError" => ToolErrorCodes.DynamicProtocolError,
                 "DynamicToolResultInvalid" => ToolErrorCodes.ResultInvalid,
                 _ => ToolErrorCodes.ExecutionFailed

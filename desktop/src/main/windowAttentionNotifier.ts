@@ -4,14 +4,23 @@ import type { WorkspaceProjectKind } from '../shared/workspaceProjects'
 import type { AppSettings } from './settings'
 import { isTrayRunning } from './trayLock'
 
-const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questions'; bodyKey: string }> = {
+export const NEW_TASK_OFFER_ATTENTION = 'desktop/newTaskOffer'
+
+const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questions'; bodyKey: string; hubDelivers: boolean }> = {
   'item/approval/request': {
     setting: 'approvalRequests',
-    bodyKey: 'hub.notification.approval_requested.body'
+    bodyKey: 'hub.notification.approval_requested.body',
+    hubDelivers: true
   },
   'item/tool/requestUserInput': {
     setting: 'questions',
-    bodyKey: 'hub.notification.input_requested.body'
+    bodyKey: 'hub.notification.input_requested.body',
+    hubDelivers: true
+  },
+  [NEW_TASK_OFFER_ATTENTION]: {
+    setting: 'questions',
+    bodyKey: 'hub.notification.new_task_offer.body',
+    hubDelivers: false
   }
 }
 
@@ -57,7 +66,7 @@ export function createWindowAttentionNotifier(
     seen.add(key)
 
     if (context.settings.notifications?.[request.setting] === false || context.window.isFocused()) return false
-    if (context.connectionKind !== 'remote' && await trayRunning()) return false
+    if (request.hubDelivers && context.connectionKind !== 'remote' && await trayRunning()) return false
     if (!Notification.isSupported()) return false
 
     const notification = new Notification({

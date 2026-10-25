@@ -88,6 +88,7 @@ import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptR
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
+import { NewTaskBehaviorRow } from './panels/NewTaskBehaviorRow'
 import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
 import { ChatsFolderRow } from './panels/ChatsFolderRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
@@ -1807,6 +1808,7 @@ export function SettingsView({
 
                 <SettingsGroup title={t('settings.group.composer')}>
                   <FollowUpBehaviorRow />
+                  <NewTaskBehaviorRow />
                   <InstantInterruptRow />
                 </SettingsGroup>
 

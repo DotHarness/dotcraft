@@ -97,7 +97,7 @@ describe('desktop runtime thread tools', () => {
     expect(namespace.type).toBe('namespace')
     if (namespace.type !== 'namespace') throw new Error('Expected a namespace declaration')
     expect(namespace.name).toBe(DESKTOP_THREAD_TOOL_NAMESPACE)
-    expect(namespace.tools).toHaveLength(7)
+    expect(namespace.tools).toHaveLength(8)
     expect(namespace.tools.every((tool) => tool.deferLoading === true)).toBe(true)
     expect(namespace.tools.map((tool) => tool.name)).toContain('SetThreadPinned')
   })
@@ -327,12 +327,12 @@ describe('desktop runtime thread tools', () => {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'CreateThread',
       threadId: 'thread-parent',
-      arguments: { prompt: 'start', displayName: 'Research', model: 'gpt-5', reasoningEffort: 'ultra' }
+      arguments: { initiation: 'userAsked', title: 'Research', prompt: 'start', model: 'gpt-5', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace')
     await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'CreateThread',
-      arguments: { prompt: 'start' }
+      arguments: { initiation: 'userAsked', title: 'Start', prompt: 'start' }
     }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
@@ -362,7 +362,7 @@ describe('desktop runtime thread tools', () => {
     await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'CreateThread',
-      arguments: { prompt: 'Plan a trip' }
+      arguments: { initiation: 'userAsked', title: 'Trip', prompt: 'Plan a trip' }
     }, '/home/me/.craft/workspaces/chats', { createChatFolder })
 
     expect(createChatFolder).toHaveBeenCalledWith('Plan a trip')
