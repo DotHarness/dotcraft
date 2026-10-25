@@ -8,7 +8,7 @@
 
 | 组件 | 职责 |
 | --- | --- |
-| **Oratorio Server** | 管理任务、运行、草稿、来源同步、Worktree、决策、设置与实时事件。 |
+| **Oratorio Server** | 管理任务、运行、草稿、来源同步、工作树、决策、设置与实时事件。 |
 | **DotCraft Hub** | 启动并监管已注册的用户级 `oratorio` managed service，不代理 Oratorio 业务请求。 |
 | **Desktop Main** | 解析本地或远程服务访问、注入 bearer、校验允许的 route，并持有实时连接。 |
 | **Desktop Renderer** | 通过 typed IPC 渲染 Board、任务详情和 Settings，不获取 endpoint 或 bearer。 |
@@ -36,7 +36,7 @@ npm run build
 
 打包会把 self-contained Server 发布到 `build/oratorio/`，再放进 Desktop resources。本机 Windows 打包运行 `build.bat`，各发行平台的产物由仓库的 `build-multiplatform` workflow 生成。
 
-Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式化显示数据，但不得重新实现 lifecycle、retry、recovery、Worktree 或 decision 规则。
+Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式化显示数据，但不得重新实现 lifecycle、retry、recovery、工作树或 decision 规则。
 
 ## 相关文档
 

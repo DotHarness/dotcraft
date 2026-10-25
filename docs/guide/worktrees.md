@@ -34,4 +34,4 @@ config/local.json
 
 Archiving a conversation removes its worktree when nothing in it is uncommitted; the branch stays, and unarchiving checks it out again. Deleting a conversation removes its clean worktree too, and deletes the branch when it holds no new commits. A worktree with uncommitted changes always stays on disk.
 
-**Settings › Source control › Worktrees** lists every worktree of the workspace and removes the ones you no longer need. It also sets the prefix DotCraft names new worktree branches with (`dotcraft` by default).
+**Settings › Worktrees** lists every worktree of the workspace and removes the ones you no longer need. It also sets the prefix DotCraft names new worktree branches with (`dotcraft` by default).

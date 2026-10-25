@@ -1,6 +1,6 @@
 # 服务器部署
 
-用官方 Docker Compose stack，在一台 Linux 服务器上同时运行 DotCraft AppServer 和 [Oratorio](../guide/oratorio/)。两个服务共用同一个工作区目录。Oratorio 派发的任务，你在 Desktop 里可以直接打开对应的会话和 worktree。
+用官方 Docker Compose stack，在一台 Linux 服务器上同时运行 DotCraft AppServer 和 [Oratorio](../guide/oratorio/)。两个服务共用同一个工作区目录。Oratorio 派发的任务，你在 Desktop 里可以直接打开对应的会话和工作树。
 
 使用[模型服务](./model-service)，让多个 Stack 共用提供商，并将上游凭据保存在独立部署中。
 

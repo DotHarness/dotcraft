@@ -14,7 +14,7 @@ Oratorio 是 DotCraft 内置的项目看板。本地任务、GitHub 的 issue �
 4. 打开任务卡，用任务顶部的按钮开始运行。
 5. 在任务的动态里跟踪运行，就绪后直接在那里审阅。
 
-Agent 的工作发生在 Oratorio 单独创建的 Worktree 里，运行期间不会动你手上正在用的 checkout。从筛选任务到审阅、交付的完整流程见 [Oratorio 工作流](./workflow)。
+Agent 的工作发生在 Oratorio 单独创建的工作树里，运行期间不会动你手上正在用的 checkout。从筛选任务到审阅、交付的完整流程见 [Oratorio 工作流](./workflow)。
 
 ## 接入 GitHub 与 GitLab
 

@@ -71,4 +71,4 @@ dotcraft stack webhook enable \
 ## 相关文档
 
 - [使用 Oratorio 工作流](./workflow) — 同步进来的任务在 Board 上怎么一步步推进
-- [配置 Oratorio](./settings) — 调整审阅自动化、Worktree 和交付方式
+- [配置 Oratorio](./settings) — 调整审阅自动化、工作树和交付方式
