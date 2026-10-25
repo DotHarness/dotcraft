@@ -257,6 +257,8 @@ export const MESSAGES_KO: Catalog = {
   'chatStatus.hoursLimit': '{{count}}시간 한도',
   'chatStatus.daysLimit': '{{count}}일 한도',
   'chatStatus.usageLeft': '{{percent}}% 남음 ({{time}}에 재설정)',
+  'chatStatus.balance': '잔액',
+  'chatStatus.balanceInsufficient': '잔액이 부족하여 호출할 수 없습니다.',
   'changes.title': '변경 사항',
   'changes.filesOne': '파일 {{count}}개 변경됨',
   'changes.filesMany': '파일 {{count}}개 변경됨',

@@ -255,6 +255,8 @@ export const MESSAGES_EN = {
   'chatStatus.hoursLimit': '{{count}}-hour limit',
   'chatStatus.daysLimit': '{{count}}-day limit',
   'chatStatus.usageLeft': '{{percent}}% left (resets {{time}})',
+  'chatStatus.balance': 'Balance',
+  'chatStatus.balanceInsufficient': 'Balance is insufficient for calls.',
   'changes.title': 'Changes',
   'changes.filesOne': '{{count}} file changed',
   'changes.filesMany': '{{count}} files changed',

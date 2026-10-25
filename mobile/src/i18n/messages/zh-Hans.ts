@@ -257,6 +257,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'chatStatus.hoursLimit': '{{count}} 小时限制',
   'chatStatus.daysLimit': '{{count}} 天限制',
   'chatStatus.usageLeft': '剩余 {{percent}}%（{{time}} 重置）',
+  'chatStatus.balance': '余额',
+  'chatStatus.balanceInsufficient': '余额不足，无法继续调用。',
   'changes.title': '更改',
   'changes.filesOne': '{{count}} 个文件已更改',
   'changes.filesMany': '{{count}} 个文件已更改',

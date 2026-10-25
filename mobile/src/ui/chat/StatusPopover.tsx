@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Animated, Easing, Modal, Pressable, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { windowSpan, type UsageWindow } from '../../core/accountUsage'
+import { windowSpan, type ProviderUsage } from '../../core/accountUsage'
 import { compactCount, type ContextUsage } from '../../core/contextUsage'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
@@ -48,17 +48,17 @@ export function StatusPopover({
   chatId,
   folder,
   context,
-  windows,
+  usage,
   onClose,
 }: {
   visible: boolean
   chatId: string
   folder: string | null
   context: ContextUsage | null
-  windows: UsageWindow[]
+  usage: ProviderUsage | null
   onClose: () => void
 }) {
-  const { t, dateTime } = useI18n()
+  const { t, dateTime, formatCurrency } = useI18n()
   const { colors } = useTheme()
   const insets = useSafeAreaInsets()
   const [progress] = useState(() => new Animated.Value(0))
@@ -69,6 +69,9 @@ export function StatusPopover({
     }
     Animated.timing(progress, { toValue: 1, duration: 180, easing: OPEN, useNativeDriver: nativeDriver }).start()
   }, [progress, visible])
+  const windows = usage?.windows ?? []
+  const balances = usage?.balances ?? []
+  const insufficientBalance = usage?.limitReachedKind === 'balance'
   const contextText = context
     ? t('chatStatus.contextLeft', {
         percent: Math.round(context.percentLeft * 100),
@@ -110,6 +113,14 @@ export function StatusPopover({
             />
           )
         })}
+        {balances.map((balance) => (
+          <Row key={balance.currency} label={t('chatStatus.balance')} value={formatCurrency(balance.total, balance.currency)} />
+        ))}
+        {insufficientBalance ? (
+          <Txt variant="meta" tone="error">
+            {t('chatStatus.balanceInsufficient')}
+          </Txt>
+        ) : null}
       </Animated.View>
     </Modal>
   )

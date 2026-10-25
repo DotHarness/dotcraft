@@ -110,11 +110,12 @@ describe('files and usage', () => {
     await harness.link().loadUsage(project, null)
     await harness.link().loadUsage(project, 'local')
     const usage = state().models[project].usage
-    expect(usage.studio?.map((window) => [window.seconds, window.percentLeft])).toEqual([
+    expect(usage.studio?.windows.map((window) => [window.seconds, window.percentLeft])).toEqual([
       [18_000, 73],
       [604_800, 91],
     ])
-    expect(usage.local).toEqual([])
+    expect(usage.studio?.balances).toEqual([])
+    expect(usage.local).toEqual({ windows: [], balances: [], limitReachedKind: null })
   })
 })
 

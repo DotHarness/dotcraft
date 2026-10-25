@@ -257,6 +257,8 @@ export const MESSAGES_ES: Catalog = {
   'chatStatus.hoursLimit': 'Límite de {{count}} horas',
   'chatStatus.daysLimit': 'Límite de {{count}} días',
   'chatStatus.usageLeft': 'Queda un {{percent}} % (se restablece el {{time}})',
+  'chatStatus.balance': 'Saldo',
+  'chatStatus.balanceInsufficient': 'El saldo no alcanza para realizar llamadas.',
   'changes.title': 'Cambios',
   'changes.filesOne': '{{count}} archivo cambiado',
   'changes.filesMany': '{{count}} archivos cambiados',

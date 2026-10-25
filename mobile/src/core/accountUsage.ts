@@ -6,6 +6,17 @@ export interface UsageWindow {
   resetAt: string
 }
 
+export interface UsageBalance {
+  currency: string
+  total: string
+}
+
+export interface ProviderUsage {
+  windows: UsageWindow[]
+  balances: UsageBalance[]
+  limitReachedKind: string | null
+}
+
 const HOUR = 3600
 const DAY = 24 * HOUR
 
@@ -15,9 +26,13 @@ function windowOf(raw: ProviderAuthUsageWindow | null | undefined): UsageWindow[
   return [{ seconds: raw.windowSeconds, percentLeft: Math.round(Math.min(100, Math.max(0, 100 - raw.usedPercent))), resetAt: raw.resetAt }]
 }
 
-export function usageWindows(result: ProviderAuthUsageResult | null | undefined): UsageWindow[] {
-  if (result?.available !== true) return []
-  return [...windowOf(result.primary), ...windowOf(result.secondary)].sort((left, right) => left.seconds - right.seconds)
+export function providerUsage(result: ProviderAuthUsageResult | null | undefined): ProviderUsage {
+  if (result?.available !== true) return { windows: [], balances: [], limitReachedKind: null }
+  return {
+    windows: [...windowOf(result.primary), ...windowOf(result.secondary)].sort((left, right) => left.seconds - right.seconds),
+    balances: (result.balances ?? []).map(({ currency, total }) => ({ currency, total })),
+    limitReachedKind: result.limitReachedKind ?? null,
+  }
 }
 
 export function windowSpan(seconds: number): { unit: 'hours' | 'days'; count: number } {

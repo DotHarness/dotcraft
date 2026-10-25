@@ -423,8 +423,9 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   path to copy. Without `capabilities.fileSystem`, a chip only shows its path.
 - The context ring starts from `contextUsage` in `thread/read` and follows `contextUsage` in
   `item/usage/delta` and terminal compaction events, as on Desktop; without a snapshot it is empty.
-  Status shows context left with tokens used and window size, and, for a ChatGPT sign-in, each usage
-  window from `provider/auth/usage` for the active provider with share left and reset time.
+  Status shows context left with tokens used and window size, and, for the active provider, usage
+  from `provider/auth/usage`: each limit window with share left and reset time, each prepaid balance
+  amount when the provider reports balances (as DeepSeek does), and an insufficient-balance warning.
 - Download writes through Android's shared Downloads collection and needs no storage permission; on
   Android 9 and earlier saving there is not supported.
 - Replies render GitHub-flavored Markdown as on Desktop. Images show inline: web images load

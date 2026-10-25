@@ -350,7 +350,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         chatId={threadId}
         folder={workspacePath}
         context={detail?.context ?? null}
-        windows={usageProviderId ? (models?.usage[usageProviderId] ?? []) : []}
+        usage={usageProviderId ? (models?.usage[usageProviderId] ?? null) : null}
         onClose={() => setStatusOpen(false)}
       />
       {changes ? (

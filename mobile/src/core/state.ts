@@ -1,5 +1,5 @@
 import type { ModelCatalogItem, ThreadConfiguration, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
-import type { UsageWindow } from './accountUsage'
+import type { ProviderUsage } from './accountUsage'
 import type { BackgroundTask, TaskSource, TaskSources } from './backgroundTasks'
 import { chatState, needsYou, type ChatState } from './chatState'
 import { applyContext, type ContextUpdate, type ContextUsage } from './contextUsage'
@@ -92,7 +92,7 @@ export interface ProjectModels {
   defaultProviderId: string | null
   providers: { id: string; name: string }[]
   catalogs: Record<string, ModelCatalogItem[]>
-  usage: Record<string, UsageWindow[]>
+  usage: Record<string, ProviderUsage>
 }
 
 export type PendingRequest =
@@ -199,7 +199,7 @@ export type ComputerAction =
       projectId: string
       capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage' | 'canCompact'>
     }
-  | { type: 'usage'; projectId: string; providerId: string; windows: UsageWindow[] }
+  | { type: 'usage'; projectId: string; providerId: string; usage: ProviderUsage }
   | { type: 'approvalDefault'; projectId: string; policy: ApprovalPolicy }
   | { type: 'references'; projectId: string; entries: ReferenceEntry[] }
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
@@ -423,7 +423,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       return patchModels(state, action.projectId, action.capabilities)
     case 'usage':
       return patchModels(state, action.projectId, {
-        usage: { ...state.models[action.projectId]?.usage, [action.providerId]: action.windows },
+        usage: { ...state.models[action.projectId]?.usage, [action.providerId]: action.usage },
       })
     case 'approvalDefault':
       return patchModels(state, action.projectId, { approvalDefault: action.policy })

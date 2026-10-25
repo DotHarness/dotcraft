@@ -13,7 +13,7 @@ import type {
   UserInputResponseResult,
 } from '@dotcraft/sdk/contracts'
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
-import { usageWindows } from './accountUsage'
+import { providerUsage } from './accountUsage'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
 import type { BackgroundTask } from './backgroundTasks'
 import { BackgroundTaskSync } from './backgroundTaskSync'
@@ -290,7 +290,7 @@ export class ProjectConnection {
       if (params.threadId) this.signal(params.threadId, (signals) => systemEventSignals(signals, params))
     })
     client.on('provider/auth/usage/updated', (params) =>
-      this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: params.providerId, windows: usageWindows(params) }),
+      this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: params.providerId, usage: providerUsage(params) }),
     )
     client.on('config/changed', ({ regions }) => {
       if (changesWorkspaceApproval(regions)) void this.loadApprovalDefault(client).catch(() => undefined)
@@ -638,7 +638,7 @@ export class ProjectConnection {
     const id = providerId ?? defaultProvider()
     if (!id) return
     const usage = await client.request('provider/auth/usage', { providerId: id })
-    this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: id, windows: usageWindows(usage) })
+    this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: id, usage: providerUsage(usage) })
   }
 
   async readFile(path: string): Promise<string> {

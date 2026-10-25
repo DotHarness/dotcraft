@@ -257,6 +257,8 @@ export const MESSAGES_JA: Catalog = {
   'chatStatus.hoursLimit': '{{count}} 時間の上限',
   'chatStatus.daysLimit': '{{count}} 日間の上限',
   'chatStatus.usageLeft': '残り {{percent}}%（{{time}} にリセット）',
+  'chatStatus.balance': '残高',
+  'chatStatus.balanceInsufficient': '残高が不足しているため呼び出せません。',
   'changes.title': '変更',
   'changes.filesOne': '{{count}} 個のファイルを変更',
   'changes.filesMany': '{{count}} 個のファイルを変更',
