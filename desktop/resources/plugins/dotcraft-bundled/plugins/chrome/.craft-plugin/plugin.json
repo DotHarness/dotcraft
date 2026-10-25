@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chrome",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "displayName": "Chrome",
   "description": "Inspect and interact with existing Chrome tabs through DotCraft's first-party browser extension.",
   "capabilities": ["interactive", "read", "write", "browser", "chrome", "javascript", "native-messaging"],
