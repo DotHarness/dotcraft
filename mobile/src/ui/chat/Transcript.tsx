@@ -170,7 +170,6 @@ function Disclosure({ open }: { open: boolean }) {
 }
 
 const HOLD_MS = 2000
-const EXIT_DELAY_MS = 300
 
 type ThinkingEntry = Extract<TranscriptEntry, { kind: 'thinking' }>
 
@@ -220,9 +219,9 @@ function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean })
   const reduced = useReducedMotion()
   const label = useWorkingLabel(entry)
   const [engaged, setEngaged] = useState(entry.working)
-  const [settled, setSettled] = useState(false)
+  const [faded, setFaded] = useState(!entry.working)
   if (entry.working && !engaged) setEngaged(true)
-  if (entry.working && settled) setSettled(false)
+  if (entry.working && faded) setFaded(false)
   const [shown, setShown] = useState(label)
   if (label && (label.text !== shown?.text || label.live !== shown.live)) setShown(label)
   const labelled = label !== null
@@ -241,26 +240,23 @@ function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean })
   }, [labelled, labelOpacity, reduced])
 
   useEffect(() => {
-    const target = settled ? 0 : 1
+    const working = entry.working
     if (reduced) {
-      glyphOpacity.setValue(target)
+      glyphOpacity.setValue(working ? 1 : 0)
       return
     }
-    const animation = Animated.timing(glyphOpacity, {
-      toValue: target,
-      duration: 180,
-      delay: settled ? EXIT_DELAY_MS : 0,
-      useNativeDriver: nativeDriver,
+    const animation = Animated.timing(glyphOpacity, { toValue: working ? 1 : 0, duration: 180, useNativeDriver: nativeDriver })
+    animation.start(({ finished }) => {
+      if (finished && !working) setFaded(true)
     })
-    animation.start()
     return () => animation.stop()
-  }, [settled, glyphOpacity, reduced])
+  }, [entry.working, glyphOpacity, reduced])
 
   if (!engaged) return null
   return (
     <View style={[styles.working, tight ? styles.tight : undefined]}>
       <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ opacity: glyphOpacity }}>
-        <ThinkingGlyph thinking={entry.working} color={colors.textSecondary} onSettled={() => setSettled(true)} />
+        <ThinkingGlyph thinking={!faded} color={colors.textSecondary} />
       </Animated.View>
       {shown ? (
         <Animated.View

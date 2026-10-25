@@ -1,12 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { PixelRatio } from 'react-native'
 import Svg, { Circle, Defs, FeColorMatrix, FeGaussianBlur, Filter, G } from 'react-native-svg'
 import { useReducedMotion } from '../motion'
 
 const SIZE = 16
 const LOOP_MS = 3000
-const FUSED_MS = 1350
-const SETTLE_MS = 640
 const REST = { spin: 0, drop: 0, core: 1.6 }
 
 type Pose = typeof REST
@@ -37,56 +35,27 @@ function keyframes(stops: [number, number][], ease: (x: number) => number): (pro
 
 const drop = keyframes([[0, -7.3], [0.18, -7.3], [0.45, 0], [0.58, 0], [0.76, -8.2], [0.86, -7.3], [1, -7.3]], bezier(0.5, 0, 0.3, 1))
 const core = keyframes([[0, 0], [0.18, 0], [0.4, 1], [0.5, 1.5], [0.62, 1], [0.76, 0], [1, 0]], bezier(0.42, 0, 0.58, 1))
-const settle = bezier(0.34, 1.56, 0.64, 1)
-const FUSED_CORE = core(FUSED_MS / LOOP_MS)
 
 function loopPose(elapsed: number): Pose {
   const progress = (elapsed % LOOP_MS) / LOOP_MS
   return { spin: 120 * progress, drop: drop(progress), core: core(progress) }
 }
 
-export function ThinkingGlyph({ thinking, color, onSettled }: { thinking: boolean; color: string; onSettled?: () => void }) {
+export function ThinkingGlyph({ thinking, color }: { thinking: boolean; color: string }) {
   const filter = `thinking-glyph-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const edge = Math.min(20, Math.max(4, (SIZE * PixelRatio.get()) / 4))
   const reduced = useReducedMotion()
   const [pose, setPose] = useState<Pose>(() => (thinking ? loopPose(0) : REST))
-  const origin = useRef<number | null>(null)
-  const settledRef = useRef(onSettled)
   useEffect(() => {
-    settledRef.current = onSettled
-  })
-
-  useEffect(() => {
-    if (reduced) {
-      origin.current = null
-      if (thinking) return
-      const timer = setTimeout(() => settledRef.current?.(), 0)
-      return () => clearTimeout(timer)
-    }
+    if (reduced || !thinking) return
     let frame = 0
-    let fusedAt: number | null = null
+    let origin: number | null = null
     const tick = (now: number) => {
-      origin.current ??= now
-      const elapsed = now - origin.current
-      if (!thinking) {
-        fusedAt ??= elapsed + ((FUSED_MS - (elapsed % LOOP_MS) + LOOP_MS) % LOOP_MS)
-        if (elapsed >= fusedAt) {
-          if (elapsed - fusedAt >= SETTLE_MS) {
-            origin.current = null
-            setPose(REST)
-            settledRef.current?.()
-            return
-          }
-          setPose({ spin: 0, drop: 0, core: FUSED_CORE + (REST.core - FUSED_CORE) * settle((elapsed - fusedAt) / SETTLE_MS) })
-          frame = requestAnimationFrame(tick)
-          return
-        }
-      }
-      setPose(loopPose(elapsed))
+      origin ??= now
+      setPose(loopPose(now - origin))
       frame = requestAnimationFrame(tick)
     }
-    if (thinking || origin.current !== null) frame = requestAnimationFrame(tick)
-    else settledRef.current?.()
+    frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [thinking, reduced])
 
