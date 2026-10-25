@@ -123,10 +123,10 @@ console.log(result.text);
 
 <p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/more.webp" width="830" alt="Satellite asking for access to run npm run test:contrast, the Oratorio board with Chart labels fail contrast in progress, connected chat bots, and three avatars."></p>
 
-- [**Satellite**](https://www.dotcraft.net/guide/satellite): let your agent work on another Windows PC. The person sharing it chooses full access or one folder, sees every request at the top of the screen, and can pause sharing at any time. In Desktop, open **Settings → Connections → Satellites → Invite** and send the link; the other PC downloads DotCraft Satellite from that page.
-- [**Oratorio**](https://www.dotcraft.net/guide/oratorio/): your project board, built into Desktop. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests land on one board; hand a card to the agent, follow the run, review the result. Select **Oratorio** in the Desktop sidebar. [Workflow](https://www.dotcraft.net/guide/oratorio/workflow)
-- [**Chat bots**](https://www.dotcraft.net/guide/channels/): put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Feishu, QQ, Telegram, WeCom and WeChat connect, and their conversations share the workspace with every other entry point. Open **Channels** in Desktop, pick a platform and fill in its credentials.
-- [**Avatar**](https://www.dotcraft.net/extend/sdks/typescript#avatar-package): the characters behind Desktop's built-in pet and every Agent Profile's look, published as an npm package of React components so you can show the same characters in your own app. They move with the agent's state, 160+ collectible items dress them up, and the same name always draws the same avatar. `npm install @dotcraft/avatar`
+- [**Satellite**](https://www.dotcraft.net/guide/satellite): let your agent work on another Windows PC. The person sharing it decides how much it can reach and can pause sharing at any time.
+- [**Oratorio**](https://www.dotcraft.net/guide/oratorio/): your project board, built into Desktop. Local tasks and GitHub or GitLab issues and pull requests land on one board; hand a card to the agent and review the result.
+- [**Chat bots**](https://www.dotcraft.net/guide/channels/): put DotCraft in the group chat so teammates can ask about the project without opening Desktop. Works with Feishu, QQ, Telegram, WeCom and WeChat.
+- [**Avatar**](https://www.dotcraft.net/extend/sdks/typescript#avatar-package): the characters behind Desktop's pet and Agent Profiles, as React components for your own app.
 
 ## Contributing
 
