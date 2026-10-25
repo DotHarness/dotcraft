@@ -1566,7 +1566,7 @@ saved on this machine), and download a copy.
 
 A turn error is one quiet notice, not a red card: `--bg-secondary`, 8px radius, a
 14px alert icon in `--error-text`, and the message in `--text-secondary` as
-selectable text. Its trailing edge holds one action: a secondary Retry whose
+selectable text. Its top trailing edge holds one action: a secondary Retry whose
 countdown fills the button when the turn can be retried in place, otherwise the
 frameless copy button. A capacity or throttling failure shows a short localized
 sentence instead of the raw message. Reaching a usage limit is a neutral timeline

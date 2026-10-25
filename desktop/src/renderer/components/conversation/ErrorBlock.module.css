@@ -39,5 +39,6 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  align-self: flex-start;
   gap: 4px;
 }
