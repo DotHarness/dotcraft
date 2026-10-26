@@ -3529,10 +3529,6 @@ public sealed class SkillInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
 
-    [JsonPropertyName("hasVariant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> HasVariant { get; init; }
-
     [JsonPropertyName("iconLargeDataUrl")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> IconLargeDataUrl { get; init; }
@@ -3620,26 +3616,6 @@ public sealed class SkillsReadResult : ExtensibleJsonObject
 
 }
 
-public sealed class SkillsRestoreOriginalParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-}
-
-public sealed class SkillsRestoreOriginalResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-    [JsonPropertyName("restored")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Restored { get; init; }
-
-}
-
 public sealed class SkillsSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
@@ -3677,10 +3653,6 @@ public sealed class SkillsUninstallResult : ExtensibleJsonObject
     [JsonPropertyName("removedSourcePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> RemovedSourcePath { get; init; }
-
-    [JsonPropertyName("removedVariantCount")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> RemovedVariantCount { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5372,10 +5344,6 @@ public sealed class ThreadSkillsPolicy : ExtensibleJsonObject
     [JsonPropertyName("allow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> Allow { get; init; }
-
-    [JsonPropertyName("allowManage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> AllowManage { get; init; }
 
     [JsonPropertyName("deny")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

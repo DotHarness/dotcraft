@@ -19,12 +19,6 @@ public sealed record AgentPromptInputs
     /// <summary>Gets the pre-rendered SubAgent profile section, when SubAgents are exposed.</summary>
     public string? SubAgentProfilesSection { get; init; }
 
-    /// <summary>Gets a value indicating whether skill self-learning variant mode is enabled.</summary>
-    public bool SkillVariantModeEnabled { get; init; }
-
-    /// <summary>Gets the skill-variant selection target for this build.</summary>
-    public SkillVariantTarget? SkillVariantTarget { get; init; }
-
     /// <summary>Gets the channel or automation role instructions, or <see langword="null"/> when the agent carries them on its own instruction channel.</summary>
     public string? RoleInstructions { get; init; }
 

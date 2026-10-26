@@ -289,11 +289,11 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var definitionId = new ToolDefinitionId(
             ToolSourceKind.CoreNative,
             "core",
-            new SourceToolId("SkillManage"));
+            new SourceToolId("UpdateRecords"));
         var definition = new ToolDefinition(
             definitionId,
-            new ToolName(null, "SkillManage"),
-            "Manage skills.",
+            new ToolName(null, "UpdateRecords"),
+            "Update records.",
             JsonSerializer.SerializeToElement(new { type = "object" }),
             annotations: new Dictionary<string, JsonElement>
             {
@@ -302,7 +302,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var registration = new ToolRegistration(
             definition,
             new ToolRuntimeBinding(
-                new RuntimeBindingId("native:core:SkillManage:1"),
+                new RuntimeBindingId("native:core:UpdateRecords:1"),
                 definitionId,
                 new NoOpToolRuntime(),
                 ToolBindingLeases.AlwaysAvailable,
@@ -313,7 +313,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         var optOut = AgentFactory.BuildStreamOptOutToolNames(AgentFactory.ProjectSnapshotTools(snapshot));
 
-        Assert.Contains("SkillManage", optOut);
+        Assert.Contains("UpdateRecords", optOut);
     }
 
     private static class FakeToolMethods

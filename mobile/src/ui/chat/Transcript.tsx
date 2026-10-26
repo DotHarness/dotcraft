@@ -47,6 +47,9 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   edited: 'tool.edited',
   read: 'tool.read',
   searched: 'tool.searched',
+  readSkill: 'tool.readSkill',
+  createdSkill: 'tool.createdSkill',
+  updatedSkill: 'tool.updatedSkill',
   used: 'tool.used',
   backgroundStarted: 'tool.backgroundStarted',
   backgroundStopped: 'tool.backgroundStopped',
@@ -67,6 +70,9 @@ const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
   edited: 'tool.live.edited',
   read: 'tool.live.read',
   searched: 'tool.live.searched',
+  readSkill: 'tool.live.readSkill',
+  createdSkill: 'tool.live.createdSkill',
+  updatedSkill: 'tool.live.updatedSkill',
   used: 'tool.live.used',
   spawned: 'tool.live.spawned',
   messaged: 'tool.live.messaged',
@@ -373,7 +379,11 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   const [open, setOpen] = useState(false)
   const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
   const pendingText = entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
-  const subject = entry.subject
+  const subject = entry.skill ? (
+    <SkillChip name={entry.skill.name} path={entry.skill.file ?? undefined} />
+  ) : (
+    entry.subject
+  )
   const [before, after] = around((entry.live ? TOOL_LIVE_TEXT : TOOL_TEXT)[entry.verb], 'subject')
   return (
     <View style={styles.toolBlock}>

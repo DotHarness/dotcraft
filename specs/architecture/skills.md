@@ -2,12 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-26 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
-effective Skill resolution, self-learning adaptations, installation, client access, and remote use.
+authoring, installation, client access, and remote use.
 
 ## 1. Architecture overview
 
@@ -16,15 +16,16 @@ scripts, references, assets, and interface metadata. Skills are procedural memor
 Agent through prompt context and model-callable tools; they are not executable plugins or an
 alternative Agent runtime.
 
-The Skill system has five responsibilities:
+The Skill system has four responsibilities:
 
-1. Discover one source Skill for each name from configured roots.
+1. Discover one Skill for each name from configured roots.
 2. Describe enabled Skills in Agent context.
-3. Resolve the effective source or workspace adaptation for the current runtime.
-4. Load and mutate Skills through the `SkillView` and `SkillManage` tools.
-5. Project Skill discovery and management through AppServer and Desktop.
+3. Load Skill instructions through the `SkillView` tool.
+4. Project Skill discovery and management through AppServer and Desktop.
 
-Any `SKILL.md` bundle is loadable; managed creation and installation apply the stricter validation
+A Skill is an ordinary directory that the Agent changes with general file and shell tools (§5).
+
+Any `SKILL.md` bundle is loadable; verification and installation apply the stricter validation
 rules below.
 
 ## 2. Skill bundles and metadata
@@ -41,20 +42,18 @@ description: Review code changes for correctness and maintainability.
 Follow the repository review workflow.
 ```
 
-Names created or edited through `SkillManage`:
+Names accepted by verification and installation:
 
 - contain at most 64 characters;
-- start with a lowercase letter or digit;
-- contain only lowercase letters, digits, hyphens, dots, and underscores;
-- match the requested name in the operation.
+- start with an ASCII letter or digit;
+- contain only ASCII letters, digits, hyphens, dots, and underscores.
 
 The frontmatter requires `name` and `description`. Descriptions contain at most 1,024 characters,
-and `SKILL.md` defaults to a maximum of 100,000 characters. Supporting files written through
-`SkillManage` live under `scripts/` or `assets/` and default to a maximum of 1 MiB per file.
+and `SKILL.md` contains at most 100,000 characters. Supporting files are limited as described in §7.
 
 Optional metadata includes:
 
-- `always: true`, which loads the effective instructions into active Skill context;
+- `always: true`, which loads the instructions into active Skill context;
 - requirements for executables, environment variables, and Agent tools;
 - `agents/openai.yaml` interface metadata for display name, short description, default prompt,
   and icons.
@@ -83,9 +82,8 @@ process start. DotCraft does not own that directory, so a Skill resolved from it
 but not uninstalled.
 
 Workspace configuration stores disabled Skill names in `Skills.DisabledSkills`. Thread and Agent
-Profile policy can further restrict Skill names with `allow` and `deny`, and can disable
-`SkillManage` with `allowManage`. When `allow` is absent, every enabled Skill is available; deny
-wins over allow; names match case-insensitively. Runtime policy enforces these restrictions: an
+Profile policy can further restrict Skill names with `allow` and `deny`. When `allow` is absent,
+every enabled Skill is available; deny wins over allow; names match case-insensitively. Runtime policy enforces these restrictions: an
 excluded Skill is left out of active Skill context and the catalog, and `SkillView` refuses it.
 Prompt text is not the enforcement boundary.
 
@@ -98,107 +96,78 @@ Prompt text is not the enforcement boundary.
 - routing guidance in base instructions, telling the Agent to call `SkillView` when a task matches
   a Skill. `ReadFile` is a fallback when `SkillView` is unavailable and remains valid for an
   explicitly referenced supporting file or diagnostics;
-- the catalog of enabled, permitted Skills, with name, description, effective location, and whether
-  each is always loaded, as the `skills` world-state section;
-- self-learning guidance only when `SkillManage` is exposed.
+- the catalog of enabled, permitted Skills, with name, description, location, and whether each is
+  always loaded, as the `skills` world-state section.
+
+Base instructions do not direct the Agent to create or revise Skills. Authoring guidance lives in the
+built-in `skill-authoring` Skill, which the Agent selects like any other Skill (§5).
 
 ### 4.1 Catalog freshness
 
-The catalog is read again for each Turn, and again within a Turn when the Skill loader reports a
-change: an install, uninstall, enablement change, plugin change, or `SkillManage` mutation. When it
-differs from what the model was last shown, the complete current catalog is appended to history and
-replaces the earlier one. Base instructions and earlier history are never rewritten, so the cached
-prompt prefix survives a Skill change, and a thread sees an added or removed Skill on its next
-sampling request.
+A thread reads the catalog before its first sampling request and again only after the Skill loader
+reports a change: an install, uninstall, or enablement change made through this host's Skill
+service, a plugin change, or the `/reload-skills` command ([Session Core](session-core.md) §13.3).
+Other changes on disk are not reported, including Agent edits and a `dotcraft skill install` run in
+another process; they reach the catalog after the next reported change. `SkillView` always reads
+the current files. When the catalog differs from what the model was last shown, the complete current
+catalog is appended to history and replaces the earlier one. Base instructions and earlier history
+are never rewritten, so the cached prompt prefix survives a Skill change, and a thread sees a
+reported change on its next sampling request.
 
 Always-loaded instructions stay in base instructions and are pinned until compaction.
 
 ### 4.2 References
 
-A native `skillRef` input identifies a Skill by name. Input materialization resolves the current
-effective path but does not inline the instructions into the user message. Always-loaded Skills are
+A native `skillRef` input identifies a Skill by name. Input materialization resolves the Skill's
+current path but does not inline the instructions into the user message. Always-loaded Skills are
 already present in context and do not need a `SkillView` call.
 
-## 5. Effective Skills and adaptations
+## 5. Authoring and changing Skills
 
-A source Skill is the selected installed bundle. A Skill variant is a workspace-local copy adapted
-by self-learning for a particular source fingerprint and runtime target. The effective Skill is the
-source or compatible current variant that DotCraft presents to the Agent.
+The Agent creates and changes Skills with the general file and shell tools, under those tools' path
+and approval policies. DotCraft does not validate, approve, or record these edits separately.
 
-Variants are stored separately from sources:
+The built-in `skill-authoring` Skill describes bundle structure, where a new Skill belongs, how to
+reference supporting files, and how to check the result with `dotcraft skill verify` (§7). It is
+listed and loaded like any other Skill. A Skill the Agent creates or renames enters the catalog after
+the next reported change (§4.1), while `SkillView` can load it at once.
 
-```text
-.craft/
-  skills/
-    {skill-name}/
-      SKILL.md
-      ...
-  skill-variants/
-    {source-kind}.{skill-name}/
-      {variant-id}/
-        manifest.json
-        skill/
-          SKILL.md
-          ...
-```
+Where a Skill lives decides who owns an edit:
 
-Each variant contains a complete Skill bundle. Its manifest records the schema and variant ids,
-source name, source kind, source path and fingerprint, target signature, status, timestamps,
-provenance, and optional summary. Variant storage is never scanned as a source root.
+- A workspace Skill belongs to the workspace, and edits persist.
+- Built-in deployment rewrites a directory carrying the `.builtin` marker whenever the product
+  version changes, so an edit there lasts only until the next deployment. Removing the marker turns
+  the directory into a workspace Skill that deployment leaves alone and no longer updates.
+- A plugin-contained Skill is replaced by its plugin's lifecycle.
+- A user or shared Skill is visible to every workspace, and the shared root to other Agent
+  products.
 
-### 5.1 Source fingerprints
+To adapt a plugin, user, or shared Skill for one workspace only, the Agent copies it into
+`.craft/skills/` under the same name, where it takes precedence by source priority (§3).
 
-The source fingerprint is a SHA-256 digest over the relative path and contents of every ordinary
-file in the source bundle, sorted by relative path. Dot-prefixed files, including deployment and
-install markers, are excluded. A changed fingerprint makes a previously current variant stale.
+### 5.1 Presentation
 
-### 5.2 Target signatures
+A file tool call whose target lies inside a Skill directory is a Skill operation. A Skill directory
+is a direct child directory of a configured Skill root (§3): the workspace root, an enabled plugin's
+Skill directory, the user root, or the shared root. When recording the Item, Core marks the call in
+its trusted presentation options with `skill`, `skillName` (the directory's name), and `skillFile`
+(the absolute path of the directory's `SKILL.md`, which may not exist yet):
 
-The persisted target records the DotCraft harness and version, model, operating system, shell,
-available-tool hash, approval policy, and workspace hash. Current variant
-selection compares model, operating system, shell, and workspace hash. Matching is
-case-insensitive except for the workspace hash.
+- `skill: "read"` for a read or search;
+- `skill: "create"` for a write to the directory's `SKILL.md` when none exists as the call starts;
+- `skill: "update"` for any other write or edit.
 
-### 5.3 Resolution
+A failed or rejected call keeps its mark together with its failure. Only Core resolves Skill roots,
+so clients rely on this mark rather than on paths. Shell commands are not classified.
 
-Effective resolution follows this order:
+Clients show a read as reading the Skill, and a create or update as creating or updating the Skill,
+whose changes can be reviewed like a file edit. The Skill name opens that Skill.
 
-1. Resolve the source by normal source priority.
-2. Compute its current source fingerprint.
-3. Find a manifest with `current` status, the same fingerprint, and a compatible target.
-4. Load the variant bundle when found; otherwise load the source bundle.
+## 6. Agent tool
 
-A current manifest with an old source fingerprint is marked `stale` and is not loaded. A restored
-variant has `restored` status and is also excluded. `SkillView`, active Skill loading, Skill catalog
-locations, native Skill references, and `skills/view` use the same effective resolution.
-
-## 6. Agent tools and self-learning
-
-`SkillView(name)` is always part of the Core Skill surface. It returns the effective `SKILL.md`
-instruction body without frontmatter. It does not expose variant ids, fingerprints, manifests, or
-supporting-file listings.
-
-`SkillManage` is exposed when `Skills.SelfLearning.Enabled` is true and thread policy permits
-management. Its actions are:
-
-| Action | Behavior |
-|--------|----------|
-| `create` | Create a workspace source Skill from complete `SKILL.md` content. |
-| `edit` | Replace the effective `SKILL.md`. |
-| `patch` | Replace one or all matching strings in `SKILL.md` or a supporting file. |
-| `write_file` | Add or replace a file under `scripts/` or `assets/`. |
-| `remove_file` | Remove a file under `scripts/` or `assets/`. |
-| `delete` | Delete an eligible workspace Skill. |
-
-With `Skills.SelfLearning.VariantMode` set to `enabled`, edits to an existing Skill operate on a
-workspace-local variant. The first edit copies the complete source bundle and then applies the
-mutation. Creating a Skill still creates a workspace source. Restoring the original marks the
-current compatible variant as `restored`, refreshes Skill context, and makes effective resolution
-fall back to the source.
-
-With `VariantMode` set to `disabled`, effective resolution uses source content and mutations apply
-to the workspace source. The supported values are `enabled` and `disabled`; the default is
-`enabled`. Disabling self-learning removes `SkillManage` but does not remove `SkillView`.
+`SkillView(name)` is always part of the Core Skill surface. It returns the instruction body of the
+resolved `SKILL.md` without frontmatter. It does not expose supporting-file listings. A disabled or
+policy-excluded Skill is refused.
 
 ## 7. Installation and removal
 
@@ -211,32 +180,34 @@ A candidate must contain `SKILL.md` at its root. Verification rejects escaped or
 hidden control paths other than the DotCraft install marker, more than 1,000 files, supporting files
 over 1 MiB, and bundles over 100 MiB. Installation stages the validated bundle, writes provenance
 and source fingerprint metadata, and atomically replaces an existing workspace source only when
-overwrite is explicit. Built-in Skills cannot be overwritten.
+overwrite is explicit. Built-in Skills cannot be overwritten. The source fingerprint is a SHA-256
+digest over the relative path and contents of every ordinary file in the bundle, sorted by relative
+path; dot-prefixed files, including deployment and install markers, are excluded.
 
 `--name` supplies the canonical local install name. It accepts ASCII letters, digits, hyphens,
 dots, and underscores. When present, the candidate frontmatter name does not need to match it.
 Installation preserves ordinary relative supporting files instead of rewriting the candidate.
 
-`skills/uninstall` removes the resolved workspace or user Skill and its stored variants. Plugin and
-built-in Skill lifecycle remains owned by their plugin or built-in deployment mechanism.
+`skills/uninstall` removes the resolved workspace or user Skill. Plugin and built-in Skill
+lifecycle remains owned by their plugin or built-in deployment mechanism.
 
 ## 8. Management boundary
 
-Hosts expose discovery, source reads, effective reads, enablement, restoration, and eligible removal
-through the same Skill service. A descriptor distinguishes source identity, enabled state, and whether
-an effective variant exists. Effective reads remain available when variant mode is disabled.
-Clients do not need adaptation storage internals.
+Hosts expose discovery, reads, enablement, and eligible removal through the same Skill service. A
+descriptor reports source identity and enabled state.
 
 ## 9. Execution locality
 
-Skill discovery and effective resolution remain local to the Agent. Selecting a remote execution
-location does not synchronize or activate bundles, variants, or plugins. Supporting files needed
-elsewhere must be explicitly transferred while preserving relative dependencies.
+Skill discovery and loading remain local to the Agent. Selecting a remote execution location does
+not synchronize or activate bundles or plugins. Supporting files needed elsewhere must be explicitly
+transferred while preserving relative dependencies.
 
 ## 10. Security and invariants
 
-- Source Skills are not mutated by self-learning while variant mode is enabled.
-- General file tools remain subject to their normal path and approval policies.
-- Skill creation, deletion, installation, and overwrite retain their approval and validation boundaries.
+- DotCraft itself changes Skill files only through installation, uninstallation, and built-in
+  deployment.
+- Agent edits to Skill files remain subject to the general file and shell tool path and approval
+  policies.
+- Installation and overwrite retain their validation boundaries.
 - Supporting files become executable only when invoked through an ordinary tool with its own policy.
 - Plugin-contained Skill identity and lifecycle remain subordinate to the owning plugin.

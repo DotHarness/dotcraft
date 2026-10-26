@@ -16865,13 +16865,6 @@
           "const": null
         },
         {
-          "name": "skillVariants",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "skillsManagement",
           "type": "boolean",
           "required": false,
@@ -17580,13 +17573,6 @@
           "const": null
         },
         {
-          "name": "hasVariant",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "iconLargeDataUrl",
           "type": "string",
           "required": false,
@@ -17755,49 +17741,6 @@
       "variants": []
     },
     {
-      "id": "core.SkillsRestoreOriginalParams",
-      "name": "SkillsRestoreOriginalParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SkillsRestoreOriginalParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.SkillsRestoreOriginalResult",
-      "name": "SkillsRestoreOriginalResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SkillsRestoreOriginalResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "restored",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.SkillsSetEnabledParams",
       "name": "SkillsSetEnabledParams",
       "module": "core",
@@ -17876,13 +17819,6 @@
         {
           "name": "removedSourcePath",
           "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "removedVariantCount",
-          "type": "integer",
           "required": false,
           "nullable": false,
           "const": null
@@ -22802,13 +22738,6 @@
         {
           "name": "allow",
           "type": "array<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "allowManage",
-          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null
@@ -31967,26 +31896,6 @@
       "direction": "clientToServer",
       "paramsType": "core.SkillsReadParams",
       "resultType": "core.SkillsReadResult",
-      "module": "core",
-      "capability": "skillsManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "skills/restoreOriginal",
-      "descriptorMember": "SkillsRestoreOriginal",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.SkillsRestoreOriginalParams",
-      "resultType": "core.SkillsRestoreOriginalResult",
       "module": "core",
       "capability": "skillsManagement",
       "scope": "connection",

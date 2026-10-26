@@ -115,7 +115,6 @@ The response returns server info and capabilities:
       "approvalFlow": true,
       "skillsManagement": true,
       "pluginManagement": true,
-      "skillVariants": true,
       "modelCatalogManagement": true,
       "mcpManagement": true
     }
@@ -487,7 +486,7 @@ The table below covers common method families used by AppServer clients.
 | Initialization | `initialize`, `initialized` | Negotiate client and server capabilities. |
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | Conversation lifecycle, bounded history, and subscriptions. |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | User input, queues, and cancellation. |
-| Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
+| Skills | `skills/list`, `skills/read`, `skills/view`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, content, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, Plan-mode availability) for agent profile tool pickers. |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | Plugin discovery, detail, installation, removal, enablement, and .NET trust management. |
 | Plugin marketplaces | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | User-managed plugin catalog sources. |
@@ -503,7 +502,7 @@ The table below covers common method families used by AppServer clients.
 
 Use `capabilities` from the `initialize` response before showing feature-specific UI.
 
-Skill entries returned by `skills/list` may include `hasVariant: true`, which means the current runtime resolves that skill through a workspace adaptation. `skills/read` still reads the source `SKILL.md`; use `skills/view` when a client needs the effective content.
+`skills/read` returns the whole `SKILL.md`, frontmatter included; `skills/view` returns its body without frontmatter.
 
 App Binding clients negotiate `capabilities.appBindingVersion: 1`. An authenticated app-principal connection may call only the app-role allowlist — connection authentication, refresh, status, and revoke, binding request, activation, rebind, and list, `app/surface/publish`, and `app/threadInput/enqueue` — and its tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`, undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../app-binding).
 
@@ -519,7 +518,7 @@ Use the run's thread with `worktree/status` to inspect changes and
 
 Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
 
-`skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. If the removed source skill has associated variants, the server also removes those workspace-local variants and broadcasts `config/changed` with `regions: ["skills"]`.
+`skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. A successful uninstall broadcasts `config/changed` with `regions: ["skills"]`.
 
 Plugin lifecycle separates installation from enablement:
 

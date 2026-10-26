@@ -17,16 +17,6 @@
         }
       ]
     },
-    "allowManage": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "deny": {
       "anyOf": [
         {

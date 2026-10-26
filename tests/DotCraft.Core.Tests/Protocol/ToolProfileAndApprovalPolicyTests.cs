@@ -79,8 +79,7 @@ public class ToolProfileAndApprovalPolicyTests
             SkillsPolicy = new ThreadSkillsPolicy
             {
                 Allow = ["code-review", "repo-style"],
-                Deny = ["dangerous-skill"],
-                AllowManage = false
+                Deny = ["dangerous-skill"]
             }
         };
 
@@ -105,6 +104,5 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.Equal(["github"], roundTrip.PluginPolicy!.Allow!);
         Assert.Equal(["sample-plugin"], roundTrip.PluginPolicy.Deny!);
         Assert.Equal(["code-review", "repo-style"], roundTrip.SkillsPolicy!.Allow!);
-        Assert.False(roundTrip.SkillsPolicy?.AllowManage);
     }
 }

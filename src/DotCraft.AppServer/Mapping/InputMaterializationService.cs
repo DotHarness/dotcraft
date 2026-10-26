@@ -12,8 +12,6 @@ namespace DotCraft.AppServer;
 internal sealed class InputMaterializationService(
     CommandRegistry commandRegistry,
     SkillsLoader? skillsLoader,
-    bool skillVariantModeEnabled = false,
-    SkillVariantTarget? skillVariantTarget = null,
     string? threadId = null)
 {
     public SessionInputMaterializationResult Materialize(IReadOnlyList<SessionInputPart> input)
@@ -136,7 +134,7 @@ internal sealed class InputMaterializationService(
             {
                 var name = NormalizeCommandOrSkillName(part.Name);
                 var loaded = !string.IsNullOrWhiteSpace(name)
-                    ? skillsLoader?.LoadEffectiveSkill(name, skillVariantModeEnabled, skillVariantTarget)
+                    ? skillsLoader?.LoadSkillBody(name)
                     : null;
                 yield return new SessionInputPart
                 {
@@ -167,7 +165,7 @@ internal sealed class InputMaterializationService(
         return name.Trim().TrimStart('/', '$');
     }
 
-    private static string FormatSkillContext(EffectiveSkill skill)
+    private static string FormatSkillContext(SkillsLoader.LoadedSkill skill)
     {
         return $"""
                 <skill>

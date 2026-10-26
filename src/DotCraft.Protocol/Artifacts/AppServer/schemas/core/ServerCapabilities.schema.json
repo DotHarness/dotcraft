@@ -122,9 +122,6 @@
     "sideChat": {
       "type": "boolean"
     },
-    "skillVariants": {
-      "type": "boolean"
-    },
     "skillsManagement": {
       "type": "boolean"
     },

@@ -3418,7 +3418,6 @@ export interface ServerCapabilities {
   requestUserInput?: boolean;
   runtimeAdditionalContext?: boolean;
   sideChat?: boolean;
-  skillVariants?: boolean;
   skillsManagement?: boolean;
   sourceControlManagement?: boolean;
   subAgentManagement?: boolean;
@@ -3542,7 +3541,6 @@ export interface SkillInfo {
   description?: string;
   displayName?: string | null;
   enabled?: boolean;
-  hasVariant?: boolean;
   iconLargeDataUrl?: string | null;
   iconSmallDataUrl?: string | null;
   metadata?: Record<string, string> | null;
@@ -3579,17 +3577,6 @@ export interface SkillsReadResult {
   [key: string]: unknown;
 }
 
-export interface SkillsRestoreOriginalParams {
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface SkillsRestoreOriginalResult {
-  name?: string;
-  restored?: boolean;
-  [key: string]: unknown;
-}
-
 export interface SkillsSetEnabledParams {
   enabled?: boolean;
   name?: string;
@@ -3609,7 +3596,6 @@ export interface SkillsUninstallParams {
 export interface SkillsUninstallResult {
   name?: string;
   removedSourcePath?: string;
-  removedVariantCount?: number;
   source?: string;
   uninstalled?: boolean;
   [key: string]: unknown;
@@ -4615,7 +4601,6 @@ export interface ThreadSearchResult {
 
 export interface ThreadSkillsPolicy {
   allow?: string[] | null;
-  allowManage?: boolean | null;
   deny?: string[] | null;
   [key: string]: unknown;
 }

@@ -267,9 +267,7 @@ public sealed partial class SessionService
 
     private static bool HasPolicy(ThreadSkillsPolicy? policy) =>
         policy != null
-        && (policy.Allow != null
-            || policy.Deny != null
-            || policy.AllowManage.HasValue);
+        && (policy.Allow != null || policy.Deny != null);
 
     private async Task<ChatClientAgent> BuildAgentForThreadAsync(
         SessionThread thread,
@@ -339,8 +337,6 @@ public sealed partial class SessionService
                 WorkspaceRoots = [config.WorkspaceOverride],
                 BotPath = craftPath,
                 SkillsLoader = scopedSkills,
-                // Skill mutations follow the scoped loader, not the workspace-root one.
-                SkillMutationApplier = new WorkspaceFileSkillMutationApplier(scopedSkills),
                 PathBlacklist = new PathBlacklist([]),
                 ExternalCliSessionStore = externalCliSessionStore,
                 AutomationTaskDirectory = config.AutomationTaskDirectory,
@@ -371,7 +367,8 @@ public sealed partial class SessionService
         var toolContext = CloneContextWithWorkspace(
             scopedContext ?? threadBaseContext,
             ThreadWorkspaceResolver.Resolve(thread));
-        threadRuntimeState.SkillCatalogSource = SkillCatalogSource.For(toolContext);
+        threadRuntimeState.SkillCatalogLoader = toolContext.SkillsLoader;
+        threadRuntimeState.SkillCatalog = null;
 
         toolContext = await PrepareMcpToolContextAsync(thread, threadRuntimeState, config, toolContext, ct);
 

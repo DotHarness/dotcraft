@@ -60,39 +60,6 @@ public sealed class AppServerHandshakeTests : IDisposable
         Assert.True(caps.GetProperty("runtimeAdditionalContext").GetBoolean());
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Initialize_AdvertisesSkillVariantsOnlyWhenVariantModeIsEnabled(bool variantsEnabled)
-    {
-        var root = Path.Combine(Path.GetTempPath(), "dotcraft-appserver-variant-caps", Guid.NewGuid().ToString("N"));
-        var craftPath = Path.Combine(root, ".craft");
-        try
-        {
-            Directory.CreateDirectory(craftPath);
-            var config = new AppConfig();
-            if (!variantsEnabled)
-                config.Skills.SelfLearning.VariantMode = "disabled";
-            using var harness = new AppServerTestHarness(
-                workspaceCraftPath: craftPath,
-                appConfigMonitor: new AppConfigMonitor(config),
-                skillsLoader: new SkillsLoader(craftPath));
-
-            using var initDoc = await harness.InitializeAsync();
-            var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
-
-            Assert.True(caps.GetProperty("skillsManagement").GetBoolean());
-            Assert.Equal(
-                variantsEnabled,
-                caps.TryGetProperty("skillVariants", out var skillVariants) && skillVariants.GetBoolean());
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
-        }
-    }
-
     [Fact]
     public async Task InitializedNotification_IsRequiredBeforeRequestsAreServed()
     {

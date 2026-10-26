@@ -1102,32 +1102,21 @@ public sealed partial class SessionService
                 }
 
                 // Step 5e: Set up approval service override
-                var approvalPolicy = ResolveApprovalPolicy(turnContext.Configuration.ApprovalPolicy);
-                IApprovalService turnApprovalService;
-                switch (approvalPolicy)
-                {
-                    case ApprovalPolicy.AutoApprove:
-                        turnApprovalService = new AutoApproveApprovalService();
-                        break;
-                    case ApprovalPolicy.Deny:
-                        turnApprovalService = new DenyApprovalService();
-                        break;
-                    default:
-                        sessionApproval = new SessionApprovalService(
-                            eventChannel,
-                            turn,
-                            NextItemSeq,
-                            executionCt,
-                            turnRuntime.Interrupt,
-                            approvalStore,
-                            ThreadRuntimeSignalForBroadcast,
-                            _sessionApprovalScopes);
-                        var approvalTurnRuntime = GetOrAddTurnRuntime(turnKey);
-                        if (approvalTurnRuntime != null)
-                            approvalTurnRuntime.PendingApproval = sessionApproval;
-                        turnApprovalService = sessionApproval;
-                        break;
-                }
+                sessionApproval = new SessionApprovalService(
+                    eventChannel,
+                    turn,
+                    NextItemSeq,
+                    executionCt,
+                    turnRuntime.Interrupt,
+                    approvalStore,
+                    ThreadRuntimeSignalForBroadcast,
+                    _sessionApprovalScopes);
+                var approvalTurnRuntime = GetOrAddTurnRuntime(turnKey);
+                if (approvalTurnRuntime != null)
+                    approvalTurnRuntime.PendingApproval = sessionApproval;
+                IApprovalService turnApprovalService = new TurnApprovalService(
+                    () => ResolveLiveApprovalPolicy(thread),
+                    sessionApproval);
 
                 if (hookRunner != null)
                 {

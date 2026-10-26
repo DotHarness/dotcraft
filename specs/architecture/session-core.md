@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.9.4 |
 | **Status** | Living |
-| **Date** | 2026-10-24 |
+| **Date** | 2026-10-26 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -52,7 +52,7 @@ Thread deletion is both a persistence operation and a runtime teardown: it stops
 
 Every loaded Thread has one runtime command owner. External mutations of live Thread state -- Turn admission and cancellation, approval and user-input resolution, queued-input changes, effective configuration publication, maintenance admission, and lifecycle teardown -- are serialized by that owner. Long-running model or maintenance work may execute outside the dispatcher, but returns completion to the same owner before the active-work slot is cleared or follow-up work is admitted.
 
-The owner stays responsive while a Turn runs, so cancellation, approvals, user-input answers, steering, and configuration changes do not wait for model completion. A configuration change committed during an active Turn applies to the next Turn; it never mutates the active Turn's captured context.
+The owner stays responsive while a Turn runs, so cancellation, approvals, user-input answers, steering, and configuration changes do not wait for model completion. A configuration change committed during an active Turn applies to the next Turn; it never mutates the active Turn's captured context. The approval policy is the one exception (§12.2).
 
 Each runtime activation has a generation identity. Delayed completion from an earlier generation, including after permanent deletion or reload, must not mutate, persist, publish, or recreate live Thread state.
 
@@ -1081,9 +1081,10 @@ ThreadConfiguration
 Approval fields:
 
 - `default` uses the normal interactive approval path; `prompt` always uses it, even when the workspace default is `autoApprove`; `autoApprove` accepts approval-gated operations on the server; `deny` rejects them without prompting, the tool receives the rejection, and the Turn may continue. A persisted `interrupt` is read as `deny`.
+- A change to the effective approval policy, whether to the thread's own policy or to the workspace default a `default` thread falls back to, applies inside a running Turn. Later approval requests follow the new policy, and pending ones are settled again: accepted once under `autoApprove`, rejected under `deny`, and left waiting otherwise. The policy is not model-visible, so the change keeps the cached prompt.
 - `RequireApprovalOutsideWorkspace`: `true` sends outside-workspace file and shell operations through approval; `false` rejects them without prompting; null uses the workspace file-tool default, which governs both file and shell operations.
 
-When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight, except for the tool location a worktree tool moves (§4.1.1.2). Configuration changes never create Turns, and channels may expose only the subset their UX supports.
+When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight, except for its approval policy (above) and the tool location a worktree tool moves (§4.1.1.2). Configuration changes never create Turns, and channels may expose only the subset their UX supports.
 
 Model preference:
 
@@ -1163,6 +1164,7 @@ Server-managed slash commands have one server-side registry, authoritative for d
 | `/help` | Managed command metadata listing |
 | `/automate` | Automation management (host service) |
 | `/debug` | Debug mode toggle (host service) |
+| `/reload-skills` | Rescan Skill roots so every thread's Skill catalog is read again before its next sampling request ([Skills](skills.md) §4.1) |
 | `/init` | Expands a repository-guidelines prompt into a normal agent Turn |
 | Custom commands | Resolved by the command pipeline |
 

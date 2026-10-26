@@ -59,7 +59,6 @@ public sealed class AgentRuntimeContext
         ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders;
         WorldStateSections = source.WorldStateSections;
         Contributions = source.Contributions;
-        SkillMutationApplier = source.SkillMutationApplier;
         ApprovalService = source.ApprovalService;
         PathBlacklist = source.PathBlacklist;
         BackgroundTerminalService = source.BackgroundTerminalService;
@@ -240,16 +239,6 @@ public sealed class AgentRuntimeContext
 
     /// <summary>The workspace contribution view used to resolve the contribution points evaluated per turn. Unset by hosts without the workspace kernel, which fall back to the built-in catalogs.</summary>
     public IContributionView? Contributions { get; init; }
-
-    /// <summary>
-    /// Applies workspace skill mutations for optional self-learning tools.
-    /// Defaults to the direct workspace-file implementation.
-    /// </summary>
-    public ISkillMutationApplier SkillMutationApplier
-    {
-        get => field ??= new WorkspaceFileSkillMutationApplier(SkillsLoader);
-        init;
-    }
 
     /// <summary>
     /// The approval service for sensitive operations.

@@ -59,44 +59,30 @@ public sealed class AppServerSkillsManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task SkillVariant_IsViewedAndListedUntilRestoredWhileReadReturnsTheSource()
+    public async Task SkillsView_ReturnsTheBodyWhileReadReturnsTheWholeFile()
     {
         var craftPath = Path.Combine(_tempRoot, ".craft");
         var loader = new SkillsLoader(craftPath);
         WriteSkill(loader, "demo-skill", "Source body.");
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
-        await PatchVariantAsync(harness, loader);
         await harness.InitializeAsync();
 
         var viewContent = await ReadContentAsync(harness, DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsView);
-        Assert.Contains("Variant body.", viewContent);
+        Assert.Contains("Source body.", viewContent);
         Assert.DoesNotContain("name: demo-skill", viewContent);
         var readContent = await ReadContentAsync(harness, DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsRead);
         Assert.Contains("Source body.", readContent);
         Assert.Contains("name: demo-skill", readContent);
-        Assert.True(await HasVariantAsync(harness));
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsRestoreOriginal, new { name = "demo-skill" }));
-        using (var restoreResponse = harness.Transport.TryReadSent()!)
-            Assert.True(restoreResponse.RootElement.GetProperty("result").GetProperty("restored").GetBoolean());
-
-        Assert.False(await HasVariantAsync(harness));
-        var restoredView = await ReadContentAsync(harness, DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsView);
-        Assert.Contains("Source body.", restoredView);
-        Assert.DoesNotContain("Variant body.", restoredView);
     }
 
     [Fact]
-    public async Task SkillsUninstall_RemovesWorkspaceSkillVariantsAndDisabledEntryAndEmitsConfigChanged()
+    public async Task SkillsUninstall_RemovesWorkspaceSkillAndDisabledEntryAndEmitsConfigChanged()
     {
         var craftPath = Path.Combine(_tempRoot, ".craft");
         var loader = new SkillsLoader(craftPath);
         WriteSkill(loader, "demo-skill", "Source body.");
         loader.SetDisabledSkills(["demo-skill"]);
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
-        await PatchVariantAsync(harness, loader);
-        var sourceVariantRoot = Path.Combine(loader.VariantStore.VariantsRoot, "workspace.demo-skill");
-        Assert.True(Directory.Exists(sourceVariantRoot));
         var changes = new List<AppConfigChangedEventArgs>();
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
@@ -107,8 +93,6 @@ public sealed class AppServerSkillsManagementTests : IDisposable
 
         Assert.True(result.GetProperty("uninstalled").GetBoolean());
         Assert.Equal("workspace", result.GetProperty("source").GetString());
-        Assert.Equal(1, result.GetProperty("removedVariantCount").GetInt32());
-        Assert.False(Directory.Exists(sourceVariantRoot));
         Assert.False(Directory.Exists(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill")));
         Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == "demo-skill");
         Assert.DoesNotContain(loader.ListSkills(), skill => !skill.Enabled);
@@ -173,30 +157,11 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         }
     }
 
-    private static Task PatchVariantAsync(AppServerTestHarness harness, SkillsLoader loader)
-    {
-        var target = SkillVariantStore.CreateTarget(
-            harness.Monitor.Current.ProviderPreferences[harness.Monitor.Current.ProviderId].Model,
-            harness.Identity.WorkspacePath,
-            harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
-            toolNames: null);
-        var applier = new VariantSkillMutationApplier(new WorkspaceFileSkillMutationApplier(loader), loader, target);
-        return applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
-    }
-
     private static async Task<string?> ReadContentAsync(AppServerTestHarness harness, string method)
     {
         await harness.ExecuteRequestAsync(harness.BuildRequest(method, new { name = "demo-skill" }));
         using var response = harness.Transport.TryReadSent()!;
         return response.RootElement.GetProperty("result").GetProperty("content").GetString();
-    }
-
-    private static async Task<bool> HasVariantAsync(AppServerTestHarness harness)
-    {
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { }));
-        using var response = harness.Transport.TryReadSent()!;
-        var skill = response.RootElement.GetProperty("result").GetProperty("skills")[0];
-        return skill.TryGetProperty("hasVariant", out var hasVariant) && hasVariant.GetBoolean();
     }
 
     private static void WriteSkill(SkillsLoader loader, string name, string body)

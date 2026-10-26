@@ -86,6 +86,38 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
         Assert.Equal(expected, MemoryMark(Assert.Single(history, item => item.Payload is ToolResultPayload)));
     }
 
+    [Theory]
+    [InlineData("ReadFile", "skills/demo/SKILL.md", "read", "demo")]
+    [InlineData("GrepFiles", "skills/demo", "read", "demo")]
+    [InlineData("WriteFile", "skills/fresh/SKILL.md", "create", "fresh")]
+    [InlineData("WriteFile", "skills/demo/SKILL.md", "update", "demo")]
+    [InlineData("WriteFile", "skills/demo/scripts/run.py", "update", "demo")]
+    [InlineData("EditFile", "skills/demo/SKILL.md", "update", "demo")]
+    public async Task RecordStartedAsync_FileCallInsideSkillDirectory_MarksSkillOperation(
+        string tool,
+        string path,
+        string expectedKind,
+        string expectedName)
+    {
+        WriteSkillFile("demo");
+
+        var (events, history) = await RunMemoryTurnAsync(tool, path);
+
+        var expected = (expectedKind, expectedName, Path.GetFullPath(Path.Combine(_tempDir, "skills", expectedName, "SKILL.md")));
+        Assert.Equal(expected, SkillMark(LastToolCall(events, SessionEventType.ItemStarted)));
+        Assert.Equal(expected, SkillMark(Assert.Single(history, item => item.Payload is ToolResultPayload)));
+    }
+
+    [Fact]
+    public async Task RecordStartedAsync_SearchOfTheSkillRoot_LeavesPresentationUnmarked()
+    {
+        WriteSkillFile("demo");
+
+        var (events, _) = await RunMemoryTurnAsync("GrepFiles", "skills");
+
+        Assert.Null(SkillMark(LastToolCall(events, SessionEventType.ItemStarted)));
+    }
+
     [Fact]
     public async Task RecordStartedAsync_FileCallOutsideMemoryStore_LeavesPresentationUnmarked()
     {
@@ -253,6 +285,25 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     {
         var directory = Directory.CreateDirectory(MemoryStore.DirectoryOf(_tempDir)).FullName;
         File.WriteAllText(Path.Combine(directory, name), "The user's role is maintainer.\n");
+    }
+
+    private void WriteSkillFile(string name)
+    {
+        var directory = Directory.CreateDirectory(Path.Combine(_tempDir, "skills", name)).FullName;
+        File.WriteAllText(Path.Combine(directory, "SKILL.md"), $"---\nname: {name}\ndescription: Demo\n---\nThe role is maintainer.\n");
+    }
+
+    private static (string Kind, string Name, string File)? SkillMark(SessionItem item)
+    {
+        var options = (item.Payload switch
+        {
+            ToolCallPayload call => call.Presentation,
+            ToolResultPayload result => result.Presentation,
+            _ => null
+        })?.Options;
+        return options?["skill"]?.GetValue<string>() is { } kind
+            ? (kind, options["skillName"]!.GetValue<string>(), options["skillFile"]!.GetValue<string>())
+            : null;
     }
 
     private static SessionItem LastToolCall(List<SessionEvent> events, SessionEventType type) =>

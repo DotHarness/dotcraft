@@ -235,8 +235,7 @@ public sealed partial class AgentProfileStore
     private static readonly HashSet<string> SkillsFields = new(StringComparer.Ordinal)
     {
         "allow",
-        "deny",
-        "allowManage"
+        "deny"
     };
 
     private static readonly HashSet<string> PermissionFields = new(StringComparer.Ordinal)
@@ -932,12 +931,6 @@ public sealed partial class AgentProfileStore
             AddRestriction(restrictedFields, diagnostics, "mcp.servers", "Plugin profile MCP servers require explicit trust and were removed.");
         }
 
-        if (config.SkillsPolicy?.AllowManage == true)
-        {
-            config.SkillsPolicy.AllowManage = false;
-            AddRestriction(restrictedFields, diagnostics, "skills.allowManage", "Plugin profile skill management was disabled at the plugin trust boundary.");
-        }
-
         if (config.ApprovalPolicy == ApprovalPolicy.AutoApprove)
         {
             config.ApprovalPolicy = ApprovalPolicy.Default;
@@ -1080,8 +1073,7 @@ public sealed partial class AgentProfileStore
         return new ThreadSkillsPolicy
         {
             Allow = ReadOptionalStringArray(skills, "allow", diagnostics),
-            Deny = ReadOptionalStringArray(skills, "deny", diagnostics),
-            AllowManage = ReadOptionalBool(skills, "allowManage", diagnostics)
+            Deny = ReadOptionalStringArray(skills, "deny", diagnostics)
         };
     }
 
@@ -1497,8 +1489,7 @@ public sealed partial class AgentProfileStore
             : new ThreadSkillsPolicy
             {
                 Allow = source.SkillsPolicy.Allow == null ? null : [.. source.SkillsPolicy.Allow],
-                Deny = source.SkillsPolicy.Deny == null ? null : [.. source.SkillsPolicy.Deny],
-                AllowManage = source.SkillsPolicy.AllowManage
+                Deny = source.SkillsPolicy.Deny == null ? null : [.. source.SkillsPolicy.Deny]
             },
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],

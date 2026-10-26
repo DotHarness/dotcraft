@@ -50,9 +50,6 @@ public static class SystemPromptSectionNames
     /// <summary>Long-term memory instructions.</summary>
     public const string Memory = "memory";
 
-    /// <summary>Skill self-learning guidance.</summary>
-    public const string SelfLearning = "self-learning";
-
     /// <summary>Fully inlined content of the always-loaded skills.</summary>
     public const string ActiveSkills = "active-skills";
 

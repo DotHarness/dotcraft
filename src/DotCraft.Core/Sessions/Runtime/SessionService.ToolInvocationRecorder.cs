@@ -33,6 +33,13 @@ public sealed partial class SessionService
             arguments,
             context.WorkspacePath,
             turnRuntime.Context?.Configuration);
+        var skill = memory is null
+            ? ResolveSkillPresentation(
+                registration.Definition,
+                arguments,
+                context.WorkspacePath,
+                runtime.SkillCatalogLoader ?? agentFactory.RuntimeContext.SkillsLoader)
+            : null;
         lock (turnRuntime.ToolProjectionLock)
         {
             // Ahead of this invocation, so a pending notice never splits a call from its result.
@@ -42,6 +49,7 @@ public sealed partial class SessionService
             emitStarted = existing is null
                 || !HasTrustedProjection(existing)
                 || memory is not null
+                || skill is not null
                 || ResolveTaskPresentationKind(registration.Definition.Presentation, arguments) is not null;
             item = existing ?? new SessionItem
             {
@@ -59,7 +67,8 @@ public sealed partial class SessionService
                 context.SnapshotRevision,
                 context.CallId,
                 arguments,
-                memory);
+                memory,
+                skill);
             item.InvocationOrigin = context.Origin?.Kind;
             item.InvocationSourceId = context.Origin?.SourceItemId;
             if (existing is null)
@@ -320,11 +329,12 @@ public sealed partial class SessionService
         long snapshotRevision,
         string callId,
         JsonObject? arguments,
-        MemoryPresentationMark? memory = null)
+        MemoryPresentationMark? memory = null,
+        SkillPresentationMark? skill = null)
     {
         item.Status = ItemStatus.Started;
         item.CompletedAt = null;
-        var presentation = ToSessionPresentation(registration.Definition.Presentation, memory, arguments);
+        var presentation = ToSessionPresentation(registration.Definition.Presentation, memory, skill, arguments);
         switch (registration.ProjectionShape)
         {
             case ToolProjectionShape.McpLifecycle:
@@ -444,6 +454,7 @@ public sealed partial class SessionService
     private static ToolPresentationPayload? ToSessionPresentation(
         ToolPresentationDescriptor? presentation,
         MemoryPresentationMark? memory = null,
+        SkillPresentationMark? skill = null,
         JsonObject? arguments = null)
     {
         if (presentation is null)
@@ -456,6 +467,12 @@ public sealed partial class SessionService
             options[MemoryPresentationOption] = mark.Kind;
             if (mark.Store is { } store)
                 options[MemoryStorePresentationOption] = new JsonObject { ["id"] = store.Id, ["name"] = store.Name };
+        }
+        if (skill is { } skillMark)
+        {
+            options[SkillPresentationOption] = skillMark.Kind;
+            options[SkillNamePresentationOption] = skillMark.SkillName;
+            options[SkillFilePresentationOption] = skillMark.SkillFile;
         }
         if (ResolveTaskPresentationKind(presentation, arguments) is { } taskKind)
             options[TaskKindPresentationOption] = taskKind;

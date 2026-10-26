@@ -40,7 +40,6 @@ const CORE_TOOL_PRESENTATIONS: Readonly<Record<string, readonly [string, string?
   CreatePlan: ['core.create-plan'],
   TodoWrite: ['core.todo', 'todoWrite'],
   SkillView: ['core.skill-view'],
-  SkillManage: ['core.skill-manage'],
   LSP: ['core.lsp'],
   RequestUserInput: ['core.request-user-input'],
   CommitSuggest: ['core.commit-suggest']

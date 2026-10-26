@@ -66,13 +66,13 @@ function parseCustomCommands(payload: unknown, locale: AppLocale): CustomCommand
   return mapped.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function includesInitCommand(payload: unknown): boolean {
+function includesCommand(payload: unknown, command: string): boolean {
   const typed = payload as { commands?: unknown[] }
   return Array.isArray(typed.commands) && typed.commands.some((entry) => {
     const name = typeof (entry as { name?: unknown }).name === 'string'
       ? (entry as { name: string }).name.trim()
       : ''
-    return name.toLowerCase() === '/init'
+    return name.toLowerCase() === command
   })
 }
 
@@ -82,11 +82,13 @@ export function useCustomCommandCatalog({
 }: UseCustomCommandCatalogArgs): {
   commands: CustomCommandInfo[]
   initAvailable: boolean
+  reloadSkillsAvailable: boolean
   status: LoadStatus
   reload: () => Promise<void>
 } {
   const [commands, setCommands] = useState<CustomCommandInfo[]>([])
   const [initAvailable, setInitAvailable] = useState(false)
+  const [reloadSkillsAvailable, setReloadSkillsAvailable] = useState(false)
   const [status, setStatus] = useState<LoadStatus>('idle')
   const reqRef = useRef(0)
 
@@ -94,6 +96,7 @@ export function useCustomCommandCatalog({
     if (!enabled) {
       setCommands([])
       setInitAvailable(false)
+      setReloadSkillsAvailable(false)
       setStatus('idle')
       return
     }
@@ -103,12 +106,14 @@ export function useCustomCommandCatalog({
       const payload = await window.api.appServer.sendRequest('command/list', {})
       if (reqId !== reqRef.current) return
       setCommands(parseCustomCommands(payload, locale))
-      setInitAvailable(includesInitCommand(payload))
+      setInitAvailable(includesCommand(payload, '/init'))
+      setReloadSkillsAvailable(includesCommand(payload, '/reload-skills'))
       setStatus('ready')
     } catch {
       if (reqId !== reqRef.current) return
       setCommands([])
       setInitAvailable(false)
+      setReloadSkillsAvailable(false)
       setStatus('error')
     }
   }, [enabled, locale])
@@ -121,9 +126,10 @@ export function useCustomCommandCatalog({
     () => ({
       commands,
       initAvailable,
+      reloadSkillsAvailable,
       status,
       reload: fetchCommands
     }),
-    [commands, fetchCommands, initAvailable, status]
+    [commands, fetchCommands, initAvailable, reloadSkillsAvailable, status]
   )
 }

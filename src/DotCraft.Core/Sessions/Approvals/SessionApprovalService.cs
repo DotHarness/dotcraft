@@ -162,6 +162,12 @@ internal sealed class SessionApprovalService : IApprovalService
         return true;
     }
 
+    public void ResolvePending(SessionApprovalDecision decision)
+    {
+        foreach (var requestId in _pending.Keys)
+            TryResolve(requestId, decision);
+    }
+
     /// <summary>
     /// Resolves every pending request as <see cref="SessionApprovalDecision.CancelTurn"/> because the Turn ended,
     /// and rejects any later request without prompting.

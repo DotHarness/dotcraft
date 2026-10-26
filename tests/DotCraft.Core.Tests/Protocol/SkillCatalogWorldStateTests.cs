@@ -27,7 +27,7 @@ public sealed class SkillCatalogWorldStateTests : IDisposable
     }
 
     [Fact]
-    public async Task ASkillInstalledBetweenTurnsIsAppendedForTheNextTurn()
+    public async Task ASkillWrittenToDiskIsListedOnlyAfterAReload()
     {
         WriteSkill("code-review");
         var recorder = new RecordingChatClient();
@@ -46,6 +46,10 @@ public sealed class SkillCatalogWorldStateTests : IDisposable
 
         WriteSkill("release-notes");
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+        Assert.Single(SkillItems(recorder.LastMessages));
+
+        service.ReloadSkills();
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("third")]));
 
         var lists = SkillItems(recorder.LastMessages);
         Assert.Equal(2, lists.Count);

@@ -26,6 +26,15 @@ public interface IThreadAgentRefreshService
 }
 
 /// <summary>
+/// Session Core extension that makes every thread read the skills catalog again before its next
+/// sampling request (Skills §4.1).
+/// </summary>
+public interface ISkillReloadService
+{
+    void ReloadSkills();
+}
+
+/// <summary>
 /// Session Core extension for trusted hosts that invoke a thread tool through the same
 /// frozen snapshot and dispatcher used by model-generated calls.
 /// </summary>

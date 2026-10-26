@@ -6,24 +6,20 @@ using Contract = DotCraft.Protocol.AppServer;
 namespace DotCraft.AppServer;
 
 /// <summary>
-/// Handles the <c>skills/*</c> wire methods (spec Section 18): list, read, view, restore-original,
-/// set-enabled, and uninstall. Skill-variant resolution is delegated to the shared
-/// <see cref="SkillVariantContext"/>; the skills context page is invalidated via
-/// <see cref="AppServerContextInvalidation"/>.
+/// Handles the <c>skills/*</c> wire methods (spec Section 18): list, read, view, set-enabled, and
+/// uninstall. The skills context page is invalidated via <see cref="AppServerContextInvalidation"/>.
 /// </summary>
 internal sealed class SkillsRequestHandler(
     SkillsLoader? skillsLoader,
     IContextPageManager? contextPageManager,
     IAppConfigMonitor? appConfigMonitor,
-    string? workspaceCraftPath,
-    SkillVariantContext variantContext) : IAppServerDomainHandler
+    string? workspaceCraftPath) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.SkillsList, HandleSkillsListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SkillsRead, HandleSkillsReadAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SkillsView, HandleSkillsViewAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.SkillsRestoreOriginal, HandleSkillsRestoreOriginalAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SkillsSetEnabled, HandleSkillsSetEnabledAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SkillsUninstall, HandleSkillsUninstallAsync);
     }
@@ -70,42 +66,14 @@ internal sealed class SkillsRequestHandler(
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.SkillsView);
         _ = ct;
         var name = RequireName(request.Params.Name);
-
-        var target = variantContext.BuildTarget();
-        var effective = skillsLoader.LoadEffectiveSkill(
-            name,
-            variantContext.IsVariantModeEnabled(),
-            target);
-        if (effective == null)
+        var skill = skillsLoader.LoadSkillBody(name);
+        if (skill == null)
             throw AppServerErrors.SkillNotFound(name);
 
         return Task.FromResult(AppServerTypedResult<Contract.SkillsViewResult>.FromResult(new Contract.SkillsViewResult
         {
             Name = name,
-            Content = effective.Content
-        }));
-    }
-
-    private Task<AppServerTypedResult<Contract.SkillsRestoreOriginalResult>> HandleSkillsRestoreOriginalAsync(
-        AppServerTypedRequest<Contract.SkillsRestoreOriginalParams> request,
-        CancellationToken ct)
-    {
-        if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.SkillsRestoreOriginal);
-        _ = ct;
-        var name = RequireName(request.Params.Name);
-
-        if (skillsLoader.ResolveSkillInfo(name) == null)
-            throw AppServerErrors.SkillNotFound(name);
-
-        var restored = variantContext.IsVariantModeEnabled()
-            && skillsLoader.RestoreOriginalSkill(name, variantContext.BuildTarget());
-        if (restored)
-            AppServerContextInvalidation.MarkSkills(contextPageManager);
-        return Task.FromResult(AppServerTypedResult<Contract.SkillsRestoreOriginalResult>.FromResult(new Contract.SkillsRestoreOriginalResult
-        {
-            Name = name,
-            Restored = restored
+            Content = skill.Content
         }));
     }
 
@@ -188,7 +156,6 @@ internal sealed class SkillsRequestHandler(
             .ToList();
         disabled.RemoveAll(n => string.Equals(n, source.Name, StringComparison.OrdinalIgnoreCase));
 
-        var removedVariantCount = skillsLoader.VariantStore.DeleteVariantsForSource(source);
         Directory.Delete(skillDir, recursive: true);
 
         SkillsConfigPersistence.WriteWorkspaceDisabledSkills(workspaceCraftPath, disabled);
@@ -204,8 +171,7 @@ internal sealed class SkillsRequestHandler(
             Name = source.Name,
             Uninstalled = true,
             Source = source.Source,
-            RemovedSourcePath = skillDir,
-            RemovedVariantCount = removedVariantCount
+            RemovedSourcePath = skillDir
         }));
     }
 
@@ -224,7 +190,6 @@ internal sealed class SkillsRequestHandler(
             PluginDisplayName = OmitIfNull(s.PluginDisplayName),
             Enabled = s.Enabled,
             Path = s.Path,
-            HasVariant = HasCurrentSkillVariant(s),
             IconSmallDataUrl = OmitIfNull(interfaceInfo?.IconSmallDataUrl),
             IconLargeDataUrl = OmitIfNull(interfaceInfo?.IconLargeDataUrl),
             DefaultPrompt = OmitIfNull(interfaceInfo?.DefaultPrompt),
@@ -241,16 +206,6 @@ internal sealed class SkillsRequestHandler(
         if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
         return name;
-    }
-
-    private bool HasCurrentSkillVariant(SkillsLoader.SkillInfo source)
-    {
-        if (skillsLoader == null || !variantContext.IsVariantModeEnabled())
-            return false;
-
-        var effectivePath = skillsLoader.ResolveEffectiveSkillFile(source, true, variantContext.BuildTarget());
-        return effectivePath != null
-               && !string.Equals(effectivePath, source.Path, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsStrictChildPathOf(string path, string root)

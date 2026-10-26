@@ -236,8 +236,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 PathBlacklist,
                 LspServerManager,
                 traceCollector,
-                Services.GetService<ISkillMutationApplier>(),
-                contextPageManager,
                 Paths.UserData.RootPath,
                 contributionRegistry,
                 Services.GetService<IProviderHttpTransport>()), ContributionOrigin.Builtin));

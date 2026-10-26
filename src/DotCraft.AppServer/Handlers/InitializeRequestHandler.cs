@@ -8,7 +8,6 @@ internal sealed class InitializeRequestHandler(
     AppServerConnection connection,
     AppServerConnectionServices services,
     IReadOnlyList<IAppServerCapabilityContributor> capabilityContributors,
-    SkillVariantContext skillVariants,
     AppServerThreadWireProjector threadProjector) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -54,7 +53,6 @@ internal sealed class InitializeRequestHandler(
             DesktopPluginArtifacts = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             PluginConfiguration = services.PluginConfigStore != null,
             PluginMarketplaces = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            SkillVariants = services.SkillsLoader != null && skillVariants.IsVariantModeEnabled(),
             CommandManagement = true,
             Automations = services.AutomationsHandler != null,
             ChannelStatus = services.ChannelStatusProvider != null,

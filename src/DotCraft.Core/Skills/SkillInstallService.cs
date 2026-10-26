@@ -125,7 +125,7 @@ public sealed partial class SkillInstallService(SkillsLoader skillsLoader)
             CopyValidatedBundle(verification.CandidatePath, stagingDir);
 
             var stagingSkillFile = Path.Combine(stagingDir, "SKILL.md");
-            var fingerprint = SkillVariantStore.ComputeSourceFingerprint(stagingSkillFile);
+            var fingerprint = SkillBundleFingerprint.Compute(stagingSkillFile);
             var marker = new SkillInstallMarker
             {
                 Source = string.IsNullOrWhiteSpace(request.Source) ? null : request.Source.Trim(),

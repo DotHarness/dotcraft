@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-23 |
+| **Date** | 2026-10-26 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -145,9 +145,9 @@ World state is evaluated before every sampling request, not once per turn, so st
 reaches the model within the same turn.
 
 A section whose state is costly to read may read it once per turn and reuse it for the turn's later
-steps until its source reports a change. The Skill catalog does this: reading it resolves every
-Skill's effective location, so it is read at the turn's first step and again only after the Skill
-loader reports a change.
+steps until its source reports a change. The Skill catalog goes further: it is read at the
+thread's first step and again only after the Skill loader reports a change, so edits to Skill files
+do not alter the catalog until a reload ([Skills](skills.md) §4.1).
 
 ## 5. Failure behaviour
 

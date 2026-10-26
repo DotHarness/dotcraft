@@ -16,7 +16,7 @@ function todoStatus(value: unknown): PlanTodo['status'] {
 
 type ToolKind =
   | 'read' | 'grep' | 'find' | 'explore' | 'edit' | 'shell' | 'writeStdin'
-  | 'webSearch' | 'webFetch' | 'skillView' | 'skillManage' | 'requestUserInput' | 'createPlan'
+  | 'webSearch' | 'webFetch' | 'skillView' | 'requestUserInput' | 'createPlan'
   | 'subagentSpawn' | 'subagentMessage' | 'subagentList' | 'taskStop'
 
 type TaskKind = 'shell' | 'agent' | 'workflow'
@@ -158,7 +158,6 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
     case 'find':
       return 'folder'
     case 'edit':
-    case 'skillManage':
       return 'edit'
     case 'webSearch':
     case 'webFetch':
@@ -231,12 +230,35 @@ export function planEntry(item: HistoryItem, result: HistoryItem | undefined): T
   }
 }
 
-function presentationOf(item: HistoryItem, result: HistoryItem | undefined): { id: string; operation: string } {
+interface Presentation {
+  id: string
+  operation: string
+  skill: string
+  skillName: string
+  skillFile: string
+}
+
+function presentationOf(item: HistoryItem, result: HistoryItem | undefined): Presentation {
   const value = (item.payload.presentation ?? result?.payload.presentation) as
-    | { presentationId?: unknown; options?: { operation?: unknown } }
+    | { presentationId?: unknown; options?: { operation?: unknown; skill?: unknown; skillName?: unknown; skillFile?: unknown } }
     | null
     | undefined
-  return { id: str(value?.presentationId), operation: str(value?.options?.operation) }
+  const options = value?.options
+  return {
+    id: str(value?.presentationId),
+    operation: str(options?.operation),
+    skill: str(options?.skill),
+    skillName: str(options?.skillName),
+    skillFile: str(options?.skillFile),
+  }
+}
+
+const SKILL_VERBS: Record<string, ToolVerb> = { read: 'readSkill', create: 'createdSkill', update: 'updatedSkill' }
+
+function skillOf(presentation: Presentation): { verb: ToolVerb; name: string; file: string | null } | null {
+  const verb = SKILL_VERBS[presentation.skill]
+  if (!verb || !presentation.skillName || (presentation.id !== 'core.read-file' && presentation.id !== 'core.file-write')) return null
+  return { verb, name: presentation.skillName, file: presentation.skillFile || null }
 }
 
 function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind | null {
@@ -254,8 +276,6 @@ function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind 
       return operation === 'fetch' ? 'webFetch' : 'webSearch'
     case 'core.skill-view':
       return 'skillView'
-    case 'core.skill-manage':
-      return 'skillManage'
     case 'core.request-user-input':
       return 'requestUserInput'
     case 'core.create-plan':
@@ -312,6 +332,8 @@ export function toolEntry(
   let shape: ToolShape = item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
   if (background && !turnRunning) shape = { ...shape, verb: background === 'running' ? 'backgroundStarted' : 'backgroundStopped' }
   const presentation = presentationOf(item, result)
+  const skill = item.type === 'toolCall' ? skillOf(presentation) : null
+  if (skill) shape = { ...shape, verb: skill.verb, target: skill.name, full: str(input.path) || shape.full }
   const live = item.type === 'toolCall' ? !result || (background === 'running' && turnRunning) : !isComplete(item)
   const base = {
     kind: 'tool' as const,
@@ -326,6 +348,7 @@ export function toolEntry(
     created: createsFile(result),
     live,
     failed: !live && (result?.payload.success === false || result?.status === 'failed' || item.status === 'failed'),
+    ...(skill ? { skill: { name: skill.name, file: skill.file } } : {}),
   }
   if (!shape.target && !isComplete(item)) return { ...base, subject: null, details: [] }
   return {

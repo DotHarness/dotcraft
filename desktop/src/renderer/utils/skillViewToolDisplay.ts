@@ -30,7 +30,7 @@ export function formatSkillViewLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale
 ): string {
-  const name = readName(args) || translate(locale, 'skillManage.tool.skillFallback')
+  const name = readName(args) || translate(locale, 'skillView.tool.skillFallback')
   return translate(locale, 'skillView.tool.loadedSkill', { name })
 }
 
@@ -38,6 +38,6 @@ export function formatSkillViewRunningLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale
 ): string {
-  const name = readName(args) || translate(locale, 'skillManage.tool.skillFallback')
+  const name = readName(args) || translate(locale, 'skillView.tool.skillFallback')
   return translate(locale, 'skillView.tool.loadingSkill', { name })
 }

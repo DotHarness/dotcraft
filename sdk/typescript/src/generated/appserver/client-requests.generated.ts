@@ -140,7 +140,6 @@ export interface ClientRequestMethods {
   "remoteToolHost/list": { params: Models.RemoteToolHostListParams; result: Models.RemoteToolHostListResult };
   "skills/list": { params: Models.RpcEmpty; result: Models.SkillsListResult };
   "skills/read": { params: Models.SkillsReadParams; result: Models.SkillsReadResult };
-  "skills/restoreOriginal": { params: Models.SkillsRestoreOriginalParams; result: Models.SkillsRestoreOriginalResult };
   "skills/setEnabled": { params: Models.SkillsSetEnabledParams; result: Models.SkillsSetEnabledResult };
   "skills/uninstall": { params: Models.SkillsUninstallParams; result: Models.SkillsUninstallResult };
   "skills/view": { params: Models.SkillsViewParams; result: Models.SkillsViewResult };

@@ -10,7 +10,6 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { SkillAvatar } from './SkillAvatar'
-import { VariantBadge } from './VariantBadge'
 import { Button } from '../ui/Button'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import styles from './SkillDetailDialog.module.css'
@@ -23,7 +22,6 @@ interface SkillDetailDialogProps {
   previewOnly?: boolean
   onClose: () => void
   onTryInChat?: () => void
-  onRestoreOriginal?: () => void
   onUninstall?: () => void
 }
 
@@ -35,7 +33,6 @@ export function SkillDetailDialog({
   previewOnly = false,
   onClose,
   onTryInChat,
-  onRestoreOriginal,
   onUninstall,
 }: SkillDetailDialogProps) {
   const t = useT()
@@ -68,7 +65,6 @@ export function SkillDetailDialog({
           }
           badgedIcon={false}
           title={displayName}
-          titleAdornment={skill.hasVariant ? <VariantBadge /> : null}
           titleId={titleId}
           description={shortDescription}
           onClose={onClose}
@@ -132,12 +128,6 @@ export function SkillDetailDialog({
                   return
                 }
                 void window.api.shell.openPath(skillDir)
-              },
-            },
-            {
-              label: t('skillDetail.restoreOriginal'),
-              onClick: () => {
-                onRestoreOriginal?.()
               },
             },
           ]}

@@ -30,9 +30,6 @@
     "enabled": {
       "type": "boolean"
     },
-    "hasVariant": {
-      "type": "boolean"
-    },
     "iconLargeDataUrl": {
       "anyOf": [
         {

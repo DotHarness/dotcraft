@@ -92,9 +92,9 @@ Transfers use the existing connection and enforce both machines' file policies. 
 
 Under workspace-preferred authorization, the remote owner approves the exact plugin fingerprints before any plugin code loads. Full access permits automatic activation. Disconnect releases the thread's plugin state, and the last workspace lease drains the plugin runtime. Verified bundle files remain available for reuse.
 
-Skills stay on the Agent machine. `SkillView` reads local instructions, and the Skill catalog gives the effective local path, including variants. Use `ReadFile` with `target: "local"` for supporting files while connected.
+Skills stay on the Agent machine. `SkillView` reads local instructions, and the Skill catalog gives the local path. Use `ReadFile` with `target: "local"` for supporting files while connected.
 
-The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remotely, preserving their relative dependencies and using the effective Skill variant where applicable. Transferred files remain after disconnect, with destinations and overwrites chosen explicitly. Executables must support the remote OS.
+The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remotely, preserving their relative dependencies. Transferred files remain after disconnect, with destinations and overwrites chosen explicitly. Executables must support the remote OS.
 
 Connect negotiates tools and file transfer support before publishing the route. If connection setup fails, the previous route remains. Upgrade Satellites that lack file transfer support before connecting.
 

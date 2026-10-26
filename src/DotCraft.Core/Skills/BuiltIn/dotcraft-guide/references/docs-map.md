@@ -26,7 +26,7 @@ Use `WebFetch` with `extractMode` `markdown` so the VitePress chrome does not co
 | Installing and first run | `/start/` |
 | What the agent system is | `/guide/` |
 | Memory and Dreams | `/guide/memory` |
-| Skills and self-learning | `/guide/skills` |
+| Skills | `/guide/skills` |
 | Plugins and tools | `/guide/plugins-tools` |
 | Satellite and Remote Tool Host | `/guide/satellite`, `/contribute/architecture/remote-tool-host` |
 | Plugin marketplaces | `/guide/plugin-marketplaces` |

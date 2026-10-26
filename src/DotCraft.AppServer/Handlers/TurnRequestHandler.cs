@@ -18,7 +18,6 @@ internal sealed class TurnRequestHandler(
     AppServerResponseWriter responseWriter,
     CommandRegistry commandRegistry,
     SkillsLoader? skillsLoader,
-    SkillVariantContext skillVariants,
     TraceStore? traceStore,
     SessionStreamDebugLogger? streamDebugLogger,
     SessionApprovalDecision defaultApprovalDecision,
@@ -470,8 +469,6 @@ internal sealed class TurnRequestHandler(
         var inputMaterialization = new InputMaterializationService(
             commandRegistry,
             skillsLoader,
-            skillVariants.IsVariantModeEnabled(),
-            skillVariants.BuildTarget(),
             threadId);
         SessionInputMaterializationResult materializedInput;
         List<AIContent> content;

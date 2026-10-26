@@ -19,8 +19,6 @@ public sealed partial class SkillsLoader
 
     private HashSet<string> _disabledPluginSkillNames = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly SkillVariantStore _variantStore;
-
     /// <summary>Creates a loader from the runtime path context.</summary>
     public SkillsLoader(DotCraftPaths paths, string? sharedSkillsPath = null)
         : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("skills"), sharedSkillsPath)
@@ -33,7 +31,6 @@ public sealed partial class SkillsLoader
         WorkspaceSkillsPath = Path.Combine(workspaceRoot, "skills");
         UserSkillsPath = userSkillsPath;
         SharedSkillsPath = sharedSkillsPath;
-        _variantStore = new SkillVariantStore(workspaceRoot);
     }
 
     /// <summary>
@@ -52,11 +49,6 @@ public sealed partial class SkillsLoader
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".agents",
         "skills");
-
-    /// <summary>
-    /// Gets the workspace-local variant store.
-    /// </summary>
-    public SkillVariantStore VariantStore => _variantStore;
 
     /// <summary>
     /// Replaces the set of disabled skill names (workspace UI / config). Disabled skills stay on disk but are omitted from agent context.
@@ -222,67 +214,14 @@ public sealed partial class SkillsLoader
         return skillFile == null ? null : File.ReadAllText(skillFile, Encoding.UTF8);
     }
 
-    /// <summary>
-    /// Loads the effective source-or-variant skill body.
-    /// </summary>
-    public EffectiveSkill? LoadEffectiveSkill(
-        string name,
-        bool variantModeEnabled,
-        SkillVariantTarget? target,
-        bool stripFrontmatter = true)
+    public LoadedSkill? LoadSkillBody(string name)
     {
         var source = ResolveSkillInfo(name);
         if (source == null)
             return null;
 
-        var effectivePath = ResolveEffectiveSkillFile(source, variantModeEnabled, target);
-        if (effectivePath == null)
-            return null;
-
-        var content = File.ReadAllText(effectivePath, Encoding.UTF8);
-        if (stripFrontmatter)
-            content = StripFrontmatter(content);
-
-        return new EffectiveSkill(
-            source.Name,
-            content,
-            effectivePath,
-            string.Equals(effectivePath, source.Path, StringComparison.OrdinalIgnoreCase) ? "source" : "variant",
-            source.Source,
-            source.PluginId);
-    }
-
-    /// <summary>
-    /// Resolves the effective physical <c>SKILL.md</c> path for source or current variant.
-    /// </summary>
-    public string? ResolveEffectiveSkillFile(SkillInfo source, bool variantModeEnabled, SkillVariantTarget? target)
-    {
-        if (!variantModeEnabled || target == null)
-            return source.Path;
-
-        var fingerprint = SkillVariantStore.ComputeSourceFingerprint(source.Path);
-        var variant = _variantStore.FindCurrentVariant(source, fingerprint, target);
-        if (variant == null)
-            return source.Path;
-
-        var variantSkillFile = Path.Combine(_variantStore.GetVariantSkillDir(variant), "SKILL.md");
-        return File.Exists(variantSkillFile) ? variantSkillFile : source.Path;
-    }
-
-    /// <summary>
-    /// Restores the original source skill for the given target.
-    /// </summary>
-    public bool RestoreOriginalSkill(string name, SkillVariantTarget target)
-    {
-        var source = ResolveSkillInfo(name);
-        if (source == null)
-            return false;
-
-        var fingerprint = SkillVariantStore.ComputeSourceFingerprint(source.Path);
-        var restored = _variantStore.RestoreOriginal(source, fingerprint, target);
-        if (restored)
-            MarkChanged();
-        return restored;
+        var content = StripFrontmatter(File.ReadAllText(source.Path, Encoding.UTF8));
+        return new LoadedSkill(source.Name, content, source.Path, source.Source, source.PluginId);
     }
 
     /// <summary>
@@ -358,28 +297,17 @@ public sealed partial class SkillsLoader
     /// </summary>
     public string LoadSkillsForContext(IEnumerable<string> skillNames)
     {
-        return LoadSkillsForContext(skillNames, variantModeEnabled: false, target: null);
-    }
-
-    /// <summary>
-    /// Load specific effective skills for inclusion in agent context.
-    /// </summary>
-    public string LoadSkillsForContext(
-        IEnumerable<string> skillNames,
-        bool variantModeEnabled,
-        SkillVariantTarget? target)
-    {
         var parts = new List<string>();
 
         foreach (var name in skillNames)
         {
             if (_disabledSkills.Contains(name))
                 continue;
-            var effective = LoadEffectiveSkill(name, variantModeEnabled, target);
-            if (effective == null)
+            var skill = LoadSkillBody(name);
+            if (skill == null)
                 continue;
 
-            parts.Add($"### Skill: {name}\n\n{effective.Content}");
+            parts.Add($"### Skill: {name}\n\n{skill.Content}");
         }
 
         return parts.Count > 0 ? string.Join("\n\n---\n\n", parts) : string.Empty;
@@ -480,6 +408,37 @@ public sealed partial class SkillsLoader
 
         var skillFile = Path.Combine(root, name, "SKILL.md");
         return File.Exists(skillFile) ? skillFile : null;
+    }
+
+    /// <summary>Finds the Skill directory, a direct child of a configured Skill root, that contains <paramref name="fullPath"/>.</summary>
+    public bool TryResolveSkillDirectory(string fullPath, out string skillName, out string skillDirectory)
+    {
+        foreach (var root in EnumerateSkillRoots())
+        {
+            var relative = Path.GetRelativePath(root, fullPath);
+            var first = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
+            if (Path.IsPathRooted(relative) || first is "." or ".." or "")
+                continue;
+
+            skillName = first;
+            skillDirectory = Path.Combine(root, first);
+            return true;
+        }
+
+        skillName = string.Empty;
+        skillDirectory = string.Empty;
+        return false;
+    }
+
+    private IEnumerable<string> EnumerateSkillRoots()
+    {
+        yield return WorkspaceSkillsPath;
+        foreach (var source in _pluginSkillSources)
+            yield return source.SkillsPath;
+        if (UserSkillsPath is not null)
+            yield return UserSkillsPath;
+        if (SharedSkillsPath is not null)
+            yield return SharedSkillsPath;
     }
 
     /// <summary>
@@ -635,6 +594,8 @@ public sealed partial class SkillsLoader
         var match = Regex.Match(content, @"^---\r?\n.*?\r?\n---\r?\n", RegexOptions.Singleline);
         return match.Success ? content[match.Length..].Trim() : content;
     }
+
+    public sealed record LoadedSkill(string Name, string Content, string Path, string Source, string? PluginId);
 
     public sealed class SkillInfo
     {

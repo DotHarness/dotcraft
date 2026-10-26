@@ -10,7 +10,6 @@ export interface SkillEntry {
   pluginDisplayName?: string | null
   enabled: boolean
   path: string
-  hasVariant?: boolean
   iconSmallDataUrl?: string | null
   iconLargeDataUrl?: string | null
   defaultPrompt?: string | null

@@ -12,11 +12,8 @@ public sealed partial class SkillsLoader
     /// <summary>Advances whenever this loader learns that skills changed, so a catalog read at an older value is stale.</summary>
     public long Revision => Interlocked.Read(ref _revision);
 
-    /// <summary>Lists the enabled skills the policy permits, in name order, with their effective locations.</summary>
-    public IReadOnlyList<SkillCatalogEntry> ListCatalog(
-        bool variantModeEnabled,
-        SkillVariantTarget? target,
-        ThreadSkillsPolicy? policy = null)
+    /// <summary>Lists the enabled skills the policy permits, in name order.</summary>
+    public IReadOnlyList<SkillCatalogEntry> ListCatalog(ThreadSkillsPolicy? policy = null)
     {
         var entries = new List<SkillCatalogEntry>();
         foreach (var skill in ListSkills())
@@ -28,7 +25,7 @@ public sealed partial class SkillsLoader
             entries.Add(new SkillCatalogEntry(
                 skill.Name,
                 metadata?.GetValueOrDefault("description", skill.Name) ?? skill.Name,
-                ResolveEffectiveSkillFile(skill, variantModeEnabled, target) ?? skill.Path,
+                skill.Path,
                 IsAlwaysLoaded(metadata)));
         }
 

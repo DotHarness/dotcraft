@@ -252,8 +252,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.SkillsListResult))]
 [JsonSerializable(typeof(AppServer.SkillsReadParams))]
 [JsonSerializable(typeof(AppServer.SkillsReadResult))]
-[JsonSerializable(typeof(AppServer.SkillsRestoreOriginalParams))]
-[JsonSerializable(typeof(AppServer.SkillsRestoreOriginalResult))]
 [JsonSerializable(typeof(AppServer.SkillsSetEnabledParams))]
 [JsonSerializable(typeof(AppServer.SkillsSetEnabledResult))]
 [JsonSerializable(typeof(AppServer.SkillsUninstallParams))]

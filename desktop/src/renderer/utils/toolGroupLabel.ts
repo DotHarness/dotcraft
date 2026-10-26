@@ -2,9 +2,10 @@ import { translate, type AppLocale, type MessageKey } from '../../shared/locales
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
-import { resolveMemoryOperation } from './toolKind'
+import { resolveMemoryOperation, resolveSkillOperation } from './toolKind'
 import { getStreamingToolDisplay } from './streamingToolDisplay'
 import { collectMemoryFileNames, formatMemoryUpdatedLabel } from './memoryToolDisplay'
+import { summarizeSkillActivity, type SkillActivity } from './skillOperationDisplay'
 import { isBoardReadOperation } from './boardToolDisplay'
 import { formatNodeReplSurfaceLabel, getNodeReplSurface } from './nodeReplToolDisplay'
 import { formatWebSearchLabel } from './webSearchDisplay'
@@ -76,6 +77,7 @@ function getActivityPart(item: ConversationItem): ActivityPart | null {
   const memory = resolveMemoryOperation(item)
   if (memory === 'update') return 'memory'
   if (memory === 'recall') return 'recall'
+  if (resolveSkillOperation(item)) return 'skill'
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'skillView') return 'skill'
   if (plan?.family === 'nodeRepl') return getNodeReplSurface(item) ?? 'shell'
@@ -93,6 +95,17 @@ function plural(count: number, one: MessageKey, other: MessageKey): MessageKey {
   return count === 1 ? one : other
 }
 
+const SKILL_ACTIVITY_KEYS: Readonly<Record<SkillActivity, readonly [MessageKey, MessageKey]>> = {
+  loaded: ['toolCall.activity.loadedSkill.one', 'toolCall.activity.loadedSkill.other'],
+  created: ['toolCall.activity.createdSkill.one', 'toolCall.activity.createdSkill.other'],
+  updated: ['toolCall.activity.updatedSkill.one', 'toolCall.activity.updatedSkill.other']
+}
+
+function formatSkillActivity(items: ConversationItem[], locale: AppLocale): string {
+  const { activity, count } = summarizeSkillActivity(items)
+  return translate(locale, plural(count, ...SKILL_ACTIVITY_KEYS[activity]))
+}
+
 function formatActivityPart(
   part: ActivityPart,
   items: ConversationItem[],
@@ -104,7 +117,7 @@ function formatActivityPart(
     case 'browser':
     case 'chrome':
     case 'computer': return formatNodeReplSurfaceLabel(part, locale)
-    case 'skill': return translate(locale, plural(count, 'toolCall.activity.loadedSkill.one', 'toolCall.activity.loadedSkill.other'))
+    case 'skill': return formatSkillActivity(items, locale)
     case 'tool': return translate(locale, plural(count, 'toolCall.activity.calledTool.one', 'toolCall.activity.calledTool.other'))
     case 'memory': return formatMemoryUpdatedLabel(collectMemoryFileNames(items).length, locale)
     case 'write': {

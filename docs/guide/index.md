@@ -10,7 +10,7 @@ In Desktop, a reply can carry a calculator, comparison, or quiz as an [interacti
 
 ## Shape your agents
 
-[Agent Profiles](./agent-profiles) gives reusable specialists their own instructions, tools, skills, and model defaults, while Agent Builder lets you shape them through conversation. [Skills & Self-Learning](./skills) turns a workflow that already worked into a reusable skill, ready for the next task of the same kind. [Memory & Dreams](./memory) keeps project context, preferences, and decisions available from one conversation to the next. Memory is stored as plain Markdown in your workspace, so you can read and change it at any time. [Lifecycle Hooks](./hooks) run your own scripts at key moments in a conversation, such as confirming a dangerous command before it executes.
+[Agent Profiles](./agent-profiles) gives reusable specialists their own instructions, tools, skills, and model defaults, while Agent Builder lets you shape them through conversation. [Skills](./skills) turns a workflow that already worked into a reusable skill, ready for the next task of the same kind. [Memory & Dreams](./memory) keeps project context, preferences, and decisions available from one conversation to the next. Memory is stored as plain Markdown in your workspace, so you can read and change it at any time. [Lifecycle Hooks](./hooks) run your own scripts at key moments in a conversation, such as confirming a dangerous command before it executes.
 
 ## Run unattended
 

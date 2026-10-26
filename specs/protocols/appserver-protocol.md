@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.5 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-25 |
+| **Date** | 2026-10-26 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -193,7 +193,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `requestUserInput` | Root-thread `RequestUserInput` tool and `item/tool/requestUserInput` to capable clients. |
 | `modeSwitch` / `configOverride` | `thread/mode/set`; `thread/config/update`. |
 | `skillsManagement` | `skills/*` methods. |
-| `skillVariants` | Skill variants are enabled; clients may use `skills/view` and `skills/restoreOriginal`. |
 | `pluginManagement` | `plugin/list`, `plugin/view`, `plugin/skill/read`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted`, and `plugin/snapshot/updated`. |
 | `pluginConfiguration` | `plugin/config/get`, `plugin/config/mutate`. |
 | `desktopPluginArtifacts` | `plugin/desktop/read`. |
@@ -317,7 +316,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `toolPolicy` | `allow`, `deny`, `agentControl`, `allowedAgentControlTools`. Omitted keeps runtime defaults. |
 | `mcpPolicy` | `servers` filters by effective server name; `tools.allow`/`tools.deny` match canonical selectors (`name` or `namespace/name`, `*` wildcards), never provider flat names, source ids, or runtime names. |
 | `pluginPolicy` | Source-aware `allow`/`deny` where metadata exists, falling back to tool-name denial. |
-| `skillsPolicy` | `allow`/`deny` by skill name and `allowManage`. Omitted `allow` means every enabled skill; excluded skills are left out of skill context and refused by `SkillView`. |
+| `skillsPolicy` | `allow`/`deny` by skill name. Omitted `allow` means every enabled skill; excluded skills are left out of skill context and refused by `SkillView`. |
 | `approvalPolicy` | `default`, `prompt`, `autoApprove`, or `deny` (below). |
 | `reasoning` | Effort (`low` … `ultra`) and output (`none`, `summary`, `full`); absent falls back to workspace defaults. |
 | `speed` | `standard` or `fast`. New threads capture the workspace value; absent means `standard`. Changes affect future and queued turns, not a running request. |
@@ -486,7 +485,7 @@ Set a thread's display name. Params `threadId`, `displayName`; result `{}`. Afte
 Replace per-thread configuration. Params `threadId`, `config` (complete replacement; clients preserve unrelated fields); result `{}`.
 
 - Provider changes carry non-empty `providerId` and `model` together; model-aware fields such as `reasoning` are validated against that pair before persisting.
-- On success the server rebuilds the thread agent and compaction pipeline for queued and future Turns, persists, and broadcasts `thread/updated`. A running Turn keeps the configuration and tool snapshot captured at its start.
+- On success the server rebuilds the thread agent and compaction pipeline for queued and future Turns, persists, and broadcasts `thread/updated`. A running Turn keeps the configuration and tool snapshot captured at its start, except `approvalPolicy`, which applies to it at once: pending approval requests resolve as accepted under `autoApprove` and as rejected under `deny`, with the usual `item/approval/resolved` events ([Session Core](../architecture/session-core.md) §12.2).
 - Replacement does not release terminal resources or revoke Runtime Dynamic Tool bindings.
 - An MCP server keeps its saved OAuth client secret when the replacement names the same server and omits the secret or writes back its read mask, as for `mcp/upsert`.
 
@@ -624,7 +623,7 @@ The response returns immediately with the initial Turn (`running`, empty `items`
 |------|-----------|
 | `text` | Literal user text only; commands, skills, and file references use their structured parts. |
 | `commandRef` (`name`, `argsText`, `rawText`) | Custom-command reference. Materialized before execution; both the native reference and the materialized prompt snapshot are persisted. Built-in slash commands (`/new`, `/stop`, `/help`, `/debug`, `/automate`, …) are invalid here (`InvalidParams`) and go through `command/execute`. |
-| `skillRef` (`name`) | Skill reference, materialized into a model-visible `<skill>` block with the effective skill name and path; instructions are not inlined (the agent loads them through `SkillView` or by reading `SKILL.md`). Skills chosen from a slash picker are still `skillRef`. |
+| `skillRef` (`name`) | Skill reference, materialized into a model-visible `<skill>` block with the skill name and path; instructions are not inlined (the agent loads them through `SkillView` or by reading `SKILL.md`). Skills chosen from a slash picker are still `skillRef`. |
 | `fileRef` (`path`, `displayPath`) | File reference. `path` is canonical (workspace-relative or local absolute); the model sees `@path`. `displayPath` is used only for history rendering. Referencing an outside path grants no access; reads still follow file-tool approval. |
 | `image` (`url`) | Base64 `data:image/...` URL, decoded payload ≤ 64 MiB. Other media types, malformed or oversized payloads → `InvalidParams`. HTTP(S) URLs → `InvalidParams` with `error.data.code = "RemoteImageUrlNotSupported"`; clients download remote images themselves. |
 | `contextRef` (`context`) | Structured context record: `pastedText`, `pageReference`, `responseAnnotation`, `diffAnnotation`, `visualizationChanges` (a visualization's `path`, `title`, and non-empty client-rendered `text` listing the user's design-control changes, quoted as reference data), or `threadReferences` (a client-rendered prompt block in `text` that materializes to exactly that text, keeping model-only framing for mentioned threads out of the message's display text). Context identity, source snapshot, comment, and owned image reference persist in native input; materialization expands the record into text and image parts once. Preview data URLs are not part of the record. |
@@ -1005,7 +1004,7 @@ The server never sends the request to a connection without `requestUserInputSupp
 An interactive `item/approval/request` or `item/tool/requestUserInput` belongs to its thread, not to the connection that started the turn; several connections (for example a desktop window and a phone) may watch one thread.
 
 - Every subscribed connection with the matching capability receives the pending request, live or through replay on `thread/subscribe` or `thread/resume`. Replay keeps the original `requestId`. A connection receives each request at most once, unless it answered with an error or an invalid result (which answers nothing), in which case its next subscription receives it again. Replayed approvals of one thread are sent one at a time.
-- The request stays pending until the first valid response from any connection, or until its turn completes, fails, or is cancelled. It is never resolved because no connection holds it — not when none is subscribed, not when the last holder disconnects, and not on a write failure. A later subscriber can still answer it.
+- The request stays pending until the first valid response from any connection, until the thread's effective approval policy changes to `autoApprove` or `deny` ([Section 4.13](#413-threadconfigupdate)), or until its turn completes, fails, or is cancelled. It is never resolved because no connection holds it — not when none is subscribed, not when the last holder disconnects, and not on a write failure. A later subscriber can still answer it.
 - When a turn ends with requests pending, approvals resolve as `cancel` (the operation does not run) and user-input requests resolve with empty answers.
 - On every resolution the server stops waiting on all connections, and each subscriber receives `item/approval/resolved` or `item/tool/requestUserInput/resolved` and must dismiss its prompt. A late response is ignored without error.
 - The only exception is the non-interactive fallback of Sections 7.4 and 7.5.
@@ -1328,9 +1327,9 @@ The optional `automations` capability provides one automation definition and run
 
 ### 18.1 Scope
 
-These methods expose skill discovery and control. Skill sources, priority, and deduplication, the shared `~/.agents/skills` root, requirements metadata, variants, and installation are defined in [Skills](../architecture/skills.md). On the wire, `source` is `workspace`, `plugin`, `builtin`, or `user`; the user-data root and the shared root both report `user` and differ only by `path`.
+These methods expose skill discovery and control. Skill sources, priority, and deduplication, the shared `~/.agents/skills` root, requirements metadata, authoring, and installation are defined in [Skills](../architecture/skills.md). On the wire, `source` is `workspace`, `plugin`, `builtin`, or `user`; the user-data root and the shared root both report `user` and differ only by `path`.
 
-Gated by `capabilities.skillsManagement` (otherwise `-32601`). Variant-dependent UX such as restoring the original additionally requires `capabilities.skillVariants`; without it `skills/view` remains a source-only effective view.
+Gated by `capabilities.skillsManagement` (otherwise `-32601`).
 
 ### 18.2 `SkillInfo` Wire DTO
 
@@ -1340,7 +1339,6 @@ Skill-returning methods use `SkillInfo`. Non-obvious fields:
 - `displayName`, `shortDescription`, `defaultPrompt`, `iconSmallDataUrl`, `iconLargeDataUrl`: interface metadata from `agents/openai.yaml`. Icons resolve inside the skill's own `assets/`; a plugin skill may also use the owning plugin's root `assets/`. Invalid, oversized (over 512 KiB), or unsupported icons are ignored without discarding other metadata.
 - `enabled`: `false` when disabled through `skills/setEnabled`.
 - `path`: absolute path of the source `SKILL.md`.
-- `hasVariant`: `true` when the runtime resolves the skill through a current workspace variant.
 - `metadata`: frontmatter key-value pairs.
 - Plugin skills also carry `pluginId` and `pluginDisplayName`.
 
@@ -1354,23 +1352,19 @@ Params `name`. Result `{ name, content, metadata }`: the resolved source `SKILL.
 
 ### 18.5 `skills/view`
 
-Params `name`. Result `{ name, content }`: the effective body after variant resolution (falling back to source), with frontmatter stripped. It omits variant ids, source paths, fingerprints, and metadata.
+Params `name`. Result `{ name, content }`: the resolved `SKILL.md` body with frontmatter stripped, as `SkillView` returns it. It omits the source path and metadata.
 
-### 18.6 `skills/restoreOriginal`
-
-Params `name`. Result `{ name, restored }`: marks the current workspace adaptation as restored so effective views fall back to the source; `restored` is `false` when the skill already used its source body. The source skill is never modified.
-
-### 18.7 `skills/setEnabled`
+### 18.6 `skills/setEnabled`
 
 Params `name`, `enabled`. Result `{ skill }`. Persists the preference; disabled skills stay installed but are excluded from agent context. Setting the current state is a no-op. On change the server emits `config/changed` with `source: "skills/setEnabled"` and `regions: ["skills"]`. Unknown skill → `-32040`.
 
-### 18.8 `skills/uninstall`
+### 18.7 `skills/uninstall`
 
-Params `name`. Result `{ name, uninstalled, source, removedSourcePath, removedVariantCount }`.
+Params `name`. Result `{ name, uninstalled, source, removedSourcePath }`.
 
-Only `workspace` skills and `user` skills under the user-data `skills/` root are uninstallable. `builtin`, `plugin`, shared-root skills, and paths outside the expected root are rejected with `-32602` (clients offer `skills/setEnabled` instead). Success also clears the disabled-state record and associated variants and emits `config/changed` with `source: "skills/uninstall"` and `regions: ["skills"]`. Unknown skill → `-32040`.
+Only `workspace` skills and `user` skills under the user-data `skills/` root are uninstallable. `builtin`, `plugin`, shared-root skills, and paths outside the expected root are rejected with `-32602` (clients offer `skills/setEnabled` instead). Success also clears the disabled-state record and emits `config/changed` with `source: "skills/uninstall"` and `regions: ["skills"]`. Unknown skill → `-32040`.
 
-### 18.9 Error Codes
+### 18.8 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|

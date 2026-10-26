@@ -7,6 +7,9 @@ export type ToolVerb =
   | 'edited'
   | 'read'
   | 'searched'
+  | 'readSkill'
+  | 'createdSkill'
+  | 'updatedSkill'
   | 'used'
   | 'backgroundStarted'
   | 'backgroundStopped'
@@ -118,6 +121,7 @@ export type TranscriptEntry =
       failed: boolean
       added?: number
       removed?: number
+      skill?: { name: string; file: string | null }
     }
   | { kind: 'toolGroup'; id: string; label: ToolGroupLabel; icon: ToolIcon; failed: boolean; active: boolean; children: ToolEntry[] }
   | {

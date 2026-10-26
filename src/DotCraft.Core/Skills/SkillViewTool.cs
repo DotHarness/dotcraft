@@ -5,18 +5,16 @@ using DotCraft.Tracing;
 namespace DotCraft.Skills;
 
 /// <summary>
-/// Agent-facing tool for loading the effective source-or-variant skill body.
+/// Agent-facing tool for loading a skill's instructions.
 /// </summary>
 public sealed class SkillViewTool(
     SkillsLoader skillsLoader,
-    bool variantModeEnabled,
-    SkillVariantTarget target,
     TraceCollector? traceCollector = null)
 {
-    private const string SkillViewDescription = "Load the effective instructions for a listed skill.";
+    private const string SkillViewDescription = "Load the instructions for a listed skill.";
 
     /// <summary>
-    /// Loads a skill's effective <c>SKILL.md</c> body.
+    /// Loads a skill's <c>SKILL.md</c> body.
     /// </summary>
     [GeneratedTool]
     [ToolPresentation("core.skill-view")]
@@ -28,8 +26,8 @@ public sealed class SkillViewTool(
         if (string.IsNullOrWhiteSpace(name))
             return "Skill name is required.";
 
-        var effective = skillsLoader.LoadEffectiveSkill(name.Trim(), variantModeEnabled, target);
-        if (effective == null)
+        var skill = skillsLoader.LoadSkillBody(name.Trim());
+        if (skill == null)
             return $"Skill '{name}' not found.";
 
         // An agent loading a skill counts as a skill use for the Profile metrics (spec §27A.5),
@@ -38,9 +36,9 @@ public sealed class SkillViewTool(
         if (!string.IsNullOrEmpty(sessionKey))
             traceCollector?.RecordSkillReferenced(
                 sessionKey!,
-                effective.Name,
-                ToolUsageSource.FromSkill(effective.Source, effective.PluginId));
+                skill.Name,
+                ToolUsageSource.FromSkill(skill.Source, skill.PluginId));
 
-        return effective.Content;
+        return skill.Content;
     }
 }

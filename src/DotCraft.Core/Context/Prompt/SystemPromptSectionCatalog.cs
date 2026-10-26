@@ -53,7 +53,6 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.UserCoordination, 950, GuidancePromptSections.UserCoordination),
         (SystemPromptSectionNames.BootstrapFiles, 1000, WorkspaceContextPromptSections.Bootstrap),
         (SystemPromptSectionNames.Memory, 1100, WorkspaceContextPromptSections.Memory),
-        (SystemPromptSectionNames.SelfLearning, 1200, SkillPromptSections.SelfLearning),
         (SystemPromptSectionNames.ActiveSkills, 1300, SkillPromptSections.ActiveSkills),
         (SystemPromptSectionNames.SkillsSummary, 1400, SkillPromptSections.SkillsSummary),
         (SystemPromptSectionNames.CustomCommands, 1500, WorkspaceContextPromptSections.CustomCommands),

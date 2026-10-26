@@ -18,7 +18,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 {
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
     private const string SkillViewToolName = "SkillView";
-    private const string SkillManageToolName = "SkillManage";
     private const string CodeModeToolName = "CodeMode";
     private const string CodeModeWaitToolName = "CodeModeWait";
     private const string McpToolNamePrefix = "mcp__";
@@ -477,13 +476,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return true;
         }
 
-        if (string.Equals(toolName, SkillManageToolName, StringComparison.Ordinal)
-            && policy.AllowManage == false)
-        {
-            reason = "The thread skills policy disables skill management.";
-            return false;
-        }
-
         if (string.Equals(toolName, SkillViewToolName, StringComparison.Ordinal)
             && policy.Allow is { Length: 0 })
         {
@@ -502,22 +494,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         {
             reason = string.Empty;
             return true;
-        }
-
-        if (string.Equals(toolName, SkillManageToolName, StringComparison.Ordinal))
-        {
-            if (policy.AllowManage == false)
-            {
-                reason = "The thread skills policy disables skill management.";
-                return false;
-            }
-
-            var managedSkillName = TryGetStringArgument(arguments, "name");
-            if (!string.IsNullOrWhiteSpace(managedSkillName)
-                && !AllowsSkillName(managedSkillName!, policy, out reason))
-            {
-                return false;
-            }
         }
 
         if (string.Equals(toolName, SkillViewToolName, StringComparison.Ordinal))

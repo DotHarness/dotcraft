@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-26 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -75,7 +75,7 @@ Supported frontmatter groups:
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
 | `plugins` | Plugin/app capability policy. |
-| `skills` | Which Skills the agent may use (`allow`, `deny`) and skill-management policy (`allowManage`). |
+| `skills` | Which Skills the agent may use (`allow`, `deny`). |
 | `permissions` | Approval and workspace-boundary policy. |
 | `memory` | `shared` (default) uses the workspace memory store; `own` gives the profile a store of its own. See [Memory](memory.md#4-memory-scope). |
 | `locked` | Managed-source governance constraints only. |
@@ -93,7 +93,7 @@ Validation rules:
 - A profile with a fixed provider preference may remain structurally valid when its provider or model is unavailable in the current workspace. Management APIs report that runtime diagnostic, and thread creation fails without changing thread state until the provider becomes runnable.
 - Non-managed profiles must not declare managed-only locks.
 - `tools.allow` and `tools.deny` are mutually exclusive in an Agent Profile.
-- Profiles from lower-trust sources must not silently grant high-risk tools, MCP servers, skill management, approval bypass, or broad filesystem/shell access outside their trust boundary.
+- Profiles from lower-trust sources must not silently grant high-risk tools, MCP servers, approval bypass, or broad filesystem/shell access outside their trust boundary.
 
 A fixed provider preference uses this shape:
 
@@ -196,7 +196,7 @@ The resolved profile policy affects:
 - dynamic tool injection,
 - MCP tools,
 - plugin/app tools,
-- skills list/read/manage tools,
+- skill catalog and `SkillView`,
 - actual invocation,
 - approval and workspace-boundary handling.
 

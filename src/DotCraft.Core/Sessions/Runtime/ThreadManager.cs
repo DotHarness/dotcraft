@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
+using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
@@ -181,8 +182,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public string WorldStateBaselineOrigin { get; set; } = "none";
 
-    /// <summary>What this thread's agent was built to read skills with, or <c>null</c> while it runs on the shared agent.</summary>
-    public SkillCatalogSource? SkillCatalogSource { get; set; }
+    /// <summary>The loader this thread's agent was built to read skills with, or <c>null</c> while it runs on the shared agent.</summary>
+    public SkillsLoader? SkillCatalogLoader { get; set; }
 
     public SkillCatalogRead? SkillCatalog { get; set; }
 

@@ -78,15 +78,6 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
 
         var target = ReadArgument(arguments, targetArgument) ?? registration.Definition.Name.ToString();
         operation ??= ReadArgument(arguments, operationArgument) ?? registration.Definition.Name.Name;
-        if (descriptor.ValueKind == JsonValueKind.Object
-            && descriptor.TryGetProperty("whenOperationIn", out var operationSet)
-            && operationSet.ValueKind == JsonValueKind.Array
-            && !operationSet.EnumerateArray().Any(item =>
-                item.ValueKind == JsonValueKind.String
-                && string.Equals(item.GetString(), operation, StringComparison.OrdinalIgnoreCase)))
-        {
-            return ToolDispatchDecision.Allow;
-        }
 
         if (context.ExecutionLocation is { Target: "remote" } location)
             return await RemoteInvocationApproval.RequestAsync(approval, location, kind, target, operation)

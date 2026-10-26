@@ -91,8 +91,7 @@ internal static class ThreadConfigurationCloner
             : new ThreadSkillsPolicy
             {
                 Allow = source.Allow == null ? null : [.. source.Allow],
-                Deny = source.Deny == null ? null : [.. source.Deny],
-                AllowManage = source.AllowManage
+                Deny = source.Deny == null ? null : [.. source.Deny]
             };
 
     private static ThreadNamePolicy? CloneNamePolicy(ThreadNamePolicy? source) =>

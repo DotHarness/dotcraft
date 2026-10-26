@@ -55,7 +55,7 @@ export type ApprovalDecision =
   | 'decline'
   | 'cancel'
 
-export type ApprovalType = 'shell' | 'file' | 'remoteResource' | 'skill' | 'computerUse'
+export type ApprovalType = 'shell' | 'file' | 'remoteResource' | 'computerUse'
 
 export interface ApprovalShellInfo {
   reasons: string[]

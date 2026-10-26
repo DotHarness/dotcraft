@@ -6,7 +6,7 @@ import {
   coreToolRendererRegistry,
   type ToolRendererRegistration
 } from '../utils/toolRendererRegistry'
-import { resolveMemoryOperation } from '../utils/toolKind'
+import { resolveMemoryOperation, resolveSkillOperation, resolveToolKind } from '../utils/toolKind'
 
 function item(
   presentationId: string | undefined,
@@ -96,6 +96,8 @@ describe('ToolRendererRegistry', () => {
   it.each([
     [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'grep', memory: 'recall' }, 'recall'],
     [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'edit', memory: 'update' }, 'update'],
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'recall', memoryStore: { id: 'team', name: 'Team' } }, 'recall'],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: 'update', memoryStore: { id: 'team', name: 'Team' } }, 'update'],
     [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read' }, null]
   ] as const)('maps the memory mark on %s %o to %s', (presentationId, options, expected) => {
     const marked = item(presentationId, 'CoreNative', { ...options })
@@ -109,6 +111,8 @@ describe('ToolRendererRegistry', () => {
       [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'update' }],
       [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: 'recall' }],
       [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: true }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memoryStore: { id: 'team', name: 'Team' } }],
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'recall', memoryStore: 'team' }],
       [CORE_TOOL_PRESENTATION_IDS.web, { operation: 'search', memory: 'recall' }]
     ] as const) {
       expect(resolve(presentationId, 'CoreNative', { ...options })).toBeNull()
@@ -117,6 +121,49 @@ describe('ToolRendererRegistry', () => {
       CORE_TOOL_PRESENTATION_IDS.fileWrite,
       'Mcp',
       { operation: 'write', memory: 'update' }
+    ))).toBeNull()
+  })
+
+  it.each([
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read' }, 'read', 'readFile', 'read'],
+    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'grep' }, 'read', 'readFile', 'grep'],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write' }, 'create', 'fileWrite', 'write'],
+    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'edit' }, 'update', 'fileWrite', 'edit']
+  ] as const)('maps the skill mark on %s %o to %s and keeps the file renderer', (presentationId, options, skill, family, kind) => {
+    const marked = item(presentationId, 'CoreNative', {
+      ...options,
+      skill,
+      skillName: 'pdf-tools',
+      skillFile: 'D:/ws/.craft/skills/pdf-tools/SKILL.md'
+    })
+
+    expect(coreToolRendererRegistry.resolve(marked)?.family).toBe(family)
+    expect(resolveToolKind(marked)).toBe(kind)
+    expect(resolveSkillOperation(marked)).toEqual({
+      operation: skill,
+      skillName: 'pdf-tools',
+      skillFile: 'D:/ws/.craft/skills/pdf-tools/SKILL.md'
+    })
+    expect(resolveSkillOperation(item(presentationId, 'CoreNative', { ...options }))).toBeNull()
+  })
+
+  it('rejects skill marks a presentation does not carry, and ignores them from untrusted sources', () => {
+    for (const [presentationId, options] of [
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', skill: 'update', skillName: 'demo' }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', skill: 'read', skillName: 'demo' }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', skill: 'create' }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', skill: 'create', skillName: ' ' }],
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', skillName: 'demo' }],
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', skill: 'read', skillName: 'demo', skillFile: 1 }],
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', skillFile: 'SKILL.md' }],
+      [CORE_TOOL_PRESENTATION_IDS.web, { operation: 'fetch', skill: 'read', skillName: 'demo' }]
+    ] as const) {
+      expect(resolve(presentationId, 'CoreNative', { ...options })).toBeNull()
+    }
+    expect(resolveSkillOperation(item(
+      CORE_TOOL_PRESENTATION_IDS.fileWrite,
+      'Mcp',
+      { operation: 'write', skill: 'create', skillName: 'demo' }
     ))).toBeNull()
   })
 })

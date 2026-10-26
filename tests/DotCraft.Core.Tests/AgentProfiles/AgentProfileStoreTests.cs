@@ -142,7 +142,6 @@ plugins:
   deny: [dangerous-plugin]
 skills:
   allow: [code-review]
-  allowManage: false
 permissions:
   approvalPolicy: deny
   requireApprovalOutsideWorkspace: true
@@ -181,7 +180,6 @@ Focus on correctness.
         Assert.NotNull(config.SkillsPolicy);
         var skillsPolicy = config.SkillsPolicy!;
         Assert.Equal(new[] { "code-review" }, skillsPolicy.Allow ?? Array.Empty<string>());
-        Assert.False(skillsPolicy.AllowManage);
         Assert.Equal(ApprovalPolicy.Deny, config.ApprovalPolicy);
         Assert.True(config.RequireApprovalOutsideWorkspace);
         Assert.Equal("Focus on correctness.", config.RoleInstructions);
@@ -439,8 +437,6 @@ tools:
   agentControl: full
 mcp:
   servers: [plugin-server]
-skills:
-  allowManage: true
 permissions:
   approvalPolicy: autoApprove
 ---
@@ -462,7 +458,6 @@ Plugin instructions.
         Assert.Equal("disabled", config.ToolPolicy?.AgentControl);
         Assert.Equal(["ReadFile"], config.ToolPolicy?.Allow ?? Array.Empty<string>());
         Assert.Empty(config.McpPolicy?.Servers ?? Array.Empty<string>());
-        Assert.False(config.SkillsPolicy?.AllowManage);
         Assert.Equal(ApprovalPolicy.Default, config.ApprovalPolicy);
     }
 

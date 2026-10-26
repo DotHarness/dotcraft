@@ -679,29 +679,17 @@ public sealed class AgentFactory : IAsyncDisposable
                     .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
-            var skillVariantModeEnabled = string.Equals(
-                ctx.Config.Skills.SelfLearning.VariantMode,
-                "enabled",
-                StringComparison.OrdinalIgnoreCase);
             var toolNames = tools.Select(static tool => tool.Name).ToArray();
             var sortedToolNames = Array.AsReadOnly(
                 toolNames
                     .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
                     .ToArray());
-            var skillVariantTarget = SkillVariantStore.CreateTarget(
-                ctx.EffectiveMainModel,
-                ctx.WorkspacePath,
-                ctx.Config.Permissions.DefaultApprovalPolicy.ToString(),
-                toolNames);
-
             promptInputs = new AgentPromptInputs
             {
                 ToolNames = sortedToolNames,
                 CallableToolNames = callableToolNames,
                 DeferredMcpServerNames = deferredServerNames,
                 SubAgentProfilesSection = subAgentProfilesSection,
-                SkillVariantModeEnabled = skillVariantModeEnabled,
-                SkillVariantTarget = skillVariantTarget,
                 // Native SubAgent role text is a thread context item on every protocol so the
                 // child's instruction channel stays byte-identical to its parent's.
                 RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions,
@@ -719,8 +707,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 _customCommandLoader,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
                 subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
-                skillVariantModeEnabled: promptInputs.SkillVariantModeEnabled,
-                skillVariantTarget: promptInputs.SkillVariantTarget,
                 roleInstructions: promptInputs.RoleInstructions,
                 developerInstructions: promptInputs.DeveloperInstructions,
                 contextPageManager: ctx.ContextPageManager,

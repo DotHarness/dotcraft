@@ -356,8 +356,6 @@ export function SettingsView({
     t('settings.personalization.welcomeSuggestionsSaveFailed', { error }))
   const promptSuggestions = useConfigSetting('PromptSuggestions.Enabled', (error) =>
     t('settings.personalization.promptSuggestionsSaveFailed', { error }))
-  const selfLearning = useConfigSetting('Skills.SelfLearning.Enabled', (error) =>
-    t('settings.personalization.selfLearningSaveFailed', { error }))
   const sharedSkills = useConfigSetting('Skills.IncludeSharedSkills', (error) =>
     t('settings.personalization.sharedSkillsSaveFailed', { error }))
   const memory = useConfigSetting('Memory.Enabled', (error) =>
@@ -366,7 +364,6 @@ export function SettingsView({
     t('settings.personalization.memory.saveFailed', { error }))
   const defaultApproval = useConfigSetting('Permissions.DefaultApprovalPolicy', (error) =>
     t('settings.permissions.saveFailed', { error }))
-  const selfLearningEnabled = selfLearning.value === true
   const includeSharedSkills = sharedSkills.value === true
   const memoryEnabled = memory.value === true
   const defaultApprovalPolicy = typeof defaultApproval.value === 'string' ? defaultApproval.value : ''
@@ -1675,7 +1672,6 @@ export function SettingsView({
       ].join(':'))
     }
     if (skillsRestartPending) {
-      parts.push(`selfLearning:${selfLearningEnabled}`)
       parts.push(`sharedSkills:${includeSharedSkills}`)
     }
     return parts.join('|')
@@ -1687,7 +1683,6 @@ export function SettingsView({
     includeSharedSkills,
     remoteToken,
     remoteUrl,
-    selfLearningEnabled,
     skillsRestartPending,
     wsHost,
     wsPort
@@ -2225,20 +2220,6 @@ export function SettingsView({
                   <SettingsGroup
                     title={t('settings.personalization.group.skills')}
                   >
-                    <SettingsRow
-                      label={t('settings.personalization.selfLearning')}
-                      description={t('settings.personalization.selfLearningHint')}
-                      control={
-                        <PillSwitch
-                          checked={selfLearningEnabled}
-                          disabled={selfLearning.pending}
-                          aria-label={t('settings.personalization.selfLearning')}
-                          onChange={(checked) => {
-                            void handleSkillsToggle(selfLearning, checked)
-                          }}
-                        />
-                      }
-                    />
                     <SettingsRow
                       label={t('settings.personalization.sharedSkills')}
                       description={t('settings.personalization.sharedSkillsHint')}

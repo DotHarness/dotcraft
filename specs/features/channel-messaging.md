@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-26 |
 | **Parent Specs** | [External Channel Adapter](../protocols/external-channel-adapter.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define how an agent speaks in social channels served by external channel adapters: one
@@ -307,6 +307,7 @@ adapter-owned account commands such as personal authorization.
 | `/help` | List the commands the sender may use. | none | run | everyone |
 | `/init` | Create an `AGENTS.md` with instructions for DotCraft. | workspace | reject | admin |
 | `/debug` | Toggle debug mode. | current thread | run | admin |
+| `/reload-skills` | Rescan Skill roots so changed Skill files reach every thread's Skill list. | workspace | run | admin |
 
 A conversation is a thread identity: the current thread's origin channel, user id and channel
 context. It has one current thread: the newest active thread for its identity. `/new` and

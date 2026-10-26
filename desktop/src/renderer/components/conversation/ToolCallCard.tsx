@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useState } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -21,7 +21,14 @@ import {
   isToolExecutionFailure
 } from '../../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
-import { resolveMemoryOperation, resolveToolKind, type ToolKind, type ToolKindSource } from '../../utils/toolKind'
+import {
+  resolveMemoryOperation,
+  resolveSkillOperation,
+  resolveToolKind,
+  type ToolKind,
+  type ToolKindSource
+} from '../../utils/toolKind'
+import { skillOperationLabelKey } from '../../utils/skillOperationDisplay'
 import { MemoryUpdateCard } from './MemoryUpdateCard'
 import { PlanToolOutput } from './PlanToolOutput'
 import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
@@ -40,13 +47,6 @@ import { parseRemoteToolHostCatalog } from '../../utils/remoteToolHostDisplay'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
 import type { FileDiff } from '../../types/toolCall'
-import {
-  buildSkillManageDiff,
-  formatSkillManageLabel,
-  formatSkillManageRunningLabel,
-  getSkillManageDisplay,
-  getSkillManageLabel
-} from '../../utils/skillManageToolDisplay'
 import {
   formatSkillViewLabel,
   formatSkillViewRunningLabel,
@@ -100,9 +100,6 @@ function formatRunningToolLabel(
     return firstLine
       ? translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine })
       : translate(locale, 'toolCall.runningCommand')
-  }
-  if (rendererFamily === 'skillManage' && args) {
-    return formatSkillManageRunningLabel(args, locale)
   }
   if (rendererFamily === 'skillView' && args) {
     return formatSkillViewRunningLabel(args, locale)
@@ -244,8 +241,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   const rendererOperation = rendererPlan?.options.operation
   const args = item.arguments
   const isWebFetchTool = rendererFamily === 'web' && rendererOperation === 'fetch'
-  const isSkillManageTool = rendererFamily === 'skillManage'
   const isSkillViewTool = rendererFamily === 'skillView'
+  const skillMark = resolveSkillOperation(item)
   const toolKind = resolveToolKind(item)
   const isWorkflowTool = toolKind === 'workflow'
   const builderField: BuilderField | null = rendererFamily === 'agentBuilder' && isBuilderField(rendererPlan?.options.field as string | undefined)
@@ -272,10 +269,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   )
   const liveShellRuntime = conversationShellRuntime
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
-  const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
   const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
-    && (!isSkillManageTool || skillManageDisplay?.result?.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
   const fileDiff = useTranscriptItemDiff(item.id, isStreamingFileTool)
@@ -283,7 +278,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
   )
   const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
-  const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
   const remoteToolHostRow = useRemoteToolHostRow({
@@ -306,13 +300,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
       : remoteTransfer ? true : hasVisibleText(toolResult)
-  // Only a skill edit has something behind the row, and it is the diff.
-  const renderableSkillManageDiff = hasRenderableDiff(skillManageDiff ?? undefined)
-    ? skillManageDiff ?? undefined
-    : undefined
   const canExpandWhileRunning =
     !isWebFetchTool
-    && !isSkillManageTool
     && !isSkillViewTool
     && !isTodoTool
     && hasRunningExpandableContent
@@ -321,7 +310,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     && !isSkillViewTool
     && !isTodoTool
     && (remoteToolHostRow?.expandable ?? true)
-    && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
+    && hasCompletedExpandableContent
   const hasFinalArgs = args != null && Object.keys(args).length > 0
   const subAgentRunningLabel = hasFinalArgs && rendererFamily === 'subagent'
     ? formatSubAgentRunningLabel(rendererOperation, args, locale, subAgentLookup)
@@ -337,7 +326,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       streamingDisplay.label,
       shellCommand
     )
-  const runningLabel = isStreamingFileTool
+  const runningLabel = isStreamingFileTool && !skillMark
     ? formatFileToolLabel(rendererOperation, renderableStreamingFileDiff, runningBaseLabel, locale)
     : runningBaseLabel
 
@@ -434,7 +423,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningExpanded = expanded && canExpandWhileRunning
     const runningDisplayLabel = shellBackgroundState
       ? formatShellBackgroundLabel(shellBackgroundState, locale, runningExpanded ? undefined : shellCommand)
-      : runningExpanded && isStreamingFileTool
+      : runningExpanded && isStreamingFileTool && !skillMark
       ? formatExpandedFileToolLabel(rendererOperation, renderableStreamingFileDiff, locale)
       : runningExpanded && isShellTool
         ? translate(locale, 'toolCall.runningCommand')
@@ -512,24 +501,20 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? formatToolSearchCompletedLabel(item.result, locale)
     : null
   const fallbackLabel = completedToolSearchLabel
-    ?? (isSkillManageTool
-      ? formatSkillManageLabel(args, item.result, locale)
-      : isSkillViewTool
-        ? formatSkillViewLabel(args, locale)
-        : shellBackgroundState
-          ? formatShellBackgroundLabel(shellBackgroundState, locale, shellCommand)
-        : isShellTool && !shellCommand
-          ? translate(locale, 'toolCall.ranCommand')
-        : formatCollapsedToolLabel(item, shellDisplayArgs, locale))
-  const label = isStreamingFileTool
+    ?? (isSkillViewTool
+      ? formatSkillViewLabel(args, locale)
+      : shellBackgroundState
+        ? formatShellBackgroundLabel(shellBackgroundState, locale, shellCommand)
+      : isShellTool && !shellCommand
+        ? translate(locale, 'toolCall.ranCommand')
+      : formatCollapsedToolLabel(item, shellDisplayArgs, locale))
+  const label = isStreamingFileTool && !skillMark
     ? formatFileToolLabel(rendererOperation, fileDiff, fallbackLabel, locale)
     : fallbackLabel
   const failureText = item.errorMessage ?? item.resultPreview ?? item.result ?? shellOutput
-  const failurePreviewSource = isSkillManageTool
-    ? (skillManageDisplay?.message ?? '')
-    : isSkillViewTool
-      ? (skillViewDisplay?.message ?? '')
-      : (failureText ?? '')
+  const failurePreviewSource = isSkillViewTool
+    ? (skillViewDisplay?.message ?? '')
+    : (failureText ?? '')
   const hasFailurePreview = hasVisibleText(failurePreviewSource)
   const failedPreview = hasFailurePreview
     ? stripAnsi(failurePreviewSource.slice(0, 512)).trim()
@@ -537,13 +522,13 @@ export const ToolCallCard = memo(function ToolCallCard({
   const hasInlineFileDiff = isStreamingFileTool && !!renderableFileDiff
   const hasFlushReadFile = rendererFamily === 'readFile'
   const completedExpanded = canExpandCompleted && expanded
-  const completedDisplayLabel = completedExpanded && isStreamingFileTool
+  const completedDisplayLabel = completedExpanded && isStreamingFileTool && !skillMark
     ? formatExpandedFileToolLabel(rendererOperation, renderableFileDiff, locale)
     : completedExpanded && shellBackgroundState
       ? formatShellBackgroundLabel(shellBackgroundState, locale)
     : completedExpanded && isShellTool
       ? translate(locale, 'toolCall.ranCommand')
-    : completedExpanded && rendererFamily === 'readFile' && resolveMemoryOperation(item) !== 'recall'
+    : completedExpanded && rendererFamily === 'readFile' && !skillMark && resolveMemoryOperation(item) !== 'recall'
       ? translate(locale, 'toolCall.readFile.file')
       : label
   const readFilePath = rendererFamily === 'readFile' && typeof args?.path === 'string'
@@ -553,10 +538,10 @@ export const ToolCallCard = memo(function ToolCallCard({
   const completedResolvedPath = completedFilePath && workspacePath
     ? toAbsoluteWorkspacePath(workspacePath, completedFilePath)
     : completedFilePath
-  const skillTitle = isSkillViewTool && skillViewDisplay?.name
-    ? renderSkillToolLabel(locale, 'skillView.tool.loadedSkill', skillViewDisplay.name)
-    : isSkillManageTool
-      ? renderSkillManageTitle(locale, args, item.result)
+  const skillTitle = skillMark?.skillName
+    ? renderSkillToolLabel(locale, skillOperationLabelKey(skillMark.operation, false), skillMark.skillName, skillMark.skillFile)
+    : isSkillViewTool && skillViewDisplay?.name
+      ? renderSkillToolLabel(locale, 'skillView.tool.loadedSkill', skillViewDisplay.name)
       : null
 
   const completedTitle = (
@@ -606,17 +591,10 @@ export const ToolCallCard = memo(function ToolCallCard({
       <div
         data-testid="tool-expanded-content"
         className="dc-tool-panel-surface"
-        data-padded={hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
+        data-padded={hasInlineFileDiff || hasFlushReadFile ? 'false' : 'true'}
       >
         {remoteTransfer ? (
           <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
-        ) : renderableSkillManageDiff ? (
-          <InlineDiffView
-            diff={renderableSkillManageDiff}
-            variant="embedded"
-            headerMode="compact"
-            locale={locale}
-          />
         ) : (
         <ExpandedContent
           itemId={item.id}
@@ -637,17 +615,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     </ToolDisclosure>
   )
 })
-
-function renderSkillManageTitle(
-  locale: AppLocale,
-  args: Record<string, unknown> | undefined,
-  result: string | undefined
-): ReactNode {
-  const label = getSkillManageLabel(args, result)
-  return label.name
-    ? renderSkillToolLabel(locale, label.key, label.name, label.vars)
-    : translate(locale, label.key, label.vars)
-}
 
 interface ExpandedContentProps {
   itemId: string
