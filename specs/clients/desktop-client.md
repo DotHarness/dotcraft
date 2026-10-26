@@ -384,7 +384,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **Summary**
 
 - The thread header carries a Summary toggle beside the Detail Panel toggle. When the conversation leaves room beside its reading column, the Summary is a card pinned there; the toggle pins and unpins it, and the choice persists across restarts (pinned by default). Without room, the toggle opens the Summary as a popover under the button that closes on Escape or an outside click.
-- The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); and its environment: the changed-line totals (opens Changes) and the workspace's project actions. With nothing to show it says so.
+- The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); its context window usage; and its environment: the changed-line totals (opens Changes) and the workspace's project actions. With nothing to show it says so.
 - The Summary is Core content of the `conversation.aside.trailing` seat ([Desktop Extensions](../architecture/desktop-plugins.md)), so a Desktop extension can add to, wrap, or replace it there.
 
 **Tool rows**
@@ -603,6 +603,7 @@ The slash surface lists Desktop-owned system actions above custom Commands and S
 **Compaction status and context usage**
 
 - If manual compaction times out while maintenance still reports compacting, Desktop keeps the busy state and stop control and waits for the terminal `system/event`. Skipped or failed outcomes, and terminal `compactFailed`/`compactCancelled` events, show their message in the compact status surface.
+- Selecting the context ring shows the Summary with its Context section open. The section's row follows the same `contextUsage` as the ring. Opened, it reads `thread/contextUsage/read` and reads it again whenever `contextUsage` changes while no turn runs; during a turn, tokens beyond the measured categories show as added since the last update. Its Compact button runs the same manual compaction as `/compact`.
 - The context ring updates from RPC responses that include `contextUsage`, from terminal compaction `system/event.contextUsage`, and from a compacted `SystemNotice`'s after-values, but never from compaction start events, whose counts are estimates.
 
 ### 5.13.1 Continue in a Channel Chat

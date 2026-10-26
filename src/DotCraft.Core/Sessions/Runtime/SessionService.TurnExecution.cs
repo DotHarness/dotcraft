@@ -1400,6 +1400,7 @@ public sealed partial class SessionService
                             ct: CancellationToken.None);
                     }
 
+                    using var promptSectionRecorder = SystemPromptSectionRecorder.Begin(threadId);
                     using var preSamplingCompactionScope = PreSamplingCompactionRuntimeScope.Set(
                         new PreSamplingCompactionRuntimeContext
                         {
@@ -1419,7 +1420,14 @@ public sealed partial class SessionService
                                     tokenTracker.LastContextTokens,
                                     snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                                {
                                     runtime.LastPromptRequest = preparedEstimate.RequestSnapshot ?? snapshot;
+                                    runtime.ContextComposition = ContextUsageComposition.Capture(
+                                        runtime.LastPromptRequest,
+                                        promptSectionRecorder.Sections,
+                                        promptSectionRecorder.CraftPath,
+                                        turnRuntime?.ToolSnapshot);
+                                }
                                 if (turnCommitter.PendingCompactionCheckpoint is null)
                                 {
                                     await SavePreparedContextEstimateAsync(

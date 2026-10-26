@@ -1761,6 +1761,20 @@ Content beside the conversation stays quieter than the conversation itself.
   leading glyph and no trailing meta (except line totals, `+N` in `--success` and
   `-M` in `--error`, tabular, zero side omitted); a trailing row action stays hidden
   until hover or focus and is a sibling of the row's own button, never inside it.
+  The card is its own scroll container, so its border and radius stay whole while
+  it scrolls; it scrolls by wheel or trackpad with no visible scrollbar.
+- **Summary context.** The Context section is one row with no leading glyph (the
+  composer ring already shows usage): "n% used", and used / window tokens as meta
+  with a reveal chevron. Open, it shows an 8px segmented bar and one flat legend at
+  secondary size, largest first, with swatches on the section's left edge: the four
+  largest categories take
+  `--chart-series-1` to `-4` and the rest share `--chart-series-other`; tokens added
+  since the breakdown was measured are a hatched neutral; the auto-compact reserve
+  and free space are neutral tints. Tools loaded only when needed close the list as
+  ordinary rows marked "(on demand)" with "—" for share. Only a row with parts (MCP
+  servers, instruction and memory files) opens, from a chevron after its name; a
+  file path keeps its head and file name around a middle ellipsis. A footer gives the room left before auto-compaction and a
+  secondary Compact button.
 - **Summary motion.** When a shell panel leaves too little room for the pinned
   card, it fades and slides out as that panel opens, non-interactive during the
   exit, and reverses if room returns. Reduced motion completes the exit at once.

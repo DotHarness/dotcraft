@@ -53,6 +53,7 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadGoalSet, HandleThreadGoalSetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalClear, HandleThreadGoalClearAsync);
         table.Map(Contract.AppServerRpc.ThreadCompactStart, HandleThreadCompactStartAsync);
+        table.Map(Contract.AppServerRpc.ThreadContextUsageRead, HandleThreadContextUsageReadAsync);
         table.Map(Contract.AppServerRpc.ThreadMaintenanceInterrupt, HandleThreadMaintenanceInterruptAsync);
         table.Map(Contract.AppServerRpc.ThreadRollback, HandleThreadRollbackAsync);
         table.Map(Contract.AppServerRpc.ThreadSubscribe, HandleThreadSubscribeAsync);
@@ -528,6 +529,19 @@ internal sealed partial class ThreadRequestHandler(
                 : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
                     ThreadContractMapper.ToContract(result.ContextUsage))
         });
+    }
+
+    private Task<AppServerTypedResult<Contract.ThreadContextUsageReadResult>> HandleThreadContextUsageReadAsync(
+        AppServerTypedRequest<Contract.ThreadContextUsageReadParams> request,
+        CancellationToken ct)
+    {
+        var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
+        var breakdown = sessionService.TryGetContextUsageBreakdown(threadId);
+        return Task.FromResult(AppServerTypedResult<Contract.ThreadContextUsageReadResult>.FromResult(new()
+        {
+            Breakdown = Protocol.Optional<Contract.ContextUsageBreakdown?>.FromValue(
+                breakdown is null ? null : ThreadContractMapper.ToContract(breakdown))
+        }));
     }
 
     private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadMaintenanceInterruptAsync(

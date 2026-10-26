@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import { RobotAvatar } from '../../agents/RobotAvatar'
 import { BackgroundTasksSection } from './BackgroundTasksSection'
+import { ContextSection } from './ContextSection'
 import { EnvironmentSection } from './EnvironmentSection'
 import type { SummaryAutomation, SummaryState } from './feed'
 import { changeTotals, extractSources, hasWebSearch, workflowCallIds, type Source, type SourceKind } from './sources'
@@ -229,6 +230,7 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
+      <ContextSection services={services} threadId={threadId} />
       <EnvironmentSection services={services} threadId={threadId} workspacePath={workspacePath} changes={changes} />
     </div>
   )

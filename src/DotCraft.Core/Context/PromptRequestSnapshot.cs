@@ -151,6 +151,15 @@ public sealed record PromptRequestSnapshot
             SnapshotSource = PromptRequestSnapshotSources.Captured
         };
     }
+
+    public int EstimateRequestOverheadTokens() =>
+        (BaseInstructionsTokenEstimate ?? MessageTokenEstimator.RoughTokenCount(BaseInstructions))
+        + Tools.Sum(static tool => EstimateToolTokens(tool.Name, tool.Description, (tool as AIFunctionDeclaration)?.JsonSchema));
+
+    internal static int EstimateToolTokens(string name, string? description, JsonElement? schema) =>
+        MessageTokenEstimator.RoughTokenCount(name)
+        + MessageTokenEstimator.RoughTokenCount(description)
+        + (schema is { } value ? MessageTokenEstimator.RoughTokenCount(value.GetRawText()) : 0);
 }
 
 internal static class PromptRequestSnapshotSources

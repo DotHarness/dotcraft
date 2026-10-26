@@ -69,6 +69,9 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ConfigSchemaSection))]
 [JsonSerializable(typeof(AppServer.ConfigValueWriteParams))]
 [JsonSerializable(typeof(AppServer.ConfigWriteResult))]
+[JsonSerializable(typeof(AppServer.ContextUsageBreakdown))]
+[JsonSerializable(typeof(AppServer.ContextUsageCategory))]
+[JsonSerializable(typeof(AppServer.ContextUsageItem))]
 [JsonSerializable(typeof(AppServer.ContextUsageSnapshot))]
 [JsonSerializable(typeof(AppServer.DreamsCreateParams))]
 [JsonSerializable(typeof(AppServer.DreamsFileChange))]
@@ -321,6 +324,8 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ThreadCompactStartResponse))]
 [JsonSerializable(typeof(AppServer.ThreadConfigUpdateParams))]
 [JsonSerializable(typeof(AppServer.ThreadConfiguration))]
+[JsonSerializable(typeof(AppServer.ThreadContextUsageReadParams))]
+[JsonSerializable(typeof(AppServer.ThreadContextUsageReadResult))]
 
 [JsonSerializable(typeof(AppServer.ThreadDeleteParams))]
 [JsonSerializable(typeof(AppServer.ThreadForkParams))]

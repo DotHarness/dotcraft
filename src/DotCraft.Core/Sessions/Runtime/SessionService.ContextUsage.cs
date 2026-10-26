@@ -3,6 +3,7 @@ using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using ContextUsageBreakdown = DotCraft.Sessions.Wire.ContextUsageBreakdown;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 
 namespace DotCraft.Sessions;
@@ -11,6 +12,26 @@ public sealed partial class SessionService
 {
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
         => ThreadAccess.TryGetContextUsageSnapshot(threadId);
+
+    public ContextUsageBreakdown? TryGetContextUsageBreakdown(string threadId)
+    {
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            || runtime.ContextComposition is not { } composition
+            || TryGetContextUsageSnapshot(threadId) is not { } usage)
+        {
+            return null;
+        }
+
+        var memoryStores = ResolveMemoryIndexStores(runtime.Thread.Configuration);
+        IReadOnlyList<string> memoryIndexFiles = memoryStores is null
+            ? []
+            : [
+                memoryStores.Own.IndexFilePath,
+                .. memoryStores.Attached.Select(static store =>
+                    Path.GetFullPath(Path.Combine(store.DirectoryPath, Memory.MemoryStore.IndexFileName)))
+            ];
+        return composition.ToBreakdown(usage, ResolveAgentInstructions(runtime.Thread).Sources, memoryIndexFiles);
+    }
 
     /// <inheritdoc />
     public ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread)
@@ -361,7 +382,8 @@ public sealed partial class SessionService
             requestSnapshot?.ContextUsageFingerprint,
             requestSnapshot?.BaseInstructionsTokenEstimate,
             persistedSnapshot?.Source,
-            persistedSnapshot?.IsEstimate ?? false);
+            persistedSnapshot?.IsEstimate ?? false,
+            requestSnapshot?.EstimateRequestOverheadTokens() ?? 0);
     }
 
     private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history)

@@ -1354,6 +1354,26 @@ export interface ContextImage {
   [key: string]: unknown;
 }
 
+export interface ContextUsageBreakdown {
+  categories?: ContextUsageCategory[];
+  contextUsage?: ContextUsageSnapshot;
+  [key: string]: unknown;
+}
+
+export interface ContextUsageCategory {
+  id?: string;
+  items?: ContextUsageItem[];
+  onDemand?: boolean;
+  tokens?: number;
+  [key: string]: unknown;
+}
+
+export interface ContextUsageItem {
+  name?: string;
+  tokens?: number;
+  [key: string]: unknown;
+}
+
 export interface ContextUsageSnapshot {
   autoCompactThreshold?: number;
   contextWindow?: number;
@@ -4265,6 +4285,16 @@ export interface ThreadConfiguration {
   toolProfile?: string | null;
   useToolProfileOnly?: boolean;
   workspaceOverride?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadContextUsageReadParams {
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadContextUsageReadResult {
+  breakdown?: ContextUsageBreakdown | null;
   [key: string]: unknown;
 }
 

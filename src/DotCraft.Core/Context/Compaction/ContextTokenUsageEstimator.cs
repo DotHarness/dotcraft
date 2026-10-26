@@ -16,7 +16,8 @@ internal static class ContextTokenUsageEstimator
         string? contextUsageFingerprint = null,
         int? baseInstructionsTokenEstimate = null,
         string? persistedDisplaySource = null,
-        bool persistedDisplayIsEstimate = false)
+        bool persistedDisplayIsEstimate = false,
+        int requestOverheadTokens = 0)
     {
         const bool requireRequestFingerprint = true;
         var latestProviderTokens = Math.Max(0, latestContextTokens);
@@ -68,7 +69,8 @@ internal static class ContextTokenUsageEstimator
                 IsEstimate: false);
         }
 
-        var estimatedTokens = (long)MessageTokenEstimator.Estimate(history);
+        var historyTokens = (long)MessageTokenEstimator.Estimate(history);
+        var estimatedTokens = historyTokens + Math.Max(0, requestOverheadTokens);
         if (persistedDisplayTokens is > 0 && IsReplacementHistoryEstimateSource(persistedDisplaySource, persistedDisplayIsEstimate))
         {
             return new ContextTokenUsageEstimate(
@@ -89,7 +91,7 @@ internal static class ContextTokenUsageEstimator
                 IsEstimate: true);
         }
 
-        if (estimatedTokens <= 0 && persistedDisplayTokens is > 0)
+        if (historyTokens <= 0 && persistedDisplayTokens is > 0)
         {
             return new ContextTokenUsageEstimate(
                 persistedDisplayTokens.Value,

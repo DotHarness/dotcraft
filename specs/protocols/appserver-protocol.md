@@ -521,6 +521,16 @@ Manually compact the model-visible context of an idle server-managed thread. Gat
 
 Backend selection and history replacement follow [Context Compaction](../architecture/context-compaction.md).
 
+### 4.15.1 `thread/contextUsage/read`
+
+Read what fills a thread's context window. Params `threadId`. Result: `{ breakdown }`, where `breakdown` is `null` until the thread has sampled a model request in this server process (including unknown or unloaded threads).
+
+- `breakdown.contextUsage` is the thread's current `contextUsage` (Section 4.4), so client totals and categories agree.
+- `breakdown.categories[]` is `{ id, tokens, onDemand, items? }`. `id` is a stable key the client localizes: `systemPrompt`, `memoryFiles` (AGENTS.md instructions, workspace bootstrap files, and the memory index in context), `skills`, `subagents`, `builtInTools`, `mcpTools`, `messages`. Categories with zero tokens are omitted. `mcpTools` carries one `{ name, tokens }` item per MCP server; `memoryFiles` carries one item per file, named by its absolute path and estimated from the file's current content.
+- `onDemand = true` marks deferred tools the model can load later; they do not occupy the context window. `builtInTools` and `mcpTools` may each appear once loaded and once on demand.
+- The categories with `onDemand = false` sum to `contextUsage.tokens`: instruction sections and tool schemas are local estimates from the thread's last sampled request, and `messages` is the remainder. When those estimates exceed `contextUsage.tokens`, they are scaled down to fit and `messages` is omitted.
+- Compaction keeps the instruction and tool estimates; only `messages` follows the new `contextUsage` until the next sampled request.
+
 ### 4.16 `thread/maintenance/interrupt`
 
 Interrupt active thread maintenance such as manual compaction. Gated by `capabilities.threadMaintenanceInterrupt`. With no active maintenance it is a no-op; otherwise the server cancels it and later emits the terminal `system/event` (`compactCancelled`). Completed turns and queued inputs are unaffected.

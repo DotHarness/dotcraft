@@ -70,15 +70,20 @@ public sealed class PromptBuilder(
             Sources = _sources
         };
 
+        var recorder = SystemPromptSectionRecorder.For(threadId);
+        var sections = recorder is null ? null : new List<PromptSectionTokens>();
         var prompt = SystemPromptComposition.Compose(
             _contributions.Resolve<ISystemPromptSection>(threadId),
             context,
-            _logger);
+            _logger,
+            sections);
 
-        return SystemPromptComposition.ApplyAssembler(
+        var assembled = SystemPromptComposition.ApplyAssembler(
             _contributions.Resolve<ISystemPromptAssembler>(threadId),
             prompt,
             context,
             _logger);
+        recorder?.Record(ReferenceEquals(assembled, prompt) ? sections : null, _sources.CraftPath);
+        return assembled;
     }
 }

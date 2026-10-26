@@ -132,6 +132,24 @@ internal static class ThreadContractMapper
         IsEstimate = value.IsEstimate
     };
 
+    public static Contract.ContextUsageBreakdown ToContract(ContextUsageBreakdown value) => new()
+    {
+        ContextUsage = ToContract(value.ContextUsage),
+        Categories = value.Categories
+            .Select(static category => new Contract.ContextUsageCategory
+            {
+                Id = category.Id,
+                Tokens = category.Tokens,
+                OnDemand = category.OnDemand,
+                Items = category.Items is { } items
+                    ? Protocol.Optional<IReadOnlyList<Contract.ContextUsageItem>>.FromValue(items
+                        .Select(static item => new Contract.ContextUsageItem { Name = item.Name, Tokens = item.Tokens })
+                        .ToArray())
+                    : default
+            })
+            .ToArray()
+    };
+
     public static Contract.ThreadOriginApp ToContract(Domain.ThreadOriginAppSnapshot value) => new()
     {
         AppId = value.AppId,

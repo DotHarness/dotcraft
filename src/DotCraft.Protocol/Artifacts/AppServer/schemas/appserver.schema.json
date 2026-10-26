@@ -5360,6 +5360,61 @@
         "tempPath"
       ]
     },
+    "ContextUsageBreakdown": {
+      "title": "ContextUsageBreakdown",
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextUsageCategory"
+          }
+        },
+        "contextUsage": {
+          "$ref": "#/$defs/ContextUsageSnapshot"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ContextUsageCategory": {
+      "title": "ContextUsageCategory",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextUsageItem"
+          }
+        },
+        "onDemand": {
+          "type": "boolean"
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
+    "ContextUsageItem": {
+      "title": "ContextUsageItem",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
     "ContextUsageSnapshot": {
       "title": "ContextUsageSnapshot",
       "type": "object",
@@ -17041,6 +17096,33 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadContextUsageReadParams": {
+      "title": "ThreadContextUsageReadParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadContextUsageReadResult": {
+      "title": "ThreadContextUsageReadResult",
+      "type": "object",
+      "properties": {
+        "breakdown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextUsageBreakdown"
             },
             {
               "type": "null"

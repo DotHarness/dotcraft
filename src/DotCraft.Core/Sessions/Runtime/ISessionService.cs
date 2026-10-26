@@ -404,6 +404,8 @@ public interface ISessionService
 
     ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId);
 
+    ContextUsageBreakdown? TryGetContextUsageBreakdown(string threadId) => null;
+
     ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         ThreadSummaryRuntime.FromThread(thread);
 
