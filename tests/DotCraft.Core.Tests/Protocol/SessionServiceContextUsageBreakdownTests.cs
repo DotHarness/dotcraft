@@ -73,6 +73,9 @@ public sealed class SessionServiceContextUsageBreakdownTests : SessionServiceRun
         var after = Assert.IsType<ContextUsageBreakdown>(service.TryGetContextUsageBreakdown(thread.Id));
         Assert.Equal(service.TryGetContextUsageSnapshot(thread.Id)!.Tokens, after.ContextUsage.Tokens);
         Assert.Equal(FixedParts(before), FixedParts(after));
+        Assert.Equal(
+            after.ContextUsage.Tokens,
+            after.Categories.Where(static category => !category.OnDemand).Sum(static category => category.Tokens));
     }
 
     private static IChatClient UsageReportingChatClient() => new FakeChatClient(

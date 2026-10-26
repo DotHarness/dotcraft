@@ -187,7 +187,6 @@ public sealed partial class SessionService
                             thread.LastActiveAt,
                             manualPromptSnapshot,
                             fallbackTools,
-                            CarryRequestOverhead: false,
                             Options: manualOptions,
                             ProviderBridge: providerBridge),
                         maintenanceCt);

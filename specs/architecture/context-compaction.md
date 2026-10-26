@@ -227,7 +227,8 @@ provider-history appends.
 The sampling list includes persisted AGENTS.md instruction messages and uses the same history
 sanitizer as ordinary sampling. Removing AGENTS.md updates is a local-summary policy applied after
 backend selection; it never shortens native coverage. Manual context usage estimates include the
-complete provider-visible history.
+complete provider-visible history, and the replacement estimate after manual compaction keeps the
+request overhead (instructions and tool schemas) as automatic compaction does.
 
 Reactive compaction uses the failed turn's final captured sampling snapshot, including sanitizer
 repairs. The failed turn remains failed after compaction; the user can resubmit against the
