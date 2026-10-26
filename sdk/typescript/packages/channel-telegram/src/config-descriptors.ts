@@ -1,16 +1,11 @@
 import { type ConfigDescriptor, type ConfigGroupDescriptor } from "@dotcraft/channel";
 
-type LocalizedConfigDescriptor = ConfigDescriptor & {
-  localizedDisplayLabel?: Partial<Record<"en" | "zh-Hans", string>>;
-  localizedDescription?: Partial<Record<"en" | "zh-Hans", string>>;
-};
-
 export const configGroups: ConfigGroupDescriptor[] = [
   { id: "configuration", displayLabel: "Configuration", localizedDisplayLabel: { en: "Configuration", "zh-Hans": "配置", ja: "構成", ko: "구성", es: "Configuración", fr: "Configuration", de: "Konfiguration" } },
   { id: "advanced", displayLabel: "Advanced", localizedDisplayLabel: { en: "Advanced", "zh-Hans": "高级", ja: "詳細設定", ko: "고급", es: "Avanzado", fr: "Avancé", de: "Erweitert" } },
 ];
 
-export const configDescriptors: LocalizedConfigDescriptor[] = [
+export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "dotcraft.wsUrl",
     displayLabel: "AppServer WebSocket URL",
@@ -18,10 +13,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "AppServer WebSocket URL",
       "zh-Hans": "AppServer WebSocket 地址",
+      ja: "AppServer WebSocket URL",
+      ko: "AppServer WebSocket URL",
+      es: "AppServer WebSocket URL",
+      fr: "AppServer WebSocket URL",
+      de: "AppServer WebSocket URL",
     },
     localizedDescription: {
       en: "DotCraft AppServer WebSocket endpoint (ws:// or wss://).",
       "zh-Hans": "DotCraft AppServer 的 WebSocket 端点（ws:// 或 wss://）。",
+      ja: "DotCraft AppServer の WebSocket エンドポイント（ws:// または wss://）。",
+      ko: "DotCraft AppServer WebSocket 엔드포인트(ws:// 또는 wss://).",
+      es: "Endpoint WebSocket de DotCraft AppServer (ws:// o wss://).",
+      fr: "Point de terminaison WebSocket de DotCraft AppServer (ws:// ou wss://).",
+      de: "WebSocket-Endpunkt von DotCraft AppServer (ws:// oder wss://).",
     },
     required: true,
     dataKind: "string",
@@ -37,10 +42,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "AppServer Auth Token",
       "zh-Hans": "AppServer 认证令牌",
+      ja: "AppServer 認証トークン",
+      ko: "AppServer 인증 토큰",
+      es: "Token de autenticación de AppServer",
+      fr: "Jeton d'authentification AppServer",
+      de: "AppServer-Authentifizierungstoken",
     },
     localizedDescription: {
       en: "Optional token used by DotCraft AppServer WebSocket transport.",
       "zh-Hans": "DotCraft AppServer WebSocket 传输使用的可选认证令牌。",
+      ja: "DotCraft AppServer の WebSocket 通信で使用する任意のトークン。",
+      ko: "DotCraft AppServer WebSocket 전송에 사용하는 선택 토큰.",
+      es: "Token opcional que usa el transporte WebSocket de DotCraft AppServer.",
+      fr: "Jeton facultatif utilisé par le transport WebSocket de DotCraft AppServer.",
+      de: "Optionales Token für den WebSocket-Transport von DotCraft AppServer.",
     },
     required: false,
     dataKind: "secret",
@@ -55,10 +70,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Telegram Bot Token",
       "zh-Hans": "Telegram Bot Token",
+      ja: "Telegram ボットトークン",
+      ko: "Telegram 봇 토큰",
+      es: "Token de bot de Telegram",
+      fr: "Jeton de bot Telegram",
+      de: "Telegram-Bot-Token",
     },
     localizedDescription: {
       en: "Bot token issued by BotFather.",
       "zh-Hans": "由 BotFather 签发的 Telegram Bot Token。",
+      ja: "BotFather が発行したボットトークン。",
+      ko: "BotFather가 발급한 봇 토큰.",
+      es: "Token de bot emitido por BotFather.",
+      fr: "Jeton de bot délivré par BotFather.",
+      de: "Von BotFather ausgestelltes Bot-Token.",
     },
     required: true,
     dataKind: "secret",
@@ -70,8 +95,8 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     key: "telegram.adminUsers",
     displayLabel: "Admin Users",
     description: "Telegram user IDs with admin permissions.",
-    localizedDisplayLabel: { en: "Admin Users", "zh-Hans": "管理员用户" },
-    localizedDescription: { en: "Telegram user IDs with admin permissions.", "zh-Hans": "拥有管理员权限的 Telegram 用户 ID。" },
+    localizedDisplayLabel: { en: "Admin Users", "zh-Hans": "管理员用户", ja: "管理者ユーザー", ko: "관리자 사용자", es: "Usuarios administradores", fr: "Utilisateurs administrateurs", de: "Admin-Benutzer" },
+    localizedDescription: { en: "Telegram user IDs with admin permissions.", "zh-Hans": "拥有管理员权限的 Telegram 用户 ID。", ja: "管理者権限を持つ Telegram ユーザー ID。", ko: "관리자 권한이 있는 Telegram 사용자 ID.", es: "ID de usuario de Telegram con permisos de administrador.", fr: "ID d'utilisateur Telegram disposant des droits d'administrateur.", de: "Telegram-Benutzer-IDs mit Administratorrechten." },
     required: false,
     dataKind: "list",
     masked: false,
@@ -86,10 +111,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Telegram HTTPS Proxy",
       "zh-Hans": "Telegram HTTPS 代理",
+      ja: "Telegram HTTPS プロキシ",
+      ko: "Telegram HTTPS 프록시",
+      es: "Proxy HTTPS de Telegram",
+      fr: "Proxy HTTPS Telegram",
+      de: "Telegram-HTTPS-Proxy",
     },
     localizedDescription: {
       en: "Optional HTTPS proxy URL used for Telegram Bot API requests.",
       "zh-Hans": "Telegram Bot API 请求使用的可选 HTTPS 代理地址。",
+      ja: "Telegram Bot API リクエストに使用する任意の HTTPS プロキシ URL。",
+      ko: "Telegram Bot API 요청에 사용하는 선택 HTTPS 프록시 URL.",
+      es: "URL opcional de proxy HTTPS para las solicitudes a la Bot API de Telegram.",
+      fr: "URL facultative du proxy HTTPS utilisé pour les requêtes vers l'API Bot de Telegram.",
+      de: "Optionale HTTPS-Proxy-URL für Anfragen an die Telegram Bot API.",
     },
     required: false,
     dataKind: "string",
@@ -104,10 +139,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Approval Timeout (ms)",
       "zh-Hans": "审批超时（毫秒）",
+      ja: "承認タイムアウト（ミリ秒）",
+      ko: "승인 시간 초과(ms)",
+      es: "Tiempo de espera de aprobación (ms)",
+      fr: "Délai d'approbation (ms)",
+      de: "Zeitlimit für Genehmigungen (ms)",
     },
     localizedDescription: {
       en: "Timeout before Telegram approval requests auto-cancel.",
       "zh-Hans": "Telegram 审批请求自动取消前的等待时长。",
+      ja: "Telegram の承認リクエストが自動的にキャンセルされるまでの時間。",
+      ko: "Telegram 승인 요청이 자동으로 취소되기까지의 시간.",
+      es: "Tiempo de espera antes de que las solicitudes de aprobación de Telegram se cancelen automáticamente.",
+      fr: "Délai avant l'annulation automatique des demandes d'approbation Telegram.",
+      de: "Zeit, nach der Telegram-Genehmigungsanfragen automatisch abgebrochen werden.",
     },
     required: false,
     dataKind: "number",
@@ -123,10 +168,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Poll Timeout (ms)",
       "zh-Hans": "轮询超时（毫秒）",
+      ja: "ポーリングタイムアウト（ミリ秒）",
+      ko: "폴링 시간 초과(ms)",
+      es: "Tiempo de espera de sondeo (ms)",
+      fr: "Délai d'interrogation (ms)",
+      de: "Zeitlimit für Polling (ms)",
     },
     localizedDescription: {
       en: "Long-poll timeout for Telegram getUpdates requests.",
       "zh-Hans": "Telegram getUpdates 长轮询请求的超时时间。",
+      ja: "Telegram getUpdates リクエストのロングポーリングのタイムアウト。",
+      ko: "Telegram getUpdates 요청의 롱 폴링 시간 제한.",
+      es: "Tiempo de espera del sondeo largo para las solicitudes getUpdates de Telegram.",
+      fr: "Délai d'attente de l'interrogation longue pour les requêtes getUpdates de Telegram.",
+      de: "Zeitlimit für Long-Polling bei Telegram-getUpdates-Anfragen.",
     },
     required: false,
     dataKind: "number",

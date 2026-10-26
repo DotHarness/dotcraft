@@ -332,7 +332,7 @@ coexist; user-installed content wins for the same `moduleId`.
 The optional manifest `interface` object is display-only and does not affect startup. Recognized
 fields are `shortDescription`, `longDescription`, `previewPrompt`, and `setupSteps` (an ordered list
 of plain-text steps, where backticks mark literal values and `[label](https://...)` marks a link), each with a `localized*` variant keyed by
-`en` and `zh-Hans`.
+the Desktop locales (`en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, and `de`).
 
 ## 8. Configuration
 

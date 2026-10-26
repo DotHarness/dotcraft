@@ -1,16 +1,11 @@
 import { type ConfigDescriptor, type ConfigGroupDescriptor } from "@dotcraft/channel";
 
-type LocalizedConfigDescriptor = ConfigDescriptor & {
-  localizedDisplayLabel?: Partial<Record<"en" | "zh-Hans", string>>;
-  localizedDescription?: Partial<Record<"en" | "zh-Hans", string>>;
-};
-
 export const configGroups: ConfigGroupDescriptor[] = [
   { id: "configuration", displayLabel: "Configuration", localizedDisplayLabel: { en: "Configuration", "zh-Hans": "配置", ja: "構成", ko: "구성", es: "Configuración", fr: "Configuration", de: "Konfiguration" } },
   { id: "advanced", displayLabel: "Advanced", localizedDisplayLabel: { en: "Advanced", "zh-Hans": "高级", ja: "詳細設定", ko: "고급", es: "Avanzado", fr: "Avancé", de: "Erweitert" } },
 ];
 
-export const configDescriptors: LocalizedConfigDescriptor[] = [
+export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "dotcraft.wsUrl",
     displayLabel: "AppServer WebSocket URL",
@@ -18,10 +13,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "AppServer WebSocket URL",
       "zh-Hans": "AppServer WebSocket 地址",
+      ja: "AppServer WebSocket URL",
+      ko: "AppServer WebSocket URL",
+      es: "AppServer WebSocket URL",
+      fr: "AppServer WebSocket URL",
+      de: "AppServer WebSocket URL",
     },
     localizedDescription: {
       en: "DotCraft AppServer WebSocket endpoint (ws:// or wss://).",
       "zh-Hans": "DotCraft AppServer 的 WebSocket 端点（ws:// 或 wss://）。",
+      ja: "DotCraft AppServer の WebSocket エンドポイント（ws:// または wss://）。",
+      ko: "DotCraft AppServer의 WebSocket 엔드포인트(ws:// 또는 wss://)예요.",
+      es: "Punto de conexión WebSocket de DotCraft AppServer (ws:// o wss://).",
+      fr: "Point de terminaison WebSocket de DotCraft AppServer (ws:// ou wss://).",
+      de: "WebSocket-Endpunkt von DotCraft AppServer (ws:// oder wss://).",
     },
     required: true,
     dataKind: "string",
@@ -37,10 +42,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "AppServer Auth Token",
       "zh-Hans": "AppServer 认证令牌",
+      ja: "AppServer 認証トークン",
+      ko: "AppServer 인증 토큰",
+      es: "Token de autenticación de AppServer",
+      fr: "Jeton d'authentification AppServer",
+      de: "AppServer-Authentifizierungstoken",
     },
     localizedDescription: {
       en: "Optional token used by DotCraft AppServer WebSocket transport.",
       "zh-Hans": "DotCraft AppServer WebSocket 传输使用的可选认证令牌。",
+      ja: "DotCraft AppServer の WebSocket トランスポートで使用する任意のトークンです。",
+      ko: "DotCraft AppServer WebSocket 전송에 사용하는 선택 토큰이에요.",
+      es: "Token opcional que usa el transporte WebSocket de DotCraft AppServer.",
+      fr: "Jeton facultatif utilisé par le transport WebSocket de DotCraft AppServer.",
+      de: "Optionales Token für den WebSocket-Transport von DotCraft AppServer.",
     },
     required: false,
     dataKind: "secret",
@@ -55,10 +70,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Weixin API Base URL",
       "zh-Hans": "微信 API 基础地址",
+      ja: "WeChat API ベース URL",
+      ko: "WeChat API 기본 URL",
+      es: "URL base de la API de WeChat",
+      fr: "URL de base de l'API WeChat",
+      de: "WeChat-API-Basis-URL",
     },
     localizedDescription: {
       en: "Tencent iLink API base URL.",
       "zh-Hans": "腾讯 iLink API 的基础地址。",
+      ja: "Tencent iLink API のベース URL です。",
+      ko: "Tencent iLink API의 기본 URL이에요.",
+      es: "URL base de la API de Tencent iLink.",
+      fr: "URL de base de l'API Tencent iLink.",
+      de: "Basis-URL der Tencent-iLink-API.",
     },
     required: true,
     dataKind: "string",
@@ -74,10 +99,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Poll Interval (ms)",
       "zh-Hans": "轮询间隔（毫秒）",
+      ja: "ポーリング間隔（ミリ秒）",
+      ko: "폴링 간격(ms)",
+      es: "Intervalo de sondeo (ms)",
+      fr: "Intervalle d'interrogation (ms)",
+      de: "Abfrageintervall (ms)",
     },
     localizedDescription: {
       en: "Delay between polling cycles after each response.",
       "zh-Hans": "每次响应完成后，下一轮轮询开始前的等待时间。",
+      ja: "各応答の後、次のポーリングを開始するまでの待機時間です。",
+      ko: "각 응답 후 다음 폴링을 시작하기 전까지의 대기 시간이에요.",
+      es: "Espera entre ciclos de sondeo después de cada respuesta.",
+      fr: "Délai entre les cycles d'interrogation après chaque réponse.",
+      de: "Wartezeit zwischen den Abfragezyklen nach jeder Antwort.",
     },
     required: false,
     dataKind: "number",
@@ -93,10 +128,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     localizedDisplayLabel: {
       en: "Poll Timeout (ms)",
       "zh-Hans": "轮询超时（毫秒）",
+      ja: "ポーリングタイムアウト（ミリ秒）",
+      ko: "폴링 제한 시간(ms)",
+      es: "Tiempo de espera del sondeo (ms)",
+      fr: "Délai d'expiration de l'interrogation (ms)",
+      de: "Abfrage-Timeout (ms)",
     },
     localizedDescription: {
       en: "Long-poll timeout for getUpdates requests.",
       "zh-Hans": "getUpdates 长轮询请求的超时时间。",
+      ja: "getUpdates リクエストのロングポーリングのタイムアウトです。",
+      ko: "getUpdates 요청의 롱 폴링 제한 시간이에요.",
+      es: "Tiempo de espera del sondeo largo para las solicitudes getUpdates.",
+      fr: "Délai d'expiration de l'interrogation longue pour les requêtes getUpdates.",
+      de: "Timeout des Long-Polling für getUpdates-Anfragen.",
     },
     required: false,
     dataKind: "number",

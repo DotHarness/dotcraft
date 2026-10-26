@@ -3,6 +3,7 @@
  */
 
 import type { CapabilitySummary } from "./capability.js";
+import type { ConfigLocale, ConfigLocalizedText } from "./config.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
 
 export type ModuleVariant = "standard" | "specialized" | "enterprise" | "other";
@@ -25,20 +26,20 @@ export interface WorkspaceContext {
 
 export interface ModuleInterfaceDescriptor {
   shortDescription?: string;
-  localizedShortDescription?: Partial<Record<"en" | "zh-Hans", string>>;
+  localizedShortDescription?: ConfigLocalizedText;
   longDescription?: string;
-  localizedLongDescription?: Partial<Record<"en" | "zh-Hans", string>>;
+  localizedLongDescription?: ConfigLocalizedText;
   previewPrompt?: string;
-  localizedPreviewPrompt?: Partial<Record<"en" | "zh-Hans", string>>;
+  localizedPreviewPrompt?: ConfigLocalizedText;
   setupSteps?: string[];
-  localizedSetupSteps?: Partial<Record<"en" | "zh-Hans", string[]>>;
+  localizedSetupSteps?: Partial<Record<ConfigLocale, string[]>>;
 }
 
 export interface ModuleManifest {
   moduleId: string;
   channelName: string;
   displayName: string;
-  localizedDisplayName?: Partial<Record<"en" | "zh-Hans", string>>;
+  localizedDisplayName?: ConfigLocalizedText;
   interface?: ModuleInterfaceDescriptor;
   packageName: string;
   configFileName: string;
