@@ -6,7 +6,8 @@ public sealed record GitHubCommentCandidate(
     GitHubCommentKind Kind,
     long CommentId,
     string Repository,
-    int PullRequestNumber,
+    int TargetNumber,
+    ItemKind TargetKind,
     string Body,
     string AuthorLogin,
     string? AuthorType,
@@ -28,8 +29,20 @@ public sealed record GitHubCommentCandidate(
 
     public static GitHubCommentCandidate? FromConversationComment(string repository, GitHubComment comment)
     {
-        if (!comment.HtmlUrl.Contains("/pull/", StringComparison.OrdinalIgnoreCase) ||
+        if (!Uri.TryCreate(comment.HtmlUrl, UriKind.Absolute, out var url) ||
             TryReadTrailingNumber(comment.IssueUrl) is not { } number)
+        {
+            return null;
+        }
+
+        var path = url.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var targetKind = path.Length < 2 ? null : path[^2] switch
+        {
+            "pull" => (ItemKind?)ItemKind.PullRequest,
+            "issues" => ItemKind.Issue,
+            _ => null
+        };
+        if (targetKind is null || !int.TryParse(path[^1], out var linkedNumber) || linkedNumber != number)
         {
             return null;
         }
@@ -39,6 +52,7 @@ public sealed record GitHubCommentCandidate(
             comment.Id,
             repository,
             number,
+            targetKind.Value,
             comment.Body,
             comment.User?.Login ?? "",
             comment.User?.Type,
@@ -59,6 +73,7 @@ public sealed record GitHubCommentCandidate(
             comment.Id,
             repository,
             number,
+            ItemKind.PullRequest,
             comment.Body,
             comment.User?.Login ?? "",
             comment.User?.Type,

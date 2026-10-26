@@ -146,7 +146,8 @@ public sealed class OratorioGitHubCommentCommand
     public string? Path { get; set; }
     public int? Line { get; set; }
     public string Repository { get; set; } = "";
-    public int PullRequestNumber { get; set; }
+    public int TargetNumber { get; set; }
+    public ItemKind TargetKind { get; set; }
     public string ActorLogin { get; set; } = "";
     public string AuthorAssociation { get; set; } = "";
     public GitHubCommentCommandKind CommandKind { get; set; } = GitHubCommentCommandKind.Review;

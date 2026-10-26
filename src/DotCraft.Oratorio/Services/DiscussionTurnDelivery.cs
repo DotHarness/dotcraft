@@ -21,6 +21,8 @@ public sealed class DiscussionTurnDelivery(
     DiscussionThreadSessions sessions,
     DiscussionSessionRunner sessionRunner,
     InlineQuestionContext inlineQuestions,
+    IssueDiscussionContext issueContext,
+    DiscussionWorkspacePreparer workspaces,
     IAppServerRunCoordinator runCoordinator,
     IDotCraftAppServerClientFactory clientFactory,
     IDotCraftAppServerEndpointResolver endpointResolver,
@@ -50,7 +52,8 @@ public sealed class DiscussionTurnDelivery(
         {
             var question = new DiscussionQuestionInput(
                 turn.QuestionComment?.Body ?? "",
-                await inlineQuestions.DescribeAsync(turn, ct));
+                await inlineQuestions.DescribeAsync(turn, ct),
+                await issueContext.DescribeAsync(turn, ct));
             var activeRun = await db.Runs.AsNoTracking()
                 .Where(x => x.ItemId == turn.ItemId && x.RunnerKind == "appServer" && ActiveRunStatuses.Contains(x.Status))
                 .OrderByDescending(x => x.StartedAt)
@@ -77,7 +80,7 @@ public sealed class DiscussionTurnDelivery(
                 return;
             }
 
-            if (turn.OriginProvider == DiscussionTurnService.GitHubOrigin && turn.Item.Kind == ItemKind.PullRequest)
+            if (turn.OriginProvider == DiscussionTurnService.GitHubOrigin && turn.Item.Kind is ItemKind.PullRequest or ItemKind.Issue)
             {
                 await StartThreadAsync(turn, question, ct);
                 return;
@@ -205,8 +208,16 @@ public sealed class DiscussionTurnDelivery(
                 return false;
             }
 
+            string? workspaceSection = null;
+            if (DiscussionWorkspacePreparer.IsIndependentIssue(turn, thread.ContextJson) &&
+                session.ActiveTurnId is null && !await session.Client.HasBackgroundWorkAsync(session.ThreadId, ct))
+            {
+                var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
+                workspaceSection = DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace);
+            }
+
             var state = await threadState.DescribeAsync(turn.Item!, turn.Item!.HeadSha, session.ThreadId, ct);
-            var prompt = DiscussionTurnPrompt.Build(turn, question, state.Section, runActive: false, reviewTarget: null);
+            var prompt = DiscussionTurnPrompt.Build(turn, question, state.Section, runActive: false, reviewTarget: workspaceSection);
             await MarkDeliveringAsync(turn, session.ThreadId, thread.AppServerEndpoint, null, ConversationThreadContext.Reduce(thread.ContextJson), ct);
             session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
 
@@ -264,11 +275,17 @@ public sealed class DiscussionTurnDelivery(
                 return;
             }
 
-            if (turn.Item!.Kind == ItemKind.PullRequest &&
+            string? workspaceSection = null;
+            if (DiscussionWorkspacePreparer.IsIndependentIssue(turn, thread.ContextJson))
+            {
+                var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
+                workspaceSection = DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace);
+            }
+            else if (turn.Item!.Kind == ItemKind.PullRequest &&
                 ConversationThreadContext.Purpose(thread.ContextJson) == RunPurpose.ReviewAnalysis &&
                 ConversationThreadContext.UsesManagedWorktree(thread.ContextJson, out var baseWorkspacePath))
             {
-                await PrepareWorkspaceAsync(turn, baseWorkspacePath, ct);
+                await workspaces.PrepareAsync(turn, baseWorkspacePath, ct);
             }
 
             var toolSet = dynamicTools.CreateDiscussionToolSet();
@@ -285,7 +302,7 @@ public sealed class DiscussionTurnDelivery(
                 question,
                 thread.AppServerEndpoint,
                 ConversationThreadContext.Reduce(thread.ContextJson),
-                reviewTarget: null,
+                reviewTarget: workspaceSection,
                 ct);
             started = true;
         }
@@ -302,7 +319,7 @@ public sealed class DiscussionTurnDelivery(
     {
         var item = turn.Item!;
         var baseWorkspacePath = workspaceResolver.ResolveWorkspacePath(item.Repository);
-        var workspace = await PrepareWorkspaceAsync(turn, baseWorkspacePath, ct);
+        var workspace = await workspaces.PrepareAsync(turn, baseWorkspacePath, ct);
         var endpoint = await processManager.EnsureAvailableAsync(baseWorkspacePath, ct);
         var client = await clientFactory.ConnectAsync(endpoint.Url, ct, endpoint.Token);
         var started = false;
@@ -321,7 +338,9 @@ public sealed class DiscussionTurnDelivery(
             threadId = await threadStarter.StartThreadAsync(client, item.Title, baseWorkspacePath, workspace.Path, tools, guidance, ct);
             await client.SubscribeThreadAsync(threadId, ct);
             var context = ConversationThreadContext.Create(RunPurpose.ReviewAnalysis, workspace.Path, workspace.BasePath, tools.QualifiedIds);
-            var reviewTarget = await promptBuilder.BuildReviewTargetAsync(item, item.HeadSha, workspace, ct);
+            var reviewTarget = item.Kind == ItemKind.Issue
+                ? DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace)
+                : await promptBuilder.BuildReviewTargetAsync(item, item.HeadSha, workspace, ct);
             await BeginSessionAsync(
                 new DiscussionThreadSession(client, threadId),
                 turn,
@@ -339,38 +358,6 @@ public sealed class DiscussionTurnDelivery(
                 await client.DisposeAsync();
             }
         }
-    }
-
-    private async Task<ReviewTargetWorkspace> PrepareWorkspaceAsync(OratorioDiscussionTurn turn, string baseWorkspacePath, CancellationToken ct)
-    {
-        turn.BaseWorkspacePath = baseWorkspacePath;
-        if (!threadStarter.UsesManagedWorktrees)
-        {
-            await db.SaveChangesAsync(ct);
-            return new ReviewTargetWorkspace(baseWorkspacePath, baseWorkspacePath, null, null, null);
-        }
-
-        turn.WorktreeStatus = WorktreeStatus.Preparing;
-        await db.SaveChangesAsync(ct);
-        WorktreePrepareResult result;
-        try
-        {
-            result = await threadStarter.PrepareWorktreeAsync(
-                ConversationThreadStarter.CreateWorktreeRequest(turn.DiscussionTurnId, turn.Item!, turn.Item!.HeadSha, baseWorkspacePath),
-                ct);
-        }
-        catch (WorktreeException)
-        {
-            turn.WorktreeStatus = WorktreeStatus.Failed;
-            await db.SaveChangesAsync(CancellationToken.None);
-            throw;
-        }
-
-        turn.BaseWorkspacePath = result.BaseWorkspacePath;
-        turn.WorktreePath = result.WorktreePath;
-        turn.WorktreeStatus = WorktreeStatus.Ready;
-        await db.SaveChangesAsync(ct);
-        return new ReviewTargetWorkspace(result.WorktreePath, result.BaseWorkspacePath, result.WorktreeBranch, result.BaseRef, result.BaseSha);
     }
 
     private async Task BeginSessionAsync(

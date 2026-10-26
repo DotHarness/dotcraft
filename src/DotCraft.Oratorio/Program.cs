@@ -105,6 +105,8 @@ builder.Services.AddScoped<FollowUpDraftService>();
 builder.Services.AddScoped<DiscussionTurnService>();
 builder.Services.AddScoped<InlineQuestionContext>();
 builder.Services.AddScoped<DiscussionTurnDelivery>();
+builder.Services.AddScoped<DiscussionWorkspacePreparer>();
+builder.Services.AddScoped<IssueDiscussionContext>();
 builder.Services.AddSingleton<DiscussionSessionRunner>();
 builder.Services.AddSingleton<DiscussionThreadSessions>();
 builder.Services.AddScoped<ConversationThreadLocator>();

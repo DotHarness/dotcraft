@@ -53,7 +53,8 @@ public sealed class GitHubMentionReviewWebhookTests
         Assert.Equal(9001, command.CommentId);
         Assert.Equal("delivery-1", command.DeliveryId);
         Assert.Equal("example-owner/oratorio", command.Repository);
-        Assert.Equal(184, command.PullRequestNumber);
+        Assert.Equal(184, command.TargetNumber);
+        Assert.Equal(ItemKind.PullRequest, command.TargetKind);
         Assert.Equal("example-reviewer", command.ActorLogin);
         Assert.Equal("MEMBER", command.AuthorAssociation);
         Assert.Equal(GitHubCommentCommandKind.Review, command.CommandKind);
@@ -77,7 +78,7 @@ public sealed class GitHubMentionReviewWebhookTests
         var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
         Assert.Equal("review-comment:9001", command.SourceCommentId);
         Assert.Equal(GitHubCommentKind.ReviewComment, command.CommentKind);
-        Assert.Equal(184, command.PullRequestNumber);
+        Assert.Equal(184, command.TargetNumber);
         Assert.Equal(GitHubCommentCommandStatus.Queued, command.Status);
     }
 
@@ -181,9 +182,8 @@ public sealed class GitHubMentionReviewWebhookTests
 
     [Theory]
     [InlineData("@dotcraft-ai", true, "User")]
-    [InlineData("@dotcraft-ai review", false, "User")]
     [InlineData("@dotcraft-ai review", true, "Bot")]
-    public async Task NonReviewCommandBotOrNonPullRequest_FallsBackToExistingSync_WithoutPersistingCommand(
+    public async Task NonCommandOrBot_FallsBackToExistingSync_WithoutPersistingCommand(
         string body,
         bool isPullRequest,
         string senderType)

@@ -42,6 +42,8 @@ public sealed record GitHubIssue(
     DateTimeOffset? ClosedAt,
     GitHubPullMarker? PullRequest);
 
+public sealed record GitHubRepository(string DefaultBranch);
+
 public sealed record GitHubPullRequest(
     long Id,
     int Number,

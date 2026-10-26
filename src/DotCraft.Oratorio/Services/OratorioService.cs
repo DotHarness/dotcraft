@@ -207,8 +207,9 @@ public sealed class OratorioService(
         var item = await GetItemByIdAsync(itemId, tracking: true, ct);
         if (item.Source != "github" ||
             item.Kind != ItemKind.PullRequest ||
+            command.TargetKind != ItemKind.PullRequest ||
             !SourceProjectKey.AreEquivalent(item.Repository, command.Repository) ||
-            !item.ExternalId.EndsWith($"#{command.PullRequestNumber}", StringComparison.Ordinal))
+            !item.ExternalId.EndsWith($"#{command.TargetNumber}", StringComparison.Ordinal))
         {
             throw OratorioApiException.Conflict(
                 "githubCommentCommandTargetMismatch",

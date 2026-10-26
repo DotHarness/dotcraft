@@ -235,7 +235,8 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.Path).HasColumnName("path");
         entity.Property(x => x.Line).HasColumnName("line");
         entity.Property(x => x.Repository).HasColumnName("repository").IsRequired();
-        entity.Property(x => x.PullRequestNumber).HasColumnName("pull_request_number");
+        entity.Property(x => x.TargetNumber).HasColumnName("target_number");
+        entity.Property(x => x.TargetKind).HasColumnName("target_kind").HasConversion<string>().IsRequired();
         entity.Property(x => x.ActorLogin).HasColumnName("actor_login").IsRequired();
         entity.Property(x => x.AuthorAssociation).HasColumnName("author_association").IsRequired();
         entity.Property(x => x.CommandKind).HasColumnName("command_kind").HasConversion<string>().IsRequired();

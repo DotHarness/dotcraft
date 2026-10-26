@@ -25,7 +25,8 @@ public sealed record WorktreePrepareRequest(
     string? HeadSha,
     string BaseWorkspacePath,
     string? StackOntoBranch = null,
-    string? StackOntoSha = null);
+    string? StackOntoSha = null,
+    string? FetchBaseBranch = null);
 
 public sealed record WorktreePrepareResult(
     string BaseWorkspacePath,
@@ -62,9 +63,9 @@ public sealed class WorktreeManager(
         var branchName = BuildBranchName(key);
         var worktreePath = Path.Combine(worktreeRoot, key);
         var stackOntoExistingPr = !string.IsNullOrWhiteSpace(request.StackOntoBranch) || !string.IsNullOrWhiteSpace(request.StackOntoSha);
-        var baseRef = stackOntoExistingPr
+        var baseRef = request.FetchBaseBranch ?? (stackOntoExistingPr
             ? request.StackOntoBranch ?? request.StackOntoSha!
-            : ResolveBaseRef(request);
+            : ResolveBaseRef(request));
 
         // Resolved before the repository lock because minting an installation
         // token is a network round trip.
@@ -74,9 +75,11 @@ public sealed class WorktreeManager(
         await repoLock.WaitAsync(ct);
         try
         {
-            var baseSha = stackOntoExistingPr
-                ? await ResolveStackBaseShaAsync(repoRoot, request, credential, ct)
-                : await ResolveBaseShaAsync(repoRoot, request, baseRef, credential, ct);
+            var baseSha = request.FetchBaseBranch is { } fetchBranch
+                ? await FetchBranchHeadAsync(repoRoot, fetchBranch, credential, ct)
+                : stackOntoExistingPr
+                    ? await ResolveStackBaseShaAsync(repoRoot, request, credential, ct)
+                    : await ResolveBaseShaAsync(repoRoot, request, baseRef, credential, ct);
             if (string.IsNullOrWhiteSpace(baseSha))
             {
                 throw new WorktreeException("baseRefUnresolved", $"Could not resolve base ref '{baseRef}'.");
@@ -241,6 +244,20 @@ public sealed class WorktreeManager(
         }
 
         return (await GitAsync(repoRoot, ["rev-parse", baseRef], ct)).Trim();
+    }
+
+    private static async Task<string> FetchBranchHeadAsync(
+        string repoRoot, string branch, GitTransportCredential? credential, CancellationToken ct)
+    {
+        try
+        {
+            await GitAsync(repoRoot, ["fetch", "--no-tags", "origin", $"refs/heads/{branch}"], credential, ct);
+            return (await GitAsync(repoRoot, ["rev-parse", "--verify", "FETCH_HEAD^{commit}"], ct)).Trim();
+        }
+        catch (WorktreeException ex)
+        {
+            throw new WorktreeException("issueDiscussionBaseFetchFailed", $"Could not fetch default branch '{branch}': {ex.Message}");
+        }
     }
 
     private static async Task<string> ResolveReviewTargetHeadShaAsync(

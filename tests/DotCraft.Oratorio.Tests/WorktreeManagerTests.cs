@@ -7,6 +7,74 @@ namespace DotCraft.Oratorio.Tests;
 
 public sealed class WorktreeManagerTests
 {
+    [Theory]
+    [InlineData("main")]
+    [InlineData("trunk")]
+    public async Task IssueDiscussion_FetchesLatestBranchWithoutChangingStaleFeatureCheckout(string defaultBranch)
+    {
+        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: false, mismatchReviewRef: false);
+        try
+        {
+            var source = Path.Combine(repository.Root, "source");
+            await GitAsync(repository.CheckoutPath, ["checkout", "-b", "local-feature"]);
+            var originalHead = (await GitAsync(repository.CheckoutPath, ["rev-parse", "HEAD"])).Trim();
+            var readme = Path.Combine(repository.CheckoutPath, "README.md");
+            await File.WriteAllTextAsync(readme, "Uncommitted user work.\n");
+            await GitAsync(source, ["checkout", "main"]);
+            await GitAsync(source, ["checkout", "-B", defaultBranch]);
+            await File.WriteAllTextAsync(Path.Combine(source, "README.md"), "New default branch content.\n");
+            await GitAsync(source, ["commit", "-am", "Advance default branch"]);
+            await GitAsync(source, ["push", "origin", defaultBranch]);
+            var latestHead = (await GitAsync(source, ["rev-parse", "HEAD"])).Trim();
+            var credentials = new RecordingGitTransportCredentialProvider(
+                new GitTransportCredential("github.com", "x-access-token", "test-token"));
+            var manager = CreateManager(repository.Root, credentials);
+            var request = new WorktreePrepareRequest("question-1", "issue-42", "github",
+                "issue:example-owner/oratorio#42", "example-owner/oratorio", null, null,
+                repository.CheckoutPath, FetchBaseBranch: defaultBranch);
+            var first = await manager.PrepareAsync(request, CancellationToken.None);
+            Assert.Equal(latestHead, first.BaseSha);
+            Assert.Equal(defaultBranch, first.BaseRef);
+            Assert.Equal(latestHead, (await GitAsync(first.WorktreePath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal(("github", "example-owner/oratorio"), credentials.RequestedItem);
+
+            await File.WriteAllTextAsync(Path.Combine(source, "README.md"), "Another default branch update.\n");
+            await GitAsync(source, ["commit", "-am", "Advance again"]);
+            await GitAsync(source, ["push", "origin", defaultBranch]);
+            var nextHead = (await GitAsync(source, ["rev-parse", "HEAD"])).Trim();
+            var second = await manager.PrepareAsync(request with { RunId = "question-2" }, CancellationToken.None);
+            Assert.Equal(first.WorktreePath, second.WorktreePath);
+            Assert.Equal(nextHead, second.BaseSha);
+            Assert.Equal(nextHead, (await GitAsync(second.WorktreePath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal("local-feature", (await GitAsync(repository.CheckoutPath, ["branch", "--show-current"])).Trim());
+            Assert.Equal(originalHead, (await GitAsync(repository.CheckoutPath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal("Uncommitted user work.\n", await File.ReadAllTextAsync(readme));
+        }
+        finally
+        {
+            DeleteDirectory(repository.Root);
+        }
+    }
+
+    [Fact]
+    public async Task IssueDiscussion_BranchFetchFailureDoesNotUseLocalHead()
+    {
+        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: false, mismatchReviewRef: false);
+        try
+        {
+            var manager = CreateManager(repository.Root);
+            var error = await Assert.ThrowsAsync<WorktreeException>(() => manager.PrepareAsync(
+                new WorktreePrepareRequest("question-1", "issue-42", "github", "issue:example-owner/oratorio#42",
+                    "example-owner/oratorio", null, null, repository.CheckoutPath, FetchBaseBranch: "missing-branch"),
+                CancellationToken.None));
+            Assert.Equal("issueDiscussionBaseFetchFailed", error.Code);
+        }
+        finally
+        {
+            DeleteDirectory(repository.Root);
+        }
+    }
+
     [Fact]
     public async Task PrepareAsync_GitHubPullRequestFetchesExactCommitWithResolvedCredential_WhenLocalShaIsMissing()
     {

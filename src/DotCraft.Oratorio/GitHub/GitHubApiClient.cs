@@ -8,6 +8,8 @@ namespace DotCraft.Oratorio.GitHub;
 
 public interface IGitHubApiClient
 {
+    Task<GitHubIssue> GetIssueAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
+    Task<GitHubRepository> GetRepositoryAsync(GitHubRepositoryRef repository, CancellationToken ct);
     Task<IReadOnlyList<GitHubIssue>> ListIssuesAsync(GitHubRepositoryRef repository, GitHubListState state, DateTimeOffset? since, CancellationToken ct);
     Task<IReadOnlyList<GitHubPullRequest>> ListPullRequestsAsync(GitHubRepositoryRef repository, GitHubListState state, CancellationToken ct);
     Task<GitHubPullRequest> GetPullRequestAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
@@ -61,6 +63,21 @@ public sealed class GitHubApiClient(
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true
     };
+
+    public Task<GitHubIssue> GetIssueAsync(GitHubRepositoryRef repository, int number, CancellationToken ct) =>
+        GetObjectAsync<GitHubIssue>(repository, $"/repos/{repository.Owner}/{repository.Name}/issues/{number}", ct);
+
+    public Task<GitHubRepository> GetRepositoryAsync(GitHubRepositoryRef repository, CancellationToken ct) =>
+        GetObjectAsync<GitHubRepository>(repository, $"/repos/{repository.Owner}/{repository.Name}", ct);
+
+    private async Task<T> GetObjectAsync<T>(GitHubRepositoryRef repository, string path, CancellationToken ct)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get, path, repository, ct);
+        using var response = await httpClientFactory.CreateClient("GitHub").SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct)
+            ?? throw new InvalidOperationException("GitHub response was empty.");
+    }
 
     public Task<IReadOnlyList<GitHubIssue>> ListIssuesAsync(GitHubRepositoryRef repository, GitHubListState state, DateTimeOffset? since, CancellationToken ct)
     {

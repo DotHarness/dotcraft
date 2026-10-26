@@ -18,6 +18,69 @@ public sealed class GitHubMentionScanTests
     private const string Repository = "example-owner/oratorio";
 
     [Fact]
+    public async Task IssueQuestion_ScanWebhookAndEditDispatchOnce()
+    {
+        var harness = new ScanHarness();
+        await using var app = harness.App;
+        await harness.ScanAsync();
+        harness.Clock.Advance(TimeSpan.FromMinutes(1));
+        var comment = ConversationComment(9681, "@dotcraft-ai Explain this issue", harness.Clock.UtcNow, harness.Clock.UtcNow) with
+        {
+            HtmlUrl = $"https://github.example.test/{Repository}/issues/42#issuecomment-9681",
+            IssueUrl = $"https://api.github.example.test/repos/{Repository}/issues/42"
+        };
+        harness.GitHub.RepositoryIssueComments[Repository] = [comment];
+        await harness.ScanAsync();
+        await harness.ProcessAllAsync();
+        using var redelivered = await harness.PostWebhookAsync(comment);
+        Assert.Equal(HttpStatusCode.OK, redelivered.StatusCode);
+        harness.Clock.Advance(TimeSpan.FromSeconds(10));
+        harness.EditConversationComment(9681, "@dotcraft-ai Edited question");
+        await harness.ScanAsync();
+        await harness.ProcessAllAsync();
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
+        Assert.Equal(ItemKind.Issue, command.TargetKind);
+        Assert.Equal(42, command.TargetNumber);
+        Assert.Equal("Explain this issue", command.Question);
+        Assert.Equal(GitHubCommentCommandStatus.Dispatched, command.Status);
+        Assert.Single(await db.DiscussionTurns.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.Runs.AsNoTracking().ToListAsync());
+        Assert.Single(harness.GitHub.Reactions);
+    }
+
+    [Fact]
+    public async Task IssueQuestions_StayInOrderWithoutBlockingPullRequestQuestions()
+    {
+        var harness = new ScanHarness();
+        await using var app = harness.App;
+        await harness.ScanAsync();
+        harness.Clock.Advance(TimeSpan.FromMinutes(1));
+        var first = ConversationComment(9682, "@dotcraft-ai First issue question", harness.Clock.UtcNow, harness.Clock.UtcNow) with
+        {
+            HtmlUrl = $"https://github.example.test/{Repository}/issues/42#issuecomment-9682",
+            IssueUrl = $"https://api.github.example.test/repos/{Repository}/issues/42"
+        };
+        harness.Clock.Advance(TimeSpan.FromSeconds(1));
+        var second = first with { Id = 9683, CreatedAt = harness.Clock.UtcNow, UpdatedAt = harness.Clock.UtcNow };
+        harness.GitHub.RepositoryIssueComments[Repository] = [second, first];
+        harness.Clock.Advance(TimeSpan.FromSeconds(1));
+        harness.AddConversationComment(9684, "@dotcraft-ai Independent PR question");
+        await harness.ScanAsync();
+        await harness.ProcessAllAsync();
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var commands = await db.GitHubCommentCommands.AsNoTracking().ToDictionaryAsync(x => x.CommentId);
+        Assert.Equal(GitHubCommentCommandStatus.Dispatched, commands[9682].Status);
+        Assert.Equal(GitHubCommentCommandStatus.Queued, commands[9683].Status);
+        Assert.Equal(GitHubCommentCommandStatus.Dispatched, commands[9684].Status);
+        Assert.Equal(2, await db.DiscussionTurns.CountAsync());
+    }
+
+    [Fact]
     public async Task ScannedReviewCommand_WithoutWebhook_DispatchesOnce()
     {
         var harness = new ScanHarness(new Dictionary<string, string?>
@@ -413,15 +476,18 @@ public sealed class GitHubMentionScanTests
 
         public async Task<HttpResponseMessage> PostWebhookAsync(GitHubComment comment)
         {
+            var number = int.Parse(comment.IssueUrl!.Split('/')[^1]);
+            var issue = new Dictionary<string, object?> { ["number"] = number };
+            if (comment.HtmlUrl.Contains("/pull/", StringComparison.Ordinal))
+            {
+                issue["pull_request"] = new { url = $"https://api.github.com/repos/{Repository}/pulls/{number}" };
+            }
+
             var payload = JsonSerializer.Serialize(new
             {
                 action = "created",
                 repository = new { full_name = Repository },
-                issue = new
-                {
-                    number = 184,
-                    pull_request = new { url = $"https://api.github.com/repos/{Repository}/pulls/184" }
-                },
+                issue,
                 comment = new
                 {
                     id = comment.Id,

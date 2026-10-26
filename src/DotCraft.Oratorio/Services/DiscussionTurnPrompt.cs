@@ -3,13 +3,17 @@ using DotCraft.Oratorio.Data;
 
 namespace DotCraft.Oratorio.Services;
 
-internal sealed record DiscussionQuestionInput(string Text, string? InlineSection);
+internal sealed record DiscussionQuestionInput(string Text, string? InlineSection, string? ContextSection = null);
 
 internal static class DiscussionTurnPrompt
 {
     public static string Build(OratorioDiscussionTurn turn, DiscussionQuestionInput question, string? stateSection, bool runActive, string? reviewTarget)
     {
         var prompt = new StringBuilder();
+        if (question.ContextSection is not null)
+        {
+            prompt.AppendLine(question.ContextSection);
+        }
         if (reviewTarget is not null)
         {
             prompt.Append(reviewTarget);

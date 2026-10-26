@@ -28,35 +28,47 @@ Then generate a private key for the App. You'll need the App ID and that key whi
 5. Keep the sync schedule and automatic review defaults. Leave writes off until the first reviews look right.
 6. Select **Connect and sync**. Oratorio saves the configuration, runs a first sync, and confirms read access.
 
-Add more repositories by running the flow again. Private repositories need no extra setup. Oratorio fetches review targets into the mapped checkout with the App installation credentials, so that checkout doesn't need stored Git credentials of its own.
+Public and private repositories are supported. To add more repositories, repeat these steps.
 
-## Ask Oratorio from a pull request
+## Ask Oratorio from GitHub
 
-Owners, members, and collaborators of a connected repository can address Oratorio on any open pull request. Start a pull request comment, an inline review comment, or a reply in a review thread with `@dotcraft-ai`.
+Owners, members, and collaborators of a connected repository can ask questions on open issues and pull requests. Enable [writes](./settings), then start a new comment with `@dotcraft-ai`, followed by your question.
 
-To request a review of the current head, post:
+Oratorio reacts with 👀 when it accepts a comment, then replies where you asked. No webhook is needed: new comments are usually picked up within about 30 seconds. Comments posted before the repository was connected are ignored.
+
+### Discuss an issue
+
+To investigate a problem or discuss a solution, post an issue comment:
+
+```text
+@dotcraft-ai What changes would address this issue?
+```
+
+Oratorio uses the issue body, existing discussion, and repository code to answer. A question doesn't start code changes or create a pull request.
+
+### Review and discuss a pull request
+
+To review the latest code in a pull request, post a comment:
 
 ```text
 @dotcraft-ai review
 ```
 
-To point one review at a specific concern, use `/review` and add the concern on the same line, for example `@dotcraft-ai /review security regressions`.
+To specify a focus, use `/review` and add it on the same line, for example `@dotcraft-ai /review security regressions`. Review commands apply only to pull requests.
 
-Anything else after the mention is a question:
+To ask about code or review findings, write your question directly:
 
 ```text
 @dotcraft-ai Why does the refresh path keep the old token?
 ```
 
-Oratorio reacts with 👀 when it accepts a comment, then answers where you asked: in the pull request conversation, or in the review thread for an inline comment. A question never starts a review or changes the task.
+You can also ask in inline review comments and review threads. Oratorio replies in the same thread. A question doesn't start another review.
 
-To push back on one of Oratorio's findings, reply `@dotcraft-ai` in that finding's review thread. If the discussion shows the finding doesn't apply or is already handled, Oratorio dismisses it and resolves the thread, and still replies to you.
-
-No webhook is needed. Oratorio picks up new comments within about 30 seconds, and it ignores comments posted before the repository was connected. Reactions and replies appear on GitHub once writes are on.
+To challenge a finding, explain your reasoning and ask a question in its review thread. If the discussion confirms the finding doesn't apply or is already handled, Oratorio dismisses it and resolves the thread.
 
 ## Enable webhook delivery
 
-Webhooks are optional. Sync and `@dotcraft-ai` comments work without them, and a webhook only gets events to Oratorio sooner. A local-only Desktop normally can't receive GitHub cloud webhooks.
+Webhooks can speed up sync and comment responses. A local-only Desktop normally can't receive GitHub cloud webhooks, so no setup is needed.
 
 If you run a remote [DotCraft Stack](../../self-hosting/server-deployment), expose only the restricted webhook endpoint:
 

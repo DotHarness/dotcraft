@@ -18,6 +18,14 @@
 
 App connection handoff 在 Main 中检查，并要求用户明确批准。用户为 Thread 启用 Oratorio 后，Main 会把 bind handoff 作为技术激活直接交给 managed service，并将激活失败返回发起流程。Renderer 只在 connection consent 时接收 request ID 与脱敏摘要。
 
+## GitHub 讨论执行
+
+仓库评论扫描与可选的 Webhook 共用 mention 接收流程。命令审计记录保存目标类型和编号。派发前会刷新对应的 issue 或 pull request，再创建 Discussion Turn，尚未进入 Board 的 issue 也会被导入。回复复用 source write 日志和隐藏回复标记，避免重试时重复发布。
+
+独立的 issue 讨论会向 GitHub 查询默认分支，使用 App installation 凭据拉取该分支，再以取得的 SHA 准备按 item 管理的托管工作树。拉取与 SHA 解析在仓库锁内执行。空闲的独立讨论恢复时会刷新目标。正在运行的会话和实现 Thread 保持原有执行上下文。来源同步更新的是问题跟踪数据，不会切换或拉取基础 checkout。
+
+提问包含 issue 标题、正文、URL 和讨论历史，准备独立讨论时还会提供实际分支、SHA 与执行路径。提问不创建 round、run 或实现交付。[GitHub 接入指南](../../guide/oratorio/github)说明了协作者的使用方式。
+
 ## 开发与验证
 
 在仓库根目录构建 Server 并运行专用测试：
