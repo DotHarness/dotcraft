@@ -22,6 +22,8 @@ export interface ComputerApiHost {
   authorize(app: AppRef): Promise<void>
   emitImage(image: { mediaType: string; dataBase64: string }): Promise<void>
   injectingEscape<T>(run: () => Promise<T>): Promise<T>
+  checkUserInput(): void
+  rebaseUserInput(): void
 }
 
 const DELIVERY_MODE = 'foreground'
@@ -178,6 +180,7 @@ export class ComputerApi {
       include_accessibility_tree: includeText,
       max_dimension: MAX_IMAGE_DIMENSION
     })
+    this.host.rebaseUserInput()
     const state = result.structuredContent ?? {}
     const snapshotId = typeof state.snapshot_id === 'string' ? state.snapshot_id : undefined
     if (snapshotId) this.snapshots.set(hwnd, snapshotId)
@@ -204,7 +207,16 @@ export class ComputerApi {
 
   private async act(input: Args, tool: string, extra: Args, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
     const { hwnd, identity } = await this.target(input)
-    await this.call(tool, { pid: identity.windowPid, window_id: hwnd, delivery_mode: DELIVERY_MODE, ...extra }, timeoutMs)
+    await this.inject(() => this.call(tool, { pid: identity.windowPid, window_id: hwnd, delivery_mode: DELIVERY_MODE, ...extra }, timeoutMs))
+  }
+
+  private async inject(run: () => Promise<unknown>): Promise<void> {
+    this.host.checkUserInput()
+    try {
+      await run()
+    } finally {
+      this.host.rebaseUserInput()
+    }
   }
 
   private elementTarget(hwnd: number, input: Args): Args {
@@ -266,6 +278,6 @@ export class ComputerApi {
 
   private async activateWindow(input: Args): Promise<void> {
     const { hwnd, identity } = await this.target(input)
-    await this.call('bring_to_front', { pid: identity.windowPid, window_id: hwnd })
+    await this.inject(() => this.call('bring_to_front', { pid: identity.windowPid, window_id: hwnd }))
   }
 }

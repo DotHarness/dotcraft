@@ -3,6 +3,7 @@ import { ComputerApi, type AppRef } from './computerApi'
 import { isComputerApiMethod } from './methods'
 import type { CuaDriverClient, DriverToolResult } from './cuaDriverClient'
 import { DriverUnavailableError } from './cuaDriverClient'
+import { UserActivityGuard, type UserActivityProbe } from './userActivity'
 
 export interface ComputerUseSettingsHost {
   getAlwaysAllowedApps(): AppRef[]
@@ -30,6 +31,7 @@ export interface ComputerUseManagerDeps {
   resolveWindowApps: ResolveWindowApps
   settings: ComputerUseSettingsHost
   indicator: ComputerUseIndicator
+  userActivity: UserActivityProbe
   platform?: NodeJS.Platform
 }
 
@@ -41,6 +43,7 @@ interface TurnState {
   turnId: string
   approved: Set<string>
   identities: Map<number, ResolvedWindowApp>
+  userInput: UserActivityGuard
   api: ComputerApi
   context: ComputerUseCallContext
 }
@@ -133,6 +136,7 @@ export class ComputerUseManager {
       turnId,
       approved: new Set(),
       identities: new Map(),
+      userInput: new UserActivityGuard(this.deps.userActivity),
       context,
       api: undefined!
     }
@@ -141,7 +145,9 @@ export class ComputerUseManager {
       resolveWindows: (hwnds) => this.resolveWindows(turn, hwnds),
       authorize: (app) => this.authorize(turn, app),
       emitImage: (image) => turn.context.emitImage(image),
-      injectingEscape: (run) => this.deps.indicator.suspendEscape(run)
+      injectingEscape: (run) => this.deps.indicator.suspendEscape(run),
+      checkUserInput: () => turn.userInput.check(),
+      rebaseUserInput: () => turn.userInput.rebase()
     })
     this.turn = turn
     this.deps.indicator.show(() => this.stop('user'))
@@ -203,5 +209,6 @@ export class ComputerUseManager {
     if (stopped) throw stoppedError(stopped)
     if (!approved) throw new Error(`app_not_approved: the user did not allow DotCraft to use ${app.displayName}.`)
     turn.approved.add(id)
+    turn.userInput.rebase()
   }
 }

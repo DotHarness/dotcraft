@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, powerMonitor, screen } from 'electron'
 import { join } from 'node:path'
 import { DEFAULT_LOCALE, translate, type AppLocale } from '../../shared/locales'
 import type { AppSettings } from '../settings'
@@ -53,6 +53,11 @@ export const computerUseManager = new ComputerUseManager({
     }, onStop),
     hide: () => pill.hide(),
     suspendEscape: (run) => pill.suspendEscape(run)
+  },
+  userActivity: {
+    cursor: () => screen.getCursorScreenPoint(),
+    idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    now: () => Date.now()
   }
 })
 

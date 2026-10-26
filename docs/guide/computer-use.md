@@ -42,6 +42,8 @@ Apps you always allow are listed under **Settings → Computer use → Always-al
 
 While DotCraft works, a bar at the top of the screen reads **DotCraft is using your computer · Esc to cancel**, and a glow outlines the screen. Press **Esc** to stop it immediately. Locking your computer stops it too.
 
+If you move the mouse or type while DotCraft works, it holds off instead of clicking or typing over you. It waits until you stop, looks at the window again, and then carries on.
+
 After a stop, DotCraft doesn't touch the computer again in that turn. It tells you what it finished and what's left, so you can decide how to continue. If locking the computer stopped it, unlock and ask it to carry on.
 
 ## When DotCraft checks with you

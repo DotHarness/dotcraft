@@ -74,6 +74,7 @@ function setup(options: { alwaysAllowed?: AppRef[] } = {}) {
     hide: vi.fn(),
     suspendEscape: vi.fn(<T>(run: () => Promise<T>) => run())
   }
+  const user = { cursor: { x: 0, y: 0 }, idleSeconds: 0, now: 0 }
   const manager = new ComputerUseManager({
     platform: 'win32',
     createDriver: () => {
@@ -83,7 +84,8 @@ function setup(options: { alwaysAllowed?: AppRef[] } = {}) {
     },
     resolveWindowApps: async (hwnds) => [NOTEPAD, DOTCRAFT].filter((app) => hwnds.includes(app.hwnd)),
     settings: { getAlwaysAllowedApps: () => alwaysAllowed },
-    indicator
+    indicator,
+    userActivity: { cursor: () => user.cursor, idleSeconds: () => user.idleSeconds, now: () => user.now }
   })
   const context = (overrides: Partial<ComputerUseCallContext> = {}): ComputerUseCallContext => ({
     threadId: 'thread-1',
@@ -95,7 +97,7 @@ function setup(options: { alwaysAllowed?: AppRef[] } = {}) {
     emitImage: vi.fn(async () => {}),
     ...overrides
   })
-  return { manager, drivers, indicator, context }
+  return { manager, drivers, indicator, context, user }
 }
 
 describe('ComputerUseManager', () => {
@@ -205,5 +207,51 @@ describe('ComputerUseManager', () => {
       .rejects.toThrow(/^invalid_key/)
 
     expect(indicator.suspendEscape).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses input after the user moves the pointer until the window is observed again', async () => {
+    const { manager, drivers, context, user } = setup({ alwaysAllowed: [{ id: NOTEPAD.id, displayName: 'Notepad' }] })
+    const ctx = context()
+    await manager.handleHostCall('get_window_state', { window: { id: 101 }, include_text: true }, ctx)
+
+    user.cursor = { x: 640, y: 360 }
+
+    await expect(manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20 }, ctx))
+      .rejects.toThrow(/^user_input_detected/)
+    await manager.handleHostCall('set_value', { window: { id: 101 }, element_index: 0, value: 'hi' }, ctx)
+    expect(drivers[0].calls.some((call) => call.tool === 'click')).toBe(false)
+
+    await manager.handleHostCall('get_window_state', { window: { id: 101 } }, ctx)
+    await manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20 }, ctx)
+    expect(drivers[0].calls.at(-1)?.tool).toBe('click')
+  })
+
+  it('detects keyboard input from system idle time without mistaking its own input for the user', async () => {
+    const { manager, context, user } = setup({ alwaysAllowed: [{ id: NOTEPAD.id, displayName: 'Notepad' }] })
+    const ctx = context()
+    await manager.handleHostCall('type_text', { window: { id: 101 }, text: 'hi' }, ctx)
+
+    user.now = 5000
+    user.idleSeconds = 5
+    await manager.handleHostCall('press_key', { window: { id: 101 }, key: 'Return' }, ctx)
+
+    user.now = 10_000
+    user.idleSeconds = 1
+    await expect(manager.handleHostCall('press_key', { window: { id: 101 }, key: 'Return' }, ctx))
+      .rejects.toThrow(/^user_input_detected/)
+  })
+
+  it('does not treat answering an approval as input to yield to', async () => {
+    const { manager, drivers, context, user } = setup()
+    const ctx = context({
+      requestApproval: vi.fn(async () => {
+        user.cursor = { x: 900, y: 500 }
+        return true
+      })
+    })
+
+    await manager.handleHostCall('click', { window: { id: 101 }, x: 10, y: 20 }, ctx)
+
+    expect(drivers[0].calls.at(-1)?.tool).toBe('click')
   })
 })

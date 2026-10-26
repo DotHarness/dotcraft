@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.5 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-26 |
 | **Parent Specs** | [Desktop Node REPL](node-repl.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
@@ -31,8 +31,9 @@ This spec does not define:
 1. **One execution path**: the model reaches desktop applications only through `dotcraft.computer`, whose driver is owned and supervised by Desktop main.
 2. **Application consent**: every observation or input targets one resolved application. Unknown applications require an explicit user decision; blocked applications are never operated.
 3. **Visible and stoppable**: while computer use is active the user sees a persistent indicator and can stop it with Escape.
-4. **Bounded side effects**: one native request runs at a time on the machine, each request has a deadline, and turn end, cancellation and screen lock stop further input.
-5. **Stable model surface**: the model-visible tool remains `NodeReplJs`; computer use adds a plugin skill, not a new tool schema.
+4. **User priority**: input the user makes takes precedence; the runtime does not inject input over it.
+5. **Bounded side effects**: one native request runs at a time on the machine, each request has a deadline, and turn end, cancellation and screen lock stop further input.
+6. **Stable model surface**: the model-visible tool remains `NodeReplJs`; computer use adds a plugin skill, not a new tool schema.
 
 ## 3. Architecture
 
@@ -93,6 +94,7 @@ Every method that takes `window` or `app` is authorized first (Section 6). `list
 | `app_not_approved` | The user declined, the turn ended before an answer, or the thread policy denied access. |
 | `app_unidentified` | The runtime could not resolve the window's application. |
 | `invalid_key` | A key or modifier name is not supported, or the chord uses a Windows-logo key. |
+| `user_input_detected` | The user used the mouse or keyboard after the latest observation (Section 8.4). No input was sent; observe the window again before continuing. |
 | `driver_unavailable` | The driver could not start or stopped unexpectedly. |
 | `timeout` | The request exceeded its deadline; its effect is unknown and must be observed before retrying. |
 
@@ -158,10 +160,11 @@ For each gated call, Desktop main:
 - `launch_app` and `list_apps` have a 15 second deadline and other requests have 10 seconds. A request that exceeds its deadline fails with `timeout`; the driver is terminated and restarted on the next call.
 - Cancelling or timing out the outer evaluation abandons the in-flight request and discards its late result.
 
-### 8.4 Stop affordance and lock
+### 8.4 Stop affordance, user priority and lock
 
 - From the first computer use call until the turn ends, Desktop shows a non-focusable status indicator on the primary display that names the stop key, plus an edge glow. Both ignore the pointer and are excluded from screen capture; the driver's own cursor is the only cursor overlay.
 - While the indicator is visible, Escape stops computer use for the turn. Escape that the runtime itself injects does not trigger the stop.
+- Input methods yield to the user. Desktop records a baseline of the pointer position and time when the turn starts and after each observation, input method and granted approval. Before `click`, `type_text`, `press_key`, `scroll`, `drag` or `activate_window` reaches the driver, Desktop fails the call with `user_input_detected` if the pointer has moved or the system recorded input since the baseline. Pointer movement is detected exactly. Other input is detected from the system idle time, which has one-second resolution, so keyboard input within about a second of the baseline can go unnoticed. `set_value`, `launch_app` and observations do not inject input and are not checked.
 - Locking the workstation stops computer use for the turn.
 - Stopping terminates the driver, hides the indicator, and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
 

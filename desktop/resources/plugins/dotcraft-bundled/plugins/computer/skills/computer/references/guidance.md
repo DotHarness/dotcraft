@@ -26,6 +26,7 @@
 - `stale_element_token` or `snapshot_id_required`: observe again and redo the step with the new indexes.
 - `window_target_not_found` or an invalid handle: list windows again.
 - `computer_use_busy`: another request is using the computer. Wait briefly and try once more.
+- `user_input_detected`: the user is using the mouse or keyboard, and nothing was sent. Wait a few seconds, observe the window again, and decide the next step from what it shows now. If it keeps happening, stop and tell the user you are waiting for them to finish.
 - `driver_unavailable`: retry once. If it fails again, tell the user that computer use is not working right now.
 - `app_blocked`: the app is not available to computer use. Do not try to reach it another way.
 - If a launcher, splash screen, permission prompt or sign-in dialog blocks the task, stop and ask the user to handle it.
