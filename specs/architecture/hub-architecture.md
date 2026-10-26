@@ -234,6 +234,8 @@ Ensure flow:
 7. Persist registry metadata.
 8. Return the AppServer WebSocket endpoint.
 
+The stdio `initialize` in step 6 has no deadline, because it covers the AppServer's whole cold start. Hub keeps waiting while the process runs, logs a warning once startup passes 30 seconds, and fails the start only when the process exits, closes stdio, answers with an error, or the ensure is cancelled.
+
 Health checks apply only to processes supervised by the current Hub: process liveness, workspace lock ownership, and a short WebSocket `initialize` probe. On failure Hub marks the entry `unhealthy`, records diagnostics, and emits `appserver.unhealthy`. Hub never restarts automatically; restart is explicit or triggered by a later `ensure`.
 
 Closing a local client does not stop a healthy managed AppServer or cancel started turns. Client connections and subscriptions are connection-scoped; turn execution is AppServer-scoped and continues until completion, failure, cancellation, Hub shutdown, or explicit stop/restart.
