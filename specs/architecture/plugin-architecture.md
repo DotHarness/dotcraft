@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.5 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
 | **Date** | 2026-10-25 |
 
@@ -330,8 +330,9 @@ Listing modules never executes module business logic. Bundled and user-installed
 coexist; user-installed content wins for the same `moduleId`.
 
 The optional manifest `interface` object is display-only and does not affect startup. Recognized
-fields are `shortDescription`, `longDescription`, and `previewPrompt`, each with a `localized*`
-variant keyed by `en` and `zh-Hans`.
+fields are `shortDescription`, `longDescription`, `previewPrompt`, and `setupSteps` (an ordered list
+of plain-text steps, where backticks mark literal values and `[label](https://...)` marks a link), each with a `localized*` variant keyed by
+`en` and `zh-Hans`.
 
 ## 8. Configuration
 

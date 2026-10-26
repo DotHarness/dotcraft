@@ -68,6 +68,18 @@ function asLocalizedStringMap(value: unknown): LocalizedTextMap | null {
   return localized as LocalizedTextMap
 }
 
+function asLocalizedStringArrayMap(value: unknown): Partial<Record<string, string[]>> | null {
+  const record = asPlainObject(value)
+  if (record === null) return null
+  const localized: Partial<Record<string, string[]>> = {}
+  for (const [key, item] of Object.entries(record)) {
+    const steps = asStringArray(item)
+    if (!SUPPORTED_LOCALE_SET.has(key) || steps === null) return null
+    localized[key] = steps
+  }
+  return localized
+}
+
 function asOptionalString(value: unknown): string | undefined | null {
   if (value === undefined) return undefined
   return typeof value === 'string' ? value : null
@@ -91,13 +103,18 @@ function parseModuleInterface(value: unknown): ModuleInterfaceWire | undefined |
     item.localizedLongDescription == null ? undefined : asLocalizedStringMap(item.localizedLongDescription)
   const localizedPreviewPrompt =
     item.localizedPreviewPrompt == null ? undefined : asLocalizedStringMap(item.localizedPreviewPrompt)
+  const setupSteps = item.setupSteps === undefined ? undefined : asStringArray(item.setupSteps)
+  const localizedSetupSteps =
+    item.localizedSetupSteps == null ? undefined : asLocalizedStringArrayMap(item.localizedSetupSteps)
   if (
     shortDescription === null ||
     longDescription === null ||
     previewPrompt === null ||
     localizedShortDescription === null ||
     localizedLongDescription === null ||
-    localizedPreviewPrompt === null
+    localizedPreviewPrompt === null ||
+    setupSteps === null ||
+    localizedSetupSteps === null
   ) {
     return null
   }
@@ -108,6 +125,8 @@ function parseModuleInterface(value: unknown): ModuleInterfaceWire | undefined |
   if (localizedLongDescription !== undefined) parsed.localizedLongDescription = localizedLongDescription
   if (previewPrompt !== undefined) parsed.previewPrompt = previewPrompt
   if (localizedPreviewPrompt !== undefined) parsed.localizedPreviewPrompt = localizedPreviewPrompt
+  if (setupSteps !== undefined) parsed.setupSteps = setupSteps
+  if (localizedSetupSteps !== undefined) parsed.localizedSetupSteps = localizedSetupSteps
   return parsed
 }
 

@@ -875,7 +875,7 @@ This section defines the user-visible workflow for TypeScript channel modules co
 - Desktop may list discoverable channel modules from static metadata without executing module logic.
 - Modules load from bundled and user-installed locations; a user-installed module overrides a bundled one with the same `moduleId`. Identity is canonicalized by `moduleId`, not folder name.
 - Invalid metadata skips that entry without breaking the list.
-- Browse and detail surfaces may use optional `interface` metadata (`shortDescription`, `longDescription`, `previewPrompt`), localized with the same fallback rules as display names; technical details (package, source, transport, and readable capabilities such as channel tools or interactive setup) belong in the detail information area; the variant appears only where a channel has several ([6.8.6](#686-variants)).
+- Browse and detail surfaces may use optional `interface` metadata (`shortDescription`, `longDescription`, `previewPrompt`, `setupSteps`), localized with the same fallback rules as display names; technical details (package, source, transport, and readable capabilities such as channel tools or interactive setup) belong in the detail information area; the variant appears only where a channel has several ([6.8.6](#686-variants)). The detail page shows `setupSteps` as a numbered list of what to do outside DotCraft, such as on the platform or in its gateway, to finish connecting.
 
 #### 6.8.2 Configuration Workflow
 
@@ -899,6 +899,7 @@ This section defines the user-visible workflow for TypeScript channel modules co
 #### 6.8.5 Interactive Setup and QR-like Flows
 
 - A module declaring possible interactive setup gets a guided workflow, which may read module-produced temporary artifacts from `.craft/tmp/<moduleId>/...`.
+- While the channel's detail page is open, a sign-in artifact such as a QR code opens a modal dialog over the page, whichever mode the page is in. The dialog follows artifact refreshes, shows a success state once the module connects, and offers a retry when the module stops unexpectedly. Dismissing it before sign-in completes stops the module.
 - Setup handles artifact refresh, expiration, and repeated attempts without restart. A module that re-enters a setup-required condition surfaces it again with a recovery path.
 
 #### 6.8.6 Variants

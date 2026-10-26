@@ -39,8 +39,6 @@ interface ModuleConfigFormProps {
   localControlsAvailable?: boolean
   onStart: () => void
   onCancel?: () => void
-  qrDataUrl: string | null
-  qrPhase: 'idle' | 'waitingForQr' | 'qrAvailable' | 'loginSuccess' | 'error'
   moduleLogLines: string[]
   logsLoading: boolean
   onLoadLogs: () => void
@@ -160,8 +158,6 @@ export function ModuleConfigForm({
   localControlsAvailable = true,
   onStart,
   onCancel,
-  qrDataUrl,
-  qrPhase,
   moduleLogLines,
   logsLoading,
   onLoadLogs,
@@ -211,7 +207,6 @@ export function ModuleConfigForm({
     return [...explicit, ...legacy]
   }, [descriptors, module.configGroups, t])
   const pill = resolveModulePill(moduleStatus, persistedEnabled, t)
-  const showQrPanel = module.requiresInteractiveSetup && qrPhase !== 'idle'
   const hasVariants = variantModules.length > 1
   const moduleDisplayName = resolveModuleDisplayName(module, locale)
 
@@ -625,105 +620,6 @@ export function ModuleConfigForm({
           >
             {moduleLogLines.join('\n')}
           </pre>
-        </FieldCard>
-      )}
-
-      {showQrPanel && (
-        <FieldCard>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              alignItems: 'center',
-              textAlign: 'center'
-            }}
-          >
-            {qrPhase === 'waitingForQr' && (
-              <>
-                <div
-                  style={{
-                    width: 200,
-                    height: 200,
-                    borderRadius: 12,
-                    border: '1px dashed var(--border-default)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-secondary)',
-                    fontSize: 14
-                  }}
-                >
-                  {t('channels.modules.qr.refreshing')}
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  {t('channels.modules.qr.waitingForQr')}
-                </div>
-              </>
-            )}
-
-            {qrPhase === 'qrAvailable' && (
-              <>
-                <div
-                  style={{
-                    width: 220,
-                    height: 220,
-                    borderRadius: 12,
-                    border: '1px solid var(--border-default)',
-                    backgroundColor: 'var(--bg-secondary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt="Weixin QR"
-                      width={200}
-                      height={200}
-                      style={{ width: 200, height: 200, display: 'block' }}
-                    />
-                  ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-dimmed)' }}>
-                      {t('channels.modules.qr.waitingForQr')}
-                    </div>
-                  )}
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {t('channels.modules.qr.scanPrompt')}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {t('channels.modules.qr.waitingForScan')}
-                </div>
-              </>
-            )}
-
-            {qrPhase === 'loginSuccess' && (
-              <>
-                <div style={{ fontSize: 36, lineHeight: 1, color: 'var(--success, #34c759)' }}>✓</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--success, #34c759)' }}>
-                  {t('channels.modules.qr.loginSuccess')}
-                </div>
-              </>
-            )}
-
-            {qrPhase === 'error' && (
-              <>
-                <div style={{ fontSize: 28, lineHeight: 1, color: 'var(--error, #ff453a)' }}>!</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--error, #ff453a)' }}>
-                  {t('channels.modules.qr.error')}
-                </div>
-                <Button
-                  variant="primary"
-                  onClick={onStart}
-                >
-                  {t('channels.modules.qr.retry')}
-                </Button>
-              </>
-            )}
-          </div>
         </FieldCard>
       )}
 

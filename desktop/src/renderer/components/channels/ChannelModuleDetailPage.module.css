@@ -130,6 +130,68 @@
   line-height: var(--type-body-line-height);
 }
 
+.setup {
+  margin-top: 28px;
+}
+
+.setup h2 {
+  margin: 0 0 12px;
+  font-size: var(--type-heading-size);
+  font-weight: 700;
+  line-height: var(--type-heading-line-height);
+}
+
+.setup ol {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+}
+
+.setup li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+  overflow-wrap: anywhere;
+}
+
+.stepNumber {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.setup a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.setup a:hover {
+  text-decoration: underline;
+}
+
+.setup code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+}
+
 .information {
   margin-top: 28px;
 }

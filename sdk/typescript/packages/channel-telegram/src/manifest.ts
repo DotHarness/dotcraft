@@ -6,21 +6,38 @@ export const manifest: ModuleManifest = {
   channelName: "telegram",
   displayName: "Telegram",
   interface: {
-    shortDescription: "Connect DotCraft to Telegram bots and chats.",
+    shortDescription: "Send and receive messages through a BotFather bot.",
     localizedShortDescription: {
-      en: "Connect DotCraft to Telegram bots and chats.",
-      "zh-Hans": "让 DotCraft 接入 Telegram 机器人和会话。",
+      en: "Send and receive messages through a BotFather bot.",
+      "zh-Hans": "通过 BotFather 机器人收发消息。",
     },
     longDescription:
-      "Use the Telegram channel to route chat messages into DotCraft, send structured replies, and keep lightweight bot workflows close to your project context.",
+      "Message the bot in Telegram and DotCraft replies in the same chat. Replies can include formatted text, images, files, audio, and video.",
     localizedLongDescription: {
-      en: "Use the Telegram channel to route chat messages into DotCraft, send structured replies, and keep lightweight bot workflows close to your project context.",
-      "zh-Hans": "通过 Telegram 渠道把会话消息接入 DotCraft、发送结构化回复，并让轻量机器人工作流贴近项目上下文。",
+      en: "Message the bot in Telegram and DotCraft replies in the same chat. Replies can include formatted text, images, files, audio, and video.",
+      "zh-Hans": "在 Telegram 中给机器人发消息，DotCraft 会在同一会话中回复。回复可以包含格式文本、图片、文件、音频和视频。",
     },
     previewPrompt: "Turn this Telegram update into a workspace action item.",
     localizedPreviewPrompt: {
       en: "Turn this Telegram update into a workspace action item.",
       "zh-Hans": "把这条 Telegram 更新整理成工作区行动项。",
+    },
+    setupSteps: [
+      "In Telegram, send `/newbot` to [@BotFather](https://t.me/BotFather) and follow the prompts to get a bot token.",
+      "In Manage, enter the bot token, then select Connect.",
+      "Send the bot a message. To use it in a group, add the bot to the group.",
+    ],
+    localizedSetupSteps: {
+      en: [
+        "In Telegram, send `/newbot` to [@BotFather](https://t.me/BotFather) and follow the prompts to get a bot token.",
+        "In Manage, enter the bot token, then select Connect.",
+        "Send the bot a message. To use it in a group, add the bot to the group.",
+      ],
+      "zh-Hans": [
+        "在 Telegram 中向 [@BotFather](https://t.me/BotFather) 发送 `/newbot`，按提示创建机器人并获取 token。",
+        "在「管理」中填写 bot token，然后点击「连接」。",
+        "向机器人发送消息。如需在群聊中使用，请将机器人加入群聊。",
+      ],
     },
   },
   packageName: "@dotcraft/channel-telegram",

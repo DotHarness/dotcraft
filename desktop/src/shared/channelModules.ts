@@ -1,4 +1,4 @@
-import type { LocalizedTextMap } from './locales'
+import type { AppLocale, LocalizedTextMap } from './locales'
 
 export interface ConfigDescriptorWire {
   key: string
@@ -53,6 +53,8 @@ export interface ModuleInterfaceWire {
   localizedLongDescription?: LocalizedTextMap
   previewPrompt?: string
   localizedPreviewPrompt?: LocalizedTextMap
+  setupSteps?: string[]
+  localizedSetupSteps?: Partial<Record<AppLocale, string[]>>
 }
 
 export interface DiscoveredModule {

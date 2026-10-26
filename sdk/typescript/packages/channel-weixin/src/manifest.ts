@@ -10,21 +10,38 @@ export const manifest: ModuleManifest = {
     "zh-Hans": "微信",
   },
   interface: {
-    shortDescription: "Connect DotCraft to Weixin conversations with guided setup.",
+    shortDescription: "Send and receive messages through WeChat ClawBot.",
     localizedShortDescription: {
-      en: "Connect DotCraft to Weixin conversations with guided setup.",
-      "zh-Hans": "通过引导式登录让 DotCraft 接入微信会话。",
+      en: "Send and receive messages through WeChat ClawBot.",
+      "zh-Hans": "通过微信 ClawBot 收发消息。",
     },
     longDescription:
-      "Use the Weixin channel to bring personal chat workflows into DotCraft, complete interactive setup when required, and keep conversations connected to workspace actions.",
+      "Message DotCraft in the WeChat ClawBot chat and it replies in the same chat. Replies are plain text and can include images and files.",
     localizedLongDescription: {
-      en: "Use the Weixin channel to bring personal chat workflows into DotCraft, complete interactive setup when required, and keep conversations connected to workspace actions.",
-      "zh-Hans": "通过微信渠道把个人会话工作流接入 DotCraft，在需要时完成交互式登录，并让对话与工作区行动保持连接。",
+      en: "Message DotCraft in the WeChat ClawBot chat and it replies in the same chat. Replies are plain text and can include images and files.",
+      "zh-Hans": "在微信的「微信 ClawBot」对话中给 DotCraft 发消息，它会在同一对话中回复。回复为纯文本，也可以包含图片和文件。",
     },
     previewPrompt: "Capture this Weixin request and draft a reply.",
     localizedPreviewPrompt: {
       en: "Capture this Weixin request and draft a reply.",
       "zh-Hans": "记录这条微信请求，并准备一段回复。",
+    },
+    setupSteps: [
+      "In WeChat on your phone, turn on WeChat ClawBot under Me › Settings › Plugins.",
+      "Select Connect and scan the QR code with WeChat.",
+      "Send a message in the WeChat ClawBot chat.",
+    ],
+    localizedSetupSteps: {
+      en: [
+        "In WeChat on your phone, turn on WeChat ClawBot under Me › Settings › Plugins.",
+        "Select Connect and scan the QR code with WeChat.",
+        "Send a message in the WeChat ClawBot chat.",
+      ],
+      "zh-Hans": [
+        "在手机微信的「我 › 设置 › 插件」中启用「微信 ClawBot」。",
+        "点击「连接」，使用微信扫描二维码。",
+        "在「微信 ClawBot」对话中发送消息。",
+      ],
     },
   },
   packageName: "@dotcraft/channel-weixin",

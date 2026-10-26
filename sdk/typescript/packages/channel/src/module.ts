@@ -30,6 +30,8 @@ export interface ModuleInterfaceDescriptor {
   localizedLongDescription?: Partial<Record<"en" | "zh-Hans", string>>;
   previewPrompt?: string;
   localizedPreviewPrompt?: Partial<Record<"en" | "zh-Hans", string>>;
+  setupSteps?: string[];
+  localizedSetupSteps?: Partial<Record<"en" | "zh-Hans", string[]>>;
 }
 
 export interface ModuleManifest {

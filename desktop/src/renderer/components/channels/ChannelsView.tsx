@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Plus } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
@@ -38,9 +38,10 @@ import type {
   ModuleConfigStatusMap,
   ModulesRescanSummaryPayload,
   ModuleStatusEntry,
-  ModuleStatusMap,
-  QrUpdatePayload
+  ModuleStatusMap
 } from '../../../preload/api.d'
+import { ChannelLoginDialog } from './ChannelLoginDialog'
+import { useChannelLogin } from './useChannelLogin'
 
 interface ChannelStatusWire {
   name: string
@@ -60,15 +61,6 @@ interface ExternalChannelViewModel {
   draft: ExternalChannelConfigWire
   configured: boolean
 }
-
-interface ModuleQrState {
-  active: boolean
-  qrDataUrl: string | null
-  timestamp: number
-  successUntil?: number
-}
-
-type ModuleQrPhase = 'idle' | 'waitingForQr' | 'qrAvailable' | 'loginSuccess' | 'error'
 
 interface ChannelModuleGroup {
   channelName: string
@@ -355,6 +347,10 @@ function moduleLongDescription(module: DiscoveredModule, locale: AppLocale): str
   )
 }
 
+function moduleSetupSteps(module: DiscoveredModule, locale: AppLocale): string[] {
+  return module.interface?.localizedSetupSteps?.[locale] ?? module.interface?.setupSteps ?? []
+}
+
 function modulePreviewPrompt(module: DiscoveredModule, locale: AppLocale): string {
   return (
     resolveLocalizedText(
@@ -389,7 +385,6 @@ export function ChannelsView(): JSX.Element {
   const [moduleConfigStatus, setModuleConfigStatus] = useState<ModuleConfigStatusMap>({})
   const [savingModule, setSavingModule] = useState(false)
   const [moduleStatusMap, setModuleStatusMap] = useState<ModuleStatusMap>({})
-  const [moduleQrState, setModuleQrState] = useState<Record<string, ModuleQrState>>({})
   const [togglingModuleId, setTogglingModuleId] = useState<string | null>(null)
   const [variantSwitchingChannel, setVariantSwitchingChannel] = useState<string | null>(null)
   const [activeModuleVariants, setActiveModuleVariants] = useState<Record<string, string>>({})
@@ -402,7 +397,6 @@ export function ChannelsView(): JSX.Element {
     key: SelectedChannelKey
     mode: ChannelModuleDetailMode
   }>({ key: selectedChannelKey, mode: 'preview' })
-  const moduleConnectedSnapshotRef = useRef<Record<string, boolean>>({})
   const selectedModuleId = selectedChannelKey?.startsWith('module:')
     ? selectedChannelKey.slice('module:'.length)
     : null
@@ -670,125 +664,18 @@ export function ChannelsView(): JSX.Element {
     window.api.modules
       .running()
       .then((statusMap) => {
-        if (!disposed) {
-          const connectedSnapshot: Record<string, boolean> = {}
-          for (const [moduleId, entry] of Object.entries(statusMap)) {
-            connectedSnapshot[moduleId] = entry?.connected === true
-          }
-          moduleConnectedSnapshotRef.current = connectedSnapshot
-          setModuleStatusMap(statusMap)
-        }
+        if (!disposed) setModuleStatusMap(statusMap)
       })
       .catch(() => {})
 
     const unsubscribe = window.api.modules.onStatusChanged((statusMap) => {
-      if (disposed) return
-      const previous = moduleConnectedSnapshotRef.current
-      const nextSnapshot: Record<string, boolean> = {}
-      const now = Date.now()
-      setModuleQrState((prev) => {
-        let changed = false
-        const next = { ...prev }
-        for (const [moduleId, entry] of Object.entries(statusMap)) {
-          const isConnected = entry?.connected === true
-          nextSnapshot[moduleId] = isConnected
-          const wasConnected = previous[moduleId] === true
-          if (!wasConnected && isConnected) {
-            const current = next[moduleId]
-            next[moduleId] = {
-              active: current?.active ?? false,
-              qrDataUrl: current?.qrDataUrl ?? null,
-              timestamp: current?.timestamp ?? now,
-              successUntil: now + 2_000
-            }
-            changed = true
-          } else if (wasConnected && !isConnected && next[moduleId]?.successUntil !== undefined) {
-            next[moduleId] = {
-              ...next[moduleId],
-              successUntil: undefined
-            }
-            changed = true
-          }
-        }
-        return changed ? next : prev
-      })
-      moduleConnectedSnapshotRef.current = nextSnapshot
-      setModuleStatusMap(statusMap)
-    })
-    const unsubscribeQr = window.api.modules.onQrUpdate((payload: QrUpdatePayload) => {
-      if (disposed) return
-      setModuleQrState((prev) => ({
-        ...prev,
-        [payload.moduleId]: {
-          ...(prev[payload.moduleId] ?? {
-            active: true,
-            qrDataUrl: null,
-            timestamp: payload.timestamp
-          }),
-          active: true,
-          qrDataUrl: payload.qrDataUrl,
-          timestamp: payload.timestamp
-        }
-      }))
+      if (!disposed) setModuleStatusMap(statusMap)
     })
     return () => {
       disposed = true
       unsubscribe()
-      unsubscribeQr()
     }
   }, [])
-
-  useEffect(() => {
-    if (!selectedModuleId) return
-    let cancelled = false
-    window.api.modules
-      .qrStatus(selectedModuleId)
-      .then((state) => {
-        if (cancelled) return
-        setModuleQrState((prev) => ({
-          ...prev,
-          [selectedModuleId]: {
-            ...(prev[selectedModuleId] ?? {
-              timestamp: Date.now(),
-              successUntil: undefined
-            }),
-            active: state.active,
-            qrDataUrl: state.qrDataUrl,
-            timestamp: prev[selectedModuleId]?.timestamp ?? Date.now()
-          }
-        }))
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [selectedModuleId])
-
-  useEffect(() => {
-    const now = Date.now()
-    const pending = Object.values(moduleQrState)
-      .map((state) => state.successUntil ?? 0)
-      .filter((value) => value > now)
-    if (pending.length === 0) return
-    const delay = Math.max(0, Math.min(...pending) - now + 30)
-    const timer = setTimeout(() => {
-      setModuleQrState((prev) => {
-        const current = Date.now()
-        let changed = false
-        const next: Record<string, ModuleQrState> = {}
-        for (const [moduleId, state] of Object.entries(prev)) {
-          if (state.successUntil !== undefined && state.successUntil <= current) {
-            next[moduleId] = { ...state, successUntil: undefined }
-            changed = true
-          } else {
-            next[moduleId] = state
-          }
-        }
-        return changed ? next : prev
-      })
-    }, delay)
-    return () => clearTimeout(timer)
-  }, [moduleQrState])
 
   async function handleSaveModule(selectedModule: DiscoveredModule): Promise<boolean> {
     setSavingModule(true)
@@ -815,7 +702,7 @@ export function ChannelsView(): JSX.Element {
     }
   }
 
-  async function handleStartModule(moduleId: string): Promise<void> {
+  async function handleStartModule(moduleId: string): Promise<boolean> {
     let currentConnectionMode = connectionMode
     try {
       const latestSettings = await window.api.settings.get()
@@ -826,7 +713,7 @@ export function ChannelsView(): JSX.Element {
     }
     if (!isModuleWsAvailable(currentConnectionMode)) {
       addToast(t('channels.modules.wsRequired'), 'error')
-      return
+      return false
     }
     setTogglingModuleId(moduleId)
     try {
@@ -840,19 +727,22 @@ export function ChannelsView(): JSX.Element {
             }),
             'error'
           )
-          return
+          return false
         }
         addToast(
           t('channels.saveFailed', { error: result.error ?? 'Failed to start module process' }),
           'error'
         )
+        return false
       }
       await refreshModuleConfigStatus()
+      return true
     } catch (err) {
       addToast(
         t('channels.saveFailed', { error: err instanceof Error ? err.message : String(err) }),
         'error'
       )
+      return false
     } finally {
       setTogglingModuleId((prev) => (prev === moduleId ? null : prev))
     }
@@ -991,7 +881,7 @@ export function ChannelsView(): JSX.Element {
     : null
   const selectedModuleVariants = selectedModuleGroup?.modules ?? []
   const selectedModuleStatus = selectedModule ? effectiveModuleStatusMap[selectedModule.moduleId] : undefined
-  const selectedModuleQrState = selectedModuleId ? moduleQrState[selectedModuleId] : undefined
+  const channelLogin = useChannelLogin(selectedModule, selectedModuleStatus)
   const selectedModuleLogoPath =
     selectedModule && selectedModule.channelName
       ? moduleLogoPath(selectedModule.channelName)
@@ -1017,23 +907,6 @@ export function ChannelsView(): JSX.Element {
       setExternalDraft(createEmptyExternalChannel())
     }
   }, [externalChannelsLoaded, selectedExternalName, externalChannelCards])
-
-  const selectedModuleQrPhase: ModuleQrPhase = useMemo(() => {
-    if (!selectedModule || !selectedModule.requiresInteractiveSetup) return 'idle'
-    if (selectedModuleStatus?.processState === 'crashed') return 'error'
-    if (
-      selectedModuleQrState?.successUntil !== undefined &&
-      selectedModuleQrState.successUntil > Date.now()
-    ) {
-      return 'loginSuccess'
-    }
-    if (selectedModuleStatus?.connected === true) return 'idle'
-    const processRunning =
-      selectedModuleStatus?.processState === 'starting' || selectedModuleStatus?.processState === 'running'
-    if (!processRunning) return 'idle'
-    if (selectedModuleQrState?.qrDataUrl) return 'qrAvailable'
-    return 'waitingForQr'
-  }, [selectedModule, selectedModuleStatus, selectedModuleQrState])
 
   async function handleSetActiveVariant(
     channelName: string,
@@ -1174,6 +1047,16 @@ export function ChannelsView(): JSX.Element {
 
   if (selectedModule) {
     const title = resolveModuleDisplayName(selectedModule, locale)
+    const startSelectedModule = (): void => {
+      channelLogin.show()
+      void handleStartModule(selectedModule.moduleId).then((started) => {
+        if (!started) channelLogin.hide()
+      })
+    }
+    const cancelLogin = (): void => {
+      channelLogin.hide()
+      void handleStopModule(selectedModule.moduleId)
+    }
     const persistedEnabled =
       persistedModuleEnabledByChannelName.get(selectedModule.channelName.toLowerCase()) === true ||
       (remoteConnection &&
@@ -1197,64 +1080,74 @@ export function ChannelsView(): JSX.Element {
     ]
 
     return (
-      <ChannelModuleDetailPage
-        key={selectedModule.moduleId}
-        title={title}
-        subtitle={moduleShortDescription(selectedModule, locale)}
-        logoPath={selectedModuleLogoPath}
-        previewPrompt={modulePreviewPrompt(selectedModule, locale)}
-        description={moduleLongDescription(selectedModule, locale)}
-        infoItems={infoItems}
-        active={moduleActive}
-        busy={togglingModuleId === selectedModule.moduleId}
-        controlsAvailable={!remoteConnection}
-        mode={detailMode}
-        onModeChange={(mode) => setDetailMode(`module:${selectedModule.moduleId}`, mode)}
-        onBack={closeDetail}
-        onToggleConnection={() => {
-          if (moduleActive) {
-            void handleStopModule(selectedModule.moduleId)
-          } else {
-            void handleStartModule(selectedModule.moduleId)
-          }
-        }}
-        renderManage={({ onCancel, onSaved }) => (
-          <ModuleConfigForm
-            module={selectedModule}
-            variantModules={selectedModuleVariants}
-            onVariantChange={(nextModuleId) => {
-              void handleSetActiveVariant(selectedModule.channelName, nextModuleId)
-            }}
-            variantSwitching={
-              variantSwitchingChannel === normalizeChannelName(selectedModule.channelName)
+      <>
+        <ChannelModuleDetailPage
+          key={selectedModule.moduleId}
+          title={title}
+          subtitle={moduleShortDescription(selectedModule, locale)}
+          logoPath={selectedModuleLogoPath}
+          previewPrompt={modulePreviewPrompt(selectedModule, locale)}
+          description={moduleLongDescription(selectedModule, locale)}
+          setupSteps={moduleSetupSteps(selectedModule, locale)}
+          infoItems={infoItems}
+          active={moduleActive}
+          busy={togglingModuleId === selectedModule.moduleId}
+          controlsAvailable={!remoteConnection}
+          mode={detailMode}
+          onModeChange={(mode) => setDetailMode(`module:${selectedModule.moduleId}`, mode)}
+          onBack={closeDetail}
+          onToggleConnection={() => {
+            if (moduleActive) {
+              void handleStopModule(selectedModule.moduleId)
+            } else {
+              startSelectedModule()
             }
-            config={moduleConfig}
-            onChange={setModuleConfig}
-            onSave={() => {
-              void handleSaveModule(selectedModule).then((saved) => {
-                if (saved) onSaved()
-              })
-            }}
-            saving={savingModule}
+          }}
+          renderManage={({ onCancel, onSaved }) => (
+            <ModuleConfigForm
+              module={selectedModule}
+              variantModules={selectedModuleVariants}
+              onVariantChange={(nextModuleId) => {
+                void handleSetActiveVariant(selectedModule.channelName, nextModuleId)
+              }}
+              variantSwitching={
+                variantSwitchingChannel === normalizeChannelName(selectedModule.channelName)
+              }
+              config={moduleConfig}
+              onChange={setModuleConfig}
+              onSave={() => {
+                void handleSaveModule(selectedModule).then((saved) => {
+                  if (saved) onSaved()
+                })
+              }}
+              saving={savingModule}
+              logoPath={selectedModuleLogoPath}
+              moduleStatus={selectedModuleStatus as ModuleStatusEntry | undefined}
+              persistedEnabled={persistedEnabled}
+              localControlsAvailable={!remoteConnection}
+              onStart={startSelectedModule}
+              onCancel={onCancel}
+              moduleLogLines={moduleLogsById[selectedModule.moduleId] ?? []}
+              logsLoading={loadingLogsModuleId === selectedModule.moduleId}
+              onLoadLogs={() => {
+                void handleLoadModuleLogs(selectedModule.moduleId)
+              }}
+              hideHeader
+            />
+          )}
+        />
+        {channelLogin.open && (
+          <ChannelLoginDialog
+            channelName={title}
             logoPath={selectedModuleLogoPath}
-            moduleStatus={selectedModuleStatus as ModuleStatusEntry | undefined}
-            persistedEnabled={persistedEnabled}
-            localControlsAvailable={!remoteConnection}
-            onStart={() => {
-              void handleStartModule(selectedModule.moduleId)
-            }}
-            onCancel={onCancel}
-            qrDataUrl={selectedModuleQrState?.qrDataUrl ?? null}
-            qrPhase={selectedModuleQrPhase}
-            moduleLogLines={moduleLogsById[selectedModule.moduleId] ?? []}
-            logsLoading={loadingLogsModuleId === selectedModule.moduleId}
-            onLoadLogs={() => {
-              void handleLoadModuleLogs(selectedModule.moduleId)
-            }}
-            hideHeader
+            phase={channelLogin.phase}
+            qrDataUrl={channelLogin.qrDataUrl}
+            onCancel={cancelLogin}
+            onDone={channelLogin.hide}
+            onRetry={startSelectedModule}
           />
         )}
-      />
+      </>
     )
   }
 

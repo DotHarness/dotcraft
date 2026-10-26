@@ -22,6 +22,7 @@ interface ChannelModuleDetailPageProps {
   logoPath?: string
   previewPrompt: string
   description: string
+  setupSteps?: string[]
   infoItems: ChannelDetailInfoItem[]
   active: boolean
   busy: boolean
@@ -39,6 +40,7 @@ export function ChannelModuleDetailPage({
   logoPath,
   previewPrompt,
   description,
+  setupSteps = [],
   infoItems,
   active,
   busy,
@@ -117,6 +119,20 @@ export function ChannelModuleDetailPage({
 
           <p className={styles.description}>{description}</p>
 
+          {setupSteps.length > 0 && (
+            <section className={styles.setup}>
+              <h2>{t('channels.detail.setup')}</h2>
+              <ol>
+                {setupSteps.map((step, index) => (
+                  <li key={index}>
+                    <span className={styles.stepNumber} aria-hidden>{index + 1}</span>
+                    <span>{renderStepText(step)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
           <section className={styles.information}>
             <h2>{t('channels.detail.info')}</h2>
             <dl>
@@ -144,4 +160,34 @@ function ChannelDetailIcon({
   size?: number
 }): JSX.Element {
   return <IdentityMark role={role} size={size} src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
+}
+
+const STEP_TOKEN = /`([^`]+)`|\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g
+
+function renderStepText(step: string): ReactNode[] {
+  const parts: ReactNode[] = []
+  let cursor = 0
+  for (const match of step.matchAll(STEP_TOKEN)) {
+    if (match.index > cursor) parts.push(step.slice(cursor, match.index))
+    const [, code, label, href] = match
+    parts.push(
+      code !== undefined ? (
+        <code key={match.index}>{code}</code>
+      ) : (
+        <a
+          key={match.index}
+          href={href}
+          onClick={(event) => {
+            event.preventDefault()
+            void window.api.shell.openExternal(href)
+          }}
+        >
+          {label}
+        </a>
+      )
+    )
+    cursor = match.index + match[0].length
+  }
+  if (cursor < step.length) parts.push(step.slice(cursor))
+  return parts
 }
