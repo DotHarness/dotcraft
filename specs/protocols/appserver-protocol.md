@@ -1192,7 +1192,7 @@ Browser and computer-use tools run through a **server → client** Node REPL bac
 
 **Direction**: server → client (request). **Params**: `threadId`, optional `turnId`, `evaluationId` (for cancellation and late-result suppression), `code` (JavaScript evaluated in the thread's persistent REPL), optional `timeoutMs` (client may clamp), and optional `browserSession` (`protocolVersion` 1, `sessionId` — the browser isolation key, normally the thread id — plus `threadId`, `turnId`, and `evaluationId` for backends that receive only the session object).
 
-**Result**: optional `text`, `resultText` (serialized final expression), `images` (`mediaType`, `dataBase64`), `logs`, and `error` (user-readable).
+**Result**: optional `text`, `resultText` (serialized final expression), `images` (`mediaType`, `dataBase64`), `logs`, `error` (user-readable), and `surface` (`computer` when the evaluation called `dotcraft.computer`).
 
 The client should return before `timeoutMs`, using shorter internal timeouts for browser sub-operations and returning a readable `error` rather than leaving the request pending. The deadline does not advance while an `ext/nodeRepl/requestApproval` for the evaluation is pending.
 

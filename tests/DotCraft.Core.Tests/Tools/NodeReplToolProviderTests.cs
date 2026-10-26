@@ -142,6 +142,23 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal(1, proxy.LastMetadata.ProtocolVersion);
     }
 
+    [Fact]
+    public async Task Dispatch_WhenEvaluationUsedComputer_ReportsComputerSurfaceOnBrowserRegistration()
+    {
+        var proxy = new FakeNodeReplProxy(true, new NodeReplEvaluation { ResultText = "ok", Surface = PluginIds.Computer });
+        var fixture = CreateSource(proxy);
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([fixture.Source], fixture.Planning);
+        var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot, snapshot.ProviderFlatNames[definition.Name],
+            new System.Text.Json.Nodes.JsonObject { ["code"] = "await dotcraft.computer.list_windows()" },
+            new ToolInvocationRequest("thread_test", "turn_001", "surface-test", ToolInvocationAudience.Model));
+
+        Assert.Equal(PluginIds.Computer, result.StructuredContent?.GetProperty("surface").GetString());
+        Assert.Equal("ok", result.Content);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(45)]

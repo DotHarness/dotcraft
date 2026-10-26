@@ -39,6 +39,7 @@ export interface NodeReplEvaluateResult {
   images: BrowserUseImageResult[]
   logs: string[]
   error?: string
+  surface?: 'computer'
 }
 
 interface NodeReplThreadRuntime {
@@ -191,6 +192,7 @@ export class NodeReplManager {
     let browserRuntime: Awaited<ReturnType<BrowserUseManager['prepareNodeRepl']>> | undefined
     const timeoutMs = Math.max(1_000, Math.min(params.timeoutMs ?? 30_000, 120_000))
     const timer = new EvaluationTimer(timeoutMs)
+    let surface: NodeReplEvaluateResult['surface']
     try {
       const result = await this.withTimeout((async () => {
         browserRuntime = await this.browserManager.prepareNodeRepl(owner, {
@@ -208,6 +210,7 @@ export class NodeReplManager {
           if (method === 'emitImage') return await browserRuntime!.display(value)
           if (method === 'createElicitation') return await this.browserManager.handleBrowserUseElicitation(params.threadId, value)
           if (method.startsWith('computer.')) {
+            surface = 'computer'
             return await this.computerUse.handleHostCall(method.slice('computer.'.length), value, {
               threadId: params.threadId,
               turnId: params.turnId ?? browserSession.turnId,
@@ -228,7 +231,7 @@ export class NodeReplManager {
         })
       })(), timer, timeoutMs, abortController.signal, () => runtime.phase)
       const collected = browserRuntime?.collect()
-      return { ...result, images: collected?.images ?? [], logs: [...result.logs, ...(collected?.logs ?? [])] }
+      return { ...result, images: collected?.images ?? [], logs: [...result.logs, ...(collected?.logs ?? [])], surface }
     } catch (error: unknown) {
       const outer = error instanceof NodeReplEvaluationTimeoutError || abortController.signal.aborted
       if (outer) {
@@ -241,7 +244,7 @@ export class NodeReplManager {
       }
       const collected = browserRuntime?.collect()
       return { error: outer && error instanceof Error ? error.message : formatError(error, runtime.phase),
-        images: collected?.images ?? [], logs: [...runtime.worker.logs, ...(collected?.logs ?? [])] }
+        images: collected?.images ?? [], logs: [...runtime.worker.logs, ...(collected?.logs ?? [])], surface }
     } finally {
       if (runtime.activeEvaluationId === evaluationId) {
         runtime.activeEvaluationId = undefined

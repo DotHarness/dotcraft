@@ -82,4 +82,11 @@ describe('Node REPL labels', () => {
     expect(formatToolGroupLabel([repl('1', 'chrome'), makeCall('2', CORE_TOOL_PRESENTATION_IDS.shell, {})], 'en', new Map()))
       .toBe('Used Chrome, ran a command')
   })
+
+  it('names a call by the surface it used rather than the plugin that registered the tool', () => {
+    const computer = { ...repl('1', 'browser'), structuredResult: { surface: 'computer' } }
+
+    expect(formatCollapsedToolLabel(computer, computer.arguments, 'en')).toBe('Used the computer')
+    expect(formatToolGroupLabel([computer, repl('2', 'browser')], 'en', new Map())).toBe('Used the browser, used the computer')
+  })
 })

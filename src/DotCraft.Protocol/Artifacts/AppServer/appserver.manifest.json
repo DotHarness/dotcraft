@@ -12784,6 +12784,13 @@
           "const": null
         },
         {
+          "name": "surface",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "text",
           "type": "string",
           "required": false,

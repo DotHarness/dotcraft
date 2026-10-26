@@ -63,6 +63,8 @@ public sealed class NodeReplEvaluation
     public List<string> Logs { get; set; } = [];
 
     public string? Error { get; set; }
+
+    public string? Surface { get; set; }
 }
 
 public sealed class NodeReplImage
