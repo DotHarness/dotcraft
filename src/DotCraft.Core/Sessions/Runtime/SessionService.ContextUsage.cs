@@ -382,7 +382,8 @@ public sealed partial class SessionService
             requestSnapshot?.ContextUsageFingerprint,
             requestSnapshot?.BaseInstructionsTokenEstimate,
             persistedSnapshot?.Source,
-            persistedSnapshot?.IsEstimate ?? false);
+            persistedSnapshot?.IsEstimate ?? false,
+            requestSnapshot?.EstimateRequestOverheadTokens() ?? 0);
     }
 
     private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history)

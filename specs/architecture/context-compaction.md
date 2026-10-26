@@ -318,6 +318,9 @@ A persisted provider usage value that does not match the active generation is di
 triggers compaction. While an active native replacement exists, the coordinator never estimates the
 complete neutral transcript instead.
 
+Without provider usage, the local context estimate counts the request's base instructions and tool
+schemas as well as the history.
+
 `thread/contextUsage/read` splits the current usage into categories: instruction sections and tool
 schemas are rough local estimates captured with each sampled request and kept across compaction, and
 messages take the remainder of the current usage.

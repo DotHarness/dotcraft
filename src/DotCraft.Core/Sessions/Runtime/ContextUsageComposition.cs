@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
@@ -53,7 +52,7 @@ internal sealed record ContextUsageComposition(
             visibleNames.Add(tool.Name);
             loaded.Add(
                 ResolveMcpServer(ToolSnapshot, tool.Name),
-                EstimateTool(tool.Name, tool.Description, (tool as AIFunctionDeclaration)?.JsonSchema));
+                PromptRequestSnapshot.EstimateToolTokens(tool.Name, tool.Description, (tool as AIFunctionDeclaration)?.JsonSchema));
         }
 
         var deferred = new ToolTally();
@@ -70,7 +69,7 @@ internal sealed record ContextUsageComposition(
 
                 deferred.Add(
                     ResolveMcpServer(toolSnapshot, providerName),
-                    EstimateTool(providerName, definition.Description, definition.InputSchema));
+                    PromptRequestSnapshot.EstimateToolTokens(providerName, definition.Description, definition.InputSchema));
             }
         }
 
@@ -90,7 +89,10 @@ internal sealed record ContextUsageComposition(
         Add(categories, ContextUsageCategoryIds.BuiltInTools, loaded.BuiltIn);
         Add(categories, ContextUsageCategoryIds.McpTools, loaded.McpTotal, items: loaded.McpItems());
         var fixedTokens = categories.Sum(static category => category.Tokens);
-        Add(categories, ContextUsageCategoryIds.Messages, Math.Max(0, usage.Tokens - fixedTokens));
+        if (fixedTokens > usage.Tokens)
+            FitInto(categories, fixedTokens, Math.Max(0, usage.Tokens));
+        else
+            Add(categories, ContextUsageCategoryIds.Messages, usage.Tokens - fixedTokens);
         Add(categories, ContextUsageCategoryIds.BuiltInTools, deferred.BuiltIn, onDemand: true);
         Add(categories, ContextUsageCategoryIds.McpTools, deferred.McpTotal, onDemand: true, items: deferred.McpItems());
 
@@ -121,6 +123,26 @@ internal sealed record ContextUsageComposition(
         return items.Count > 0 ? items : null;
     }
 
+    private static void FitInto(List<ContextUsageCategory> categories, long measured, long total)
+    {
+        long Scale(long tokens) => tokens * total / measured;
+
+        for (var i = 0; i < categories.Count; i++)
+        {
+            var category = categories[i];
+            categories[i] = category with
+            {
+                Tokens = Scale(category.Tokens),
+                Items = category.Items?.Select(item => item with { Tokens = Scale(item.Tokens) }).ToArray()
+            };
+        }
+
+        var remainder = total - categories.Sum(static category => category.Tokens);
+        var largest = categories.IndexOf(categories.MaxBy(static category => category.Tokens)!);
+        categories[largest] = categories[largest] with { Tokens = categories[largest].Tokens + remainder };
+        categories.RemoveAll(static category => category.Tokens <= 0);
+    }
+
     private int SectionTokens(params string[] names) =>
         Sections?.Where(section => names.Contains(section.Name, StringComparer.Ordinal)).Sum(static section => section.Tokens) ?? 0;
 
@@ -142,11 +164,6 @@ internal sealed record ContextUsageComposition(
         && registration.Definition.Id.Kind == ToolSourceKind.Mcp
             ? McpToolRouting.ServerName(registration)
             : null;
-
-    private static int EstimateTool(string name, string? description, JsonElement? schema) =>
-        MessageTokenEstimator.RoughTokenCount(name)
-        + MessageTokenEstimator.RoughTokenCount(description)
-        + (schema is { } value ? MessageTokenEstimator.RoughTokenCount(value.GetRawText()) : 0);
 
     private sealed class ToolTally
     {

@@ -78,6 +78,24 @@ public sealed class SessionServiceContextUsageBreakdownTests : SessionServiceRun
             after.Categories.Where(static category => !category.OnDemand).Sum(static category => category.Tokens));
     }
 
+    [Fact]
+    public async Task TryGetContextUsageBreakdown_AddsUpWithoutProviderUsage()
+    {
+        var chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
+        await using var factory = CreateAgentFactory(chatClient, [new BreakdownToolSource()], ConfigureBreakdown);
+        var service = CreateService(factory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var breakdown = Assert.IsType<ContextUsageBreakdown>(service.TryGetContextUsageBreakdown(thread.Id));
+        Assert.Equal(
+            breakdown.ContextUsage.Tokens,
+            breakdown.Categories.Where(static category => !category.OnDemand).Sum(static category => category.Tokens));
+        Assert.True(Loaded(breakdown, ContextUsageCategoryIds.Messages).Tokens > 0);
+    }
+
     private static IChatClient UsageReportingChatClient() => new FakeChatClient(
     [
         new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]),
