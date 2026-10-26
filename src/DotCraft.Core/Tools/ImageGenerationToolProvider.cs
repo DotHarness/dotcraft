@@ -465,7 +465,7 @@ internal sealed class ImageGenerationToolRuntime(
         var hint =
             $"Generated images are saved to {directory} as {savedPath} by default.\n" +
             "If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.\n" +
-            "The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.";
+            "The generated image is already displayed in the DotCraft app. There is no need to render it in the final response as a Markdown image or file link.";
         return System.Text.Encoding.UTF8.GetByteCount(hint) <= MaxOutputHintBytes ? hint : null;
     }
 
