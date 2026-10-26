@@ -1188,6 +1188,8 @@ export const MESSAGES_EN = {
   'settings.appearance.reduceMotion.off': 'Off',
   'settings.appearance.welcomeBackdrop.label': 'Welcome backdrop',
   'settings.appearance.welcomeBackdrop.hint': 'Let faint characters drift behind the new chat composer.',
+  'settings.appearance.composerGlow.label': 'Composer glow',
+  'settings.appearance.composerGlow.hint': 'Show a soft breathing glow around the composer while you type.',
   'settings.appearance.pointerCursors.label': 'Use pointer cursors',
   'settings.appearance.pointerCursors.hint': 'Change the cursor to a pointer when hovering over interactive elements.',
   'settings.appearance.group.interface': 'Interface',

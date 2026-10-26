@@ -33,6 +33,7 @@ export interface AppearanceSettings {
   /** Whether the window chrome around the sidebar stays translucent. */
   translucentSidebar: boolean
   welcomeBackdrop: boolean
+  composerGlow: boolean
 }
 
 export const CODE_FONT_SIZE_MIN = 10
@@ -74,7 +75,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   pointerCursors: true,
   interfaceZoom: DEFAULT_INTERFACE_ZOOM,
   translucentSidebar: true,
-  welcomeBackdrop: true
+  welcomeBackdrop: true,
+  composerGlow: true
 }
 
 /** The accent is one field of the theme seed, so it normalizes the same way every color does. */
@@ -121,6 +123,10 @@ export function normalizeWelcomeBackdrop(raw: unknown): boolean {
   return raw !== false
 }
 
+export function normalizeComposerGlow(raw: unknown): boolean {
+  return raw !== false
+}
+
 /** Build a fully-normalized AppearanceSettings from loosely-typed persisted input. */
 export function resolveAppearanceSettings(raw: {
   theme?: unknown
@@ -133,6 +139,7 @@ export function resolveAppearanceSettings(raw: {
   interfaceZoom?: unknown
   translucentSidebar?: unknown
   welcomeBackdrop?: unknown
+  composerGlow?: unknown
 } | null | undefined): AppearanceSettings {
   const source = raw ?? {}
   return {
@@ -145,6 +152,7 @@ export function resolveAppearanceSettings(raw: {
     pointerCursors: normalizePointerCursors(source.pointerCursors),
     interfaceZoom: normalizeInterfaceZoom(source.interfaceZoom),
     translucentSidebar: normalizeTranslucentSidebar(source.translucentSidebar),
-    welcomeBackdrop: normalizeWelcomeBackdrop(source.welcomeBackdrop)
+    welcomeBackdrop: normalizeWelcomeBackdrop(source.welcomeBackdrop),
+    composerGlow: normalizeComposerGlow(source.composerGlow)
   }
 }

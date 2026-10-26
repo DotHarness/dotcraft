@@ -241,6 +241,7 @@ export function ComposerShell({
       <div data-composer-card-layer style={{ position: 'relative' }}>
         <div
           aria-hidden
+          data-composer-glow-layer
           className={focused ? 'composer-focus-glow' : undefined}
           style={{
             position: 'absolute',

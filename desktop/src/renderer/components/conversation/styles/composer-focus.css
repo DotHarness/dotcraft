@@ -15,6 +15,14 @@
   will-change: opacity, filter;
 }
 
+html[data-composer-glow='false'] [data-composer-glow-layer] {
+  display: none;
+}
+
+html[data-composer-glow='false'] [data-composer-card] {
+  border-color: var(--composer-input-rest-border) !important;
+}
+
 .request-user-input-countdown {
   color: var(--text-dimmed);
   font-size: var(--conversation-meta-size);

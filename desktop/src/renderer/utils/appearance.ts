@@ -122,6 +122,10 @@ export function applyWelcomeBackdrop(on: boolean): void {
   document.documentElement.setAttribute('data-welcome-backdrop', on ? 'true' : 'false')
 }
 
+export function applyComposerGlow(on: boolean): void {
+  document.documentElement.setAttribute('data-composer-glow', on ? 'true' : 'false')
+}
+
 /**
  * Apply the document-level appearance preferences. Theme mode is applied via {@link applyTheme},
  * diff markers are held in the UI store, and interface zoom is applied via the renderer/main
@@ -134,4 +138,5 @@ export function applyAppearanceDom(appearance: AppearanceSettings): void {
   applyPointerCursors(appearance.pointerCursors)
   applyTranslucentSidebar(appearance.translucentSidebar)
   applyWelcomeBackdrop(appearance.welcomeBackdrop)
+  applyComposerGlow(appearance.composerGlow)
 }

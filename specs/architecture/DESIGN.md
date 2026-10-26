@@ -1,5 +1,5 @@
 ---
-version: "0.9.3"
+version: "0.9.6"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -333,6 +333,8 @@ The Appearance settings expose:
 - Reduced motion (`system | on | off`), which gates animations, and pointer
   cursors on interactive elements.
 - The [Welcome backdrop](#welcome-backdrop) on or off.
+- The composer glow on or off (on by default). Off removes the focus and hover
+  glow from every composer and keeps its border at rest while focused.
 
 Animated, accent-driven, or code-sized UI relies on these tokens and preferences
 rather than hardcoding colors, sizes, or unconditional animations.
@@ -1194,7 +1196,7 @@ and state already say.
 - The primary composer uses `--composer-input-rest-border`, so the light theme
   has a subtle frame while the dark theme can stay effectively frameless. It shows
   a soft breathing brand-gradient glow on focus (`--composer-focus-glow`) and lifts
-  slightly on hover.
+  slightly on hover, unless the Appearance composer glow is off.
 - Approval, question, and plan-confirmation composers take the composer's place
   with the same frame; they glow only while their own text field is focused, never
   merely because a decision is waiting.
