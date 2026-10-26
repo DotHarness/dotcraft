@@ -59,7 +59,7 @@ interface WorkflowRunSnapshot {
   readonly startedAt?: string
 }
 
-const ITEM_PAGE_LIMIT = 500
+const ITEM_PAGE_LIMIT = 100
 const TURN_PAGE_LIMIT = 100
 const WORKFLOW_PAGE_LIMIT = 50
 

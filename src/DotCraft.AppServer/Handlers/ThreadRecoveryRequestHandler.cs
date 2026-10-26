@@ -30,7 +30,7 @@ internal sealed class ThreadRecoveryRequestHandler(
                 Sha256 = package.Sha256
             });
         }
-        catch (KeyNotFoundException)
+        catch (ThreadNotFoundException)
         {
             throw AppServerErrors.ThreadNotFound(threadId);
         }

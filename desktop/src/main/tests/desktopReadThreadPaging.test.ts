@@ -14,10 +14,10 @@ describe('ReadThread turn pagination', () => {
     expect(data.page).toEqual({ order: 'newest_first', limit: 1, nextCursor: 'turns:1', hasMore: true })
     expect(data.turns.map((turn: RecordValue) => turn.id)).toEqual(['turn-2'])
     expect(data.turns[0].items.map((item: RecordValue) => item.id)).toEqual(turns[0].items.map(item => item.id))
-    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/items/list')).toHaveLength(3)
+    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/items/list')).toHaveLength(11)
     for (const [method, params] of sendRequest.mock.calls) {
       expect(['thread/read', 'thread/turns/list', 'thread/items/list']).toContain(method)
-      if (method === 'thread/items/list') expect(params).toMatchObject({ turnId: 'turn-2', limit: 500, sortDirection: 'ascending' })
+      if (method === 'thread/items/list') expect(params).toMatchObject({ turnId: 'turn-2', limit: 100, sortDirection: 'ascending' })
     }
     const older = await read(client, { threadId: 'thread-1', cursor: data.page.nextCursor })
     expect(older.data.turns.map((turn: RecordValue) => turn.id)).toEqual(['turn-1'])

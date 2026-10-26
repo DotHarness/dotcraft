@@ -3,7 +3,7 @@ import type { DotCraftWireClient } from '@dotcraft/sdk/wire'
 import type { TurnPageEntry } from './history'
 
 const TURN_PAGE = 5
-const TURN_ITEM_PAGE = 500
+const TURN_ITEM_PAGE = 100
 
 export async function readTurnPage(
   client: DotCraftWireClient,

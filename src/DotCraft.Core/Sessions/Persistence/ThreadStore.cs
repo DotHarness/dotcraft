@@ -654,7 +654,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         return _rolloutStore.ResolveExistingPath(threadId)
-            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            ?? throw new ThreadNotFoundException(threadId);
     }
 
     private static void ValidateHistoryPageLimit(int limit)

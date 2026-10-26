@@ -143,6 +143,54 @@ test("DotCraftWireClient reinitializes before releasing reconnect-queued request
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+test("DotCraftWireClient reconnects after an oversized message closes the socket", async () => {
+  const server = new WebSocketServer({ port: 0 });
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Expected a TCP listener address.");
+  let connectionCount = 0;
+  server.on("connection", (socket) => {
+    connectionCount += 1;
+    socket.on("message", (data) => {
+      const message = JSON.parse(data.toString()) as Record<string, unknown>;
+      if (message.method === "initialize") {
+        socket.send(JSON.stringify({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            serverInfo: { name: "fixture", version: "1", protocolVersion: "1" },
+            capabilities: {},
+          },
+        }));
+      } else if (message.method === "fixture/large") {
+        socket.send(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { data: "x".repeat(4096) } }));
+      } else if (message.method === "fixture/small") {
+        socket.send(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { ok: true } }));
+      }
+    });
+  });
+
+  const transport = new WebSocketTransport({ url: `ws://127.0.0.1:${address.port}`, maxPayload: 1024 });
+  const client = new DotCraftWireClient(transport, {
+    autoReconnect: true,
+    reconnectBaseDelayMs: 1,
+    reconnectMaxDelayMs: 1,
+    random: () => 0.5,
+  });
+  const states: string[] = [];
+  client.onStateChanged((state) => states.push(state));
+  await client.connect();
+  await client.initialize({ clientName: "fixture", clientVersion: "1" });
+
+  await assert.rejects(client.requestRaw("fixture/large", {}), TransportClosed);
+  assert.deepEqual(await client.requestRaw("fixture/small", {}), { ok: true });
+  assert.ok(states.includes("disconnected"));
+  assert.equal(connectionCount, 2);
+
+  await client.stop();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
 test("DotCraftWireClient dispatches server requests without blocking the reader", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);

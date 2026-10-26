@@ -241,9 +241,14 @@ public sealed class AppServerRequestHandler(
 
             return await TryHandleExtensionAsync(method, msg, ct);
         }
+        catch (ThreadNotFoundException ex)
+        {
+            throw AppServerErrors.ThreadNotFound(ex.ThreadId);
+        }
+        // Other missing keys (turns, queued inputs, terminals) must not tell clients the thread is gone.
         catch (KeyNotFoundException ex)
         {
-            throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
+            throw AppServerErrors.InvalidRequest(ex.Message);
         }
         catch (WorktreeHandoffConflictException ex)
         {

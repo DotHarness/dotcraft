@@ -1017,7 +1017,7 @@ describe('App initial workspace status bootstrap', () => {
           return {}
         }
         if (method === 'thread/read') {
-          throw new Error(`Thread not found: ${params?.threadId ?? ''}`)
+          throw Object.assign(new Error(`Thread not found: ${params?.threadId ?? ''}`), { code: 'threadNotFound', rpcCode: -32010 })
         }
         return {}
       })
@@ -1050,6 +1050,60 @@ describe('App initial workspace status bootstrap', () => {
         const state = useThreadStore.getState()
         expect(state.activeThreadId).toBeNull()
         expect(state.threadList.map((thread) => thread.id)).toEqual([])
+      })
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('keeps the thread and records the load error when thread/read fails for another reason', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const appServerSendRequest = vi.fn(async (method: string, params?: { threadId?: string }) => {
+        if (method === 'thread/list') {
+          return { data: [makeThreadSummary('broken-thread', readyWorkspaceStatus.workspacePath, 'Broken thread')] }
+        }
+        if (method === 'thread/subscribe') {
+          return {}
+        }
+        if (method === 'thread/read') {
+          throw Object.assign(new Error('Thread history is unavailable.'), {
+            rpcCode: -32095,
+            data: { messageKey: 'errors.threadHistoryUnavailable', fallbackText: 'Thread history is unavailable.' }
+          })
+        }
+        return {}
+      })
+      installApi(readyWorkspaceStatus, {
+        appServerSendRequest,
+        modulesList: vi.fn().mockResolvedValue([]),
+        modulesRunning: vi.fn().mockResolvedValue({}),
+        settingsGet: vi.fn().mockResolvedValue({}),
+        workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+      })
+      useConnectionStore.getState().setStatus({ status: 'connected' })
+
+      renderApp()
+
+      await waitFor(() => {
+        expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['broken-thread'])
+      })
+
+      act(() => {
+        useThreadStore.getState().setActiveThreadId('broken-thread')
+      })
+
+      await waitFor(() => {
+        expect(appServerSendRequest.mock.calls.some((call) => (
+          call[0] === 'thread/read' &&
+          (call[1] as { threadId?: string } | undefined)?.threadId === 'broken-thread'
+        ))).toBe(true)
+      })
+      await waitFor(() => {
+        const state = useThreadStore.getState()
+        expect(state.activeThreadId).toBe('broken-thread')
+        expect(state.threadList.map((thread) => thread.id)).toEqual(['broken-thread'])
+        expect(state.activeThreadLoadError).toEqual({ threadId: 'broken-thread', message: 'Thread history is unavailable.' })
       })
     } finally {
       consoleError.mockRestore()

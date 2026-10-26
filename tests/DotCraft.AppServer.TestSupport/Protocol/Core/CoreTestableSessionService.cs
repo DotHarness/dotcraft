@@ -1259,7 +1259,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
     {
         if (_cache.TryGetValue(threadId, out var cached)) return cached;
         var loaded = await _store.LoadThreadAsync(threadId, ct)
-            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            ?? throw new ThreadNotFoundException(threadId);
         _cache[threadId] = loaded;
         return loaded;
     }

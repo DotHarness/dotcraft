@@ -104,7 +104,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         {
             var parts = new List<AIContent>(promotedImages.Count + 1)
             {
-                new TextContent("[Image content from tool results — attached for vision analysis.]")
+                new TextContent(ModelImageInputPreparer.ToolResultImagesMarker)
             };
             parts.AddRange(promotedImages);
             result.Add(new ChatMessage(ChatRole.User, (IList<AIContent>)parts));

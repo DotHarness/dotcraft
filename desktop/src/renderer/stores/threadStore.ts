@@ -28,6 +28,8 @@ interface ThreadStoreState {
   threadListProjectKey: string | null
   activeThreadId: string | null
   activeThread: Thread | null
+  /** Why the selected thread could not be opened; the panel shows it instead of loading forever. */
+  activeThreadLoadError: { threadId: string; message: string } | null
   searchQuery: string
   loading: boolean
   /** Set of threadIds that currently have a running turn (for activity indicator). */
@@ -64,6 +66,7 @@ interface ThreadStoreActions {
   renameThread(threadId: string, displayName: string): void
   setActiveThreadId(id: string | null): void
   setActiveThread(thread: Thread | null): void
+  setActiveThreadLoadError(threadId: string, message: string): void
   setSearchQuery(query: string): void
   setLoading(loading: boolean): void
   markTurnStarted(threadId: string): void
@@ -97,6 +100,7 @@ const initialState: ThreadStoreState = {
   threadListProjectKey: null,
   activeThreadId: null,
   activeThread: null,
+  activeThreadLoadError: null,
   searchQuery: '',
   loading: false,
   runningTurnThreadIds: new Set<string>(),
@@ -580,7 +584,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   setActiveThreadId(id) {
     set((state) => {
       if (!id) {
-        return { activeThreadId: id }
+        return { activeThreadId: id, activeThreadLoadError: null }
       }
 
       const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
@@ -593,6 +597,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       unreadCompletedThreadIds.delete(id)
       return {
         activeThreadId: id,
+        activeThreadLoadError: null,
         pendingApprovalThreadIds,
         pendingUserInputThreadIds,
         pendingPlanConfirmationThreadIds,
@@ -624,8 +629,17 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       } else if (activeThread.goal) {
         goalSnapshots.set(activeThread.id, activeThread.goal)
       }
-      return { activeThread, goalSnapshots, hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, [thread]) }
+      return {
+        activeThread,
+        activeThreadLoadError: state.activeThreadLoadError?.threadId === thread.id ? null : state.activeThreadLoadError,
+        goalSnapshots,
+        hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, [thread])
+      }
     })
+  },
+
+  setActiveThreadLoadError(threadId, message) {
+    set((state) => (state.activeThreadId === threadId ? { activeThreadLoadError: { threadId, message } } : {}))
   },
 
   setSearchQuery(query) {

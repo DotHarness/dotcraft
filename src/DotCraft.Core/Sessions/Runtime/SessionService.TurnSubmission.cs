@@ -15,7 +15,7 @@ public sealed partial class SessionService
         SessionInputSnapshot? inputSnapshot = null)
     {
         if (!_runtimeRegistry.TryGetThread(threadId, out _))
-            throw new KeyNotFoundException($"Thread '{threadId}' not found. Call CreateThreadAsync or ResumeThreadAsync first.");
+            throw new ThreadNotFoundException(threadId, "Call CreateThreadAsync or ResumeThreadAsync first.");
         if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
 

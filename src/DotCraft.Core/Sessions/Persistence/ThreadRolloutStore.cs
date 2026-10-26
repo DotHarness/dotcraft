@@ -151,7 +151,7 @@ internal sealed partial class ThreadRolloutStore
         }
 
         if (existingPath == null && !File.Exists(targetPath))
-            throw new KeyNotFoundException($"Thread '{thread.Id}' not found.");
+            throw new ThreadNotFoundException(thread.Id);
 
         var record = new ThreadRolloutRecord
         {
@@ -238,7 +238,7 @@ internal sealed partial class ThreadRolloutStore
     {
         var existingPath = ResolveExistingPath(threadId);
         if (existingPath == null)
-            throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            throw new ThreadNotFoundException(threadId);
 
         var record = new ThreadRolloutRecord
         {
@@ -271,7 +271,7 @@ internal sealed partial class ThreadRolloutStore
     {
         var existingPath = ResolveExistingPath(threadId);
         if (existingPath == null)
-            throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            throw new ThreadNotFoundException(threadId);
 
         var record = new ThreadRolloutRecord
         {
@@ -341,7 +341,7 @@ internal sealed partial class ThreadRolloutStore
         CancellationToken ct = default)
     {
         var existingPath = ResolveExistingPath(threadId)
-            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            ?? throw new ThreadNotFoundException(threadId);
         if (messages.Count == 0)
             return new RolloutAppendResult(
                 existingPath,
@@ -368,7 +368,7 @@ internal sealed partial class ThreadRolloutStore
     {
         ArgumentNullException.ThrowIfNull(payload);
         var existingPath = ResolveExistingPath(payload.ThreadId)
-            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+            ?? throw new ThreadNotFoundException(payload.ThreadId);
         if (payload.Entries.Count == 0)
         {
             return new RolloutAppendResult(
@@ -391,7 +391,7 @@ internal sealed partial class ThreadRolloutStore
     {
         ArgumentNullException.ThrowIfNull(payload);
         var existingPath = ResolveExistingPath(payload.ThreadId)
-            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+            ?? throw new ThreadNotFoundException(payload.ThreadId);
         var record = new ThreadRolloutRecord
         {
             Kind = RolloutKinds.ProviderHistoryReplaced,
@@ -407,7 +407,7 @@ internal sealed partial class ThreadRolloutStore
     {
         ArgumentNullException.ThrowIfNull(payload);
         var existingPath = ResolveExistingPath(payload.ThreadId)
-            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+            ?? throw new ThreadNotFoundException(payload.ThreadId);
         var record = new ThreadRolloutRecord
         {
             Kind = RolloutKinds.ProviderHistoryAttemptAborted,

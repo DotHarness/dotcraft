@@ -8,7 +8,7 @@ interface HistoryPage<T> {
   nextCursor?: string | null
 }
 
-const ITEM_PAGE_LIMIT = 500
+const ITEM_PAGE_LIMIT = 100
 const TURN_CONCURRENCY = 5
 
 export async function readThreadTool(

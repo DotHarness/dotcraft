@@ -1256,7 +1256,7 @@ public sealed partial class SessionService(
                 return cached;
 
             var thread = await persistence.LoadThreadWorkingSetAsync(threadId, ct)
-                         ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+                         ?? throw new ThreadNotFoundException(threadId);
 
             if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
                 throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");

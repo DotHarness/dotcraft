@@ -54,6 +54,7 @@ import {
 } from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { isHiddenThread } from '../shared/hiddenThreads'
+import { readAppServerErrorFields } from '../shared/appServerError'
 import { useSideChatStore } from './stores/sideChatStore'
 import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
@@ -417,9 +418,16 @@ function canReloadForegroundThreadList(
   return projectKey === protocolKey
 }
 
+const THREAD_NOT_FOUND = -32010
+
 function isThreadNotFoundError(error: unknown): boolean {
+  return readAppServerErrorFields(error).rpcCode === THREAD_NOT_FOUND
+}
+
+function threadLoadErrorText(locale: AppLocale, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? '')
-  return /ThreadNotFound|thread not found/i.test(message)
+  const data = readAppServerErrorFields(error).data
+  return serverFallbackText(locale, data?.messageKey, data?.params, data?.fallbackText) ?? message
 }
 
 function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
@@ -3092,11 +3100,13 @@ export function App(): JSX.Element {
         .catch((err: unknown) => {
           clearThreadRestoreGate(requestedId, restoreGateToken)
           console.error('thread/read failed:', err)
+          useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
           if (isThreadNotFoundError(err)) {
             useThreadStore.getState().removeThread(requestedId)
+            addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
+            return
           }
-          useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
-          addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
+          useThreadStore.getState().setActiveThreadLoadError(requestedId, threadLoadErrorText(localeRef.current, err))
         })
     } else {
       clearThreadRestoreGate()
@@ -3274,6 +3284,8 @@ export function App(): JSX.Element {
       if (isConversationRenderPaused()) return
       // Nobody is reading a blurred window; the interval keeps ticking and resumes on focus.
       if (!windowVisibilityStateRef.current.focused) return
+      // A header-only refresh would replace the load error with an empty conversation.
+      if (useThreadStore.getState().activeThreadLoadError?.threadId === activeThreadId) return
       refreshInFlight = true
       const requestedId = activeThreadId
       try {

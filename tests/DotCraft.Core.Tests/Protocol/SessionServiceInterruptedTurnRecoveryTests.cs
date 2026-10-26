@@ -240,7 +240,7 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(agentFactory, chatClient);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
+        await Assert.ThrowsAsync<ThreadNotFoundException>(async () =>
         {
             await foreach (var _ in service.SubscribeThreadAsync("thread_missing"))
             {
@@ -361,7 +361,7 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
 
         for (var i = 0; i < 3; i++)
         {
-            await Assert.ThrowsAsync<KeyNotFoundException>(
+            await Assert.ThrowsAsync<ThreadNotFoundException>(
                 () => service.GetThreadAsync(SessionIdGenerator.NewThreadId()));
             Assert.Equal(0, service.ThreadLoadGateCount);
         }
