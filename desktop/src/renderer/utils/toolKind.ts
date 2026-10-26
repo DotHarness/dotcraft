@@ -15,7 +15,7 @@ export type ToolKind =
   | 'channelMessage'
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
   | 'todoWrite' | 'todo'
-  | 'skillManage' | 'skillView'
+  | 'skillView'
   | 'board' | 'automation' | 'agentBuilder' | 'remoteToolHost'
   | 'workflow'
   | 'nodeRepl'
@@ -60,7 +60,6 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
     case 'requestUserInput':
     case 'commitSuggest':
     case 'createPlan':
-    case 'skillManage':
     case 'skillView':
     case 'board':
     case 'automation':
@@ -81,6 +80,23 @@ export type MemoryOperation = 'recall' | 'update'
 export function resolveMemoryOperation(item: ToolKindSource): MemoryOperation | null {
   const memory = resolveCoreToolRenderPlan(item as ConversationItem)?.options.memory
   return memory === 'recall' || memory === 'update' ? memory : null
+}
+
+export type SkillOperation = 'read' | 'create' | 'update'
+
+export interface SkillOperationMark {
+  operation: SkillOperation
+  skillName: string
+}
+
+/** Core's mark on a file tool call that targets a Skill directory; a memory mark takes precedence. */
+export function resolveSkillOperation(item: ToolKindSource): SkillOperationMark | null {
+  const options = resolveCoreToolRenderPlan(item as ConversationItem)?.options
+  if (!options || options.memory != null) return null
+  const { skill, skillName } = options
+  return (skill === 'read' || skill === 'create' || skill === 'update') && typeof skillName === 'string'
+    ? { operation: skill, skillName: skillName.trim() }
+    : null
 }
 
 export function isShellCommandKind(kind: ToolKind | null): boolean {

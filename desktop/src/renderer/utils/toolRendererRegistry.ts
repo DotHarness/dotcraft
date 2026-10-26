@@ -6,7 +6,6 @@ import { BOARD_OPERATIONS } from './boardToolDisplay'
 export type ToolRendererFamily =
   | 'createPlan'
   | 'automation'
-  | 'skillManage'
   | 'skillView'
   | 'subagent'
   | 'task'
@@ -147,16 +146,39 @@ function allowsMemoryMark(
   validate: (options: Readonly<Record<string, unknown>>) => boolean
 ) {
   return (options: Readonly<Record<string, unknown>>): boolean => {
-    if (!Object.hasOwn(options, 'memory')) return validate(options)
-    const { memory, ...rest } = options
-    return memory === mark && validate(rest)
+    if (!Object.hasOwn(options, 'memory')) return !Object.hasOwn(options, 'memoryStore') && validate(options)
+    const { memory, memoryStore, ...rest } = options
+    return memory === mark
+      && (memoryStore === undefined || isMemoryStoreRef(memoryStore))
+      && validate(rest)
+  }
+}
+
+function isMemoryStoreRef(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const store = value as Record<string, unknown>
+  return Object.keys(store).length === 2 && typeof store.id === 'string' && typeof store.name === 'string'
+}
+
+function allowsSkillMark(
+  marks: readonly string[],
+  validate: (options: Readonly<Record<string, unknown>>) => boolean
+) {
+  return (options: Readonly<Record<string, unknown>>): boolean => {
+    if (!['skill', 'skillName', 'skillFile'].some((key) => Object.hasOwn(options, key))) return validate(options)
+    const { skill, skillName, skillFile, ...rest } = options
+    return typeof skill === 'string'
+      && marks.includes(skill)
+      && typeof skillName === 'string'
+      && skillName.trim().length > 0
+      && (skillFile === undefined || typeof skillFile === 'string')
+      && validate(rest)
   }
 }
 
 export const CORE_TOOL_PRESENTATION_IDS = {
   createPlan: 'core.create-plan',
   automation: 'core.automation',
-  skillManage: 'core.skill-manage',
   skillView: 'core.skill-view',
   subagent: 'core.subagent',
   task: 'core.task',
@@ -182,7 +204,6 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
     mode: 'standalone', placement: 'pin-last-per-turn'
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.automation, 'automation', { mode: 'standalone' }),
-  registration(CORE_TOOL_PRESENTATION_IDS.skillManage, 'skillManage', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.skillView, 'skillView', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.subagent, 'subagent', {
     mode: 'standalone', groupCategory: 'subagent'
@@ -197,7 +218,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }, hasOptionalOperation('exec', 'writeStdin')),
   registration(CORE_TOOL_PRESENTATION_IDS.fileWrite, 'fileWrite', {
     mode: 'collapsible', groupCategory: 'write'
-  }, allowsMemoryMark('update', hasOperation('write', 'edit'))),
+  }, allowsSkillMark(['create', 'update'], allowsMemoryMark('update', hasOperation('write', 'edit')))),
   registration(CORE_TOOL_PRESENTATION_IDS.web, 'web', {
     mode: 'collapsible', groupCategory: 'web'
   }, hasOperation('search', 'fetch')),
@@ -206,7 +227,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.readFile, 'readFile', {
     mode: 'collapsible', groupCategory: 'explore'
-  }, allowsMemoryMark('recall', hasOptionalOperation('read', 'grep', 'find'))),
+  }, allowsSkillMark(['read'], allowsMemoryMark('recall', hasOptionalOperation('read', 'grep', 'find')))),
   registration(CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', {
     mode: 'collapsible', groupCategory: 'explore'
   }),

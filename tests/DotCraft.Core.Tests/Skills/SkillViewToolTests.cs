@@ -9,14 +9,11 @@ public sealed class SkillViewToolTests : IDisposable
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), "dotcraft-skillview-tool-tests", Guid.NewGuid().ToString("N"));
     private readonly SkillsLoader _skillsLoader;
-    private readonly SkillVariantTarget _target;
 
     public SkillViewToolTests()
     {
         Directory.CreateDirectory(_tempRoot);
         _skillsLoader = new SkillsLoader(_tempRoot);
-        _target = SkillVariantStore.CreateTarget(
-            "test-model", _tempRoot, approvalPolicy: "default", toolNames: ["SkillView"]);
     }
 
     [Fact]
@@ -24,7 +21,7 @@ public sealed class SkillViewToolTests : IDisposable
     {
         WriteSourceSkill("demo-skill", "Body.");
         var store = new TraceStore();
-        var tool = new SkillViewTool(_skillsLoader, variantModeEnabled: true, _target, new TraceCollector(store));
+        var tool = new SkillViewTool(_skillsLoader, new TraceCollector(store));
 
         var previous = TracingChatClient.CurrentSessionKey;
         TracingChatClient.CurrentSessionKey = "thread-x";

@@ -10,9 +10,6 @@
     "removedSourcePath": {
       "type": "string"
     },
-    "removedVariantCount": {
-      "type": "integer"
-    },
     "source": {
       "type": "string"
     },

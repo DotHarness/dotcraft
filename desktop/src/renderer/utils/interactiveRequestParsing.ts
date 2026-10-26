@@ -8,7 +8,7 @@ function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
 }
 
 function normalizeApprovalType(value: unknown): ApprovalType {
-  return value === 'file' || value === 'remoteResource' || value === 'skill' || value === 'computerUse'
+  return value === 'file' || value === 'remoteResource' || value === 'computerUse'
     ? value
     : 'shell'
 }

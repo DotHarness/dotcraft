@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.5 |
+| Version | 0.9.6 |
 | Status | Draft |
-| Date | 2026-10-25 |
+| Date | 2026-10-26 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -656,10 +656,9 @@ Connect acquires a candidate lease, negotiates tools and the `files-v1` capabili
 the route. Failure preserves the previous route. Repeating Connect returns the current connection
 without emitting a duplicate route transition. A Host without `files-v1` cannot be connected.
 
-Skills remain on the Agent machine. SkillView reads effective local instructions,
-and the Skill catalog identifies the effective local file, including variants. Supporting files are
-read with `target: "local"`; the Agent uses Transfer for files needed by remote execution, preserving
-relative dependencies and selecting the effective variant when applicable. The Connect description
+Skills remain on the Agent machine. SkillView reads local instructions, and the Skill catalog
+identifies the local file. Supporting files are read with `target: "local"`; the Agent uses Transfer
+for files needed by remote execution, preserving relative dependencies. The Connect description
 provides this guidance before same-Turn remote calls. SkillView does not prepare executable plugins.
 
 Transferred files survive disconnect. The Agent chooses destinations and explicit overwrites;

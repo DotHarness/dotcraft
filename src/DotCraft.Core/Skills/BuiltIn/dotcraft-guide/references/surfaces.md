@@ -18,7 +18,6 @@ Everything DotCraft keeps on disk. Confirm a path exists before quoting it; a wo
 | `agents/` | user-editable | Subagent definitions |
 | `automations/` | user-editable | Saved automations |
 | `memory/` | user-editable | Memory files, one memory each, and their `MEMORY.md` index, which sessions see while memory is enabled |
-| `skill-variants/` | runtime-owned | Self-learning overlays on source skills |
 | `threads/active/*.jsonl` `threads/archived/*.jsonl` | never touch | Authoritative thread rollouts |
 | `state.db` (`-shm`, `-wal`) | never touch | Projections, runtime state, traces |
 | `appserver.lock` | never touch | Workspace AppServer lock |
@@ -57,6 +56,6 @@ Built-in skills redeploy only when the product version changes. To pick up an ed
 ## Where writes should go
 
 - Config and hooks: edit the file, then say "restart to apply", or send the user to the matching Desktop Settings panel, which applies the change at once unless the field's reload tier is `processRestart`.
-- Skills: `$skill-authoring` and `$skill-installer`. Never edit an installed skill's source directory by hand.
+- Skills: `$skill-authoring` to write or change one, `$skill-installer` to install one.
 - Plugins: `$plugin-creator` to author, Desktop > Plugins to install, and Desktop > Plugins > Manage to turn one off in this workspace.
 - Channels: Desktop > Channels rather than the `<channel>.json` file.

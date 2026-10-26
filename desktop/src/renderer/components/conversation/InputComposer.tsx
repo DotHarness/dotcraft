@@ -4,7 +4,7 @@ import { buildComposerHistory, queuedInputToComposerDraft, linearLengthOfCompose
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
-import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, Target } from 'lucide-react'
+import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, RefreshCw, Target } from 'lucide-react'
 import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -37,6 +37,7 @@ import { useFailedTurnResume } from './useFailedTurnResume'
 import { useComposerRunState, type ComposerRuntime } from './useComposerRunState'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { expandInitCommand } from '../../utils/initCommand'
+import { executeReloadSkills } from '../../utils/reloadSkillsCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
@@ -381,13 +382,14 @@ function InputComposerCore({
   })
   const isExactSystemSlashQuery = ownsThreadControls
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact'
+      || normalizedSlashQuery === 'reload-skills'
       || channelBindingCommands.isExactQuery(normalizedSlashQuery))
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showCommandQueryPopover = commandQuery !== null && canUseSlashPicker
   const showCommandPopover = showSlashPopover || showCommandQueryPopover
   const commandPopoverQuery = commandQuery ?? slashQuery ?? ''
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, initAvailable, status: customCommandStatus, reload: reloadCommands } = useCustomCommandCatalog({
+  const { commands: customCommands, initAvailable, reloadSkillsAvailable, status: customCommandStatus, reload: reloadCommands } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
     locale
   })
@@ -458,6 +460,15 @@ function InputComposerCore({
           icon: <ChevronsDown size={15} strokeWidth={2} aria-hidden />
         })
       }
+      if (threadId && canUseCommandPicker && reloadSkillsAvailable) {
+        actions.push({
+          id: 'reloadSkills',
+          label: t('composer.system.reloadSkills'),
+          description: t('composer.system.reloadSkills.description'),
+          keywords: ['reload-skills', 'reload', 'skills'],
+          icon: <RefreshCw size={15} strokeWidth={2} aria-hidden />
+        })
+      }
       if (canUseThreadGoals) {
         actions.push({
           id: 'goal',
@@ -479,13 +490,26 @@ function InputComposerCore({
       actions.push(...channelBindingCommands.actions)
       return actions
     },
-    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, channelBindingCommands.actions, t, threadMode]
+    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, reloadSkillsAvailable, threadId, channelBindingCommands.actions, t, threadMode]
   )
 
   useEffect(() => {
     if (!canUseSkillPicker) return
     void fetchSkills()
   }, [canUseSkillPicker, fetchSkills])
+
+  const reloadSkills = useCallback(async (): Promise<boolean> => {
+    if (!threadId) return false
+    try {
+      await executeReloadSkills(threadId)
+      addToast(t('composer.system.reloadSkills.done'), 'success')
+      void fetchSkills()
+      return true
+    } catch (err) {
+      addToast(t('composer.system.reloadSkills.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      return false
+    }
+  }, [fetchSkills, t, threadId])
 
   useEffect(() => {
     setHistoryCursor(null)
@@ -1248,6 +1272,7 @@ function InputComposerCore({
       let clearInput = false
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
       else if (systemCommand.kind === 'agent') clearInput = await setComposerMode('agent')
+      else if (systemCommand.kind === 'reloadSkills') clearInput = await reloadSkills()
       else clearInput = await compactThreadContext()
       if (clearInput) {
         resetComposerInput()
@@ -1405,7 +1430,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1735,6 +1760,10 @@ function InputComposerCore({
       void compactThreadContext()
       return
     }
+    if (actionId === 'reloadSkills') {
+      void reloadSkills()
+      return
+    }
     if (actionId === 'side') {
       void openSideChat(threadId, t)
       return
@@ -1746,7 +1775,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode, t, threadId])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1956,7 +1985,7 @@ function InputComposerCore({
             )}
             voiceStatus={<VoiceInputStatus threadId={threadId} />}
             permissions={!compactVoiceFooter && !minimalChrome ? (
-              <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
+              <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingInput} />
             ) : null}
             mode={!compactVoiceFooter ? (
               hasProfile ? (
@@ -2102,11 +2131,12 @@ const composerDockStyle: CSSProperties = {
   padding: '0 clamp(20px, 4vw, 40px)'
 }
 
-function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' } | null {
+function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' | 'reloadSkills' } | null {
   const trimmed = text.trim().toLowerCase()
   if (trimmed === '/plan') return { kind: 'plan' }
   if (trimmed === '/agent') return { kind: 'agent' }
   if (trimmed === '/compact') return { kind: 'compact' }
+  if (trimmed === '/reload-skills') return { kind: 'reloadSkills' }
   return null
 }
 

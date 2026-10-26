@@ -515,38 +515,6 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task CommonApproval_SkillMutationOnlyPromptsForCreateAndDelete()
-    {
-        var approval = new RecordingApprovalService(approved: true);
-        var evaluator = new CommonToolApprovalEvaluator();
-        evaluator.Bind(approval);
-        var registration = Registration(
-            new ToolName(null, "SkillManage"),
-            new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded("ok")),
-            inputSchema: Json("""{"type":"object","properties":{"action":{"type":"string"},"name":{"type":"string"}},"required":["action","name"]}"""),
-            annotations: new Dictionary<string, JsonElement>
-            {
-                ["dotcraft/nativeApproval"] = JsonSerializer.SerializeToElement(new
-                {
-                    kind = "remoteResource",
-                    targetArgument = "name",
-                    operationArgument = "action",
-                    whenOperationIn = new[] { "create", "delete" }
-                })
-            },
-            policyHints: new ToolPolicyHints(RequiresApproval: true));
-        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
-        var dispatcher = new ToolDispatcher(approvalEvaluator: evaluator);
-
-        Assert.True((await dispatcher.DispatchAsync(snapshot, registration.Definition.Name,
-            new JsonObject { ["action"] = "edit", ["name"] = "demo" }, Request())).Success);
-        Assert.Equal(0, approval.ResourceApprovalCalls);
-        Assert.True((await dispatcher.DispatchAsync(snapshot, registration.Definition.Name,
-            new JsonObject { ["action"] = "delete", ["name"] = "demo" }, Request())).Success);
-        Assert.Equal(1, approval.ResourceApprovalCalls);
-    }
-
-    [Fact]
     public async Task CommonApproval_UsesPluginRoutingDescriptor()
     {
         var approval = new RecordingApprovalService(approved: true);

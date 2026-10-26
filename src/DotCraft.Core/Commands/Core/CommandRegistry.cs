@@ -349,6 +349,12 @@ public sealed class CommandRegistry
             RequiresAdmin = true,
             DescriptionKey = "cmd.debug"
         });
+        registry.RegisterHandler(new ReloadSkillsCommandHandler(), new CommandRegistration
+        {
+            Name = "/reload-skills",
+            RequiresAdmin = true,
+            DescriptionKey = "command.reloadSkills.description"
+        });
 
         return registry;
     }

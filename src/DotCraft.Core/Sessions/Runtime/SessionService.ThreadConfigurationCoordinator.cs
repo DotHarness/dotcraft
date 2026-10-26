@@ -42,6 +42,7 @@ public sealed partial class SessionService
                 owner.ThreadUpdatedForBroadcast?.Invoke(thread);
             }
 
+            owner.SettlePendingApprovals(thread);
             await owner.ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, ct);
         }
 

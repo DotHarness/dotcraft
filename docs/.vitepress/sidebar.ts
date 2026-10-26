@@ -57,7 +57,7 @@ export const enSections: DocSection[] = [
         text: 'Agents',
         items: [
           { text: withIcon('bot', 'Agent Profiles'), link: '/guide/agent-profiles' },
-          { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/guide/skills' },
+          { text: withIcon('sparkles', 'Skills'), link: '/guide/skills' },
           { text: withIcon('brain', 'Memory & Dreams'), link: '/guide/memory' },
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/guide/hooks' }
         ]
@@ -308,7 +308,7 @@ export const zhSections: DocSection[] = [
         text: 'Agent',
         items: [
           { text: withIcon('bot', 'Agent 预设'), link: '/zh/guide/agent-profiles' },
-          { text: withIcon('sparkles', '技能与自学习'), link: '/zh/guide/skills' },
+          { text: withIcon('sparkles', '技能'), link: '/zh/guide/skills' },
           { text: withIcon('brain', '记忆与梦境'), link: '/zh/guide/memory' },
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/guide/hooks' }
         ]

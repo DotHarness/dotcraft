@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.5 |
+| Version | 0.9.6 |
 | Status | Living |
-| Date | 2026-10-25 |
+| Date | 2026-10-26 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -265,7 +265,7 @@ Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, chan
 
 Native and .NET extension authors SHOULD implement ordinary tools as methods marked `[Tool]` or `[GeneratedTool]`, with typed business parameters and constructor-supplied services; a tool source supplies namespace, exposure, and policy, and the shared adapter owns registration and argument conversion. `[ToolDeclaration]` and custom runtimes remain available for specialized adapters. The generator also emits a per-type factory returning every executable tool on one instance.
 
-A tool's trusted presentation is part of its declaration: `[ToolPresentation(id, Operation = ...)]` plus bounded `[ToolPresentationOption(key, value)]` options, validated against a 4,096-byte option budget. Sources MUST NOT select presentation by tool name. Provenance still decides which renderers may honor it, so the same declaration on a plugin tool selects only plugin renderers. Core may add one option derived from an invocation when recording its item, only for a fact Core alone resolves: `memory`, which marks a file tool call targeting the Thread's memory store.
+A tool's trusted presentation is part of its declaration: `[ToolPresentation(id, Operation = ...)]` plus bounded `[ToolPresentationOption(key, value)]` options, validated against a 4,096-byte option budget. Sources MUST NOT select presentation by tool name. Provenance still decides which renderers may honor it, so the same declaration on a plugin tool selects only plugin renderers. Core may add options derived from an invocation when recording its item, only for facts Core alone resolves: `memory`, which marks a file tool call targeting the Thread's memory store ([Memory](../features/memory.md#8-presentation)), and `skill` with `skillName` and `skillFile`, which mark a file tool call targeting a Skill directory ([Skills](skills.md#51-presentation)).
 
 A method MAY request one required, by-value `ToolInvocationContext` parameter for live invocation identity. That parameter and `CancellationToken` are excluded from the model schema and JSON binding, and model arguments cannot override them. Each invocation receives its own context; a function that requires context fails before its business method runs when none is supplied. Task isolation remains the business service's responsibility.
 

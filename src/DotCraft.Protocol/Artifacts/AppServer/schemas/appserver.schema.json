@@ -13378,9 +13378,6 @@
         "sideChat": {
           "type": "boolean"
         },
-        "skillVariants": {
-          "type": "boolean"
-        },
         "skillsManagement": {
           "type": "boolean"
         },
@@ -14021,9 +14018,6 @@
         "enabled": {
           "type": "boolean"
         },
-        "hasVariant": {
-          "type": "boolean"
-        },
         "iconLargeDataUrl": {
           "anyOf": [
             {
@@ -14173,29 +14167,6 @@
       },
       "additionalProperties": true
     },
-    "SkillsRestoreOriginalParams": {
-      "title": "SkillsRestoreOriginalParams",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SkillsRestoreOriginalResult": {
-      "title": "SkillsRestoreOriginalResult",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "restored": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
     "SkillsSetEnabledParams": {
       "title": "SkillsSetEnabledParams",
       "type": "object",
@@ -14238,9 +14209,6 @@
         },
         "removedSourcePath": {
           "type": "string"
-        },
-        "removedVariantCount": {
-          "type": "integer"
         },
         "source": {
           "type": "string"
@@ -18497,16 +18465,6 @@
               "items": {
                 "type": "string"
               }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "allowManage": {
-          "anyOf": [
-            {
-              "type": "boolean"
             },
             {
               "type": "null"

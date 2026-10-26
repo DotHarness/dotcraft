@@ -159,7 +159,6 @@ function Failure({ visible }: { visible: boolean }) {
 function typeLabel(approvalType: string): MessageId {
   if (approvalType === 'file') return 'approval.type.file'
   if (approvalType === 'remoteResource') return 'approval.type.remoteResource'
-  if (approvalType === 'skill') return 'approval.type.skill'
   if (approvalType === 'computerUse') return 'approval.type.computerUse'
   return 'approval.type.shell'
 }

@@ -18,11 +18,12 @@ import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
 import { formatMemoryRecallLabel } from './memoryToolDisplay'
-import { formatSkillManageLabel } from './skillManageToolDisplay'
 import { formatSkillViewLabel } from './skillViewToolDisplay'
+import { formatSkillOperationLabel } from './skillOperationDisplay'
 import {
   isShellCommandKind,
   resolveMemoryOperation,
+  resolveSkillOperation,
   resolveToolKind,
   resolveToolOperation,
   type ToolKind,
@@ -238,6 +239,8 @@ export function formatCollapsedToolLabel(
   const memory = resolveMemoryOperation(item)
   if (memory === 'recall') return formatMemoryRecallLabel(args, locale)
   if (memory === 'update') return translate(locale, 'toolCall.memory.updated.one')
+  const skill = resolveSkillOperation(item)
+  if (skill) return formatSkillOperationLabel(skill, locale)
   switch (kind) {
     case 'read':
       return formatReadFileLabel(args, locale) ?? formatExploredLabel(args, locale)
@@ -282,8 +285,6 @@ export function formatCollapsedToolLabel(
       const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
       return translate(locale, 'toolCall.ran', { cmd: firstLine })
     }
-    case 'skillManage':
-      return formatSkillManageLabel(args, undefined, locale)
     case 'skillView':
       return formatSkillViewLabel(args, locale)
     case 'nodeRepl':
@@ -321,7 +322,7 @@ export function getToolRowIcon(
   if (exploreIcon) return { icon: exploreIcon }
   if (kind === 'board') return { icon: MessagesSquare }
   if (kind === 'skillView') return { icon: BookOpen }
-  if (kind === 'write' || kind === 'edit' || kind === 'skillManage') return { icon: Pencil }
+  if (kind === 'write' || kind === 'edit') return { icon: Pencil }
   if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe }
   if (kind === 'nodeRepl') {
     const surface = getNodeReplSurface(item)
@@ -367,8 +368,6 @@ export function formatExpandedInvocation(
     case 'toolSearch':
       if (!invocationNeedsCallingPrefix(kind, args)) return formatInvocationDisplay(kind, args, locale)
       break
-    case 'skillManage':
-      return formatSkillManageLabel(args, undefined, locale)
     case 'skillView':
       return formatSkillViewLabel(args, locale)
     case 'nodeRepl':

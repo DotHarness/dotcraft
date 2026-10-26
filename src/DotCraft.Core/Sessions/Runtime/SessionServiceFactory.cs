@@ -65,6 +65,7 @@ public static class SessionServiceFactory
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
         sessionService.AttachRemoteRouteNotices();
         sessionService.AttachTerminalNotices();
+        sessionService.AttachApprovalPolicyChanges();
         BindSessionServiceConsumers(sp, sessionService);
         return sessionService;
     }

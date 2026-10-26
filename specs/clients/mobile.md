@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.5 |
+| Version | 0.9.6 |
 | Status | Draft |
-| Date | 2026-10-25 |
+| Date | 2026-10-26 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -440,6 +440,9 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   target and output. A running tool reads in the present tense using Desktop's wording, with
   elapsed time. In-progress text (running tools, streaming reasoning, generating images) uses
   Desktop's shimmer treatment, still under reduced motion.
+- A file tool call marked as a Skill operation ([Skills](../architecture/skills.md#51-presentation))
+  reads as Desktop words it, naming the Skill. Tapping the line shows its target and output, and
+  the Skill name opens the `skillFile` it carries in File.
 - A user message the computer sent shows Desktop's origin line above it: sent from a workflow,
   automation, app, goal auto-continue, or DotCraft from another thread (`subagentFollowupTask`,
   `subagentInput`). The first message of a chat started from another chat

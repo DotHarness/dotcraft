@@ -172,19 +172,6 @@ public sealed class ConfigMethodsTests : IDisposable
     }
 
     [Fact]
-    public async Task ValueWrite_SkillsSelfLearning_InvalidatesThreadAgents()
-    {
-        await File.WriteAllTextAsync(_workspaceConfigPath, """{ "Skills": { "SelfLearning": { "Enabled": true } } }""");
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
-        await harness.InitializeAsync();
-
-        await SendAsync(harness, Methods.ConfigValueWrite, Edit("Skills.SelfLearning.Enabled", "false"));
-
-        Assert.False(harness.Monitor.Current.Skills.SelfLearning.Enabled);
-        Assert.Equal(1, harness.Service.AgentInvalidationCount);
-    }
-
-    [Fact]
     public async Task ValueWrite_EnablingLsp_InitializesLspServers()
     {
         var config = new AppConfig();

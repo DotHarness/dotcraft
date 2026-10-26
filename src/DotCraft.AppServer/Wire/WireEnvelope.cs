@@ -285,7 +285,7 @@ public sealed class ServerCapabilitySnapshot
     public bool BackgroundTerminals { get; set; }
 
     /// <summary>
-    /// Server supports skills management methods (skills/list, skills/read, skills/view, skills/restoreOriginal, skills/setEnabled, skills/uninstall). See spec Section 18.
+    /// Server supports skills management methods (skills/list, skills/read, skills/view, skills/setEnabled, skills/uninstall). See spec Section 18.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SkillsManagement { get; set; }
@@ -307,12 +307,6 @@ public sealed class ServerCapabilitySnapshot
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginMarketplaces { get; set; }
-
-    /// <summary>
-    /// Server has skill variants enabled for effective skill views and restoring source skills from workspace adaptations.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool SkillVariants { get; set; }
 
     /// <summary>
     /// Server supports command management methods (command/list, command/execute). See spec Section 19.

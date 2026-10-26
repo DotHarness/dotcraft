@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.5 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-25 |
+| **Date** | 2026-10-26 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -350,6 +350,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 1. An approval request arrives while a turn is running, and the thread enters a waiting-approval state.
 2. The request is surfaced in the composer with enough information to decide. A shell request shows the command, its directory, and the `reasons` from its `shell` block; session and permanent options describe their scope from `rememberedPrefixes` and `remembersExactCommand`. While pending, the conversation shows one quiet awaiting-approval marker; afterwards the outcome shows on the tool row or turn result.
 3. The user can approve, decline, session-approve when supported, or cancel, as the protocol allows. Approved work continues, declined work reflects rejection and may take another path, and cancel terminates the turn.
+   The composer's approval-policy picker stays available while a request is pending; switching the thread to full access resolves the pending requests as approved, and later requests in the turn no longer ask ([Session Core](../architecture/session-core.md) §12.2).
 4. If the approval times out or becomes invalid, the user sees the resulting turn outcome.
 5. A `computerUse` approval asks whether DotCraft may use the application named by `targetLabel` and offers exactly: always allow (`acceptAlways`, which also adds the application to Desktop's always-allowed list), allow for this thread (`acceptForSession`), and decline.
 
@@ -394,6 +395,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 - `TaskStop` (`core.task`/`stop`) renders as one row naming what stopped (background terminal, subagent, or workflow) and its label; it expands only to show a subagent's last message.
 - `SendChannelMessage` (`core.channel`) renders as one row naming the destination chat; expanding shows the sent text and attachments; a failure keeps the row and shows the error.
 - A file tool call whose presentation options carry `memory` renders as memory recall or update rather than a file operation, following [Memory](../features/memory.md#8-presentation). `MEMORY.md` is not counted as a memory file.
+- A file tool call whose presentation options carry `skill` renders as reading, creating, or updating the Skill named by `skillName` rather than as a file operation, following [Skills](../architecture/skills.md#51-presentation). The label carries the Skill name as a Skill reference chip that opens the Skill's detail; a create or update expands to its diff like a file edit, and grouped rows name the Skill work once.
 - Completed `RequestUserInput` results render as a question-to-answer list, not raw JSON.
 - `CodeMode` and `CodeModeWait` calls and their results are not rendered; the calls a script makes render as ordinary items in time order ([Code Mode](../features/code-mode.md#10-session-projection-and-presentation)). `clock__Sleep` and `SendUserMessageAsync` calls are not rendered either; the asynchronous message itself shows as a message. The mobile client follows the same rules.
 
@@ -580,9 +582,10 @@ Revealing a tool call finds its item by call id; for a task-started turn it find
 The slash surface lists Desktop-owned system actions above custom Commands and Skills. Selecting one clears the slash query. Each group matches its labels, ids, and aliases (not descriptions): query characters match in order, each skip lands on a word start, and a mid-word start needs three characters. Within a group, prefixes rank above word starts above mid-word matches, then shorter names first.
 
 - **Init** appears only when command management is available and the workspace `command/list` result contains `/init` (AppServer omits it when root `AGENTS.md` or `AGENTS.override.md` exists; Desktop never inspects these files). Selecting it, or submitting `/init`, calls `command/execute` and starts a normal turn with the returned `expandedPrompt`. Command availability reloads after each turn ends.
+- **Reload skills** appears only when command management is available, the composer has a thread, and the workspace `command/list` result contains `/reload-skills`. Selecting it, or submitting `/reload-skills`, calls `command/execute` with that command, reports the result, and refreshes the skills list; it never starts an agent turn.
 - **Plan mode** is always shown and toggles mode through the same path as its keyboard shortcut, calling `thread/mode/set`. On Welcome it updates the pending mode without starting a thread.
 - **Compact** appears only when `capabilities.manualCompaction = true`, the thread has a turn, and no turn is running or awaiting approval. It calls `thread/compact/start` with a long client-side wait; a client timeout does not imply server failure.
-- Direct `/plan`, `/agent`, and `/compact` are handled locally and never start an agent turn; `/compact` reports unavailability when its conditions are not met.
+- Direct `/plan`, `/agent`, `/compact`, and `/reload-skills` are handled locally and never start an agent turn; `/compact` reports unavailability when its conditions are not met.
 
 **Follow-up while running**
 
@@ -724,7 +727,7 @@ The Plugins destination has `Plugins` and `Skills` tabs, shown when `capabilitie
 - Users can browse discovered and installable plugins, inspect details and included tools and skills, install or uninstall plugins, and enable or disable installed plugins.
 - Desktop tells a local AppServer where its bundled plugin resources live; without that, uninstalled built-in plugins are not installable catalog entries.
 - Plugin install, uninstall, and enablement refresh both plugin and skill state, because plugin-contained skills follow the plugin lifecycle.
-- Users can browse installed skills, inspect a skill's content, enable or disable skills when supported, and uninstall user-managed `workspace` and `user` skills (including their workspace-local variants). Skills with source `plugin` show attribution and are managed only through the owning plugin.
+- Users can browse installed skills, inspect a skill's content, enable or disable skills when supported, and uninstall user-managed `workspace` and `user` skills. Skills with source `plugin` show attribution and are managed only through the owning plugin.
 
 #### 6.1.1 Plugin Creation and Marketplace Sources
 

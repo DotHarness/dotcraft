@@ -188,7 +188,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
                     model = provider.Model,
                     toolAllowList = AllowedTools,
                     pluginPolicy = new { allow = new[] { PluginId } },
-                    skillsPolicy = new { allow = new[] { "plugin-creator" }, allowManage = false },
+                    skillsPolicy = new { allow = new[] { "plugin-creator" } },
                     mcpServers = Array.Empty<object>(),
                     approvalPolicy = "deny",
                     requireApprovalOutsideWorkspace = false

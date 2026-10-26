@@ -936,40 +936,6 @@ public sealed partial class AppConfig
 
         [ConfigField(Hint = "Deploy the skills DotCraft ships into the workspace on start", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
         public bool IncludeBuiltInSkills { get; set; } = true;
-
-        /// <summary>
-        /// Optional agent self-learning behavior for creating and updating workspace skills.
-        /// </summary>
-        [ConfigField(Ignore = true)]
-        public SelfLearningConfig SelfLearning { get; set; } = new();
-    }
-
-    [ConfigSection("Skills.SelfLearning", DisplayName = "Skills > Self-Learning", Order = 58)]
-    public sealed class SelfLearningConfig
-    {
-        /// <summary>
-        /// Master switch. When disabled, no skill mutation tools are exposed.
-        /// </summary>
-        [ConfigField(Hint = "Allow the agent to create and update workspace skills", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Skills)]
-        public bool Enabled { get; set; } = true;
-
-        /// <summary>
-        /// Controls whether self-learning updates are routed to workspace-local skill variants.
-        /// </summary>
-        [ConfigField(Hint = "Skill variant write mode: enabled or disabled. Future modes may add passive evidence collection.", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
-        public string VariantMode { get; set; } = "enabled";
-
-        /// <summary>
-        /// Maximum SKILL.md content length in characters.
-        /// </summary>
-        [ConfigField(Min = 1, Hint = "Maximum SKILL.md size in characters")]
-        public int MaxSkillContentChars { get; set; } = DotCraft.Skills.SkillFrontmatter.DefaultMaxSkillContentChars;
-
-        /// <summary>
-        /// Maximum supporting file size in bytes.
-        /// </summary>
-        [ConfigField(Min = 1, Hint = "Maximum supporting file size in bytes")]
-        public int MaxSupportingFileBytes { get; set; } = DotCraft.Skills.SkillFrontmatter.DefaultMaxSupportingFileBytes;
     }
 
     [ConfigSection("SubAgent", DisplayName = "SubAgent", Order = 58)]

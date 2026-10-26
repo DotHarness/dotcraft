@@ -1,7 +1,7 @@
 ---
 name: skill-installer
 description: "Use when installing a DotCraft skill from a local folder, archive, GitHub checkout, or market-provided download and then checking whether it needs workspace-specific adaptation."
-tools: Exec, SkillView
+tools: Exec, SkillView, EditFile
 ---
 
 # Skill Installer
@@ -50,6 +50,4 @@ Examples of useful checks:
 - If it references scripts or assets, confirm those files exist in the installed skill.
 - If it assumes paths, package managers, shells, or config files, check those in the workspace.
 
-Only write a workspace adaptation when you find a concrete mismatch. If `SkillManage` is available, use it to patch the effective skill so future runs remember the workspace-specific fix.
-
-Never use `EditFile`, `WriteFile`, or shell redirection to modify files under `.craft/skills/<installed-skill-name>/` for workspace adaptation. Those files are the installed source skill. Adaptations must go through `SkillManage`. If `SkillManage` is unavailable or keeps failing, report the mismatch and the suggested adaptation instead of editing the source skill.
+Adapt the installed skill only for a concrete mismatch. Edit its files under `.craft/skills/<installed-skill-name>/` with `EditFile`, keep the change narrow, and tell the user what you changed. Reinstalling with `--overwrite` restores the published version.

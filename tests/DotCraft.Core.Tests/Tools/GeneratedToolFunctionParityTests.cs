@@ -72,10 +72,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             new DotCraftPaths(_tempRoot, Path.Combine(_tempRoot, ".craft"), userDataPath: null));
         _asyncDisposables.Add(lspManager);
 
-        AssertEnum(
-            GeneratedToolFunctions.SkillManageTool_SkillManage(CreateSkillManageTool()),
-            "action",
-            ["create", "edit", "patch", "write_file", "remove_file", "delete"]);
         AssertEnum(GeneratedToolFunctions.GoalToolMethods_UpdateGoal(new GoalToolMethods()), "status", ["complete", "blocked"]);
         AssertEnum(GeneratedToolFunctions.WebTools_WebFetch(new WebTools()), "extractMode", ["markdown", "text", "raw"]);
         AssertEnum(
@@ -143,16 +139,11 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             new StubBackgroundTerminalService(),
             requireApprovalOutsideWorkspace: false);
         var exec = GeneratedToolFunctions.ShellTools_Exec(shellTools);
-        var skillManage = GeneratedToolFunctions.SkillManageTool_SkillManage(CreateSkillManageTool());
 
         Assert.True(GeneratedToolMetadataResolver.TryGet(exec, out var execMetadata));
         Assert.Equal(30_000, execMetadata.MaxResultChars);
         Assert.True(execMetadata.StreamArgumentsEnabled);
-
-        Assert.True(GeneratedToolMetadataResolver.TryGet(skillManage, out var skillMetadata));
-        Assert.False(skillMetadata.StreamArgumentsEnabled);
-        Assert.DoesNotContain(skillManage.Name, AgentFactory.BuildStreamOptOutToolNames([]));
-        Assert.Contains(skillManage.Name, AgentFactory.BuildStreamOptOutToolNames([skillManage]));
+        Assert.DoesNotContain(exec.Name, AgentFactory.BuildStreamOptOutToolNames([exec]));
     }
 
     [Fact]
@@ -224,8 +215,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         ]));
         var welcomeMethods = new WelcomeSuggestionToolMethods();
         var builderMethods = CreateAgentBuilderMethods("schema-builder");
-        var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
-        var skillManage = CreateSkillManageTool();
+        var skillView = new SkillViewTool(new SkillsLoader(_tempRoot));
         return
         [
             Pair(GeneratedToolFunctions.FileTools_ReadFile(fileTools), AIFunctionFactory.Create(fileTools.ReadFile)),
@@ -264,7 +254,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_ClearAgentProviderPreference(builderMethods), AIFunctionFactory.Create(builderMethods.ClearAgentProviderPreference)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentApproval(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentApproval)),
             Pair(GeneratedToolFunctions.SkillViewTool_SkillView(skillView), AIFunctionFactory.Create(skillView.SkillView)),
-            Pair(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManage), AIFunctionFactory.Create(skillManage.SkillManage)),
             Pair(GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest(), AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest))
         ];
     }
@@ -282,9 +271,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         ProfileBuilderDraftStore.Seed(threadId, "test-agent", AgentProfileSources.Workspace, string.Empty);
         return new AgentProfileBuilderToolMethods(threadId, skillsLoader: null, mcpClientManager: null);
     }
-
-    private SkillManageTool CreateSkillManageTool() =>
-        new(new NoOpSkillMutationApplier(), new AppConfig.SelfLearningConfig());
 
     private static FunctionPair Pair(AIFunction generated, AIFunction factory) =>
         new(generated.Name, generated, factory);
@@ -345,24 +331,4 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
 
     private sealed record FunctionPair(string Name, AIFunction Generated, AIFunction Factory);
 
-    private sealed class NoOpSkillMutationApplier : ISkillMutationApplier
-    {
-        public Task<SkillMutationResult> CreateAsync(SkillCreateRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("created"));
-
-        public Task<SkillMutationResult> EditAsync(SkillEditRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("edited"));
-
-        public Task<SkillMutationResult> PatchAsync(SkillPatchRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("patched"));
-
-        public Task<SkillMutationResult> DeleteAsync(SkillDeleteRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("deleted"));
-
-        public Task<SkillMutationResult> WriteFileAsync(SkillWriteFileRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("wrote"));
-
-        public Task<SkillMutationResult> RemoveFileAsync(SkillRemoveFileRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(SkillMutationResult.Ok("removed"));
-    }
 }

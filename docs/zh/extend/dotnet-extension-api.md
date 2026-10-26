@@ -166,7 +166,7 @@ context.Contributions.Add<ISystemPromptSection>(
     new ContributionOptions(ReplaceTarget: SystemPromptSectionNames.ResponseStyle));
 ```
 
-Agent 内置的记忆 Provider 也以同样的方式注册，目标名为 `AgentContextSourceNames.Memory`。替换它就等于接管整份系统提示词，而 `AgentContextRequest.PromptInputs` 会带上内置项本会用到的构建期取值——工具名、延迟加载的 MCP Server、subagent 档案分节、Skill 变体目标。这也是唯一一个返回 `null` 表示**放弃而非抑制**的目标：内置项会顶上，于是没有哪个 Agent 会在没有提示词的情况下运行。
+Agent 内置的记忆 Provider 也以同样的方式注册，目标名为 `AgentContextSourceNames.Memory`。替换它就等于接管整份系统提示词，而 `AgentContextRequest.PromptInputs` 会带上内置项本会用到的构建期取值——工具名、延迟加载的 MCP Server 和 subagent 档案分节。这也是唯一一个返回 `null` 表示**放弃而非抑制**的目标：内置项会顶上，于是没有哪个 Agent 会在没有提示词的情况下运行。
 
 “抑制”就是一个不产出内容的替换：返回 `null` 的分节会把内置项整体移除，不存在单独的移除动作。当两个替换指向同一个名字时，Thread 作用域胜过 Workspace 作用域，同一作用域内后注册者胜出。`Order` 只负责排列解析列表，从不参与替换的裁定。落败的一方记为 `ReplaceConflict` 诊断，而不会让贡献点失败。
 

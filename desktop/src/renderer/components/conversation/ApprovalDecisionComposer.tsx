@@ -336,7 +336,6 @@ function ApprovalDetailRow({
 function approvalTypeLabelKey(type: ApprovalType): string {
   if (type === 'file') return 'approval.type.file'
   if (type === 'remoteResource') return 'approval.type.remoteResource'
-  if (type === 'skill') return 'approval.kind.skill'
   if (type === 'computerUse') return 'approval.type.computerUse'
   return 'approval.type.shell'
 }

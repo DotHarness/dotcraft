@@ -1,6 +1,5 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
-import { formatSkillManageRunningLabel } from './skillManageToolDisplay'
 import { formatSkillViewRunningLabel } from './skillViewToolDisplay'
 import {
   extractBoardArguments,
@@ -9,7 +8,15 @@ import {
   getFilename,
   getRequestUserInputQuestionCount
 } from './toolCallDisplay'
-import { resolveMemoryOperation, resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
+import {
+  resolveMemoryOperation,
+  resolveSkillOperation,
+  resolveToolKind,
+  resolveToolOperation,
+  type ToolKind,
+  type ToolKindSource
+} from './toolKind'
+import { formatSkillOperationLabel } from './skillOperationDisplay'
 import { formatNodeReplLabel } from './nodeReplToolDisplay'
 import { formatTaskStopRunningLabel } from './taskStopDisplay'
 import { formatChannelMessageRunningLabel } from './channelMessageDisplay'
@@ -80,6 +87,18 @@ export function getStreamingToolDisplay(
   if (memory === 'recall') return { label: translate(locale, 'toolCall.memory.recalling') }
   if (memory === 'update') return { label: translate(locale, 'toolCall.memory.updating') }
 
+  const display = getTrustedStreamingToolDisplay(item, kind, rawArgs, toolName, locale)
+  const skill = resolveSkillOperation(item)
+  return skill ? { ...display, label: formatSkillOperationLabel(skill, locale, true) } : display
+}
+
+function getTrustedStreamingToolDisplay(
+  item: ToolKindSource,
+  kind: ToolKind,
+  rawArgs: string,
+  toolName: string,
+  locale: AppLocale
+): StreamingToolDisplay {
   switch (kind) {
     case 'board': {
       const operation = resolveToolOperation(item)
@@ -233,16 +252,6 @@ export function getStreamingToolDisplay(
     case 'todoWrite':
     case 'todo':
       return { label: translate(locale, 'toolCall.streaming.updatingTodos') }
-    case 'skillManage':
-      return {
-        label: formatSkillManageRunningLabel(
-          {
-            action: extractPartialJsonStringValue(rawArgs, 'action'),
-            name: extractPartialJsonStringValue(rawArgs, 'name')
-          },
-          locale
-        )
-      }
     case 'skillView':
       return {
         label: formatSkillViewRunningLabel({ name: extractPartialJsonStringValue(rawArgs, 'name') }, locale)

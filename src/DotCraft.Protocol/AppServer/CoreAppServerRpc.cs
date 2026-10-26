@@ -157,8 +157,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<SkillsReadParams, SkillsReadResult> SkillsRead = new("skills/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<SkillsRestoreOriginalParams, SkillsRestoreOriginalResult> SkillsRestoreOriginal = new("skills/restoreOriginal", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
-
     public static readonly RpcRequest<SkillsSetEnabledParams, SkillsSetEnabledResult> SkillsSetEnabled = new("skills/setEnabled", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<SkillsUninstallParams, SkillsUninstallResult> SkillsUninstall = new("skills/uninstall", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "skillsManagement", errors: CommonErrors);

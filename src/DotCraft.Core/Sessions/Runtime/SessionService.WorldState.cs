@@ -52,7 +52,7 @@ public sealed partial class SessionService
             SessionStartHookContext = sessionStartHookContext,
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
-            Skills = ResolveSkillCatalog(thread, turnId),
+            Skills = ResolveSkillCatalog(thread),
             ClientSurface = clientSurface
         };
 

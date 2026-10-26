@@ -115,7 +115,6 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
       "approvalFlow": true,
       "skillsManagement": true,
       "pluginManagement": true,
-      "skillVariants": true,
       "modelCatalogManagement": true,
       "mcpManagement": true
     }
@@ -487,7 +486,7 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 | 初始化 | `initialize`, `initialized` | 建立连接能力和 server 能力。 |
 | Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | 会话生命周期、有界历史和订阅。 |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | 用户输入、队列和取消。 |
-| Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、有效内容查看、恢复原始技能、开关和可卸载 skill 删除。 |
+| Skills | `skills/list`, `skills/read`, `skills/view`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、内容读取、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、Plan 模式可用性），用于 agent profile 的工具选择器。 |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | 插件发现、详情、安装、移除、启用状态与 .NET trust 管理。 |
 | 插件市场 | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | 用户管理的插件目录来源。 |
@@ -503,7 +502,7 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 
 展示功能相关的 UI 之前，先读 `initialize` 响应中的 `capabilities`。
 
-`skills/list` 返回的 Skill 条目可能包含 `hasVariant: true`，表示当前运行环境下该技能会通过工作区适配内容执行。`skills/read` 仍读取源 `SKILL.md`。需要展示或执行有效内容时使用 `skills/view`。
+`skills/read` 返回完整的 `SKILL.md`，包括 frontmatter。`skills/view` 返回去掉 frontmatter 的正文。
 
 App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。完成认证的 App principal 连接只能调用 app-role allowlist：连接认证、刷新、状态与撤销，binding 请求、激活、rebind 与列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`，未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../app-binding)。
 
@@ -518,7 +517,7 @@ App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。�
 
 调用 `skills/*` 前检查 `capabilities.skillsManagement`，调用 `plugin/*` 前检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前检查 `capabilities.pluginMarketplaces`。
 
-`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `config/changed`，`regions: ["skills"]`。
+`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。卸载成功后 server 广播 `config/changed`，`regions: ["skills"]`。
 
 插件生命周期把安装状态和启用状态分开：
 

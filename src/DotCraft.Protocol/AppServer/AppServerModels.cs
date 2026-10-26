@@ -333,10 +333,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PluginMarketplaces { get; init; }
 
-    [JsonPropertyName("skillVariants")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool SkillVariants { get; init; }
-
     [JsonPropertyName("commandManagement")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool CommandManagement { get; init; }

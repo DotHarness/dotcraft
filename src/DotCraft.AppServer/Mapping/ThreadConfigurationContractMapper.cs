@@ -245,15 +245,13 @@ internal static class ThreadConfigurationContractMapper
     private static Contract.ThreadSkillsPolicy ToContract(Domain.ThreadSkillsPolicy value) => new()
     {
         Allow = OmitIfNull<IReadOnlyList<string>>(value.Allow),
-        Deny = OmitIfNull<IReadOnlyList<string>>(value.Deny),
-        AllowManage = OmitIfNull(value.AllowManage)
+        Deny = OmitIfNull<IReadOnlyList<string>>(value.Deny)
     };
 
     private static Domain.ThreadSkillsPolicy FromContract(Contract.ThreadSkillsPolicy value) => new()
     {
         Allow = ValueOrDefault(value.Allow)?.ToArray(),
-        Deny = ValueOrDefault(value.Deny)?.ToArray(),
-        AllowManage = ValueOrDefault(value.AllowManage)
+        Deny = ValueOrDefault(value.Deny)?.ToArray()
     };
 
     private static string WireString<T>(T value) where T : struct, Enum =>

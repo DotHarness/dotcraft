@@ -151,7 +151,7 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.DoesNotContain(loader.ListSkills(), skill => skill.Name == name);
         Assert.Null(loader.ResolveSkillInfo(name));
         Assert.Null(loader.LoadSkill(name));
-        Assert.Null(loader.LoadEffectiveSkill(name, variantModeEnabled: false, target: null));
+        Assert.Null(loader.LoadSkillBody(name));
         Assert.Contains("Unavailable instructions", File.ReadAllText(source));
         Assert.Equal("unavailable-version", File.ReadAllText(Path.Combine(directory, ".builtin")));
         Assert.NotNull(loader.LoadSkill("plugin-creator"));
@@ -218,7 +218,7 @@ public sealed class SkillsLoaderTests : IDisposable
         var skill = Assert.Single(loader.ListSkills(), candidate => candidate.Name == "declarative-requirements");
         var metadata = loader.GetSkillMetadata(skill.Name);
         var entry = Assert.Single(
-            loader.ListCatalog(variantModeEnabled: false, target: null),
+            loader.ListCatalog(),
             candidate => candidate.Name == "declarative-requirements");
 
         Assert.Equal("command-that-does-not-exist-dotcraft", metadata!["bins"]);
@@ -244,7 +244,7 @@ public sealed class SkillsLoaderTests : IDisposable
         loader.SetDisabledSkills(["disabled"]);
         var policy = new ThreadSkillsPolicy { Allow = ["Allowed", "denied", "disabled"], Deny = ["DENIED"] };
 
-        var names = loader.ListCatalog(variantModeEnabled: false, target: null, policy).Select(entry => entry.Name);
+        var names = loader.ListCatalog(policy).Select(entry => entry.Name);
 
         Assert.Equal(["allowed"], names);
     }

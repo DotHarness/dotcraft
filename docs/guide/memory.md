@@ -77,5 +77,5 @@ To forget one thing, ask DotCraft to forget it, or delete its file and its line 
 
 ## Related docs
 
-- [Skills & Self-Learning](./skills) — memory keeps facts, skills keep methods: a workflow that worked gets reused next time
+- [Skills](./skills) — memory keeps facts, skills keep methods: a workflow that worked gets reused next time
 - [Observability](../self-hosting/observability) — review Dreams runs and session traces in Dashboard

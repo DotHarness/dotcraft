@@ -384,13 +384,6 @@ public sealed class ThreadSkillsPolicy
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Deny { get; set; }
 
-    /// <summary>
-    /// Whether skill management tools may be exposed and invoked.
-    /// Null means the existing runtime default applies.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public bool? AllowManage { get; set; }
-
     public bool Denies(string skillName) => Lists(Deny, skillName);
 
     public bool Allows(string skillName) => Allow == null || Lists(Allow, skillName);

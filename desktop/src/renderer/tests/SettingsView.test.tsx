@@ -166,7 +166,7 @@ describe('SettingsView', () => {
       WelcomeSuggestions: { Enabled: true },
       PromptSuggestions: { Enabled: true },
       Memory: { Enabled: true, AutoExtract: false },
-      Skills: { SelfLearning: { Enabled: false }, IncludeSharedSkills: true },
+      Skills: { IncludeSharedSkills: true },
       Dreams: { Enabled: true, Interval: '1.00:00:00', AutoApply: false },
       Permissions: { DefaultApprovalPolicy: 'default' },
       Tools: { CodeMode: { Mode: 'Only' }, ImageGeneration: { Enabled: true, Provider: null } }
@@ -293,17 +293,17 @@ describe('SettingsView', () => {
     })
   })
 
-  it('saves self-learning toggle, shows global restart banner, and restarts managed AppServer', async () => {
+  it('saves the shared skills toggle, shows global restart banner, and restarts managed AppServer', async () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
-    const toggle = await screen.findByRole('switch', { name: 'Enable self-learning' })
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+    const toggle = await screen.findByRole('switch', { name: 'Use shared skills' })
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
 
     fireEvent.click(toggle)
 
     await waitFor(() => {
-      expectWrite('Skills.SelfLearning.Enabled', true)
+      expectWrite('Skills.IncludeSharedSkills', false)
     })
     expect(await screen.findByText('Changes require a service restart to take effect')).toBeInTheDocument()
 

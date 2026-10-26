@@ -166,7 +166,7 @@ context.Contributions.Add<ISystemPromptSection>(
     new ContributionOptions(ReplaceTarget: SystemPromptSectionNames.ResponseStyle));
 ```
 
-The agent's built-in memory provider registers on the same terms, under `AgentContextSourceNames.Memory`; replacing it takes over the whole system prompt, and `AgentContextRequest.PromptInputs` carries the build-time values the built-in would have used — tool names, deferred MCP servers, the subagent profile section, the skill-variant target. It is the one target where returning `null` **declines instead of suppressing**: the built-in composes in its place, so no agent runs without a prompt.
+The agent's built-in memory provider registers on the same terms, under `AgentContextSourceNames.Memory`; replacing it takes over the whole system prompt, and `AgentContextRequest.PromptInputs` carries the build-time values the built-in would have used — tool names, deferred MCP servers, and the subagent profile section. It is the one target where returning `null` **declines instead of suppressing**: the built-in composes in its place, so no agent runs without a prompt.
 
 Suppression is a replacement that produces nothing: a section returning `null` removes the built-in outright, and there is no separate remove verb. When two replacements target the same name, a thread-scoped one beats a workspace-scoped one and the later registration wins within a scope; `Order` only orders the resolved list and never decides a replacement. The loser is recorded as a `ReplaceConflict` diagnostic rather than failing the contribution point.
 

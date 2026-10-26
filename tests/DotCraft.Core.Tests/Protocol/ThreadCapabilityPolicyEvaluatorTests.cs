@@ -93,8 +93,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             SkillsPolicy = new ThreadSkillsPolicy
             {
                 Allow = ["code-review"],
-                Deny = ["secret"],
-                AllowManage = false
+                Deny = ["secret"]
             }
         };
         var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
@@ -107,14 +106,9 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             "call-2",
             "SkillView",
             new Dictionary<string, object?> { ["name"] = "secret" }));
-        var deniedManage = policy.EvaluateCall(new FunctionCallContent(
-            "call-3",
-            "SkillManage",
-            new Dictionary<string, object?> { ["action"] = "patch", ["name"] = "code-review" }));
 
         Assert.Equal(ModeToolPolicyDecisionKind.Allow, allowed.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, deniedByName.Kind);
-        Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, deniedManage.Kind);
     }
 
     [Fact]

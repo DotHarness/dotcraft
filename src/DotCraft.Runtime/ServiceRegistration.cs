@@ -119,9 +119,6 @@ public static class ServiceRegistration
             PluginRuntimeConfigurator.ConfigureSkillsLoader(skillsLoader, config, paths);
             return skillsLoader;
         });
-        services.AddSingleton<ISkillMutationApplier>(sp =>
-            new WorkspaceFileSkillMutationApplier(sp.GetRequiredService<SkillsLoader>()));
-
         services.AddSingleton(_ => new CustomCommandLoader(paths));
         services.AddSingleton(sp =>
         {

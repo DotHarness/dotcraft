@@ -68,7 +68,6 @@ internal static class InitializeContractMapper
         DesktopPluginArtifacts = value.DesktopPluginArtifacts,
         PluginConfiguration = value.PluginConfiguration,
         PluginMarketplaces = value.PluginMarketplaces,
-        SkillVariants = value.SkillVariants,
         CommandManagement = value.CommandManagement,
         Automations = value.Automations,
         ChannelStatus = value.ChannelStatus,

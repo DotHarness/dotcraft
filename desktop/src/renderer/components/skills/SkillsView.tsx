@@ -6,13 +6,11 @@ import { useSkillMarketStore } from '../../stores/skillMarketStore'
 import { useConnectionStore, type ServerCapabilities } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useConfigValue } from '../../stores/configStore'
 import type { MarketDotCraftInstallPreparation, MarketSkillDetail, MarketSkillSummary } from '../../../shared/skillMarket'
 import { SkillAvatar } from './SkillAvatar'
 import { SkillDetailDialog } from './SkillDetailDialog'
 import { MarketSkillDetailDialog, providerLabel } from './MarketSkillDetailDialog'
 import { stageSkillTryInChat } from './skillDraft'
-import { VariantBadge } from './VariantBadge'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
@@ -72,7 +70,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   const [mode, setMode] = useState<ViewMode>('browse')
   const [query, setQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
-  const selfLearningEnabled = useConfigValue('Skills.SelfLearning.Enabled') !== false
 
   useEffect(() => {
     void fetchSkills()
@@ -145,7 +142,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
     const disabledReason = dotCraftInstallDisabledReason(
       connectionStatus,
       capabilities,
-      selfLearningEnabled,
       remoteWorkspaceActive,
       t
     )
@@ -165,37 +161,12 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
     }
   }
 
-  async function handleRestoreOriginalSkill(skill: SkillEntry): Promise<void> {
-    if (connectionStatus !== 'connected' || capabilities?.skillVariants !== true) {
-      addToast(t('skillDetail.restoreOriginalUnavailable'), 'warning')
-      return
-    }
-
-    try {
-      const result = await window.api.appServer.sendRequest('skills/restoreOriginal', {
-        name: skill.name
-      }) as { restored?: boolean }
-      if (result.restored) {
-        addToast(t('skillDetail.restoreOriginalSuccess'), 'success')
-        await fetchSkills()
-        await selectSkill(skill.name)
-      } else {
-        addToast(t('skillDetail.restoreOriginalNoop'), 'info')
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      addToast(t('skillDetail.restoreOriginalFailed', { error: msg }), 'error')
-    }
-  }
-
   async function handleUninstallSkill(skill: SkillEntry): Promise<void> {
     if (!isUninstallableSkill(skill)) return
 
     const ok = await confirm({
       title: t('skillDetail.uninstallTitle', { name: skill.displayName ?? skill.name }),
-      message: skill.hasVariant
-        ? t('skillDetail.uninstallVariantMessage', { name: skill.displayName ?? skill.name })
-        : t('skillDetail.uninstallMessage', { name: skill.displayName ?? skill.name }),
+      message: t('skillDetail.uninstallMessage', { name: skill.displayName ?? skill.name }),
       confirmLabel: t('skillDetail.uninstall'),
       cancelLabel: t('common.cancel'),
       danger: true
@@ -215,7 +186,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   const dotCraftDisabledReason = dotCraftInstallDisabledReason(
     connectionStatus,
     capabilities,
-    selfLearningEnabled,
     remoteWorkspaceActive,
     t
   )
@@ -333,7 +303,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
           loading={contentLoading}
           onClose={() => clearSelection()}
           onTryInChat={() => handleTrySkillInChat(selected)}
-          onRestoreOriginal={() => void handleRestoreOriginalSkill(selected)}
           onUninstall={isUninstallableSkill(selected) ? () => void handleUninstallSkill(selected) : undefined}
         />
       )}
@@ -518,7 +487,6 @@ function SkillManageItem({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitleLine}>
           <div style={rowTitle}>{skillTitle(skill)}</div>
-          {skill.hasVariant ? <VariantBadge compact /> : null}
         </div>
         <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
       </div>
@@ -554,7 +522,6 @@ function LocalSkillItem({ skill, onOpen }: { skill: SkillEntry; onOpen: () => vo
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitleLine}>
           <div style={rowTitle}>{skillTitle(skill)}</div>
-          {skill.hasVariant ? <VariantBadge compact /> : null}
         </div>
         <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
       </div>
@@ -607,15 +574,12 @@ type TranslateFn = (key: string, vars?: Record<string, string | number>) => stri
 function dotCraftInstallDisabledReason(
   connectionStatus: string,
   capabilities: ServerCapabilities | null,
-  selfLearningEnabled: boolean,
   remoteWorkspaceActive: boolean,
   t: TranslateFn
 ): string | null {
   if (remoteWorkspaceActive) return t('skillMarket.dotCraftInstallUnavailableRemote')
   if (connectionStatus !== 'connected') return t('skillMarket.dotCraftInstallUnavailableDisconnected')
   if (capabilities?.skillsManagement !== true) return t('skillMarket.dotCraftInstallUnavailableSkills')
-  if (capabilities?.skillVariants !== true) return t('skillMarket.dotCraftInstallUnavailableVariants')
-  if (selfLearningEnabled === false) return t('skillMarket.dotCraftInstallUnavailableSelfLearning')
   return null
 }
 

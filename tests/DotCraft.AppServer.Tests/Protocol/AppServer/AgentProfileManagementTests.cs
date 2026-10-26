@@ -577,8 +577,6 @@ mode: plan
 tools:
   deny: [WriteFile]
   agentControl: disabled
-skills:
-  allowManage: false
 permissions:
   approvalPolicy: deny
 ---

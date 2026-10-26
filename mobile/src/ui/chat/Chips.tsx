@@ -80,25 +80,29 @@ function FilePathSheet({ path, visible, onClose }: { path: string; visible: bool
 
 export const FileViewerContext = createContext<((path: string) => void) | null>(null)
 
-export function FileChip({ path, label }: { path: string; label: string }) {
+function FileRef({ path, label, icon, tone }: { path: string; label: string; icon: IconName; tone?: RefTone }) {
   const { t } = useI18n()
   const openFile = useContext(FileViewerContext)
   const [open, setOpen] = useState(false)
-  if (openFile) return <Ref icon="file" label={label} accessibilityLabel={t('file.open', { file: label })} onPress={() => openFile(path)} />
+  if (openFile) return <Ref icon={icon} label={label} tone={tone} accessibilityLabel={t('file.open', { file: label })} onPress={() => openFile(path)} />
   return (
     <>
-      <Ref icon="file" label={label} accessibilityLabel={t('file.show', { file: label })} onPress={() => setOpen(true)} />
+      <Ref icon={icon} label={label} tone={tone} accessibilityLabel={t('file.show', { file: label })} onPress={() => setOpen(true)} />
       <FilePathSheet path={path} visible={open} onClose={() => setOpen(false)} />
     </>
   )
+}
+
+export function FileChip({ path, label }: { path: string; label: string }) {
+  return <FileRef path={path} label={label} icon="file" />
 }
 
 export function LinkChip({ url, label }: { url: string; label: string }) {
   return <Ref icon={/^https?:/i.test(url) ? 'globe' : 'link'} label={label} onPress={() => void Linking.openURL(url).catch(() => undefined)} />
 }
 
-export function SkillChip({ name }: { name: string }) {
-  return <Ref icon="box" label={name} tone="skill" />
+export function SkillChip({ name, path }: { name: string; path?: string }) {
+  return path ? <FileRef path={path} label={name} icon="box" tone="skill" /> : <Ref icon="box" label={name} tone="skill" />
 }
 
 const styles = StyleSheet.create({

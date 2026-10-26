@@ -29,8 +29,6 @@ public sealed class CoreToolSource(
     PathBlacklist? pathBlacklist = null,
     LspServerManager? lspServerManager = null,
     TraceCollector? traceCollector = null,
-    ISkillMutationApplier? skillMutationApplier = null,
-    IContextPageManager? contextPageManager = null,
     string? userDataPath = null,
     IContributionView? contributions = null,
     IProviderHttpTransport? providerHttpTransport = null) : AIFunctionToolSource
@@ -71,17 +69,6 @@ public sealed class CoreToolSource(
 
     private object? GetNativeApprovalDescriptor(AIFunction function, ToolPlanningContext context)
     {
-        if (string.Equals(function.Name, "SkillManage", StringComparison.Ordinal))
-        {
-            return new
-            {
-                kind = "remoteResource",
-                targetArgument = "name",
-                operationArgument = "action",
-                whenOperationIn = new[] { "create", "delete" }
-            };
-        }
-
         if (!RequiresApprovalOutsideWorkspace(context))
             return null;
 
@@ -207,34 +194,8 @@ public sealed class CoreToolSource(
         tools.AddRange(GeneratedToolFunctions.All(webTools)
             .Where(tool => !hostedWebSearch || tool.Name != nameof(WebTools.WebSearch)));
 
-        var target = SkillVariantStore.CreateTarget(
-            context.EffectiveMainModel,
-            context.WorkspacePath,
-            config.Permissions.DefaultApprovalPolicy.ToString(),
-            tools.Select(t => t.Name).ToArray());
-        var selfLearning = config.Skills.SelfLearning;
-        var variantModeEnabled = string.Equals(selfLearning.VariantMode, "enabled", StringComparison.OrdinalIgnoreCase);
-
-        // Effective skill loading is always available; SkillManage remains opt-in.
-        var skillViewTool = new SkillViewTool(skillsLoader, variantModeEnabled, target, traceCollector);
+        var skillViewTool = new SkillViewTool(skillsLoader, traceCollector);
         tools.Add(GeneratedToolFunctions.SkillViewTool_SkillView(skillViewTool));
-
-        // Skill self-learning mutation tools are opt-in and hidden from the model unless enabled.
-        if (selfLearning.Enabled)
-        {
-            var mutationApplier = variantModeEnabled
-                ? new VariantSkillMutationApplier(
-                    skillMutationApplier ?? new WorkspaceFileSkillMutationApplier(skillsLoader),
-                    skillsLoader,
-                    target)
-                : skillMutationApplier ?? new WorkspaceFileSkillMutationApplier(skillsLoader);
-            var skillManageTool = new SkillManageTool(
-                mutationApplier,
-                selfLearning,
-                approvalService: null,
-                contextPageManager);
-            tools.Add(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManageTool));
-        }
 
         return tools;
     }

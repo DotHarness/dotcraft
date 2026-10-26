@@ -63,7 +63,6 @@ public sealed class AppServerRequestHandler(
         services.ProtocolExtensions?.Cast<IAppServerCapabilityContributor>().ToArray()
         ?? [];
 
-    private SkillVariantContext? _skillVariants;
     private WorkspaceConfigEditor? _workspaceConfig;
     private AppServerMcpConfigService? _mcpConfig;
     private ExternalChannelConfigService? _externalChannelConfig;
@@ -72,9 +71,6 @@ public sealed class AppServerRequestHandler(
     private AppServerResponseWriter? _responseWriter;
     private AppServerThreadWireProjector? _threadProjector;
     private AgentProfileThreadConfigResolver? _profileResolver;
-
-    private SkillVariantContext SkillVariants => _skillVariants ??=
-        new SkillVariantContext(services.AppConfigMonitor, _chatClientRegistry, services.HostWorkspacePath, services.WorkspaceCraftPath);
 
     private WorkspaceConfigEditor WorkspaceConfig => _workspaceConfig ??=
         new WorkspaceConfigEditor(services.AppConfigMonitor, services.WorkspaceCraftPath);
@@ -154,11 +150,11 @@ public sealed class AppServerRequestHandler(
 
     private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
     [
-        new InitializeRequestHandler(connection, services, _capabilityContributors, SkillVariants, ThreadProjector),
+        new InitializeRequestHandler(connection, services, _capabilityContributors, ThreadProjector),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new RemoteToolHostRequestHandler(services.RemoteToolHostClient, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.AppConfigMonitor, services.WorkspaceCraftPath),
-        new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
+        new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath),
         new ToolRequestHandler(),
         new FileSystemRequestHandler(services.AppConfigMonitor, connection, transport),
         new CommandExecRequestHandler(services.AppConfigMonitor, services.HostWorkspacePath, connection),
@@ -205,7 +201,7 @@ public sealed class AppServerRequestHandler(
             (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
         new ThreadRecoveryRequestHandler(sessionService),
         new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, services.StreamDebugLogger, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
-        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
+        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
         new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService),

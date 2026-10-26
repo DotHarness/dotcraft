@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-26 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -26,8 +26,6 @@ running or on which client is attached belongs to thread context items (§4b). S
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
 Model-visible guidance should state the action, its target, and necessary responsibility boundaries in terms the agent can use. Shared rules belong in stable sections, tool-specific contracts in tool descriptions, and current facts in runtime context. Conditional detail should load only when relevant. Wording changes must preserve authority, mode restrictions, output contracts, and required task completion behavior.
-
-Skill self-learning guidance should assess whether a verified procedure or correction is reusable. Tool-call counts alone do not establish that a workflow merits a skill.
 
 For `openai-responses`, this logical composition has two wire projections. Standard Responses sends
 base instructions and tools through the provider's top-level `instructions` and `tools` fields.
@@ -55,14 +53,13 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 9 | User-input request protocol | Included only when the tool is available. |
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
 | 11 | Memory | Memory instructions with the own store path and each attached store's path, name, description, and access. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. |
-| 12 | Skill self-learning | Included only when skill management is available. |
-| 13 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
-| 14 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (§4b). |
-| 15 | Custom command summary | Available custom commands. |
-| 16 | Global prompt context | Process-wide prompt extension points. |
-| 17 | Deferred capability discovery | Included only when deferred loading is active. |
-| 18 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
-| 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), and this section is omitted. |
+| 12 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
+| 13 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (§4b). |
+| 14 | Custom command summary | Available custom commands. |
+| 15 | Global prompt context | Process-wide prompt extension points. |
+| 16 | Deferred capability discovery | Included only when deferred loading is active. |
+| 17 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
+| 18 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), and this section is omitted. |
 
 The tool-conditioned `channel-replies` section follows working style when `SendChannelMessage` is available.
 It defines visible chat reply responsibilities. Resolved chat facts stay in the `channel_chat` WorldState
@@ -79,7 +76,7 @@ Every section above is derived from configuration, workspace state, or the resol
 A tool counts as available when the model can call it in the Turn: directly, through Code Mode, or
 through deferred search.
 No section may depend on the identity of the running thread or on an attached client connection;
-that content belongs to thread context items (§4b), which is also why section 18 excludes native
+that content belongs to thread context items (§4b), which is also why section 17 excludes native
 SubAgent role instructions.
 
 Stable context pages are reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each agent has exactly one context-page manager, and sources that change their context invalidate their own cached page.
@@ -110,7 +107,7 @@ Rules:
 - Role instructions may specialize behavior, tone, task scope, and role boundaries.
 - Runtime policy wins over role text when they conflict.
 - App-provided context must not become role instructions unless a first-party runtime owns that role contract.
-- An application that starts a thread states its own contract through `developerInstructions` (base section 19), which follows role instructions and never replaces them.
+- An application that starts a thread states its own contract through `developerInstructions` (base section 18), which follows role instructions and never replaces them.
 
 Known writers:
 
@@ -171,7 +168,7 @@ Current writers:
 |--------|---------|
 | Native session-backed SubAgent | Child role text and role boundaries. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§9). |
-| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 19. |
+| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 18. |
 | Persistent state | State that persists across turns, written only when it changes. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 

@@ -1,6 +1,6 @@
-# Skills & Self-Learning
+# Skills
 
-A skill teaches the agent how to do something once, so the next time a similar job comes up it loads that write-up and follows it. Each skill is a Markdown file with frontmatter. Some ship with DotCraft, some you write yourself, and the agent can save its own after a job goes well.
+A skill teaches the agent how to do something once, so the next time a similar job comes up it loads that write-up and follows it. Each skill is a Markdown file with frontmatter. Some ship with DotCraft, some you write yourself, and the agent can write or fix one when you ask.
 
 ![DotCraft skill sources overview](/skills-sources-overview.svg)
 
@@ -20,11 +20,11 @@ When you write a skill yourself, `~/.craft/skills/` makes it personal and the wo
 
 No need to read the docs or hand-edit config files. Ask in the conversation: "what can you do", "switch to Claude", "which MCP servers do you have". DotCraft answers, and when a setting has to change it makes the change for you and tells you when it takes effect. To integrate DotCraft into your own application, ask it to walk you through that too; it writes code against the SDK version you actually have installed.
 
-## Let the agent save its own skills
+## Ask the agent to write a skill
 
-Turn on **Settings → Personalization → Enable self-learning** in Desktop, and the agent can turn a procedure that worked into a workspace skill, or patch steps in an existing skill that turned out to be stale or wrong. Creating a skill and any destructive change ask you first.
+Say "turn what we just did into a skill" or "the deploy skill is missing a step, fix it", and the agent writes the skill files itself, following the built-in authoring guide and checking the result before it finishes. New skills go to the workspace's `.craft/skills/`. To adapt a system, personal, or plugin skill for one project, the agent copies it into the workspace first. The edits are ordinary file changes under your approval settings, and the conversation shows which skill was created or updated, with a link that opens it.
 
-Self-learning writes only to the current workspace's skill directory. System and personal skills are read-only, so the agent copies one into the workspace before changing it. With self-learning on, the agent also gets a built-in authoring reference covering how a skill is structured, where supporting files go, and the usual pitfalls. Turn self-learning off and that reference goes away with it. The full set of switches and limits is in the [skills configuration](../configuration/memory-skills#skills).
+A new or renamed skill joins the skills list in a new conversation, or after you send `/reload-skills`.
 
 ### What's worth saving as a skill
 
@@ -45,21 +45,13 @@ To install a skill from a marketplace:
 
 1. Open it in the search results and read its README, description, and source links.
 2. Select **Install with DotCraft**.
-3. DotCraft starts an install agent that inspects your workspace, system, and available tools, and produces a version tuned to your environment when that helps.
+3. DotCraft starts an install agent that inspects your workspace, system, and available tools, and adjusts the installed copy when something in your environment differs, telling you what it changed.
 
 ![Skill marketplace results](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-hub.png)
 
-<p class="caption">Installing a market skill through DotCraft and generating a local variant</p>
+<p class="caption">Installing a market skill through DotCraft</p>
 
-Market skills land under the workspace's `.craft/skills/`. If a skill of the same name is already there, Desktop asks before overwriting it. System and plugin-bundled skills are trusted by default. SkillHub and ClawHub are external sources, so try anything you're unsure about on a branch or in a separate workspace first.
-
-### Variants: keep the original, layer the optimization
-
-A skill installed with **Install with DotCraft** is never rewritten in place. The agent keeps the original and generates a variant tuned to your environment, then prefers the active variant from then on. To go back to what the marketplace published, select **Restore original skill** on the skill's detail page.
-
-![Skill variant](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/skill-variant.webp)
-
-You keep what self-learning improved, with a clean way back if it goes wrong.
+Market skills land under the workspace's `.craft/skills/`. If a skill of the same name is already there, Desktop asks before overwriting it, so installing again is also how you return to the published version. System and plugin-bundled skills are trusted by default. SkillHub and ClawHub are external sources, so try anything you're unsure about on a branch or in a separate workspace first.
 
 ## Enable and disable
 
@@ -76,7 +68,7 @@ The official development skills are split into two plugins by scope. `dotcraft` 
 | A fixed procedure in one project ("run lint and tests before any PR") | Workspace skill, hand-written or agent-created |
 | A preference that follows you everywhere (your code style) | Personal skill |
 | Tools plus several skills you want to distribute | Build a [plugin](./plugins-tools) |
-| Capturing a problem the agent just solved | Turn on self-learning |
+| Capturing a problem the agent just solved | Ask the agent to turn it into a skill |
 | Reusing something the community already built | Search the marketplace from the Skills page, then install with DotCraft |
 
 ## Related docs
