@@ -2,14 +2,14 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.3 |
+| Version | 0.10.0 |
 | Status | Living |
-| Date | 2026-10-24 |
+| Date | 2026-10-26 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
-This document defines how a pull request comment that mentions Oratorio asks
-for a review or asks Oratorio a question, how Oratorio finds such comments with
-or without webhooks, and how it answers on the pull request. It extends the
+This document defines how GitHub comments that mention Oratorio request a pull
+request review or ask a question, how Oratorio finds such comments with or
+without webhooks, and how it answers on the source issue or pull request. It extends the
 GitHub source, review run, Discussion Turn, finding resolution and source write
 contracts of the parent spec.
 
@@ -30,6 +30,8 @@ comment with `@dotcraft-ai`:
 - `@dotcraft-ai <question>` asks about the pull request, its review or one of
   its findings. Oratorio answers on the pull request.
 
+Issue conversation comments accept questions using the subset defined in §11.
+
 Commands are accepted from new top-level comments in the pull request
 conversation and from new inline review comments, including replies in an
 existing review thread. Oratorio discovers them by polling the repository's
@@ -43,8 +45,7 @@ replies and reactions; everything Oratorio writes is attributed to the App.
 Non-goals:
 
 - implementation commands, commits or pushes requested from a comment;
-- commands in pull request review summaries, issue comments outside pull
-  requests, or edited comments;
+- commands in pull request review summaries, issue titles or bodies, or edited comments;
 - repositories not configured in Oratorio with a workspace mapping;
 - GitLab mentions;
 - reacting to or answering comments written by bots, including Oratorio's own
@@ -88,7 +89,7 @@ other repositories or the next scan.
 
 A comment is a command candidate only when:
 
-- it is a pull request comment, not an issue comment;
+- it is a pull request comment or an issue conversation comment;
 - it was created after the repository's scan baseline and after the previous
   scan's high-water mark, less a short overlap. A comment created earlier and
   edited later is never a candidate;
@@ -124,8 +125,8 @@ accepted command's comment. The reaction is idempotent, attributed to the App
 and best effort: a failed reaction is recorded and never blocks the command.
 Rejected and invalid comments get no reaction.
 
-Command records are backend audit state with their comment, repository, pull
-request, actor, association, kind, text, status, attempts, linked work, error
+Command records are backend audit state with their comment, repository, target
+kind and number, actor, association, command kind, text, status, attempts, linked work, error
 and times. They are not exposed through the API or Desktop. A command is
 **Queued**, **Dispatched** (linked to its review run or question), **Rejected**
 or **Failed**. Transient GitHub read failures are retried at most three times:
@@ -240,3 +241,43 @@ replies and reactions, plus check runs for review commands.
   its GitHub thread, and still gets a reply in the thread.
 - Retrying a reply write whose earlier attempt reached GitHub posts no second
   reply.
+
+## 11. Issue Questions
+
+New conversation comments on open issues also accept `@dotcraft-ai <question>`.
+They use the same discovery, authorization, acknowledgement, Discussion Turn,
+reply publication and deduplication contracts as pull request questions. Issue
+titles and bodies do not trigger questions. `/review` and the single word
+`review` are rejected on issues with `githubCommentCommandUnsupportedForIssue`.
+Closed issues are rejected without acknowledgement or reply.
+
+Candidates and command audit records identify the target kind (issue or pull
+request) and number. Intake never assumes a conversation comment belongs to a
+pull request. Dispatch syncs that exact target, even if it has not been imported,
+and refreshes its discussion context before delivering the question. An issue
+question includes the issue title, body, URL, source state and human discussion
+history, with Oratorio's own answers taken from stored discussion state.
+
+An issue question reuses the item's conversation thread. An active run or
+discussion receives the question in its existing execution context. A prior
+implementation thread keeps its work branch. Otherwise, starting or resuming an
+idle independent issue discussion queries the repository's actual default
+branch and fetches its latest head using the configured source credentials.
+Fetch, SHA resolution and worktree preparation are serialized by the repository
+lock. The managed worktree is keyed by item, while the base workspace's branch,
+HEAD and uncommitted files are left unchanged. The prompt names the resolved
+branch, commit and execution path. No local-HEAD fallback is permitted on failure.
+Starting an independent issue discussion requires managed worktrees; disabling
+them fails with `issueDiscussionManagedWorktreeRequired`.
+
+Issue questions create no round, run, review draft, check or implementation
+delivery. A question's wording never authorizes implementation or follow-up
+work. Repeated questions reuse the same thread; publication remains one reply
+per question. No additional settings, permissions or HTTP endpoints are added.
+
+Acceptance additionally covers issue questions discovered by scan and webhook,
+first questions before import, idle-thread reuse, questions during implementation,
+closed and unauthorized targets, unsupported review commands, and retry-safe
+publication. Real Git fixtures must verify that a stale checkout on a feature
+branch produces a discussion worktree at the remote default branch's latest
+head (including a default branch other than `main`) without changing the checkout.

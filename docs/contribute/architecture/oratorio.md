@@ -18,6 +18,14 @@ Local Desktop asks Hub to ensure the bundled Server on first use. Remote Desktop
 
 App connection handoffs are inspected in Main and require explicit user approval. After the user enables Oratorio for a thread, Main delivers the bind handoff directly to the managed service as technical activation and returns activation failures to the initiating flow. Renderer receives only a request ID and redacted summary for connection consent.
 
+## GitHub discussion execution
+
+Repository comment scans and optional webhooks share one mention intake. Command audit records identify the target kind and number. Dispatch refreshes the exact issue or pull request before creating a Discussion Turn, including importing an issue that has not reached the Board yet. Replies reuse the source write log and hidden reply markers for retry deduplication.
+
+An independent issue discussion queries GitHub for the default branch, fetches that branch with the App installation credentials, and prepares the item's managed worktree at the fetched SHA. Fetch and SHA resolution run under the repository lock. Resuming an idle independent discussion refreshes this target. Active conversations and implementation threads keep their execution context. Source synchronization updates tracker data and does not switch or pull the base checkout.
+
+The question includes the issue title, body, URL and discussion history, plus the actual branch, SHA and execution path when preparing an independent discussion. It creates no round, run or implementation delivery. The [GitHub guide](../../guide/oratorio/github) describes how collaborators invoke it.
+
 ## Develop and validate
 
 Build the Server and run its focused tests from the repository root:

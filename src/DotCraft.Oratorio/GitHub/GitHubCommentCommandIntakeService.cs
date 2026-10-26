@@ -92,6 +92,10 @@ public sealed class GitHubCommentCommandIntakeService(
         }
 
         var rejection = ResolveRejection(candidate);
+        if (rejection is null && candidate.TargetKind == ItemKind.Issue && parsed.CommandKind == GitHubCommentCommandKind.Review)
+        {
+            rejection = ("githubCommentCommandUnsupportedForIssue", "Review commands require a pull request.");
+        }
         var now = clock.UtcNow;
         var command = new OratorioGitHubCommentCommand
         {
@@ -107,7 +111,8 @@ public sealed class GitHubCommentCommandIntakeService(
             Path = candidate.Path,
             Line = candidate.Line,
             Repository = candidate.Repository,
-            PullRequestNumber = candidate.PullRequestNumber,
+            TargetNumber = candidate.TargetNumber,
+            TargetKind = candidate.TargetKind,
             ActorLogin = candidate.AuthorLogin,
             AuthorAssociation = candidate.AuthorAssociation,
             CommandKind = parsed.CommandKind!.Value,

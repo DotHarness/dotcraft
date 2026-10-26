@@ -19,7 +19,7 @@ internal sealed class GitHubQuestionHarness
 {
     public const string Repository = "example-owner/oratorio";
 
-    public GitHubQuestionHarness(FakeAppServerOutcome outcome)
+    public GitHubQuestionHarness(FakeAppServerOutcome outcome, IReadOnlyDictionary<string, string?>? settings = null)
     {
         AppServer = new FakeAppServerClientFactory(outcome);
         App = new TestOratorioApp(services =>
@@ -32,7 +32,7 @@ internal sealed class GitHubQuestionHarness
             services.AddSingleton<IDotCraftAppServerClientFactory>(AppServer);
             services.RemoveAll<IWorktreeManager>();
             services.AddSingleton<IWorktreeManager>(Worktrees);
-        });
+        }, settings);
         Client = App.CreateClient();
     }
 
@@ -88,6 +88,23 @@ internal sealed class GitHubQuestionHarness
 
     public static string ReviewCommentUrl(long id) => $"https://github.example.test/{Repository}/pull/184#discussion_r{id}";
 
+    public Task<HttpResponseMessage> AskOnIssueAsync(long commentId, string body) =>
+        PostWebhookAsync("issue_comment", new
+        {
+            action = "created",
+            repository = new { full_name = Repository },
+            issue = new { number = 42 },
+            comment = new
+            {
+                id = commentId,
+                body,
+                html_url = $"https://github.example.test/{Repository}/issues/42#issuecomment-{commentId}",
+                created_at = DateTimeOffset.UtcNow,
+                author_association = "MEMBER",
+                user = new { login = "example-reviewer", type = "User" }
+            }
+        });
+
     public Task AskOnGitHubAsync(long commentId, string body) =>
         SendWebhookAsync("issue_comment", new
         {
@@ -133,6 +150,12 @@ internal sealed class GitHubQuestionHarness
 
     private async Task SendWebhookAsync(string eventName, object body)
     {
+        using var response = await PostWebhookAsync(eventName, body);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> PostWebhookAsync(string eventName, object body)
+    {
         var payload = JsonSerializer.Serialize(body);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/sources/github/webhook")
         {
@@ -145,7 +168,6 @@ internal sealed class GitHubQuestionHarness
             "sha256=" + Convert.ToHexString(
                 HMACSHA256.HashData(Encoding.UTF8.GetBytes("test-secret"), Encoding.UTF8.GetBytes(payload)))
                 .ToLowerInvariant());
-        var response = await Client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        return await Client.SendAsync(request);
     }
 }

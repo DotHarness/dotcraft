@@ -42,7 +42,8 @@ public static class GitHubCommentWebhookReader
             }
 
             var isReviewComment = string.Equals(eventName, ReviewCommentEvent, StringComparison.OrdinalIgnoreCase);
-            int? pullRequestNumber;
+            int? targetNumber;
+            var targetKind = ItemKind.PullRequest;
             if (isReviewComment)
             {
                 if (!TryGetObject(root, "pull_request", out var pullRequest))
@@ -50,16 +51,17 @@ public static class GitHubCommentWebhookReader
                     return NotApplicable();
                 }
 
-                pullRequestNumber = ReadInt32(pullRequest, "number");
+                targetNumber = ReadInt32(pullRequest, "number");
             }
             else
             {
-                if (!TryGetObject(root, "issue", out var issue) || !issue.TryGetProperty("pull_request", out _))
+                if (!TryGetObject(root, "issue", out var issue))
                 {
                     return NotApplicable();
                 }
 
-                pullRequestNumber = ReadInt32(issue, "number");
+                targetNumber = ReadInt32(issue, "number");
+                targetKind = issue.TryGetProperty("pull_request", out _) ? ItemKind.PullRequest : ItemKind.Issue;
             }
 
             if (!TryGetObject(root, "comment", out var comment))
@@ -75,11 +77,11 @@ public static class GitHubCommentWebhookReader
 
             var commentId = ReadInt64(comment, "id");
             var repository = SourceProjectKey.NormalizeGitHubRepository(ReadNestedString(root, "repository", "full_name"));
-            if (commentId is null || repository is null || pullRequestNumber is null or <= 0)
+            if (commentId is null || repository is null || targetNumber is null or <= 0)
             {
                 return Malformed(
                     "githubCommentCommandTargetInvalid",
-                    "GitHub comment payload requires comment.id, an owner/name repository.full_name, and a positive pull request number.");
+                    "GitHub comment payload requires comment.id, an owner/name repository.full_name, and a positive target number.");
             }
 
             var createdAt = comment.TryGetProperty("created_at", out var created) &&
@@ -91,7 +93,8 @@ public static class GitHubCommentWebhookReader
                 isReviewComment ? GitHubCommentKind.ReviewComment : GitHubCommentKind.Conversation,
                 commentId.Value,
                 repository,
-                pullRequestNumber.Value,
+                targetNumber.Value,
+                targetKind,
                 commentBody,
                 ReadNestedString(comment, "user", "login") ?? ReadNestedString(root, "sender", "login") ?? "",
                 ReadNestedString(comment, "user", "type") ?? ReadNestedString(root, "sender", "type"),

@@ -609,13 +609,13 @@ hidden requirements of the current round.
 ### 6.3 Agent Discussion Turns
 
 Operators can ask the agent a question about an item from the task's
-Discussion, and collaborators can ask about a pull request from GitHub
+Discussion, and collaborators can ask about an issue or pull request from GitHub
 ([GitHub Mentions](./github-mentions.md)), without dispatching a new round.
 
 - **Add comment** records internal operator feedback for the record and later
   rounds.
 - **Ask agent** records an operator question and starts a Discussion Turn.
-- A pull request question accepted from GitHub starts a Discussion Turn whose
+- An issue or pull request question accepted from GitHub starts a Discussion Turn whose
   origin is that comment.
 - Re-review is the explicit way to review new commits; a comment or question
   never creates a review round.
@@ -636,6 +636,13 @@ dispatched:
 - a source-originated question on a pull request that has no thread yet starts
   the thread as its first review round would, at the current head, and asks the
   agent to answer only.
+
+An independent GitHub issue discussion starts at the remote default branch's
+latest head in the item's managed worktree. Idle independent discussions refresh
+that target before resuming. Active conversations and implementation threads keep
+their execution context. The base checkout is never switched or pulled. Issue
+context includes its title, body, URL and discussion history. See GitHub Mentions
+§11 for intake, failure and publication rules.
 
 Ask agent from Desktop is allowed only when the item is not archived and either
 has a conversation thread that carries the discussion reply tool or has an

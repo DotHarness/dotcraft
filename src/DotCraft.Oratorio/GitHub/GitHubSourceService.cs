@@ -10,7 +10,7 @@ using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.GitHub;
 
-public sealed class GitHubSourceService(
+public sealed partial class GitHubSourceService(
     OratorioDbContext db,
     IGitHubApiClient client,
     IOptionsMonitor<GitHubOptions> options,
@@ -183,28 +183,7 @@ public sealed class GitHubSourceService(
 
         foreach (var issue in issues)
         {
-            var item = new GitHubSyncItem(
-                repository.FullName,
-                $"issue:{repository.FullName}#{issue.Number}",
-                "issue",
-                issue.Number,
-                issue.Title,
-                issue.Body,
-                issue.HtmlUrl,
-                (issue.Assignees ?? []).FirstOrDefault()?.Login ?? issue.User?.Login,
-                null,
-                (issue.Labels ?? []).Select(x => x.Name).ToArray(),
-                issue.CreatedAt,
-                issue.UpdatedAt,
-                false,
-                null,
-                ResolveIssueSourceState(issue),
-                issue.ClosedAt,
-                null,
-                SerializePayload(new { issue }),
-                []);
-
-            await UpsertItemAsync(item, now, detailsHydrated: false, ct);
+            await UpsertItemAsync(ToSyncItem(repository, issue), now, detailsHydrated: false, ct);
             issueCount++;
             if (progress is not null)
             {

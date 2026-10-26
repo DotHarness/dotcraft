@@ -61,16 +61,15 @@ public sealed class GitHubCommentCommandProcessor(
                     $"GitHub comment command repository '{command.Repository}' is invalid.");
             }
 
-            var item = await gitHubSource.SyncPullRequestAsync(
-                repository,
-                command.PullRequestNumber,
-                ct);
+            var item = command.TargetKind == ItemKind.Issue
+                ? await gitHubSource.SyncIssueAsync(repository, command.TargetNumber, ct)
+                : await gitHubSource.SyncPullRequestAsync(repository, command.TargetNumber, ct);
             if (item.SourceState != SourceState.Open)
             {
                 await RejectAsync(
                     command,
-                    "githubCommentCommandPullRequestNotOpen",
-                    $"Pull request {command.Repository}#{command.PullRequestNumber} is not open.",
+                    command.TargetKind == ItemKind.Issue ? "githubCommentCommandIssueNotOpen" : "githubCommentCommandPullRequestNotOpen",
+                    $"{command.TargetKind} {command.Repository}#{command.TargetNumber} is not open.",
                     ct);
                 return true;
             }
@@ -78,6 +77,11 @@ public sealed class GitHubCommentCommandProcessor(
             await AcknowledgeAsync(command, repository, ct);
             if (command.CommandKind == GitHubCommentCommandKind.Question)
             {
+                if (item.Kind == ItemKind.Issue)
+                {
+                    await gitHubSource.HydrateItemDetailsAsync(item, ct);
+                }
+
                 if (!await discussionTurns.CreateFromGitHubQuestionAsync(command, item, ct))
                 {
                     command.AttemptCount--;
@@ -91,11 +95,11 @@ public sealed class GitHubCommentCommandProcessor(
             }
 
             logger.LogInformation(
-                "Dispatched GitHub {CommandKind} command {CommandId} for {Repository}#{PullRequestNumber}.",
+                "Dispatched GitHub {CommandKind} command {CommandId} for {Repository}#{TargetNumber}.",
                 command.CommandKind,
                 command.CommandId,
                 command.Repository,
-                command.PullRequestNumber);
+                command.TargetNumber);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -116,7 +120,7 @@ public sealed class GitHubCommentCommandProcessor(
             x.CommandKind == GitHubCommentCommandKind.Question &&
             x.Status == GitHubCommentCommandStatus.Queued &&
             x.Repository == command.Repository &&
-            x.PullRequestNumber == command.PullRequestNumber &&
+            x.TargetNumber == command.TargetNumber && x.TargetKind == command.TargetKind &&
             (x.CommentCreatedAt < command.CommentCreatedAt ||
                 x.CommentCreatedAt == command.CommentCreatedAt && x.CommentId < command.CommentId),
             ct);
@@ -125,7 +129,7 @@ public sealed class GitHubCommentCommandProcessor(
             return earlierQuestionQueued;
         }
 
-        var externalId = GitHubSourceService.PullRequestExternalId(repository, command.PullRequestNumber);
+        var externalId = GitHubSourceService.TargetExternalId(repository, command.TargetKind, command.TargetNumber);
         return await db.DiscussionTurns.AnyAsync(x =>
             x.Status == DiscussionTurnStatus.Pending &&
             x.Item!.Source == "github" &&
