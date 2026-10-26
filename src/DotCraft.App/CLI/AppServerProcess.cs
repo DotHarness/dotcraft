@@ -20,6 +20,7 @@ namespace DotCraft.CLI;
 public sealed class AppServerProcess : IAsyncDisposable
 {
     private const int MaxStderrCaptureChars = 16384;
+    private static readonly TimeSpan SlowInitializeThreshold = TimeSpan.FromSeconds(30);
 
     private readonly Process _process;
     private readonly ManagedChildProcess? _managedChild;
@@ -188,15 +189,31 @@ public sealed class AppServerProcess : IAsyncDisposable
         var appServer = new AppServerProcess(process, managedChild, wire, logger);
 
         // Handshake: send initialize → wait for response → send initialized
+        var initializeStopwatch = Stopwatch.StartNew();
         try
         {
-            var initResponse = await wire.InitializeAsync(
+            // No deadline: initialize covers the AppServer's whole cold start; exit or EOF still fails it.
+            var initialize = wire.InitializeAsync(
                 clientName: "dotcraft-cli",
                 clientVersion: AppVersion.Informational,
                 approvalSupport: true,
                 streamingSupport: true,
                 toolExecutionLifecycle: true,
+                timeout: Timeout.InfiniteTimeSpan,
                 ct: ct);
+            if (await Task.WhenAny(initialize, Task.Delay(SlowInitializeThreshold)) != initialize)
+            {
+                logger?.LogWarning(
+                    "AppServer subprocess {ProcessId} is still starting after {ElapsedMs}ms",
+                    appServer.ProcessId,
+                    initializeStopwatch.ElapsedMilliseconds);
+            }
+
+            var initResponse = await initialize;
+            logger?.LogInformation(
+                "AppServer subprocess {ProcessId} initialized in {ElapsedMs}ms",
+                appServer.ProcessId,
+                initializeStopwatch.ElapsedMilliseconds);
 
             // Extract server version from the initialize response for display in the welcome screen.
             // Response shape: { "result": { "serverInfo": { "version": "..." } } }
@@ -206,6 +223,10 @@ public sealed class AppServerProcess : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            logger?.LogInformation(
+                "AppServer subprocess {ProcessId} initialize failed after {ElapsedMs}ms",
+                appServer.ProcessId,
+                initializeStopwatch.ElapsedMilliseconds);
             await appServer.DisposeAsync();
             if (ex is OperationCanceledException && ct.IsCancellationRequested)
                 throw;
@@ -506,7 +527,6 @@ internal sealed class AppServerProcessStartupException(
 
     public string FailureKind { get; } = innerException switch
     {
-        TimeoutException => "timeout",
         EndOfStreamException => "processExited",
         IOException => "transportError",
         _ => "initializationError"
