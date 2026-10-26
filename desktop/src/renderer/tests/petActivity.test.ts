@@ -57,7 +57,7 @@ describe('derivePetActivity', () => {
     ))
     expect(info).toMatchObject({ status: 'waiting', line: 'run npm test', lineTone: 'warning' })
     expect(info.decision).toMatchObject({ id: 'tool:r1', declineValue: 'decline', operation: 'run', target: 'npm test' })
-    expect(info.decision?.options.map((option) => option.value)).toEqual(['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'])
+    expect(info.decision?.options.map((option) => option.value)).toEqual(['accept', 'acceptForSession', 'acceptAlways', 'decline'])
     expect(info.decision?.question.length).toBeGreaterThan(0)
     const submitted = derivePetActivity(input({
       turnStatus: 'waitingApproval', approval: { ...approval, locallySubmittedDecision: 'accept' }, turns: [turn('waitingApproval', [])]

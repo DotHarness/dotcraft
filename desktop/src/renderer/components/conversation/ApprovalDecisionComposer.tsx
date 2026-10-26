@@ -3,19 +3,20 @@ import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
-import type { ApprovalShellInfo, ApprovalType } from '../../types/conversation'
+import type { ApprovalType } from '../../types/conversation'
+import { approvalOptions, approvalRoles } from '../../utils/approvalOptions'
 import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
 import { submitApprovalDecision } from '../../utils/submitApprovalDecision'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { useComposerProvider } from './useComposerProvider'
-import { ComposerChoiceRow } from './ComposerChoiceRow'
 import {
   ComposerStatusContent,
   ComposerToolbarLeadingSlots,
   ComposerToolbarTrailingSlots
 } from './ComposerSurfaceSlots'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import { inSameSideChat } from '../sideChat/sideChatScope'
 import { DecisionDismissButton, DecisionSubmitButton } from './DecisionComposerChrome'
 import {
@@ -48,68 +49,6 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   return rows
 }
 
-function buildComputerUseOptions(t: ReturnType<typeof useT>): ApprovalOptionSpec[] {
-  return [
-    {
-      value: 'acceptAlways',
-      label: t('approval.computerUse.alwaysAllow.label'),
-      description: t('approval.computerUse.alwaysAllow.description')
-    },
-    {
-      value: 'acceptForSession',
-      label: t('approval.computerUse.allowThread.label'),
-      description: t('approval.computerUse.allowThread.description')
-    },
-    {
-      value: 'decline',
-      label: t('approval.option.decline.label'),
-      description: t('approval.computerUse.decline.description')
-    }
-  ]
-}
-
-function buildToolOptions(request: PendingApproval, t: ReturnType<typeof useT>): ApprovalOptionSpec[] {
-  if (request.approvalType === 'computerUse') return buildComputerUseOptions(t)
-  const shell = request.shell
-  return [
-    {
-      value: 'accept',
-      label: t('approval.option.accept.label'),
-      description: t('approval.option.accept.description')
-    },
-    {
-      value: 'acceptForSession',
-      label: t('approval.option.acceptForSession.label'),
-      description: shell
-        ? t('approval.option.acceptForSession.shellDescription')
-        : t('approval.option.acceptForSession.description')
-    },
-    {
-      value: 'acceptAlways',
-      label: t('approval.option.acceptAlways.label'),
-      description: shell
-        ? rememberDescription(shell, t)
-        : t('approval.option.acceptAlways.description')
-    },
-    {
-      value: 'decline',
-      label: t('approval.option.decline.label'),
-      description: t('approval.option.decline.description')
-    },
-    {
-      value: 'cancel',
-      label: t('approval.option.cancel.label'),
-      description: t('approval.option.cancel.description')
-    }
-  ]
-}
-
-function rememberDescription(shell: ApprovalShellInfo, t: ReturnType<typeof useT>): string {
-  const prefixes = shell.rememberedPrefixes.map((words) => words.join(' ')).join(', ')
-  if (prefixes.length === 0) return t('approval.remember.exact')
-  return t(shell.remembersExactCommand ? 'approval.remember.both' : 'approval.remember.prefixes', { prefixes })
-}
-
 export function ApprovalDecisionComposer({
   request,
   onResponseAccepted,
@@ -120,33 +59,25 @@ export function ApprovalDecisionComposer({
   const t = useT()
   const rootRef = useRef<HTMLDivElement>(null)
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null)
   const [submittedRequestKey, setSubmittedRequestKey] = useState<string | null>(null)
   const sendingRef = useRef<string | null>(null)
 
   useEffect(() => {
     sendingRef.current = null
-    setSelectedIndex(0)
     setSubmittingRequestKey(null)
     setSubmittedRequestKey(null)
   }, [requestKey])
 
-  const options = useMemo<ApprovalOptionSpec[]>(
-    () => request.options ?? buildToolOptions(request, t),
-    [t, request]
-  )
-
-  const selectedOption = options[Math.min(selectedIndex, options.length - 1)] ?? options[0]
   const declineValue = request.declineValue ?? 'decline'
-  const declineOption = options.find((option) => option.value === declineValue)
+  const roles = useMemo(
+    () => approvalRoles(approvalOptions(request, t), declineValue),
+    [declineValue, request, t]
+  )
   const locallySubmitted = request.locallySubmittedDecision != null
   const submitting = submittingRequestKey === requestKey
   const submitted = submittedRequestKey === requestKey
   const locked = submitting || submitted || locallySubmitted
-  const canMoveUp = selectedIndex > 0
-  const canMoveDown = selectedIndex + 1 < options.length
-  const showFooterReject = selectedOption.value !== declineValue
 
   const sendDecision = useCallback(async (value: string): Promise<void> => {
     if (sendingRef.current === requestKey || submitted || request.locallySubmittedDecision != null) return
@@ -163,53 +94,41 @@ export function ApprovalDecisionComposer({
     }
   }, [onResponseAccepted, request, requestKey, submitted, t])
 
-  const submitSelected = useCallback((): void => {
-    void sendDecision(selectedOption.value)
-  }, [selectedOption.value, sendDecision])
-
-  const selectOption = (index: number): void => {
-    if (locked) return
-    const clamped = Math.min(Math.max(index, 0), options.length - 1)
-    setSelectedIndex(clamped)
-  }
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (isEditableTarget(event.target) || !inSameSideChat(rootRef.current, event.target)) return
+      if (event.defaultPrevented || isEditableTarget(event.target) || !inSameSideChat(rootRef.current, event.target)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
         void sendDecision(declineValue)
-        return
-      }
-
-      if (locked) return
-
-      if (event.key === 'ArrowUp' || event.key === 'k') {
+      } else if (event.key === 'Enter' && !locked && !isActivatableTarget(event.target)) {
         event.preventDefault()
-        selectOption(selectedIndex - 1)
-      } else if (event.key === 'ArrowDown' || event.key === 'j') {
-        event.preventDefault()
-        selectOption(selectedIndex + 1)
-      } else if (/^[1-9]$/.test(event.key)) {
-        const index = Number(event.key) - 1
-        if (index < options.length) {
-          event.preventDefault()
-          selectOption(index)
-        }
-      } else if (event.key === 'Enter') {
-        event.preventDefault()
-        submitSelected()
+        void sendDecision(roles.primary.value)
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [declineValue, locked, options.length, selectedIndex, sendDecision, submitSelected])
+  }, [declineValue, locked, roles.primary.value, sendDecision])
 
   const questionText = request.question
     ?? t(approvalQuestionKey(request.approvalType), { app: request.targetLabel ?? request.target })
   const detailRows = request.detailRows ?? buildToolDetailRows(request, t)
+  const denyLabel = roles.deny?.label ?? t('approval.option.decline.label')
+  const sendReject = (): void => {
+    void sendDecision(declineValue)
+  }
+  const sendPrimary = (): void => {
+    void sendDecision(roles.primary.value)
+  }
+  const menuItems = (options: ApprovalOptionSpec[]): SplitButtonItem[] => options.map((option) => ({
+    key: option.value,
+    label: option.label,
+    description: option.description || undefined,
+    onClick: () => {
+      void sendDecision(option.value)
+    }
+  }))
   const provider = useComposerProvider()
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
@@ -253,28 +172,6 @@ export function ApprovalDecisionComposer({
                   />
                 ))}
               </div>
-              <div style={{ display: 'grid', gap: '6px' }}>
-                {options.map((option, index) => (
-                  <ComposerChoiceRow
-                    key={option.value}
-                    index={index}
-                    label={option.label}
-                    description={option.description}
-                    selected={selectedIndex === index}
-                    canMoveUp={canMoveUp}
-                    canMoveDown={canMoveDown}
-                    disabled={locked}
-                    descriptionAriaLabel={t('approval.optionDescriptionAria', { option: option.label })}
-                    onSelect={() => {
-                      if (selectedIndex === index) {
-                        submitSelected()
-                      } else {
-                        selectOption(index)
-                      }
-                    }}
-                  />
-                ))}
-              </div>
             </div>
           )}
           footerLeading={(
@@ -285,21 +182,37 @@ export function ApprovalDecisionComposer({
               context={mascotSurfaceContext}
               submit={(
                 <>
-                  {showFooterReject && (
-                    <DecisionDismissButton
-                      label={declineOption?.label ?? t('approval.option.decline.label')}
-                      ariaLabel={t('approval.rejectShortcutAria')}
-                      onClick={() => {
-                        void sendDecision(declineValue)
-                      }}
-                      disabled={locked}
-                    />
-                  )}
-                  <DecisionSubmitButton
-                    label={selectedOption.label}
-                    onClick={submitSelected}
-                    disabled={locked}
-                  />
+                  {roles.denyScopes.length > 0
+                    ? (
+                      <SplitButton
+                        variant="ghost"
+                        label={denyLabel}
+                        ariaLabel={t('approval.rejectShortcutAria')}
+                        onClick={sendReject}
+                        menuLabel={t('approval.moreRejectOptions')}
+                        items={menuItems(roles.denyScopes)}
+                        disabled={locked}
+                      />
+                    )
+                    : (
+                      <DecisionDismissButton
+                        label={denyLabel}
+                        ariaLabel={t('approval.rejectShortcutAria')}
+                        onClick={sendReject}
+                        disabled={locked}
+                      />
+                    )}
+                  {roles.wider.length > 0
+                    ? (
+                      <SplitButton
+                        label={roles.primary.label}
+                        onClick={sendPrimary}
+                        menuLabel={t('approval.moreAllowOptions')}
+                        items={menuItems(roles.wider)}
+                        disabled={locked}
+                      />
+                    )
+                    : <DecisionSubmitButton label={roles.primary.label} onClick={sendPrimary} disabled={locked} />}
                 </>
               )}
             />
@@ -350,6 +263,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (element.closest('[contenteditable="true"]')) return true
   const tag = element.tagName.toLowerCase()
   return tag === 'input' || tag === 'textarea' || tag === 'select'
+}
+
+function isActivatableTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('button, a[href]') != null
 }
 
 const composerDockStyle: CSSProperties = {

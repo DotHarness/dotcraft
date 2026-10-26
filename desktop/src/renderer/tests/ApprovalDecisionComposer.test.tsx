@@ -216,8 +216,7 @@ describe('ApprovalDecisionComposer', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Allow once' })).not.toBeDisabled()
     })
-    expect(screen.getByRole('button', { name: '1. Allow once' })).toHaveAttribute('aria-disabled', 'false')
-    expect(screen.getByRole('button', { name: '2. Allow for session' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('button', { name: 'More allow options' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Reject approval' })).not.toBeDisabled()
 
     await act(async () => {
@@ -286,8 +285,20 @@ describe('ApprovalDecisionComposer', () => {
 
     expect(useConversationStore.getState().pendingApproval?.requestId).toBe('request-approval-2')
     expect(screen.getByRole('button', { name: 'Allow once' })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: '1. Allow once' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('button', { name: 'More allow options' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Reject approval' })).not.toBeDisabled()
+  })
+
+  it('answers Enter with the narrowest grant when the request has no single-use option', async () => {
+    const pending = pendingApproval({ approvalType: 'computerUse', operation: '', target: 'Figma', targetLabel: 'Figma' })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'acceptForSession' })
+    })
   })
 
   it('does not resubmit an approval that was already submitted locally', () => {

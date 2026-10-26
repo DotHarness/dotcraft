@@ -516,7 +516,7 @@ function buildBrowserUseApproval(
       { value: 'allowDomain', label: translate(locale, 'browserUse.approval.alwaysAllow'), description: '' },
       { value: 'allowOnce', label: translate(locale, 'browserUse.approval.allowOnce'), description: '' },
       { value: 'blockDomain', label: translate(locale, 'browserUse.approval.blockDomain'), description: '' },
-      { value: 'deny', label: translate(locale, 'browserUse.approval.cancel'), description: '' }
+      { value: 'deny', label: translate(locale, 'approval.option.decline.label'), description: '' }
     ],
     submit: async (value: string): Promise<void> => {
       await window.api.workspace.viewer.browserUse.sendApprovalResponse({

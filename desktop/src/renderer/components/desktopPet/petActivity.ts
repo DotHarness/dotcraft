@@ -4,6 +4,7 @@ import { isToolLikeItemType, type ConversationTurn, type ItemType } from '../../
 import type { PendingApproval, PendingUserInputRequest } from '../../stores/conversationStore'
 import { turnPatchTotals } from '../../stores/turnDiffs'
 import type { TurnDiff } from '../../types/turnDiff'
+import { approvalOptions } from '../../utils/approvalOptions'
 import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalRequest'
 import { formatCollapsedToolLabel } from '../../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
@@ -14,11 +15,9 @@ import { stripWebCitations } from '../../utils/webCitations'
 export const PET_LINE_MAX = 60
 export const PET_TITLE_MAX = 48
 export const PET_DECISION_OPTION_MAX = 6
-const DEFAULT_DECISIONS = ['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'] as const
 
 export function petDecisionOf(approval: PendingApproval, locale: AppLocale): PetDecision {
-  const options = approval.options
-    ?? DEFAULT_DECISIONS.map((value) => ({ value, label: translate(locale, `approval.option.${value}.label`) }))
+  const options = approvalOptions(approval, (key, vars) => translate(locale, key, vars))
   return {
     id: approvalRequestKey(approval),
     question: clipPetText(approval.question ?? translate(locale, approvalQuestionKey(approval.approvalType)), 120),

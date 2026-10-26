@@ -31,7 +31,7 @@ To refuse anything outside the workspace instead of asking, set `Tools.File.Requ
 
 A shell approval shows the shell, the commands as DotCraft read them, and why it's asking. If the script uses syntax DotCraft can't read in advance, the approval says so and shows the script as a whole.
 
-Each choice remembers a different amount:
+Press Enter for **Allow once** or Esc to reject. The wider choices are in the menu next to **Allow once**, and each remembers a different amount:
 
 - **Allow once** runs the command this time only.
 - **Allow for session** skips the prompt for this exact command, in this directory, for the rest of the conversation.

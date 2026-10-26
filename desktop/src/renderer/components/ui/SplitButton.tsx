@@ -9,6 +9,7 @@ import { Button, type ButtonVariant } from './Button'
 export interface SplitButtonItem {
   key: string
   label: string
+  description?: string
   icon?: ReactNode
   disabled?: boolean
   /** Marks the current choice when the menu picks a default rather than running a command. */
@@ -210,6 +211,7 @@ export function SplitButton({
                 type="button"
                 role="menuitem"
                 aria-label={item.label}
+                aria-description={item.description}
                 disabled={item.disabled}
                 onMouseEnter={() => setHighlight(index)}
                 onContextMenu={(event) => event.preventDefault()}
@@ -218,7 +220,14 @@ export function SplitButton({
               >
                 <span style={menuItemBodyStyle}>
                   {item.icon != null && <span style={menuIconStyle}>{item.icon}</span>}
-                  <span style={menuLabelStyle}>{item.label}</span>
+                  {item.description
+                    ? (
+                      <span style={menuTextStyle}>
+                        <span style={menuLabelStyle}>{item.label}</span>
+                        <span style={menuDescriptionStyle}>{item.description}</span>
+                      </span>
+                    )
+                    : <span style={menuLabelStyle}>{item.label}</span>}
                 </span>
                 {item.selected === true && <span aria-hidden style={selectedDotStyle} />}
               </button>
@@ -323,6 +332,20 @@ const menuLabelStyle: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap'
+}
+
+const menuTextStyle: CSSProperties = {
+  display: 'grid',
+  gap: '2px',
+  minWidth: 0
+}
+
+const menuDescriptionStyle: CSSProperties = {
+  color: 'var(--text-dimmed)',
+  fontSize: '11.5px',
+  lineHeight: 1.4,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere'
 }
 
 const selectedDotStyle: CSSProperties = {

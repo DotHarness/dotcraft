@@ -349,10 +349,10 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 
 1. An approval request arrives while a turn is running, and the thread enters a waiting-approval state.
 2. The request is surfaced in the composer with enough information to decide. A shell request shows the command, its directory, and the `reasons` from its `shell` block; session and permanent options describe their scope from `rememberedPrefixes` and `remembersExactCommand`. While pending, the conversation shows one quiet awaiting-approval marker; afterwards the outcome shows on the tool row or turn result.
-3. The user can approve, decline, session-approve when supported, or cancel, as the protocol allows. Approved work continues, declined work reflects rejection and may take another path, and cancel terminates the turn.
+3. The composer shows two actions: reject and the narrowest allow (allow once, or allow for this thread when the request has no single-use grant). Enter takes the narrowest allow and Esc rejects; wider grants such as session or permanent approval sit in the allow action's menu, so a lasting grant always takes a deliberate second choice. Approved work continues, and declined work reflects rejection and may take another path. The composer does not offer `cancel`; stopping the turn resolves its pending approvals as `cancel`.
    The composer's approval-policy picker stays available while a request is pending; switching the thread to full access resolves the pending requests as approved, and later requests in the turn no longer ask ([Session Core](../architecture/session-core.md) §12.2).
 4. If the approval times out or becomes invalid, the user sees the resulting turn outcome.
-5. A `computerUse` approval asks whether DotCraft may use the application named by `targetLabel` and offers exactly: always allow (`acceptAlways`, which also adds the application to Desktop's always-allowed list), allow for this thread (`acceptForSession`), and decline.
+5. A `computerUse` approval asks whether DotCraft may use the application named by `targetLabel` and offers exactly: allow for this thread (`acceptForSession`, the primary action), always allow (`acceptAlways`, which also adds the application to Desktop's always-allowed list), and decline.
 
 ### 5.7 User Input Request Handling
 
