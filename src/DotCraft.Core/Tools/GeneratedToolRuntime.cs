@@ -18,24 +18,16 @@ public sealed class GeneratedToolAttribute : Attribute
     /// </summary>
     public string? Name { get; set; }
 
-    /// <summary>
-    /// Whether the tool should be included in <see cref="BuiltInToolCatalog"/>.
-    /// </summary>
     public bool CatalogVisible { get; set; }
 }
 
-/// <summary>
-/// Assembly-level hook used by <see cref="BuiltInToolCatalog"/> to read source-generated tool metadata.
-/// </summary>
+/// <summary>Points <see cref="BuiltInToolCatalog"/> at a type whose static <c>Descriptors</c> lists catalog entries.</summary>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
 public sealed class GeneratedToolCatalogAttribute(Type providerType) : Attribute
 {
     public Type ProviderType { get; } = providerType;
 }
 
-/// <summary>
-/// Describes metadata emitted by the DotCraft tool source generator.
-/// </summary>
 public sealed record GeneratedToolDescriptor(
     string Name,
     string Description,
@@ -44,12 +36,8 @@ public sealed record GeneratedToolDescriptor(
     bool CatalogVisible,
     bool RpcEligible = false);
 
-/// <summary>
-/// Immutable compile-time declaration for a generated tool contract.
-/// </summary>
 public sealed class GeneratedToolDeclaration
 {
-    /// <summary>Creates a declaration from generator-owned schema JSON.</summary>
     public GeneratedToolDeclaration(
         string name,
         string description,
@@ -78,16 +66,12 @@ public sealed class GeneratedToolDeclaration
                     : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(presentationOptionsJson));
     }
 
-    /// <summary>Gets the model-visible tool name.</summary>
     public string Name { get; }
 
-    /// <summary>Gets the model-visible tool description.</summary>
     public string Description { get; }
 
-    /// <summary>Gets the immutable input JSON Schema.</summary>
     public JsonElement InputSchema { get; }
 
-    /// <summary>Gets the immutable output JSON Schema when one is declared.</summary>
     public JsonElement? OutputSchema { get; }
 
     /// <summary>Gets whether the tool returns content items, such as text alongside images, rather than a value.</summary>
@@ -133,9 +117,6 @@ internal interface IGeneratedToolMetadata
     ToolPresentationDescriptor? Presentation { get; }
 }
 
-/// <summary>
-/// Base class used by source-generated DotCraft tool wrappers.
-/// </summary>
 public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 {
     private readonly GeneratedToolDeclaration _declaration;
@@ -151,7 +132,6 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
     {
     }
 
-    /// <summary>Creates a generated function backed by a reusable declaration.</summary>
     protected GeneratedAIFunction(
         GeneratedToolDeclaration declaration,
         GeneratedToolDescriptor metadata)
@@ -280,9 +260,6 @@ internal static class GeneratedToolSchema
     }
 }
 
-/// <summary>
-/// Binds generated tool arguments to their declared CLR types.
-/// </summary>
 public static class GeneratedToolArgumentBinder
 {
     public static T GetRequired<T>(

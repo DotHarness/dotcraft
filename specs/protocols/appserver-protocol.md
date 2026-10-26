@@ -1561,12 +1561,12 @@ Params optional `name` (omitted refreshes all). Result `{ marketplaces, errors }
 
 ### 18A.1 Scope
 
-`tool/list` exposes the server's **built-in tools** — discovered from its own tool assemblies, independent of workspace, thread, MCP, or plugin configuration — so clients can offer pickers for Agent Profile `tools.allow`/`tools.deny`. MCP tools, plugin tools, and skills are listed by their own methods. Gated by `capabilities.toolCatalog`.
+`tool/list` exposes the server's **built-in tools** — every profile-managed tool the server's own assemblies and compiled modules can register, independent of workspace, thread, MCP, or plugin configuration — so clients can offer pickers for Agent Profile `tools.allow`/`tools.deny`. Tools registered only under conditions, such as image generation or ChatGPT web search, are listed whether or not the condition currently holds. Runtime-managed tools, which Agent Profiles do not filter, are not listed. MCP tools, plugin tools, and skills are listed by their own methods. Gated by `capabilities.toolCatalog`.
 
 ### 18A.2 `ToolInfo` Wire DTO
 
-- `name`: canonical model-visible tool name, as used in `tools.allow`/`tools.deny`.
-- `description`: may be empty.
+- `name`: the tool's provider-facing flat name, exactly as matched by `tools.allow`/`tools.deny` (for example `image_gen__imagegen` for the namespaced tool `image_gen.imagegen`).
+- `description`: may be empty. For a conditionally registered tool it states the condition.
 - `source`: always `builtin`.
 - `planMode`: `true` when the tool is allowed in Plan (read-only) mode, including conditionally restricted tools (for example `Exec`, read-only commands only, and `WriteStdin`, empty input only); `false` for tools Plan mode hard-denies (for example `WriteFile`, `EditFile`).
 

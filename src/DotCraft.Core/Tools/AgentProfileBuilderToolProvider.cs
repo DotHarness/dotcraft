@@ -14,30 +14,17 @@ internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Max, Ultra }
 internal enum AgentInferenceSpeed { Standard, Fast }
 internal enum AgentApprovalPolicy { Prompt, AutoApprove }
 
-/// <summary>
-/// Exposes the conversational Agent Builder's fine-grained, model-visible profile-editing tools
-/// (see specs/features/agent-profiles.md §12A). Each tool mutates exactly one field of the thread's
-/// working draft and returns a compact change descriptor — the changed field path and its delta —
-/// rather than the whole document, so clients can drive the per-field cursor highlight from the
-/// tool-call stream. The authoritative draft is the server-side working draft injected into prompt
-/// composition (<see cref="ProfileBuilderDraftStore"/> / <c>ProfileBuilderSystemPromptProvider</c>).
-///
-/// The tools are registered only on a builder thread — one whose
-/// an immutable builder target capability is present — and never on ordinary threads.
-/// </summary>
+/// <summary>Registers the Agent Builder's profile-editing tools on threads that carry a builder target capability.</summary>
 public sealed class AgentProfileBuilderToolSource(
     SkillsLoader? skillsLoader,
     McpClientManager? mcpClientManager,
     string dataPath,
     string? userDataPath) : AIFunctionToolSource
 {
-    /// <inheritdoc />
     public override string SourceId => "agent-profile-builder";
 
-    /// <inheritdoc />
     public override int Priority => 24;
 
-    /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
         var targetId = ReadCapability(context, "agent-builder-target=");
@@ -50,8 +37,7 @@ public sealed class AgentProfileBuilderToolSource(
             ? AgentProfileSources.Workspace
             : configuredSource;
 
-        // Seed this builder thread's working draft once, from the persisted profile if it already
-        // exists on disk (empty for a brand-new agent). Presence of the entry marks the builder thread.
+        // The seeded draft entry is what marks this thread as a builder thread.
         ProfileBuilderDraftStore.Seed(
             threadId,
             targetId,
@@ -74,7 +60,6 @@ public sealed class AgentProfileBuilderToolSource(
         string targetId,
         string targetSource)
     {
-        // Already seeded — keep the accumulated draft (the second arg is only used on first seed).
         var existing = ProfileBuilderDraftStore.TryGet(threadId);
         if (existing != null)
             return existing.Markdown;
@@ -86,7 +71,6 @@ public sealed class AgentProfileBuilderToolSource(
         }
         catch
         {
-            // New agent (no persisted profile yet) — start from an empty draft.
             return string.Empty;
         }
     }
@@ -96,10 +80,6 @@ public sealed class AgentProfileBuilderToolSource(
             .FirstOrDefault(value => value.StartsWith(prefix, StringComparison.Ordinal))?[prefix.Length..];
 }
 
-/// <summary>
-/// Per-builder-thread closure holding the working-draft thread id and the live capability catalogs
-/// used to validate proposed values. One instance is created per agent build.
-/// </summary>
 internal sealed class AgentProfileBuilderToolMethods(
     string threadId,
     SkillsLoader? skillsLoader,
@@ -145,7 +125,6 @@ internal sealed class AgentProfileBuilderToolMethods(
             draft.RoleInstructions = string.IsNullOrEmpty(draft.RoleInstructions)
                 ? addition
                 : $"{draft.RoleInstructions.TrimEnd()}\n\n{addition}";
-            // Carry the resulting body (one field, not the whole document) so clients can re-render it.
             return Change("append", value: draft.RoleInstructions);
         });
 
@@ -165,7 +144,10 @@ internal sealed class AgentProfileBuilderToolMethods(
 
         var (valid, rejected) = modeValue == "all" ? ([], []) : PartitionTools(names);
         if (rejected.Count > 0)
-            return Reject("tools.policy", $"Unknown built-in tools: {string.Join(", ", rejected)}.");
+            return Reject(
+                "tools.policy",
+                $"Unknown built-in tools: {string.Join(", ", rejected)}. Available built-in tools: "
+                + $"{string.Join(", ", BuiltInToolCatalog.Enumerate().Select(static tool => tool.Name))}.");
 
         return Mutate("tools.policy", draft =>
         {
@@ -312,7 +294,6 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
     }
 
-    // --- internals ---
 
     private string Mutate(string field, Func<AgentProfileDraft, object> apply)
     {
