@@ -174,6 +174,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
 
+    public ContextUsageComposition? ContextComposition { get; set; }
+
     public WorldStateSnapshot? WorldStateBaseline { get; set; }
 
     public WorldStateSnapshot? PersistedWorldStateBaseline { get; set; }

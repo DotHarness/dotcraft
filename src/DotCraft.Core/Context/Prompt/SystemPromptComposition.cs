@@ -1,3 +1,4 @@
+using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,8 @@ internal static class SystemPromptComposition
     internal static string Compose(
         IReadOnlyList<ISystemPromptSection> sections,
         SystemPromptSectionContext context,
-        ILogger logger)
+        ILogger logger,
+        ICollection<PromptSectionTokens>? sectionTokens = null)
     {
         var parts = ContributionRead.Fold(
             sections,
@@ -25,7 +27,12 @@ internal static class SystemPromptComposition
             (accumulated, section) =>
             {
                 if (section.GetContent(context) is { } content && !string.IsNullOrWhiteSpace(content))
+                {
                     accumulated.Add(content);
+                    sectionTokens?.Add(new PromptSectionTokens(
+                        SafeName(section),
+                        MessageTokenEstimator.RoughTokenCount(content)));
+                }
                 return accumulated;
             },
             (section, ex) => logger.LogError(

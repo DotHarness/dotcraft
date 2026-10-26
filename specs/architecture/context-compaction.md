@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.6 |
 | **Status** | Draft |
-| **Date** | 2026-10-23 |
+| **Date** | 2026-10-26 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline. This spec owns backend selection,
@@ -316,6 +316,10 @@ it.
 A persisted provider usage value that does not match the active generation is display-only and never
 triggers compaction. While an active native replacement exists, the coordinator never estimates the
 complete neutral transcript instead.
+
+`thread/contextUsage/read` splits the current usage into categories: instruction sections and tool
+schemas are rough local estimates captured with each sampled request and kept across compaction, and
+messages take the remainder of the current usage.
 
 ## Failure and cancellation
 

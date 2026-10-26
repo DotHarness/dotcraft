@@ -5,14 +5,16 @@ export interface SummaryView {
   readonly layout: DesktopPluginConversationAsideLayout | null
   readonly popoverOpen: boolean
   readonly pinned: boolean
+  readonly contextExpanded: boolean
+  readonly contextReveal: { readonly id: number; readonly focus: boolean } | null
 }
 
-let current: SummaryView = { layout: null, popoverOpen: false, pinned: true }
+let current: SummaryView = { layout: null, popoverOpen: false, pinned: true, contextExpanded: false, contextReveal: null }
 const listeners = new Set<() => void>()
 
 function update(patch: Partial<SummaryView>): void {
   const next = { ...current, ...patch }
-  if (next.layout === current.layout && next.popoverOpen === current.popoverOpen && next.pinned === current.pinned) return
+  if ((Object.keys(next) as Array<keyof SummaryView>).every((key) => next[key] === current[key])) return
   current = next
   for (const listener of listeners) listener()
 }
@@ -64,6 +66,15 @@ function isSummaryShown(view: SummaryView): boolean {
 export function setSummaryShown(shown: boolean): void {
   if (isPanelLayout(current.layout)) setSummaryPinned(shown)
   else update({ popoverOpen: shown })
+}
+
+export function setContextExpanded(contextExpanded: boolean): void {
+  update({ contextExpanded })
+}
+
+export function revealContext(focus: boolean): void {
+  setSummaryShown(true)
+  update({ contextExpanded: true, contextReveal: { id: (current.contextReveal?.id ?? 0) + 1, focus } })
 }
 
 export function resetView(): void {

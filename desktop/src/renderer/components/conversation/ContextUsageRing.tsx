@@ -3,6 +3,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useT } from '../../contexts/LocaleContext'
 import { formatCompactCount } from '../../utils/formatCompactCount'
 import { COMPOSER_FOOTER_CONTROL_HEIGHT } from './ComposerShell'
+import { revealContext } from './summary/view'
 
 /**
  * Share of the model context window consumed by the active thread. The ring does not
@@ -12,7 +13,7 @@ export function ContextUsageRing(): JSX.Element | null {
   const t = useT()
   const usage = useConversationStore((s) => s.contextUsage)
   const [hovered, setHovered] = useState(false)
-  const anchorRef = useRef<HTMLDivElement | null>(null)
+  const anchorRef = useRef<HTMLButtonElement | null>(null)
 
   const ringData = useMemo(() => {
     if (!usage || usage.contextWindow <= 0) return null
@@ -45,14 +46,17 @@ export function ContextUsageRing(): JSX.Element | null {
   const formattedTokens = formatCompactCount(Math.min(usage.tokens, usage.contextWindow))
   const formattedWindow = formatCompactCount(usage.contextWindow)
   return (
-    <div
+    <button
       ref={anchorRef}
+      type="button"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
-      tabIndex={0}
-      role="img"
+      onClick={(event) => {
+        setHovered(false)
+        revealContext(event.detail === 0)
+      }}
       aria-label={t('contextRing.ariaLabel', { percent: ringData.percentUsed })}
       style={{
         position: 'relative',
@@ -61,9 +65,11 @@ export function ContextUsageRing(): JSX.Element | null {
         justifyContent: 'center',
         width: COMPOSER_FOOTER_CONTROL_HEIGHT,
         height: COMPOSER_FOOTER_CONTROL_HEIGHT,
+        padding: 0,
+        border: 'none',
         borderRadius: '999px',
         background: 'transparent',
-        cursor: 'help',
+        cursor: 'pointer',
         outline: 'none',
         transition: 'none'
       }}
@@ -96,10 +102,11 @@ export function ContextUsageRing(): JSX.Element | null {
       </svg>
 
       {hovered && (
-        <div
+        <span
           role="tooltip"
           style={{
             position: 'absolute',
+            display: 'block',
             bottom: 'calc(100% + 6px)',
             right: 0,
             minWidth: 220,
@@ -113,23 +120,24 @@ export function ContextUsageRing(): JSX.Element | null {
             lineHeight: 1.5,
             pointerEvents: 'none',
             zIndex: 50,
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            textAlign: 'left'
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+          <span style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
             {t('contextRing.tooltip.title')}
-          </div>
-          <div>
+          </span>
+          <span style={{ display: 'block' }}>
             {t('contextRing.tooltip.used', {
               percent: ringData.percentUsed,
               left: 100 - ringData.percentUsed
             })}
-          </div>
-          <div style={{ color: 'var(--text-secondary, #a5a5a5)' }}>
+          </span>
+          <span style={{ display: 'block', color: 'var(--text-secondary, #a5a5a5)' }}>
             {t('contextRing.tooltip.tokens', { used: formattedTokens, total: formattedWindow })}
-          </div>
-        </div>
+          </span>
+        </span>
       )}
-    </div>
+    </button>
   )
 }

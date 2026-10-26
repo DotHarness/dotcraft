@@ -6656,6 +6656,99 @@
       "variants": []
     },
     {
+      "id": "core.ContextUsageBreakdown",
+      "name": "ContextUsageBreakdown",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ContextUsageBreakdown.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "categories",
+          "type": "array<core.ContextUsageCategory>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "contextUsage",
+          "type": "core.ContextUsageSnapshot",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ContextUsageCategory",
+      "name": "ContextUsageCategory",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ContextUsageCategory.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "items",
+          "type": "array<core.ContextUsageItem>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "onDemand",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "tokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ContextUsageItem",
+      "name": "ContextUsageItem",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ContextUsageItem.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "tokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ContextUsageSnapshot",
       "name": "ContextUsageSnapshot",
       "module": "core",
@@ -21179,6 +21272,42 @@
       "variants": []
     },
     {
+      "id": "core.ThreadContextUsageReadParams",
+      "name": "ThreadContextUsageReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadContextUsageReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadContextUsageReadResult",
+      "name": "ThreadContextUsageReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadContextUsageReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "breakdown",
+          "type": "core.ContextUsageBreakdown",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadDeleteParams",
       "name": "ThreadDeleteParams",
       "module": "core",
@@ -32739,6 +32868,26 @@
       "direction": "clientToServer",
       "paramsType": "core.ThreadConfigUpdateParams",
       "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/contextUsage/read",
+      "descriptorMember": "ThreadContextUsageRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadContextUsageReadParams",
+      "resultType": "core.ThreadContextUsageReadResult",
       "module": "core",
       "capability": "threadManagement",
       "scope": "thread",

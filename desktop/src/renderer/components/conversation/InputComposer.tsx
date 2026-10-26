@@ -21,9 +21,8 @@ import {
   threadComposerDraftHasContent,
   type ThreadComposerDraftInput
 } from '../../stores/composerDraftStore'
-import type { ContextUsageSnapshotWire, ThreadGoal } from '../../types/thread'
+import type { ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import { wireTurnToConversationTurn } from '../../types/conversation'
 import type {
   ComposerFileAttachment,
   ImageAttachment,
@@ -43,8 +42,7 @@ import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
-import { readThreadHistoryHead } from '../../utils/threadHistory'
-import { restartThreadHistory } from '../../stores/threadHistoryStore'
+import { compactThreadContext } from '../../utils/manualCompaction'
 import { interruptTurn } from '../../utils/interruptTurn'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
@@ -110,7 +108,6 @@ import {
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
 
 /** AppServer maps a running turn and active maintenance alike onto this code. */
 const TURN_IN_PROGRESS_RPC_CODE = -32012
@@ -118,12 +115,6 @@ const TURN_IN_PROGRESS_RPC_CODE = -32012
 function isTurnBusyError(err: unknown): boolean {
   const { code, rpcCode } = readAppServerErrorFields(err)
   return code === 'turnInProgress' || rpcCode === TURN_IN_PROGRESS_RPC_CODE
-}
-
-function isRequestTimeoutError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err)
-  const normalized = message.toLowerCase()
-  return normalized.includes('timed out') || normalized.includes('timeout')
 }
 
 export interface InputComposerSubmitPayload {
@@ -271,7 +262,6 @@ function InputComposerCore({
   const [goalComposeMode, setGoalComposeMode] = useState(false)
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
-  const [compactBusy, setCompactBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [dragOverThread, setDragOverThread] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
@@ -1273,7 +1263,7 @@ function InputComposerCore({
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
       else if (systemCommand.kind === 'agent') clearInput = await setComposerMode('agent')
       else if (systemCommand.kind === 'reloadSkills') clearInput = await reloadSkills()
-      else clearInput = await compactThreadContext()
+      else clearInput = await compactCurrentThread()
       if (clearInput) {
         resetComposerInput()
       }
@@ -1430,7 +1420,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1590,73 +1580,12 @@ function InputComposerCore({
     await setComposerMode(newMode)
   }
 
-  async function compactThreadContext(): Promise<boolean> {
-    if (compactBusy) return false
+  async function compactCurrentThread(): Promise<boolean> {
     if (!canCompactCurrentThread) {
       addToast(t('composer.compact.unavailable'), 'warning')
       return false
     }
-
-    setCompactBusy(true)
-    addToast(t('composer.compact.started'), 'info')
-    try {
-      const result = (await window.api.appServer.sendRequest(
-        'thread/compact/start',
-        { threadId },
-        MANUAL_COMPACTION_TIMEOUT_MS
-      )) as {
-        outcome?: string
-        message?: string
-        contextUsage?: ContextUsageSnapshotWire | null
-      }
-      if (result.contextUsage) {
-        useConversationStore.getState().setContextUsage(result.contextUsage)
-      }
-      const outcome = String(result.outcome ?? '').toLowerCase()
-      if (outcome === 'micro' || outcome === 'partial') {
-        await refreshThreadAfterManualCompact()
-        addToast(t('composer.compact.succeeded'), 'success')
-      } else if (outcome === 'skipped') {
-        addToast(t('composer.compact.skipped'), 'info')
-      } else {
-        addToast(t('composer.compact.failed', { error: result.message || outcome || 'unknown' }), 'error')
-      }
-      return true
-    } catch (err) {
-      if (isRequestTimeoutError(err) && useConversationStore.getState().maintenanceKind === 'compacting') {
-        addToast(t('composer.compact.stillRunning'), 'info')
-        return true
-      }
-      addToast(t('composer.compact.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-      return false
-    } finally {
-      setCompactBusy(false)
-    }
-  }
-
-  async function refreshThreadAfterManualCompact(): Promise<void> {
-    try {
-      const response = await readThreadHistoryHead(
-        (method, params) => window.api.appServer.sendRequest(method, params),
-        threadId
-      )
-      const refreshed = response.thread
-      if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
-
-      useThreadStore.getState().setActiveThread(refreshed)
-      restartThreadHistory(threadId, refreshed.turns ?? [], response.turnCursor)
-      useConversationStore.getState().setTurns(
-        (refreshed.turns ?? []).map((turn) =>
-          wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
-        )
-      )
-      useConversationStore.getState().setQueuedInputs(refreshed.queuedInputs ?? [])
-      if ('contextUsage' in refreshed) {
-        useConversationStore.getState().setContextUsage(refreshed.contextUsage ?? null)
-      }
-    } catch (err) {
-      console.warn('thread/read after manual compaction failed:', err)
-    }
+    return compactThreadContext(threadId, t)
   }
 
   const canSend = useMemo(() => {
@@ -1757,7 +1686,7 @@ function InputComposerCore({
       return
     }
     if (actionId === 'compact') {
-      void compactThreadContext()
+      void compactCurrentThread()
       return
     }
     if (actionId === 'reloadSkills') {
@@ -1775,7 +1704,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactCurrentThread, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)

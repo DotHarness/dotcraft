@@ -173,6 +173,7 @@ export interface ClientRequestMethods {
   "thread/channelBindings/request/create": { params: Models.ThreadChannelBindingRequestCreateParams; result: Models.ThreadChannelBindingRequestCreateResult };
   "thread/compact/start": { params: Models.ThreadCompactStartParams; result: Models.ThreadCompactStartResponse };
   "thread/config/update": { params: Models.ThreadConfigUpdateParams; result: Models.RpcEmpty };
+  "thread/contextUsage/read": { params: Models.ThreadContextUsageReadParams; result: Models.ThreadContextUsageReadResult };
   "thread/delete": { params: Models.ThreadDeleteParams; result: Models.RpcEmpty };
   "thread/fork": { params: Models.ThreadForkParams; result: Models.ThreadForkResult };
   "thread/goal/clear": { params: Models.ThreadGoalClearParams; result: Models.ThreadGoalClearResult };

@@ -231,6 +231,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadConfigUpdateParams, global::DotCraft.Protocol.RpcEmpty> ThreadConfigUpdate = new("thread/config/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
+    public static readonly RpcRequest<ThreadContextUsageReadParams, ThreadContextUsageReadResult> ThreadContextUsageRead = new("thread/contextUsage/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
+
     public static readonly RpcRequest<ThreadDeleteParams, global::DotCraft.Protocol.RpcEmpty> ThreadDelete = new("thread/delete", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<ThreadForkParams, ThreadForkResult> ThreadFork = new("thread/fork", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);

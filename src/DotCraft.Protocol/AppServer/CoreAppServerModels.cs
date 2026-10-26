@@ -713,6 +713,52 @@ public sealed class ConfigSchemaSection : ExtensibleJsonObject
 
 }
 
+public sealed class ContextUsageBreakdown : ExtensibleJsonObject
+{
+    [JsonPropertyName("categories")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ContextUsageCategory>> Categories { get; init; }
+
+    [JsonPropertyName("contextUsage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ContextUsageSnapshot> ContextUsage { get; init; }
+
+}
+
+public sealed class ContextUsageCategory : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Id { get; init; }
+
+    [JsonPropertyName("items")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ContextUsageItem>> Items { get; init; }
+
+    [JsonPropertyName("onDemand")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> OnDemand { get; init; }
+
+    [JsonPropertyName("tokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Tokens { get; init; }
+
+}
+
+public sealed class ContextUsageItem : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Name { get; init; }
+
+    [JsonPropertyName("tokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Tokens { get; init; }
+
+}
+
 public sealed class ContextUsageSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("autoCompactThreshold")]
@@ -4962,6 +5008,22 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonPropertyName("workspaceOverride")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> WorkspaceOverride { get; init; }
+
+}
+
+public sealed class ThreadContextUsageReadParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+}
+
+public sealed class ThreadContextUsageReadResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("breakdown")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ContextUsageBreakdown?> Breakdown { get; init; }
 
 }
 

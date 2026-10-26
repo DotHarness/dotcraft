@@ -28,10 +28,13 @@ import {
   onSetUpWithAgentAvailabilityChange,
   setUpEnvironmentWithAgent
 } from '../../projectActions/setUpWithAgent'
-import { useConversationStore } from '../../../stores/conversationStore'
+import { useConnectionStore } from '../../../stores/connectionStore'
+import { useConversationStore, type ContextUsage } from '../../../stores/conversationStore'
+import { useThreadStore } from '../../../stores/threadStore'
 import { showToast } from '../../../stores/toastStore'
 import { useUIStore, type SystemDetailTab } from '../../../stores/uiStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
+import { compactThreadContext } from '../../../utils/manualCompaction'
 import { openSkill } from '../../../utils/openSkill'
 import { loadLocalImageDataUrl } from '../imagePreview/galleryImages'
 import {
@@ -40,6 +43,12 @@ import {
   threadWorktreeEnvironment,
   type ThreadWorktreeEnvironment
 } from './worktreeEnvironment'
+
+export interface SummaryContextState {
+  readonly usage: ContextUsage | null
+  readonly running: boolean
+  readonly canCompact: boolean
+}
 
 export interface SummaryServices {
   readonly appServer: {
@@ -78,6 +87,11 @@ export interface SummaryServices {
     environment(threadId: string): ThreadWorktreeEnvironment | null
     onEnvironmentChange(threadId: string, listener: (environment: ThreadWorktreeEnvironment | null) => void): () => void
     setEnvironment(request: { threadId: string; environmentPath: string | null }): Promise<void>
+  }
+  readonly context: {
+    state(threadId: string): SummaryContextState
+    onChange(threadId: string, listener: (state: SummaryContextState) => void): () => void
+    compact(threadId: string): Promise<void>
   }
   readonly navigation: {
     openDetailPanel(tab: SystemDetailTab): void
@@ -138,6 +152,23 @@ export const desktopSummaryServices: SummaryServices = {
     onEnvironmentChange: onThreadWorktreeEnvironmentChange,
     setEnvironment: setThreadWorktreeEnvironment
   },
+  context: {
+    state: contextState,
+    onChange(threadId, listener) {
+      let last = contextState(threadId)
+      const notify = (): void => {
+        const next = contextState(threadId)
+        if (next.usage === last.usage && next.running === last.running && next.canCompact === last.canCompact) return
+        last = next
+        listener(next)
+      }
+      const stops = [useConversationStore.subscribe(notify), useConnectionStore.subscribe(notify), useThreadStore.subscribe(notify)]
+      return () => stops.forEach((stop) => stop())
+    },
+    async compact(threadId) {
+      await compactThreadContext(threadId, (key, vars) => translate(readDesktopPluginEnvironment().locale, key, vars))
+    }
+  },
   navigation: {
     openDetailPanel: (tab) => useUIStore.getState().setActiveDetailTab(tab),
     openFile: openActiveThreadFile,
@@ -158,5 +189,16 @@ export const desktopSummaryServices: SummaryServices = {
     showError: (message) => {
       showToast({ message, type: 'error' })
     }
+  }
+}
+
+function contextState(threadId: string): SummaryContextState {
+  const conversation = useConversationStore.getState()
+  if (useThreadStore.getState().activeThreadId !== threadId) return { usage: null, running: false, canCompact: false }
+  const idle = conversation.turnStatus === 'idle' && conversation.maintenanceKind == null
+  return {
+    usage: conversation.contextUsage,
+    running: !idle,
+    canCompact: idle && conversation.turns.length > 0 && useConnectionStore.getState().capabilities?.manualCompaction === true
   }
 }

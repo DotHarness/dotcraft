@@ -11,7 +11,7 @@ namespace DotCraft.Context;
 internal static class WorkspaceContextPromptSections
 {
     /// <summary>The markdown files loaded from the DotCraft directory, in prompt order.</summary>
-    private static readonly string[] BootstrapFiles =
+    internal static readonly string[] BootstrapFiles =
     [
         "SOUL.md",
         "USER.md",
