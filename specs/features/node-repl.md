@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.5 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-26 |
 
 The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients and by Windows computer use. Evaluation uses an evaluate/cancel request whose response carries text, images, logs, a result, and an error.
 
@@ -23,7 +23,7 @@ Assignment to `const` is an error. Existing closures observe a redeclared bindin
 
 The model-visible declaration is a generated tool declaration; the plugin descriptor adds runtime plugin identity and namespace, and invocation is a plugin-native proxy that preserves multimodal results, metadata and binding leases. `code` is required; `title` is an optional short, user-facing description of the run, and `timeoutSeconds` is an optional integer with no schema default. Additional properties are rejected. The browser, Chrome and computer skills ask for a `title` on every call.
 
-Policy and approval keep the plugin-native definition identity, and thread plugin policy matches the runtime plugin as the source. The registration is presented as Core-native with presentation `core.node-repl` and option `surface` set to the runtime plugin (`browser`, `chrome` or `computer`), so Desktop can trust it for rendering. Desktop labels a call with its `title`, or names the surface without one; the row's icon follows the surface, and the expanded row shows the result text and images, not the code.
+Policy and approval keep the plugin-native definition identity, and thread plugin policy matches the runtime plugin as the source. The registration is presented as Core-native with presentation `core.node-repl` and option `surface` set to the runtime plugin (`browser`, `chrome` or `computer`), so Desktop can trust it for rendering. Because one registration serves every enabled plugin, an evaluation that called `dotcraft.computer` reports `surface: "computer"`, and the tool result carries it as structured content `{ "surface": "computer" }`. Desktop uses a call's own surface when present and the registration's otherwise. Desktop labels a call with its `title`, or names the surface without one; the row's icon and its tool group follow the surface, and the expanded row shows the result text and images, not the code.
 
 ## Process ownership and cancellation
 

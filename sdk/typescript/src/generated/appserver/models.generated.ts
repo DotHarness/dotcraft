@@ -2613,6 +2613,7 @@ export interface NodeReplEvaluateResult {
   images?: NodeReplImageResult[];
   logs?: string[];
   resultText?: string | null;
+  surface?: string | null;
   text?: string | null;
   [key: string]: unknown;
 }

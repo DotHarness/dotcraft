@@ -1699,6 +1699,10 @@ public sealed class NodeReplEvaluateResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ResultText { get; init; }
 
+    [JsonPropertyName("surface")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Surface { get; init; }
+
     [JsonPropertyName("text")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Text { get; init; }

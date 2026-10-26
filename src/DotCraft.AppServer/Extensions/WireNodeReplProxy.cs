@@ -248,7 +248,8 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
         Text = ValueOrDefault(value.Text),
         ResultText = ValueOrDefault(value.ResultText),
         Error = ValueOrDefault(value.Error),
-        Logs = ValueOrDefault(value.Logs)?.ToList() ?? [],
+        Surface = ValueOrDefault(value.Surface),
+        Logs =ValueOrDefault(value.Logs)?.ToList() ?? [],
         Images = ValueOrDefault(value.Images)?.Select(static image => new NodeReplImage
         {
             MediaType = ValueOrDefault(image.MediaType) ?? "image/png",

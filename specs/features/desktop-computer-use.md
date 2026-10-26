@@ -171,6 +171,7 @@ For each gated call, Desktop main:
 ## 9. Presentation
 
 - Screenshots produced by `get_window_state` appear in the `NodeReplJs` tool result image output.
+- A `NodeReplJs` call that used `dotcraft.computer` is shown as computer use even when the browser plugin registered the tool ([Desktop Node REPL](node-repl.md)).
 - The computer use approval card asks whether DotCraft may use the named application and offers the three choices in Section 7.
 - Settings › Computer use offers the control toggles (Any app, Chrome) and the always-allowed application list.
 

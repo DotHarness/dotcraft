@@ -190,7 +190,10 @@ public sealed class NodeReplPluginToolSource(
                 Success = string.IsNullOrWhiteSpace(result.Error),
                 ErrorCode = string.IsNullOrWhiteSpace(result.Error) ? null : "NodeReplError",
                 ErrorMessage = string.IsNullOrWhiteSpace(result.Error) ? null : result.Error,
-                ContentItems = contentItems
+                ContentItems = contentItems,
+                StructuredResult = result.Surface == PluginIds.Computer
+                    ? new JsonObject { ["surface"] = PluginIds.Computer }
+                    : null
             };
         }
     }

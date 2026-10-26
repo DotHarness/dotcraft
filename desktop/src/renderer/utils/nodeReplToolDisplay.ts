@@ -7,9 +7,13 @@ const TITLE_LIMIT = 80
 
 export type NodeReplSurface = 'browser' | 'chrome' | 'computer'
 
-export function getNodeReplSurface(item: ToolKindSource): NodeReplSurface | null {
+type NodeReplSource = ToolKindSource & Pick<ConversationItem, 'structuredResult'>
+
+export function getNodeReplSurface(item: NodeReplSource): NodeReplSurface | null {
   const plan = resolveCoreToolRenderPlan(item as ConversationItem)
-  return plan?.family === 'nodeRepl' ? plan.options.surface as NodeReplSurface : null
+  if (plan?.family !== 'nodeRepl') return null
+  const result = item.structuredResult as { surface?: unknown } | null | undefined
+  return result?.surface === 'computer' ? 'computer' : plan.options.surface as NodeReplSurface
 }
 
 export function normalizeNodeReplTitle(value: unknown): string | null {
@@ -28,6 +32,6 @@ export function formatNodeReplSurfaceLabel(surface: NodeReplSurface | null, loca
   }
 }
 
-export function formatNodeReplLabel(item: ToolKindSource, title: unknown, locale: AppLocale): string {
+export function formatNodeReplLabel(item: NodeReplSource, title: unknown, locale: AppLocale): string {
   return normalizeNodeReplTitle(title) ?? formatNodeReplSurfaceLabel(getNodeReplSurface(item), locale)
 }

@@ -114,6 +114,7 @@ describe('NodeReplManager', () => {
       targetLabel: 'App'
     })
     expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'AQID' }])
+    expect(result.surface).toBe('computer')
   })
 
   it('exposes DotCraft host globals, logs, images, and per-evaluation browser session metadata', async () => {
