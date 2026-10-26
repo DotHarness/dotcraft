@@ -38,7 +38,7 @@ public sealed partial class SessionService
             if (owner._runtimeRegistry.IsPendingPermanentDeletion(threadId))
                 throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
             if (!owner._runtimeRegistry.TryGetRuntime(threadId, out _) && !owner.Persistence.ThreadExists(threadId))
-                throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+                throw new ThreadNotFoundException(threadId);
             var broker = owner.GetOrCreateBroker(threadId);
             await foreach (var evt in broker.SubscribeAsync(replayRecent, ct).WithCancellation(ct))
                 yield return evt;

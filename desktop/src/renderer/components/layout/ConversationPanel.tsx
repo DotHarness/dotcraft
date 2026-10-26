@@ -67,6 +67,7 @@ export function ConversationPanel({
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const activeThreadLoadError = useThreadStore((s) => s.activeThreadLoadError)
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const threadMode = useConversationStore((s) => s.threadMode)
@@ -159,6 +160,15 @@ export function ConversationPanel({
   const waitForWorktree = useCallback((): void => {
     throw new Error(t('worktreeCreation.composerBlocked'))
   }, [t])
+
+  if (!creating && activeThreadId && activeThreadLoadError?.threadId === activeThreadId) {
+    return (
+      <div style={centeredStyle} role="alert">
+        <div style={loadErrorTitleStyle}>{t('conversation.loadFailed')}</div>
+        <div style={loadErrorDetailStyle}>{activeThreadLoadError.message}</div>
+      </div>
+    )
+  }
 
   // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
   if (!creating && activeThreadId && !activeThread) {
@@ -367,6 +377,18 @@ const panelStyle: CSSProperties = {
 }
 
 const openingIndicatorStyle: CSSProperties = { display: 'inline-flex', color: 'var(--text-secondary)' }
+
+const loadErrorTitleStyle: CSSProperties = { color: 'var(--text-primary)', fontSize: 14, fontWeight: 500 }
+
+const loadErrorDetailStyle: CSSProperties = {
+  marginTop: 6,
+  maxWidth: 480,
+  padding: '0 16px',
+  color: 'var(--text-secondary)',
+  fontSize: 13,
+  textAlign: 'center',
+  overflowWrap: 'anywhere'
+}
 
 const centeredStyle: CSSProperties = {
   display: 'flex',

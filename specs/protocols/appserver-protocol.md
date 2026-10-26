@@ -422,7 +422,7 @@ Read one page of provider-neutral Turn metadata. Params: `threadId`, `cursor`, `
 
 ### 4.4.2 `thread/items/list`
 
-Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (restrict to one Turn), `cursor`, `limit` (default 100, max 500), `sortDirection` (default `descending`).
+Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (restrict to one Turn), `cursor`, `limit` (default 100, max 100), `sortDirection` (default `descending`).
 
 **Result**: `{ data: [{ turnId, item }], nextCursor }`. Item position is stable; an update replaces the payload at its original ordinal.
 
@@ -1032,7 +1032,7 @@ Errors use the JSON-RPC 2.0 error object. `error.message` is always an English d
 | `-32001` | Server overloaded | Backpressure; retryable. |
 | `-32002` | Not initialized | Method before `initialize`. |
 | `-32003` | Already initialized | Repeated `initialize`. |
-| `-32010` | Thread not found | Unknown `threadId`. |
+| `-32010` | Thread not found | Unknown `threadId`. Other missing ids inside an existing thread use their own code or `-32600`. |
 | `-32011` | Thread not active | Operation requires an active thread but it is archived. |
 | `-32012` | Turn in progress | A turn is running or waiting on the thread. |
 | `-32013` | Turn not found | Unknown `turnId`. |
@@ -1303,7 +1303,7 @@ There is no per-connection identity isolation. Callers with different privilege 
 
 ### 15.6 Framing
 
-Each JSON-RPC message is exactly one complete text frame; messages are never split or combined, and binary frames are not used. The default maximum message size is 4 MB; larger messages close the connection with code `1009`.
+Each JSON-RPC message is exactly one complete text frame; messages are never split or combined, and binary frames are not used. The server accepts client messages up to 4 MB; larger messages close the connection with code `1009`. Clients accept server messages up to at least 128 MiB, and a message over a client's limit ends the connection like any other transport failure.
 
 ### 15.7 Reconnection
 

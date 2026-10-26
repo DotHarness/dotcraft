@@ -51,9 +51,9 @@ internal sealed class WorkspaceRequestHandler(
             }, ct);
             return new Contract.WorkspaceCommitMessageSuggestResult { Message = result.Message };
         }
-        catch (KeyNotFoundException ex)
+        catch (ThreadNotFoundException ex)
         {
-            throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
+            throw AppServerErrors.ThreadNotFound(ex.ThreadId);
         }
         catch (InvalidOperationException ex)
         {

@@ -546,7 +546,7 @@ public sealed class AcpBridgeHandler(
         {
             var itemsDoc = await wire.SendRequestAsync(
                 DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
-                new { threadId = sessionId, cursor = itemCursor, limit = 500, sortDirection = "ascending" },
+                new { threadId = sessionId, cursor = itemCursor, limit = 100, sortDirection = "ascending" },
                 ct: ct);
             ThrowIfWireError(itemsDoc, "thread/items/list");
             var result = itemsDoc.RootElement.GetProperty("result");

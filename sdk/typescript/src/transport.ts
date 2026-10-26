@@ -53,7 +53,11 @@ export class StdioTransport implements Transport {
 export interface WebSocketTransportOptions {
   url: string;
   token?: string | null;
+  /** Defaults to 128 MiB. */
+  maxPayload?: number;
 }
+
+const DEFAULT_MAX_PAYLOAD_BYTES = 128 * 1024 * 1024;
 
 /**
  * One JSON-RPC message per WebSocket text frame.
@@ -61,6 +65,7 @@ export interface WebSocketTransportOptions {
 export class WebSocketTransport implements Transport {
   private readonly baseUrl: string;
   private readonly token: string | null | undefined;
+  private readonly maxPayload: number;
   private ws: WebSocket | null = null;
   private closed = false;
   private receivedFrames: string[] = [];
@@ -73,6 +78,7 @@ export class WebSocketTransport implements Transport {
   constructor(opts: WebSocketTransportOptions) {
     this.baseUrl = opts.url;
     this.token = opts.token;
+    this.maxPayload = opts.maxPayload ?? DEFAULT_MAX_PAYLOAD_BYTES;
   }
 
   private get urlWithToken(): string {
@@ -94,7 +100,7 @@ export class WebSocketTransport implements Transport {
     if (this.ws !== null) return;
     this.terminalError = null;
     this.receivedFrames = [];
-    this.ws = new WebSocket(this.urlWithToken);
+    this.ws = new WebSocket(this.urlWithToken, { maxPayload: this.maxPayload });
     await new Promise<void>((resolve, reject) => {
       const w = this.ws!;
       const onOpen = () => {
@@ -104,11 +110,13 @@ export class WebSocketTransport implements Transport {
       };
       const onError = (e: Error) => {
         cleanup();
+        if (this.ws === w) this.ws = null;
         this.terminalError = e;
         reject(e);
       };
       const onClose = () => {
         cleanup();
+        if (this.ws === w) this.ws = null;
         const err = new TransportClosed("WebSocket closed");
         this.terminalError = err;
         reject(err);
@@ -126,13 +134,17 @@ export class WebSocketTransport implements Transport {
 
   async readMessage(): Promise<Record<string, unknown>> {
     if (this.closed) throw new TransportClosed();
-    if (this.ws === null) await this.connect();
     if (this.receivedFrames.length > 0) {
       const frame = this.receivedFrames.shift()!;
       return JSON.parse(frame) as Record<string, unknown>;
     }
     if (this.terminalError) {
       throw this.terminalError;
+    }
+    // The first frame can arrive before connect() resolves, so read again from the buffer.
+    if (this.ws === null) {
+      await this.connect();
+      return await this.readMessage();
     }
     return await new Promise<Record<string, unknown>>((resolve, reject) => {
       this.waitingReaders.push({ resolve, reject });
@@ -174,18 +186,16 @@ export class WebSocketTransport implements Transport {
       }
       this.receivedFrames.push(text);
     });
-    ws.on("close", () => {
-      if (this.closed) return;
-      this.ws = null;
-      const err = new TransportClosed("WebSocket closed");
-      this.terminalError = err;
-      this.receivedFrames = [];
-      this.rejectWaitingReaders(err);
-    });
-    ws.on("error", (error: Error) => {
-      this.terminalError = error;
-      this.rejectWaitingReaders(error);
-    });
+    ws.on("close", () => this.dropSocket(ws, new TransportClosed("WebSocket closed")));
+    ws.on("error", (error: Error) => this.dropSocket(ws, new TransportClosed(`WebSocket closed: ${error.message}`)));
+  }
+
+  private dropSocket(ws: WebSocket, error: TransportClosed): void {
+    if (this.closed || this.ws !== ws) return;
+    this.ws = null;
+    this.terminalError = error;
+    this.receivedFrames = [];
+    this.rejectWaitingReaders(error);
   }
 
   private rejectWaitingReaders(error: unknown): void {

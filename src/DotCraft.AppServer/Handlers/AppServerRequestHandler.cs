@@ -241,9 +241,13 @@ public sealed class AppServerRequestHandler(
 
             return await TryHandleExtensionAsync(method, msg, ct);
         }
+        catch (ThreadNotFoundException ex)
+        {
+            throw AppServerErrors.ThreadNotFound(ex.ThreadId);
+        }
         catch (KeyNotFoundException ex)
         {
-            throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
+            throw AppServerErrors.InvalidRequest(ex.Message);
         }
         catch (WorktreeHandoffConflictException ex)
         {

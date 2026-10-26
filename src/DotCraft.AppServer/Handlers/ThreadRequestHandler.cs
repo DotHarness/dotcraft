@@ -34,7 +34,7 @@ internal sealed partial class ThreadRequestHandler(
     private const int ThreadTurnsDefaultPageLimit = 20;
     private const int ThreadTurnsMaxPageLimit = 100;
     private const int ThreadItemsDefaultPageLimit = 100;
-    private const int ThreadItemsMaxPageLimit = 500;
+    private const int ThreadItemsMaxPageLimit = 100;
     private const string ThreadListCursorKind = "thread-list";
     private readonly object _pendingInteractiveReplayLock = new();
     private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);

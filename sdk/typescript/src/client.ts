@@ -399,15 +399,15 @@ export class DotCraftWireClient {
         try {
           raw = await this.transport.readMessage();
         } catch (e) {
-          if (e instanceof TransportClosed) {
-            this.setState("disconnected", e);
-            this.rejectAllPending(e, this.options.autoReconnect);
-            if (await this.tryReconnect()) continue;
-            this.rejectAllPending(e);
-            this.rejectQueuedWrites(e);
-            break;
-          }
-          throw e;
+          const closed = e instanceof TransportClosed
+            ? e
+            : new TransportClosed(`Transport read failed: ${e instanceof Error ? e.message : String(e)}`);
+          this.setState("disconnected", closed);
+          this.rejectAllPending(closed, this.options.autoReconnect);
+          if (await this.tryReconnect()) continue;
+          this.rejectAllPending(closed);
+          this.rejectQueuedWrites(closed);
+          break;
         }
         const msg = JsonRpcMessage.fromDict(raw);
         await this.dispatch(msg);

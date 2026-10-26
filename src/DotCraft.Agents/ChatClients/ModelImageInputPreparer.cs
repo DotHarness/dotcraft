@@ -7,6 +7,7 @@ internal static class ModelImageInputPreparer
 {
     internal const string CouldNotProcessPlaceholder = "image content omitted because it could not be processed";
     internal const string TooLargePlaceholder = "image content omitted because it exceeded the supported size limit";
+    internal const string ToolResultImagesMarker = "[Image content from tool results — attached for vision analysis.]";
     private const int MaxInputBytes = 64 * 1024 * 1024;
 
     public static bool IsImageMediaType(string? mediaType) =>

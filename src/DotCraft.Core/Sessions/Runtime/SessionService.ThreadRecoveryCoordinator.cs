@@ -30,7 +30,7 @@ public sealed partial class SessionService
             ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
             if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+                throw new ThreadNotFoundException(threadId);
 
             if (runtime.Maintenance != null
                 || runtime.Thread.Turns.Any(static turn =>

@@ -22,7 +22,7 @@ public sealed partial class ThreadStore
         await _rolloutStore.CloseThreadAsync(threadId, ct);
         CountForwardReplay();
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct)
-            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+            ?? throw new ThreadNotFoundException(threadId);
         var terminalTurn = ValidateExportThread(thread, normalizedWorkspace);
 
         ThreadRecoverySnapshot snapshot;

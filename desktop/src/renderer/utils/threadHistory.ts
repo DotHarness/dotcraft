@@ -4,7 +4,7 @@ import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 /** Turns per history page; small enough for a fast first paint, whole Turns either way. */
 const HISTORY_TURN_PAGE_LIMIT = 5
 /** Items per request while hydrating one Turn; equals the server's max page limit. */
-const TURN_ITEM_PAGE_LIMIT = 500
+const TURN_ITEM_PAGE_LIMIT = 100
 /** How many Turns of a page hydrate their Items concurrently. */
 const TURN_HYDRATION_CONCURRENCY = 5
 

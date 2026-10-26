@@ -118,7 +118,7 @@ interface Transport {
 }
 ```
 
-A transport that implements `connect()` is opened by `DotCraftWireClient.connect()` and reopened by auto-reconnect; one without it is used as supplied and is not reconnected.
+A transport that implements `connect()` is opened by `DotCraftWireClient.connect()` and reopened by auto-reconnect; one without it is used as supplied and is not reconnected. Any read failure ends the connection: the client becomes `disconnected`, rejects requests already written, and starts auto-reconnect when enabled. `WebSocketTransport` accepts messages up to `maxPayload` (default 128 MiB); a larger message closes the socket.
 
 Stdio and WebSocket implement [AppServer framing](../protocols/appserver-protocol.md#22-transports). A transport owns one socket or stream; `DotCraftWireClient` owns reconnect and protocol readiness. For adapters spawned by DotCraft, stdin receives server messages, stdout sends adapter messages, and diagnostics go to stderr.
 

@@ -228,7 +228,7 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
         }
 
         Store.DeleteThread(thread.Id);
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => coldService.ResumeThreadAsync(thread.Id));
+        await Assert.ThrowsAsync<ThreadNotFoundException>(() => coldService.ResumeThreadAsync(thread.Id));
     }
 
     [Fact]
