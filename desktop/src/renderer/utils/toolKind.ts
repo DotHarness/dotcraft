@@ -87,15 +87,16 @@ export type SkillOperation = 'read' | 'create' | 'update'
 export interface SkillOperationMark {
   operation: SkillOperation
   skillName: string
+  skillFile?: string
 }
 
 /** Core's mark on a file tool call that targets a Skill directory; a memory mark takes precedence. */
 export function resolveSkillOperation(item: ToolKindSource): SkillOperationMark | null {
   const options = resolveCoreToolRenderPlan(item as ConversationItem)?.options
   if (!options || options.memory != null) return null
-  const { skill, skillName } = options
+  const { skill, skillName, skillFile } = options
   return (skill === 'read' || skill === 'create' || skill === 'update') && typeof skillName === 'string'
-    ? { operation: skill, skillName: skillName.trim() }
+    ? { operation: skill, skillName: skillName.trim(), skillFile: typeof skillFile === 'string' ? skillFile : undefined }
     : null
 }
 

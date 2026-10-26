@@ -134,12 +134,16 @@ describe('ToolRendererRegistry', () => {
       ...options,
       skill,
       skillName: 'pdf-tools',
-      skillFile: 'D:\ws\.craft\skills\pdf-tools\SKILL.md'
+      skillFile: 'D:/ws/.craft/skills/pdf-tools/SKILL.md'
     })
 
     expect(coreToolRendererRegistry.resolve(marked)?.family).toBe(family)
     expect(resolveToolKind(marked)).toBe(kind)
-    expect(resolveSkillOperation(marked)).toEqual({ operation: skill, skillName: 'pdf-tools' })
+    expect(resolveSkillOperation(marked)).toEqual({
+      operation: skill,
+      skillName: 'pdf-tools',
+      skillFile: 'D:/ws/.craft/skills/pdf-tools/SKILL.md'
+    })
     expect(resolveSkillOperation(item(presentationId, 'CoreNative', { ...options }))).toBeNull()
   })
 

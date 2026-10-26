@@ -539,7 +539,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? toAbsoluteWorkspacePath(workspacePath, completedFilePath)
     : completedFilePath
   const skillTitle = skillMark?.skillName
-    ? renderSkillToolLabel(locale, skillOperationLabelKey(skillMark.operation, false), skillMark.skillName)
+    ? renderSkillToolLabel(locale, skillOperationLabelKey(skillMark.operation, false), skillMark.skillName, skillMark.skillFile)
     : isSkillViewTool && skillViewDisplay?.name
       ? renderSkillToolLabel(locale, 'skillView.tool.loadedSkill', skillViewDisplay.name)
       : null

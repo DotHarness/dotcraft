@@ -22,7 +22,7 @@ public sealed partial class SessionService
         if (decision is not { } settled)
             return;
 
-        foreach (var turn in thread.Turns.Where(turn => turn.Status == TurnStatus.WaitingApproval).ToArray())
+        foreach (var turn in thread.Turns.Where(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput).ToArray())
             TryGetTurnRuntime(new TurnKey(thread.Id, turn.Id))?.PendingApproval?.ResolvePending(settled);
     }
 
