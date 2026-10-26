@@ -399,7 +399,6 @@ export class DotCraftWireClient {
         try {
           raw = await this.transport.readMessage();
         } catch (e) {
-          // Any read failure ends the connection; otherwise the reader would stop without a disconnect or reconnect.
           const closed = e instanceof TransportClosed
             ? e
             : new TransportClosed(`Transport read failed: ${e instanceof Error ? e.message : String(e)}`);

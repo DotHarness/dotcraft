@@ -161,7 +161,7 @@ export function ConversationPanel({
     throw new Error(t('worktreeCreation.composerBlocked'))
   }, [t])
 
-  if (!creating && activeThreadId && !activeThread && activeThreadLoadError?.threadId === activeThreadId) {
+  if (!creating && activeThreadId && activeThreadLoadError?.threadId === activeThreadId) {
     return (
       <div style={centeredStyle} role="alert">
         <div style={loadErrorTitleStyle}>{t('conversation.loadFailed')}</div>

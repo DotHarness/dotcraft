@@ -5,8 +5,6 @@ namespace DotCraft.Agents;
 
 internal sealed partial class OpenAIResponsesProviderHistoryContext
 {
-    // The sampling messages only re-attach the current tool round's images, but the stored
-    // history keeps every round's copy; send earlier rounds as placeholders like the sampling history does.
     private static bool EndsWithToolResultImages(IReadOnlyList<ChatMessage> samplingMessages) =>
         samplingMessages.Count > 0
         && samplingMessages[^1].Role == ChatRole.User
@@ -37,7 +35,6 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext
         && ReadString(first, "type") == "input_text"
         && ReadString(first, "text") == ModelImageInputPreparer.ToolResultImagesMarker;
 
-    // Matches the placeholder the sampling history uses for earlier tool-round images.
     private static string DescribeImage(string? imageUrl)
     {
         const string dataPrefix = "data:";

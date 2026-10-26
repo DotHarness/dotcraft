@@ -245,7 +245,6 @@ public sealed class AppServerRequestHandler(
         {
             throw AppServerErrors.ThreadNotFound(ex.ThreadId);
         }
-        // Other missing keys (turns, queued inputs, terminals) must not tell clients the thread is gone.
         catch (KeyNotFoundException ex)
         {
             throw AppServerErrors.InvalidRequest(ex.Message);

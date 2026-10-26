@@ -23,14 +23,12 @@ public sealed class OpenAIResponsesProviderHistoryToolImagesTests
         var first = await context.PrepareInputAsync(messages, null, CancellationToken.None);
         Assert.Single(Images(first.Input));
 
-        // The sanitizer re-attaches only the newest round, so the earlier attachment message drops out.
         messages.RemoveAt(messages.Count - 1);
         messages.AddRange([Call("call-2"), Result("call-2"), ToolImages()]);
         var second = await context.PrepareInputAsync(messages, null, CancellationToken.None);
         Assert.Single(Images(second.Input));
         Assert.Contains(Texts(second.Input), text => text.StartsWith("[Image (image/png), ", StringComparison.Ordinal));
 
-        // A retry of the same request keeps the current round's image.
         var retry = await context.PrepareInputAsync(messages, null, CancellationToken.None);
         Assert.Single(Images(retry.Input));
 

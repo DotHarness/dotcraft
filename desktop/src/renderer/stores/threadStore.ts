@@ -28,7 +28,6 @@ interface ThreadStoreState {
   threadListProjectKey: string | null
   activeThreadId: string | null
   activeThread: Thread | null
-  /** Why the selected thread could not be opened; the panel shows it instead of loading forever. */
   activeThreadLoadError: { threadId: string; message: string } | null
   searchQuery: string
   loading: boolean

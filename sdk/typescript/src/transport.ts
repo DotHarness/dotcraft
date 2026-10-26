@@ -53,7 +53,7 @@ export class StdioTransport implements Transport {
 export interface WebSocketTransportOptions {
   url: string;
   token?: string | null;
-  /** Largest inbound message accepted before the socket is closed. Defaults to 128 MiB. */
+  /** Defaults to 128 MiB. */
   maxPayload?: number;
 }
 
@@ -108,7 +108,6 @@ export class WebSocketTransport implements Transport {
         this.attachSocketHandlers(w);
         resolve();
       };
-      // Clear the failed socket so a later connect() (e.g. a reconnect attempt) opens a new one.
       const onError = (e: Error) => {
         cleanup();
         if (this.ws === w) this.ws = null;
@@ -142,8 +141,11 @@ export class WebSocketTransport implements Transport {
     if (this.terminalError) {
       throw this.terminalError;
     }
-    // A dropped socket keeps its terminal error until connect(), so this only opens the first connection.
-    if (this.ws === null) await this.connect();
+    // The first frame can arrive before connect() resolves, so read again from the buffer.
+    if (this.ws === null) {
+      await this.connect();
+      return await this.readMessage();
+    }
     return await new Promise<Record<string, unknown>>((resolve, reject) => {
       this.waitingReaders.push({ resolve, reject });
     });
@@ -185,7 +187,6 @@ export class WebSocketTransport implements Transport {
       this.receivedFrames.push(text);
     });
     ws.on("close", () => this.dropSocket(ws, new TransportClosed("WebSocket closed")));
-    // ws closes the socket after any error (e.g. an oversized message), so report it as closed.
     ws.on("error", (error: Error) => this.dropSocket(ws, new TransportClosed(`WebSocket closed: ${error.message}`)));
   }
 

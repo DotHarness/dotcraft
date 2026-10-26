@@ -3284,7 +3284,6 @@ export function App(): JSX.Element {
       if (isConversationRenderPaused()) return
       // Nobody is reading a blurred window; the interval keeps ticking and resumes on focus.
       if (!windowVisibilityStateRef.current.focused) return
-      // A header-only refresh would replace the load error with an empty conversation.
       if (useThreadStore.getState().activeThreadLoadError?.threadId === activeThreadId) return
       refreshInFlight = true
       const requestedId = activeThreadId

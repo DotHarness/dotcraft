@@ -62,7 +62,6 @@ public sealed class AppServerErrorTests : IDisposable
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.TurnInterrupt, new { threadId = thread.Id, turnId = "turn_does_not_exist" }, AppServerErrors.TurnNotFoundCode),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.TurnInterrupt, new { threadId = thread.Id, turnId = "turn_001" }, AppServerErrors.TurnNotRunningCode),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new { threadId = thread.Id, input = Array.Empty<object>() }, AppServerErrors.InvalidParamsCode),
-                     // A missing key inside an existing thread must not report the thread itself as missing.
                      ("turn/queue/update", new { threadId = thread.Id, expectedTurnId = "turn_001", queuedInputId = "queued_missing", status = "queued" }, AppServerErrors.InvalidRequestCode)
                  })
         {

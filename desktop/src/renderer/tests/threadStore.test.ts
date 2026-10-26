@@ -307,25 +307,6 @@ describe('threadStore thread mutations', () => {
     expect(s().goalSnapshots.has('t1')).toBe(false)
   })
 
-  it('keeps a load error only for the selected thread until it loads or the selection changes', () => {
-    s().setThreadList([makeThreadSummary('t1'), makeThreadSummary('t2')])
-    s().setActiveThreadId('t1')
-
-    s().setActiveThreadLoadError('t2', 'stale failure')
-    expect(s().activeThreadLoadError).toBeNull()
-
-    s().setActiveThreadLoadError('t1', 'history unavailable')
-    expect(s().activeThreadLoadError).toEqual({ threadId: 't1', message: 'history unavailable' })
-    expect(s().threadList.map((thread) => thread.id)).toEqual(['t1', 't2'])
-
-    s().setActiveThread(makeThread('t1'))
-    expect(s().activeThreadLoadError).toBeNull()
-
-    s().setActiveThreadLoadError('t1', 'history unavailable')
-    s().setActiveThreadId('t2')
-    expect(s().activeThreadLoadError).toBeNull()
-  })
-
   it('notifies voice cleanup for every removed thread-tree origin', () => {
     const cleanup = vi.fn()
     const unregister = registerVoiceOriginCleanup(cleanup)

@@ -7,7 +7,6 @@ internal static class ModelImageInputPreparer
 {
     internal const string CouldNotProcessPlaceholder = "image content omitted because it could not be processed";
     internal const string TooLargePlaceholder = "image content omitted because it exceeded the supported size limit";
-    /// <summary>Leading text of the user message that re-attaches the current tool round's images.</summary>
     internal const string ToolResultImagesMarker = "[Image content from tool results — attached for vision analysis.]";
     private const int MaxInputBytes = 64 * 1024 * 1024;
 

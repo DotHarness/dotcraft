@@ -70,6 +70,21 @@ test("WebSocketTransport keeps ordered text and binary frames across burst and c
   );
 });
 
+test("WebSocketTransport returns a frame sent on open when the first read opens the connection", async () => {
+  await withServer(
+    (socket) => {
+      socket.send(JSON.stringify({ seq: 1 }));
+    },
+    async (url) => {
+      const transport = new WebSocketTransport({ url });
+
+      assert.deepEqual(await withTimeout(transport.readMessage()), { seq: 1 });
+
+      await transport.close();
+    },
+  );
+});
+
 test("WebSocketTransport rejects pending read on close", async () => {
   await withServer(
     async (socket) => {
