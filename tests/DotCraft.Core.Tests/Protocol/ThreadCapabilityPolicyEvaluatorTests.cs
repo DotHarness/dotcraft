@@ -172,6 +172,26 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, []).Allowed);
     }
 
+    [Theory]
+    [InlineData(ImageGenerationToolSource.ToolNamespace, ImageGenerationToolSource.ToolName, "image-generation")]
+    [InlineData(WebSearchToolSource.ToolNamespace, WebSearchToolSource.ToolName, "web-search")]
+    public void ConditionalNativeTools_AreGovernedByTheirBuiltInCatalogName(string toolNamespace, string toolName, string sourceId)
+    {
+        var name = new ToolName(toolNamespace, toolName);
+        var registration = Registration(name, ToolSourceKind.CoreNative, sourceId);
+        var catalogName = Assert.Single(
+            BuiltInToolCatalog.Enumerate(),
+            tool => tool.Name == ProviderToolProjector.Project([name])[name]).Name;
+
+        Assert.True(Evaluate(new ThreadToolPolicy { Allow = [catalogName] }));
+        Assert.False(Evaluate(new ThreadToolPolicy { Deny = [catalogName] }));
+
+        bool Evaluate(ThreadToolPolicy toolPolicy) =>
+            new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { ToolPolicy = toolPolicy }, CreateContext())
+                .EvaluateRegistration(registration, [])
+                .Allowed;
+    }
+
     [Fact]
     public void RuntimeManagedTools_UseProviderFlatNameOverrides()
     {

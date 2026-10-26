@@ -11,7 +11,6 @@ public sealed class AppServerToolCatalogTests
     {
         var descriptorNames = BuiltInToolCatalog.Enumerate().Select(descriptor => descriptor.Name).ToList();
         Assert.Equal(descriptorNames.Distinct(StringComparer.Ordinal).Count(), descriptorNames.Count);
-        Assert.DoesNotContain("imagegen", descriptorNames);
 
         var tools = await ListToolsAsync(new { });
         var names = tools.EnumerateArray().Select(tool => tool.GetProperty("name").GetString()!).ToList();

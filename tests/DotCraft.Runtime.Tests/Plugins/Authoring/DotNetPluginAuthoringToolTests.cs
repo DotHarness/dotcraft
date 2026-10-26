@@ -66,6 +66,19 @@ public sealed class DotNetPluginAuthoringToolTests :
     }
 
     [Fact]
+    public async Task BuiltInToolCatalog_ListsEveryAuthoringToolByItsProviderFlatName()
+    {
+        await using var manager = _harness.CreateManager(trustInstalled: false);
+        var registrations = await new DotNetPluginAuthoringToolSource(_harness.Config, manager)
+            .GetRegistrationsAsync(Planning(DataRoot, revision: 1));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(registrations, revision: 1);
+
+        Assert.Subset(
+            BuiltInToolCatalog.Enumerate().Select(static tool => tool.Name).ToHashSet(),
+            snapshot.ProviderFlatNames.Values.ToHashSet());
+    }
+
+    [Fact]
     public async Task Methods_InspectCurrentApi_AndBuildForTheNextToolSnapshot()
     {
         WriteProject(ToolPlugin("v1"));
