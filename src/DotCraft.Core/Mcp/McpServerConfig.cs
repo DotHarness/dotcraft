@@ -151,7 +151,6 @@ public sealed class McpServerConfig
 
     [ConfigField(FieldType = "select", Options = new[] { "auto", "approve", "prompt" })]
     [JsonConverter(typeof(McpToolApprovalModeJsonConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public McpToolApprovalMode ToolApprovalMode { get; set; }
 
     [JsonIgnore]

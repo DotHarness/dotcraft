@@ -53,6 +53,28 @@ public sealed class McpToolApprovalModeTests
         Assert.True(McpLiveToolCatalogReader.RequiresApproval(McpToolApprovalMode.Prompt, hints));
     }
 
+    [Fact]
+    public void WorkspaceAuto_OverridesUserApproveAfterMergedLoad()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"mcp_approval_merge_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var userPath = Path.Combine(root, "user.json");
+            var workspacePath = Path.Combine(root, "workspace.json");
+            File.WriteAllText(userPath, """{ "McpServers": { "inventory": { "Command": "inventory-mcp-server", "ToolApprovalMode": "approve" } } }""");
+            McpScopeStore.Upsert(workspacePath, new McpServerConfig { Name = "inventory", Command = "inventory-mcp-server" });
+
+            var server = Assert.Single(AppConfig.LoadWithGlobalFallback(workspacePath, userPath).McpServers);
+
+            Assert.Equal(McpToolApprovalMode.Auto, server.ToolApprovalMode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class FakeClient : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
