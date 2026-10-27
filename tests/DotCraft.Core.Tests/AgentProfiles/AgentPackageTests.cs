@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Agents.Packages;
+using DotCraft.Mcp;
 using Xunit;
 
 namespace DotCraft.Tests.Agents;
@@ -169,6 +170,24 @@ public sealed class AgentPackageTests : IDisposable
     }
 
     [Fact]
+    public void Reasons_NameOnlyThePluginServerTheProfileSelects()
+    {
+        var references = AgentProfileReferences.Read(
+            "---\nname: Reviewer\ndescription: Reviews.\nmcp:\n  servers: [p4]\n---\n\nReview.\n");
+        var alpha = AgentPackageOffer.From(Entry(AgentPackageKinds.Plugin, "alpha") with { McpServers = ["p4"] });
+        var beta = AgentPackageOffer.From(Entry(AgentPackageKinds.Plugin, "beta") with { McpServers = ["p4"] });
+        McpServerConfig[] plugins = [PluginServer("beta"), PluginServer("alpha")];
+
+        var byPlugin = references.ResolveMcpServers(plugins);
+        Assert.Equal(["MCP server alpha:p4"], alpha.Reasons(byPlugin));
+        Assert.Empty(beta.Reasons(byPlugin));
+
+        var byWorkspace = references.ResolveMcpServers([.. plugins, new McpServerConfig { Name = "p4" }]);
+        Assert.Empty(alpha.Reasons(byWorkspace));
+        Assert.Empty(beta.Reasons(byWorkspace));
+    }
+
+    [Fact]
     public void Write_RefusesAFileTheReaderWouldRefuse()
     {
         var document = "---\nname: Big\ndescription: Too long.\n---\n\n" + new string('x', AgentPackageLimits.MaximumDocumentBytes) + "\n";
@@ -180,6 +199,12 @@ public sealed class AgentPackageTests : IDisposable
 
     private static AgentPackageEntry Entry(string kind, string name) =>
         new(kind, name, name, null, string.Empty, false, kind == AgentPackageKinds.Skill ? [name] : [], [], null, null);
+
+    private static McpServerConfig PluginServer(string pluginId) => new()
+    {
+        Name = $"{pluginId}:p4",
+        Origin = McpServerOrigin.Plugin(pluginId, null, "p4")
+    };
 
     private static string Skill(string name) => $"---\nname: {name}\ndescription: Does {name}.\n---\n\nDo it.\n";
 
