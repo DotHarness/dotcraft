@@ -64,6 +64,8 @@ internal sealed partial class RemoteToolHostClient
             }
         }
         Publish(notices);
+        if (report.StartedBy is not null && !session.IsAvailable)
+            EndTerminals(session, BackgroundTerminalStatus.Lost);
     }
 
     private static void Apply(RemoteTerminal terminal, RemoteTerminalReport report, List<BackgroundTerminalEvent> notices)
