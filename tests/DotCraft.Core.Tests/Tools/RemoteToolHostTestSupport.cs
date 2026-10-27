@@ -113,7 +113,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
         if (state is not null && state.Peers.Count == 0 && state.Workspaces.Count > 0)
             storage.SaveHostState(state with { Peers = [new RemoteToolHubPeer
             {
-                PeerId = ReportedPeerId, HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp, CredentialReference = "test",
+                PeerId = ReportedPeerId, HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp,
                 WorkspaceId = state.Workspaces.Keys.First(), AuthorizationMode = RemoteToolAuthorization.FullAccess,
                 AuthorizationRevision = 1
             }] });
@@ -256,15 +256,6 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
                 "test://hub", stream: stream);
         }
     }
-}
-
-internal sealed class MemoryCredentialStore : IRemoteToolCredentialStore
-{
-    private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
-    public IReadOnlyDictionary<string, string> Values => _values;
-    public void Write(string reference, string secret) => _values[reference] = secret;
-    public string? Read(string reference) => _values.GetValueOrDefault(reference);
-    public void Delete(string reference) => _values.Remove(reference);
 }
 
 internal sealed class ApproveService : IApprovalService

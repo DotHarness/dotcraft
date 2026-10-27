@@ -201,6 +201,7 @@ public static class RemoteToolErrorCodes
     public const string HostNotRegistered = "remote_host_not_registered";
     public const string HostOffline = "remote_host_offline";
     public const string AuthenticationFailed = "remote_authentication_failed";
+    public const string PairingNotSaved = "remote_pairing_not_saved";
     public const string ProtocolMismatch = "remote_protocol_mismatch";
     public const string WorkspaceNotFound = "remote_workspace_not_found";
     public const string WorkspaceBusy = "remote_workspace_busy";

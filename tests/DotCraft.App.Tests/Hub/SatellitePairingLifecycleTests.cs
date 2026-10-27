@@ -20,8 +20,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
         var workspacePath = Path.Combine(_userProfile, "workspace");
         Directory.CreateDirectory(workspacePath);
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
         await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
         var invite = await hub.CreateInviteAsync("Ann");
 
@@ -32,10 +31,10 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         Assert.Equal(peer.PeerId, stored.PeerId);
         Assert.Equal("Ann", peer.DisplayName);
         Assert.Equal(workspacePath, peer.WorkspacePath);
-        var credential = Assert.Single(credentials.Values);
-        Assert.Equal(stored.CredentialReference, credential.Key);
+        Assert.Single(Directory.GetFiles(storage.CredentialsPath));
+        var credential = storage.GetPeerCredential(stored);
         var hostJson = await File.ReadAllTextAsync(storage.HostStatePath);
-        Assert.DoesNotContain(credential.Value, hostJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(credential, hostJson, StringComparison.Ordinal);
         Assert.DoesNotContain(invite.InviteId, hostJson, StringComparison.Ordinal);
 
         var listed = Assert.Single(await hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites"));
@@ -43,12 +42,31 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Runtime_AcceptInvite_WithdrawsTheHubPairing_WhenTheCredentialCannotBeSaved()
+    {
+        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
+        var workspacePath = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
+        Directory.CreateDirectory(storage.RootPath);
+        await File.WriteAllTextAsync(storage.CredentialsPath, string.Empty);
+        await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
+        var invite = await hub.CreateInviteAsync("Ann");
+
+        var error = await Assert.ThrowsAsync<RemoteToolHostException>(() => runtime.AcceptInviteAsync(
+            new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath)));
+
+        Assert.Equal(RemoteToolErrorCodes.PairingNotSaved, error.Code);
+        Assert.Empty(storage.LoadHostState()!.Peers);
+        await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
+            (await hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Length == 0);
+    }
+
+    [Fact]
     public async Task Runtime_PairingsForTheSameDirectory_KeepOneWorkspaceAndSeparateAuthorization()
     {
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
         var workspace = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
         await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
         var first = await hub.CreateInviteAsync("First");
         var second = await hub.CreateInviteAsync("Second");
@@ -60,7 +78,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         Assert.NotEqual(a.PeerId, b.PeerId);
         Assert.NotEqual(a.AuthorizationMode, b.AuthorizationMode);
         Assert.Single(storage.LoadHostState()!.Workspaces);
-        Assert.Equal(2, credentials.Values.Count);
+        Assert.Equal(2, Directory.GetFiles(storage.CredentialsPath).Length);
     }
 
     [Fact]
@@ -114,38 +132,35 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     [Fact]
     public async Task PeerConnector_OnRevoked_DeletesLocalPairingAndCredential()
     {
-        var credentials = new MemoryCredentialStore();
-        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, credentials: credentials);
-        Assert.Single(credentials.Values);
+        await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
+        Assert.Single(Directory.GetFiles(scenario.Storage.CredentialsPath));
 
         var response = await scenario.Hub.DeleteAsync($"/v1/satellites/{scenario.PeerId}");
         response.EnsureSuccessStatusCode();
         await scenario.Running.WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(credentials.Values);
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
         Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
     }
 
     [Fact]
     public async Task PeerConnector_WhenTheHostRevokesWhileConnected_RevokesThePairingOnTheHub()
     {
-        var credentials = new MemoryCredentialStore();
-        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, credentials: credentials);
+        await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
 
         await scenario.Runtime.RevokeAsync(scenario.PeerId);
 
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
             (await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Length == 0);
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(credentials.Values);
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
     }
 
     [Fact]
     public async Task PeerConnector_WhenTheHubRefusesTheReconnect_DeletesLocalPairingAndCredential()
     {
-        var credentials = new MemoryCredentialStore();
-        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, credentials: credentials);
+        await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
         await scenario.Runtime.StopAsync();
 
         var response = await scenario.Hub.DeleteAsync($"/v1/satellites/{scenario.PeerId}");
@@ -153,7 +168,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await scenario.Runtime.RunAsync().WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(credentials.Values);
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
         Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
     }
 
@@ -162,8 +177,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     {
         using var hub = new RefusingControlEndpoint();
         var workspacePath = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
         storage.SaveHostState(new RemoteToolHostState
         {
             HostId = "rth_lifecycle",
@@ -177,7 +191,6 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
                 HubHost = "127.0.0.1",
                 HubPort = hub.Port,
                 HubScheme = Uri.UriSchemeHttp,
-                CredentialReference = RemoteToolHostStorage.PeerCredentialReference("peer-retry"),
                 WorkspaceId = "workspace",
                 AuthorizationMode = RemoteToolAuthorization.FullAccess,
                 AuthorizationRevision = 1,
@@ -191,7 +204,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
 
         Assert.False(running.IsCompleted);
         Assert.Single(storage.LoadHostState()!.Peers);
-        Assert.Single(credentials.Values);
+        Assert.Single(Directory.GetFiles(storage.CredentialsPath));
     }
 
     public void Dispose()

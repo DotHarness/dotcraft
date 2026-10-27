@@ -113,7 +113,7 @@ public sealed class RemoteToolHostPairingTests
     public void Serve_WithoutPairing_FailsWithJoinHint()
     {
         using var home = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string>(StringComparer.Ordinal));
 
         var error = Assert.Throws<RemoteToolHostException>(
@@ -188,7 +188,6 @@ public sealed class RemoteToolHostPairingTests
         HubScheme = hub.Scheme,
         WorkspaceId = "repo",
         AuthorizationMode = RemoteToolAuthorization.FullAccess,
-        CredentialReference = RemoteToolHostStorage.PeerCredentialReference("sat_1"),
         PairedAt = DateTimeOffset.UtcNow
     };
 

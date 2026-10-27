@@ -523,10 +523,14 @@ consumes it.
 
 `join` accepts the invite URL, connects the control channel with the invite id, and receives the
 durable pairing: a `peerId` and a 256-bit random peer credential. The Host stores the raw credential
-in the operating-system credential store and writes only the Hub endpoint, `peerId`, and a
-credential reference to its configuration. The Hub stores only the credential hash. Every later
-control or data connection presents the peer credential as a bearer credential. There is exactly
-one shared secret per pairing.
+in its own file under `credentials/` beside `host.json`, which only the current user can open;
+`host.json` never holds a credential. The Hub stores only the credential hash. Every later control
+or data connection presents the peer credential as a bearer credential. There is exactly one shared
+secret per pairing, and deleting the Host state directory deletes every credential it held.
+
+The Host saves the pairing before it closes the joining control connection. When saving fails it
+sends `unpaired` on that connection, so the Hub drops the peer it just created, and reports
+`remote_pairing_not_saved`; the invitation stays consumed.
 
 Bearer credentials appear only in the WebSocket handshake `Authorization` header and MUST NOT enter
 URLs, command arguments, model context, Session persistence, trace output, or logs. Agent Hosts on
@@ -540,9 +544,9 @@ Hub removes its own peer record, then deletes the local peer record and credenti
 connection; a Host that was already offline leaves the Hub's record until the Agent side revokes it.
 
 Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, display name,
-workspaces, tool policies, peer records, catalog revision), `serve.lock`, `artifacts/`,
-`workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is stored. The
-broker owns its pairing registry independently of this Host state.
+workspaces, tool policies, peer records, catalog revision), `credentials/`, `serve.lock`,
+`artifacts/`, `workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is
+stored. The broker owns its pairing registry independently of this Host state.
 
 The v1 deployment profile assumes direct intranet reachability of the Hub's satellite listener from
 the Host machine. Peer credential possession has the permissions of the signed-in Host user and MUST

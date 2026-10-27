@@ -46,7 +46,6 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         string userProfile,
         int satellitePort = 0,
         TimeSpan? heartbeatInterval = null,
-        MemoryCredentialStore? credentials = null,
         Func<DotCraft.Screen.IScreenCaptureSource>? screenCapture = null)
     {
         var workspacePath = Path.Combine(userProfile, "workspace");
@@ -57,9 +56,7 @@ internal sealed class SatelliteScenario : IAsyncDisposable
             string.Join('\n', Enumerable.Range(0, 12_000).Select(index => $"line-{index:D6}-value")));
 
         var hub = await SatelliteHubFixture.StartAsync(userProfile, satellitePort);
-        var storage = new RemoteToolHostStorage(
-            Path.Combine(userProfile, "host-craft"),
-            credentials ?? new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(Path.Combine(userProfile, "host-craft"));
         var runtime = new RemoteToolHostRuntime(
             storage,
             "host-machine",
@@ -127,13 +124,4 @@ internal sealed class SatelliteScenario : IAsyncDisposable
     {
         public HubEndpoint? TryResolve() => new(new Uri(baseUrl), token);
     }
-}
-
-internal sealed class MemoryCredentialStore : IRemoteToolCredentialStore
-{
-    private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
-    public IReadOnlyDictionary<string, string> Values => _values;
-    public void Write(string reference, string secret) => _values[reference] = secret;
-    public string? Read(string reference) => _values.GetValueOrDefault(reference);
-    public void Delete(string reference) => _values.Remove(reference);
 }

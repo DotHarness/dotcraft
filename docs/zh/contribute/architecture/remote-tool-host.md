@@ -37,7 +37,7 @@ dotcraft tool-host join http://ann-pc:47600/i/inv_x1y2z3 --workspace C:\workspac
 dotcraft tool-host serve
 ```
 
-`join` 会把长期凭据写入操作系统凭据存储，并输出 Agent 将要使用的 workspace id。`serve` 负责保持控制连接，Hub 重启后它会自行恢复。设置为登录时自动启动：
+`join` 会把长期凭据写入 `~/.craft/remote-tool-host/credentials/`（仅当前用户可读），并输出 Agent 将要使用的 workspace id。`serve` 负责保持控制连接，Hub 重启后它会自行恢复。设置为登录时自动启动：
 
 ```powershell
 dotcraft tool-host autostart install

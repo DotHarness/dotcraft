@@ -23,7 +23,7 @@ public sealed class RemoteImageArtifactTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         using var agent = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();
@@ -65,7 +65,7 @@ public sealed class RemoteImageArtifactTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         using var agent = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         var state = RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         if (policy == "deny")
         {
@@ -110,7 +110,7 @@ public sealed class RemoteImageArtifactTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();
@@ -144,7 +144,7 @@ public sealed class RemoteImageArtifactTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         var state = RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace.Path });
         if (mode == "deny")
         {
