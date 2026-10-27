@@ -235,6 +235,9 @@ internal sealed partial class ThreadHistoryProjector(
 
     private void ApplyItem(ItemAppendedPayload payload, DateTimeOffset timestamp)
     {
+        if (payload.Item is not { } item)
+            return;
+
         var existingTurn = LoadTurn(payload.TurnId);
         var turn = existingTurn ?? new SessionTurn
         {
@@ -250,12 +253,12 @@ internal sealed partial class ThreadHistoryProjector(
             UpsertTurn(turn, preserveOrdinal: false);
         }
 
-        if (turn.Input is null && payload.Item.Type == ItemType.UserMessage)
+        if (turn.Input is null && item.Type == ItemType.UserMessage)
         {
-            turn.Input = payload.Item;
+            turn.Input = item;
             UpsertTurn(turn, preserveOrdinal: true);
         }
-        UpsertItem(payload.TurnId, payload.Item);
+        UpsertItem(payload.TurnId, item);
     }
 
     private void ApplyTurnReplacement(TurnStateReplacedPayload payload)

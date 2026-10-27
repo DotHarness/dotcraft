@@ -14,21 +14,6 @@ public static class SubAgentMailboxDelivery
     public const string DeliveryMode = "subagentMailbox";
 }
 
-internal static class SubAgentCommunicationMessageType
-{
-    public const string Message = "MESSAGE";
-    public const string NewTask = "NEW_TASK";
-
-    public static string RequireValid(string? value) =>
-        value switch
-        {
-            Message => Message,
-            NewTask => NewTask,
-            _ => throw new InvalidOperationException(
-                $"Unsupported SubAgent communication message type '{value ?? "<null>"}'.")
-        };
-}
-
 internal sealed record SubAgentCommunication
 {
     public required string Id { get; init; }
@@ -39,8 +24,6 @@ internal sealed record SubAgentCommunication
 
     public required string RecipientAgentPath { get; init; }
 
-    public required string MessageType { get; init; }
-
     public required string Payload { get; init; }
 
     public string? ParentTurnId { get; init; }
@@ -49,9 +32,7 @@ internal sealed record SubAgentCommunication
 
     public string RenderForModel()
     {
-        var messageType = SubAgentCommunicationMessageType.RequireValid(MessageType);
         return $"""
-Message Type: {messageType}
 Task name: {RecipientAgentPath}
 Sender: {AuthorAgentPath}
 Payload:
@@ -72,9 +53,6 @@ public sealed class SubAgentMailboxEntry
 
     public string Message { get; set; } = string.Empty;
 
-    /// <summary>Structured communication type: MESSAGE or NEW_TASK.</summary>
-    public string MessageType { get; set; } = SubAgentCommunicationMessageType.Message;
-
     /// <summary>Trusted originating Turn id when the communication was created.</summary>
     public string? ParentTurnId { get; set; }
 
@@ -92,7 +70,6 @@ public sealed class SubAgentMailboxEntry
             RootThreadId = RootThreadId,
             AuthorAgentPath = SenderAgentPath,
             RecipientAgentPath = TargetAgentPath,
-            MessageType = SubAgentCommunicationMessageType.RequireValid(MessageType),
             Payload = Message,
             ParentTurnId = ParentTurnId,
             CreatedAt = CreatedAt
@@ -105,7 +82,6 @@ public sealed class SubAgentMailboxEntry
             RootThreadId = communication.RootThreadId,
             SenderAgentPath = communication.AuthorAgentPath,
             TargetAgentPath = communication.RecipientAgentPath,
-            MessageType = SubAgentCommunicationMessageType.RequireValid(communication.MessageType),
             Message = communication.Payload,
             ParentTurnId = communication.ParentTurnId,
             Status = SubAgentMailboxStatus.Pending,

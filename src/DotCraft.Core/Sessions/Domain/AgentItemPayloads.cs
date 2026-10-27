@@ -10,15 +10,6 @@ public sealed record AgentMessagePayload
     public string? DeliveryMode { get; init; }
 }
 
-/// <summary>Payload for a runtime-managed sleep lifecycle item.</summary>
-public sealed record SleepPayload
-{
-    public int DurationMs { get; init; }
-
-    public long? ActualDurationMs { get; init; }
-
-    public string Status { get; init; } = "inProgress";
-}
 /// <summary>
 /// Delta payload emitted during AgentMessage streaming (item/delta events).
 /// </summary>

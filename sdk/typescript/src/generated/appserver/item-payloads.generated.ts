@@ -12,7 +12,6 @@ export interface SessionItemPayloadMap {
   "imageGeneration": Models.ImageGenerationPayload;
   "mcpToolCall": Models.McpToolCallPayload;
   "reasoningContent": Models.ReasoningContentPayload;
-  "sleep": Models.SleepPayload;
   "systemNotice": Models.SystemNoticePayload;
   "toolCall": Models.ToolCallPayload;
   "toolExecution": Models.ToolExecutionPayload;
@@ -42,7 +41,6 @@ export const SESSION_ITEM_PAYLOAD_KINDS = [
   "imageGeneration",
   "mcpToolCall",
   "reasoningContent",
-  "sleep",
   "systemNotice",
   "toolCall",
   "toolExecution",

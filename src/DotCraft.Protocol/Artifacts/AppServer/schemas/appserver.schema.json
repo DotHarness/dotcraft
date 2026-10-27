@@ -14310,35 +14310,6 @@
       },
       "additionalProperties": true
     },
-    "SleepPayload": {
-      "title": "SleepPayload",
-      "type": "object",
-      "properties": {
-        "actualDurationMs": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "durationMs": {
-          "type": "integer"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "durationMs",
-        "status"
-      ]
-    },
     "SourceControlCapabilities": {
       "title": "SourceControlCapabilities",
       "type": "object",

@@ -30,7 +30,6 @@ internal sealed class SubAgentRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
     }
@@ -266,22 +265,6 @@ internal sealed class SubAgentRequestHandler(
 
         return AppServerTypedResult<Contract.SubAgentChildrenListResult>.FromResult(
             new Contract.SubAgentChildrenListResult { Data = data });
-    }
-
-    private async Task<AppServerTypedResult<Contract.SubAgentControlResult>> HandleSubAgentSendMessageAsync(
-        AppServerTypedRequest<Contract.SubAgentTargetMessageParams> request,
-        CancellationToken ct)
-    {
-        var p = request.Params;
-        var parentThreadId = SubAgentContractMapper.Read(p.ParentThreadId);
-        var target = SubAgentContractMapper.Read(p.Target);
-        var message = SubAgentContractMapper.Read(p.Message);
-        if (string.IsNullOrWhiteSpace(parentThreadId) || string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(message))
-            throw AppServerErrors.InvalidParams("'parentThreadId', 'target', and 'message' are required.");
-
-        var context = await BuildSubAgentControlContextAsync(parentThreadId.Trim(), ct);
-        var result = await SubAgentSessionControl.SendMessageAsync(context, target.Trim(), message, ct);
-        return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
     private async Task<AppServerTypedResult<Contract.SubAgentControlResult>> HandleSubAgentFollowupTaskAsync(

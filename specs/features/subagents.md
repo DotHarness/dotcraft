@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-24 |
+| **Date** | 2026-10-27 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -240,29 +240,31 @@ SubAgent communication uses durable envelopes scoped to one root Agent tree:
 
 | Operation | Behavior |
 |-----------|----------|
-| `SendMessage` | To a descendant: delivers a `NEW_TASK` that starts the child when idle or stopped, steers a running native child, or runs after an external child's active Turn. To any other open path: writes a passive `MESSAGE` that never starts a Turn. |
+| `SendMessage` | To any other open path, including `/root`: starts the recipient when idle or stopped, steers a running native recipient, or runs after an external recipient's active Turn. |
 | `ListAgents` | Returns `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists. |
 | `TaskStop` | Given a descendant's Agent path, cancels the child's active Turn and leaves it open. Returns the settled status and last agent message. |
 
-Continuing a descendant reuses the same child thread with its stored role, profile, runtime, model
-configuration, workspace, and path, delivering pending mailbox messages with the task. A running
-native child receives the message at its next sampling boundary, or as its next Turn if the active
-Turn ends first. `SendMessage` fails for a closed edge or an external child whose edge has
-`supportsFollowupTask = false`.
+Waking a SubAgent reuses the same child thread with its stored role, profile, runtime, model
+configuration, workspace, and path, delivering pending mailbox messages with the message. A running
+native recipient receives the message at its next sampling boundary, or as its next Turn if the
+active Turn ends first. A message to an idle `/root` is queued input that starts a root Turn.
+`SendMessage` fails for a closed edge or an external child whose edge has
+`supportsFollowupTask = false`. Agents wait for one another by ending their Turn, never by holding it
+open.
 
 There is no persisted pause state. Cancelling, stopping, or completing a Turn leaves an open child
 available for later tasks. Clients close a child through `subagent/close`, which cancels owned work,
 closes the edge, and archives the child subtree; the model has no close tool.
 
-Envelopes carry `id`, `rootThreadId`, author and recipient paths, `messageType` (`MESSAGE` or
-`NEW_TASK`), payload, parent-Turn provenance, and creation time. They render as user-role
-materialized context, not as a public Item or user-authored bubble.
+Envelopes carry `id`, `rootThreadId`, author and recipient paths, payload, parent-Turn provenance,
+and creation time. They render as user-role materialized context, not as a public Item or
+user-authored bubble.
 
 Delivery is serialized per root and recipient. Pending messages enter sampling or tool boundaries
-while the Turn accepts mailbox input; after the final answer, late passive messages wait for the next
-Turn unless explicit guidance steering reopens admission. Internal goal steering is not mailbox
-activity. Passive messages are marked delivered only after their materialized input is persisted with
-a submitted, queued, or steered task. Delivery status is not exactly-once across process failure.
+while the Turn accepts mailbox input; a message that arrives after the final answer starts the
+recipient's next Turn. Internal goal steering is not mailbox activity. Messages are marked delivered
+only after their materialized input is persisted with a submitted, queued, or steered Turn input.
+Delivery status is not exactly-once across process failure.
 
 Every child Turn's result reaches its direct parent as an `agent` task notification whose `result` is
 the child's final agent message, waking an idle parent (see
@@ -318,8 +320,8 @@ values. Tool contract limits:
 A post becomes durable before best-effort notification. A notice carries metadata and at most 150
 characters of preview and reaches only the recipient's current active Turn while it accepts
 collaboration input. Delivery never starts idle Agents, loads execution resources, or retains notices
-for future Turns. Pending notices are bounded and may wake `Sleep`. Final-answer admission closure,
-cancellation, and Turn termination discard undelivered notices; callers read the board to catch up.
+for future Turns. Pending notices are bounded. Final-answer admission closure, cancellation, and
+Turn termination discard undelivered notices; callers read the board to catch up.
 Notice failure never fails a committed post.
 
 Consumed notices follow the internal communication and model-history persistence contract, including

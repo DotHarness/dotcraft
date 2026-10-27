@@ -134,8 +134,8 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Theory]
-    [InlineData(ToolPlanningThreadKind.UserTopLevel, 3, true)]
-    [InlineData(ToolPlanningThreadKind.SubAgentChild, 2, false)]
+    [InlineData(ToolPlanningThreadKind.UserTopLevel, 2, true)]
+    [InlineData(ToolPlanningThreadKind.SubAgentChild, 1, false)]
     [InlineData(ToolPlanningThreadKind.Internal, 0, false)]
     public async Task UserCoordinationSource_UsesDefaultThreadBoundaries(
         ToolPlanningThreadKind threadKind,
@@ -162,14 +162,12 @@ public sealed class AIFunctionToolSourceTests
         if (threadKind != ToolPlanningThreadKind.Internal)
         {
             Assert.Contains(registrations, registration =>
-                registration.Definition.Name == new ToolName("clock", nameof(UserCoordinationTools.Sleep)));
-            Assert.Contains(registrations, registration =>
                 registration.Definition.Name == new ToolName("clock", nameof(UserCoordinationTools.CurrentTime)));
             var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
                 [new UserCoordinationToolSource()],
                 planning);
             Assert.DoesNotContain(snapshot.ProviderFlatNameIndex.Keys, name =>
-                name is "send_user_message_async" or "sleep" or "current_time");
+                name is "send_user_message_async" or "current_time");
         }
     }
 

@@ -27,7 +27,7 @@ public sealed class SessionTurn
     /// <summary>
     /// All Items produced during this Turn, including the Input. Append-only.
     /// </summary>
-    public List<SessionItem> Items { get; set; } = [];
+    public List<SessionItem> Items { get; set => field = value.Contains(null!) ? [.. value.Where(static item => item is not null)] : value; } = [];
 
     public DateTimeOffset StartedAt { get; set; }
 

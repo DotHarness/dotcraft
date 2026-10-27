@@ -99,7 +99,7 @@ internal sealed class ItemAppendedPayload
 {
     public string TurnId { get; init; } = string.Empty;
 
-    public SessionItem Item { get; init; } = new();
+    public SessionItem? Item { get; init; }
 }
 
 internal sealed class TurnCompletedPayload

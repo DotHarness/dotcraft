@@ -44,7 +44,7 @@ public static class RolloutItemReader
                 continue;
             }
 
-            if (record?.ItemAppended is { } appended)
+            if (record?.ItemAppended is { Item: not null } appended)
             {
                 yield return new RolloutItemLine(lineNumber, record.Timestamp, appended.TurnId, appended.Item);
             }

@@ -361,7 +361,6 @@ public static class SessionWireMapper
             ToolResultPayload => "toolResult",
             UserMessagePayload => "userMessage",
             AgentMessagePayload => "agentMessage",
-            SleepPayload => "sleep",
             ReasoningContentPayload => "reasoningContent",
             SystemNoticePayload => "systemNotice",
             SessionThread => "thread",

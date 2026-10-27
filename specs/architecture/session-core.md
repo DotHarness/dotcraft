@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.4 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -718,7 +718,7 @@ For each submitted Turn, Session Core validates thread state and mutual exclusio
 
 ### 9.1.1 Workspace Data Upgrades
 
-`state.db` records the release that last upgraded the workspace's data in `workspace_meta` (`data_version`). When a release changes the shape of existing data, it ships one upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads, and then record its release. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
+`state.db` records the release that last upgraded the workspace's data in `workspace_meta` (`data_version`). When a release changes the shape of existing data, it ships one upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads, and then record its release. Code reads only the current table shape, so there are no compatibility readers; an Item whose type the current release does not define is skipped when history is read. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
 
 The 0.9.3 upgrade removes the workspace path from the `threads` table and stores rollout paths relative to the data directory. In the background it removes the workspace path from `thread_opened` and drops the `turn_started`, `item_appended`, and `turn_completed` records that a later `turn_state_replaced` for the same Turn supersedes. A rollout whose first `thread_opened` has no workspace path is already upgraded.
 
@@ -786,11 +786,11 @@ Every content value is `{ kind, payload }` with schema version 1. The payload un
 
 #### Running input and history consistency
 
-The active model/tool loop keeps an ordered history of initial input, model responses, tool results, and admitted steering and passive input. Delivered input remains available to later Turns, cold loading, and recovery export.
+The active model/tool loop keeps an ordered history of initial input, model responses, tool results, and admitted steering and mailbox input. Delivered input remains available to later Turns, cold loading, and recovery export.
 
 Running input enters the loop at one pre-sampling drain point:
 
-- The first sample of a Turn admits only passive mailbox input and queued task notifications.
+- The first sample of a Turn admits only mailbox input and queued task notifications.
 - After a tool round, pre-sampling preparation (including compaction) runs first and then the drain, so admitted input always follows any compaction baseline verbatim.
 - After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request, running the same preparation and drain; if the drain admits no guidance, the Turn ends without sampling again.
 - Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt.
@@ -988,9 +988,9 @@ Interactive adapters present the request natively. A client may auto-resolve a n
 
 `SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). Native full-history SubAgents keep it declared and have their calls rejected. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
 
-The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 ms to 12 hours and records a `Sleep` Item for the wait. It returns after the duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal; the runtime subscribes before rechecking pending input so a signal at the boundary is not lost. The next drain then admits that input before the next sample.
+The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. No tool holds a Turn open to wait: a reply, Agent message, or task notification that arrives after the Turn ends starts the next Turn.
 
-When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, `SendUserMessageAsync` when independent authorized work can continue, and `clock/Sleep` after asking when no independent work remains. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
+When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, and `SendUserMessageAsync` when independent authorized work can continue. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
 
 ## 11. Failure Model
 

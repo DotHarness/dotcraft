@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace DotCraft.Tools;
 
-/// <summary>Tools for non-blocking user coordination and bounded waits.</summary>
+/// <summary>Tools for non-blocking user coordination and the current time.</summary>
 public sealed class UserCoordinationTools
 {
     private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
@@ -29,24 +29,6 @@ public sealed class UserCoordinationTools
     }
 
     [GeneratedTool]
-    [ToolPresentation("core.sleep")]
-    [Description("Wait for the requested duration, or return early when steer, mailbox, or background task notification input arrives for the active turn. To wait only for background tasks, end your turn instead.")]
-    public async Task<string> Sleep(
-        [Description("Duration in milliseconds from 1 through 43200000.")] int durationMs,
-        ToolInvocationContext context,
-        CancellationToken cancellationToken = default)
-    {
-        if (durationMs is < 1 or > 43_200_000)
-            return Serialize(new { error = "clock/Sleep.durationMs must be between 1 and 43200000." });
-
-        if (context.TurnServices?.UserCoordination is not { } coordination)
-            return Serialize(new { error = "clock/Sleep is only available inside a Session Core turn." });
-
-        var result = await coordination.SleepAsync(durationMs, cancellationToken).ConfigureAwait(false);
-        return Serialize(result);
-    }
-
-    [GeneratedTool]
     [Description("Return the current UTC time.")]
     public string CurrentTime()
     {
@@ -56,12 +38,6 @@ public sealed class UserCoordinationTools
     private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
 }
 
-/// <summary>Result returned by the runtime-managed Sleep operation.</summary>
-public sealed record UserCoordinationSleepResult(
-    long ActualDurationMs,
-    string Status);
-
 /// <summary>Runtime callbacks used by user-coordination tools.</summary>
 public sealed record UserCoordinationRuntimeContext(
-    Func<string, CancellationToken, Task> SendUserMessageAsync,
-    Func<int, CancellationToken, Task<UserCoordinationSleepResult>> SleepAsync);
+    Func<string, CancellationToken, Task> SendUserMessageAsync);

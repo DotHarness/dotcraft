@@ -17991,40 +17991,6 @@
       "variants": []
     },
     {
-      "id": "core.SleepPayload",
-      "name": "SleepPayload",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SleepPayload.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "actualDurationMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "durationMs",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "status",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.SourceControlCapabilities",
       "name": "SourceControlCapabilities",
       "module": "core",
@@ -28354,10 +28320,6 @@
       "type": "core.ReasoningContentPayload"
     },
     {
-      "kind": "sleep",
-      "type": "core.SleepPayload"
-    },
-    {
       "kind": "systemNotice",
       "type": "core.SystemNoticePayload"
     },
@@ -32440,26 +32402,6 @@
       "scope": "connection",
       "notificationOptOut": true,
       "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "subagent/sendMessage",
-      "descriptorMember": "SubAgentSendMessage",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.SubAgentTargetMessageParams",
-      "resultType": "core.SubAgentControlResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

@@ -143,7 +143,10 @@ internal sealed partial class ThreadHistoryProjectionStore
         using var reader = command.ExecuteReader();
         var items = new List<ThreadHistoryItem>();
         while (reader.Read())
-            items.Add(new ThreadHistoryItem(reader.GetString(0), DeserializeItem(reader.GetString(1))));
+        {
+            if (DeserializeItem(reader.GetString(1)) is { } item)
+                items.Add(new ThreadHistoryItem(reader.GetString(0), item));
+        }
         return items;
     }
 
@@ -240,14 +243,16 @@ internal sealed partial class ThreadHistoryProjectionStore
         using var reader = command.ExecuteReader();
         turn.Items = [];
         while (reader.Read())
-            turn.Items.Add(DeserializeItem(reader.GetString(0)));
+        {
+            if (DeserializeItem(reader.GetString(0)) is { } item)
+                turn.Items.Add(item);
+        }
     }
 
     private static SessionTurn DeserializeTurn(string json) =>
         JsonSerializer.Deserialize<SessionTurn>(json, JsonOptions)
         ?? throw new JsonException("Projected Turn is empty.");
 
-    private static SessionItem DeserializeItem(string json) =>
-        JsonSerializer.Deserialize<SessionItem>(json, JsonOptions)
-        ?? throw new JsonException("Projected Item is empty.");
+    private static SessionItem? DeserializeItem(string json) =>
+        JsonSerializer.Deserialize<SessionItem>(json, JsonOptions);
 }

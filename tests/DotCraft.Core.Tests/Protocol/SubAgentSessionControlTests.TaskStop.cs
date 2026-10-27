@@ -136,7 +136,7 @@ public sealed partial class SubAgentSessionControlTests
         var child = await CreatePathSubAgentAsync(context);
         AddActiveTurnWithUnstableItems(child, "active work");
         await _store.SaveThreadAsync(child);
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
 
         var sent = await SubAgentSessionControl.SendAgentMessageAsync(context, "/root/inspect", "also check tests", coordinator: null, CancellationToken.None);
 
@@ -149,30 +149,6 @@ public sealed partial class SubAgentSessionControlTests
         Assert.Contains("mailbox note", text, StringComparison.Ordinal);
         Assert.Contains("also check tests", text, StringComparison.Ordinal);
         Assert.Empty(await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect"));
-    }
-
-    [Fact]
-    public async Task SendMessage_FromAChildToItsParent_StaysPassive()
-    {
-        var context = await CreateContextAsync();
-        var child = await CreatePathSubAgentAsync(context);
-        var childContext = new SubAgentSessionContext
-        {
-            SessionService = _sessionService,
-            ParentThread = child,
-            ParentTurnId = "turn_child",
-            RootThreadId = context.RootThreadId,
-            Depth = 1
-        };
-        var parentTurns = (await _sessionService.GetThreadAsync(context.ParentThread.Id)).Turns.Count;
-
-        var sent = await SubAgentSessionControl.SendAgentMessageAsync(childContext, "/root", "found it", coordinator: null, CancellationToken.None);
-
-        Assert.Equal("sent", sent.Status);
-        var entry = Assert.Single(await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, AgentPath.Root));
-        Assert.Equal("MESSAGE", entry.MessageType);
-        Assert.Equal("found it", entry.Message);
-        Assert.Equal(parentTurns, (await _sessionService.GetThreadAsync(context.ParentThread.Id)).Turns.Count);
     }
 
     [Fact]

@@ -26,7 +26,6 @@ using ModelPreference = DotCraft.Configuration.ModelPreference;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
-using SleepPayload = DotCraft.Sessions.SleepPayload;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ErrorPayload = DotCraft.Sessions.ErrorPayload;
 using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
@@ -196,24 +195,6 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         await foreach (var evt in events)
             collected.Add(evt);
         return collected;
-    }
-
-    protected static async Task<SessionTurn> WaitForStartedSleepAsync(
-        SessionService service,
-        string threadId)
-    {
-        for (var attempt = 0; attempt < 200; attempt++)
-        {
-            var thread = await service.GetThreadAsync(threadId);
-            var turn = thread.Turns.SingleOrDefault(candidate =>
-                candidate.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            if (turn?.Items.Any(item => item.Type == ItemType.Sleep && item.Status == ItemStatus.Started) == true)
-                return turn;
-
-            await Task.Delay(10);
-        }
-
-        throw new TimeoutException("The running turn did not start a Sleep item.");
     }
 
     protected static async Task<(string TurnId, UserInputRequestPayload Request)> WaitForUserInputRequestAsync(
@@ -1072,8 +1053,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond) : IChatClient
     {
         public int Calls { get; private set; }
-        public static FunctionCallContent Tool() => new("sleep-call", "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 1 });
+        public static FunctionCallContent Tool() => new("time-call", "clock__CurrentTime",
+            new Dictionary<string, object?>());
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,
             ChatOptions? options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -1327,133 +1308,6 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
         var events = await collectTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(2, chatClient.RequestCount);
         Assert.Contains(events, item => item.EventType == SessionEventType.TurnCompleted);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_SleepCompletesAfterItsRequestedDuration()
-    {
-        var chatClient = new CoordinationToolCallChatClient(
-            "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 5 });
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("wait briefly")]));
-
-        var updated = await service.GetThreadAsync(thread.Id);
-        var sleepItem = Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.Sleep);
-        var sleep = Assert.IsType<SleepPayload>(sleepItem.Payload);
-        Assert.Equal(ItemStatus.Completed, sleepItem.Status);
-        Assert.Equal(5, sleep.DurationMs);
-        Assert.Equal("completed", sleep.Status);
-        Assert.NotNull(sleep.ActualDurationMs);
-        Assert.Contains(chatClient.FollowUpMessages.SelectMany(item => item.Contents),
-            content => content is FunctionResultContent { CallId: "coordination-call" });
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_SleepIsInterruptedBySteerAndSamplesWithTheReply()
-    {
-        var chatClient = new CoordinationToolCallChatClient(
-            "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 10_000 });
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        var eventsTask = CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("ask and wait")]));
-        var runningTurn = await WaitForStartedSleepAsync(service, thread.Id);
-        var steeredTurnId = await service.SteerTurnAsync(
-            thread.Id,
-            runningTurn.Id,
-            [new TextContent("Use the staging target.")]);
-
-        var events = await eventsTask.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal(runningTurn.Id, steeredTurnId);
-        var updated = await service.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updated.Turns);
-        var sleep = Assert.IsType<SleepPayload>(Assert.Single(turn.Items, item => item.Type == ItemType.Sleep).Payload);
-        Assert.Equal("interrupted", sleep.Status);
-        Assert.Contains(turn.Items, item =>
-            item.Type == ItemType.UserMessage
-            && item.Payload is UserMessagePayload { DeliveryMode: "guidance", Text: "Use the staging target." });
-        Assert.Contains(chatClient.FollowUpMessages.SelectMany(item => item.Contents),
-            content => content is FunctionResultContent { CallId: "coordination-call" });
-        Assert.Contains(chatClient.FollowUpMessages, item =>
-            item.Role == ChatRole.User
-            && item.Contents.OfType<TextContent>().Any(content => content.Text.Contains("Use the staging target.", StringComparison.Ordinal)));
-        Assert.Contains(events, item =>
-            item.EventType == SessionEventType.ItemCompleted
-            && item.ItemPayload?.Payload is SleepPayload { Status: "interrupted" });
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_SleepImmediatelyObservesAlreadyPendingSteer()
-    {
-        SessionService? service = null;
-        string? threadId = null;
-        var chatClient = new CoordinationToolCallChatClient(
-            "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 10_000 },
-            async () =>
-            {
-                var running = await service!.GetThreadAsync(threadId!);
-                await service.SteerTurnAsync(
-                    threadId!,
-                    Assert.Single(running.Turns).Id,
-                    [new TextContent("The pending answer arrived first.")]);
-            });
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        threadId = thread.Id;
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("wait for an answer")]));
-
-        var updated = await service.GetThreadAsync(thread.Id);
-        var sleep = Assert.IsType<SleepPayload>(
-            Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.Sleep).Payload);
-        Assert.Equal("interrupted", sleep.Status);
-        Assert.True(sleep.ActualDurationMs < 5_000);
-        Assert.Contains(chatClient.FollowUpMessages, item =>
-            item.Role == ChatRole.User
-            && item.Contents.OfType<TextContent>().Any(content => content.Text.Contains("pending answer", StringComparison.Ordinal)));
-    }
-
-    [Fact]
-    public async Task CancelTurnAsync_InterruptsAndCompletesActiveSleepItem()
-    {
-        var chatClient = new CoordinationToolCallChatClient(
-            "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 10_000 });
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-        var seen = new List<SessionThreadRuntimeSignal>();
-        service.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
-        {
-            if (threadId == thread.Id)
-                seen.Add(signal);
-        };
-
-        var eventsTask = CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("wait until cancelled")]));
-        var runningTurn = await WaitForStartedSleepAsync(service, thread.Id);
-        await service.CancelTurnAsync(thread.Id, runningTurn.Id);
-        await eventsTask.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal([SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnCancelled], seen);
-        var updated = await service.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updated.Turns);
-        Assert.Equal(TurnStatus.Cancelled, turn.Status);
-        var sleepItem = Assert.Single(turn.Items, item => item.Type == ItemType.Sleep);
-        Assert.Equal(ItemStatus.Completed, sleepItem.Status);
-        Assert.Equal("interrupted", Assert.IsType<SleepPayload>(sleepItem.Payload).Status);
     }
 
     [Fact]

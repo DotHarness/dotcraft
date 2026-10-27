@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -219,7 +219,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `externalChannelManagement` | `externalChannel/*`. |
 | `agentProfileManagement` | `agent/profiles/*`, including builder drafts and Agent package methods. |
 | `subAgentManagement` | `subagent/profiles/*`, `subagent/settings/update`. |
-| `subAgentSessions` | `subagent/children/list`, `subagent/sendMessage`, `subagent/followupTask`, `subagent/close`. |
+| `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`. |
 | `usageTelemetry` | `usage/*` and `profile/insights`. Absent when tracing is disabled. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
 | `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `welcomeSuggestions`). |
@@ -811,7 +811,6 @@ Canonical payload schemas are in [Session Core, Section 4.2](../architecture/ses
 | `toolResult` | Paired with `toolCall` by `callId`: model-safe `result`/`contentItems`, client-only `structuredContent` (including the `fileChange` shape from [Session Core, ToolResult](../architecture/session-core.md#toolresult)), sanitized host-only `_meta`. Provider history never includes `structuredContent` or `_meta`. |
 | `approvalRequest` / `approvalResponse` | Canonical fields; decisions serialize as wire strings. |
 | `userInputRequest` / `userInputResponse` | Paired with `item/tool/requestUserInput`; the request puts the turn in `waitingInput`. |
-| `sleep` | Runtime wait with requested `durationMs`, optional `actualDurationMs`, and `status` `inProgress`/`completed`/`interrupted`. Steer or mailbox input for the active Turn may interrupt it. |
 | `error` | Item-level errors, separate from JSON-RPC errors. |
 
 Clients must treat `imageGeneration`, `webSearch`, `mcpToolCall`, and `dynamicToolCall` as self-contained lifecycle items and render `inProgress` as non-terminal. Ordinary `toolCall`/`toolResult` pairs may be merged into one row. `structuredContent` and `_meta` are never shown as model-history text by default.
@@ -2173,11 +2172,7 @@ Params `parentThreadId`, `includeClosed` (default `false`), `includeThreads`. Re
 - A child's working size is `thread.contextUsage.tokens`, not cumulative billing.
 - Closed edges are returned only with `includeClosed` (for audit or settings surfaces); background-agent widgets keep the default so closed agents disappear.
 
-#### `subagent/sendMessage`
-
-Params `parentThreadId`, `target`, `message`. Records an inter-agent mailbox message for the target without starting a child turn.
-
-`subagent/sendMessage`, `subagent/followupTask`, and `subagent/close` return a `SubAgentControlResult`: resolved `agentPath`, `taskName`, `status` (for example `sent`, `running`, `queued`, `guidancePending`, `closed`), optional `message`, display and profile fields, and the three `supports*` flags. Internal child thread ids and resume flags are not serialized.
+`subagent/followupTask` and `subagent/close` return a `SubAgentControlResult`: resolved `agentPath`, `taskName`, `status` (for example `running`, `queued`, `guidancePending`, `closed`), optional `message`, display and profile fields, and the three `supports*` flags. Internal child thread ids and resume flags are not serialized.
 
 - Delivered mailbox input is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`; clients keep it for history but render it neither as a parent user bubble nor as a child reply.
 - Mailbox delivery is serialized per target path, so sampling and follow-up tasks never consume the same entry concurrently.

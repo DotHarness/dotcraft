@@ -68,7 +68,6 @@ public static class AppServerContractJson
 [JsonSerializable(typeof(UserMessageImage))]
 [JsonSerializable(typeof(UserMessagePayload))]
 [JsonSerializable(typeof(AgentMessagePayload))]
-[JsonSerializable(typeof(SleepPayload))]
 [JsonSerializable(typeof(ReasoningContentPayload))]
 [JsonSerializable(typeof(CommandExecutionPayload))]
 [JsonSerializable(typeof(ToolExecutionPayload))]

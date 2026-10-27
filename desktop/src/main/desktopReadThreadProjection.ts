@@ -135,9 +135,6 @@ function projectItem(item: JsonObject, includeOutputs: boolean, maxChars: number
       copy(['callId', 'status', 'query', 'action', 'errorMessage'])
       output('output', payload.output)
       break
-    case 'sleep':
-      copy(['durationMs'])
-      break
     default:
       copy(['text', 'message', 'errorMessage'])
       output('output', payload.aggregatedOutput ?? payload.output ?? payload.result ?? item.output)

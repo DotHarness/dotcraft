@@ -120,34 +120,6 @@ public sealed class SessionServiceMessageBoardTests : SessionServiceRuntimeSigna
     }
 
     [Fact]
-    public async Task MessageBoard_NoticeInterruptsSleep_IsMaterialized_AndNeverReplaysOnNextTurn()
-    {
-        using var client = new CoordinationToolCallChatClient("clock__Sleep", new Dictionary<string, object?> { ["durationMs"] = 10000 });
-        await using var factory = CreateAgentFactory(client, [new BoardTestToolSource()]);
-        var service = CreateService(factory, client, useStreamingFunctionInvoker: true);
-        var root = await service.CreateThreadAsync(MakeIdentity());
-        var worker = await BoardChild(service, root, "worker");
-        await BoardCall(service, root, new("createChannel", ChannelName: "work"));
-        await service.RefreshThreadAgentAsync(root.Id);
-        var completion = CollectAsync(service.SubmitInputAsync(root.Id, [new TextContent("wait for finding")]));
-        await WaitForStartedSleepAsync(service, root.Id);
-        var posted = await BoardCall(service, worker, new("post", ChannelName: "work", Text: "live evidence"));
-        await completion.WaitAsync(TimeSpan.FromSeconds(10));
-        var turn = Assert.Single((await service.GetThreadAsync(root.Id)).Turns);
-        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
-        Assert.Equal("interrupted", Assert.IsType<SleepPayload>(Assert.Single(turn.Items, i => i.Type == ItemType.Sleep).Payload).Status);
-        Assert.Contains(client.FollowUpMessages, m => m.Text.Contains("live evidence", StringComparison.Ordinal));
-        Assert.Contains(turn.Items, i => i.Payload is UserMessagePayload { DeliveryMode: "subagentMailbox" } p
-            && p.MaterializedInputParts?.Any(part => part.Text?.Contains("live evidence") == true) == true);
-        Assert.Empty(await service.ListPendingSubAgentMailboxAsync(root.Id, "/root"));
-        await BoardCall(service, worker, new("post", ChannelName: "work", Text: "idle evidence"));
-        Assert.Single(root.Turns);
-        await DrainAsync(service.SubmitInputAsync(root.Id, [new TextContent("next turn")]));
-        Assert.DoesNotContain(client.FollowUpMessages, m => m.Text.Contains("idle evidence", StringComparison.Ordinal));
-        Assert.Equal(2, (await BoardCall(service, root, new("searchPosts"))).GetProperty("nReturned").GetInt32());
-    }
-
-    [Fact]
     public async Task MessageBoard_ColdResumeRecoversConsumedNoticeWithoutFutureDelivery()
     {
         using var client = new RecordingChatClient("done");

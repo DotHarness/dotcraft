@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.6 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-27 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
@@ -159,8 +159,7 @@ snapshot. It never contains volatile values such as call ids or timestamps.
 The nested surface is computed from the Turn's `EffectiveToolSnapshot`: every `Direct` or `Deferred`
 registration except `DirectModelOnly`, `Hidden`, `CodeMode`, and the deferred-search registration.
 Tools that talk to the user or wait on the conversation are `DirectModelOnly`, so a program never blocks
-on them and they stay direct model tools in `only` mode: `RequestUserInput`, `SendUserMessageAsync`, and
-`clock.Sleep`.
+on them and they stay direct model tools in `only` mode: `RequestUserInput` and `SendUserMessageAsync`.
 
 Each nested registration has a JavaScript name: `namespace__name` when the canonical name has a
 namespace (MCP tools become `mcp__<server>__<tool>`), otherwise the bare name, with every character

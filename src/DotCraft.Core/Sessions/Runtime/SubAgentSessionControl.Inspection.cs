@@ -136,7 +136,7 @@ public static partial class SubAgentSessionControl
     private static SessionTurn? GetActiveTurn(SessionThread thread) =>
         thread.Turns.LastOrDefault(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
 
-    private static bool IsNativeRuntime(SessionThread thread) =>
+    internal static bool IsNativeRuntime(SessionThread thread) =>
         string.Equals(
             thread.Source.SubAgent?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName,
             NativeSubAgentRuntime.RuntimeTypeName,

@@ -8,7 +8,6 @@ internal sealed class BoardTurnInbox(string turnId, CancellationToken cancellati
     private bool _disposed;
 
     public string TurnId { get; } = turnId;
-    public bool HasPending { get { lock (_gate) return !_disposed && _pending.Count > 0; } }
 
     public bool TryAdd(SubAgentMailboxEntry notice)
     {

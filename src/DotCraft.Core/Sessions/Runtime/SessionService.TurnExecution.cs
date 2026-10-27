@@ -252,72 +252,6 @@ public sealed partial class SessionService
                 eventChannel.EmitItemCompleted(item);
             }
 
-            async Task<UserCoordinationSleepResult> SleepAsync(
-                int durationMs,
-                CancellationToken sleepCt)
-            {
-                FinalizeStreamingAgentMessage();
-                FinalizeStreamingReasoning();
-
-                var startedAt = DateTimeOffset.UtcNow;
-                var startedTicks = Environment.TickCount64;
-                var item = new SessionItem
-                {
-                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                    TurnId = turn.Id,
-                    Type = ItemType.Sleep,
-                    Status = ItemStatus.Started,
-                    CreatedAt = startedAt,
-                    Payload = new SleepPayload
-                    {
-                        DurationMs = durationMs,
-                        Status = "inProgress"
-                    }
-                };
-
-                turn.Items.Add(item);
-                await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
-                eventChannel.EmitItemStarted(item);
-
-                var (rootThreadId, agentPath) = ResolveInputActivityTarget();
-                var status = "completed";
-                try
-                {
-                    using var subscription = _subAgentCommunicationRuntime.SubscribeInput(
-                        rootThreadId,
-                        agentPath,
-                        out var inputActivity);
-
-                    if (await HasPendingSleepInputAsync(rootThreadId, agentPath, sleepCt))
-                    {
-                        status = "interrupted";
-                    }
-                    else
-                    {
-                        using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(sleepCt);
-                        var delay = Task.Delay(durationMs, delayCts.Token);
-                        var completed = await Task.WhenAny(delay, inputActivity).ConfigureAwait(false);
-                        if (completed == inputActivity)
-                        {
-                            status = "interrupted";
-                            await delayCts.CancelAsync();
-                        }
-                        else
-                        {
-                            await delay.ConfigureAwait(false);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) when (sleepCt.IsCancellationRequested)
-                {
-                    await CompleteSleepItemAsync(item, durationMs, startedTicks, "interrupted");
-                    throw;
-                }
-
-                var result = await CompleteSleepItemAsync(item, durationMs, startedTicks, status);
-                return result;
-            }
-
             (string RootThreadId, string AgentPath) ResolveInputActivityTarget()
             {
                 var rootThreadId = currentSubAgentSource?.RootThreadId;
@@ -343,41 +277,6 @@ public sealed partial class SessionService
                         return;
                     await inputActivity.WaitAsync(waitCt).ConfigureAwait(false);
                 }
-            }
-
-            async Task<bool> HasPendingSleepInputAsync(
-                string rootThreadId,
-                string agentPath,
-                CancellationToken pendingCt)
-            {
-                if (await HasPendingGuidanceAsync(thread, turn.Id, pendingCt))
-                    return true;
-
-                var pendingMailbox = await ListPendingSubAgentMailboxAsync(
-                    rootThreadId,
-                    agentPath,
-                    pendingCt);
-                return pendingMailbox.Count > 0 || boardInbox.HasPending;
-            }
-
-            async Task<UserCoordinationSleepResult> CompleteSleepItemAsync(
-                SessionItem item,
-                int durationMs,
-                long startedTicks,
-                string status)
-            {
-                var actualDurationMs = Math.Max(0, Environment.TickCount64 - startedTicks);
-                item.Status = ItemStatus.Completed;
-                item.CompletedAt = DateTimeOffset.UtcNow;
-                item.Payload = new SleepPayload
-                {
-                    DurationMs = durationMs,
-                    ActualDurationMs = actualDurationMs,
-                    Status = status
-                };
-                await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
-                eventChannel.EmitItemCompleted(item);
-                return new UserCoordinationSleepResult(actualDurationMs, status);
             }
 
             async Task<IReadOnlyList<ChatMessage>> DrainRunningInputAsync(
@@ -1234,7 +1133,7 @@ public sealed partial class SessionService
                 {
                     IsTopLevelThread = isTopLevelThread,
                     UserCoordination = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
-                        ? new UserCoordinationRuntimeContext(SendUserMessageAsync, SleepAsync)
+                        ? new UserCoordinationRuntimeContext(SendUserMessageAsync)
                         : null,
                     RequestUserInput = isTopLevelThread
                         ? new RequestUserInputRuntimeContext(async questions =>
@@ -2051,6 +1950,7 @@ public sealed partial class SessionService
 
                 await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
                 retiredResourcesReleased = true;
+                await WakeForAgentMessagesAsync(threadId, CancellationToken.None);
                 await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
                 await MaybeContinueGoalIfIdleAsync(threadId, CancellationToken.None);
             }

@@ -174,7 +174,7 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
 }
 
 const CODE_MODE_TOOL_NAMES = new Set(['CodeMode', 'CodeModeWait'])
-const HIDDEN_COORDINATION_PRESENTATIONS = new Set(['core.sleep', 'core.send-user-message-async'])
+const HIDDEN_COORDINATION_PRESENTATIONS = new Set(['core.send-user-message-async'])
 
 function isCodeModeWrapper(item: HistoryItem): boolean {
   if (!CODE_MODE_TOOL_NAMES.has(str(item.payload.toolName)) || item.payload.namespace) return false

@@ -31,10 +31,13 @@ public static class SessionJsonOptions
 /// </summary>
 internal sealed class SessionItemConverter : JsonConverter<SessionItem>
 {
-    public override SessionItem Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override SessionItem? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var doc = JsonDocument.ParseValue(ref reader);
         var root = doc.RootElement;
+        if (!root.TryGetProperty("type", out var typeElement)
+            || !Enum.TryParse<ItemType>(typeElement.GetString(), ignoreCase: true, out var itemType))
+            return null;
 
         var item = new SessionItem
         {
@@ -48,7 +51,6 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             FreeformCall = root.TryGetProperty("freeformCall", out var freeform) && freeform.ValueKind == JsonValueKind.True
         };
 
-        var itemType = root.GetEnum<ItemType>("type");
         item.Type = itemType;
 
         if (root.TryGetProperty("payload", out var payloadEl) && payloadEl.ValueKind != JsonValueKind.Null)
@@ -77,7 +79,6 @@ internal sealed class SessionItemConverter : JsonConverter<SessionItem>
             ItemType.ApprovalResponse => payload.Deserialize<ApprovalResponsePayload>(options),
             ItemType.UserInputRequest => payload.Deserialize<UserInputRequestPayload>(options),
             ItemType.UserInputResponse => payload.Deserialize<UserInputResponsePayload>(options),
-            ItemType.Sleep => payload.Deserialize<SleepPayload>(options),
             ItemType.Error => payload.Deserialize<ErrorPayload>(options),
             ItemType.SystemNotice => payload.Deserialize<SystemNoticePayload>(options),
             _ => null

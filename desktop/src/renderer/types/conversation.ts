@@ -18,7 +18,6 @@ export type ItemType =
   | 'dynamicToolCall'
   | 'mcpToolCall'
   | 'toolResult'
-  | 'sleep'
   | 'error'
   | 'approvalCard'
   | 'systemNotice'

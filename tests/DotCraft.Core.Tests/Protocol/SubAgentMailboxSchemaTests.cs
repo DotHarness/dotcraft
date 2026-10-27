@@ -12,7 +12,7 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
         "SubAgentMailboxSchemaTests_" + Guid.NewGuid().ToString("N")[..8]);
 
     [Fact]
-    public void Initialize_ExistingMailboxTable_AddsTypedProvenanceWithMessageDefault()
+    public void Initialize_ExistingMailboxTable_AddsParentTurnProvenance()
     {
         Directory.CreateDirectory(_root);
         var databasePath = Path.Combine(_root, "state.db");
@@ -47,7 +47,6 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
         var store = new ThreadMetadataStore(state);
         var entry = Assert.Single(store.ListPendingSubAgentMailbox("root-thread", AgentPath.Root));
 
-        Assert.Equal("MESSAGE", entry.MessageType);
         Assert.Null(entry.ParentTurnId);
 
         using var migratedConnection = state.OpenConnection();
@@ -58,7 +57,6 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
         while (reader.Read())
             columns.Add(reader.GetString(1));
 
-        Assert.Contains("message_type", columns);
         Assert.Contains("parent_turn_id", columns);
     }
 

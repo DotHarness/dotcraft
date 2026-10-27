@@ -970,41 +970,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Contains("already exists", ex.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task SendMessage_WritesMailboxWithoutStartingTargetTurn()
-    {
-        var context = await CreateContextAsync();
-        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
-            context,
-            new SubAgentSpawnOptions
-            {
-                AgentPrompt = "inspect code",
-                TaskName = "inspect"
-            },
-            waitForCompletion: false,
-            coordinator: null,
-            CancellationToken.None);
-        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
-        var beforeTurnCount = child.Turns.Count;
-        var sent = await SubAgentSessionControl.SendMessageAsync(
-            context,
-            "/root/inspect",
-            "please note this",
-            CancellationToken.None);
-        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
-        child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
-
-        Assert.Equal("sent", sent.Status);
-        Assert.Equal("/root/inspect", sent.AgentPath);
-        var entry = Assert.Single(pending);
-        Assert.Equal(AgentPath.Root, entry.SenderAgentPath);
-        Assert.Equal("/root/inspect", entry.TargetAgentPath);
-        Assert.Equal("MESSAGE", entry.MessageType);
-        Assert.Equal(context.ParentTurnId, entry.ParentTurnId);
-        Assert.Equal("please note this", entry.Message);
-        Assert.Equal(beforeTurnCount, child.Turns.Count);
-    }
-
     [Theory]
     [InlineData(BackgroundTaskStatus.Completed, false, false, "done")]
     [InlineData(BackgroundTaskStatus.Failed, true, false, "failed")]
@@ -1078,7 +1043,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             coordinator,
             CancellationToken.None);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         runtime.ResultText = "followed";
         var followed = await SubAgentSessionControl.FollowupTaskAsync(
             context,
@@ -1099,8 +1064,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Equal("subagentFollowupTask", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
         Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
         Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
-        Assert.Contains("Message Type: MESSAGE", runtime.LastRequest?.Task, StringComparison.Ordinal);
-        Assert.Contains("Message Type: NEW_TASK", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("Task name: /root/inspect", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("Sender: /root", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
@@ -1115,7 +1078,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         AddActiveTurnWithUnstableItems(child, "active work");
         await _store.SaveThreadAsync(child);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         var followed = await SubAgentSessionControl.FollowupTaskAsync(
             context,
             "/root/inspect",
@@ -1147,7 +1110,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         AddActiveTurnWithUnstableItems(child, "active work");
         await _store.SaveThreadAsync(child);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         var followed = await SubAgentSessionControl.FollowupTaskAsync(
             context,
             "/root/inspect",
@@ -1193,7 +1156,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             coordinator,
             CancellationToken.None);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         runtime.ResultText = "followed";
         var followed = await SubAgentSessionControl.FollowupTaskAsync(
             context,
@@ -1225,7 +1188,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         AddActiveTurnWithUnstableItems(child, "active work");
         await _store.SaveThreadAsync(child);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             SubAgentSessionControl.FollowupTaskAsync(
                 context,
@@ -1251,11 +1214,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             context,
             runtimeType: CliOneshotRuntime.RuntimeTypeName,
             profileName: "missing-profile");
-        await SubAgentSessionControl.SendMessageAsync(
-            context,
-            "/root/inspect",
-            "mailbox note",
-            CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             SubAgentSessionControl.FollowupTaskAsync(
@@ -1279,7 +1238,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         AddActiveTurnWithUnstableItems(child, "active work");
         await _store.SaveThreadAsync(child);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         await SubAgentSessionControl.FollowupTaskAsync(
             context,
             "/root/inspect",
@@ -1328,7 +1287,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             coordinator,
             CancellationToken.None);
 
-        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "mailbox note");
         var followed = await SubAgentSessionControl.FollowupTaskAsync(
             context,
             "/root/inspect",
@@ -1451,11 +1410,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             waitForCompletion: true,
             coordinator,
             CancellationToken.None);
-        await SubAgentSessionControl.SendMessageAsync(
-            context,
-            "/root/inspect",
-            "pending after restart",
-            CancellationToken.None);
+        await AddMailboxNoteAsync(context, "/root/inspect", "pending after restart");
 
         var restartedStore = new ThreadStore(_tempDir);
         var restartedService = new TestableSessionService(restartedStore);
@@ -1484,7 +1439,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             [nameof(DotCraft.Tools.AgentTools.ListAgents)],
             restoredChild.Configuration?.AllowedAgentControlTools ?? []);
         Assert.Equal("stored instructions", restoredChild.Configuration?.RoleInstructions);
-        Assert.Equal("MESSAGE", pending.MessageType);
         Assert.Equal(context.ParentTurnId, pending.ParentTurnId);
 
         runtime.ResultText = "resumed";
@@ -1500,8 +1454,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Empty(await restartedService.ListPendingSubAgentMailboxAsync(restartedRoot.Id, "/root/inspect"));
         var resumedInput = restoredChild.Turns[^1].Input?.AsUserMessage?.Text ?? string.Empty;
         Assert.Equal(1, resumedInput.Split("pending after restart", StringSplitOptions.None).Length - 1);
-        Assert.Contains("Message Type: MESSAGE", resumedInput, StringComparison.Ordinal);
-        Assert.Contains("Message Type: NEW_TASK", resumedInput, StringComparison.Ordinal);
 
         await SubAgentSessionControl.CloseAgentAsync(restartedContext, "/root/inspect", CancellationToken.None);
         var secondRestart = new TestableSessionService(new ThreadStore(_tempDir));
@@ -1723,6 +1675,17 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Contains("parent context", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("inspect code", runtime.LastRequest?.Task, StringComparison.Ordinal);
     }
+
+    private static Task AddMailboxNoteAsync(SubAgentSessionContext context, string target, string message) =>
+        context.SessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = $"mailbox_{Guid.NewGuid():N}",
+            RootThreadId = context.RootThreadId,
+            SenderAgentPath = AgentPath.Root,
+            TargetAgentPath = target,
+            Message = message,
+            ParentTurnId = context.ParentTurnId
+        });
 
     private async Task<SubAgentSessionContext> CreateContextAsync(
         ThreadConfiguration? config = null,

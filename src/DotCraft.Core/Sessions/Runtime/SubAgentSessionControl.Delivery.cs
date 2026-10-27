@@ -7,32 +7,84 @@ namespace DotCraft.Sessions;
 
 public static partial class SubAgentSessionControl
 {
-    public static async Task<SubAgentControlResult> SendMessageAsync(
+    private const string ContinuedChildMessage =
+        "You will be notified when the subagent finishes.";
+
+    /// <summary>
+    /// The model's <c>SendMessage</c>: delivers the message to any other open Agent in the tree and wakes it when it is idle.
+    /// </summary>
+    public static async Task<SubAgentControlResult> SendAgentMessageAsync(
         SubAgentSessionContext context,
         string target,
         string message,
+        SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
         var normalizedMessage = NormalizeRequired(message, nameof(message));
+        var callerPath = GetCurrentAgentPath(context.ParentThread);
+        var targetPath = callerPath.Resolve(NormalizeRequired(target, nameof(target)));
+        if (targetPath == callerPath)
+            throw new InvalidOperationException("SendMessage target cannot be the current agent.");
+
         var resolved = await ResolveAgentTargetAsync(
             context.SessionService,
             context.ParentThread,
             context.RootThreadId,
-            target,
+            targetPath.Value,
             requireOpen: true,
             ct);
-        var senderPath = GetCurrentAgentPath(context.ParentThread);
-        if (string.Equals(senderPath.Value, resolved.Path.Value, StringComparison.Ordinal))
-            throw new InvalidOperationException("SendMessage target cannot be the current agent.");
+        var native = IsNativeRuntime(resolved.Thread);
+        if (!native && resolved.Edge?.SupportsFollowupTask == false)
+            throw new InvalidOperationException($"Subagent '{resolved.Path.Value}' cannot be continued; its runtime does not accept new tasks.");
 
+        var service = context.SessionService as SessionService;
+        var descendant = targetPath.IsSameOrDescendantOf(callerPath);
+        SubAgentControlResult result;
+        if (!native)
+        {
+            result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
+        }
+        else if (descendant && GetActiveTurn(resolved.Thread) != null)
+        {
+            try
+            {
+                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct, SubAgentFollowupDeliveryMode.Steer);
+            }
+            catch (InvalidOperationException)
+            {
+                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
+            }
+        }
+        else if (descendant)
+        {
+            result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
+        }
+        else
+        {
+            result = await WriteMailboxMessageAsync(context, resolved, callerPath, normalizedMessage, ct);
+            if (service != null)
+                await service.WakeForAgentMessagesAsync(resolved.ThreadId, ct);
+        }
+
+        if (descendant)
+            result.Message ??= ContinuedChildMessage;
+        return result;
+    }
+
+    private static async Task<SubAgentControlResult> WriteMailboxMessageAsync(
+        SubAgentSessionContext context,
+        ResolvedAgentTarget resolved,
+        AgentPath senderPath,
+        string message,
+        CancellationToken ct)
+    {
         var communication = new SubAgentCommunication
         {
             Id = NewMailboxEntryId(),
             RootThreadId = context.RootThreadId,
             AuthorAgentPath = senderPath.Value,
             RecipientAgentPath = resolved.Path.Value,
-            MessageType = SubAgentCommunicationMessageType.Message,
-            Payload = normalizedMessage,
+            Payload = message,
             ParentTurnId = context.ParentTurnId,
             CreatedAt = DateTimeOffset.UtcNow
         };
@@ -53,56 +105,6 @@ public static partial class SubAgentSessionControl
             SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true,
             SupportsClose = resolved.Edge?.SupportsClose ?? true
         };
-    }
-
-    private const string ContinuedChildMessage =
-        "You will be notified when the subagent finishes.";
-
-    /// <summary>
-    /// The model's <c>SendMessage</c>: a descendant target receives the message as a task, any other path as a passive mailbox message.
-    /// </summary>
-    public static async Task<SubAgentControlResult> SendAgentMessageAsync(
-        SubAgentSessionContext context,
-        string target,
-        string message,
-        SubAgentCoordinator? coordinator,
-        CancellationToken ct)
-    {
-        var callerPath = GetCurrentAgentPath(context.ParentThread);
-        var targetPath = callerPath.Resolve(NormalizeRequired(target, nameof(target)));
-        if (targetPath == callerPath || !targetPath.IsSameOrDescendantOf(callerPath))
-            return await SendMessageAsync(context, target, message, ct);
-
-        var resolved = await ResolveAgentTargetAsync(
-            context.SessionService,
-            context.ParentThread,
-            context.RootThreadId,
-            targetPath.Value,
-            requireOpen: true,
-            ct);
-        var native = IsNativeRuntime(resolved.Thread);
-        if (!native && resolved.Edge?.SupportsFollowupTask == false)
-            throw new InvalidOperationException($"Subagent '{resolved.Path.Value}' cannot be continued; its runtime does not accept new tasks.");
-
-        SubAgentControlResult result;
-        if (native && GetActiveTurn(resolved.Thread) != null)
-        {
-            try
-            {
-                result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct, SubAgentFollowupDeliveryMode.Steer);
-            }
-            catch (InvalidOperationException)
-            {
-                result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct);
-            }
-        }
-        else
-        {
-            result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct);
-        }
-
-        result.Message ??= ContinuedChildMessage;
-        return result;
     }
 
     public static async Task<SubAgentControlResult> FollowupTaskAsync(
@@ -134,7 +136,6 @@ public static partial class SubAgentSessionControl
             RootThreadId = context.RootThreadId,
             AuthorAgentPath = senderPath.Value,
             RecipientAgentPath = resolved.Path.Value,
-            MessageType = SubAgentCommunicationMessageType.NewTask,
             Payload = normalizedMessage,
             ParentTurnId = context.ParentTurnId,
             CreatedAt = DateTimeOffset.UtcNow

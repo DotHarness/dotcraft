@@ -3634,13 +3634,6 @@ export interface SkillsViewResult {
   [key: string]: unknown;
 }
 
-export interface SleepPayload {
-  actualDurationMs?: number | null;
-  durationMs: number;
-  status: string;
-  [key: string]: unknown;
-}
-
 export interface SourceControlCapabilities {
   gitCommit?: boolean;
   perforceBinding?: boolean;
