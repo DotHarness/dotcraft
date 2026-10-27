@@ -3,7 +3,7 @@
 离开电脑时，也能在手机上跟进 DotCraft。Agent 照常在你的电脑上运行，手机 App 显示哪些聊天正在运行，把审批和提问摆到你面前，还能在电脑上的项目里开新聊天。
 
 <LiveTour feature="phone" :steps="[
-  { example: 'unpaired', chapter: 'pair', title: '配对手机', body: '在电脑的设置里打开二维码，用手机扫码后选择允许。示例里点一下取景框就能模拟扫码。' },
+  { example: 'unpaired', chapter: 'pair', title: '配对手机', body: '在电脑的设置里打开二维码，用手机扫码后回到电脑上选择允许。示例里点一下取景框就能模拟扫码。' },
   { example: 'home', chapter: 'home', title: '看哪些在运行', body: '首页列出你的项目和最近的聊天，等你处理的聊天会标出来。' },
   { example: 'home', chapter: 'approval', title: '随时审批', body: '打开等你批准的聊天，选允许一次、本会话允许或拒绝。' },
   { example: 'home', chapter: 'question', title: '回答提问', body: 'Agent 提问时，点一个选项或直接输入回复。' }
@@ -20,7 +20,8 @@
 1. 在电脑上打开 DotCraft Desktop，进入**设置 → 连接 → 手机**。
 2. 打开**允许手机控制这台电脑**。
 3. 点击**添加手机**，屏幕上会出现一个二维码。它只能使用一次，10 分钟后过期。
-4. 在手机上打开 DotCraft，扫描二维码，再点击**允许**。
+4. 在手机上打开 DotCraft，扫描二维码。
+5. 回到电脑，确认是你的手机后点击**允许**。
 
 之后手机会出现在**已配对的手机**列表里。已配对的手机可以在这台电脑上执行你在 DotCraft 中能做的任何操作，所以只配对你自己的手机。不再使用时，在同一个列表里移除它。
 

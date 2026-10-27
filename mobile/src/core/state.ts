@@ -110,7 +110,8 @@ export type PendingRequest =
 export type PairingState =
   | { step: 'idle' }
   | { step: 'reaching'; offer: PairingOffer }
-  | { step: 'allow'; offer: PairingOffer; allowing: boolean }
+  | { step: 'waiting'; offer: PairingOffer }
+  | { step: 'denied'; offer: PairingOffer }
   | { step: 'unreachable'; offer: PairingOffer }
   | { step: 'invalid' }
   | { step: 'connected'; name: string }

@@ -25,6 +25,8 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   const pairing = useMobileStore((state) => state.pairing)
   const startPairing = useMobileStore((state) => state.startPairing)
   const closePairing = useMobileStore((state) => state.closePairing)
+  const allowPairing = useMobileStore((state) => state.allowPairing)
+  const denyPairing = useMobileStore((state) => state.denyPairing)
   const titleId = useId()
   const minted = useRef(false)
 
@@ -54,6 +56,14 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
         title={t('settings.phones.pair.error')}
         reason={failureReason(t, pairing.failure, 'settings.phones.hubNoAnswer')}
       />
+    )
+  } else if (pairing.step === 'request') {
+    body = (
+      <div className="dc-add-phone__request" role="status">
+        <Smartphone size={32} strokeWidth={1.7} aria-hidden />
+        <strong>{t('settings.phones.pair.requestTitle', { name: pairing.displayName })}</strong>
+        <span>{t('settings.phones.pair.requestDescription')}</span>
+      </div>
     )
   } else if (pairing.step === 'paired') {
     body = (
@@ -96,6 +106,17 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
       <Button variant="primary" onClick={close}>
         {t('settings.phones.pair.done')}
       </Button>
+    )
+  } else if (pairing.step === 'request') {
+    footer = (
+      <>
+        <Button variant="secondary" disabled={pairing.allowing} onClick={() => void denyPairing()}>
+          {t('settings.phones.pair.decline')}
+        </Button>
+        <Button variant="primary" loading={pairing.allowing} onClick={() => void allowPairing()}>
+          {t('settings.phones.pair.allow')}
+        </Button>
+      </>
     )
   } else if (expired || pairing.step === 'error') {
     footer = (

@@ -147,7 +147,6 @@ describe('relay', () => {
     harness.network.relays = [relay]
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'demo-code'))
-    await harness.session.allow()
     expect(harness.state().computer).toMatchObject({ lastAddress: 'relay', relay: { url: 'https://relay.example.com' } })
     await waitFor(() => harness.state().link === 'online')
   })
@@ -509,13 +508,11 @@ describe('failure states', () => {
 })
 
 describe('pairing', () => {
-  it('pairs after Allow, stores the credential, and connects', async () => {
+  it('pairs once the computer allows it, stores the credential, and connects', async () => {
     const computer = studio()
     const harness = setup([computer], { paired: 0 })
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'demo-code'))
-    expect(harness.session.store.getState().pairing.step).toBe('allow')
-    await harness.session.allow()
     expect(harness.session.store.getState().pairing).toEqual({ step: 'connected', name: 'Studio PC' })
     expect(harness.credentials.values.get(computer.id)).toMatch(/^credential_/)
     await waitFor(() => harness.state().link === 'online')
@@ -527,9 +524,19 @@ describe('pairing', () => {
     const harness = setup([computer], { paired: 0 })
     await harness.session.boot()
     await harness.session.beginPairing(offer(computer, 'used-code'))
-    await harness.session.allow()
     expect(harness.session.store.getState().pairing.step).toBe('invalid')
     expect(harness.session.store.getState().order).toEqual([])
+  })
+
+  it('adds nothing when the computer declines the phone', async () => {
+    const computer = studio()
+    computer.pairingAnswer = 'deny'
+    const harness = setup([computer], { paired: 0 })
+    await harness.session.boot()
+    await harness.session.beginPairing(offer(computer, 'demo-code'))
+    expect(harness.session.store.getState().pairing.step).toBe('denied')
+    expect(harness.session.store.getState().order).toEqual([])
+    expect(harness.credentials.values.has(computer.id)).toBe(false)
   })
 
   it('adds another computer once it is allowed, selects it, and keeps the first one connected', async () => {
@@ -537,11 +544,11 @@ describe('pairing', () => {
     const next = new FakeComputer(buildBoxSeed(new Date()))
     const harness = setup([current, next])
     await online(harness)
-    await harness.session.beginPairing(offer(next, 'build-box-code'))
+    const abandoned = harness.session.beginPairing(offer(next, 'build-box-code'))
     harness.session.resetPairing()
+    await abandoned
     expect(harness.session.store.getState().order).toEqual([current.id])
     await harness.session.beginPairing(offer(next, 'build-box-code'))
-    await harness.session.allow()
     expect(harness.session.store.getState()).toMatchObject({ order: [current.id, next.id], selected: next.id })
     await waitFor(() => harness.computerState(next.id).link === 'online')
     expect(harness.state().link).toBe('online')
@@ -554,7 +561,6 @@ describe('pairing', () => {
     await online(harness)
     computer.addPairingCode('again')
     await harness.session.beginPairing(offer(computer, 'again'))
-    await harness.session.allow()
     expect(harness.session.store.getState().order).toEqual([computer.id])
     await waitFor(() => computer.removedDevices.includes('dev_demo'))
     await waitFor(() => harness.state().link === 'online' && !harness.state().syncing)

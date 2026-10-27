@@ -144,7 +144,8 @@ div.dc-add-phone__qr[aria-busy='true'] {
   min-width: 0;
 }
 
-.dc-add-phone__paired {
+.dc-add-phone__paired,
+.dc-add-phone__request {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -153,18 +154,25 @@ div.dc-add-phone__qr[aria-busy='true'] {
   text-align: center;
 }
 
-.dc-add-phone__paired > svg {
+.dc-add-phone__paired > svg,
+.dc-add-phone__request > svg {
   margin-bottom: 4px;
   color: var(--success);
 }
 
-.dc-add-phone__paired strong {
+.dc-add-phone__request > svg {
+  color: var(--text-secondary);
+}
+
+.dc-add-phone__paired strong,
+.dc-add-phone__request strong {
   color: var(--text-primary);
   font-size: var(--type-heading-size);
   line-height: var(--type-heading-line-height);
 }
 
-.dc-add-phone__paired span {
+.dc-add-phone__paired span,
+.dc-add-phone__request span {
   color: var(--text-secondary);
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line-height);

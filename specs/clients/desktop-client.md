@@ -1001,7 +1001,7 @@ The Phones segment of Connections lists phones that may control this computer an
 - The trusted host process reaches the gateway through the Hub Local API `/v1/mobile*` routes and `mobile.*` Hub events, the same plane as Satellites enrollment. The Hub bearer never reaches the renderer; pairing codes and QR payloads stay in memory while shown and are never persisted. A relay token passes from renderer to host only when saving and is never returned by Hub.
 - The segment shows a setup state when Hub is unavailable or lacks phone access. A failed start explains its `failureCode` and leaves access off.
 - The phone list stays visible while access is off, so phones can be removed (with confirmation). Adding a phone requires access on.
-- Pairing shows a code with its expiry; refreshing invalidates the previous code, and the dialog completes only on `mobile.devicePaired` whose `pairingId` matches its code. Turning access off ends a shown code.
+- Pairing shows a code with its expiry; refreshing invalidates the previous code. When `mobile.pairingRequested` matches its code, the dialog asks whether that phone may control this computer, restating that it can do anything the user can do in DotCraft here. Allow waits for the phone and completes only on `mobile.devicePaired` whose `pairingId` matches; Decline, or `mobile.pairingCancelled` for its code, shows a fresh code. Turning access off ends a shown code.
 - Off-network relay settings are managed through `PUT` and `DELETE /v1/mobile/relay` and reflect `relay` state; changing the relay leaves pairings unchanged.
 - In Remote mode, the segment still manages this Desktop's own Hub; phones reach that Hub's local projects, never the remote AppServer Desktop is attached to.
 

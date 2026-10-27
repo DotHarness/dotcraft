@@ -3,7 +3,7 @@
 Keep up with DotCraft from your phone while you're away from your desk. The agent keeps running on your computer, and the phone app shows what's running, puts approvals and questions in front of you, and starts new chats in your projects.
 
 <LiveTour feature="phone" :steps="[
-  { example: 'unpaired', chapter: 'pair', title: 'Pair your phone', body: 'Scan the QR code from Settings on your computer, then allow the phone. In the demo, tap the viewfinder to scan.' },
+  { example: 'unpaired', chapter: 'pair', title: 'Pair your phone', body: 'Scan the QR code from Settings on your computer, then allow the phone on the computer. In the demo, tap the viewfinder to scan.' },
   { example: 'home', chapter: 'home', title: 'See what is running', body: 'The home screen lists your projects and recent chats. Chats waiting on you are marked.' },
   { example: 'home', chapter: 'approval', title: 'Approve from anywhere', body: 'Open a chat waiting on approval and choose Allow once, Allow for session, or Reject.' },
   { example: 'home', chapter: 'question', title: 'Answer its questions', body: 'When the agent asks something, pick an option or type a reply.' }
@@ -20,7 +20,8 @@ The app is available for Android only for now.
 1. On your computer, open DotCraft Desktop and go to **Settings → Connections → Phones**.
 2. Turn on **Allow phones to control this computer**.
 3. Select **Add phone**. A QR code appears. It works once and expires in 10 minutes.
-4. Open DotCraft on your phone, scan the code, and choose **Allow**.
+4. Open DotCraft on your phone and scan the code.
+5. Back on the computer, check that it names your phone and choose **Allow**.
 
 The phone then appears under **Paired phones**. A paired phone can do anything you can do in DotCraft on that computer, so pair only your own phones. Remove a phone from the same list when you stop using it.
 

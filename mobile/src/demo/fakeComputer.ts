@@ -172,6 +172,8 @@ export class FakeComputer {
   readonly decisions: { requestId: string; decision: string }[] = []
   readonly answers: { requestId: string; answers: unknown }[] = []
   readonly removedDevices: string[] = []
+  pairingAnswer: 'allow' | 'deny' = 'allow'
+  private readonly pairingRequests = new Set<string>()
   readonly failingMethods = new Set<string>()
   readonly files: FakeFiles
   readonly background: FakeBackground
@@ -248,7 +250,15 @@ export class FakeComputer {
     const error = (status: number, code: string) => ({ status, body: { error: { code, message: code } } })
     const computer = { computerId: this.id, name: this.name, port: this.port, fingerprint: this.certificate, addresses: this.addresses }
     if (method === 'POST' && path === '/m/pair') {
-      if (!this.pairingCodes.delete((JSON.parse(body ?? '{}') as { code: string }).code)) return error(400, 'pairingCodeInvalid')
+      const { code, requestKey } = JSON.parse(body ?? '{}') as { code: string; requestKey?: string }
+      if (!requestKey) {
+        if (!this.pairingCodes.delete(code)) return error(400, 'pairingCodeInvalid')
+        const key = this.nextId('request')
+        this.pairingRequests.add(key)
+        return { status: 202, body: { status: 'pending', requestKey: key } }
+      }
+      if (!this.pairingRequests.delete(requestKey)) return error(400, 'pairingCodeInvalid')
+      if (this.pairingAnswer === 'deny') return error(403, 'pairingDenied')
       const credential = this.nextId('credential')
       const deviceId = this.nextId('dev')
       this.credentials.set(credential, deviceId)

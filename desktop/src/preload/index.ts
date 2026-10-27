@@ -1959,6 +1959,12 @@ const api = {
     createPairing(): Promise<MobileResult<MobilePairing>> {
       return ipcRenderer.invoke('mobile:create-pairing')
     },
+    allowPairing(pairingId: string): Promise<MobileResult<void>> {
+      return ipcRenderer.invoke('mobile:allow-pairing', { pairingId })
+    },
+    denyPairing(pairingId: string): Promise<MobileResult<void>> {
+      return ipcRenderer.invoke('mobile:deny-pairing', { pairingId })
+    },
     revoke(deviceId: string): Promise<MobileResult<void>> {
       return ipcRenderer.invoke('mobile:revoke', { deviceId })
     },

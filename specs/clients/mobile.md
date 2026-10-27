@@ -102,7 +102,7 @@ Bodies are JSON with camelCase fields; times are ISO-8601 strings.
 
 | Route | Purpose |
 |---|---|
-| `POST /m/pair` | Consume a pairing code and return a device credential (§6). |
+| `POST /m/pair` | Ask to pair with a pairing code; once the computer allows it, return a device credential (§6). |
 | `GET /m/hello` | Computer id and name, DotCraft version, port, fingerprint, and advertised addresses. Also refreshes the device's last-seen time. |
 | `GET /m/projects` | The computer's projects, without starting any. |
 | `POST /m/projects/{projectId}/ensure` | Start or reuse the project's AppServer through the same path as `POST /v1/appservers/ensure`, as for a remote client: the phone sends no runtime tool hints, and Hub uses the ones it has stored. |
@@ -141,6 +141,14 @@ Response:
 `platform` is `ios` or `android`; `displayName` is required; `osVersion` and `appVersion` are
 free-form. A malformed request is answered `400 invalidRequest` before the code is checked, so it
 does not use the code up.
+
+The first call uses the code up, opens a pairing request, and answers at once with
+`202 { "status": "pending", "requestKey" }`, where `requestKey` is a Hub-generated secret for this
+request. The phone then repeats the call with that `requestKey` added. Each such call waits up to 10
+seconds for the computer's decision, then answers `200` with the response above once the computer
+allowed it, `202 { "status": "pending" }` while it has not decided, or `403 pairingDenied` if it
+declined. A used code without that request's key is answered `400 pairingCodeInvalid`, so a copied
+code cannot collect the credential the computer allowed for another phone.
 
 `GET /m/hello` answers `{ "computerId", "name", "version", "port", "fingerprint", "addresses" }`,
 with the meanings above and `version` the DotCraft version.
@@ -188,7 +196,8 @@ Errors use the Hub error shape ([Hub Architecture §6](../architecture/hub-archi
 |---|---|---|
 | `unauthorized` | 401 | Missing, unknown, or revoked device credential. |
 | `invalidRequest` | 400 | Malformed pairing request, or a WebSocket route reached without an upgrade. |
-| `pairingCodeInvalid` | 400 | Unknown, used, superseded, or expired pairing code. |
+| `pairingCodeInvalid` | 400 | Unknown, used, superseded, or expired pairing code, or a pairing request that ended. |
+| `pairingDenied` | 403 | The computer declined the pairing request. |
 | `projectNotFound` | 404 | No known project has that id. |
 | `projectNotRunning` | 409 | A relay was requested for a project whose AppServer is not running. |
 | `appServerStartFailed` | 500 | Ensure could not start the project. The error carries no workspace path or diagnostics. |
@@ -222,12 +231,17 @@ closes that phone's, or every phone's, relays and event sockets within one secon
    `dotcraft://pair?v=1&id=<computerId>&name=<computer>&port=<port>&fp=<sha256>&addr=<a1>,<a2>&code=<code>`,
    each value URL-encoded and addresses comma-joined. The QR code is the only pairing path; it
    carries the fingerprint, so the phone never trusts a certificate on first use.
-3. The phone scans it, connects to the first reachable address with the pinned certificate, and asks
-   the user to allow this phone to control the named computer.
-4. **Allow** calls `POST /m/pair`. Hub returns a `deviceId` and a device credential of 256 random
-   bits encoded as base64url, and emits `mobile.devicePaired` with the code's `pairingId` so Desktop
-   moves to the paired state without polling.
-5. The phone stores the credential in the Android Keystore and the computer record (computerId,
+3. The phone scans it, connects to the first reachable address with the pinned certificate, and
+   calls `POST /m/pair`. Hub opens a pairing request and emits `mobile.pairingRequested`; the phone
+   asks the user to confirm on the named computer.
+4. The computer, not the phone, decides: Desktop asks whether the named phone may control this
+   computer. Allowing makes the phone's next call return a `deviceId` and a device credential of 256
+   random bits encoded as base64url; Hub records the device only then and emits `mobile.devicePaired`
+   with the code's `pairingId`. Declining answers the phone `pairingDenied`.
+5. A pairing request ends without a device when the computer declines, mints a new code, or turns
+   the gateway off, or when the phone has not called for 30 seconds, as when the user leaves the
+   pairing screen; Hub then emits `mobile.pairingCancelled` unless the computer declined.
+6. The phone stores the credential in the Android Keystore and the computer record (computerId,
    name, addresses, port, fingerprint, deviceId) in app storage, both keyed by `computerId`.
 
 The credential travels only in the `Authorization` header. It never enters URLs, logs, traces, model
@@ -252,6 +266,8 @@ token. Their mobile-specific results:
 | `POST /v1/mobile/enable` | The state object. A port conflict answers `409 portUnavailable` and leaves the state `failed` with that `failureCode`. |
 | `POST /v1/mobile/disable` | The state object. Devices are kept. |
 | `POST /v1/mobile/pairings` | `{ "pairingId", "qrPayload", "expiresAt" }`, where `qrPayload` is the `dotcraft://pair` URL of §6. Answers `409 gatewayOff` unless the gateway is on. |
+| `POST /v1/mobile/pairings/{pairingId}/allow` | `204`; the phone receives its credential on its next call (§6). `404 pairingNotFound` when no open request has that `pairingId`. |
+| `POST /v1/mobile/pairings/{pairingId}/deny` | `204`, or `404 pairingNotFound`. |
 | `DELETE /v1/mobile/devices/{deviceId}` | `204`, or `404 deviceNotFound`. |
 | `PUT` / `DELETE /v1/mobile/relay` | The state object (§12.2). |
 
@@ -288,6 +304,8 @@ Hub SSE events, in the standard event envelope:
 | Event | `data` |
 |---|---|
 | `mobile.stateChanged` | The state object, whenever the gateway turns on, turns off, or fails, and whenever the relay or its `state` changes. |
+| `mobile.pairingRequested` | `{ pairingId, displayName, platform }` when a phone asks to pair with the code `pairingId` names. |
+| `mobile.pairingCancelled` | `{ pairingId }` when a pairing request ends without a device and without being declined (§6). |
 | `mobile.devicePaired` | `{ deviceId, displayName, platform, pairingId }`. |
 | `mobile.deviceRevoked` | `{ deviceId }`, whether the computer or the phone removed the pairing. |
 | `mobile.deviceSeen` | `{ deviceId, lastSeenAt, connected }` when the phone's first socket opens, when its last socket closes, and on `GET /m/hello` at most once a minute per phone. |
@@ -297,8 +315,8 @@ Hub SSE events, in the standard event envelope:
 ### 8.1 Computers and connections
 
 The app pairs with any number of computers. Scanning an unpaired computer adds and selects it once
-allowed; scanning one already paired, recognized by `computerId`, replaces its pairing once allowed
-and removes the old pairing from the computer. Abandoning a pairing changes nothing. Each computer
+the computer allows it; scanning one already paired, recognized by `computerId`, replaces its
+pairing once allowed and removes the old pairing from the computer. Abandoning a pairing changes nothing. Each computer
 keeps its own credential, record, status, projects, and chats, and one computer's failure,
 revocation, or removal leaves the others alone. The app remembers the selected computer; every
 screen below Home belongs to the computer it was opened from.
@@ -329,7 +347,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 
 | Screen | Content |
 |---|---|
-| Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
+| Pair | Camera scan, waiting for the computer to allow the phone (with a note when it replaces an existing pairing), a declined outcome, and a connected confirmation. |
 | Home | The selected computer: its status and a menu with **Add computer** and **Settings**; one chip per paired computer to switch selection; **Projects**, marking those not running; **Recent** chats of running projects with their state, omitted when empty; search over chat titles; and a compact composer that expands in place into New chat for the most recently used project, keeping any draft when folded back. |
 | Project | The project's chats, newest first, above the compact composer. Opening it starts a project that is not running, so its chats and model controls load; Home never starts a project by itself. |
 | New chat | The expanded composer, which is the chat's composer, so model, reasoning, approval policy, and Plan mode are set before the first message; a project switcher lists the computer's projects, most recently used first. Expanding it starts a stopped project. Send keeps the message while the chat is created, then opens the chat in place; a failed send returns the message with the error. |
@@ -585,7 +603,8 @@ pairing codes, and lists and revokes phones through §7. Its Desktop rules are o
 - The access switch maps to enable and disable, and its description states that a paired phone can
   do anything the user can do in DotCraft on this computer.
 - Hub keeps one unexpired code at a time, so minting again invalidates the previous code. The
-  pairing dialog moves to its paired state on `mobile.devicePaired` for the code it minted.
+  pairing dialog asks to allow or decline the phone named by `mobile.pairingRequested` for the
+  code it minted, and moves to its paired state on `mobile.devicePaired` for that code.
 - The phone list stays available while access is off or failed, so a phone can be removed without
   turning access on.
 - The Hub token and pairing codes never enter the renderer's persisted state.

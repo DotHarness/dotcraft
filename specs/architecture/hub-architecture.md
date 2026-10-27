@@ -107,6 +107,7 @@ Transport: HTTP JSON over loopback, discovered through `~/.craft/hub/hub.lock`. 
 | `POST /v1/mobile/enable` | Turn the mobile gateway on and keep it on across Hub restarts. |
 | `POST /v1/mobile/disable` | Turn the mobile gateway off and close every phone connection. Paired phones are kept. |
 | `POST /v1/mobile/pairings` | Mint a phone pairing code and return its QR payload and expiry. |
+| `POST /v1/mobile/pairings/{pairingId}/allow`, `/deny` | Allow or decline the phone that asked to pair with that code. |
 | `DELETE /v1/mobile/devices/{deviceId}` | Revoke a paired phone and close its connections. |
 | `PUT /v1/mobile/relay` | Set the relay URL and token that let phones reach the gateway from other networks. |
 | `DELETE /v1/mobile/relay` | Remove the relay. |
@@ -162,7 +163,7 @@ The mobile gateway is a second, opt-in listener that paired phones use to reach 
 
 When a relay is configured and the gateway is on, Hub keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route to a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed phone reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
 
-Hub emits `mobile.stateChanged`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by the mobile client contract, not by this spec.
+Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCancelled`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by the mobile client contract, not by this spec.
 
 ## 7. Registry, Locks, and State
 

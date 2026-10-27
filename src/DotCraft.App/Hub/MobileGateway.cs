@@ -53,11 +53,14 @@ internal sealed class MobileGateway : IAsyncDisposable
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<MobileGateway>();
         Projects = new MobileProjects(projects, appServers, paths);
+        Pairings = new MobilePairingRequests(registry, events);
     }
 
     public MobileRegistry Registry => _registry;
 
     public MobileProjects Projects { get; }
+
+    public MobilePairingRequests Pairings { get; }
 
     public HubMobileState Snapshot()
     {
@@ -125,6 +128,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _registry.SetEnabled(false);
+            Pairings.Cancel();
             await StopListenerAsync(GatewayOff).ConfigureAwait(false);
             await StopRelayAsync().ConfigureAwait(false);
             SetStatus(GatewayStatus.Off);
@@ -141,6 +145,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         if (Volatile.Read(ref _status).State != GatewayStatus.On.State)
             throw new HubProtocolException("gatewayOff", "Phone access is off on this computer.", StatusCodes.Status409Conflict);
 
+        Pairings.Cancel();
         var (pairingId, code, expiresAt) = _registry.MintPairing();
         var computer = Computer();
         var payload = "dotcraft://pair?v=1"
@@ -165,7 +170,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         return true;
     }
 
-    public MobilePairResponse Pair(MobilePairRequest request)
+    public Task<(MobilePairResponse? Paired, string? RequestKey)> PairAsync(MobilePairRequest request, CancellationToken ct)
     {
         var displayName = request.DisplayName?.Trim();
         if (string.IsNullOrEmpty(displayName) || request.Platform is not ("ios" or "android"))
@@ -173,25 +178,12 @@ internal sealed class MobileGateway : IAsyncDisposable
                 "invalidRequest",
                 "A display name and a platform of 'ios' or 'android' are required.",
                 StatusCodes.Status400BadRequest);
-        if (string.IsNullOrEmpty(request.Code) || _registry.TryConsumePairing(request.Code) is not { } pairingId)
+        if (string.IsNullOrEmpty(request.Code))
             throw new HubProtocolException(
                 "pairingCodeInvalid",
                 "The pairing code is not valid. Ask the computer for a new one.",
                 StatusCodes.Status400BadRequest);
-
-        var (device, credential) = _registry.AddDevice(
-            displayName,
-            request.Platform,
-            request.OsVersion?.Trim() ?? string.Empty,
-            request.AppVersion?.Trim() ?? string.Empty);
-        _events.Publish("mobile.devicePaired", data: new
-        {
-            deviceId = device.DeviceId,
-            displayName = device.DisplayName,
-            platform = device.Platform,
-            pairingId
-        });
-        return new MobilePairResponse(device.DeviceId, credential, Computer());
+        return Pairings.PairAsync(request, displayName, Computer, ct);
     }
 
     public MobileHello Hello(MobileDeviceRecord device)
