@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import test from "node:test";
 
 import { FeishuAdapter } from "./feishu-adapter.js";
@@ -27,7 +27,7 @@ type MockAdapter = {
 type MockClient = {
   reactedMessages: Array<{ messageId: string; emojiType: string }>;
   addMessageReaction: (messageId: string, emojiType: string) => Promise<void>;
-  downloadMessageImage: FeishuClient["downloadMessageImage"];
+  downloadMessageResource: FeishuClient["downloadMessageResource"];
 };
 
 function createAdapterMock(onHandle?: (message: ParsedInboundMessage) => void): MockAdapter {
@@ -60,8 +60,8 @@ function createClientMock(
       this.reactedMessages.push({ messageId, emojiType });
       await onReaction?.(messageId, emojiType);
     },
-    async downloadMessageImage(): Promise<{ bytes: Buffer; mediaType: string }> {
-      throw new Error("downloadMessageImage should not be called in text-message tests.");
+    async downloadMessageResource(): Promise<{ bytes: Buffer; mediaType: string }> {
+      throw new Error("downloadMessageResource should not be called in text-message tests.");
     },
   };
 }
@@ -303,7 +303,7 @@ test("Feishu event handler ignores unmentioned group, unsupported, and empty mes
 
   for (const message of [
     { message_id: "om_group_1", chat_id: "oc_group_1", chat_type: "group" as const, message_type: "text", content: JSON.stringify({ text: "hello group" }) },
-    { message_id: "om_file_1", chat_id: "oc_chat_123", chat_type: "p2p" as const, message_type: "file", content: JSON.stringify({ file_key: "file_123" }) },
+    { message_id: "om_sticker_1", chat_id: "oc_chat_123", chat_type: "p2p" as const, message_type: "sticker", content: JSON.stringify({ file_key: "file_123" }) },
     { message_id: "om_empty_1", chat_id: "oc_chat_123", chat_type: "p2p" as const, message_type: "text", content: JSON.stringify({ text: "   " }) },
   ]) {
     await handlers.onMessage(createTextEvent({ message: { ...message, mentions: [] } }));
@@ -406,7 +406,7 @@ test("Feishu event handler preserves metadata for post and image messages", asyn
   const adapter = createAdapterMock();
   const client = {
     ...createClientMock(),
-    async downloadMessageImage(): Promise<{ bytes: Buffer; mediaType: string }> {
+    async downloadMessageResource(): Promise<{ bytes: Buffer; mediaType: string }> {
       return { bytes: Buffer.from("jpeg bytes"), mediaType: "image/jpeg" };
     },
   };
@@ -461,6 +461,120 @@ test("Feishu event handler preserves metadata for post and image messages", asyn
     assert.equal(imagePart?.type, "localImage");
     assert.equal(imagePart?.mimeType, "image/jpeg");
     assert.equal(dirname(String(imagePart?.path)), join(craftPath, "attachments", "images"));
+  } finally {
+    await rm(craftPath, { recursive: true, force: true });
+  }
+});
+
+function createMediaClientMock(failKeys: string[] = []) {
+  const downloads: Array<{ messageId: string; fileKey: string; type: string }> = [];
+  const client = {
+    ...createClientMock(),
+    downloads,
+    async downloadMessageResource(
+      messageId: string,
+      fileKey: string,
+      type: "image" | "file",
+    ): Promise<{ bytes: Buffer; mediaType: string }> {
+      downloads.push({ messageId, fileKey, type });
+      if (failKeys.includes(fileKey)) throw new Error("resource expired");
+      return type === "image"
+        ? { bytes: Buffer.from(`image ${fileKey}`), mediaType: "image/png" }
+        : { bytes: Buffer.from(`video ${fileKey}`), mediaType: "video/mp4" };
+    },
+  };
+  return client;
+}
+
+function createPostEvent(messageId: string, content: unknown[][]): FeishuMessageEvent {
+  return createTextEvent({
+    message: {
+      message_id: messageId,
+      chat_id: "oc_group_1",
+      chat_type: "group",
+      message_type: "post",
+      content: JSON.stringify({ title: "", content }),
+      mentions: [{ key: "@_user_1", id: { open_id: "ou_bot_123" }, name: "DotCraft Bot" }],
+    },
+  });
+}
+
+test("Feishu post delivers its images and videos in place among the words", async () => {
+  const craftPath = await mkdtemp(join(tmpdir(), "dotcraft-feishu-post-media-"));
+  const adapter = createAdapterMock();
+  const client = createMediaClientMock();
+  const { handlers } = createHandlers({ client, adapter, craftPath, config: { groupMentionRequired: false } });
+  try {
+    await handlers.onMessage(
+      createPostEvent("om_post_media", [
+        [
+          { tag: "at", user_id: "@_user_1", user_name: "" },
+          { tag: "text", text: " where do I filter lights?" },
+        ],
+        [{ tag: "img", image_key: "img_screen", width: 800, height: 600 }],
+        [
+          { tag: "text", text: "and this recording " },
+          { tag: "media", file_key: "file_clip", image_key: "img_cover" },
+        ],
+      ]),
+    );
+
+    assert.deepEqual(client.downloads, [
+      { messageId: "om_post_media", fileKey: "img_screen", type: "image" },
+      { messageId: "om_post_media", fileKey: "file_clip", type: "file" },
+    ]);
+    const parts = adapter.handledMessages[0]?.parts ?? [];
+    assert.deepEqual(parts.map((part) => part.type), ["text", "localImage", "text", "fileRef"]);
+    assert.equal(await readFile(String(parts[1]?.path), "utf-8"), "image img_screen");
+    assert.equal(await readFile(String(parts[3]?.path), "utf-8"), "video file_clip");
+  } finally {
+    await rm(craftPath, { recursive: true, force: true });
+  }
+});
+
+test("Feishu post keeps its words and names the key when an image cannot be downloaded", async () => {
+  const craftPath = await mkdtemp(join(tmpdir(), "dotcraft-feishu-post-media-"));
+  const adapter = createAdapterMock();
+  const client = createMediaClientMock(["img_gone"]);
+  const { handlers } = createHandlers({ client, adapter, craftPath, config: { groupMentionRequired: false } });
+  try {
+    await handlers.onMessage(
+      createPostEvent("om_post_failed", [
+        [{ tag: "text", text: "what is wrong here?" }],
+        [{ tag: "img", image_key: "img_gone" }],
+        [{ tag: "img", image_key: "img_ok" }],
+      ]),
+    );
+
+    const parts = adapter.handledMessages[0]?.parts ?? [];
+    assert.deepEqual(parts.map((part) => part.type), ["text", "localImage"]);
+    assert.match(String(parts[0]?.text), /what is wrong here\?[\s\S]*img_gone/);
+  } finally {
+    await rm(craftPath, { recursive: true, force: true });
+  }
+});
+
+test("Feishu video message is saved under its own name and referenced by path", async () => {
+  const craftPath = await mkdtemp(join(tmpdir(), "dotcraft-feishu-video-"));
+  const adapter = createAdapterMock();
+  const client = createMediaClientMock();
+  const { handlers } = createHandlers({ client, adapter, craftPath });
+  try {
+    await handlers.onMessage(
+      createTextEvent({
+        message: {
+          message_id: "om_video_1",
+          chat_id: "oc_chat_123",
+          chat_type: "p2p",
+          message_type: "media",
+          content: JSON.stringify({ file_key: "file_demo", image_key: "img_cover", file_name: "demo.mp4", duration: 3000 }),
+        },
+      }),
+    );
+
+    assert.deepEqual(client.downloads, [{ messageId: "om_video_1", fileKey: "file_demo", type: "file" }]);
+    const video = adapter.handledMessages[0]?.parts.find((part) => part.type === "fileRef");
+    assert.equal(basename(String(video?.path)), "demo.mp4");
   } finally {
     await rm(craftPath, { recursive: true, force: true });
   }
