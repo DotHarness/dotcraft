@@ -208,6 +208,10 @@ public sealed partial class RemoteToolHostCoreTests
 
         private readonly Dictionary<string, RemoteToolConnectionSnapshot> _connections = new(StringComparer.Ordinal);
         public event Action<RemoteToolRouteChange>? RouteChanged;
+        public event Action<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalEvent>? TerminalEvent { add { } remove { } }
+        public IReadOnlyList<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> ListTerminals(string threadId) => [];
+        public ValueTask<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> StopTerminalAsync(string threadId, string sessionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public int RemoteCalls { get; private set; }
         public IReadOnlyList<ToolDefinition> Definitions { get; private set; } = [];
         public (ToolDefinition Definition, string ContractHash, JsonObject Arguments)? LastInvocation { get; private set; }

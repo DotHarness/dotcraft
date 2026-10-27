@@ -8,6 +8,7 @@ internal static class RemoteToolHostMcpSession
     {
         await using var transport = new StreamServerTransport(stream, stream, RemoteToolHostServerOptions.ServerName, loggerFactory: null);
         await using var server = McpServer.Create(transport, RemoteToolHostServerOptions.Create(handlers), loggerFactory: null, serviceProvider: null);
+        handlers.AttachServer(server);
         var running = server.RunAsync(ct);
         try
         {

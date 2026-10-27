@@ -473,8 +473,9 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             terminal.SignalCompletionPublished();
         else
             terminal.SignalCompletionFailed(outputFailure);
-        Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
+        // A remote Agent that sees the ending must already have the notice it owes.
         OnTerminalCompletedForModel(terminal);
+        Raise(BackgroundTerminalEventTypes.Completed, terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
     }
 
     private async Task PersistMetadataAsync(BackgroundTerminalMetadata metadata, CancellationToken ct)

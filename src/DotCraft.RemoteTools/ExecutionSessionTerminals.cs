@@ -14,11 +14,17 @@ internal sealed class ExecutionSessionTerminals : IBackgroundTerminalService
     internal static string ThreadId => Active.Value?.ThreadId
         ?? throw new InvalidOperationException("Terminal creation requires an active execution Thread.");
 
-    internal static IDisposable Enter(ExecutionSessionTerminalService terminals, string threadId)
+    internal static IDisposable Enter(ExecutionSessionTerminalService terminals, string threadId,
+        List<BackgroundTerminalSnapshot>? started = null)
     {
         var previous = Active.Value;
-        Active.Value = new(terminals, threadId);
+        Active.Value = new(terminals, threadId, started);
         return new Scope(() => Active.Value = previous);
+    }
+
+    internal static void RecordStarted(BackgroundTerminalSnapshot snapshot)
+    {
+        Active.Value?.Started?.Add(snapshot);
     }
 
     public event Action<BackgroundTerminalEvent>? TerminalEvent
@@ -75,7 +81,8 @@ internal sealed class ExecutionSessionTerminals : IBackgroundTerminalService
         Current.DeleteThreadArtifactsAsync(threadId, ct);
     public Task<int> CleanupExpiredArtifactsAsync(CancellationToken ct = default) => Current.CleanupExpiredArtifactsAsync(ct);
 
-    private sealed record Context(ExecutionSessionTerminalService Terminals, string ThreadId);
+    private sealed record Context(ExecutionSessionTerminalService Terminals, string ThreadId,
+        List<BackgroundTerminalSnapshot>? Started);
 
     private sealed class Scope(Action leave) : IDisposable
     {

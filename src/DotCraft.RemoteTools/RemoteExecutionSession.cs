@@ -46,6 +46,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
     {
         var session = new RemoteExecutionSession(id, config, released);
         var transport = await HostSession.CreateAsync(connection, ct).ConfigureAwait(false);
+        transport.Client.RegisterNotificationHandler(RemoteToolHostProtocol.TerminalsEvent, session.OnTerminalEventAsync);
         try
         {
             var info = await SendAsync<WorkspaceListRequest, WorkspaceListResponse>(transport.Client,
@@ -184,6 +185,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         }
 
         var dotcraft = result.Meta?["dotcraft"] as JsonObject;
+        ReportStartedTerminals(dotcraft?["terminals"], context);
         var code = dotcraft?["code"]?.GetValue<string>();
         RemoteToolArtifactMeta? artifact;
         try

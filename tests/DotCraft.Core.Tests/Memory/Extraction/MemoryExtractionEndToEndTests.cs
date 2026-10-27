@@ -241,6 +241,10 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         private int _remoteCalls;
 
         public event Action<RemoteToolRouteChange>? RouteChanged { add { } remove { } }
+        public event Action<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalEvent>? TerminalEvent { add { } remove { } }
+        public IReadOnlyList<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> ListTerminals(string threadId) => [];
+        public ValueTask<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> StopTerminalAsync(string threadId, string sessionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public ConcurrentQueue<string> Forked { get; } = new();
 

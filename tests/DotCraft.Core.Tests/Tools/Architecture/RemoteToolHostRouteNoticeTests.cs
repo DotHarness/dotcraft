@@ -292,6 +292,10 @@ public sealed class RemoteToolHostRouteNoticeTests : IDisposable
         private readonly Dictionary<string, RemoteToolRoute> _routes = new(StringComparer.Ordinal);
 
         public event Action<RemoteToolRouteChange>? RouteChanged;
+        public event Action<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalEvent>? TerminalEvent { add { } remove { } }
+        public IReadOnlyList<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> ListTerminals(string threadId) => [];
+        public ValueTask<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> StopTerminalAsync(string threadId, string sessionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) { }
         public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,

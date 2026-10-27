@@ -14,9 +14,12 @@ public sealed partial class SessionService
 
     internal void AttachTerminalNotices()
     {
-        if (BackgroundTerminalService is not { } terminals || Interlocked.Exchange(ref _terminalNoticesAttached, 1) != 0)
+        if (Interlocked.Exchange(ref _terminalNoticesAttached, 1) != 0)
             return;
-        terminals.TerminalEvent += OnTerminalNoticeEvent;
+        if (BackgroundTerminalService is { } terminals)
+            terminals.TerminalEvent += OnTerminalNoticeEvent;
+        if (AgentFactory.RemoteToolHostClient is { } remote)
+            remote.TerminalEvent += OnTerminalNoticeEvent;
     }
 
     internal Task DrainTerminalNoticesAsync()
@@ -97,7 +100,7 @@ public sealed partial class SessionService
             BackgroundTerminalStatus.Failed when terminal.ExitCode is { } exitCode => $"{prefix} failed with exit code {exitCode}",
             BackgroundTerminalStatus.Killed => stoppedByUser ? $"{prefix} was stopped by the user" : $"{prefix} was stopped",
             BackgroundTerminalStatus.TimedOut => $"{prefix} timed out",
-            BackgroundTerminalStatus.Lost => $"{prefix} was lost",
+            BackgroundTerminalStatus.Lost => $"{prefix} was lost and its outcome is unknown",
             _ => $"{prefix} ended with status {terminal.Status}"
         };
     }

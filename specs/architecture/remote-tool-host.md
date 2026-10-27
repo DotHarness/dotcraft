@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.6 |
+| Version | 0.9.7 |
 | Status | Draft |
-| Date | 2026-10-26 |
+| Date | 2026-10-27 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -82,7 +82,10 @@ The Core RPC-eligible set is:
 
 - `ReadFile`, `WriteFile`, `EditFile`, `GrepFiles`, and `FindFiles`;
 - `LSP`;
-- `Exec`, `WriteStdin`, and `TaskStop` for shell tasks.
+- `Exec` and `WriteStdin`.
+
+`TaskStop` is Agent-local: Session Core stops a remote shell task through the Remote Tool Host
+client (§5.4).
 
 `WebSearch`, `web.run`, and `WebFetch` remain Agent-local because connecting a workspace MUST NOT implicitly
 change network egress, DNS, proxy, or search-provider configuration. Remote network access is a
@@ -257,6 +260,41 @@ Thread's later reports are refused. The Host exposes these Turns as runtime-only
 tool activity; nothing is persisted and Agent-side Thread ids stay inside the session scope. A report
 grants nothing: policy, approvals, and leases ignore it.
 
+### 5.4 Background terminals
+
+A terminal that an `Exec` call hands to the model while it still runs is a background task of the
+calling Agent Thread ([Background Tasks](background-tasks.md)), wherever it runs. The Host arms it for
+its completion notice as a local Agent Host does, so the `Exec` result says that a notification follows.
+
+The `tools/call` result of an `Exec` lists every terminal the call started under
+`_meta.dotcraft.terminals`, as snapshots without output; a snapshot with `completionNoticeArmed` is a
+background task. Over the same MCP session the Host sends the notification
+`dotcraft/remoteToolHost/terminals/event` with `leaseId`, `workspaceId`, `eventType`, and the terminal
+snapshot:
+
+- `completed` when any terminal of the session ends, whether or not the model is owed a notification;
+- `completionNotice` or `stallNotice` when the terminal owes the model a completion or stall
+  notification, under the rules for a local terminal ([Tool Architecture](tools-architecture.md#74-shell-execution)).
+
+A completion notice owed when the terminal ends is sent before its `completed` event, so a client that
+has the ending also has its notice.
+
+Snapshots carry the Host's session-scoped Thread id; the client correlates events by terminal session
+id with the Thread, Turn, and call that started the terminal. An event can arrive before the result of
+the `Exec` that started its terminal, so the client holds it until that result lists the terminal.
+
+The client keeps the background terminals of each execution session with their latest snapshot and
+publishes notices and synthesized endings to Session Core, which lists, stops, and notifies them with the
+Thread's local terminals. A stop is the request `dotcraft/remoteToolHost/terminals/stop` with
+`leaseId`, `workspaceId`, `threadId`, and `sessionId`; it returns the settled snapshot and applies the
+lease and Thread ownership checks of §12.
+
+The Host stops a session's terminals when the session closes and a Thread's terminals when the Thread
+is released (§5.2), and it cannot report either. The client therefore ends a background terminal that is
+still running as `lost` when its execution session is lost, and as `killed` when its Thread's route is
+released by a disconnect or route switch, and publishes that ending as the terminal's completion notice.
+Agent Host teardown publishes none.
+
 ## 6. Model control surface
 
 When DotCraft's Remote Tool Host product integration is enabled, its Agent Host exposes four
@@ -423,7 +461,10 @@ dotcraft/remoteToolHost/workspaces/release
 dotcraft/remoteToolHost/workspaces/heartbeat
 dotcraft/remoteToolHost/executionThreads/release
 dotcraft/remoteToolHost/executionThreads/turn
+dotcraft/remoteToolHost/terminals/stop
 ```
+
+The Host also sends the notification `dotcraft/remoteToolHost/terminals/event` (§5.4).
 
 The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVersion`,
 `catalogDigest`, per-tool contract summaries, and safe workspace descriptors with lease state.
@@ -431,7 +472,7 @@ Acquire accepts `workspaceId` and returns `leaseId`, expiry, and environment sum
 accepts the connection's `leaseId`. Heartbeat renews that lease using its process owner identity.
 Execution Thread release cancels and drains the named Thread before releasing its resources; clearing
 a plugin snapshot alone does not release native background work. Execution Thread turn records one
-Turn report (§5.3) and returns an empty result. Unknown fields follow MCP extension behavior; missing
+Turn report (§5.3) and returns an empty result. Terminal stop stops one background terminal (§5.4). Unknown fields follow MCP extension behavior; missing
 required profile fields fail closed.
 
 The client requires the Host's explicit `execution-sessions-v1` capability before acquiring a lease.
@@ -626,9 +667,9 @@ routing argument is removed from the copied execution arguments.
 The dispatcher captures the execution location after input validation and before policy, hooks,
 and approval. Runtime execution validates the captured route and never resolves a different one.
 Approvals interpret paths on the selected machine. Results identify their execution location;
-local spill paths require local reads. WriteStdin and `TaskStop` on a terminal session ID use the same
-target as the originating Exec, and the Host accepts only terminals that an Exec created in the same
-lease; `TaskStop` also requires the terminal to belong to the calling thread. `TaskStop` on an Agent path or a Workflow run ID always runs on the Agent, whatever the route.
+local spill paths require local reads. WriteStdin on a terminal session ID uses the same target as the
+originating Exec, and the Host accepts only terminals that an Exec created in the same lease. Terminal
+stop (§5.4) also requires the terminal to belong to the calling thread.
 
 `RemoteToolHost.Transfer(direction, localPath, remotePath, overwrite = false)` copies a file or
 directory between the Agent and current remote workspace. Direction is `upload` or `download`.
