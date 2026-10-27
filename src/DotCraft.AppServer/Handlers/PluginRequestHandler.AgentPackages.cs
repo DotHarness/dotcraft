@@ -141,7 +141,14 @@ internal sealed partial class PluginRequestHandler
             throw AgentProfileRequestHandler.MapError(ex);
         }
 
-        var references = AgentProfileReferences.Read(profile.RawContent ?? string.Empty);
+        var plugins = RefreshPluginRuntime().Plugins
+            .Where(plugin => plugin.Installed)
+            .OrderBy(plugin => plugin.Manifest.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var servers = (appConfigMonitor?.Current.McpServers ?? [])
+            .Concat(plugins.SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(plugin, [])))
+            .ToList();
+        var references = AgentProfileReferences.Read(profile.RawContent ?? string.Empty).ResolveMcpServers(servers);
         var candidates = new List<AgentExportCandidate>();
         foreach (var skill in (skillsLoader?.ListSkills() ?? []).Where(skill => skill.Source is "workspace" or "user"))
         {
@@ -169,9 +176,7 @@ internal sealed partial class PluginRequestHandler
             .Discover()
             .Plugins;
         var marketplaces = ConfiguredMarketplaces();
-        foreach (var plugin in RefreshPluginRuntime().Plugins
-                     .Where(plugin => plugin.Installed)
-                     .OrderBy(plugin => plugin.Manifest.Id, StringComparer.OrdinalIgnoreCase))
+        foreach (var plugin in plugins)
         {
             var offeredBy = catalog.FirstOrDefault(item => PluginIds.EqualsCanonical(item.Manifest.Id, plugin.Manifest.Id));
             var marketplace = marketplaces.FirstOrDefault(item =>

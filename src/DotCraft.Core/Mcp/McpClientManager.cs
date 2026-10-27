@@ -72,6 +72,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private IReadOnlyList<AITool> _toolsSnapshot = [];
     private IReadOnlyDictionary<string, string> _toolServerMapSnapshot =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<McpServerConfig> _serverConfigsSnapshot = [];
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCts = new();
     private long _nextGeneration;
@@ -83,6 +84,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
     /// <summary>Gets the optional user-owned directory used for MCP authentication state.</summary>
     public string? UserDataPath => _userDataPath;
+    public IReadOnlyList<McpServerConfig> ServerConfigs => Volatile.Read(ref _serverConfigsSnapshot);
     public IReadOnlyDictionary<string, string> ToolServerMap => Volatile.Read(ref _toolServerMapSnapshot);
 
     public event EventHandler<McpServerStatusChangedEventArgs>? StatusChanged;
@@ -899,6 +901,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
         Volatile.Write(ref _toolsSnapshot, nextTools);
         Volatile.Write(ref _toolServerMapSnapshot, nextToolServerMap);
+        Volatile.Write(ref _serverConfigsSnapshot, _servers.Values.Select(static s => s.Config.Clone()).ToArray());
     }
 
     private static McpServerStatusSnapshot CreateStatus(McpServerConfig config, string startupState) =>
@@ -1546,6 +1549,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             Volatile.Write(
                 ref _toolServerMapSnapshot,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            Volatile.Write(ref _serverConfigsSnapshot, []);
         }
         finally
         {

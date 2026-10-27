@@ -1,3 +1,5 @@
+using DotCraft.Mcp;
+
 namespace DotCraft.Agents.Packages;
 
 public sealed record AgentProfileReferences(
@@ -19,6 +21,11 @@ public sealed record AgentProfileReferences(
             Names(Child(values, "plugins", "allow")).Distinct(StringComparer.Ordinal).ToArray(),
             Names(Child(values, "tools", "allow")).Distinct(StringComparer.Ordinal).ToArray());
     }
+
+    public AgentProfileReferences ResolveMcpServers(IReadOnlyCollection<McpServerConfig> servers) => this with
+    {
+        McpServers = [.. McpServers.Select(name => McpServerSelector.Find(name, servers)?.Name ?? name)]
+    };
 
     private static object? Child(Dictionary<object, object> values, string group, string key) =>
         values.TryGetValue(group, out var node) && node is Dictionary<object, object> map && map.TryGetValue(key, out var child)
@@ -54,6 +61,9 @@ public sealed record AgentPackageOffer(
         Kind == AgentPackageKinds.Plugin
         && McpServers.Any(server => string.Equals(name, $"{Name}:{server}", StringComparison.Ordinal));
 
+    public bool DeclaresMcpServer(string name) =>
+        Kind == AgentPackageKinds.Plugin && McpServers.Contains(name, StringComparer.Ordinal);
+
     public bool IsPlugin(string name) =>
         Kind == AgentPackageKinds.Plugin && string.Equals(Name, name, StringComparison.OrdinalIgnoreCase);
 
@@ -75,7 +85,7 @@ public sealed record AgentPackageOffer(
         references.Skills.Where(name => !offers.Any(offer => offer.ProvidesSkill(name))).ToArray(),
         references.McpServers
             .Where(name => !configuredMcpServers.Contains(name, StringComparer.Ordinal)
-                           && !offers.Any(offer => offer.ProvidesMcpServer(name)))
+                           && !offers.Any(offer => offer.ProvidesMcpServer(name) || offer.DeclaresMcpServer(name)))
             .ToArray(),
         references.Plugins.Where(name => !offers.Any(offer => offer.IsPlugin(name))).ToArray(),
         []);
