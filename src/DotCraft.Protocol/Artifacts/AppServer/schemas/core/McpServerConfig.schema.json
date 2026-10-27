@@ -148,6 +148,9 @@
         }
       ]
     },
+    "toolApprovalMode": {
+      "type": "string"
+    },
     "toolTimeoutSec": {
       "anyOf": [
         {

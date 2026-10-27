@@ -93,7 +93,10 @@ Disabling or removing a plugin withdraws all of its contributions.
 `mcpServers` is an optional manifest-relative path to an MCP configuration file; when omitted,
 DotCraft looks for `./.mcp.json`. The file may use `{ "mcpServers": { ... } }` or a direct server
 map, with the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown
-server properties are rejected. Relative `cwd` values resolve under the plugin root.
+server properties are rejected. Relative `cwd` values resolve under the plugin root. A declaration
+may set `toolApprovalMode` as defined in [Tool Architecture](tools-architecture.md) (see §12.3);
+enabling the plugin accepts the declared mode, since the plugin already supplies the server it
+launches.
 
 Contributed servers run in the same runtime as workspace `McpServers` under the runtime name
 `{pluginId}:{serverName}`. That name is for connection routing only; model-visible tool identity is

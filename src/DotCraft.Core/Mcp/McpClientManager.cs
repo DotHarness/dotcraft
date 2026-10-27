@@ -1153,6 +1153,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
             AppendFingerprintValue(builder, config.StartupTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
             AppendFingerprintValue(builder, config.ToolTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AppendFingerprintValue(builder, config.ToolApprovalMode.ToString());
             AppendFingerprintValue(builder, config.Origin.Kind);
             AppendFingerprintValue(builder, config.Origin.PluginId);
             AppendFingerprintValue(builder, config.Origin.ThreadId);

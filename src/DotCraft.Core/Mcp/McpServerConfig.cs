@@ -59,6 +59,16 @@ public sealed class McpServerOrigin
         };
 }
 
+public enum McpToolApprovalMode
+{
+    Auto,
+    Approve,
+    Prompt
+}
+
+public sealed class McpToolApprovalModeJsonConverter()
+    : JsonStringEnumConverter<McpToolApprovalMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false);
+
 [ConfigSection(
     "McpServers",
     DisplayName = "MCP Servers",
@@ -139,6 +149,10 @@ public sealed class McpServerConfig
     /// </summary>
     public double? ToolTimeoutSec { get; set; }
 
+    [ConfigField(FieldType = "select", Options = new[] { "auto", "approve", "prompt" })]
+    [JsonConverter(typeof(McpToolApprovalModeJsonConverter))]
+    public McpToolApprovalMode ToolApprovalMode { get; set; }
+
     [JsonIgnore]
     public McpServerOrigin Origin
     {
@@ -177,6 +191,7 @@ public sealed class McpServerConfig
             OAuth = OAuth?.Clone(),
             StartupTimeoutSec = StartupTimeoutSec,
             ToolTimeoutSec = ToolTimeoutSec,
+            ToolApprovalMode = ToolApprovalMode,
             Origin = Origin.Clone()
         };
 }
