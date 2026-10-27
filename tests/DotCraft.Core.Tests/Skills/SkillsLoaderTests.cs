@@ -185,7 +185,7 @@ public sealed class SkillsLoaderTests : IDisposable
     {
         var userSkills = Path.Combine(_tempRoot, "user-skills");
         var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
-        var loader = new SkillsLoader(_tempRoot, userSkills, sharedSkills);
+        var loader = new SkillsLoader(_tempRoot, userSkills, sharedSkillsPath: sharedSkills);
         WriteSkill(sharedSkills, "shared-only-skill", "Shared instructions");
         WriteSkill(userSkills, "duplicate-skill", "User instructions");
         WriteSkill(sharedSkills, "duplicate-skill", "Shared instructions");
@@ -205,10 +205,58 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
+    public void WorkspaceSharedRoots_WalkUpToTheRepositoryRootNearestFirst()
+    {
+        var repository = Path.Combine(_tempRoot, "repo");
+        var workspace = Path.Combine(repository, "packages", "app");
+        Directory.CreateDirectory(Path.Combine(repository, ".git"));
+        Directory.CreateDirectory(workspace);
+        var standalone = Path.Combine(_tempRoot, "standalone");
+        Directory.CreateDirectory(standalone);
+
+        Assert.Equal(
+            [
+                Path.Combine(workspace, ".agents", "skills"),
+                Path.Combine(repository, "packages", ".agents", "skills"),
+                Path.Combine(repository, ".agents", "skills")
+            ],
+            SkillsLoader.FindWorkspaceSharedSkillsPaths(workspace));
+        Assert.Equal(
+            [Path.Combine(standalone, ".agents", "skills")],
+            SkillsLoader.FindWorkspaceSharedSkillsPaths(standalone));
+    }
+
+    [Fact]
+    public void WorkspaceSharedRoots_AreWorkspaceSourceBelowCraftSkillsAndAbovePlugins()
+    {
+        var nearShared = Path.Combine(_tempRoot, "app", ".agents", "skills");
+        var farShared = Path.Combine(_tempRoot, ".agents", "skills");
+        var pluginRoot = Path.Combine(_tempRoot, "plugin");
+        var pluginSkills = Path.Combine(pluginRoot, "skills");
+        var loader = new SkillsLoader(_tempRoot, workspaceSharedSkillsPaths: [nearShared, farShared]);
+        loader.SetPluginSkillSources([new SkillsLoader.PluginSkillSource("demo-plugin", "Demo Plugin", pluginSkills, pluginRoot)]);
+        WriteSkill(loader.WorkspaceSkillsPath, "craft-wins", "Craft instructions");
+        WriteSkill(nearShared, "craft-wins", "Shared instructions");
+        WriteSkill(nearShared, "nearest-wins", "Near instructions");
+        WriteSkill(farShared, "nearest-wins", "Far instructions");
+        WriteSkill(farShared, "shared-beats-plugin", "Shared instructions");
+        WriteSkill(pluginSkills, "shared-beats-plugin", "Plugin instructions");
+
+        var shared = loader.ResolveSkillInfo("shared-beats-plugin");
+        Assert.Equal("workspace", shared!.Source);
+        Assert.StartsWith(farShared, shared.Path);
+        Assert.Contains("Shared instructions", loader.LoadSkill("shared-beats-plugin"));
+        Assert.Contains("Craft instructions", loader.LoadSkill("craft-wins"));
+        Assert.Contains("Near instructions", loader.LoadSkill("nearest-wins"));
+        Assert.True(loader.TryResolveSkillDirectory(Path.Combine(nearShared, "nearest-wins", "SKILL.md"), out var name, out _));
+        Assert.Equal("nearest-wins", name);
+    }
+
+    [Fact]
     public void DeclaredRequirements_DoNotFilterDiscoveryCatalogOrAlwaysSkills()
     {
         var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
-        var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
+        var loader = new SkillsLoader(_tempRoot, sharedSkillsPath: sharedSkills);
         var skillDir = Path.Combine(sharedSkills, "declarative-requirements");
         Directory.CreateDirectory(skillDir);
         File.WriteAllText(

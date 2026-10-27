@@ -931,7 +931,7 @@ public sealed partial class AppConfig
         [ConfigField(Hint = "JSON array of skill names to disable for this workspace", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.Skills)]
         public List<string> DisabledSkills { get; set; } = [];
 
-        [ConfigField(Hint = "Discover skills from the shared ~/.agents/skills directory", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
+        [ConfigField(Hint = "Discover skills from the shared .agents/skills directories in the workspace and home folder", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]
         public bool IncludeSharedSkills { get; set; } = true;
 
         [ConfigField(Hint = "Deploy the skills DotCraft ships into the workspace on start", Reload = ReloadBehavior.ProcessRestart, HasReload = false)]

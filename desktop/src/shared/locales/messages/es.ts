@@ -1490,7 +1490,7 @@ export const MESSAGES_ES = {
     'La configuración de skills se ha guardado. Reinicie el AppServer remoto para aplicarla.',
   'settings.personalization.sharedSkills': 'Usar skills compartidas',
   'settings.personalization.sharedSkillsHint':
-    'Carga también skills personales desde ~/.agents/skills, la carpeta que comparten otras herramientas de agentes.',
+    'Carga skills desde las carpetas .agents de tu carpeta personal y del espacio de trabajo.',
   'settings.personalization.sharedSkillsSaveFailed': 'No se pudo guardar la configuración de skills compartidas: {{error}}',
   'settings.personalization.dreams': 'Sueños',
   'settings.personalization.dreamsHint': 'Organiza las memorias en segundo plano',

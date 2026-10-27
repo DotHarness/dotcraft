@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Skills;
 using Tomlyn;
 
 namespace DotCraft.SessionImport;
@@ -50,8 +51,8 @@ internal sealed class SetupImportScanner(SetupImportPaths paths)
                         if (!File.Exists(Path.Combine(skill, "SKILL.md"))) continue;
                         var name = Path.GetFileName(skill);
                         var destination = Path.Combine(target, "skills", name);
-                        var shared = Path.Combine(paths.Home, ".agents", "skills", name, "SKILL.md");
-                        var present = Directory.Exists(destination) || scope == "user" && SharedSkillsEnabled() && File.Exists(shared);
+                        var present = Directory.Exists(destination)
+                            || SharedSkillsEnabled() && SharedSkillRoots(scope).Any(shared => File.Exists(Path.Combine(shared, name, "SKILL.md")));
                         AddItem(result, source, scope, category, skill, destination, name,
                             () => Create(source, scope, category, skill, destination, name, directory: skill, state: present ? "current" : "new"));
                     }
@@ -152,6 +153,9 @@ internal sealed class SetupImportScanner(SetupImportPaths paths)
         if (scope == "workspace") MergeProject(servers, ReadJson(Path.Combine(sourceHome, ".claude.json")), scopeRoot, false);
         return servers;
     }
+
+    private IReadOnlyList<string> SharedSkillRoots(string scope) =>
+        scope == "user" ? [Path.Combine(paths.Home, ".agents", "skills")] : SkillsLoader.FindWorkspaceSharedSkillsPaths(paths.Workspace);
 
     private bool SharedSkillsEnabled()
     {

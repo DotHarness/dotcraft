@@ -1259,7 +1259,7 @@ export const MESSAGES_EN = {
     'Skill settings are saved. Restart the remote AppServer to apply them.',
   'settings.personalization.sharedSkills': 'Use shared skills',
   'settings.personalization.sharedSkillsHint':
-    'Also load personal skills from ~/.agents/skills, the folder other agent tools share.',
+    'Load skills from the .agents folders in your home folder and workspace.',
   'settings.personalization.sharedSkillsSaveFailed': 'Failed to save shared skills setting: {{error}}',
   'settings.personalization.dreams': 'Dreams',
   'settings.personalization.dreamsHint': 'Organize memories in the background',

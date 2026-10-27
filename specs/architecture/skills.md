@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
 authoring, installation, client access, and remote use.
@@ -66,20 +66,27 @@ A disabled Skill remains installed but is omitted from Agent context.
 DotCraft resolves duplicate Skill names by source priority:
 
 1. workspace Skills under `.craft/skills/` without the `.builtin` marker;
-2. Skills contributed by enabled plugins, ordered by plugin id;
-3. deployed built-in Skills under `.craft/skills/` with the `.builtin` marker;
-4. user Skills under the configured user Skill root;
-5. shared Skills under `~/.agents/skills`.
+2. shared workspace Skills under `.agents/skills/`, nearest directory first;
+3. Skills contributed by enabled plugins, ordered by plugin id;
+4. deployed built-in Skills under `.craft/skills/` with the `.builtin` marker;
+5. user Skills under the configured user Skill root;
+6. shared user Skills under `~/.agents/skills`.
 
 The first source for a case-insensitive name wins. Discovery scans direct child directories for a
 `SKILL.md` file and returns descriptors sorted by name. Skills owned by disabled plugins and
 suppressed built-ins do not enter the effective catalog.
 
-`~/.agents/skills` is a cross-tool convention that other Agent products also read. DotCraft
-discovers it as a second user-level root, so those Skills report the `user` source and differ only
-by path. `Skills.IncludeSharedSkills` turns the root off and defaults to true; it takes effect on
-process start. DotCraft does not own that directory, so a Skill resolved from it can be disabled
-but not uninstalled.
+`.agents/skills` is a cross-tool convention that other Agent products also read, at both workspace
+and user level. Shared workspace roots are the `.agents/skills` directories in the workspace and in
+each parent directory up to the nearest one containing `.git`; without a `.git` ancestor only the
+workspace itself is searched, and `~/.agents/skills` is never a workspace root. Shared workspace
+Skills report the `workspace` source and shared user Skills report the `user` source; each differs
+from the DotCraft root of the same source only by path.
+
+`Skills.IncludeSharedSkills` turns every shared root on or off together, defaults to true, and takes
+effect on process start. DotCraft does not own shared roots, so a Skill resolved from one can be
+disabled but not uninstalled. Setup import reports a Skill that a shared root at the same level
+already provides as current while shared roots are on, and offers it for copying while they are off.
 
 Workspace configuration stores disabled Skill names in `Skills.DisabledSkills`. Thread and Agent
 Profile policy can further restrict Skill names with `allow` and `deny`. When `allow` is absent,

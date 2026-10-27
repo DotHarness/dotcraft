@@ -29,5 +29,5 @@
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `Skills.DisabledSkills` | 当前工作区禁用的 skill 名称列表。被禁用的 skill 仍留在磁盘上，但不会注入 Agent 上下文 | `[]` |
-| `Skills.IncludeSharedSkills` | 同时从 `~/.agents/skills` 读取个人 skill，该目录与其他 agent 工具共用。重启后生效 | `true` |
+| `Skills.IncludeSharedSkills` | 同时读取与其他 agent 工具共用的 `.agents/skills` 目录：工作区及其上级目录（直到仓库根目录）中的，以及 `~/.agents/skills`。重启后生效 | `true` |
 | `Skills.IncludeBuiltInSkills` | 启动时把 DotCraft 自带的 skill（如 `dotcraft-guide`）部署进工作区。自带 skill 的宿主可以关掉它。重启后生效 | `true` |

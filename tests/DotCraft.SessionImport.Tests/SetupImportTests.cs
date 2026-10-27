@@ -94,6 +94,16 @@ public sealed class SetupImportTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceSharedSkillsAreCurrentOnlyWhileSharedSkillsAreOn()
+    {
+        Write(_workspace, ".agents/skills/lint/SKILL.md", "---\nname: lint\ndescription: Lint\n---\nLint.");
+        Assert.Equal("current", Assert.Single(await Candidates(Service(), "codex")).State);
+
+        Write(_data, "config.json", "{\"Skills\":{\"IncludeSharedSkills\":false}}");
+        Assert.Equal("new", Assert.Single(await Candidates(Service(), "codex")).State);
+    }
+
+    [Fact]
     public async Task McpMergePreservesOtherConfigAndEnvironmentReferences()
     {
         Write(_user, "config.json", "{\"Model\":\"unchanged\",\"McpServers\":{\"existing\":{\"Command\":\"original\"}}}");

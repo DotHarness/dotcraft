@@ -1490,7 +1490,7 @@ export const MESSAGES_DE = {
     'Die Skill-Einstellungen wurden gespeichert. Starten Sie den Remote-AppServer neu, um sie anzuwenden.',
   'settings.personalization.sharedSkills': 'Geteilte Skills verwenden',
   'settings.personalization.sharedSkillsHint':
-    'Lädt persönliche Skills auch aus ~/.agents/skills, dem von anderen Agent-Tools geteilten Ordner.',
+    'Lädt Skills aus den .agents-Ordnern in deinem Benutzerordner und Arbeitsbereich.',
   'settings.personalization.sharedSkillsSaveFailed': 'Einstellung für geteilte Skills konnte nicht gespeichert werden: {{error}}',
   'settings.personalization.dreams': 'Träume',
   'settings.personalization.dreamsHint': 'Ordnet Erinnerungen im Hintergrund',

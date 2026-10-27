@@ -1490,7 +1490,7 @@ export const MESSAGES_JA = {
     'スキル設定は保存されました。適用するにはリモート AppServer を再起動してください。',
   'settings.personalization.sharedSkills': '共有スキルを使用する',
   'settings.personalization.sharedSkillsHint':
-    '他のエージェントツールと共用する ~/.agents/skills からも個人スキルを読み込みます。',
+    'ホームフォルダとワークスペースの .agents フォルダにあるスキルを読み込みます。',
   'settings.personalization.sharedSkillsSaveFailed': '共有スキル設定の保存に失敗しました: {{error}}',
   'settings.personalization.dreams': '夢',
   'settings.personalization.dreamsHint': 'バックグラウンドでメモリを整理します',

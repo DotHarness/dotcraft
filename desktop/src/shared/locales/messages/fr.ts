@@ -1490,7 +1490,7 @@ export const MESSAGES_FR = {
     'Les réglages de skills sont enregistrés. Redémarrez l\'AppServer distant pour les appliquer.',
   'settings.personalization.sharedSkills': 'Utiliser les skills partagées',
   'settings.personalization.sharedSkillsHint':
-    'Charge aussi les skills personnelles depuis ~/.agents/skills, le dossier partagé avec les autres outils d\'agent.',
+    'Charge les skills des dossiers .agents de votre dossier personnel et de l’espace de travail.',
   'settings.personalization.sharedSkillsSaveFailed': 'Impossible d\'enregistrer le réglage des skills partagées : {{error}}',
   'settings.personalization.dreams': 'Rêves',
   'settings.personalization.dreamsHint': 'Organise les mémoires en arrière-plan',

@@ -1490,7 +1490,7 @@ export const MESSAGES_KO = {
     '스킬 설정이 저장되었습니다. 적용하려면 원격 AppServer을(를) 다시 시작하세요.',
   'settings.personalization.sharedSkills': '공유 스킬 사용',
   'settings.personalization.sharedSkillsHint':
-    '다른 에이전트 도구와 공유하는 ~/.agents/skills 에서도 개인 스킬을 불러옵니다.',
+    '홈 폴더와 워크스페이스의 .agents 폴더에 있는 스킬을 불러옵니다.',
   'settings.personalization.sharedSkillsSaveFailed': '공유 스킬 설정 저장 실패: {{error}}',
   'settings.personalization.dreams': '꿈',
   'settings.personalization.dreamsHint': '백그라운드에서 메모리를 정리합니다',
