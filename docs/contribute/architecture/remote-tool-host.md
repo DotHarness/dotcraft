@@ -37,7 +37,7 @@ dotcraft tool-host join http://ann-pc:47600/i/inv_x1y2z3 --workspace C:\workspac
 dotcraft tool-host serve
 ```
 
-`join` stores a long-lived credential in `~/.craft/remote-tool-host/credentials.json`, readable only by you, and prints the workspace id that Agents will use. `serve` keeps the control connection open and reconnects on its own after a Hub restart. To start it at sign-in:
+`join` stores a long-lived credential in `~/.craft/remote-tool-host/credentials/`, readable only by you, and prints the workspace id that Agents will use. `serve` keeps the control connection open and reconnects on its own after a Hub restart. To start it at sign-in:
 
 ```powershell
 dotcraft tool-host autostart install

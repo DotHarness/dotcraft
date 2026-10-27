@@ -523,7 +523,7 @@ consumes it.
 
 `join` accepts the invite URL, connects the control channel with the invite id, and receives the
 durable pairing: a `peerId` and a 256-bit random peer credential. The Host stores the raw credential
-in `credentials.json` beside `host.json`, a file only the current user can open, keyed by `peerId`;
+in its own file under `credentials/` beside `host.json`, which only the current user can open;
 `host.json` never holds a credential. The Hub stores only the credential hash. Every later control
 or data connection presents the peer credential as a bearer credential. There is exactly one shared
 secret per pairing, and deleting the Host state directory deletes every credential it held.
@@ -544,7 +544,7 @@ Hub removes its own peer record, then deletes the local peer record and credenti
 connection; a Host that was already offline leaves the Hub's record until the Agent side revokes it.
 
 Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, display name,
-workspaces, tool policies, peer records, catalog revision), `credentials.json`, `serve.lock`,
+workspaces, tool policies, peer records, catalog revision), `credentials/`, `serve.lock`,
 `artifacts/`, `workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is
 stored. The broker owns its pairing registry independently of this Host state.
 

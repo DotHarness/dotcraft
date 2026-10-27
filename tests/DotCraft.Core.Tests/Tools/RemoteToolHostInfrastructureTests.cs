@@ -143,7 +143,7 @@ public sealed class RemoteToolHostInfrastructureTests
 
         var remaining = Assert.Single(storage.LoadHostState()!.Peers);
         Assert.Equal("sat_beta", remaining.PeerId);
-        Assert.False(storage.LoadCredentials().ContainsKey("sat_alpha"));
+        Assert.Throws<RemoteToolHostException>(() => storage.GetPeerCredential(NewPeer("sat_alpha")));
         Assert.Equal("credential-beta", storage.GetPeerCredential(remaining));
     }
 

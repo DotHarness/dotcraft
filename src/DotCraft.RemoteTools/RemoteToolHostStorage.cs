@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,7 +24,7 @@ internal sealed class RemoteToolHostStorage
     public string GlobalConfigPath => Path.Combine(CraftHomePath, "config.json");
     public string RootPath => _root;
     public string HostStatePath => Path.Combine(_root, "host.json");
-    public string CredentialsPath => Path.Combine(_root, "credentials.json");
+    public string CredentialsPath => Path.Combine(_root, "credentials");
     public string ServeLockPath => Path.Combine(_root, "serve.lock");
     public string ArtifactsRootPath => Path.Combine(_root, "artifacts");
 
@@ -51,7 +50,7 @@ internal sealed class RemoteToolHostStorage
             ?? throw new RemoteToolHostException(
                 Tools.RemoteToolErrorCodes.HostNotRegistered,
                 "Remote Tool Host is not set up.");
-        SaveCredentials(LoadCredentials().SetItem(peer.PeerId, rawCredential));
+        Write(CredentialPath(peer.PeerId), rawCredential, OwnerOnlyFile.Create);
         SaveHostState(state with
         {
             Peers =
@@ -70,7 +69,7 @@ internal sealed class RemoteToolHostStorage
             item => string.Equals(item.PeerId, peerId, StringComparison.Ordinal));
         if (state is null || peer is null)
             return false;
-        SaveCredentials(LoadCredentials().Remove(peerId));
+        File.Delete(CredentialPath(peerId));
         SaveHostState(state with
         {
             Peers = [.. state.Peers.Where(item => !ReferenceEquals(item, peer))]
@@ -79,16 +78,14 @@ internal sealed class RemoteToolHostStorage
     }
 
     public string GetPeerCredential(RemoteToolHubPeer peer) =>
-        LoadCredentials().GetValueOrDefault(peer.PeerId)
+        Read<string>(CredentialPath(peer.PeerId))
         ?? throw new RemoteToolHostException(
             Tools.RemoteToolErrorCodes.AuthenticationFailed,
             $"The credential for pairing '{peer.PeerId}' is missing from {CredentialsPath}.");
 
-    public ImmutableDictionary<string, string> LoadCredentials() =>
-        Read<ImmutableDictionary<string, string>>(CredentialsPath) ?? ImmutableDictionary<string, string>.Empty;
-
-    private void SaveCredentials(ImmutableDictionary<string, string> credentials) =>
-        Write(CredentialsPath, credentials, OwnerOnlyFile.Create);
+    private string CredentialPath(string peerId) => Path.Combine(
+        CredentialsPath,
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(peerId))).ToLowerInvariant());
 
     private T? Read<T>(string path)
     {
@@ -99,7 +96,7 @@ internal sealed class RemoteToolHostStorage
 
     private void Write<T>(string path, T value, Func<string, FileStream>? create = null)
     {
-        Directory.CreateDirectory(_root);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var tempPath = path + ".tmp." + Guid.NewGuid().ToString("N");
         try
         {

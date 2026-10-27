@@ -31,10 +31,10 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         Assert.Equal(peer.PeerId, stored.PeerId);
         Assert.Equal("Ann", peer.DisplayName);
         Assert.Equal(workspacePath, peer.WorkspacePath);
-        var credential = Assert.Single(storage.LoadCredentials());
-        Assert.Equal(stored.PeerId, credential.Key);
+        Assert.Single(Directory.GetFiles(storage.CredentialsPath));
+        var credential = storage.GetPeerCredential(stored);
         var hostJson = await File.ReadAllTextAsync(storage.HostStatePath);
-        Assert.DoesNotContain(credential.Value, hostJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(credential, hostJson, StringComparison.Ordinal);
         Assert.DoesNotContain(invite.InviteId, hostJson, StringComparison.Ordinal);
 
         var listed = Assert.Single(await hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites"));
@@ -47,7 +47,8 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
         var workspacePath = Directory.CreateDirectory(Path.Combine(_userProfile, "workspace")).FullName;
         var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
-        Directory.CreateDirectory(storage.CredentialsPath);
+        Directory.CreateDirectory(storage.RootPath);
+        await File.WriteAllTextAsync(storage.CredentialsPath, string.Empty);
         await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
         var invite = await hub.CreateInviteAsync("Ann");
 
@@ -77,7 +78,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         Assert.NotEqual(a.PeerId, b.PeerId);
         Assert.NotEqual(a.AuthorizationMode, b.AuthorizationMode);
         Assert.Single(storage.LoadHostState()!.Workspaces);
-        Assert.Equal(2, storage.LoadCredentials().Count);
+        Assert.Equal(2, Directory.GetFiles(storage.CredentialsPath).Length);
     }
 
     [Fact]
@@ -132,14 +133,14 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     public async Task PeerConnector_OnRevoked_DeletesLocalPairingAndCredential()
     {
         await using var scenario = await SatelliteScenario.StartAsync(_userProfile);
-        Assert.Single(scenario.Storage.LoadCredentials());
+        Assert.Single(Directory.GetFiles(scenario.Storage.CredentialsPath));
 
         var response = await scenario.Hub.DeleteAsync($"/v1/satellites/{scenario.PeerId}");
         response.EnsureSuccessStatusCode();
         await scenario.Running.WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(scenario.Storage.LoadCredentials());
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
         Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
     }
 
@@ -153,7 +154,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
             (await scenario.Hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Length == 0);
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(scenario.Storage.LoadCredentials());
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await scenario.Runtime.RunAsync().WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Empty(scenario.Storage.LoadHostState()!.Peers);
-        Assert.Empty(scenario.Storage.LoadCredentials());
+        Assert.Empty(Directory.GetFiles(scenario.Storage.CredentialsPath));
         Assert.Equal(RemoteToolHostStatus.Offline, scenario.Runtime.Status);
     }
 
@@ -203,7 +204,7 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
 
         Assert.False(running.IsCompleted);
         Assert.Single(storage.LoadHostState()!.Peers);
-        Assert.Single(storage.LoadCredentials());
+        Assert.Single(Directory.GetFiles(storage.CredentialsPath));
     }
 
     public void Dispose()
