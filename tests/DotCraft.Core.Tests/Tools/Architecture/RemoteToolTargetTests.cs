@@ -25,24 +25,6 @@ public sealed partial class RemoteToolHostCoreTests
         Assert.Equal("local", result.Meta!.Value.GetProperty("executionTarget").GetString());
     }
 
-    [Theory]
-    [InlineData("/root/worker", 1, 0)]
-    [InlineData("run_20261017000000000_abcdef", 1, 0)]
-    [InlineData("term_3f9a1c2b7d10", 0, 1)]
-    public async Task TaskStop_follows_the_route_only_for_shell_tasks(string taskId, int localCalls, int remoteCalls)
-    {
-        var definition = Definition("stop", """{"type":"object","properties":{"taskId":{"type":"string"}}}""", name: "TaskStop");
-        var local = new TargetRecordingRuntime();
-        var client = new FakeRemoteClient();
-        client.SetRoute("thread-1");
-        var runtime = new RemoteRoutableToolRuntime(definition, local, client);
-
-        await runtime.InvokeAsync(Invocation(definition), new JsonObject { ["taskId"] = taskId });
-
-        Assert.Equal(localCalls, local.Arguments is null ? 0 : 1);
-        Assert.Equal(remoteCalls, client.RemoteCalls);
-    }
-
     [Fact]
     public async Task Captured_remote_route_does_not_fall_back_after_disconnect()
     {

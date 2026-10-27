@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using DotCraft.Sessions;
+using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.RemoteTools;
 
@@ -21,6 +22,8 @@ internal static class RemoteToolHostProtocol
     public const string ExecutionThreadRelease = "dotcraft/remoteToolHost/executionThreads/release";
     public const string ExecutionThreadTurn = "dotcraft/remoteToolHost/executionThreads/turn";
     public const string WorkspacesHeartbeat = "dotcraft/remoteToolHost/workspaces/heartbeat";
+    public const string TerminalsStop = "dotcraft/remoteToolHost/terminals/stop";
+    public const string TerminalsEvent = "dotcraft/remoteToolHost/terminals/event";
 
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -142,6 +145,8 @@ internal sealed record WorkspaceLeaseRequest(
     string WorkspaceId);
 internal sealed record WorkspaceHeartbeatResponse(DateTimeOffset ExpiresAt);
 internal sealed record ExecutionTurnReport(string LeaseId, string WorkspaceId, string ThreadId, string TurnId, string Status);
+internal sealed record RemoteTerminalStopRequest(string LeaseId, string WorkspaceId, string ThreadId, string SessionId);
+internal sealed record RemoteTerminalEvent(string LeaseId, string WorkspaceId, string EventType, BackgroundTerminalSnapshot Terminal);
 internal sealed record ExtensionError(string Code, string Message);
 internal sealed record ExtensionResponse<T>(bool Success, T? Result, ExtensionError? Error);
 

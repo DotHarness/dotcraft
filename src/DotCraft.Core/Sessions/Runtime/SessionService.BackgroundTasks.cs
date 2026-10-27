@@ -51,40 +51,45 @@ public sealed partial class SessionService
 
         public async Task<BackgroundTask?> FindAsync(BackgroundTaskCaller caller, string taskId, CancellationToken ct)
         {
-            if (owner.BackgroundTerminalService is not { } terminals)
-                return null;
-            BackgroundTerminalSnapshot terminal;
-            try
+            var terminal = FindRemote(caller.Thread.Id, taskId);
+            if (terminal is null && owner.BackgroundTerminalService is { } terminals)
             {
-                terminal = await terminals.ReadAsync(taskId, maxOutputChars: 0, ct: ct).ConfigureAwait(false);
+                try
+                {
+                    terminal = await terminals.ReadAsync(taskId, maxOutputChars: 0, ct: ct).ConfigureAwait(false);
+                }
+                catch (KeyNotFoundException)
+                {
+                }
             }
-            catch (KeyNotFoundException)
-            {
+            if (terminal is null || !string.Equals(terminal.ThreadId, caller.Thread.Id, StringComparison.Ordinal))
                 return null;
-            }
-            if (!string.Equals(terminal.ThreadId, caller.Thread.Id, StringComparison.Ordinal))
-                return null;
-
-            return BackgroundTaskTools.ToTask(
-                terminal,
-                terminal.Status == BackgroundTerminalStatus.Running
-                    ? owner._terminalStopLatches.GetOrAdd(terminal.SessionId, static _ => new BackgroundTaskLatch())
-                    : null);
+            return ToTask(terminal);
         }
 
         public async Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct)
         {
-            if (owner.BackgroundTerminalService is not { } terminals)
-                return [];
-            var listed = await terminals.ListAsync(caller.Thread.Id, ct).ConfigureAwait(false);
-            return listed.Select(terminal => BackgroundTaskTools.ToTask(
-                terminal,
-                terminal.Status == BackgroundTerminalStatus.Running
-                    ? owner._terminalStopLatches.GetOrAdd(terminal.SessionId, static _ => new BackgroundTaskLatch())
-                    : null)).ToArray();
+            IReadOnlyList<BackgroundTerminalSnapshot> listed = owner.BackgroundTerminalService is { } terminals
+                ? await terminals.ListAsync(caller.Thread.Id, ct).ConfigureAwait(false)
+                : [];
+            var remote = owner.AgentFactory.RemoteToolHostClient?.ListTerminals(caller.Thread.Id) ?? [];
+            return listed.Concat(remote).Select(ToTask).ToArray();
         }
 
         public Task StopAsync(BackgroundTask task, CancellationToken ct) =>
-            owner.BackgroundTerminalService!.StopAsync(task.TaskId, ct);
+            FindRemote(task.OwnerThreadId, task.TaskId) is not null
+                ? owner.AgentFactory.RemoteToolHostClient!.StopTerminalAsync(task.OwnerThreadId, task.TaskId, ct).AsTask()
+                : owner.BackgroundTerminalService!.StopAsync(task.TaskId, ct);
+
+        private BackgroundTerminalSnapshot? FindRemote(string threadId, string taskId) =>
+            owner.AgentFactory.RemoteToolHostClient?.ListTerminals(threadId)
+                .FirstOrDefault(terminal => string.Equals(terminal.SessionId, taskId, StringComparison.Ordinal));
+
+        private BackgroundTask ToTask(BackgroundTerminalSnapshot terminal) =>
+            BackgroundTaskTools.ToTask(
+                terminal,
+                terminal.Status == BackgroundTerminalStatus.Running
+                    ? owner._terminalStopLatches.GetOrAdd(terminal.SessionId, static _ => new BackgroundTaskLatch())
+                    : null);
     }
 }

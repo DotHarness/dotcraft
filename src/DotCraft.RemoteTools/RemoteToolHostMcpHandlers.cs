@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
@@ -41,6 +42,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         Raw(RemotePluginProtocol.Abort, (request, ct) => AbortPluginsAsync(request, peerId, ct)),
         Raw(RemoteToolHostProtocol.ExecutionThreadRelease, (request, ct) => ReleaseExecutionThreadAsync(request, peerId, ct)),
         Raw(RemoteToolHostProtocol.ExecutionThreadTurn, (request, ct) => ReportTurn(request, peerId, ct)),
+        Raw(RemoteToolHostProtocol.TerminalsStop, (request, ct) => StopTerminalAsync(request, peerId, ct)),
         Raw(RemotePluginProtocol.ReleaseThread, (request, ct) => ReleasePluginThreadAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Open, (request, ct) => OpenFileTransferAsync(request, peerId, ct)),
         Raw(RemoteFileTransferProtocol.Read, (request, ct) => FileTransferPartAsync(request, peerId, RemoteFileTransferProtocol.Read, ct)),
@@ -130,7 +132,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 workspacePath,
                 state,
                 cancellationToken).ConfigureAwait(false);
-            using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, invocation.ThreadId);
+            var startedTerminals = new List<BackgroundTerminalSnapshot>();
+            using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, invocation.ThreadId, startedTerminals);
             var registration = invocation.PreparedBinding is not null
                 ? runtime.Plugins.Resolve(invocation)
                 : runtime.Registrations.FirstOrDefault(item =>
@@ -156,7 +159,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             var toolName = registration.Definition.Name.ToString();
             using var activity = _activity?.Begin(peerId, toolName, ReadCommandPreview(request.Params.Arguments));
             _activity?.CountCall(SessionId, invocation.ThreadId, invocation.TurnId);
-            await RequireBoundTerminalAsync(toolName, request.Params.Arguments, invocation, runtime, cancellationToken).ConfigureAwait(false);
+            RequireBoundTerminal(toolName, request.Params.Arguments, invocation);
             var approval = new HostInvocationApprovalService.Invocation(
                 peer, invocation.InvocationId, workspacePath, _approvalPresenter, cancellationToken);
             using var approvalScope = HostInvocationApprovalService.Begin(approval);
@@ -179,9 +182,6 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                         : "remoteToolHost",
                     invocation.InvocationId),
                 workspacePath);
-            var terminalsBeforeExec = string.Equals(toolName, "Exec", StringComparison.Ordinal)
-                ? await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false)
-                : null;
             var policy = new HostDispatchPolicy(this, state, peer, invocation, approval, runtime);
             var dispatcher = new ToolDispatcher(policyEvaluator: policy, approvalEvaluator: policy,
                 resultNormalizer: new DefaultToolResultNormalizer(maxModelContentCharacters: 0), logger: _host.Logger);
@@ -189,13 +189,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             var result = await dispatcher.DispatchAsync(snapshot, registration.Definition.Name, arguments,
                 new(context.ThreadId, context.TurnId, context.CallId, context.Audience, context.Origin, workspacePath),
                 cancellationToken).ConfigureAwait(false);
-            if (terminalsBeforeExec is not null)
-            {
-                var current = await SnapshotTerminalIdsAsync(runtime, cancellationToken).ConfigureAwait(false);
-                _leaseTerminals.Bind(
-                    invocation.LeaseId,
-                    current.Where(sessionId => !terminalsBeforeExec.Contains(sessionId)));
-            }
+            BackgroundTerminalSnapshot[] terminals = [.. startedTerminals.Select(terminal => terminal with { Output = string.Empty })];
+            _leaseTerminals.Bind(invocation.LeaseId, terminals.Select(terminal => terminal.SessionId));
             var materialized = RemoteToolArtifactStore.Materialize(
                 ArtifactRoot,
                 invocation,
@@ -208,7 +203,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 result.Error?.Code ?? "ok",
                 started,
                 cancelled: false);
-            return ToMcpResult(result, invocation, started, materialized.Artifact);
+            return ToMcpResult(result, invocation, started, materialized.Artifact, startedTerminals: terminals);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -364,6 +359,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 else
                 {
                     _runtime = runtime;
+                    runtime.Terminals.Reported += PublishTerminalEvent;
                 }
             });
         }
@@ -426,47 +422,23 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         return command.Length <= 120 ? command : command[..120];
     }
 
-    private async Task RequireBoundTerminalAsync(
+    private void RequireBoundTerminal(
         string toolName,
         IDictionary<string, JsonElement>? arguments,
-        RemoteInvocationMeta invocation,
-        HostWorkspaceRuntime runtime,
-        CancellationToken ct)
+        RemoteInvocationMeta invocation)
     {
-        var argumentName = toolName switch
-        {
-            "WriteStdin" => "sessionId",
-            "TaskStop" => "taskId",
-            _ => null
-        };
-        if (argumentName is null)
+        if (toolName != "WriteStdin")
             return;
         var sessionId = arguments is not null
-            && arguments.TryGetValue(argumentName, out var value)
+            && arguments.TryGetValue("sessionId", out var value)
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
         if (sessionId is null || !_leaseTerminals.IsBound(invocation.LeaseId, sessionId))
             throw new RemoteToolHostException(
                 RemoteToolErrorCodes.RemotePolicyDenied,
-                $"{toolName} accepts only background terminals created by an approved Exec in this lease.",
+                "WriteStdin accepts only background terminals created by an approved Exec in this lease.",
                 invocation.InvocationId);
-        if (toolName != "TaskStop")
-            return;
-        var terminal = await runtime.Terminals.ReadAsync(sessionId, maxOutputChars: 0, ct: ct).ConfigureAwait(false);
-        if (!string.Equals(terminal.ThreadId, invocation.ThreadId, StringComparison.Ordinal))
-            throw new RemoteToolHostException(
-                RemoteToolErrorCodes.RemotePolicyDenied,
-                "TaskStop accepts only background terminals started by the calling thread.",
-                invocation.InvocationId);
-    }
-
-    private static async Task<IReadOnlyCollection<string>> SnapshotTerminalIdsAsync(
-        HostWorkspaceRuntime runtime,
-        CancellationToken cancellationToken)
-    {
-        var terminals = await runtime.Terminals.ListAsync(ct: cancellationToken).ConfigureAwait(false);
-        return terminals.Select(terminal => terminal.SessionId).ToHashSet(StringComparer.Ordinal);
     }
 
     private static Tool ToMcpTool(ToolRegistration registration, RemoteToolHostState state)
@@ -495,7 +467,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         ToolExecutionResult result,
         RemoteInvocationMeta invocation,
         DateTimeOffset started,
-        RemoteToolArtifactMeta? artifact)
+        RemoteToolArtifactMeta? artifact,
+        IReadOnlyList<BackgroundTerminalSnapshot> startedTerminals)
     {
         var response = new CallToolResult
         {
@@ -507,7 +480,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 invocation.InvocationId,
                 started,
                 result.Error?.Message,
-                artifact)
+                artifact,
+                startedTerminals)
         };
         return response;
     }
@@ -555,7 +529,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         string? invocationId,
         DateTimeOffset started,
         string? diagnostic,
-        RemoteToolArtifactMeta? artifact = null)
+        RemoteToolArtifactMeta? artifact = null,
+        IReadOnlyList<BackgroundTerminalSnapshot>? startedTerminals = null)
     {
         var dotcraft = new JsonObject
         {
@@ -570,6 +545,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             dotcraft["remoteArtifact"] = JsonSerializer.SerializeToNode(
                 artifact,
                 RemoteToolHostProtocol.JsonOptions);
+        if (startedTerminals is { Count: > 0 })
+            dotcraft["terminals"] = JsonSerializer.SerializeToNode(startedTerminals, RemoteToolHostProtocol.JsonOptions);
         return new JsonObject { ["dotcraft"] = dotcraft };
     }
 

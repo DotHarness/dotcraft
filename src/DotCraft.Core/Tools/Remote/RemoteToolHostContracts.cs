@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Sessions;
+using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.Tools;
 
@@ -125,6 +126,16 @@ public interface IRemoteToolHostClient
     /// route-aware surface subscribes to; subscriber exceptions never fail the originating operation.
     /// </summary>
     event Action<RemoteToolRouteChange>? RouteChanged;
+
+    /// <summary>Raised with the completion and stall notices of background terminals that Exec started on a route.</summary>
+    event Action<BackgroundTerminalEvent>? TerminalEvent;
+
+    /// <summary>Lists the background terminals a thread started on its routes, without network work.</summary>
+    IReadOnlyList<BackgroundTerminalSnapshot> ListTerminals(string threadId);
+
+    /// <summary>Stops one of the thread's remote background terminals and returns its settled snapshot.</summary>
+    ValueTask<BackgroundTerminalSnapshot> StopTerminalAsync(string threadId, string sessionId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Publishes one thread's final tool snapshot without performing network work.</summary>
     void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode);

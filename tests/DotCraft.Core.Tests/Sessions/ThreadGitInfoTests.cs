@@ -162,6 +162,10 @@ public sealed class ThreadGitInfoTests : IDisposable
     private sealed class UnroutedRemoteClient : IRemoteToolHostClient
     {
         public event Action<RemoteToolRouteChange>? RouteChanged { add { } remove { } }
+        public event Action<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalEvent>? TerminalEvent { add { } remove { } }
+        public IReadOnlyList<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> ListTerminals(string threadId) => [];
+        public ValueTask<DotCraft.Tools.BackgroundTerminals.BackgroundTerminalSnapshot> StopTerminalAsync(string threadId, string sessionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) { }
 

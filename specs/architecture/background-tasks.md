@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-27 |
 | **Parent Specs** | [Session Core](session-core.md), [Tool Architecture](tools-architecture.md) |
-| **Related Specs** | [Prompt Cache](prompt-cache.md) |
+| **Related Specs** | [Prompt Cache](prompt-cache.md), [Remote Tool Host](remote-tool-host.md) |
 
 Purpose: define one model-facing task model for work that keeps running after the tool call that
 started it: background terminals, SubAgents, and Dynamic Workflows. The model stops any of them with
@@ -28,7 +28,7 @@ its own execution runtime, persistence, and client protocol.
 - A shared task id format. Each kind uses its own id.
 - A unified AppServer `task/*` protocol. `terminal/*`, `subagent/*`, and `workflow/run/*` are the
   client contracts.
-- Line-level output monitoring (a Monitor tool) and notifications for Remote Tool Host terminals.
+- Line-level output monitoring (a Monitor tool).
 - The shared discussion board and agent-to-agent `MESSAGE` delivery.
 
 ## 3. Task model
@@ -56,6 +56,12 @@ Because records are read from each runtime's own durable state, they follow its 
 left `running` after a host restart read as `lost`, Workflow runs left `running` as `interrupted`, and
 open SubAgent edges with their latest Turn state.
 
+A shell task that `Exec` started on the Thread's Remote Tool Host route is a shell task of that Thread
+like a local one: the registry lists, finds, and stops it, and it notifies its owner through the same
+path. Its record comes from the Remote Tool Host client, which keeps the terminals the Host reported for
+the route's execution session (see [Remote Tool Host](remote-tool-host.md#54-background-terminals)), and
+its output location is a path on the remote machine.
+
 `TaskStop` and notifications resolve a task id by its shape: `term_` ids are shells, `run_` ids are
 Workflows, and paths, absolute or relative to the caller's Agent path as `SendMessage` targets are,
 are Agents. An id that matches no task the caller owns is an error.
@@ -75,7 +81,7 @@ tools.
 ```
 
 - A `shell` task: stops the process tree, including a terminal on the Thread's Remote Tool Host
-  route. Interactive stdin is not required.
+  route, which Session Core stops through the Remote Tool Host client. Interactive stdin is not required.
 - An `agent` task: cancels the child's active Turn and leaves the child open, so a later
   `SendMessage` continues it with its stored configuration. Its slot stays occupied until the
   existing eviction of the oldest idle child frees it.
@@ -135,6 +141,10 @@ exactly one notification to its owner, unless the task is already `notified`:
 - the model received the final status through a tool result (`Exec`, `WriteStdin`, `TaskStop`);
 - a host shutdown ended it;
 - a Workflow child with silent completion ended, because its run consumes the result.
+
+A remote shell task notifies even when its outcome cannot be observed: when the route's execution
+session is lost it ends as `lost`, and when its Thread's route is released (disconnect or switch) it
+ends as `killed`, because the Host stops it. Agent Host teardown counts as a host shutdown.
 
 A client stop (`terminal/stop`, `turn/interrupt` on a SubAgent child, `subagent/close`,
 `workflow/run/stop`) still notifies and records the stop origin as `user`. A stop requested through

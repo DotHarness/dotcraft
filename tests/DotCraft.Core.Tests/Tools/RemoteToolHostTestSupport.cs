@@ -201,6 +201,7 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
 #pragma warning restore MCPEXP002
             await using var transport = new StreamServerTransport(stream, stream, RemoteToolHostServerOptions.ServerName, loggerFactory: null);
             await using var server = McpServer.Create(transport, options, loggerFactory: null, serviceProvider: null);
+            handlers.AttachServer(server);
             await server.RunAsync(_shutdown.Token);
         }
         catch (Exception)
