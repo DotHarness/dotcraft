@@ -35,7 +35,8 @@ import { ToolDisclosure } from './ToolDisclosure'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
-import { getSubAgentChipDisplay } from './SubAgentChips'
+import { getSubAgentChipDisplay, SubAgentEndingChips } from './SubAgentChips'
+import { isMidTurnSubAgentEnding, subAgentEndingInterrupted } from '../../utils/subAgentEndings'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
@@ -202,6 +203,20 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           key: item.id,
           kind: 'tool',
           node: <ImageGenerationEntry item={item} />
+        })
+      } else if (isMidTurnSubAgentEnding(item)) {
+        const endings = [item]
+        while (
+          i + 1 < itemsToRender.length
+          && isMidTurnSubAgentEnding(itemsToRender[i + 1])
+          && subAgentEndingInterrupted(itemsToRender[i + 1]) === subAgentEndingInterrupted(item)
+        ) {
+          endings.push(itemsToRender[++i])
+        }
+        nodes.push({
+          key: `subagent-endings-${item.id}`,
+          kind: 'tool',
+          node: <SubAgentEndingChips items={endings} parentThreadId={turn.threadId} />
         })
       } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance') {
         nodes.push({
@@ -748,7 +763,7 @@ function isGuidanceUserMessage(item: ConversationItem): boolean {
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
-  if (isMidTurnTaskNotice(item)) return false
+  if (isMidTurnTaskNotice(item) && !isMidTurnSubAgentEnding(item)) return false
   if (isCodeModeExecItem(item)) return false
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
   const plan = resolveCoreFallbackPlan(item)

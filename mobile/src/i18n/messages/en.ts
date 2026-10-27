@@ -113,6 +113,8 @@ export const MESSAGES_EN = {
   'tool.stoppingAgent.generic': 'Stopping subagent',
   'tool.stoppingWorkflow': 'Stopping workflow {{subject}}',
   'tool.stoppingWorkflow.generic': 'Stopping workflow',
+  'tool.agentFinished': '{{subject}} finished',
+  'tool.agentInterrupted': '{{subject}} was interrupted',
   'tool.interactiveContent': 'interactive content',
   'tool.running': 'Running command…',
   'tool.editing': 'Editing file…',

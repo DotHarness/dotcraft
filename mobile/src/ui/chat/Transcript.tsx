@@ -62,6 +62,8 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   stoppingShell: 'tool.stoppingShell',
   stoppingAgent: 'tool.stoppingAgent',
   stoppingWorkflow: 'tool.stoppingWorkflow',
+  agentFinished: 'tool.agentFinished',
+  agentInterrupted: 'tool.agentInterrupted',
 }
 
 const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {

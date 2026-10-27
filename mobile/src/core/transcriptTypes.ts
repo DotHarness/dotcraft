@@ -22,6 +22,8 @@ export type ToolVerb =
   | 'stoppingShell'
   | 'stoppingAgent'
   | 'stoppingWorkflow'
+  | 'agentFinished'
+  | 'agentInterrupted'
 
 export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'other'
 

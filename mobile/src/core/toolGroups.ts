@@ -18,6 +18,8 @@ const OWN_ROW_VERBS = new Set<ToolVerb>([
   'stoppingShell',
   'stoppingAgent',
   'stoppingWorkflow',
+  'agentFinished',
+  'agentInterrupted',
 ])
 
 function groupKind(item: ToolEntry): GroupKind {

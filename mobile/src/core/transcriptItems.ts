@@ -1,6 +1,6 @@
 import { isComplete, type HistoryItem, type HistoryTurn } from './history'
 import { dividerOf, failureEntry, originOf, threadActionOf } from './timelineMarkers'
-import { baseName, entryId, imageUri, planEntry, str, toolEntry } from './transcriptTools'
+import { baseName, entryId, imageUri, planEntry, str, subagentEndingEntry, toolEntry } from './transcriptTools'
 import type { NoticeKind, TaskWake, TranscriptEntry } from './transcriptTypes'
 import { userImages, userSegments } from './userSegments'
 
@@ -96,7 +96,11 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
       const mode = str(payload.deliveryMode)
       const trigger = str(payload.triggerKind)
       if (trigger === 'terminal' || trigger === 'subagent' || (trigger === 'workflow' && !!str(payload.triggerStatus))) {
-        return mode === 'guidance' ? {} : { wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: str(payload.triggerStatus) || null } }
+        if (mode === 'guidance') {
+          const ending = trigger === 'subagent' ? subagentEndingEntry(item) : null
+          return ending ? { entry: ending } : {}
+        }
+        return { wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: str(payload.triggerStatus) || null } }
       }
       if (mode === 'subagentMailbox') return {}
       const text = str(payload.text)

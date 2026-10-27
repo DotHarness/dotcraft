@@ -115,6 +115,8 @@ export const MESSAGES_JA: Catalog = {
   'tool.stoppingAgent.generic': 'サブエージェントを停止中',
   'tool.stoppingWorkflow': 'ワークフロー {{subject}} を停止中',
   'tool.stoppingWorkflow.generic': 'ワークフローを停止中',
+  'tool.agentFinished': '{{subject}}が作業を完了しました',
+  'tool.agentInterrupted': '{{subject}}が中断されました',
   'tool.interactiveContent': 'インタラクティブコンテンツ',
   'tool.running': 'コマンドを実行中…',
   'tool.editing': 'ファイルを編集中…',

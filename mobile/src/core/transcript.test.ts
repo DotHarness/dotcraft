@@ -158,6 +158,25 @@ describe('turn layout', () => {
     expect(buildTranscript(history(guided, 'completed'))).toMatchObject([{ kind: 'user' }, { kind: 'activity', origin: null }, { kind: 'assistant' }])
   })
 
+  it('marks where a running turn learned that a subagent ended, and nothing for other drained notices', () => {
+    const notice = (triggerKind: string, triggerLabel: string, triggerStatus: string) =>
+      item('userMessage', { text: 'Ended', deliveryMode: 'guidance', triggerKind, triggerLabel, triggerRefId: `/root/${triggerLabel}`, triggerStatus })
+    const items = [
+      item('userMessage', { text: 'Review in parallel' }),
+      ...read('a.ts', 'r1'),
+      notice('subagent', 'reviewer', 'completed'),
+      notice('terminal', 'npm test', 'completed'),
+      ...read('b.ts', 'r2'),
+      notice('subagent', 'linter', 'failed'),
+    ]
+    const entries = tools(buildTranscript(history(items, 'running')))
+    expect(entries.filter((entry) => entry.icon === 'agent')).toMatchObject([
+      { verb: 'agentFinished', subject: 'reviewer', live: false },
+      { verb: 'agentInterrupted', subject: 'linter', live: false },
+    ])
+    expect(entries.map((entry) => entry.verb)).toEqual(['read', 'agentFinished', 'read', 'agentInterrupted'])
+  })
+
   it('names a command that kept running after its result as a background terminal once its turn ended', () => {
     const exec = (status: string) => [
       item('userMessage', { text: 'Start the server' }),

@@ -10,6 +10,7 @@ import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation, coreToolFields } from './testToolPresentation'
 import { installDesktopApiMock } from './desktopApiMock'
+import { makeSpawn } from './subAgentFixtures'
 
 vi.mock('../components/conversation/McpAppView', () => ({
   McpAppView: ({ item }: { item: ConversationItem }) => (
@@ -263,5 +264,37 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(screen.getByText('My Plan')).toBeInTheDocument()
     expect(container.querySelector('.interactive-tool-view__frame')).toBeNull()
     expect(screen.queryByText('Read main.ts')).toBeNull()
+  })
+})
+
+describe('AgentResponseBlock subagent endings', () => {
+  beforeEach(() => {
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest: vi.fn().mockResolvedValue({}) },
+      shell: { openExternal: vi.fn().mockResolvedValue(undefined) }
+    })
+    useThreadStore.setState({ activeThreadId: 'parent-B' })
+  })
+
+  it('shows an ending drained into the running turn as a way to open that subagent', () => {
+    const ending: ConversationItem = {
+      id: 'ending', type: 'userMessage', status: 'completed', deliveryMode: 'guidance', createdAt: '2026-09-02T00:05:00Z',
+      triggerKind: 'subagent', triggerLabel: 'Core', triggerRefId: '/root/review_core', triggerStatus: 'completed',
+      text: 'Subagent Core finished'
+    }
+    const turn: ConversationTurn = {
+      id: 'turn-endings', threadId: 'parent-B', status: 'running', startedAt: '2026-09-02T00:00:00Z',
+      items: [makeSpawn(), ending]
+    }
+    useConversationStore.setState({ turns: [turn] })
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} isRunning />
+      </LocaleProvider>
+    )
+
+    expect(screen.getAllByRole('button', { name: 'Open subagent Core' })).toHaveLength(2)
   })
 })

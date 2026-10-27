@@ -12,6 +12,8 @@ import { RobotAvatar } from '../agents/RobotAvatar'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginRegistry'
 import { isToolExecutionFailure, parseToolResultObject } from '../../utils/toolCallDisplay'
+import { useConversationStore } from '../../stores/conversationStore'
+import { collectSubAgentEndings, hasEndingAfter, subAgentEndingInterrupted } from '../../utils/subAgentEndings'
 
 const VISIBLE_CHIPS = 3
 const COLLAPSED_NAMES = 2
@@ -28,13 +30,18 @@ export interface SubAgentChipDisplay {
   pending: boolean
   failed: boolean
   resultStatus: string | null
+  createdAt?: string
 }
 
-interface ResolvedSubAgentChip extends SubAgentChipDisplay {
-  child: SubAgentChild | null
+interface ChipEntry {
+  id: string
+  callId?: string
+  name: string
+  prompt: string
+  childThreadId: string | null
 }
 
-type AgentState = 'running' | 'done' | 'failed' | 'unknown'
+type AgentState = 'running' | 'done' | 'failed' | 'unknown' | 'recorded'
 
 export function SubAgentChips({
   items,
@@ -45,9 +52,9 @@ export function SubAgentChips({
   parentThreadId: string
   turnRunning: boolean
 }): JSX.Element | null {
-  const t = useT()
-  const locale = useLocale()
   const [showAll, setShowAll] = useState(false)
+  const turns = useConversationStore((state) => state.turns)
+  const endings = useMemo(() => collectSubAgentEndings(turns, parentThreadId), [turns, parentThreadId])
   const parsedDisplays = useMemo(
     () => items.map(getSubAgentChipDisplay).filter((entry): entry is SubAgentChipDisplay => entry != null),
     [items]
@@ -69,34 +76,108 @@ export function SubAgentChips({
     return { ...display, name, child }
   })
   if (resolved.length === 0) return null
-  const states = resolved.map((display) => agentState(display, display.child, discovery, turnRunning))
+  const states = resolved.map((display) =>
+    hasEndingAfter(endings, display.agentPath ?? display.child?.agentPath, display.createdAt)
+      && !display.failed
+      ? 'recorded'
+      : agentState(display, display.child, discovery, turnRunning))
   const anyFailed = states.includes('failed')
   const allDone = states.every((state) => state === 'done')
   const anyRunning = states.includes('running')
-  const visible = !showAll && resolved.length > VISIBLE_CHIPS ? resolved.slice(0, COLLAPSED_NAMES) : resolved
-  const hidden = resolved.length - visible.length
+  const anyRecorded = states.includes('recorded')
+  const statusKey = statusMessageKey({ anyFailed, allDone, anyRunning, anyRecorded }, resolved.length)
+
+  return (
+    <ChipLine
+      testId="subagent-chips"
+      entries={resolved.map((display) => ({ ...display, childThreadId: display.child?.childThreadId ?? null }))}
+      statusKey={statusKey}
+      shimmer={!anyFailed && anyRunning}
+      parentThreadId={parentThreadId}
+      showAll={showAll}
+      onShowAll={() => setShowAll(true)}
+    />
+  )
+}
+
+export function SubAgentEndingChips({
+  items,
+  parentThreadId
+}: {
+  items: ConversationItem[]
+  parentThreadId: string
+}): JSX.Element | null {
+  const [showAll, setShowAll] = useState(false)
+  const { lookup } = useSubAgentLookup(parentThreadId, items.length > 0)
+  if (items.length === 0) return null
+  const entries = items.map((item): ChipEntry => {
+    const child = findSubAgentChild(lookup, null, item.triggerRefId ?? null, 'children')
+    return {
+      id: item.id,
+      name: child?.nickname ?? item.triggerLabel?.trim() ?? item.triggerRefId ?? '',
+      prompt: '',
+      childThreadId: child?.childThreadId ?? null
+    }
+  })
+  const form = items.length === 1 ? 'one' : 'other'
+  const statusKey = subAgentEndingInterrupted(items[0])
+    ? `subAgentChips.interrupted.${form}`
+    : `subAgentChips.finished.${form}`
+
+  return (
+    <ChipLine
+      testId="subagent-ending-chips"
+      entries={entries}
+      statusKey={statusKey}
+      shimmer={false}
+      parentThreadId={parentThreadId}
+      showAll={showAll}
+      onShowAll={() => setShowAll(true)}
+    />
+  )
+}
+
+function ChipLine({
+  testId,
+  entries,
+  statusKey,
+  shimmer,
+  parentThreadId,
+  showAll,
+  onShowAll
+}: {
+  testId: string
+  entries: ChipEntry[]
+  statusKey: string | null
+  shimmer: boolean
+  parentThreadId: string
+  showAll: boolean
+  onShowAll: () => void
+}): JSX.Element {
+  const t = useT()
+  const locale = useLocale()
+  const visible = !showAll && entries.length > VISIBLE_CHIPS ? entries.slice(0, COLLAPSED_NAMES) : entries
+  const hidden = entries.length - visible.length
   const more = hidden > 0 && (
     <button
       type="button"
       className="dc-subagent-chips-more"
-      onClick={() => setShowAll(true)}
+      onClick={onShowAll}
     >
       {t('subAgentChips.more', { count: hidden })}
     </button>
   )
-  const names = joinNames(locale, visible, more, (display) => {
-    openSubAgent(parentThreadId, display.child?.childThreadId)
+  const names = joinNames(locale, visible, more, (entry) => {
+    openSubAgent(parentThreadId, entry.childThreadId ?? undefined)
   })
-  const statusKey = statusMessageKey({ anyFailed, allDone, anyRunning }, resolved.length)
   const [before = '', after = ''] = statusKey ? t(statusKey).split(NAMES_SLOT) : []
-  const shimmer = !anyFailed && anyRunning
 
   return (
-    <div className="dc-subagent-chips" data-testid="subagent-chips">
+    <div className="dc-subagent-chips" data-testid={testId}>
       <span className="dc-subagent-marks" aria-hidden>
-        {visible.map((display) => (
-          <span key={display.id} className="dc-subagent-mark">
-            <RobotAvatar name={display.name} size={16} />
+        {visible.map((entry) => (
+          <span key={entry.id} className="dc-subagent-mark">
+            <RobotAvatar name={entry.name} size={16} />
           </span>
         ))}
       </span>
@@ -150,21 +231,21 @@ function isFailureStatus(status: string | null): boolean {
 
 /** A failed spawn has no verb of its own, so it reads as interrupted. */
 function statusMessageKey(
-  state: { anyFailed: boolean; allDone: boolean; anyRunning: boolean },
+  state: { anyFailed: boolean; allDone: boolean; anyRunning: boolean; anyRecorded: boolean },
   count: number
 ): string | null {
   const form = count === 1 ? 'one' : 'other'
   if (state.anyFailed) return `subAgentChips.interrupted.${form}`
-  if (state.anyRunning) return `subAgentChips.startedWorking.${form}`
+  if (state.anyRunning || state.anyRecorded) return `subAgentChips.startedWorking.${form}`
   return state.allDone ? `subAgentChips.finished.${form}` : null
 }
 
 /** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
 function joinNames(
   locale: string,
-  displays: ResolvedSubAgentChip[],
+  displays: ChipEntry[],
   more: ReactNode,
-  open: (display: ResolvedSubAgentChip) => void
+  open: (display: ChipEntry) => void
 ): ReactNode {
   const parts = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
     .formatToParts([...displays.map((entry) => entry.name), ...(more ? [MORE_TOKEN] : [])])
@@ -178,7 +259,7 @@ function joinNames(
   })
 }
 
-function SubAgentName({ display, open }: { display: SubAgentChipDisplay; open: () => void }): JSX.Element {
+function SubAgentName({ display, open }: { display: ChipEntry; open: () => void }): JSX.Element {
   const t = useT()
   const label = t('subagentsPanel.openAria', { name: display.name })
   const tooltip = display.prompt ? `${display.name} — ${display.prompt}` : label
@@ -234,7 +315,8 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
     agentPath,
     pending: item.status !== 'completed' || item.result == null,
     failed: isToolExecutionFailure(item),
-    resultStatus: getString(parsed, 'status')
+    resultStatus: getString(parsed, 'status'),
+    createdAt: item.createdAt
   }
 }
 

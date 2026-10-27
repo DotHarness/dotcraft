@@ -115,6 +115,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'tool.stoppingAgent.generic': '正在停止子智能体',
   'tool.stoppingWorkflow': '正在停止工作流 {{subject}}',
   'tool.stoppingWorkflow.generic': '正在停止工作流',
+  'tool.agentFinished': '{{subject}}已完成',
+  'tool.agentInterrupted': '{{subject}}被中断',
   'tool.interactiveContent': '交互内容',
   'tool.running': '正在运行命令…',
   'tool.editing': '正在编辑文件…',

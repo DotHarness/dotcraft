@@ -64,6 +64,14 @@ failed initial discovery with no reliable prior state shows only the name and na
 Groups prioritize failure, then running, and show finished only when every entry is confirmed
 finished. Closed records never count as running.
 
+A spawn group records when its agents started. An entry whose agent has a later ending notification
+in the Thread (matched by agent path) stops tracking live status, since that ending has its own row;
+a group whose entries all have one keeps reading started working without live treatment. An ending
+drained into a running parent Turn appears at its place as a row naming the ended agents, with the
+same identity and navigation as spawn entries; consecutive endings with the same outcome share a
+row, and failed or cancelled endings read as interrupted. A Turn woken by endings marks its activity
+boundary with the first ended agent's avatar.
+
 ## 3. Spawn lifecycle
 
 Session Core creates a SubAgent in this order:

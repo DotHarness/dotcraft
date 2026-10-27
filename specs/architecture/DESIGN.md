@@ -1264,8 +1264,9 @@ otherwise it stays inert.
 
 A turn with no bubble, started because a background task ended, carries its origin
 on its activity boundary instead: a 13px icon of the task's kind (terminal for a
-command, the subagent or workflow glyph) 6px before the timing label, in its
-colour and neutral whatever the outcome. On hover the icon and timing name the task
+command, the workflow glyph) 6px before the timing label, in its colour and
+neutral whatever the outcome. A subagent shows its own 14px avatar there, so the
+boundary names which agent woke the turn without adding words. On hover the icon and timing name the task
 and how it ended; the icon is a quiet action that reveals the originating tool call,
 while the timing still toggles the disclosure. The boundary keeps its single row,
 so a woken turn reads as a peer of the turn above it.

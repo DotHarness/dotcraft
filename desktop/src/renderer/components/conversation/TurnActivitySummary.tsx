@@ -9,6 +9,7 @@ import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { openBackgroundTask } from '../../utils/backgroundTaskNavigation'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { RobotAvatar } from '../agents/RobotAvatar'
 import styles from './TurnActivitySummary.module.css'
 
 const SCROLL_ANCHOR_MS = 350
@@ -68,7 +69,9 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
         disabled={!taskId}
         onClick={() => { if (taskId) openBackgroundTask(threadId, taskWake.kind, taskId, translate(locale, 'workflow.tab')) }}
       >
-        <OriginIcon size={13} strokeWidth={1.8} aria-hidden />
+        {taskWake.kind === 'subagent' && taskWake.label
+          ? <RobotAvatar name={taskWake.label} size={14} />
+          : <OriginIcon size={13} strokeWidth={1.8} aria-hidden />}
       </button>
     </ActionTooltip>
   ) : null

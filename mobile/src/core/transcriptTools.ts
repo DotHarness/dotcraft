@@ -358,3 +358,25 @@ export function toolEntry(
     ...shape.counts,
   }
 }
+
+export function subagentEndingEntry(item: HistoryItem): ToolEntry | null {
+  const name = str(item.payload.triggerLabel).trim() || str(item.payload.triggerRefId).trim()
+  if (!name) return null
+  const status = str(item.payload.triggerStatus)
+  return {
+    kind: 'tool',
+    id: entryId(item),
+    verb: status === 'failed' || status === 'cancelled' ? 'agentInterrupted' : 'agentFinished',
+    icon: 'agent',
+    subject: name,
+    details: [],
+    images: [],
+    startedAt: item.createdAt,
+    category: null,
+    web: null,
+    path: '',
+    created: false,
+    live: false,
+    failed: false,
+  }
+}

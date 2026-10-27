@@ -115,6 +115,8 @@ export const MESSAGES_KO: Catalog = {
   'tool.stoppingAgent.generic': '서브에이전트 중지 중',
   'tool.stoppingWorkflow': '워크플로 {{subject}} 중지 중',
   'tool.stoppingWorkflow.generic': '워크플로 중지 중',
+  'tool.agentFinished': '{{subject}}: 작업을 마쳤습니다',
+  'tool.agentInterrupted': '{{subject}}: 중단되었습니다',
   'tool.interactiveContent': '인터랙티브 콘텐츠',
   'tool.running': '명령 실행 중…',
   'tool.editing': '파일 편집 중…',

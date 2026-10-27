@@ -469,7 +469,10 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 - A background task notification (`triggerKind` `terminal` or `subagent`, or `workflow` with a
   `triggerStatus`) is never a user message. When it starts a turn, the turn has no user message and
   its **Worked for** row starts with the task kind's icon; its accessible name says how the task
-  ended, in Desktop's wording. A notification drained into a running turn adds nothing.
+  ended, in Desktop's wording. A subagent notification drained into a running turn adds its own line
+  at its place naming the subagent and whether it finished or was interrupted, in Desktop's wording;
+  other notifications drained into a running turn add nothing. Mobile keeps the subagent icon where
+  Desktop shows the subagent's avatar, since avatars render only in a DOM view there.
 - Background task tools read as Desktop names them: an `Exec` still running after its result stays a
   running line while its turn runs and afterwards reads as a started (or stopped) background
   terminal; `SpawnAgent`, `SendMessage`, `ListAgents`, and `TaskStop` read as Desktop labels them,

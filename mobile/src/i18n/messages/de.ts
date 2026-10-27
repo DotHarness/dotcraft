@@ -115,6 +115,8 @@ export const MESSAGES_DE: Catalog = {
   'tool.stoppingAgent.generic': 'Sub-Agent wird gestoppt',
   'tool.stoppingWorkflow': 'Workflow {{subject}} wird gestoppt',
   'tool.stoppingWorkflow.generic': 'Workflow wird gestoppt',
+  'tool.agentFinished': '{{subject}} ist fertig',
+  'tool.agentInterrupted': '{{subject}} wurde unterbrochen',
   'tool.interactiveContent': 'Interaktive Inhalte',
   'tool.running': 'Befehl wird ausgeführt…',
   'tool.editing': 'Datei wird bearbeitet…',
