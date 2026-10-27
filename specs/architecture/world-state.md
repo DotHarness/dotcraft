@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -42,9 +42,9 @@ The following are not sections and stay in the turn's own reminder:
   rendered fresh each turn instead.
 
 The built-in `environment` section owns where the agent works: the current date and time zone, the
-working directory, and the additional workspace roots when there are any. When the thread is in a
-managed worktree it also states the branch and that commands run in the worktree, not in the local
-checkout. The first render states every fact; a later render states only the facts that changed. Its
+working directory, and the complete list of workspace roots whenever one of them differs from the
+working directory. When the thread is in a managed worktree it also states the branch and that
+commands run in the worktree, not in the local checkout. The first render states every fact; a later render states only the facts that changed. Its
 snapshot follows the running Turn's tool location, so a worktree move a tool makes reaches the model
 before the next sampling request.
 

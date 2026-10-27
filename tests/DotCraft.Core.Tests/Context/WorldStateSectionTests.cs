@@ -36,6 +36,21 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
+    public void EnvironmentSection_ListsEveryWorkspaceRootOnlyWhenOneDiffersFromTheWorkingDirectory()
+    {
+        var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());
+        var other = Path.GetFullPath(Path.Combine(workspace, "..", "other"));
+
+        var text = RenderFull(new EnvironmentSection(), Context(workspacePath: workspace) with { WorkspaceRoots = [workspace, other] });
+
+        Assert.EndsWith($"WorkspaceRoots:\n- {workspace}\n- {other}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "WorkspaceRoots",
+            RenderFull(new EnvironmentSection(), Context(workspacePath: workspace) with { WorkspaceRoots = [workspace] }),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EnvironmentSection_RestatesOnlyWhatChangedWhenTheThreadEntersAWorktree()
     {
         var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());

@@ -25,7 +25,7 @@ internal sealed class EnvironmentSection : IWorldStateSection
         };
         if (WorkingDirectory(context) is { } workingDirectory)
             values[WorkingDirectoryKey] = workingDirectory;
-        if (AdditionalRoots(context, WorkingDirectory(context)) is { Count: > 0 } roots)
+        if (WorkspaceRoots(context, WorkingDirectory(context)) is { } roots)
             values[WorkspaceRootsKey] = string.Join("\n", roots);
         if (WorktreeBranch(context) is { } branch)
             values[WorktreeKey] = branch;
@@ -83,10 +83,11 @@ internal sealed class EnvironmentSection : IWorldStateSection
             ? null
             : Path.GetFullPath(context.WorkspacePath);
 
-    private static List<string> AdditionalRoots(WorldStateContext context, string? workingDirectory) =>
-        [.. context.WorkspaceRoots
-            .Select(Path.GetFullPath)
-            .Where(root => !string.Equals(root, workingDirectory, PathComparison))];
+    private static List<string>? WorkspaceRoots(WorldStateContext context, string? workingDirectory)
+    {
+        List<string> roots = [.. context.WorkspaceRoots.Select(Path.GetFullPath)];
+        return roots.Any(root => !string.Equals(root, workingDirectory, PathComparison)) ? roots : null;
+    }
 
     private static string? WorktreeBranch(WorldStateContext context) =>
         context.Thread.Worktree is { BranchName: { Length: > 0 } branch } ? branch : null;
