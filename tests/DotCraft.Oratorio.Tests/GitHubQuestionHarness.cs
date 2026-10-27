@@ -67,7 +67,9 @@ internal sealed class GitHubQuestionHarness
         WaitForItemByIdAsync(
             Client,
             itemId,
-            x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded && turn.ReplySourceWriteId != null));
+            x => x.DiscussionTurns.Any(turn =>
+                turn.Status == DiscussionTurnStatus.Succeeded &&
+                x.SourceWrites.Any(write => write.WriteId == turn.ReplySourceWriteId)));
 
     public Task<ItemDetailResponse> WaitForReplyWriteAsync(string itemId, SourceWriteStatus status) =>
         WaitForItemByIdAsync(

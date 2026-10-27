@@ -46,19 +46,11 @@ public sealed class GitProcessRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_WhenTimedOut_ThrowsGitProcessTimeoutException()
     {
-        var bulkDir = Path.Combine(_workspacePath, "bulk");
-        Directory.CreateDirectory(bulkDir);
-        for (var i = 0; i < 300; i++)
-        {
-            var filePath = Path.Combine(bulkDir, $"f-{i:0000}.txt");
-            await File.WriteAllTextAsync(filePath, $"file-{i}");
-        }
-
         await Assert.ThrowsAsync<GitProcessTimeoutException>(async () =>
             await GitProcessRunner.RunAsync(
                 _workspacePath,
-                ["status", "--short", "--untracked-files=all"],
-                timeout: TimeSpan.FromMilliseconds(1),
+                ["-c", "alias.wait=!sleep 30", "wait"],
+                timeout: TimeSpan.FromMilliseconds(200),
                 ct: CancellationToken.None));
     }
 

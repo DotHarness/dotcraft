@@ -174,11 +174,9 @@ public sealed class GitHubSourceApiTests
 
         await WaitUntilAsync(async () =>
         {
-            var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
-            return list!.Items.Any(x => x.Repository == "example-owner/second-repo");
+            var active = await client.GetFromJsonAsync<GitHubSyncJobDto>($"/api/v1/sources/github/sync-jobs/{job.JobId}", JsonOptions);
+            return active!.Repositories.Any(x => x.Repository == "example-owner/second-repo" && x.Status == GitHubSyncRepositoryStatus.Succeeded);
         });
-        var active = await client.GetFromJsonAsync<GitHubSyncJobDto>($"/api/v1/sources/github/sync-jobs/{job.JobId}", JsonOptions);
-        Assert.Contains(active!.Repositories, x => x.Repository == "example-owner/second-repo" && x.Status == GitHubSyncRepositoryStatus.Succeeded);
 
         var completed = await WaitForGitHubSyncJobAsync(client, job.JobId);
         Assert.Equal(GitHubSyncStatus.Succeeded, completed.Status);
