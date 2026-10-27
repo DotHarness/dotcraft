@@ -6,6 +6,8 @@ const status = vi.fn()
 const enable = vi.fn()
 const disable = vi.fn()
 const createPairing = vi.fn()
+const allowPairing = vi.fn()
+const denyPairing = vi.fn()
 const revoke = vi.fn()
 const setRelay = vi.fn()
 const clearRelay = vi.fn()
@@ -52,7 +54,7 @@ beforeEach(() => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
   Object.defineProperty(globalThis.window, 'api', {
     configurable: true,
-    value: { mobile: { status, enable, disable, createPairing, revoke, setRelay, clearRelay, onEvent } }
+    value: { mobile: { status, enable, disable, createPairing, allowPairing, denyPairing, revoke, setRelay, clearRelay, onEvent } }
   })
   useMobileStore.getState().closePairing()
   useMobileStore.setState({
@@ -193,6 +195,32 @@ describe('mobileStore pairing', () => {
     apply({ kind: 'devicePaired', deviceId: 'dev_4', displayName: 'Galaxy S25', pairingId: 'pair_1' })
     expect(useMobileStore.getState().pairing).toEqual({ step: 'paired', displayName: 'Galaxy S25' })
     expect(status).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks the computer about the phone that scanned its code, and shows a fresh code when declined or abandoned', async () => {
+    const next: MobilePairing = { ...PAIRING, pairingId: 'pair_2' }
+    createPairing.mockResolvedValueOnce({ ok: true, value: PAIRING }).mockResolvedValue({ ok: true, value: next })
+    allowPairing.mockResolvedValue({ ok: true, value: undefined })
+    denyPairing.mockResolvedValue({ ok: true, value: undefined })
+    await useMobileStore.getState().startPairing()
+
+    apply({ kind: 'pairingRequested', pairingId: 'pair_1', displayName: 'Galaxy S25' })
+    await useMobileStore.getState().allowPairing()
+    expect(allowPairing).toHaveBeenCalledWith('pair_1')
+    expect(useMobileStore.getState().pairing).toMatchObject({ step: 'request', displayName: 'Galaxy S25', allowing: true })
+    apply({ kind: 'devicePaired', deviceId: 'dev_4', displayName: 'Galaxy S25', pairingId: 'pair_1' })
+    expect(useMobileStore.getState().pairing).toEqual({ step: 'paired', displayName: 'Galaxy S25' })
+
+    createPairing.mockResolvedValueOnce({ ok: true, value: PAIRING })
+    await useMobileStore.getState().startPairing()
+    apply({ kind: 'pairingRequested', pairingId: 'pair_1', displayName: 'Stranger' })
+    await useMobileStore.getState().denyPairing()
+    expect(denyPairing).toHaveBeenCalledWith('pair_1')
+    expect(useMobileStore.getState().pairing).toEqual({ step: 'code', pairing: next })
+
+    apply({ kind: 'pairingRequested', pairingId: 'pair_2', displayName: 'Galaxy S25' })
+    apply({ kind: 'pairingCancelled', pairingId: 'pair_2' })
+    await vi.waitFor(() => expect(createPairing).toHaveBeenCalledTimes(4))
   })
 
   it('ends a waiting code when phone access turns off', async () => {

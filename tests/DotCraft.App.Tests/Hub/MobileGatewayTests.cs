@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Hub;
+using Microsoft.AspNetCore.WebUtilities;
 using Xunit;
 
 namespace DotCraft.Tests.Hub;
@@ -15,6 +17,27 @@ public sealed class MobileGatewayTests : IDisposable
     private readonly string _userProfile = Path.Combine(
         Path.GetTempPath(),
         "DotCraftHubMobile_" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task Pairing_IsDecidedOnTheComputer_AndADeclinedPhoneGetsNoDevice()
+    {
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        var pairing = await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/pairings");
+        var query = QueryHelpers.ParseQuery(new Uri(pairing.GetProperty("qrPayload").GetString()!).Query);
+        using var phone = new MobilePhone(int.Parse(query["port"].ToString()), query["fp"].ToString());
+        var code = query["code"].ToString();
+
+        var requestKey = await MobileHubFixture.OpenPairingAsync(phone, code);
+        using var guessed = await phone.Http.PostAsJsonAsync("/m/pair", MobileHubFixture.PairRequest(code, "guessed-key"));
+        await hub.JsonOrEmptyAsync(HttpMethod.Post, $"/v1/mobile/pairings/{pairing.GetProperty("pairingId").GetString()}/deny");
+        using var declined = await phone.Http.PostAsJsonAsync("/m/pair", MobileHubFixture.PairRequest(code, requestKey));
+
+        Assert.Equal(HttpStatusCode.Forbidden, declined.StatusCode);
+        Assert.Contains("pairingDenied", await declined.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, guessed.StatusCode);
+        Assert.Empty((await hub.JsonAsync(HttpMethod.Get, "/v1/mobile")).GetProperty("devices").EnumerateArray());
+    }
 
     [Fact]
     public async Task Relay_PassesMessagesThroughUnchanged_UsingTheProcessToken()

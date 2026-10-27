@@ -89,12 +89,14 @@ internal sealed class MobileHubFixture : IAsyncDisposable
 
     public async Task<MobilePhone> PairPhoneAsync()
     {
-        var qrPayload = (await JsonAsync(HttpMethod.Post, "/v1/mobile/pairings")).GetProperty("qrPayload").GetString()!;
-        var query = QueryHelpers.ParseQuery(new Uri(qrPayload).Query);
+        var pairing = await JsonAsync(HttpMethod.Post, "/v1/mobile/pairings");
+        var query = QueryHelpers.ParseQuery(new Uri(pairing.GetProperty("qrPayload").GetString()!).Query);
         var phone = new MobilePhone(int.Parse(query["port"].ToString()), query["fp"].ToString());
-        using var response = await phone.Http.PostAsJsonAsync(
-            "/m/pair",
-            new { code = query["code"].ToString(), displayName = "Test phone", platform = "android" });
+        var code = query["code"].ToString();
+        var requestKey = await OpenPairingAsync(phone, code);
+        var waiting = phone.Http.PostAsJsonAsync("/m/pair", PairRequest(code, requestKey));
+        await JsonOrEmptyAsync(HttpMethod.Post, $"/v1/mobile/pairings/{pairing.GetProperty("pairingId").GetString()}/allow");
+        using var response = await waiting;
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, body);
         var paired = JsonDocument.Parse(body).RootElement;
@@ -102,6 +104,23 @@ internal sealed class MobileHubFixture : IAsyncDisposable
         Assert.Equal(query["id"].ToString(), phone.ComputerId);
         phone.UseCredential(paired.GetProperty("deviceId").GetString()!, paired.GetProperty("credential").GetString()!);
         return phone;
+    }
+
+    public static object PairRequest(string code, string? requestKey = null) =>
+        new { code, requestKey, displayName = "Test phone", platform = "android" };
+
+    public static async Task<string> OpenPairingAsync(MobilePhone phone, string code)
+    {
+        using var response = await phone.Http.PostAsJsonAsync("/m/pair", PairRequest(code));
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(System.Net.HttpStatusCode.Accepted, response.StatusCode);
+        return JsonDocument.Parse(body).RootElement.GetProperty("requestKey").GetString()!;
+    }
+
+    public async Task JsonOrEmptyAsync(HttpMethod method, string path)
+    {
+        using var response = await SendAsync(method, path);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
     }
 
     public async ValueTask DisposeAsync()

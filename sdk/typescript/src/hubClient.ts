@@ -447,6 +447,24 @@ export class HubClient {
     return await this.requestJson<HubMobilePairing>(hub, "/v1/mobile/pairings", { method: "POST", body: "{}" });
   }
 
+  async allowMobilePairing(pairingId: string): Promise<void> {
+    const hub = await this.ensureHub();
+    await this.requestJson<void>(
+      hub,
+      `/v1/mobile/pairings/${encodeURIComponent(pairingId)}/allow`,
+      { method: "POST", body: "{}" },
+    );
+  }
+
+  async denyMobilePairing(pairingId: string): Promise<void> {
+    const hub = await this.ensureHub();
+    await this.requestJson<void>(
+      hub,
+      `/v1/mobile/pairings/${encodeURIComponent(pairingId)}/deny`,
+      { method: "POST", body: "{}" },
+    );
+  }
+
   async revokeMobileDevice(deviceId: string): Promise<void> {
     const hub = await this.ensureHub();
     await this.requestJson<void>(

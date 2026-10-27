@@ -117,6 +117,14 @@ export class DesktopHubClient {
     return this.run(() => this.inner.createMobilePairing())
   }
 
+  allowMobilePairing(pairingId: string): Promise<void> {
+    return this.run(() => this.inner.allowMobilePairing(pairingId))
+  }
+
+  denyMobilePairing(pairingId: string): Promise<void> {
+    return this.run(() => this.inner.denyMobilePairing(pairingId))
+  }
+
   revokeMobileDevice(deviceId: string): Promise<void> {
     return this.run(() => this.inner.revokeMobileDevice(deviceId))
   }

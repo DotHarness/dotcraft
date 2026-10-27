@@ -33,6 +33,8 @@ export type MobileResult<T> = { ok: true; value: T } | { ok: false; failure: Mob
 
 export type MobileEvent =
   | { kind: 'stateChanged'; status: MobileStatus }
+  | { kind: 'pairingRequested'; pairingId: string; displayName: string }
+  | { kind: 'pairingCancelled'; pairingId: string }
   | { kind: 'devicePaired'; deviceId: string; displayName: string; pairingId: string }
   | { kind: 'deviceRevoked'; deviceId: string }
   | { kind: 'deviceSeen'; deviceId: string; lastSeenAt: string; connected: boolean }
@@ -60,6 +62,12 @@ export function toMobileEvent({ kind, data }: HubEvent): MobileEvent | null {
   switch (kind) {
     case 'mobile.stateChanged':
       return { kind: 'stateChanged', status: toMobileStatus(data as HubMobileState) }
+    case 'mobile.pairingRequested': {
+      const { pairingId, displayName } = data as { pairingId: string; displayName: string }
+      return { kind: 'pairingRequested', pairingId, displayName }
+    }
+    case 'mobile.pairingCancelled':
+      return { kind: 'pairingCancelled', pairingId: (data as { pairingId: string }).pairingId }
     case 'mobile.devicePaired': {
       const { deviceId, displayName, pairingId } = data as { deviceId: string; displayName: string; pairingId: string }
       return { kind: 'devicePaired', deviceId, displayName, pairingId }

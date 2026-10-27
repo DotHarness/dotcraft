@@ -96,9 +96,19 @@ internal static class MobileGatewayRoutes
             {
                 body = null;
             }
-            return Protected(() => body is null
-                ? throw new HubProtocolException("invalidRequest", "The pairing request is not valid JSON.", StatusCodes.Status400BadRequest)
-                : Results.Json(gateway.Pair(body), HubJson.Options));
+            try
+            {
+                if (body is null)
+                    throw new HubProtocolException("invalidRequest", "The pairing request is not valid JSON.", StatusCodes.Status400BadRequest);
+                var (paired, requestKey) = await gateway.PairAsync(body, context.RequestAborted);
+                return paired is not null
+                    ? Results.Json(paired, HubJson.Options)
+                    : Results.Json(new MobilePairPending("pending", requestKey), HubJson.Options, statusCode: StatusCodes.Status202Accepted);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return ToErrorResult(ex);
+            }
         });
 
         app.MapGet("/m/hello", (HttpRequest request) =>

@@ -35,13 +35,19 @@ export interface GatewayProject {
 
 interface PairRequest {
   code: string
+  requestKey?: string
   displayName: string
   platform: 'ios' | 'android'
   osVersion: string
   appVersion: string
 }
 
-interface PairResult {
+export interface PairPending {
+  status: 'pending'
+  requestKey?: string
+}
+
+export interface PairResult {
   deviceId: string
   credential: string
   computer: { computerId: string; name: string; port: number; fingerprint: string; addresses: string[] }
@@ -112,8 +118,8 @@ export class GatewayClient {
     return (await this.send('POST', `/m/projects/${projectId}/ensure`, {})) as GatewayProject
   }
 
-  async pair(request: PairRequest): Promise<PairResult> {
-    return (await this.send('POST', '/m/pair', request)) as PairResult
+  async pair(request: PairRequest): Promise<PairResult | PairPending> {
+    return (await this.send('POST', '/m/pair', request)) as PairResult | PairPending
   }
 
   async probe(): Promise<void> {

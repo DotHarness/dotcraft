@@ -238,18 +238,37 @@ export function PairAllowScreen() {
       />
     )
   }
-  if (pairing.step !== 'allow') return <Screen>{null}</Screen>
+  if (pairing.step === 'denied') {
+    return (
+      <Outcome
+        mascot="sad"
+        title={t('pair.deniedTitle', { computer: pairing.offer.name })}
+        note={t('pair.deniedNote', { computer: pairing.offer.name })}
+        actions={
+          <PhoneButton
+            onPress={() => {
+              session.resetPairing()
+              router.replace('/pair')
+            }}
+          >
+            {t('pair.scanNew')}
+          </PhoneButton>
+        }
+      />
+    )
+  }
+  if (pairing.step !== 'waiting') return <Screen>{null}</Screen>
   const replacing = state.computers[pairing.offer.id]?.computer.name
   return (
     <Outcome
       mascot="question"
-      title={t('pair.allowTitle', { computer: pairing.offer.name })}
-      note={t('pair.allowNote')}
+      title={t('pair.confirmTitle', { computer: pairing.offer.name })}
+      note={t('pair.confirmNote', { computer: pairing.offer.name })}
       extra={replacing ? t('pair.replaces', { computer: replacing }) : undefined}
       top={<BackButton onPress={back} />}
       actions={
-        <PhoneButton loading={pairing.allowing} onPress={() => void session.allow()}>
-          {t('pair.allow')}
+        <PhoneButton variant="ghost" onPress={back}>
+          {t('common.cancel')}
         </PhoneButton>
       }
     />

@@ -12,6 +12,7 @@ export type PairingFlow =
   | { step: 'idle' }
   | { step: 'creating' }
   | { step: 'code'; pairing: MobilePairing }
+  | { step: 'request'; pairing: MobilePairing; displayName: string; allowing: boolean }
   | { step: 'error'; failure: MobileFailure }
   | { step: 'paired'; displayName: string }
 
@@ -32,6 +33,8 @@ interface MobileStore extends MobileState {
   setRelay(url: string, token: string): Promise<MobileFailure | null>
   clearRelay(): Promise<MobileFailure | null>
   startPairing(): Promise<void>
+  allowPairing(): Promise<void>
+  denyPairing(): Promise<void>
   closePairing(): void
   applyEvent(event: MobileEvent): void
 }
@@ -40,6 +43,10 @@ const IDLE: PairingFlow = { step: 'idle' }
 const GATEWAY_OFF: PairingFlow = { step: 'error', failure: { code: 'gatewayOff', message: '' } }
 
 let pairingRequest = 0
+
+function pairingOf(flow: PairingFlow): MobilePairing | null {
+  return flow.step === 'code' || flow.step === 'request' ? flow.pairing : null
+}
 
 function split(status: MobileStatus): { gateway: MobileGateway; devices: MobileDevice[] } {
   const { devices, ...gateway } = status
@@ -116,6 +123,21 @@ export const useMobileStore = create<MobileStore>((set, get) => ({
     set({ pairing: result.ok ? { step: 'code', pairing: result.value } : { step: 'error', failure: result.failure } })
   },
 
+  async allowPairing() {
+    const { pairing } = get()
+    if (pairing.step !== 'request' || pairing.allowing) return
+    set({ pairing: { ...pairing, allowing: true } })
+    const result = await window.api.mobile.allowPairing(pairing.pairing.pairingId)
+    if (!result.ok && pairingOf(get().pairing)?.pairingId === pairing.pairing.pairingId) await get().startPairing()
+  },
+
+  async denyPairing() {
+    const { pairing } = get()
+    if (pairing.step !== 'request') return
+    await window.api.mobile.denyPairing(pairing.pairing.pairingId)
+    if (pairingOf(get().pairing)?.pairingId === pairing.pairing.pairingId) await get().startPairing()
+  },
+
   closePairing() {
     pairingRequest += 1
     set({ pairing: IDLE })
@@ -125,14 +147,24 @@ export const useMobileStore = create<MobileStore>((set, get) => ({
     switch (event.kind) {
       case 'stateChanged': {
         const { pairing } = get()
-        const stranded = event.status.state !== 'on' && (pairing.step === 'creating' || pairing.step === 'code')
+        const stranded = event.status.state !== 'on' && (pairing.step === 'creating' || pairingOf(pairing) !== null)
         if (stranded) pairingRequest += 1
         set({ ...split(event.status), ...(stranded ? { pairing: GATEWAY_OFF } : {}) })
         return
       }
-      case 'devicePaired': {
+      case 'pairingRequested': {
         const { pairing } = get()
         if (pairing.step === 'code' && pairing.pairing.pairingId === event.pairingId) {
+          set({ pairing: { step: 'request', pairing: pairing.pairing, displayName: event.displayName, allowing: false } })
+        }
+        return
+      }
+      case 'pairingCancelled':
+        if (pairingOf(get().pairing)?.pairingId === event.pairingId) void get().startPairing()
+        return
+      case 'devicePaired': {
+        const { pairing } = get()
+        if (pairingOf(pairing)?.pairingId === event.pairingId) {
           set({ pairing: { step: 'paired', displayName: event.displayName } })
         }
         void get().load()

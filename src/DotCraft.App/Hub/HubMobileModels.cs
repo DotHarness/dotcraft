@@ -36,6 +36,8 @@ public sealed class MobilePairRequest
 {
     public string? Code { get; set; }
 
+    public string? RequestKey { get; set; }
+
     public string? DisplayName { get; set; }
 
     public string? Platform { get; set; }
@@ -48,6 +50,8 @@ public sealed class MobilePairRequest
 public sealed record MobileComputer(string ComputerId, string Name, int Port, string Fingerprint, IReadOnlyList<string> Addresses);
 
 public sealed record MobilePairResponse(string DeviceId, string Credential, MobileComputer Computer);
+
+public sealed record MobilePairPending(string Status, string? RequestKey);
 
 public sealed record MobileHello(
     string ComputerId,

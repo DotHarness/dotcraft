@@ -1,12 +1,12 @@
 import { systemTimers, type Timers } from './backoff'
 import { ComputerLink } from './computerLink'
-import { GatewayClient, GatewayError } from './gateway'
+import { GatewayClient, GatewayError, type PairPending, type PairResult } from './gateway'
 import { forgetImages } from './imageCache'
 import { LiveSession, type LiveNotifier } from './liveSession'
 import type { PairingOffer } from './pairing'
 import type { PinnedNative } from './pinned'
 import { PinnedSockets } from './sockets'
-import { initialState, reducer, type Action, type ComputerRecord, type MobileState, type PersistedState } from './state'
+import { initialState, reducer, type Action, type ComputerRecord, type MobileState, type PairingState, type PersistedState } from './state'
 import { SessionPersistence } from './sessionPersistence'
 import { createStore, type Store } from './store'
 
@@ -163,31 +163,34 @@ export class MobileSession {
     this.dispatch({ type: 'revokedNoticeSeen' })
   }
 
-  async beginPairing(offer: PairingOffer): Promise<void> {
+  async beginPairing(offer: PairingOffer, requestKey?: string): Promise<void> {
     const gateway = new GatewayClient(this.platform.native, offer, null)
     this.pairingGateway = gateway
     this.dispatch({ type: 'pairing', pairing: { step: 'reaching', offer } })
     try {
       await gateway.probe()
-      if (this.pairingGateway === gateway) this.dispatch({ type: 'pairing', pairing: { step: 'allow', offer, allowing: false } })
     } catch {
-      if (this.pairingGateway === gateway) this.dispatch({ type: 'pairing', pairing: { step: 'unreachable', offer } })
+      if (this.pairingGateway === gateway) this.dispatch({ type: 'pairing', pairing: { step: 'unreachable', offer, requestKey } })
+      return
     }
-  }
-
-  async allow(): Promise<void> {
-    const pairing = this.state.pairing
-    const gateway = this.pairingGateway
-    if (pairing.step !== 'allow' || !gateway || pairing.allowing) return
-    const offer = pairing.offer
-    this.dispatch({ type: 'pairing', pairing: { step: 'allow', offer, allowing: true } })
-    let result
+    if (this.pairingGateway !== gateway) return
+    this.dispatch({ type: 'pairing', pairing: { step: 'waiting', offer } })
+    const request = { code: offer.code, ...this.platform.device }
+    let result: PairResult
     try {
-      result = await gateway.pair({ code: offer.code, ...this.platform.device })
-    } catch (error) {
-      if (this.pairingGateway === gateway) {
-        this.dispatch({ type: 'pairing', pairing: error instanceof GatewayError ? { step: 'invalid' } : { step: 'unreachable', offer } })
+      let answer: PairResult | PairPending = requestKey ? { status: 'pending' } : await gateway.pair(request)
+      if ('status' in answer) requestKey ??= answer.requestKey
+      while ('status' in answer) {
+        if (this.pairingGateway !== gateway) return
+        answer = await gateway.pair({ ...request, requestKey })
       }
+      result = answer
+    } catch (error) {
+      if (this.pairingGateway !== gateway) return
+      const pairing: PairingState = !(error instanceof GatewayError)
+        ? { step: 'unreachable', offer, requestKey }
+        : error.status === 403 ? { step: 'denied', offer } : { step: 'invalid' }
+      this.dispatch({ type: 'pairing', pairing })
       return
     }
     if (this.pairingGateway !== gateway) return
@@ -218,7 +221,7 @@ export class MobileSession {
 
   retryPairing(): void {
     const pairing = this.state.pairing
-    if (pairing.step === 'unreachable') void this.beginPairing(pairing.offer)
+    if (pairing.step === 'unreachable') void this.beginPairing(pairing.offer, pairing.requestKey)
   }
 
   resetPairing(): void {

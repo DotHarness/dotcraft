@@ -13,6 +13,8 @@ export const MOBILE_CHANNELS = [
   'mobile:enable',
   'mobile:disable',
   'mobile:create-pairing',
+  'mobile:allow-pairing',
+  'mobile:deny-pairing',
   'mobile:revoke',
   'mobile:set-relay',
   'mobile:clear-relay'
@@ -80,6 +82,14 @@ export function registerMobileHandlers(deps: MobileIpcDeps): void {
   )
 
   handleSafe('mobile:create-pairing', () => settle(() => deps.getHubClient().createMobilePairing()))
+
+  handleSafe('mobile:allow-pairing', (_event, input) =>
+    settle(() => deps.getHubClient().allowMobilePairing((input as { pairingId: string }).pairingId))
+  )
+
+  handleSafe('mobile:deny-pairing', (_event, input) =>
+    settle(() => deps.getHubClient().denyMobilePairing((input as { pairingId: string }).pairingId))
+  )
 
   handleSafe('mobile:revoke', (_event, input) =>
     settle(() => deps.getHubClient().revokeMobileDevice((input as { deviceId: string }).deviceId))

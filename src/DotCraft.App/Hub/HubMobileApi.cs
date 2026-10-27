@@ -28,6 +28,14 @@ internal static class HubMobileApi
             unauthorized(request)
             ?? await protectedAsync(() => Task.FromResult(Results.Json(mobile.MintPairing(), HubJson.Options))));
 
+        app.MapPost("/v1/mobile/pairings/{pairingId}/allow", async (HttpRequest request, string pairingId) =>
+            unauthorized(request)
+            ?? await protectedAsync(() => Task.FromResult(Decided(mobile.Pairings.Allow(pairingId), pairingId))));
+
+        app.MapPost("/v1/mobile/pairings/{pairingId}/deny", async (HttpRequest request, string pairingId) =>
+            unauthorized(request)
+            ?? await protectedAsync(() => Task.FromResult(Decided(mobile.Pairings.Deny(pairingId), pairingId))));
+
         app.MapPut("/v1/mobile/relay", async (HttpRequest request) =>
             unauthorized(request)
             ?? await protectedAsync(async () => Results.Json(await mobile.SetRelayAsync(await ReadRelayAsync(request)), HubJson.Options)));
@@ -45,6 +53,13 @@ internal static class HubMobileApi
                     $"No paired phone with id '{deviceId}'.",
                     StatusCodes.Status404NotFound)));
     }
+
+    private static IResult Decided(bool found, string pairingId) => found
+        ? Results.NoContent()
+        : throw new HubProtocolException(
+            "pairingNotFound",
+            $"No phone is asking to pair with '{pairingId}'.",
+            StatusCodes.Status404NotFound);
 
     private static async Task<MobileRelayRequest> ReadRelayAsync(HttpRequest request)
     {
