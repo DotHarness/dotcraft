@@ -420,9 +420,9 @@ public sealed partial class AppConfig
                 }
                 else if (existingKey is not null)
                 {
-                    result[existingKey] = MergeNodes(
-                        result[existingKey] ?? new JsonObject(),
-                        property.Value ?? new JsonObject());
+                    result[existingKey] = result[existingKey] is { } baseValue && property.Value is { } overrideValue
+                        ? MergeNodes(baseValue, overrideValue)
+                        : property.Value?.DeepClone();
                 }
                 else
                 {
