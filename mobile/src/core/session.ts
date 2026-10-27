@@ -1,6 +1,6 @@
 import { systemTimers, type Timers } from './backoff'
 import { ComputerLink } from './computerLink'
-import { GatewayClient, GatewayError, type PairResult } from './gateway'
+import { GatewayClient, GatewayError, type PairPending, type PairResult } from './gateway'
 import { forgetImages } from './imageCache'
 import { LiveSession, type LiveNotifier } from './liveSession'
 import type { PairingOffer } from './pairing'
@@ -163,14 +163,14 @@ export class MobileSession {
     this.dispatch({ type: 'revokedNoticeSeen' })
   }
 
-  async beginPairing(offer: PairingOffer): Promise<void> {
+  async beginPairing(offer: PairingOffer, requestKey?: string): Promise<void> {
     const gateway = new GatewayClient(this.platform.native, offer, null)
     this.pairingGateway = gateway
     this.dispatch({ type: 'pairing', pairing: { step: 'reaching', offer } })
     try {
       await gateway.probe()
     } catch {
-      if (this.pairingGateway === gateway) this.dispatch({ type: 'pairing', pairing: { step: 'unreachable', offer } })
+      if (this.pairingGateway === gateway) this.dispatch({ type: 'pairing', pairing: { step: 'unreachable', offer, requestKey } })
       return
     }
     if (this.pairingGateway !== gateway) return
@@ -178,8 +178,8 @@ export class MobileSession {
     const request = { code: offer.code, ...this.platform.device }
     let result: PairResult
     try {
-      let answer = await gateway.pair(request)
-      const requestKey = 'status' in answer ? answer.requestKey : undefined
+      let answer: PairResult | PairPending = requestKey ? { status: 'pending' } : await gateway.pair(request)
+      if ('status' in answer) requestKey ??= answer.requestKey
       while ('status' in answer) {
         if (this.pairingGateway !== gateway) return
         answer = await gateway.pair({ ...request, requestKey })
@@ -188,7 +188,7 @@ export class MobileSession {
     } catch (error) {
       if (this.pairingGateway !== gateway) return
       const pairing: PairingState = !(error instanceof GatewayError)
-        ? { step: 'unreachable', offer }
+        ? { step: 'unreachable', offer, requestKey }
         : error.status === 403 ? { step: 'denied', offer } : { step: 'invalid' }
       this.dispatch({ type: 'pairing', pairing })
       return
@@ -221,7 +221,7 @@ export class MobileSession {
 
   retryPairing(): void {
     const pairing = this.state.pairing
-    if (pairing.step === 'unreachable') void this.beginPairing(pairing.offer)
+    if (pairing.step === 'unreachable') void this.beginPairing(pairing.offer, pairing.requestKey)
   }
 
   resetPairing(): void {

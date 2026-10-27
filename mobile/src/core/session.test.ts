@@ -528,6 +528,25 @@ describe('pairing', () => {
     expect(harness.session.store.getState().order).toEqual([])
   })
 
+  it('keeps waiting for the same request when Try again follows a dropped connection', async () => {
+    const computer = studio()
+    const http = computer.http.bind(computer)
+    computer.http = (method, path, headers, body) => {
+      const response = http(method, path, headers, body)
+      if (response.status === 202) computer.reachable = false
+      return response
+    }
+    const harness = setup([computer], { paired: 0 })
+    await harness.session.boot()
+    await harness.session.beginPairing(offer(computer, 'demo-code'))
+    expect(harness.session.store.getState().pairing.step).toBe('unreachable')
+
+    computer.reachable = true
+    computer.http = http
+    harness.session.retryPairing()
+    await waitFor(() => harness.session.store.getState().pairing.step === 'connected')
+  })
+
   it('adds nothing when the computer declines the phone', async () => {
     const computer = studio()
     computer.pairingAnswer = 'deny'
