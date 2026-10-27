@@ -2348,6 +2348,7 @@ export interface McpServerConfig {
   origin?: McpServerOrigin | null;
   readOnly?: boolean;
   startupTimeoutSec?: number | null;
+  toolApprovalMode?: string;
   toolTimeoutSec?: number | null;
   transport?: string;
   url?: string | null;

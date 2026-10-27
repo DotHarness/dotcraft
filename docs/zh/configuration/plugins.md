@@ -95,6 +95,24 @@ MCP 示例：
 
 `Tools.DeferredLoading.Strategy = Auto` 时，所有模式都使用规范名称 `SearchTools`。OpenAI Responses 将它映射为 Provider 的 client-executed `tool_search` wire 类型，Anthropic 返回原生 tool reference，chat-completions 则在下一次模型请求中注入已发现的 schema。
 
+### 让可信服务免审批
+
+调用 MCP 工具时需要审批，除非服务把该工具标记为只读。很多服务不做任何标记，于是每次调用都要审批。确认某个服务可以无人值守地调用后，例如以只读模式启动的服务，将它的 `toolApprovalMode` 设为 `approve`：
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "arguments": ["--read-only"],
+      "toolApprovalMode": "approve"
+    }
+  }
+}
+```
+
+此后调用该服务不再审批，Agent 的其他审批保持不变。设为 `prompt` 时，无论工具如何标记，每次调用都要审批。默认值 `auto` 按工具自身的标记决定。插件也可以在自己的 `.mcp.json` 中设置同一字段。
+
 ### 预注册 OAuth 客户端
 
 如果 HTTP MCP 服务要求使用已有的 OAuth 应用，在设置 → MCP 中打开该服务器，将 **OAuth → 客户端注册** 设为 **预注册**。填写客户端 ID，选择密钥值或环境变量，并设置在服务中注册的回调 URL。也可以直接配置文件：

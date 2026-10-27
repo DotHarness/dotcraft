@@ -1764,7 +1764,7 @@ Two surfaces:
 
 ### 22.2 `McpServerConfig` Wire DTO
 
-`McpServerConfig` has `name`, `enabled`, `transport` (`stdio` or `streamableHttp`), transport-specific fields, optional startup and tool timeouts, and, with `capabilities.mcpServerOrigins`, `origin` (`kind`, `pluginId`, `pluginDisplayName`, `declaredName`) and `readOnly`.
+`McpServerConfig` has `name`, `enabled`, `transport` (`stdio` or `streamableHttp`), transport-specific fields, optional startup and tool timeouts, `toolApprovalMode` (`auto`, `approve`, or `prompt`; see [Tool Architecture](../architecture/tools-architecture.md#123-approval)), and, with `capabilities.mcpServerOrigins`, `origin` (`kind`, `pluginId`, `pluginDisplayName`, `declaredName`) and `readOnly`.
 
 Validation:
 
@@ -1773,6 +1773,7 @@ Validation:
 - `oauth` holds optional `clientId`, `clientSecret`, `clientSecretEnvVar`, `callbackUrl`, and `callbackPort`. A secret requires a client id; an environment reference takes precedence over a literal and must resolve to a non-empty value. OAuth cannot be combined with explicit Bearer/Authorization headers or with stdio.
 - Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree; a configured port must be available and is never substituted. Without one, login uses an ephemeral port.
 - Read projections mask a literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` keeps the existing configuration and `null` removes it; within an OAuth object, an omitted secret or the read mask keeps the stored secret (the mask is never stored), while `null` or empty removes it. Switching to stdio removes OAuth.
+- `toolApprovalMode` accepts only `auto`, `approve`, or `prompt`; reads always report it. On `mcp/upsert`, an omitted mode keeps the existing server's mode, so a client that does not edit it never resets it, and a new server defaults to `auto`.
 - Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread and binding origins.
 
 ### 22.3 `mcp/list`

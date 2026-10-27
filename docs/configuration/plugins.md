@@ -95,6 +95,24 @@ MCP example:
 
 With `Tools.DeferredLoading.Strategy = Auto`, all modes use the canonical `SearchTools` operation. OpenAI Responses maps it to the provider's client-executed `tool_search` wire type, Anthropic returns native tool references, and chat-completions injects the discovered schemas on the next model request.
 
+### Skip approval for a trusted server
+
+A call to an MCP tool asks for approval unless the server marks that tool as read-only. Many servers mark nothing, so every call asks. Once you have confirmed a server is safe to call unattended, for example one started in read-only mode, set its `toolApprovalMode` to `approve`:
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "arguments": ["--read-only"],
+      "toolApprovalMode": "approve"
+    }
+  }
+}
+```
+
+Calls to that server then run without asking, and the agent's other approvals stay as they are. Set `prompt` to ask for every call whatever the tools declare. The default, `auto`, follows the tools' own markings. A plugin can set the same field in its `.mcp.json`.
+
 ### Pre-registered OAuth clients
 
 For an HTTP MCP service that requires an existing OAuth application, open the server in Settings → MCP and set **OAuth → Client registration** to **Pre-registered**. Enter its client ID, choose a secret value or an environment variable, and set the callback URL registered with the service. You can also configure it in the file:

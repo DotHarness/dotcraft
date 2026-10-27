@@ -433,7 +433,15 @@ Startup readiness depends on initialization and tool discovery. Optional resourc
 
 ### 12.3 Approval
 
-MCP tool approval evaluates standard annotations (read-only, destructive, open-world) together with thread policy and DotCraft authority. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy.
+Whether an MCP invocation requires approval follows the server's `toolApprovalMode`:
+
+| Mode | Invocation approval |
+|---|---|
+| `auto` (default) | Follows the tool's standard annotations: not required when the tool declares `readOnlyHint: true` without `destructiveHint: true`, or declares both `destructiveHint: false` and `openWorldHint: false`; required otherwise, including for unannotated tools. |
+| `approve` | Never required. The deployer has confirmed the server is safe to call unattended. |
+| `prompt` | Always required, whatever the annotations say. |
+
+The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them, and App Binding MCP keeps its own approval contract. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy.
 
 ## 13. MCP Apps host
 

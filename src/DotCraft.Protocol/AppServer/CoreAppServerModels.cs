@@ -1956,6 +1956,10 @@ public sealed class McpServerConfig : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<double?> StartupTimeoutSec { get; init; }
 
+    [JsonPropertyName("toolApprovalMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ToolApprovalMode { get; init; }
+
     [JsonPropertyName("toolTimeoutSec")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<double?> ToolTimeoutSec { get; init; }

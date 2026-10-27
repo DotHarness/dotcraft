@@ -1,6 +1,7 @@
 using Contract = DotCraft.Protocol.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using McpToolApprovalMode = DotCraft.Mcp.McpToolApprovalMode;
 
 namespace DotCraft.AppServer;
 
@@ -25,6 +26,7 @@ internal static class McpContractMapper
         EnvHttpHeaders = config.EnvHttpHeaders.Count > 0 ? new Dictionary<string, string>(config.EnvHttpHeaders) : null,
         StartupTimeoutSec = config.StartupTimeoutSec,
         ToolTimeoutSec = config.ToolTimeoutSec,
+        ToolApprovalMode = ToContract(config.ToolApprovalMode),
         Origin = ToContract(config.Origin),
         ReadOnly = config.ReadOnly
     };
@@ -45,6 +47,9 @@ internal static class McpContractMapper
         EnvHttpHeaders = ValueOrDefault(wire.EnvHttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
         StartupTimeoutSec = ValueOrDefault(wire.StartupTimeoutSec),
         ToolTimeoutSec = ValueOrDefault(wire.ToolTimeoutSec),
+        ToolApprovalMode = wire.ToolApprovalMode.IsSet
+            ? ParseToolApprovalMode(wire.ToolApprovalMode.Value)
+            : existing?.ToolApprovalMode ?? McpToolApprovalMode.Auto,
         OAuth = NormalizeTransport(ValueOrDefault(wire.Transport)) == "stdio" ? null : McpOAuthContractMapper.FromContract(wire.OAuth, existing?.OAuth),
         Origin = McpServerOrigin.Workspace()
     };
@@ -106,6 +111,21 @@ internal static class McpContractMapper
             ThreadId = origin.ThreadId,
             BindingId = origin.BindingId
         };
+
+    private static string ToContract(McpToolApprovalMode mode) => mode switch
+    {
+        McpToolApprovalMode.Approve => "approve",
+        McpToolApprovalMode.Prompt => "prompt",
+        _ => "auto"
+    };
+
+    private static McpToolApprovalMode ParseToolApprovalMode(string? value) => value switch
+    {
+        "auto" => McpToolApprovalMode.Auto,
+        "approve" => McpToolApprovalMode.Approve,
+        "prompt" => McpToolApprovalMode.Prompt,
+        _ => throw AppServerErrors.McpServerValidationFailed("'server.toolApprovalMode' must be 'auto', 'approve', or 'prompt'.")
+    };
 
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;

@@ -3,6 +3,7 @@ using DotCraft.Sessions.Wire;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Mcp;
 
@@ -20,6 +21,7 @@ internal static class McpLiveToolCatalogReader
             var inventory = await manager.GetInventoryAsync(status.Name, cancellationToken);
             if (inventory is null) continue;
             var config = await manager.GetConfigAsync(status.Name, cancellationToken);
+            var approvalMode = config is { Origin.IsThread: false } ? config.ToolApprovalMode : McpToolApprovalMode.Auto;
             var protocol = inventory.Tools.OfType<McpClientTool>()
                 .GroupBy(static tool => tool.Name, StringComparer.Ordinal)
                 .ToDictionary(static group => group.Key, static group => group.First().ProtocolTool, StringComparer.Ordinal);
@@ -40,7 +42,7 @@ internal static class McpLiveToolCatalogReader
                     function.ReturnJsonSchema,
                     metadata,
                     new ToolPolicyHints(
-                        RequiresApproval: hints?.DestructiveHint != false || hints?.OpenWorldHint != false,
+                        RequiresApproval: RequiresApproval(approvalMode, hints),
                         ReadOnly: hints?.ReadOnlyHint == true,
                         Destructive: hints?.DestructiveHint != false,
                         OpenWorld: hints?.OpenWorldHint != false),
@@ -58,4 +60,12 @@ internal static class McpLiveToolCatalogReader
         }
         return catalogs;
     }
+
+    internal static bool RequiresApproval(McpToolApprovalMode mode, ToolAnnotations? hints) => mode switch
+    {
+        McpToolApprovalMode.Approve => false,
+        McpToolApprovalMode.Prompt => true,
+        _ => hints?.DestructiveHint == true
+             || (hints?.ReadOnlyHint != true && (hints?.DestructiveHint != false || hints?.OpenWorldHint != false))
+    };
 }

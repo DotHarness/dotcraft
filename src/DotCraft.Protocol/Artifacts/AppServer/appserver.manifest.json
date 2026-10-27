@@ -11435,6 +11435,13 @@
           "const": null
         },
         {
+          "name": "toolApprovalMode",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "toolTimeoutSec",
           "type": "number",
           "required": false,
