@@ -12,7 +12,7 @@ Write a skill for a task type that recurs: when to use it, the exact steps, the 
 
 ## Where the skill lives
 
-Create a new skill at `.craft/skills/<name>/` in the workspace unless the user names another place. A skill in the user skill root is visible to every workspace, and one in `~/.agents/skills` is also read by other agent products, so put it there only when the user asks.
+Create a new skill at `.craft/skills/<name>/` in the workspace unless the user names another place. A skill in the user skill root is visible to every workspace, and one in a `.agents/skills` directory, in the workspace or the home folder, is also read by other agent products, so put it there only when the user asks.
 
 Before editing an existing skill, check where it lives:
 

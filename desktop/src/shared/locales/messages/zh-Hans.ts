@@ -1380,7 +1380,7 @@ export const MESSAGES_ZH_HANS = {
     '技能设置已保存。请重启远程 AppServer 使其生效。',
   'settings.personalization.sharedSkills': '使用共享技能',
   'settings.personalization.sharedSkillsHint':
-    '同时从 ~/.agents/skills 读取个人技能，这个目录与其他 agent 工具共用。',
+    '读取用户目录和工作区中 .agents 目录里的技能。',
   'settings.personalization.sharedSkillsSaveFailed': '保存共享技能设置失败：{{error}}',
   'settings.personalization.dreams': '梦境',
   'settings.personalization.dreamsHint': '在后台整理记忆',

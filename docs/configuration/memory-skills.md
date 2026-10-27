@@ -29,5 +29,5 @@ Dreams tidies the workspace memory and the separate memory of each Agent Profile
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Skills.DisabledSkills` | Skill names disabled for this workspace. A disabled skill stays on disk but is left out of agent context | `[]` |
-| `Skills.IncludeSharedSkills` | Also loads personal skills from `~/.agents/skills`, the directory shared with other agent tools. Takes effect on restart | `true` |
+| `Skills.IncludeSharedSkills` | Also loads skills from the `.agents/skills` directories shared with other agent tools: the workspace's, those in parent folders up to the repository root, and `~/.agents/skills`. Takes effect on restart | `true` |
 | `Skills.IncludeBuiltInSkills` | Deploys the skills DotCraft ships, such as `dotcraft-guide`, into the workspace on start. A host that brings its own skills turns this off. Takes effect on restart | `true` |

@@ -113,9 +113,7 @@ public static class ServiceRegistration
         services.AddSingleton(_ => new ApprovalStore(dataPath));
         services.AddSingleton(_ =>
         {
-            var skillsLoader = new SkillsLoader(
-                paths,
-                config.Skills.IncludeSharedSkills ? SkillsLoader.DefaultSharedSkillsPath : null);
+            var skillsLoader = new SkillsLoader(paths, config.Skills.IncludeSharedSkills);
             PluginRuntimeConfigurator.ConfigureSkillsLoader(skillsLoader, config, paths);
             return skillsLoader;
         });

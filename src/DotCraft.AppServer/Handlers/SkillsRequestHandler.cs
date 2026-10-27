@@ -136,7 +136,7 @@ internal sealed class SkillsRequestHandler(
         if (string.IsNullOrWhiteSpace(skillDir))
             throw AppServerErrors.InvalidParams($"Skill '{source.Name}' has an invalid path.");
 
-        if (skillsLoader.SharedSkillsPath is { } sharedRoot && IsStrictChildPathOf(skillDir, sharedRoot))
+        if (skillsLoader.SharedSkillRoots.FirstOrDefault(root => IsStrictChildPathOf(skillDir, root)) is { } sharedRoot)
         {
             throw AppServerErrors.InvalidParams(
                 $"Skill '{source.Name}' lives in the shared skills directory at {sharedRoot}, which DotCraft does not manage. Disable it instead of uninstalling it.");

@@ -322,6 +322,9 @@ public sealed partial class SessionService
             var scopedSkills = new SkillsLoader(
                 craftPath,
                 baseCtx.SkillsLoader.UserSkillsPath,
+                baseCtx.SkillsLoader.SharedSkillsPath is null
+                    ? null
+                    : SkillsLoader.FindWorkspaceSharedSkillsPaths(config.WorkspaceOverride),
                 baseCtx.SkillsLoader.SharedSkillsPath);
 
             scopedContext = new AgentRuntimeContext(baseCtx)

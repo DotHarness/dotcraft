@@ -111,10 +111,12 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         var craftPath = Path.Combine(_tempRoot, ".craft");
         var userSkillsPath = Path.Combine(_tempRoot, "user-skills");
         var sharedSkillsPath = Path.Combine(_tempRoot, "shared-skills");
-        var loader = new SkillsLoader(craftPath, userSkillsPath, sharedSkillsPath);
+        var workspaceSharedSkillsPath = Path.Combine(_tempRoot, ".agents", "skills");
+        var loader = new SkillsLoader(craftPath, userSkillsPath, [workspaceSharedSkillsPath], sharedSkillsPath);
         loader.DeployBuiltInSkills();
         WriteSkillAtRoot(userSkillsPath, "user-skill", "User body.");
         WriteSkillAtRoot(sharedSkillsPath, "shared-skill", "Shared body.");
+        WriteSkillAtRoot(workspaceSharedSkillsPath, "workspace-shared-skill", "Workspace shared body.");
         var builtinSkill = loader.ListSkills()
             .First(skill => string.Equals(skill.Source, "builtin", StringComparison.OrdinalIgnoreCase));
         var pluginSkillsPath = Path.Combine(_tempRoot, "plugin", "skills");
@@ -134,13 +136,14 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         }
         Assert.False(Directory.Exists(Path.Combine(userSkillsPath, "user-skill")));
 
-        foreach (var name in new[] { "shared-skill", builtinSkill.Name, "plugin-skill" })
+        foreach (var name in new[] { "shared-skill", "workspace-shared-skill", builtinSkill.Name, "plugin-skill" })
         {
             await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name }));
             using var rejected = harness.Transport.TryReadSent()!;
             AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
         }
         Assert.True(Directory.Exists(Path.Combine(sharedSkillsPath, "shared-skill")));
+        Assert.True(Directory.Exists(Path.Combine(workspaceSharedSkillsPath, "workspace-shared-skill")));
         Assert.True(Directory.Exists(Path.GetDirectoryName(builtinSkill.Path)));
         Assert.True(Directory.Exists(Path.Combine(pluginSkillsPath, "plugin-skill")));
     }

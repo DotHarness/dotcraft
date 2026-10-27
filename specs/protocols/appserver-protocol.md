@@ -1337,7 +1337,7 @@ The optional `automations` capability provides one automation definition and run
 
 ### 18.1 Scope
 
-These methods expose skill discovery and control. Skill sources, priority, and deduplication, the shared `~/.agents/skills` root, requirements metadata, authoring, and installation are defined in [Skills](../architecture/skills.md). On the wire, `source` is `workspace`, `plugin`, `builtin`, or `user`; the user-data root and the shared root both report `user` and differ only by `path`.
+These methods expose skill discovery and control. Skill sources, priority, and deduplication, the shared `.agents/skills` roots, requirements metadata, authoring, and installation are defined in [Skills](../architecture/skills.md). On the wire, `source` is `workspace`, `plugin`, `builtin`, or `user`; a shared root reports the same source as the DotCraft root at its level and differs only by `path`.
 
 Gated by `capabilities.skillsManagement` (otherwise `-32601`).
 

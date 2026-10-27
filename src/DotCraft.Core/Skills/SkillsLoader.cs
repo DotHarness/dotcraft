@@ -20,16 +20,25 @@ public sealed partial class SkillsLoader
     private HashSet<string> _disabledPluginSkillNames = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Creates a loader from the runtime path context.</summary>
-    public SkillsLoader(DotCraftPaths paths, string? sharedSkillsPath = null)
-        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("skills"), sharedSkillsPath)
+    public SkillsLoader(DotCraftPaths paths, bool includeSharedSkills = false)
+        : this(
+            paths.Data.RootPath,
+            paths.UserData.ResolveOrNull("skills"),
+            includeSharedSkills ? FindWorkspaceSharedSkillsPaths(paths.WorkspacePath) : null,
+            includeSharedSkills ? DefaultSharedSkillsPath : null)
     {
     }
 
     /// <summary>Creates a loader from already resolved skill roots.</summary>
-    public SkillsLoader(string workspaceRoot, string? userSkillsPath = null, string? sharedSkillsPath = null)
+    public SkillsLoader(
+        string workspaceRoot,
+        string? userSkillsPath = null,
+        IReadOnlyList<string>? workspaceSharedSkillsPaths = null,
+        string? sharedSkillsPath = null)
     {
         WorkspaceSkillsPath = Path.Combine(workspaceRoot, "skills");
         UserSkillsPath = userSkillsPath;
+        WorkspaceSharedSkillsPaths = workspaceSharedSkillsPaths ?? [];
         SharedSkillsPath = sharedSkillsPath;
     }
 
@@ -43,12 +52,41 @@ public sealed partial class SkillsLoader
     /// </summary>
     public string? UserSkillsPath { get; }
 
+    public IReadOnlyList<string> WorkspaceSharedSkillsPaths { get; }
+
     public string? SharedSkillsPath { get; }
+
+    public IEnumerable<string> SharedSkillRoots =>
+        SharedSkillsPath is null ? WorkspaceSharedSkillsPaths : [.. WorkspaceSharedSkillsPaths, SharedSkillsPath];
 
     public static string DefaultSharedSkillsPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".agents",
         "skills");
+
+    public static IReadOnlyList<string> FindWorkspaceSharedSkillsPaths(string workspacePath)
+    {
+        var directories = new List<string>();
+        var foundRepositoryRoot = false;
+        for (var directory = new DirectoryInfo(Path.GetFullPath(workspacePath)); directory != null; directory = directory.Parent)
+        {
+            directories.Add(directory.FullName);
+            if (Path.Exists(Path.Combine(directory.FullName, ".git")))
+            {
+                foundRepositoryRoot = true;
+                break;
+            }
+        }
+
+        if (!foundRepositoryRoot)
+            directories.RemoveRange(1, directories.Count - 1);
+
+        var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return directories
+            .Select(directory => Path.Combine(directory, ".agents", "skills"))
+            .Where(root => !string.Equals(root, DefaultSharedSkillsPath, pathComparison))
+            .ToArray();
+    }
 
     /// <summary>
     /// Replaces the set of disabled skill names (workspace UI / config). Disabled skills stay on disk but are omitted from agent context.
@@ -116,6 +154,9 @@ public sealed partial class SkillsLoader
             }
         }
 
+        foreach (var root in WorkspaceSharedSkillsPaths)
+            AddSkillsFromRoot(skills, root, "workspace");
+
         foreach (var source in _pluginSkillSources.OrderBy(s => s.PluginId, StringComparer.OrdinalIgnoreCase))
         {
             if (!Directory.Exists(source.SkillsPath))
@@ -154,13 +195,13 @@ public sealed partial class SkillsLoader
             }
         }
 
-        AddUserSkillsFromRoot(skills, UserSkillsPath);
-        AddUserSkillsFromRoot(skills, SharedSkillsPath);
+        AddSkillsFromRoot(skills, UserSkillsPath, "user");
+        AddSkillsFromRoot(skills, SharedSkillsPath, "user");
 
         return SortSkills(skills).ToList();
     }
 
-    private void AddUserSkillsFromRoot(List<SkillInfo> skills, string? root)
+    private void AddSkillsFromRoot(List<SkillInfo> skills, string? root, string source)
     {
         if (root is null || !Directory.Exists(root))
             return;
@@ -169,7 +210,7 @@ public sealed partial class SkillsLoader
         {
             var skillFile = Path.Combine(dir, "SKILL.md");
             if (File.Exists(skillFile))
-                AddSkillInfo(skills, Path.GetFileName(dir), skillFile, "user");
+                AddSkillInfo(skills, Path.GetFileName(dir), skillFile, source);
         }
     }
 
@@ -385,6 +426,12 @@ public sealed partial class SkillsLoader
         if (File.Exists(workspaceSkill) && !File.Exists(Path.Combine(WorkspaceSkillsPath, name, ".builtin")))
             return workspaceSkill;
 
+        foreach (var root in WorkspaceSharedSkillsPaths)
+        {
+            if (ResolveFromRoot(root, name) is { } sharedSkill)
+                return sharedSkill;
+        }
+
         foreach (var source in _pluginSkillSources)
         {
             var pluginSkill = Path.Combine(source.SkillsPath, name, "SKILL.md");
@@ -433,6 +480,8 @@ public sealed partial class SkillsLoader
     private IEnumerable<string> EnumerateSkillRoots()
     {
         yield return WorkspaceSkillsPath;
+        foreach (var root in WorkspaceSharedSkillsPaths)
+            yield return root;
         foreach (var source in _pluginSkillSources)
             yield return source.SkillsPath;
         if (UserSkillsPath is not null)
