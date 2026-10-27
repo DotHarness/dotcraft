@@ -17,7 +17,7 @@ public sealed class RemoteTransferProtocolTests
         using var home = new TemporaryDirectory();
         using var local = new TemporaryDirectory();
         using var remote = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = remote.Path });
         await File.WriteAllTextAsync(Path.Combine(remote.Path, "remote.txt"), "remote bytes");
         await File.WriteAllTextAsync(Path.Combine(local.Path, "local.txt"), "local bytes");
@@ -62,7 +62,7 @@ public sealed class RemoteTransferProtocolTests
         using var home = new TemporaryDirectory();
         using var local = new TemporaryDirectory();
         using var remote = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = remote.Path });
         await File.WriteAllTextAsync(Path.Combine(remote.Path, "remote.txt"), "bytes");
         await using var server = new RemoteToolHostTestServer(storage, rewriteResponse: (method, response) =>

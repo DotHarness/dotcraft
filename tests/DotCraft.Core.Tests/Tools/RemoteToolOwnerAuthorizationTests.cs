@@ -112,11 +112,11 @@ public sealed class RemoteToolOwnerAuthorizationTests
 
     private static RemoteToolHostStorage Setup(string home, string workspace, string mode)
     {
-        var storage = new RemoteToolHostStorage(home, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home);
         var state = RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace });
         storage.SaveHostState(state with { Peers = [new RemoteToolHubPeer
         {
-            PeerId = "sat_test", HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp, CredentialReference = "test",
+            PeerId = "sat_test", HubHost = "localhost", HubPort = 1, HubScheme = Uri.UriSchemeHttp,
             HubLabel = "Ann", WorkspaceId = "repo", AuthorizationMode = mode, AuthorizationRevision = 7
         }] });
         return storage;

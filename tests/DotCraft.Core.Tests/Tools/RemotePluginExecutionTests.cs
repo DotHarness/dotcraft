@@ -249,7 +249,7 @@ public sealed class RemotePluginExecutionTests
 
     private static RemoteToolHostStorage Setup(string home, string workspace)
     {
-        var storage = new RemoteToolHostStorage(home, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = workspace });
         return storage;
     }

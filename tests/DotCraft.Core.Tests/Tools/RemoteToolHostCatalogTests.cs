@@ -13,7 +13,7 @@ public sealed class RemoteToolHostCatalogTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -49,7 +49,7 @@ public sealed class RemoteToolHostCatalogTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -83,7 +83,7 @@ public sealed class RemoteToolHostCatalogTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -107,7 +107,7 @@ public sealed class RemoteToolHostCatalogTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -145,7 +145,7 @@ public sealed class RemoteToolHostCatalogTests
             '\n',
             Enumerable.Range(0, 12_000).Select(index => $"line-{index:D6}-value"));
         await File.WriteAllTextAsync(Path.Combine(workspace.Path, "large.txt"), oversized);
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });

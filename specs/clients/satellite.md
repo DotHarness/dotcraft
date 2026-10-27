@@ -24,7 +24,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
 
 - Administrator rights, a Windows service, or any HKLM write.
 - Changing the Remote Tool Host security model: one shared secret per pairing, stored in the
-  Windows credential store.
+  Host state directory.
 - Multi-user roles or approval routing to third parties.
 - Replacing DotCraft Desktop or hosting a conversation surface.
 - Remote input, remote control, or recording of the screen.
@@ -51,8 +51,8 @@ only.
 
 ## State sharing with the CLI
 
-Satellite and `dotcraft tool-host *` MUST resolve the same state root `~/.craft/remote-tool-host/`
-and the same credential-store prefix, so `dotcraft tool-host status` reflects state written by
+Satellite and `dotcraft tool-host *` MUST resolve the same state root `~/.craft/remote-tool-host/`,
+which also holds the pairing credentials, so `dotcraft tool-host status` reflects state written by
 Satellite and vice versa. Satellite MUST NOT introduce a second state root or an environment
 override.
 

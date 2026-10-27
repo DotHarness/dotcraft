@@ -15,7 +15,7 @@ public sealed class RemoteToolHostServeTests
         using var home = new TemporaryDirectory();
         using var shared = new TemporaryDirectory();
         using var optedOut = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.WriteConfig(
             storage.GlobalConfigPath,
             new { Tools = new { Lsp = new { Enabled = true } } });
@@ -50,7 +50,7 @@ public sealed class RemoteToolHostServeTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -77,7 +77,7 @@ public sealed class RemoteToolHostServeTests
         Directory.CreateDirectory(secretDirectory);
         await File.WriteAllTextAsync(Path.Combine(secretDirectory, "keys.txt"), "top-secret");
         await File.WriteAllTextAsync(Path.Combine(workspace.Path, "open.txt"), "open-value");
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.WriteConfig(
             storage.GlobalConfigPath,
             new { Security = new { BlacklistedPaths = new[] { secretDirectory } } });
@@ -111,7 +111,7 @@ public sealed class RemoteToolHostServeTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.WriteConfig(
             storage.GlobalConfigPath,
             new { Security = new { BlacklistedPaths = new[] { storage.RootPath } } });
@@ -131,7 +131,7 @@ public sealed class RemoteToolHostServeTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         var state = RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -165,7 +165,7 @@ public sealed class RemoteToolHostServeTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
@@ -205,7 +205,7 @@ public sealed class RemoteToolHostServeTests
         using var home = new TemporaryDirectory();
         using var plain = new TemporaryDirectory();
         using var withLsp = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.WriteConfig(
             Path.Combine(withLsp.Path, ".craft", "config.json"),
             new { Tools = new { Lsp = new { Enabled = true } } });
@@ -235,7 +235,7 @@ public sealed class RemoteToolHostServeTests
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
         RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });

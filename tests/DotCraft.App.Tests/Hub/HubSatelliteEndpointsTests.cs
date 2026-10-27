@@ -83,8 +83,7 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
         var workspacePath = Path.Combine(_userProfile, "workspace");
         Directory.CreateDirectory(workspacePath);
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"), credentials);
+        var storage = new RemoteToolHostStorage(Path.Combine(_userProfile, "host-craft"));
         await using var runtime = new RemoteToolHostRuntime(storage, "host-machine");
         var invite = await hub.CreateInviteAsync("Ann");
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));

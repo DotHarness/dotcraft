@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Security.AccessControl;
 using DotCraft.Agents;
 
 namespace DotCraft.Configuration;
@@ -35,7 +34,7 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            await using (var stream = CreateOwnerOnlyFile(temporary))
+            await using (var stream = OwnerOnlyFile.Create(temporary))
                 await JsonSerializer.SerializeAsync(stream, next, cancellationToken: cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, _path, overwrite: true);
@@ -81,35 +80,6 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
             _gate.Release();
             throw;
         }
-    }
-
-    private static FileStream CreateOwnerOnlyFile(string path)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return new FileStream(path, new FileStreamOptions
-            {
-                Mode = FileMode.CreateNew,
-                Access = FileAccess.Write,
-                Share = FileShare.None,
-                UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
-            });
-        }
-        return CreateWindowsOwnerOnlyFile(path);
-    }
-
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static FileStream CreateWindowsOwnerOnlyFile(string path)
-    {
-        var owner = System.Security.Principal.WindowsIdentity.GetCurrent().User
-            ?? throw new UnauthorizedAccessException("The current user cannot be determined.");
-        var security = new FileSecurity();
-        security.SetAccessRuleProtection(true, false);
-        security.SetOwner(owner);
-        security.AddAccessRule(new FileSystemAccessRule(
-            owner, FileSystemRights.FullControl, AccessControlType.Allow));
-        return new FileInfo(path).Create(
-            FileMode.CreateNew, FileSystemRights.Write, FileShare.None, 4096, FileOptions.None, security);
     }
 
     private sealed record StoredCredential(JsonElement? Credential);

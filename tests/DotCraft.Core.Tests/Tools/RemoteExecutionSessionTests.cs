@@ -214,7 +214,7 @@ internal sealed class RemoteExecutionFixture : IAsyncDisposable
 
     private RemoteExecutionFixture(IRemoteToolApprovalPresenter? owner)
     {
-        Storage = new(Home.Path, new MemoryCredentialStore());
+        Storage = new(Home.Path);
         RemoteToolHostTestHost.Setup(Storage, new Dictionary<string, string> { ["repo"] = Workspace.Path });
         Server = new(Storage, ownerApprovals: owner);
     }

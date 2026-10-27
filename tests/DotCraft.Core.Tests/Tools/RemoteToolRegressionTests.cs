@@ -22,7 +22,7 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var storage = new RemoteToolHostStorage(_home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(_home.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string> { ["repo"] = _remote.Path });
         _server = new(storage, diagnostic: _diagnostics.Enqueue);
         _client = _server.CreateClient();

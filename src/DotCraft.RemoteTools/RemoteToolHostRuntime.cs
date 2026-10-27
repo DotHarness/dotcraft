@@ -290,24 +290,39 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
                 "The invitation was refused. Ask for a new invitation link.");
         }
 
+        RemoteToolHubPeer stored;
+        try
+        {
+            stored = _storage.AddPeer(
+                new RemoteToolHubPeer
+                {
+                    PeerId = welcome.PeerId,
+                    HubHost = hub.Host,
+                    HubPort = hub.Port,
+                    HubScheme = hub.Scheme,
+                    HubLabel = welcome.HubLabel ?? decision.Invite.InviterDisplayName,
+                    WorkspaceId = workspaceId,
+                    AuthorizationMode = decision.AuthorizationMode,
+                    AuthorizationRevision = 1,
+                    PairedAt = DateTimeOffset.UtcNow
+                },
+                welcome.Credential);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            await SatelliteWire.SendAsync(
+                socket,
+                new SatelliteFrame { Kind = SatelliteWire.Unpaired, PeerId = welcome.PeerId },
+                cancellationToken).ConfigureAwait(false);
+            throw new RemoteToolHostException(
+                RemoteToolErrorCodes.PairingNotSaved,
+                $"The pairing could not be saved to {_storage.CredentialsPath}: {exception.Message} "
+                + "The invitation was withdrawn; ask for a new invitation link once that folder is writable.",
+                inner: exception);
+        }
+
         await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "joined", cancellationToken)
             .ConfigureAwait(false);
-
-        var stored = _storage.AddPeer(
-            new RemoteToolHubPeer
-            {
-                PeerId = welcome.PeerId,
-                HubHost = hub.Host,
-                HubPort = hub.Port,
-                CredentialReference = RemoteToolHostStorage.PeerCredentialReference(welcome.PeerId),
-                HubScheme = hub.Scheme,
-                HubLabel = welcome.HubLabel ?? decision.Invite.InviterDisplayName,
-                WorkspaceId = workspaceId,
-                AuthorizationMode = decision.AuthorizationMode,
-                AuthorizationRevision = 1,
-                PairedAt = DateTimeOffset.UtcNow
-            },
-            welcome.Credential);
         Refresh();
         return ToPeer(stored, connector: null);
     }

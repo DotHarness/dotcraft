@@ -68,7 +68,6 @@ internal sealed record RemoteToolHubPeer
     public required string PeerId { get; init; }
     public required string HubHost { get; init; }
     public required int HubPort { get; init; }
-    public required string CredentialReference { get; init; }
     public required string HubScheme { get; init; }
     public string HubLabel { get; init; } = string.Empty;
     public required string WorkspaceId { get; init; }

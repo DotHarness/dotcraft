@@ -14,7 +14,7 @@ public sealed class RemoteToolHostInfrastructureTests
     public void ServeLock_SecondAcquisitionFails_AndRecoversStaleFile()
     {
         using var home = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(home.Path);
 
         Assert.True(RemoteToolHostServeLock.TryAcquire(storage, out var held));
         Assert.False(RemoteToolHostServeLock.TryAcquire(storage, out var blocked));
@@ -118,8 +118,7 @@ public sealed class RemoteToolHostInfrastructureTests
     public void Storage_PeerCredential_IsNotWrittenToHostJson()
     {
         using var directory = new TemporaryDirectory();
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(directory.Path, credentials);
+        var storage = new RemoteToolHostStorage(directory.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string>(StringComparer.Ordinal));
         const string credential = "raw-secret-credential";
 
@@ -127,7 +126,6 @@ public sealed class RemoteToolHostInfrastructureTests
 
         var persisted = File.ReadAllText(storage.HostStatePath);
         Assert.DoesNotContain(credential, persisted, StringComparison.Ordinal);
-        Assert.Contains(peer.CredentialReference, persisted, StringComparison.Ordinal);
         Assert.Equal(credential, storage.GetPeerCredential(peer));
     }
 
@@ -135,8 +133,7 @@ public sealed class RemoteToolHostInfrastructureTests
     public void Storage_RemovePeer_DeletesCredential()
     {
         using var directory = new TemporaryDirectory();
-        var credentials = new MemoryCredentialStore();
-        var storage = new RemoteToolHostStorage(directory.Path, credentials);
+        var storage = new RemoteToolHostStorage(directory.Path);
         RemoteToolHostTestHost.Setup(storage, new Dictionary<string, string>(StringComparer.Ordinal));
         storage.AddPeer(NewPeer("sat_alpha"), "credential-alpha");
         storage.AddPeer(NewPeer("sat_beta"), "credential-beta");
@@ -146,9 +143,7 @@ public sealed class RemoteToolHostInfrastructureTests
 
         var remaining = Assert.Single(storage.LoadHostState()!.Peers);
         Assert.Equal("sat_beta", remaining.PeerId);
-        Assert.DoesNotContain(
-            credentials.Values,
-            pair => pair.Key.EndsWith("sat_alpha", StringComparison.Ordinal));
+        Assert.False(storage.LoadCredentials().ContainsKey("sat_alpha"));
         Assert.Equal("credential-beta", storage.GetPeerCredential(remaining));
     }
 
@@ -156,7 +151,7 @@ public sealed class RemoteToolHostInfrastructureTests
     public async Task Empty_pairing_store_keeps_control_operations_live()
     {
         using var directory = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(directory.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(directory.Path);
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();
 
@@ -264,7 +259,7 @@ public sealed class RemoteToolHostInfrastructureTests
         using var hostDirectory = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         await File.WriteAllTextAsync(Path.Combine(workspace.Path, "remote.txt"), "remote-value");
-        var storage = new RemoteToolHostStorage(hostDirectory.Path, new MemoryCredentialStore());
+        var storage = new RemoteToolHostStorage(hostDirectory.Path);
         var state = RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path },
@@ -362,7 +357,6 @@ public sealed class RemoteToolHostInfrastructureTests
         HubHost = "127.0.0.1",
         HubPort = 47600,
         HubScheme = Uri.UriSchemeHttp,
-        CredentialReference = RemoteToolHostStorage.PeerCredentialReference(peerId),
         HubLabel = "test-hub",
         WorkspaceId = "repo",
         AuthorizationMode = RemoteToolAuthorization.FullAccess,
