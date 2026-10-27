@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.6 |
 | **Status** | Draft |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -212,7 +212,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Role text is a thread context item (§4b). |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
-SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages and tasks a parent sends with `SendMessage` share a structured envelope whose `Message Type` is respectively `MESSAGE` or `NEW_TASK`; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
+SubAgent communications are delivered as materialized user-role input, not system prompt sections. Messages Agents send with `SendMessage` share one structured envelope; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 
 ## 7. App Binding and MCP guidance
 

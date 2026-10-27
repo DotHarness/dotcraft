@@ -197,7 +197,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<SubAgentProgressNotification> SubAgentProgress = new("subagent/progress", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 
-    public static readonly RpcRequest<SubAgentTargetMessageParams, SubAgentControlResult> SubAgentSendMessage = new("subagent/sendMessage", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<SubAgentSettingsUpdateParams, SubAgentSettingsUpdateResult> SubAgentSettingsUpdate = new("subagent/settings/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 

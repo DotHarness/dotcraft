@@ -18,25 +18,6 @@ public sealed class SubAgentCommunicationRuntimeTests
         await steerActivity.WaitAsync(TimeSpan.FromSeconds(1));
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("message")]
-    [InlineData("UNKNOWN")]
-    public void CommunicationEnvelope_RejectsUndefinedMessageTypes(string messageType)
-    {
-        var communication = new SubAgentCommunication
-        {
-            Id = "communication-1",
-            RootThreadId = "root-a",
-            AuthorAgentPath = AgentPath.Root,
-            RecipientAgentPath = "/root/worker",
-            MessageType = messageType,
-            Payload = "payload"
-        };
-
-        Assert.Throws<InvalidOperationException>(() => communication.RenderForModel());
-    }
-
     [Fact]
     public async Task Activity_IsPartitionedByRootAndTarget()
     {

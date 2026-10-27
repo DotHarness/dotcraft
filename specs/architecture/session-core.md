@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.4 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -786,11 +786,11 @@ Every content value is `{ kind, payload }` with schema version 1. The payload un
 
 #### Running input and history consistency
 
-The active model/tool loop keeps an ordered history of initial input, model responses, tool results, and admitted steering and passive input. Delivered input remains available to later Turns, cold loading, and recovery export.
+The active model/tool loop keeps an ordered history of initial input, model responses, tool results, and admitted steering and mailbox input. Delivered input remains available to later Turns, cold loading, and recovery export.
 
 Running input enters the loop at one pre-sampling drain point:
 
-- The first sample of a Turn admits only passive mailbox input and queued task notifications.
+- The first sample of a Turn admits only mailbox input and queued task notifications.
 - After a tool round, pre-sampling preparation (including compaction) runs first and then the drain, so admitted input always follows any compaction baseline verbatim.
 - After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request, running the same preparation and drain; if the drain admits no guidance, the Turn ends without sampling again.
 - Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt.
@@ -988,9 +988,9 @@ Interactive adapters present the request natively. A client may auto-resolve a n
 
 `SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). Native full-history SubAgents keep it declared and have their calls rejected. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
 
-The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 ms to 12 hours and records a `Sleep` Item for the wait. It returns after the duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal; the runtime subscribes before rechecking pending input so a signal at the boundary is not lost. The next drain then admits that input before the next sample.
+The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. No tool holds a Turn open to wait: a reply, Agent message, or task notification that arrives after the Turn ends starts the next Turn.
 
-When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, `SendUserMessageAsync` when independent authorized work can continue, and `clock/Sleep` after asking when no independent work remains. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
+When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, and `SendUserMessageAsync` when independent authorized work can continue. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
 
 ## 11. Failure Model
 

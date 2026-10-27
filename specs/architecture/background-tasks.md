@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.6 |
 | **Status** | Living |
 | **Date** | 2026-10-27 |
 | **Parent Specs** | [Session Core](session-core.md), [Tool Architecture](tools-architecture.md) |
@@ -29,7 +29,7 @@ its own execution runtime, persistence, and client protocol.
 - A unified AppServer `task/*` protocol. `terminal/*`, `subagent/*`, and `workflow/run/*` are the
   client contracts.
 - Line-level output monitoring (a Monitor tool).
-- The shared discussion board and agent-to-agent `MESSAGE` delivery.
+- The shared discussion board and the Agent mailbox.
 
 ## 3. Task model
 
@@ -109,17 +109,16 @@ A SubAgent role that denies Agent control may still stop its own shell tasks. `T
 
 ### 4.2 `SendMessage`
 
-`SendMessage(target, message)` both messages and continues Agents:
+`SendMessage(target, message)` reaches any other open path in the root tree: `/root`, the parent,
+an ancestor, a sibling, or a descendant. Every message can wake its recipient:
 
-- to one of the caller's descendants: starts the child when it is idle or was stopped, injects the
-  message into its active Turn at the next sampling boundary when the child is a running native
-  child, and otherwise runs it after the active Turn. Pending mailbox messages for the child are
-  delivered with it. The child resumes with its stored role, profile, runtime, model configuration,
-  workspace, and path;
-- to any other open path in the root tree (the parent, an ancestor, a sibling): writes a passive
-  `MESSAGE` that never starts a Turn.
+- a running native recipient receives it at the next sampling boundary;
+- a running external recipient runs it after its active Turn;
+- an idle or stopped recipient starts a Turn with it. A SubAgent resumes with its stored role,
+  profile, runtime, model configuration, workspace, and path; `/root` receives it as queued input.
 
-A target whose spawn edge was closed by a client is an error.
+Pending mailbox messages for the recipient are delivered with it. A target whose spawn edge was
+closed by a client, and an external SubAgent whose edge does not accept new tasks, are errors.
 
 ### 4.3 `SpawnAgent`, `ListAgents`, `Workflow`, `Exec`
 
@@ -199,9 +198,10 @@ notifications are queued but never start a Turn. A wake loop is bounded by
 `Tools.BackgroundTasks.MaxConsecutiveWakes` (default 3): when the Thread's last N Turns were each
 started by notifications and each started another background task, the next notification is queued
 without starting a Turn and is delivered with the next user input. A notification is never dropped.
+Agent messages are not bounded.
 
-An Agent's ending reaches its parent only as a task notification. The mailbox carries `MESSAGE` and
-`NEW_TASK` entries.
+An Agent's ending reaches its parent only as a task notification; Agent messages travel through the
+mailbox (§4.2).
 
 ## 6. Clients
 

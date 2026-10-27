@@ -158,7 +158,6 @@ export interface ClientRequestMethods {
   "subagent/profiles/remove": { params: Models.SubAgentProfileRemoveParams; result: Models.SubAgentProfileRemoveResult };
   "subagent/profiles/setEnabled": { params: Models.SubAgentProfileSetEnabledParams; result: Models.SubAgentProfileSetEnabledResult };
   "subagent/profiles/upsert": { params: Models.SubAgentProfileUpsertParams; result: Models.SubAgentProfileUpsertResult };
-  "subagent/sendMessage": { params: Models.SubAgentTargetMessageParams; result: Models.SubAgentControlResult };
   "subagent/settings/update": { params: Models.SubAgentSettingsUpdateParams; result: Models.SubAgentSettingsUpdateResult };
   "terminal/clean": { params: Models.TerminalCleanParams; result: Models.TerminalCleanResult };
   "terminal/list": { params: Models.TerminalListParams; result: Models.TerminalListResult };

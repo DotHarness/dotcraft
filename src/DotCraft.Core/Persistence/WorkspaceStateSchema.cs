@@ -222,7 +222,6 @@ internal static class WorkspaceStateSchema
                     sender_agent_path TEXT NOT NULL,
                     target_agent_path TEXT NOT NULL,
                     message TEXT NOT NULL,
-                    message_type TEXT NOT NULL DEFAULT 'MESSAGE',
                     parent_turn_id TEXT,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -348,11 +347,6 @@ internal static class WorkspaceStateSchema
                 """;
         command.ExecuteNonQuery();
 
-        EnsureColumn(
-            connection,
-            "subagent_mailbox_entries",
-            "message_type",
-            "TEXT NOT NULL DEFAULT 'MESSAGE'");
         EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
         EnsureColumn(connection, "threads", "attachment_index_version", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "threads", "git_info_json", "TEXT");

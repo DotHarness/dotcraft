@@ -104,20 +104,6 @@ public sealed class AgentMessagePayload : ExtensibleJsonObject
     public string? DeliveryMode { get; init; }
 }
 
-/// <summary>Canonical payload for a runtime-managed sleep lifecycle item.</summary>
-public sealed class SleepPayload : ExtensibleJsonObject
-{
-    [JsonPropertyName("durationMs")]
-    public required int DurationMs { get; init; }
-
-    [JsonPropertyName("actualDurationMs")]
-    [JsonSafeInteger]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? ActualDurationMs { get; init; }
-
-    [JsonPropertyName("status")]
-    public required string Status { get; init; }
-}
 
 /// <summary>Canonical payload for a reasoning content item.</summary>
 public sealed class ReasoningContentPayload : ExtensibleJsonObject

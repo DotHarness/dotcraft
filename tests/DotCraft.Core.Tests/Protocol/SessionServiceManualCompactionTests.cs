@@ -336,7 +336,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
 
         Assert.Equal("partial", result.Outcome);
         Assert.Equal(
-            ["GetStatus", "SendUserMessageAsync", "clock__CurrentTime", "clock__Sleep"],
+            ["GetStatus", "SendUserMessageAsync", "clock__CurrentTime"],
             (summaryChat.Options?.Tools ?? [])
                 .Select(tool => tool.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)

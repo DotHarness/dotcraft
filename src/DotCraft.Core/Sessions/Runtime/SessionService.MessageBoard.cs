@@ -11,9 +11,6 @@ public sealed partial class SessionService
 {
     private readonly ConcurrentDictionary<string, BoardTurnInbox> _boardInboxes = new(StringComparer.Ordinal);
 
-    internal bool HasBoardNotification(string threadId, string turnId) =>
-        _boardInboxes.TryGetValue(threadId, out var inbox) && inbox.TurnId == turnId && inbox.HasPending;
-
     private BoardTurnInbox RegisterBoardInbox(SessionThread thread, string turnId, CancellationToken ct)
     {
         var inbox = new BoardTurnInbox(turnId, ct);
@@ -122,7 +119,7 @@ public sealed partial class SessionService
             {
                 Id = "board:" + metadata.MessageId, RootThreadId = actor.RootId,
                 SenderAgentPath = actor.Path, TargetAgentPath = path, Message = payload,
-                MessageType = SubAgentCommunicationMessageType.Message, CreatedAt = metadata.CreatedAt
+                CreatedAt = metadata.CreatedAt
             })) _subAgentCommunicationRuntime.PublishMailbox(actor.RootId, path);
             return;
         }

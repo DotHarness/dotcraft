@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-27 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -397,7 +397,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 - A file tool call whose presentation options carry `memory` renders as memory recall or update rather than a file operation, following [Memory](../features/memory.md#8-presentation). `MEMORY.md` is not counted as a memory file.
 - A file tool call whose presentation options carry `skill` renders as reading, creating, or updating the Skill named by `skillName` rather than as a file operation, following [Skills](../architecture/skills.md#51-presentation). The label carries the Skill name as a Skill reference chip that opens the Skill's detail; a create or update expands to its diff like a file edit, and grouped rows name the Skill work once.
 - Completed `RequestUserInput` results render as a question-to-answer list, not raw JSON.
-- `CodeMode` and `CodeModeWait` calls and their results are not rendered; the calls a script makes render as ordinary items in time order ([Code Mode](../features/code-mode.md#10-session-projection-and-presentation)). `clock__Sleep` and `SendUserMessageAsync` calls are not rendered either; the asynchronous message itself shows as a message. The mobile client follows the same rules.
+- `CodeMode` and `CodeModeWait` calls and their results are not rendered; the calls a script makes render as ordinary items in time order ([Code Mode](../features/code-mode.md#10-session-projection-and-presentation)). `SendUserMessageAsync` calls are not rendered either; the asynchronous message itself shows as a message. The mobile client follows the same rules.
 
 **Shell and background terminals**
 

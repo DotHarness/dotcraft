@@ -21,22 +21,21 @@ public sealed class UserCoordinationToolSource : AIFunctionToolSource
         if (context.ThreadKind != ToolPlanningThreadKind.SubAgentChild)
             yield return GeneratedToolFunctions.UserCoordinationTools_SendUserMessageAsync(tools);
 
-        yield return GeneratedToolFunctions.UserCoordinationTools_Sleep(tools);
         yield return GeneratedToolFunctions.UserCoordinationTools_CurrentTime(tools);
     }
 
     protected override string? GetNamespace(AIFunction function, ToolPlanningContext context) =>
-        function.Name is nameof(UserCoordinationTools.Sleep) or nameof(UserCoordinationTools.CurrentTime)
+        function.Name is nameof(UserCoordinationTools.CurrentTime)
             ? ClockNamespace
             : null;
 
     protected override string? GetNamespaceDescription(AIFunction function, ToolPlanningContext context) =>
-        function.Name is nameof(UserCoordinationTools.Sleep) or nameof(UserCoordinationTools.CurrentTime)
-            ? "Clock utilities for reading UTC time and waiting for user or mailbox activity."
+        function.Name is nameof(UserCoordinationTools.CurrentTime)
+            ? "Clock utilities for reading UTC time."
             : null;
 
     protected override ToolExposure GetExposure(AIFunction function, ToolPlanningContext context) =>
-        function.Name is nameof(UserCoordinationTools.SendUserMessageAsync) or nameof(UserCoordinationTools.Sleep)
+        function.Name is nameof(UserCoordinationTools.SendUserMessageAsync)
             ? ToolExposure.DirectModelOnly
             : ToolExposure.Direct;
 

@@ -10,7 +10,6 @@ const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { o
   Exec: { presentationId: 'core.shell', options: { operation: 'exec' } },
   SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
   TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
-  Sleep: { presentationId: 'core.sleep' },
   SendUserMessageAsync: { presentationId: 'core.send-user-message-async' },
 }
 
@@ -62,8 +61,6 @@ describe('turn layout', () => {
       item('userMessage', { text: 'Check it' }),
       item('toolCall', { ...core('SendUserMessageAsync'), callId: 'm1', arguments: { message: 'Question?' } }),
       item('toolResult', { ...core('SendUserMessageAsync'), callId: 'm1', result: '{"accepted":true}' }),
-      item('toolCall', { ...core('Sleep'), namespace: 'clock', callId: 's1', arguments: { durationMs: 1000 } }),
-      item('toolResult', { ...core('Sleep'), namespace: 'clock', callId: 's1', result: '{"status":"completed"}' }),
       item('toolCall', { toolName: 'CodeModeWait', source: { kind: 'CoreNative', sourceId: 'code-mode' }, callId: 'w1', arguments: { cell_id: 'c1' } }),
       ...read('a.ts', 'r1'),
       item('toolResult', { toolName: 'CodeModeWait', source: { kind: 'CoreNative', sourceId: 'code-mode' }, callId: 'w1', result: 'Script completed' }),

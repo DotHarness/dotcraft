@@ -79,7 +79,7 @@ public sealed class AgentTools(
         return SerializeResult(result);
     }
 
-    [Description("Send a message to another agent. A subagent you spawned works on it in the background, even after it finished or was stopped, and you will be notified when it finishes. Other agents receive it in their mailbox without starting a turn.")]
+    [Description("Send a message to another agent. A running agent receives it during its current turn, and an idle or stopped agent is woken to handle it. A subagent you spawned works on it in the background, and you will be notified when it finishes. To wait for a reply, end your turn; the reply wakes you.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(

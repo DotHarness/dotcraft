@@ -173,6 +173,38 @@ public sealed class SessionTaskNotificationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AgentMessage_WakesAnIdleRootWithTheMessage()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var worker = await ChildContextAsync(harness, "worker");
+
+        await SubAgentSessionControl.SendAgentMessageAsync(worker, "/root", "found the cause", coordinator: null, CancellationToken.None);
+
+        var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 1 && t.Turns[0].Status == TurnStatus.Completed);
+        var input = thread.Turns[0].Input!.AsUserMessage!;
+        Assert.Equal(SubAgentMailboxDelivery.DeliveryMode, input.TriggerKind);
+        Assert.Contains("found the cause", string.Concat(input.MaterializedInputParts!.Select(part => part.Text)));
+        Assert.Empty(await harness.Service.ListPendingSubAgentMailboxAsync(harness.ThreadId, AgentPath.Root));
+    }
+
+    [Fact]
+    public async Task BoardPost_DoesNotWakeAnIdleExplicitRecipient()
+    {
+        await using var harness = await CreateHarnessAsync();
+        var worker = await ChildContextAsync(harness, "worker");
+
+        await harness.Service.ExecuteBoardAsync(
+            worker,
+            new BoardRequest("post", NewChannelName: "work", Text: "ready for review", AgentsToNotify: ["/root"]),
+            "post",
+            CancellationToken.None);
+        await Task.Delay(300);
+
+        Assert.Empty((await harness.Service.GetThreadAsync(harness.ThreadId)).Turns);
+        Assert.Empty(await harness.Service.ListPendingSubAgentMailboxAsync(harness.ThreadId, AgentPath.Root));
+    }
+
+    [Fact]
     public async Task ArchivedThread_KeepsTheNotificationQueuedForItsNextTurn()
     {
         await using var harness = await CreateHarnessAsync();
@@ -265,7 +297,32 @@ public sealed class SessionTaskNotificationTests : IAsyncLifetime
             WorkspacePath = _tempDir
         });
         await service.RefreshThreadAgentAsync(thread.Id);
-        return new Harness(service, client, agentFactory, thread.Id);
+        return new Harness(service, client, agentFactory, thread.Id, _tempDir);
+    }
+
+    private static async Task<SubAgentSessionContext> ChildContextAsync(Harness harness, string name)
+    {
+        var path = "/root/" + name;
+        var child = await harness.Service.CreateThreadAsync(
+            new SessionIdentity { ChannelName = "test", UserId = "user", WorkspacePath = harness.WorkspacePath },
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = harness.ThreadId, RootThreadId = harness.ThreadId, AgentPath = path,
+                TaskName = name, RuntimeType = "native", Depth = 1
+            }));
+        await harness.Service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = harness.ThreadId, ChildThreadId = child.Id, AgentPath = path,
+            TaskName = name, RuntimeType = "native", Status = ThreadSpawnEdgeStatus.Open, Depth = 1
+        });
+        return new SubAgentSessionContext
+        {
+            SessionService = harness.Service,
+            ParentThread = child,
+            ParentTurnId = name + "-turn",
+            RootThreadId = harness.ThreadId,
+            Depth = 1
+        };
     }
 
     private static async Task<SessionThread> WaitForThreadAsync(Harness harness, Func<SessionThread, bool> condition)
@@ -285,13 +342,16 @@ public sealed class SessionTaskNotificationTests : IAsyncLifetime
         SessionService service,
         NotificationChatClient client,
         AgentFactory agentFactory,
-        string threadId) : IAsyncDisposable
+        string threadId,
+        string workspacePath) : IAsyncDisposable
     {
         public SessionService Service { get; } = service;
 
         public NotificationChatClient Client { get; } = client;
 
         public string ThreadId { get; } = threadId;
+
+        public string WorkspacePath { get; } = workspacePath;
 
         public async Task RunUserTurnAsync(string text)
         {

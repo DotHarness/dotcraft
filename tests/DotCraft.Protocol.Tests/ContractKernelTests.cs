@@ -180,7 +180,6 @@ public sealed class ContractKernelTests
             ["userInputRequest"] = """{"requestId":"req_1","questions":[],"isBlocking":true}""",
             ["userInputResponse"] = """{"requestId":"req_1","response":{"answers":{}}}""",
             ["error"] = """{"message":"failed","code":"agent_error","fatal":true}""",
-            ["sleep"] = """{"durationMs":1000,"actualDurationMs":250,"status":"interrupted"}""",
             ["systemNotice"] = """{"kind":"compacted","trigger":"manual","mode":"partial","tokensBefore":100,"tokensAfter":50,"percentLeftAfter":0.5,"clearedToolResults":0}"""
         };
 

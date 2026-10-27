@@ -1137,7 +1137,6 @@ public sealed class ThreadStoreTests : IDisposable
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
         var turn = thread.Turns[0];
         const string notification = """
-            Message Type: MESSAGE
             Task name: /root
             Sender: /root/inspect
             Payload:

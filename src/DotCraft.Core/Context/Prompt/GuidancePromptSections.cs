@@ -31,8 +31,7 @@ internal static class GuidancePromptSections
     {
         var hasBlockingQuestion = context.IsToolAvailable("RequestUserInput");
         var hasAsyncMessage = context.IsToolAvailable("SendUserMessageAsync");
-        var hasSleep = context.IsToolAvailable("clock__Sleep");
-        if (!hasBlockingQuestion && !hasAsyncMessage && !hasSleep)
+        if (!hasBlockingQuestion && !hasAsyncMessage)
             return null;
 
         var rules = new List<string>
@@ -47,12 +46,8 @@ internal static class GuidancePromptSections
         }
         if (hasAsyncMessage)
             rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings, and replies during ongoing work on the app surface. Use commentary for routine progress.");
-        if (hasSleep)
-            rules.Add("- Use `clock__Sleep` only after a question has been sent, no independent work remains, and this turn needs to wait for the reply.");
         if (hasAsyncMessage)
             rules.Add("- After an asynchronous question, continue every authorized task that does not depend on the answer.");
-        if (hasSleep)
-            rules.Add("- Stay quiet while waiting. After Sleep returns, check for new user or agent messages before continuing.");
         rules.Add("- Do not repeat the same question, authorization request, or status in both an asynchronous message and the final answer.");
         rules.Add("- Do not create a Goal implicitly. Only an existing Goal explicitly created by the user or system continues across turns.");
         return string.Join(Environment.NewLine, rules);

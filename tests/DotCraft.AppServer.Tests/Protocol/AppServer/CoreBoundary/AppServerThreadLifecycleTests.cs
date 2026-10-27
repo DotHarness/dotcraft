@@ -520,30 +520,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task SubAgentSendMessage_UsesAgentPathAndWritesMailbox()
-    {
-        var (parent, _) = await CreatePathSubAgentAsync();
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentSendMessage, new
-        {
-            parentThreadId = parent.Id,
-            target = "/root/worker",
-            message = "please inspect tests"
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("sent", result.GetProperty("status").GetString());
-        Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
-        Assert.False(result.TryGetProperty("childThreadId", out _));
-        var pending = await _h.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
-        var entry = Assert.Single(pending);
-        Assert.Equal("please inspect tests", entry.Message);
-    }
-
-    [Fact]
     public async Task SubAgentFollowupTask_UsesCoordinatorForExternalChild()
     {
         var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");

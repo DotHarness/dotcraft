@@ -104,10 +104,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
   const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
-  const isSleeping = hydratedItems.some(
-    (item) => item.presentation?.presentationId === 'core.sleep'
-      && isToolItemLive(item, { turnRunning: isRunning })
-  )
   const defaultRenderableItems = hydratedItems
     .filter((item) => !shouldHideCoordinationTool(item, isRunning))
     .filter(isDefaultRenderableItem)
@@ -294,7 +290,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
   const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
-  const working = showWorkingLine && isRunning && !isSleeping
+  const working = showWorkingLine && isRunning
   const thinkingLabel = turnThinkingLabel({
     items: renderableItems,
     working,
@@ -399,7 +395,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean): boolean {
   if (!isToolLikeItemType(item.type)) return false
   if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
-  if (item.presentation?.presentationId === 'core.sleep') return true
   if (resolveToolKind(item) === 'writeStdin') return !isToolExecutionFailure(item)
   return item.presentation?.presentationId === 'core.request-user-input'
     && isToolItemLive(item, { turnRunning })
