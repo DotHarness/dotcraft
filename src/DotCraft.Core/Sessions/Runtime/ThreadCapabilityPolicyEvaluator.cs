@@ -406,7 +406,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         if (!string.IsNullOrWhiteSpace(serverName))
         {
-            if (policy.Servers != null && !MatchesAny(serverName!, policy.Servers, allowWildcards: false))
+            if (policy.Servers != null && !SelectedMcpServers(policy.Servers).Contains(serverName!))
             {
                 reason = "The thread MCP policy does not allow this MCP server.";
                 return false;
@@ -585,7 +585,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
 
         var server = McpToolRouting.ServerName(registration);
-        if (policy.Servers != null && !MatchesAny(server, policy.Servers, allowWildcards: false))
+        if (policy.Servers != null && !SelectedMcpServers(policy.Servers).Contains(server))
         {
             reason = "The thread MCP policy does not allow this MCP server.";
             return false;
@@ -608,6 +608,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         reason = string.Empty;
         return true;
     }
+
+    private IReadOnlySet<string> SelectedMcpServers(string[] selectors) =>
+        McpServerSelector.Resolve(selectors, context.McpClientManager?.ServerConfigs ?? []);
 
     private static string ToCanonicalSelector(ToolName toolName) =>
         toolName.Namespace is null ? toolName.Name : $"{toolName.Namespace}/{toolName.Name}";

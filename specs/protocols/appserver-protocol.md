@@ -314,7 +314,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `developerInstructions` | Instructions from the starting application (at most 32768 characters), rendered after role instructions as the final system prompt section, or as a developer-role item before the first user message on protocols with a developer role. Not inherited by native SubAgents. Accepted with `agentProfileId`. |
 | `toolAllowList` / `toolDenyList` | Exact-name lists; deny wins. |
 | `toolPolicy` | `allow`, `deny`, `agentControl`, `allowedAgentControlTools`. Omitted keeps runtime defaults. |
-| `mcpPolicy` | `servers` filters by effective server name; `tools.allow`/`tools.deny` match canonical selectors (`name` or `namespace/name`, `*` wildcards), never provider flat names, source ids, or runtime names. |
+| `mcpPolicy` | `servers` lists exact server names, each selecting the server with that runtime name or else a plugin server declaring it ([Agent Profiles](../features/agent-profiles.md) §6); `tools.allow`/`tools.deny` match canonical selectors (`name` or `namespace/name`, `*` wildcards), never provider flat names, source ids, or runtime names. |
 | `pluginPolicy` | Source-aware `allow`/`deny` where metadata exists, falling back to tool-name denial. |
 | `skillsPolicy` | `allow`/`deny` by skill name. Omitted `allow` means every enabled skill; excluded skills are left out of skill context and refused by `SkillView`. |
 | `approvalPolicy` | `default`, `prompt`, `autoApprove`, or `deny` (below). |

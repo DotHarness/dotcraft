@@ -349,8 +349,9 @@ internal sealed class AgentProfileBuilderToolMethods(
         if (mcpClientManager is null)
             return (CleanList(names), []); // No catalog available — accept as-is.
         var configs = await mcpClientManager.ListConfigsAsync();
-        var known = new HashSet<string>(configs.Select(c => c.Name), StringComparer.OrdinalIgnoreCase);
-        return Partition(names, known, StringComparer.OrdinalIgnoreCase);
+        var known = new HashSet<string>(configs.Select(c => c.Name), StringComparer.Ordinal);
+        known.UnionWith(configs.Where(c => c.Origin.IsPlugin).Select(c => c.Origin.DeclaredName).OfType<string>());
+        return Partition(names, known);
     }
 
     private static (List<string> Valid, List<string> Rejected) Partition(

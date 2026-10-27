@@ -173,7 +173,7 @@ Policy semantics:
 - Omitting both `tools.allow` and `tools.deny` allows all ordinary profile-managed tools.
 - An explicit empty `tools.allow` allows no ordinary tools; a non-empty list allows only the named tools.
 - A non-empty `tools.deny` allows ordinary tools except the named tools.
-- `tools.allow` and `tools.deny` name ordinary profile-managed tools and never reach MCP tools, so a host-attached MCP server on one thread is not hidden by a tool name list. MCP tools answer to `mcp.servers` and `mcp.tools`, which select by server and namespaced tool selector and accept wildcards.
+- `tools.allow` and `tools.deny` name ordinary profile-managed tools and never reach MCP tools, so a host-attached MCP server on one thread is not hidden by a tool name list. MCP tools answer to `mcp.servers` and `mcp.tools`. `mcp.servers` lists exact server names: a name selects the server with that runtime name, otherwise the plugin server that declares it, and when several plugins declare it, the one with the ordinally first plugin id. A plugin server stays reachable by its runtime name `{pluginId}:{serverName}`. A name that selects no configured server is logged as a warning. `mcp.tools` matches namespaced tool selectors and accepts wildcards.
 - Outside the tool policy, omitted `allow` means no allow-list is applied and empty `allow` allows no profile-managed capability for that policy dimension.
 - Empty or omitted `deny` means no deny-list is applied.
 - Deny wins over allow.

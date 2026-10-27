@@ -52,7 +52,8 @@ public sealed record AgentPackageOffer(
 
     public bool ProvidesMcpServer(string name) =>
         Kind == AgentPackageKinds.Plugin
-        && McpServers.Any(server => string.Equals(name, $"{Name}:{server}", StringComparison.Ordinal));
+        && McpServers.Any(server => string.Equals(name, server, StringComparison.Ordinal)
+                                    || string.Equals(name, $"{Name}:{server}", StringComparison.Ordinal));
 
     public bool IsPlugin(string name) =>
         Kind == AgentPackageKinds.Plugin && string.Equals(Name, name, StringComparison.OrdinalIgnoreCase);

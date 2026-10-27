@@ -96,8 +96,9 @@ map, with the canonical DotCraft fields `arguments`, `environmentVariables`, and
 server properties are rejected. Relative `cwd` values resolve under the plugin root.
 
 Contributed servers run in the same runtime as workspace `McpServers` under the runtime name
-`{pluginId}:{serverName}`. That name is for connection routing only; model-visible tool identity is
-derived as defined in [Tool Architecture](tools-architecture.md) (see §5).
+`{pluginId}:{serverName}`. That name is for connection routing; model-visible tool identity is
+derived as defined in [Tool Architecture](tools-architecture.md) (see §5), and MCP server policies
+may select the server by its declared name ([Agent Profiles](../features/agent-profiles.md) §6).
 
 Effective MCP merge rules:
 

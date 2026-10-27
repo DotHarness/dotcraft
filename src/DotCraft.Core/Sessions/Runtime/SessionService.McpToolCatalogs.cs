@@ -44,6 +44,17 @@ public sealed partial class SessionService
                 await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
         }
 
+        if (config.McpPolicy?.Servers is { Length: > 0 } selectors && toolContext.McpClientManager is { } manager)
+        {
+            var unmatched = selectors
+                .Where(selector => !string.IsNullOrWhiteSpace(selector)
+                                   && McpServerSelector.Find(selector.Trim(), manager.ServerConfigs) is null)
+                .ToArray();
+            if (unmatched.Length > 0)
+                Logger?.LogWarning("Thread {ThreadId} MCP policy names servers that are not configured: {Servers}",
+                    thread.Id, string.Join(", ", unmatched));
+        }
+
         return toolContext;
     }
 
