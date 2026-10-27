@@ -238,18 +238,15 @@ internal sealed class ThreadReplay
             entry = _turns[appended.TurnId];
         }
 
-        if (appended.Item is not { } item)
-            return;
-
         var turn = entry.Turn;
-        var existingIdx = turn.Items.FindIndex(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal));
+        var existingIdx = turn.Items.FindIndex(i => string.Equals(i.Id, appended.Item.Id, StringComparison.Ordinal));
         if (existingIdx >= 0)
-            turn.Items[existingIdx] = item;
+            turn.Items[existingIdx] = appended.Item;
         else
-            turn.Items.Add(item);
+            turn.Items.Add(appended.Item);
 
-        if (item.Type == ItemType.UserMessage && turn.Input == null)
-            turn.Input = item;
+        if (appended.Item.Type == ItemType.UserMessage && turn.Input == null)
+            turn.Input = appended.Item;
     }
 
     private void SetTurn(SessionTurn turn)

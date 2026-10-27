@@ -195,24 +195,6 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadThread_SkipsItemsOfATypeThisReleaseDoesNotDefine()
-    {
-        var thread = CreateThread();
-        AddTurnWithMessages(thread, "request", "answer");
-        await _store.SaveThreadAsync(thread);
-        var path = GetCanonicalPath(thread.Id, archived: false);
-        var lines = (await File.ReadAllLinesAsync(path))
-            .Select(line => line.Replace("\"type\":\"AgentMessage\"", "\"type\":\"Retired\"", StringComparison.Ordinal))
-            .ToArray();
-        await File.WriteAllLinesAsync(path, lines);
-
-        var loaded = Assert.IsType<SessionThread>(await new ThreadStore(_root).LoadThreadAsync(thread.Id));
-
-        var item = Assert.Single(Assert.Single(loaded.Turns).Items);
-        Assert.Equal(ItemType.UserMessage, item.Type);
-    }
-
-    [Fact]
     public async Task LoadThread_UnknownSourceSchema_FailsExplicitly()
     {
         var thread = CreateThread();

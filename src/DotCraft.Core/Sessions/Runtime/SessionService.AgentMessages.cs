@@ -4,25 +4,35 @@ public sealed partial class SessionService
 {
     internal async Task WakeForAgentMessagesAsync(string threadId, CancellationToken ct)
     {
-        var wake = await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => EnqueuePendingAgentMessagesAsync(threadId, commandCt),
-            ct).ConfigureAwait(false);
-        if (wake)
-            await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private async Task<bool> EnqueuePendingAgentMessagesAsync(string threadId, CancellationToken ct)
-    {
         var thread = await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
         if (thread.Status != ThreadStatus.Active || !SubAgentSessionControl.IsNativeRuntime(thread))
-            return false;
+            return;
 
         var source = thread.Source.SubAgent;
         var rootThreadId = string.IsNullOrWhiteSpace(source?.RootThreadId) ? thread.Id : source.RootThreadId;
         var agentPath = string.IsNullOrWhiteSpace(source?.AgentPath) ? AgentPath.Root : source.AgentPath;
-        using var inbox = await _subAgentCommunicationRuntime.AcquireInboxAsync(rootThreadId, agentPath, ct).ConfigureAwait(false);
-        if (thread.Turns.Any(static turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
+        bool wake;
+        using (await _subAgentCommunicationRuntime.AcquireInboxAsync(rootThreadId, agentPath, ct).ConfigureAwait(false))
+        {
+            wake = await InvokeThreadCommandAsync(
+                threadId,
+                commandCt => EnqueuePendingAgentMessagesAsync(threadId, rootThreadId, agentPath, commandCt),
+                ct).ConfigureAwait(false);
+        }
+
+        if (wake)
+            await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private async Task<bool> EnqueuePendingAgentMessagesAsync(
+        string threadId,
+        string rootThreadId,
+        string agentPath,
+        CancellationToken ct)
+    {
+        var thread = await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
+        if (thread.Status != ThreadStatus.Active
+            || thread.Turns.Any(static turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
             return false;
 
         var pending = await ListPendingSubAgentMailboxAsync(rootThreadId, agentPath, ct).ConfigureAwait(false);

@@ -403,8 +403,9 @@ internal sealed partial class ThreadHistoryProjectionStore(
         var rows = new List<(long Ordinal, ThreadHistoryItem Item)>(limit + 1);
         while (reader.Read())
         {
-            if (JsonSerializer.Deserialize<SessionItem>(reader.GetString(2), JsonOptions) is { } item)
-                rows.Add((reader.GetInt64(0), new ThreadHistoryItem(reader.GetString(1), item)));
+            var item = JsonSerializer.Deserialize<SessionItem>(reader.GetString(2), JsonOptions)
+                ?? throw new JsonException("Projected Item is empty.");
+            rows.Add((reader.GetInt64(0), new ThreadHistoryItem(reader.GetString(1), item)));
         }
         return BuildPage(rows, limit, static row => row.Item, static row => row.Ordinal);
     }
