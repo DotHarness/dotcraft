@@ -574,23 +574,29 @@ export class FeishuClient {
     };
   }
 
-  async downloadMessageImage(messageId: string, imageKey: string): Promise<{ bytes: Buffer; mediaType: string }> {
+  /** Images use `image`; videos, audio and files all use `file`. */
+  async downloadMessageResource(
+    messageId: string,
+    fileKey: string,
+    type: "image" | "file",
+  ): Promise<{ bytes: Buffer; mediaType: string }> {
     const response = await this.callSdk(
       () =>
         this.sdk.im.messageResource.get({
           path: {
             message_id: messageId,
-            file_key: imageKey,
+            file_key: fileKey,
           },
           params: {
-            type: "image",
+            type,
           },
         }),
-      "Failed to download Feishu image",
+      `Failed to download Feishu ${type}`,
     );
 
     const { buffer, contentType } = await extractBufferFromResponse(response);
-    return { bytes: buffer, mediaType: contentType?.split(";")[0]?.trim() || "image/jpeg" };
+    const fallbackType = type === "image" ? "image/jpeg" : "application/octet-stream";
+    return { bytes: buffer, mediaType: contentType?.split(";")[0]?.trim() || fallbackType };
   }
 
   private resolveTarget(rawTarget: string): { receiveId: string; receiveIdType: "chat_id" | "open_id" } {

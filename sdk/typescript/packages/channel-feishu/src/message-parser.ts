@@ -1,9 +1,9 @@
-import { textPart } from "@dotcraft/channel";
-import { saveInboundImage } from "@dotcraft/channel/media";
+import { textPart, type InputPart } from "@dotcraft/channel";
+import { saveInboundFile, saveInboundImage } from "@dotcraft/channel/media";
 import { deriveConversationTarget } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuMention, FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
-import { logInfo, shortId } from "./logging.js";
+import { errorMessage, logInfo, logWarn, shortId } from "./logging.js";
 import { stripMentionKeys } from "./mention.js";
 
 export interface ParseInboundOptions {
@@ -64,41 +64,42 @@ export async function parseInboundMessage(
   }
 
   if (event.message.message_type === "post") {
-    const text = extractPostText(event.message.content, event.message.mentions ?? [], botOpenId);
+    const pieces = extractPostPieces(event.message.content, event.message.mentions ?? [], botOpenId);
+    const media = pieces.filter((piece): piece is MediaPiece => typeof piece !== "string");
+    const input = await resolvePieces(client, event.message.message_id, craftPath, pieces);
     logInfo("parse.post", {
       messageId: shortId(event.message.message_id),
       chatType: event.message.chat_type,
       contentChars: event.message.content.length,
-      textChars: text.length,
+      textChars: input.text.length,
+      images: media.filter((piece) => piece.kind === "image").length,
+      videos: media.filter((piece) => piece.kind === "video").length,
     });
     return {
       ...base,
-      kind: "text",
-      text,
-      parts: [textPart(text)],
+      kind: media.length ? "parts" : "text",
+      ...input,
     };
   }
 
-  if (event.message.message_type === "image") {
-    const payload = safeParseJson(event.message.content);
-    const imageKey = String(payload.image_key ?? "");
-    if (!imageKey) {
-      throw new Error("Image message did not include image_key");
+  const standalone = standaloneMedia(event.message.message_type, safeParseJson(event.message.content));
+  if (standalone) {
+    if (!standalone.key) {
+      throw new Error(`Feishu ${event.message.message_type} message did not include a resource key`);
     }
-    const { bytes, mediaType } = await client.downloadMessageImage(event.message.message_id, imageKey);
-    const image = await saveInboundImage(craftPath, bytes, mediaType);
-    logInfo("parse.image", {
+    const who = event.message.chat_type === "group" ? "Group user" : "User";
+    const caption = `${who} sent ${standalone.kind === "image" ? "an image" : `a ${standalone.kind}`}.`;
+    const input = await resolvePieces(client, event.message.message_id, craftPath, [`${caption}\n`, standalone]);
+    logInfo(`parse.${standalone.kind}`, {
       messageId: shortId(event.message.message_id),
       chatType: event.message.chat_type,
-      imageKey: shortId(imageKey),
-      fileName: image.fileName,
+      key: shortId(standalone.key),
+      parts: input.parts.length,
     });
-    const caption = event.message.chat_type === "group" ? "Group user sent an image." : "User sent an image.";
     return {
       ...base,
       kind: "parts",
-      text: caption,
-      parts: [textPart(caption), image],
+      ...input,
     };
   }
 
@@ -109,38 +110,144 @@ export async function parseInboundMessage(
   return null;
 }
 
-function extractPostText(content: string, mentions: FeishuMention[], botOpenId: string): string {
-  const post = resolvePostBody(safeParseJson(content));
-  if (!post) return "";
+interface MediaPiece {
+  kind: "image" | "video" | "file";
+  key: string;
+  fileName?: string;
+}
 
-  const lines: string[] = [];
+type Piece = string | MediaPiece;
+
+function standaloneMedia(messageType: string, payload: Record<string, unknown>): MediaPiece | null {
+  switch (messageType) {
+    case "image":
+      return { kind: "image", key: String(payload.image_key ?? "") };
+    case "media":
+    case "video":
+      return { kind: "video", key: String(payload.file_key ?? ""), fileName: optionalString(payload.file_name) };
+    case "file":
+      return { kind: "file", key: String(payload.file_key ?? ""), fileName: optionalString(payload.file_name) };
+    default:
+      return null;
+  }
+}
+
+function extractPostPieces(content: string, mentions: FeishuMention[], botOpenId: string): Piece[] {
+  const post = resolvePostBody(safeParseJson(content));
+  if (!post) return [];
+
+  const lines: Piece[][] = [];
   const title = String(post.title ?? "").trim();
-  if (title) lines.push(title);
+  if (title) lines.push([title]);
   for (const paragraph of post.content) {
     if (!Array.isArray(paragraph)) continue;
-    const parts: string[] = [];
+    const pieces: Piece[] = [];
     for (const item of paragraph) {
       if (!item || typeof item !== "object") continue;
       const record = item as Record<string, unknown>;
       const tag = String(record.tag ?? "");
       if (tag === "text" || tag === "md") {
-        parts.push(String(record.text ?? ""));
+        pieces.push(String(record.text ?? ""));
       } else if (tag === "a") {
         const text = String(record.text ?? "link");
         const href = String(record.href ?? "");
-        parts.push(href ? `[${text}](${href})` : text);
+        pieces.push(href ? `[${text}](${href})` : text);
       } else if (tag === "at") {
         const name = resolveAtName(record, mentions, botOpenId);
-        if (name) parts.push(name);
+        if (name) pieces.push(name);
       } else if (tag === "img") {
-        parts.push("[image]");
+        const key = String(record.image_key ?? "").trim();
+        if (key) pieces.push({ kind: "image", key });
+      } else if (tag === "media") {
+        const key = String(record.file_key ?? "").trim();
+        if (key) pieces.push({ kind: "video", key, fileName: optionalString(record.file_name) });
       }
     }
-    const line = parts.join("").trim();
-    if (line) lines.push(line);
+    const line = trimLine(pieces);
+    if (line.length) lines.push(line);
   }
 
-  return lines.join("\n").trim();
+  return lines.flatMap((line, index) => (index === 0 ? line : ["\n", ...line]));
+}
+
+function trimLine(pieces: Piece[]): Piece[] {
+  const line = [...pieces];
+  const first = line[0];
+  if (typeof first === "string") line[0] = first.trimStart();
+  const last = line[line.length - 1];
+  if (typeof last === "string") line[line.length - 1] = last.trimEnd();
+  return line.some((piece) => typeof piece !== "string" || piece.length > 0) ? line : [];
+}
+
+async function resolvePieces(
+  client: FeishuClient,
+  messageId: string,
+  craftPath: string,
+  pieces: Piece[],
+): Promise<{ text: string; parts: InputPart[] }> {
+  const resolved = await Promise.all(
+    pieces.map((piece) => (typeof piece === "string" ? piece : resolveMedia(client, messageId, craftPath, piece))),
+  );
+
+  const parts: InputPart[] = [];
+  let pending = "";
+  const flush = (): void => {
+    if (pending.trim()) parts.push(textPart(pending));
+    pending = "";
+  };
+  for (const entry of resolved) {
+    if (typeof entry === "string") {
+      pending += entry;
+      continue;
+    }
+    pending += entry.prefix;
+    if (entry.part) {
+      flush();
+      parts.push(entry.part);
+    }
+  }
+  flush();
+
+  const text = resolved.map((entry) => (typeof entry === "string" ? entry : entry.label)).join("").trim();
+  return { text, parts };
+}
+
+interface ResolvedMedia {
+  label: string;
+  prefix: string;
+  part?: InputPart;
+}
+
+async function resolveMedia(
+  client: FeishuClient,
+  messageId: string,
+  craftPath: string,
+  media: MediaPiece,
+): Promise<ResolvedMedia> {
+  const label = media.fileName ? `[${media.kind}: ${media.fileName}]` : `[${media.kind}]`;
+  try {
+    if (media.kind === "image") {
+      const { bytes, mediaType } = await client.downloadMessageResource(messageId, media.key, "image");
+      return { label, prefix: "", part: await saveInboundImage(craftPath, bytes, mediaType) };
+    }
+    const { bytes } = await client.downloadMessageResource(messageId, media.key, "file");
+    const fileName = media.fileName ?? (media.kind === "video" ? "video.mp4" : "file");
+    return { label, prefix: `${label} `, part: await saveInboundFile(craftPath, bytes, fileName) };
+  } catch (error) {
+    logWarn("parse.media_download_failed", {
+      messageId: shortId(messageId),
+      kind: media.kind,
+      key: shortId(media.key),
+      error: errorMessage(error),
+    });
+    const note = `[${media.kind} could not be downloaded: message ${messageId}, key ${media.key}]`;
+    return { label: note, prefix: note };
+  }
+}
+
+function optionalString(value: unknown): string | undefined {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || undefined;
 }
 
 /** Received post content is flat; the locale-wrapped shape is the send format. Both appear in the wild. */

@@ -1,3 +1,4 @@
+export { saveInboundFile } from "./inboundFile.js";
 export { saveInboundImage } from "./inboundImage.js";
 export {
   MediaSourceError,

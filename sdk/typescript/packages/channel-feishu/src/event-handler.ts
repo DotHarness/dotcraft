@@ -8,6 +8,7 @@ import type {
   FeishuBotInfo,
   FeishuCardActionEvent,
   FeishuMessageEvent,
+  ParsedInboundMessage,
 } from "./feishu-types.js";
 import { buildCardActionDedupKey } from "./card-action-dedup.js";
 import { shouldHandleMessageWithReason } from "./mention.js";
@@ -64,6 +65,7 @@ export function createFeishuEventHandlers(params: {
       const pendingChannelContext = senderOpenId
         ? deriveConversationTarget(event, senderOpenId, threadCapable).channelContext
         : "";
+      let pendingParsed: ParsedInboundMessage | null | undefined;
       if (pendingChannelContext && params.adapter.hasPendingUserInput(pendingChannelContext)) {
         const parsed = await parseInboundMessage(
           params.client,
@@ -72,6 +74,7 @@ export function createFeishuEventHandlers(params: {
           params.craftPath,
           parseOptions,
         );
+        pendingParsed = parsed;
         if (parsed && await params.adapter.tryHandlePendingUserInputMessage(parsed)) {
           logInfo("user_input.message.consumed", {
             messageId: shortId(messageId),
@@ -102,13 +105,9 @@ export function createFeishuEventHandlers(params: {
         return;
       }
 
-      const parsed = await parseInboundMessage(
-        params.client,
-        event,
-        params.bot.openId,
-        params.craftPath,
-        parseOptions,
-      );
+      const parsed = pendingParsed !== undefined
+        ? pendingParsed
+        : await parseInboundMessage(params.client, event, params.bot.openId, params.craftPath, parseOptions);
       if (!parsed) return;
 
       if (!parsed.text.trim() && parsed.kind === "text") {
