@@ -964,6 +964,8 @@ export function App(): JSX.Element {
           nextRetry.timer = null
           void reloadThreadList()
         }, 1200)
+      } else if (nextRetry.attempts >= 3) {
+        useUIStore.getState().clearPendingProjectThreadOpen(projectKey)
       }
     } finally {
       if (isCurrentRequest()) {

@@ -33,6 +33,7 @@ import { ConversationAsideProvider } from '../conversation/conversationAside/Con
 import { useComposerProvider } from '../conversation/useComposerProvider'
 import { Spinner } from '../ui/Spinner'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -87,6 +88,8 @@ export function ConversationPanel({
   const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
   const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const pendingWelcomeTurn = useUIStore((s) => s.pendingWelcomeTurn)
+  const openingProjectThread = useUIStore((s) =>
+    s.pendingProjectThreadOpen != null && sameWorkspaceProjectKey(s.pendingProjectThreadOpen.projectKey, projectKey))
   const hasPendingChannelBinding = useChannelBindingStore((s) => activeThreadId != null && s.pendingByThread[activeThreadId] != null)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
@@ -171,7 +174,7 @@ export function ConversationPanel({
   }
 
   // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
-  if (!creating && activeThreadId && !activeThread) {
+  if (!creating && (activeThreadId || openingProjectThread) && !activeThread) {
     return (
       <div style={centeredStyle} role="status" aria-label={t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}>
         <span className="dc-delayed-reveal" style={openingIndicatorStyle}>
