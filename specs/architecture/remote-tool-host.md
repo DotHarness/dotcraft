@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.9.7 |
 | Status | Draft |
-| Date | 2026-10-27 |
+| Date | 2026-10-28 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -279,21 +279,27 @@ snapshot:
 A completion notice owed when the terminal ends is sent before its `completed` event, so a client that
 has the ending also has its notice.
 
-Snapshots carry the Host's session-scoped Thread id; the client correlates events by terminal session
-id with the Thread, Turn, and call that started the terminal. An event can arrive before the result of
-the `Exec` that started its terminal, so the client holds it until that result lists the terminal.
+Snapshots carry the Host's session-scoped Thread id; the execution session correlates events by
+terminal session id with the Thread, Turn, and call that started the terminal. An event can arrive before
+the result of the `Exec` that started its terminal, so the execution session holds it until that result
+lists the terminal.
 
-The client keeps the background terminals of each execution session with their latest snapshot and
-publishes notices and synthesized endings to Session Core, which lists, stops, and notifies them with the
-Thread's local terminals. A stop is the request `dotcraft/remoteToolHost/terminals/stop` with
-`leaseId`, `workspaceId`, `threadId`, and `sessionId`; it returns the settled snapshot and applies the
-lease and Thread ownership checks of §12.
+Each execution session keeps its background terminals with their latest snapshot. Its public surface
+raises their completion and stall notices with the endings it synthesizes, lists a Thread's terminals,
+and stops a terminal for the Thread that started it. An Agent-side client built on execution sessions,
+DotCraft's or an integrator's, publishes them through the client boundary (`TerminalEvent`,
+`ListTerminals`, `StopTerminalAsync`) without tracking terminals itself, and Session Core lists, stops,
+and notifies them with the Thread's local terminals. A stop is the request
+`dotcraft/remoteToolHost/terminals/stop` with `leaseId`, `workspaceId`, `threadId`, and `sessionId`; it
+returns the settled snapshot and applies the lease and Thread ownership checks of §12.
 
 The Host stops a session's terminals when the session closes and a Thread's terminals when the Thread
-is released (§5.2), and it cannot report either. The client therefore ends a background terminal that is
-still running as `lost` when its execution session is lost, and as `killed` when its Thread's route is
-released by a disconnect or route switch, and publishes that ending as the terminal's completion notice.
-Agent Host teardown publishes none.
+is released (§5.2), and it cannot report either. The execution session therefore ends a background
+terminal that is still running as `lost` when the session is lost, and as `killed` when its Thread is
+released, and publishes that ending as the terminal's completion notice. A release canceled before it is
+sent to the Host leaves the Thread's terminals as they are. A terminal whose `Exec` result
+arrives after its Thread's release began is ended the same way and is not kept. Disposing a session
+publishes nothing, and DotCraft's client publishes nothing during Agent Host teardown.
 
 ## 6. Model control surface
 

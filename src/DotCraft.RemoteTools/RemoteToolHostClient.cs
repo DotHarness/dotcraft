@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
 using DotCraft.Tools;
-using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.RemoteTools;
 
@@ -100,7 +99,7 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
             var connection = await _directory.ConnectAsync(hostId, operation.Token).ConfigureAwait(false);
             candidate = await _execution.OpenSessionAsync("execution_" + Guid.NewGuid().ToString("N"), hostId, workspaceId,
                 connection, operation.Token).ConfigureAwait(false);
-            candidate.TerminalReported += OnTerminalReported;
+            candidate.TerminalEvent += OnTerminalEvent;
             await PrepareConnectionAsync(threadId, candidate, operation.Token).ConfigureAwait(false);
             result = await candidate.DescribeAsync(threadId, operation.Token).ConfigureAwait(false);
             var published = candidate;
@@ -157,24 +156,17 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
     private async Task ReleaseAsync(string threadId, ThreadRoute binding)
     {
         await binding.Operations.DisposeAsync().ConfigureAwait(false);
-        var running = RunningTerminals(binding.Session, threadId);
         try { await binding.Session.ReleaseThreadAsync(threadId).ConfigureAwait(false); }
         catch (Exception exception) when (exception is RemoteToolHostException or ObjectDisposedException or IOException) { }
         finally
         {
-            EndTerminals(binding.Session, BackgroundTerminalStatus.Killed, threadId, running);
-            ForgetTerminals(binding.Session, threadId);
             bool last;
             lock (_stateGate)
             {
                 last = --_references[binding.Session] == 0;
                 if (last) _references.Remove(binding.Session);
             }
-            if (last)
-            {
-                ForgetTerminals(binding.Session, threadId: null);
-                await binding.Session.DisposeAsync().ConfigureAwait(false);
-            }
+            if (last) await binding.Session.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -261,7 +253,6 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
     {
         string[] affected;
         lock (_stateGate) affected = _routes.Where(pair => ReferenceEquals(pair.Value.Session, session)).Select(pair => pair.Key).ToArray();
-        EndTerminals(session, BackgroundTerminalStatus.Lost);
         foreach (var thread in affected)
             RaiseRouteChanged(thread, RemoteToolRouteChangeReason.LeaseLost, RemoteToolRouteInitiator.System, session.Route);
     }

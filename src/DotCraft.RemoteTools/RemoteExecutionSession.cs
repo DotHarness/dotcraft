@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Protocol;
 
@@ -76,10 +77,18 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         return await BuildMatchSummaryAsync(threadId, Route, operation.Token).ConfigureAwait(false);
     }
 
+    /// <summary>Releases the thread on the Host, which stops its background terminals; they end here as killed.</summary>
     public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default)
     {
-        using var operation = _operations.Enter(cancellationToken);
+        using var operation = _operations.TryEnter(cancellationToken);
+        if (operation is null)
+        {
+            // The thread's terminals ended as lost with the session.
+            ForgetThreadTerminals(threadId);
+            throw new ObjectDisposedException(nameof(RemoteExecutionSession));
+        }
         await _routeGate.WaitAsync(operation.Token).ConfigureAwait(false);
+        var running = BeginThreadRelease(threadId);
         try
         {
             var lease = RequireLease(Route);
@@ -93,7 +102,12 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
                 _turns.Remove(threadId);
             }
         }
-        finally { _routeGate.Release(); }
+        finally
+        {
+            _routeGate.Release();
+            EndTerminals(BackgroundTerminalStatus.Killed, threadId, running);
+            ForgetThreadTerminals(threadId);
+        }
     }
 
     public async ValueTask<ToolExecutionResult> InvokeAsync(
@@ -111,6 +125,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         var lease = _lease;
 
         var invocationId = "rti_" + Guid.NewGuid().ToString("N");
+        var releases = ThreadReleases(context.ThreadId);
         string? preparedBinding = null;
         long? snapshotRevision = null;
         if (definition.Id.Kind == ToolSourceKind.PluginNative)
@@ -185,7 +200,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         }
 
         var dotcraft = result.Meta?["dotcraft"] as JsonObject;
-        ReportStartedTerminals(dotcraft?["terminals"], context);
+        ReportStartedTerminals(dotcraft?["terminals"], context, releases);
         var code = dotcraft?["code"]?.GetValue<string>();
         RemoteToolArtifactMeta? artifact;
         try
@@ -254,6 +269,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         }
         _lease.StopHeartbeat();
         _ = _operations.DisposeAsync();
+        EndTerminals(BackgroundTerminalStatus.Lost);
         if (ConnectionLost is { } lost)
             foreach (var observer in lost.GetInvocationList().Cast<Action>())
                 try { observer(); } catch { }

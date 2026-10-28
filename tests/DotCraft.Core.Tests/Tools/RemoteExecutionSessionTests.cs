@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.RemoteTools;
 using DotCraft.Sessions;
 using DotCraft.Tests.Runtime.Plugins;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using Xunit;
 
 namespace DotCraft.Tests.Tools;
@@ -181,6 +183,46 @@ public sealed class RemoteExecutionSessionTests
 
         monitor.ReportTurn("session", "peer", "thread", "next", TurnStatus.Running);
         Assert.Equal(0, Assert.Single(monitor.Turns).ToolCalls);
+    }
+
+    [Fact]
+    public async Task OwningThread_ListsAndStopsItsBackgroundCommand_AndIsNotified()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("terminals");
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        session.TerminalEvent += events.Enqueue;
+        var sessionId = await fixture.StartTerminalAsync(session);
+
+        var listed = Assert.Single(session.ListTerminals("thread"));
+        Assert.Equal(sessionId, listed.SessionId);
+        Assert.Equal("turn", listed.TurnId);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => session.StopTerminalAsync("other-thread", sessionId).AsTask());
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await session.StopTerminalAsync("thread", sessionId)).Status);
+
+        await fixture.WaitAsync(() => !events.IsEmpty, TimeSpan.FromSeconds(30));
+        var notice = Assert.Single(events);
+        Assert.Equal(BackgroundTerminalEventTypes.CompletionNotice, notice.EventType);
+        Assert.Equal(sessionId, notice.Terminal.SessionId);
+        Assert.Equal("thread", notice.Terminal.ThreadId);
+        Assert.Equal(BackgroundTerminalStatus.Killed, notice.Terminal.Status);
+    }
+
+    [Fact]
+    public async Task CanceledRelease_KeepsTheThreadsRunningCommand()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("terminals");
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        session.TerminalEvent += events.Enqueue;
+        var sessionId = await fixture.StartTerminalAsync(session);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            session.ReleaseThreadAsync("thread", new CancellationToken(canceled: true)).AsTask());
+
+        Assert.Equal(BackgroundTerminalStatus.Running, Assert.Single(session.ListTerminals("thread")).Status);
+        Assert.Empty(events);
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await session.StopTerminalAsync("thread", sessionId)).Status);
     }
 
     private static bool IsRunning(int pid)
