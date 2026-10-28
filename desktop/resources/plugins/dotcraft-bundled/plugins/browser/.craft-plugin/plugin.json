@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "browser",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "displayName": "Browser",
   "description": "Test and interact with local or approved pages in DotCraft's in-app browser.",
   "capabilities": ["interactive", "read", "write", "browser", "javascript", "desktop"],
