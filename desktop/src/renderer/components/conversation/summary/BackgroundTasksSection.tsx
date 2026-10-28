@@ -1,5 +1,5 @@
 import { Square, SquareTerminal, Workflow } from 'lucide-react'
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { IconButton } from '../../ui/IconButton'
 import { Spinner } from '../../ui/Spinner'
@@ -7,6 +7,7 @@ import { formatDurationShort } from '../../../utils/formatDurationShort'
 import type { SummaryTerminal, SummaryWorkflow } from './feed'
 import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
+import { stopSummaryTerminals } from './store'
 
 const STOP_GLYPH = { size: 14, strokeWidth: 1.75 } as const
 
@@ -54,27 +55,41 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
 }): JSX.Element | null {
   const t = useT()
   const [stopping, setStopping] = useState<string | null>(null)
+  const operation = useRef<symbol | null>(null)
+  const scope = services.appServer.connectionKey()
+  useEffect(() => {
+    operation.current = null
+    setStopping(null)
+    return () => { operation.current = null }
+  }, [services, threadId, scope])
   const now = useNow(terminals.length > 0 || workflows.length > 0)
   if (terminals.length === 0 && workflows.length === 0) return null
 
-  const settle = (id: string, work: Promise<unknown>, failure: string): void => {
+  const settle = async (id: string, work: () => Promise<unknown>, failure: string): Promise<void> => {
+    if (operation.current !== null) return
+    const token = Symbol()
+    operation.current = token
+    const current = (): boolean => token === operation.current && scope === services.appServer.connectionKey()
     setStopping(id)
-    work.then(
-      () => setStopping(null),
-      () => {
+    try {
+      await work()
+    } catch {
+      if (current()) services.ui.showError(failure)
+    } finally {
+      if (current()) {
+        operation.current = null
         setStopping(null)
-        services.ui.showError(failure)
       }
-    )
+    }
   }
-  const stopTerminals = (sessionId: string): void => settle(
+  const stopTerminals = (sessionId: string): void => void settle(
     sessionId,
-    Promise.all(terminals.map((terminal) => services.appServer.request('terminal/stop', { sessionId: terminal.sessionId }))),
+    () => stopSummaryTerminals(services, threadId, terminals.map((terminal) => terminal.sessionId)),
     t('summary.stopBackgroundTerminalsFailed')
   )
-  const stopWorkflow = (runId: string): void => settle(
+  const stopWorkflow = (runId: string): void => void settle(
     runId,
-    services.appServer.request('workflow/run/stop', { threadId, runId }),
+    () => services.appServer.request('workflow/run/stop', { threadId, runId }),
     t('summary.stopWorkflowFailed')
   )
   const reveal = (callId: string | null | undefined): (() => void) | undefined =>

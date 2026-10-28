@@ -1,6 +1,15 @@
 import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
 import { diffTotals, rolledBackTurns, toSummaryItem, type ChangeTotals, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
+import { createTerminalFeed, type SummaryTerminal } from './terminalFeed'
+
+export type { SummaryTerminal } from './terminalFeed'
+
+export interface SummaryFeed {
+  stop(): void
+  refreshTerminals(): Promise<void>
+  stopTerminals(sessionIds: readonly string[]): Promise<void>
+}
 
 export interface SummaryAutomation {
   readonly id: string
@@ -13,13 +22,6 @@ export interface SummaryPlan {
   readonly title: string
   readonly done: number
   readonly total: number
-}
-
-export interface SummaryTerminal {
-  readonly sessionId: string
-  readonly command: string
-  readonly callId: string | null
-  readonly startedAt: string | null
 }
 
 export interface SummaryWorkflow {
@@ -40,16 +42,6 @@ export interface SummaryState {
   readonly terminals: readonly SummaryTerminal[]
 }
 
-interface TerminalSnapshot {
-  readonly sessionId?: string
-  readonly threadId?: string
-  readonly turnId?: string | null
-  readonly callId?: string | null
-  readonly command?: string
-  readonly status?: string
-  readonly startedAt?: string
-}
-
 interface WorkflowRunSnapshot {
   readonly runId: string
   readonly threadId: string
@@ -67,17 +59,13 @@ export function startSummaryFeed(
   services: SummaryServices,
   threadId: string,
   onChange: (state: SummaryState) => void
-): () => void {
+): SummaryFeed {
   let disposed = false
   let historyLoaded = false
   const pendingItems: SummaryItem[] = []
   let reconcileInFlight = false
   let reconcileQueued = false
-  const runningTerminals = new Map<string, { command: string; turnId: string | null; callId: string | null; startedAt: string | null }>()
-  const returnedCalls = new Set<string>()
   let pendingLoads = 5
-  const endedTerminals = new Set<string>()
-  let activeTurnId: string | null = null
   let runtimeReceived = false
   let state: SummaryState = {
     ready: false,
@@ -96,16 +84,10 @@ export function startSummaryFeed(
     onChange(state)
   }
 
+  const terminals = createTerminalFeed(services, threadId, (terminals) => publish({ terminals }))
+
   const addItems = (incoming: readonly SummaryItem[]): void => {
     if (incoming.length === 0) return
-    let returned = false
-    for (const item of incoming) {
-      const callId = item.type === 'toolResult' ? item.payload.callId : null
-      if (typeof callId === 'string' && !returnedCalls.has(callId)) {
-        returnedCalls.add(callId)
-        returned = true
-      }
-    }
     const next = [...state.items]
     const keyOf = (item: SummaryItem): string => `${item.turnId}:${item.id}`
     const positions = new Map(next.map((item, index) => [keyOf(item), index]))
@@ -119,32 +101,7 @@ export function startSummaryFeed(
       }
     }
     publish({ items: next })
-    if (returned) publishTerminals()
-  }
-
-  const publishTerminals = (): void => publish({
-    terminals: [...runningTerminals]
-      .filter(([, terminal]) => !activeTurnId
-        || terminal.turnId !== activeTurnId
-        || (terminal.callId !== null && returnedCalls.has(terminal.callId)))
-      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command, callId: terminal.callId, startedAt: terminal.startedAt }))
-  })
-
-  const trackTerminal = (terminal: TerminalSnapshot | undefined, ended = false): boolean => {
-    const sessionId = terminal?.sessionId
-    if (!terminal || !sessionId || terminal.threadId !== threadId || endedTerminals.has(sessionId)) return false
-    if (!ended && terminal.status === 'running') {
-      runningTerminals.set(sessionId, {
-        command: terminal.command ?? '',
-        turnId: terminal.turnId ?? null,
-        callId: terminal.callId ?? null,
-        startedAt: terminal.startedAt ?? null
-      })
-    } else {
-      endedTerminals.add(sessionId)
-      runningTerminals.delete(sessionId)
-    }
-    return true
+    terminals.addItems(incoming)
   }
 
   const settleLoad = (): void => {
@@ -236,20 +193,8 @@ export function startSummaryFeed(
     try {
       const result = await services.appServer.request('thread/read', { threadId })
       if (disposed) return
-      if (!runtimeReceived) activeTurnId = result.thread?.runtime?.activeTurnId ?? null
+      if (!runtimeReceived) terminals.setActiveTurn(result.thread?.runtime?.activeTurnId ?? null)
       publish({ plan: toPlan(result.thread?.plan) })
-      publishTerminals()
-    } catch {
-      return
-    }
-  }
-
-  const loadTerminals = async (): Promise<void> => {
-    try {
-      const result = await services.appServer.request('terminal/list', { threadId })
-      if (disposed) return
-      for (const terminal of result.terminals ?? []) trackTerminal(terminal)
-      publishTerminals()
     } catch {
       return
     }
@@ -291,7 +236,10 @@ export function startSummaryFeed(
     const item = toSummaryItem(params.item, params.turnId)
     if (!item) return
     if (historyLoaded) addItems([item])
-    else pendingItems.push(item)
+    else {
+      terminals.addItems([item])
+      pendingItems.push(item)
+    }
   })
 
   const stopTurnDiff = services.appServer.onNotification('turn/diff/updated', (params) => {
@@ -332,37 +280,28 @@ export function startSummaryFeed(
   const stopRuntime = services.appServer.onNotification('thread/status/changed', (params) => {
     if (params.threadId !== threadId) return
     runtimeReceived = true
-    const nextTurnId = params.runtime?.activeTurnId ?? null
-    if (nextTurnId !== activeTurnId) {
-      activeTurnId = nextTurnId
-      publishTerminals()
-    }
+    terminals.setActiveTurn(params.runtime?.activeTurnId ?? null)
     void reconcileRollback()
   })
 
-  const onTerminal = (ended: boolean) => (params: { terminal?: TerminalSnapshot }): void => {
-    if (trackTerminal(params.terminal, ended)) publishTerminals()
-  }
-  const stopTerminals = [
-    services.appServer.onNotification('terminal/started', onTerminal(false)),
-    services.appServer.onNotification('terminal/completed', onTerminal(true)),
-    services.appServer.onNotification('terminal/cleaned', onTerminal(true))
-  ]
-
   onChange(state)
-  for (const load of [loadHistory, loadAutomations, loadThread, loadTerminals, loadWorkflows]) void load().finally(settleLoad)
+  for (const load of [loadHistory, loadAutomations, loadThread, terminals.refresh, loadWorkflows]) void load().finally(settleLoad)
 
-  return () => {
-    disposed = true
-    stopSubAgents()
-    stopItems()
-    stopTurnDiff()
-    stopPlan()
-    stopAutomations()
-    stopWorkflows()
-    stopTurnStarted()
-    stopRuntime()
-    for (const stop of stopTerminals) stop()
+  return {
+    refreshTerminals: terminals.refresh,
+    stopTerminals: terminals.stopMany,
+    stop() {
+      disposed = true
+      stopSubAgents()
+      stopItems()
+      stopTurnDiff()
+      stopPlan()
+      stopAutomations()
+      stopWorkflows()
+      stopTurnStarted()
+      stopRuntime()
+      terminals.dispose()
+    }
   }
 }
 

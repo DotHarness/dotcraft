@@ -11,6 +11,8 @@ function createHost(responses: Record<string, (params: any) => unknown>) {
   const services = {
     subagents: { list: () => [], onChange: () => () => undefined },
     appServer: {
+      connectionKey: () => 'workspace',
+      onConnectionChange: () => () => undefined,
       request: vi.fn(async (method: string, params: unknown) => responses[method]?.(params) ?? {}),
       onNotification: (method: string, listener: (params: any) => void) => {
         notifications.set(method, listener)
@@ -34,7 +36,7 @@ describe('Summary feed', () => {
       'automation/list': () => ({ automations: [] })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
 
     notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') })
     notify('item/completed', { threadId: 'thread-2', turnId: 'x', item: wireItem('z', 'x', '2026-10-01T10:05:00Z') })
@@ -61,7 +63,7 @@ describe('Summary feed', () => {
       'automation/list': () => ({ automations: [] })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('item_001', 't2', '2026-10-01T10:05:00Z') })
@@ -73,7 +75,7 @@ describe('Summary feed', () => {
   it('counts a to-do list without a plan as progress, leaving out cancelled steps', async () => {
     const { services, notify } = createHost({ 'thread/read': () => ({ thread: { plan: null } }) })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('plan/updated', {
@@ -108,7 +110,7 @@ describe('Summary feed', () => {
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('turn/started', { turn: { id: 't3', threadId: 'thread-1' } })
@@ -128,7 +130,7 @@ describe('Summary feed', () => {
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a'])
@@ -149,7 +151,7 @@ describe('Summary feed', () => {
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.terminals).toEqual([])
@@ -177,7 +179,7 @@ describe('Summary feed', () => {
       'workflow/run/read': ({ runId }: { runId: string }) => ({ run: { runId, threadId: 'thread-1', name: 'review', ...runs[runId] } })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.workflows).toEqual([
@@ -199,7 +201,7 @@ describe('Summary feed', () => {
       'workflow/run/list': () => Promise.reject(new Error('unsupported'))
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
     expect(state!.ready).toBe(false)
 
@@ -215,7 +217,7 @@ describe('Summary feed', () => {
       'terminal/list': () => new Promise((resolve) => { releaseList = resolve })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running', startedAt: '2026-10-01T10:00:00Z' }
 
     notify('terminal/completed', { terminal: { ...running, status: 'killed' } })
@@ -229,6 +231,49 @@ describe('Summary feed', () => {
 
     notify('terminal/completed', { terminal: { ...running, sessionId: 'y', status: 'completed' } })
     expect(state!.terminals).toEqual([])
+    stop()
+  })
+
+  it('settles a completed Exec result even while history is still loading', async () => {
+    let releaseHistory!: (value: unknown) => void
+    const { services, notify } = createHost({
+      'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
+      'terminal/list': () => ({ terminals: [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
+    })
+    let state: SummaryState | null = null
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    await settle()
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['npx'])
+    notify('item/completed', {
+      threadId: 'thread-1', turnId: 't1', item: {
+        id: 'result', type: 'toolResult', payload: {
+          callId: 'exec-1', source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.shell', options: { operation: 'exec' } },
+          structuredContent: { sessionId: 'npx', status: 'completed', exitCode: 0 }
+        }
+      }
+    })
+    expect(state!.terminals).toEqual([])
+    releaseHistory({ data: [], nextCursor: null })
+    await settle()
+    expect(state!.terminals).toEqual([])
+    stop()
+  })
+
+  it('reconciles a missed completion when the active turn ends', async () => {
+    let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }]
+    const { services, notify } = createHost({
+      'thread/read': () => ({ thread: { runtime: { activeTurnId: 't1' } } }),
+      'terminal/list': () => ({ terminals })
+    })
+    let state: SummaryState | null = null
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    await settle()
+    terminals = []
+    notify('thread/status/changed', { threadId: 'thread-1', runtime: { running: false } })
+    await settle()
+    expect(state!.terminals).toEqual([])
+    expect(vi.mocked(services.appServer.request).mock.calls.filter(([method]) => method === 'terminal/list')).toHaveLength(2)
     stop()
   })
 })
