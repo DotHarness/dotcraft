@@ -1,8 +1,76 @@
+.dotcraft-detail-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--chrome-header-height);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.dotcraft-detail-panel-header__strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.dotcraft-detail-panel-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dotcraft-detail-panel-tabs {
+  --detail-panel-tabs-fade: 20px;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.dotcraft-detail-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dotcraft-detail-panel-tabs[data-overflow-end='true'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--detail-panel-tabs-fade)), transparent);
+}
+
+.dotcraft-detail-panel-tabs[data-overflow-start='true'] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--detail-panel-tabs-fade));
+}
+
+.dotcraft-detail-panel-tabs[data-overflow-start='true'][data-overflow-end='true'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--detail-panel-tabs-fade),
+    #000 calc(100% - var(--detail-panel-tabs-fade)),
+    transparent
+  );
+}
+
+.dotcraft-detail-panel-tabs > .dc-action-tooltip-anchor,
+.dotcraft-detail-panel-tabs > .dotcraft-detail-panel-tab {
+  flex: 0 1 auto;
+  min-width: 88px;
+}
+
 .dotcraft-detail-panel-tab {
   display: flex;
   align-items: center;
   gap: 6px;
   height: 28px;
+  min-width: 0;
   margin: auto 0;
   padding: 0 10px;
   box-sizing: border-box;
@@ -15,7 +83,7 @@
   line-height: var(--type-ui-line-height);
   letter-spacing: 0;
   cursor: pointer;
-  flex-shrink: 0;
+  flex: 1 1 auto;
   user-select: none;
   transition: color 100ms ease, background-color 100ms ease;
 }
@@ -41,6 +109,7 @@
 }
 
 .dotcraft-detail-panel-tab__label {
+  min-width: 0;
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -48,6 +117,7 @@
 }
 
 .dotcraft-detail-panel-tab__badge {
+  flex-shrink: 0;
   min-width: 16px;
   height: 16px;
   display: inline-flex;

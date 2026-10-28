@@ -33,6 +33,7 @@ import {
   useDetailPanelTabClose,
   type DetailTabRef
 } from './useDetailPanelTabClose'
+import { useTabStripOverflow } from './useTabStripOverflow'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -91,6 +92,14 @@ export function DetailPanel({
   const activeSystemId = activeDetailTab.kind === 'system' && systemTabsAvailable ? activeDetailTab.id : null
   const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
   const isLauncher = activeDetailTab.kind === 'launcher' || (activeDetailTab.kind === 'system' && !systemTabsAvailable)
+
+  const tabScrollerRef = useRef<HTMLDivElement>(null)
+  const activeTabKey = activeSystemId ? `system:${activeSystemId}` : activeViewerId ? `viewer:${activeViewerId}` : null
+  const tabEdges = useTabStripOverflow(
+    tabScrollerRef,
+    activeTabKey,
+    [...systemTabs, ...viewerTabs.map((tab) => tab.id)].join('|')
+  )
 
   const { closeTab, closeOtherTabs, closeTabsToRight } = useDetailPanelTabClose()
   const [tabMenu, setTabMenu] = useState<{ ref: DetailTabRef; position: ContextMenuPosition } | null>(null)
@@ -216,76 +225,70 @@ export function DetailPanel({
         background: 'transparent'
       }}
     >
-      {/* Spacing separates the tab bar from the panel body; no divider. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'stretch',
-          gap: '6px',
-          height: 'var(--chrome-header-height)',
-          boxSizing: 'border-box',
-          flexShrink: 0,
-          paddingLeft: '4px',
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          scrollbarWidth: 'none'
-        }}
-      >
-        {/* System tabs (Changes / Checks) — icon + label, so the label stays a
-            click target; the icon slot becomes the close button on hover. */}
-        {systemTabs.map((id) => {
-          const meta = systemTabMeta[id]
-          return (
-            <DetailPanelTab
-              key={id}
-              active={activeSystemId === id}
-              title={meta.label}
-              icon={meta.icon}
-              label={meta.label}
-              badge={meta.badge}
-              closeLabel={`${t('viewer.close')} ${meta.label}`}
-              onActivate={() => setActiveDetailTab(id)}
-              onClose={() => { void closeTab({ kind: 'system', id }) }}
-              onContextMenu={(position) => setTabMenu({ ref: { kind: 'system', id }, position })}
-            />
-          )
-        })}
+      <div className="dotcraft-detail-panel-header">
+        <div className="dotcraft-detail-panel-header__strip">
+          <div
+            ref={tabScrollerRef}
+            className="dotcraft-detail-panel-tabs"
+            role="tablist"
+            data-overflow-start={tabEdges.start ? 'true' : undefined}
+            data-overflow-end={tabEdges.end ? 'true' : undefined}
+          >
+            {systemTabs.map((id) => {
+              const meta = systemTabMeta[id]
+              return (
+                <DetailPanelTab
+                  key={id}
+                  tabKey={`system:${id}`}
+                  active={activeSystemId === id}
+                  title={meta.label}
+                  icon={meta.icon}
+                  label={meta.label}
+                  badge={meta.badge}
+                  closeLabel={`${t('viewer.close')} ${meta.label}`}
+                  onActivate={() => setActiveDetailTab(id)}
+                  onClose={() => { void closeTab({ kind: 'system', id }) }}
+                  onContextMenu={(position) => setTabMenu({ ref: { kind: 'system', id }, position })}
+                />
+              )
+            })}
 
-        {viewerTabs.map((tab) => {
-          const automationActive = tab.kind === 'browser' && tab.automationActive === true
-          const icon = tab.kind === 'browser'
-            ? (automationActive
-                ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
-                : browserTabIcon(tab.faviconDataUrl))
-            : tab.kind === 'terminal'
-              ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-              : tab.kind === 'workflow'
-                ? <Workflow size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-              : tab.kind === 'automation'
-                ? <CalendarClock size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-              : tab.kind === 'sideChat'
-                ? <SideChatTabIcon sideChatKey={tab.sideChatKey} />
-              : tab.kind === 'files'
-                ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-                : <FileTypeIcon path={tab.relativePath} size={14} />
-          return (
-            <DetailPanelTab
-              key={tab.id}
-              className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
-              active={activeViewerId === tab.id}
-              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'file' ? tab.absolutePath : tab.label}
-              icon={icon}
-              label={tab.label}
-              closeLabel={`${t('viewer.close')} ${tab.label}`}
-              onActivate={() => setActiveViewerTab(tab.id)}
-              onClose={() => { void closeTab({ kind: 'viewer', id: tab.id }) }}
-              onContextMenu={(position) => setTabMenu({ ref: { kind: 'viewer', id: tab.id }, position })}
-              maxWidth={160}
-            />
-          )
-        })}
+            {viewerTabs.map((tab) => {
+              const automationActive = tab.kind === 'browser' && tab.automationActive === true
+              const icon = tab.kind === 'browser'
+                ? (automationActive
+                    ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
+                    : browserTabIcon(tab.faviconDataUrl))
+                : tab.kind === 'terminal'
+                  ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                  : tab.kind === 'workflow'
+                    ? <Workflow size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                  : tab.kind === 'automation'
+                    ? <CalendarClock size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                  : tab.kind === 'sideChat'
+                    ? <SideChatTabIcon sideChatKey={tab.sideChatKey} />
+                  : tab.kind === 'files'
+                    ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                    : <FileTypeIcon path={tab.relativePath} size={14} />
+              return (
+                <DetailPanelTab
+                  key={tab.id}
+                  tabKey={`viewer:${tab.id}`}
+                  className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
+                  active={activeViewerId === tab.id}
+                  title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'file' ? tab.absolutePath : tab.label}
+                  icon={icon}
+                  label={tab.label}
+                  closeLabel={`${t('viewer.close')} ${tab.label}`}
+                  onActivate={() => setActiveViewerTab(tab.id)}
+                  onClose={() => { void closeTab({ kind: 'viewer', id: tab.id }) }}
+                  onContextMenu={(position) => setTabMenu({ ref: { kind: 'viewer', id: tab.id }, position })}
+                  maxWidth={160}
+                />
+              )
+            })}
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <IconButton
             ref={addButtonRef}
             size={28}
@@ -315,36 +318,35 @@ export function DetailPanel({
           />
         )}
 
-        <div style={{ flex: 1 }} />
+        <div className="dotcraft-detail-panel-header__actions">
+          {!isLauncher && (
+            <IconButton
+              size={28}
+              active={detailPanelFullView}
+              activeTone="neutral"
+              label={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
+              tooltipLabel={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
+              shortcut={ACTION_SHORTCUTS.toggleDetailFullView}
+              tooltipPlacement="bottom"
+              tooltipWrapperStyle={{ alignSelf: 'center' }}
+              onClick={toggleDetailPanelFullView}
+              icon={detailPanelFullView
+                ? <Minimize2 size={16} aria-hidden />
+                : <Maximize2 size={16} aria-hidden />}
+            />
+          )}
 
-        {!isLauncher && (
           <IconButton
             size={28}
-            active={detailPanelFullView}
-            activeTone="neutral"
-            label={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
-            tooltipLabel={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
-            shortcut={ACTION_SHORTCUTS.toggleDetailFullView}
+            label={t('detailPanel.closeAria')}
+            tooltipLabel={t('detailPanel.closeAria')}
+            shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
             tooltipPlacement="bottom"
             tooltipWrapperStyle={{ alignSelf: 'center' }}
-            onClick={toggleDetailPanelFullView}
-            icon={detailPanelFullView
-              ? <Minimize2 size={16} aria-hidden />
-              : <Maximize2 size={16} aria-hidden />}
+            onClick={toggleDetailPanel}
+            icon={<PanelRight size={16} aria-hidden />}
           />
-        )}
-
-        <IconButton
-          size={28}
-          label={t('detailPanel.closeAria')}
-          tooltipLabel={t('detailPanel.closeAria')}
-          shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
-          tooltipPlacement="bottom"
-          tooltipWrapperStyle={{ alignSelf: 'center' }}
-          onClick={toggleDetailPanel}
-          style={{ marginRight: '4px' }}
-          icon={<PanelRight size={16} aria-hidden />}
-        />
+        </div>
       </div>
 
       {/* No border or shadow here: ThreePanel paints the vertical arm of the T
@@ -378,12 +380,8 @@ export function DetailPanel({
   )
 }
 
-/**
- * The leading slot shows the tab icon and swaps to a close button on hover, so
- * closing reuses that footprint instead of a separate trailing button. System
- * tabs render icon-only (no `label`); viewer tabs render icon + label.
- */
 function DetailPanelTab({
+  tabKey,
   active,
   title,
   icon,
@@ -397,6 +395,7 @@ function DetailPanelTab({
   style,
   maxWidth
 }: {
+  tabKey: string
   active: boolean
   title: string
   icon: ReactNode
@@ -416,6 +415,7 @@ function DetailPanelTab({
       className={className ? `dotcraft-detail-panel-tab ${className}` : 'dotcraft-detail-panel-tab'}
       role="tab"
       aria-selected={active}
+      data-tab-key={tabKey}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onActivate}
@@ -473,7 +473,6 @@ function DetailPanelTab({
 
 const LazyViewerTab = lazy(() => import('../detail/ViewerTab').then((m) => ({ default: m.ViewerTab })))
 
-/** Lazy-loads the ViewerTab component to keep the code view and its grammars out of the initial bundle. */
 function ViewerTabContainer({ tabId }: { tabId: string }): JSX.Element {
   return (
     <Suspense fallback={
