@@ -160,6 +160,7 @@ export function startSummaryFeed(
         const page = await readItemsPage(cursor)
         if (disposed) return
         for (const entry of page.data ?? []) {
+          terminals.observeCommandExecution(entry.item, entry.turnId)
           const item = toSummaryItem(entry.item, entry.turnId)
           if (item) loaded.push(item)
         }
@@ -233,6 +234,7 @@ export function startSummaryFeed(
 
   const stopItems = services.appServer.onNotification('item/completed', (params) => {
     if (params.threadId !== threadId) return
+    terminals.observeCommandExecution(params.item, params.turnId)
     const item = toSummaryItem(params.item, params.turnId)
     if (!item) return
     if (historyLoaded) addItems([item])

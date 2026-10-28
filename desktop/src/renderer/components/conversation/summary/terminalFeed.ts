@@ -1,3 +1,4 @@
+import type { SessionItem } from '@dotcraft/sdk/contracts'
 import type { SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
 import { resolveToolKind, type ToolKindSource } from '../../../utils/toolKind'
@@ -96,6 +97,14 @@ export function createTerminalFeed(
     return pending
   }
 
+  const applyResult = (result: Record<string, unknown>, turnId: string, callId: string): void => {
+    if (typeof result.sessionId !== 'string' || typeof result.status !== 'string') return
+    const known = running.get(result.sessionId)?.snapshot
+    if (known && (known.callId !== callId || known.turnId !== turnId)) return
+    if (result.status === 'running' && !known) return
+    apply({ ...known, sessionId: result.sessionId, threadId, turnId, callId, status: result.status })
+  }
+
   const addItems = (items: readonly SummaryItem[]): void => {
     if (!current()) return
     for (const item of items) {
@@ -105,12 +114,7 @@ export function createTerminalFeed(
       if (resolveToolKind(payload as unknown as ToolKindSource) !== 'exec') continue
       const content = payload.structuredContent
       if (!content || typeof content !== 'object') continue
-      const result = content as Record<string, unknown>
-      if (typeof result.sessionId !== 'string' || typeof result.status !== 'string') continue
-      const known = running.get(result.sessionId)?.snapshot
-      if (known && (known.callId !== payload.callId || known.turnId !== item.turnId)) continue
-      if (result.status === 'running' && !known) continue
-      apply({ ...known, sessionId: result.sessionId, threadId, turnId: item.turnId, callId: payload.callId, status: result.status })
+      applyResult(content as Record<string, unknown>, item.turnId, payload.callId)
     }
     publish()
   }
@@ -130,6 +134,13 @@ export function createTerminalFeed(
   return {
     refresh,
     addItems,
+    observeCommandExecution(item: Pick<SessionItem, 'type' | 'payload' | 'turnId'>, turnId?: string | null): void {
+      if (!current() || item.type !== 'commandExecution' || !item.payload || typeof item.payload !== 'object') return
+      const payload = item.payload as Record<string, unknown>
+      if (typeof payload.callId !== 'string') return
+      applyResult({ ...payload, status: payload.status === 'cancelled' ? 'killed' : payload.status }, turnId ?? item.turnId, payload.callId)
+      publish()
+    },
     setActiveTurn(turnId: string | null): void {
       if (turnId === activeTurnId) return
       const previous = activeTurnId

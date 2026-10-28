@@ -260,6 +260,56 @@ describe('Summary feed', () => {
     stop()
   })
 
+  it.each([
+    ['foreground', 'completed'],
+    ['history', 'completed'],
+    ['live', 'cancelled']
+  ])('settles direct Exec from its %s commandExecution %s payload without a terminal notification', async (delivery, status) => {
+    let releaseHistory!: (value: unknown) => void
+    const { services, notify } = createHost({
+      'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
+      'thread/read': () => ({ thread: { runtime: { activeTurnId: 't1' } } }),
+      'terminal/list': () => ({ terminals: [{ sessionId: 'shell-session', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
+    })
+    let state: SummaryState | null = null
+    const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
+    await settle()
+    expect(state!.terminals).toEqual([])
+    const returned = {
+      threadId: 'thread-1', turnId: 't1', item: {
+        id: 'result', type: 'toolResult', status: 'completed', payload: {
+          callId: 'exec-1', source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.shell', options: { operation: 'exec' } },
+          structuredContent: null, result: 'command output'
+        }
+      }
+    }
+    if (delivery !== 'foreground') {
+      notify('item/completed', returned)
+      expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['shell-session'])
+    }
+    const command = {
+      id: 'command', type: 'commandExecution', status: 'completed', turnId: 't1',
+      createdAt: '2026-01-01T00:00:00Z', completedAt: '2026-01-01T00:00:01Z',
+      payload: {
+        command: 'echo done', workingDirectory: '/workspace', source: 'host', status,
+        aggregatedOutput: 'command output', sessionId: 'shell-session', callId: 'exec-1',
+        exitCode: status === 'completed' ? 0 : null
+      }
+    }
+    if (delivery === 'history') releaseHistory({ data: [{ turnId: 't1', item: command }], nextCursor: null })
+    else {
+      notify('item/completed', { threadId: 'thread-1', turnId: 't1', item: command })
+      if (delivery === 'foreground') notify('item/completed', returned)
+      expect(state!.terminals).toEqual([])
+      releaseHistory({ data: [], nextCursor: null })
+    }
+    await settle()
+    expect(state!.terminals).toEqual([])
+    expect(vi.mocked(services.appServer.request).mock.calls.filter(([method]) => method === 'terminal/list')).toHaveLength(1)
+    stop()
+  })
+
   it('reconciles a missed completion when the active turn ends', async () => {
     let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }]
     const { services, notify } = createHost({
