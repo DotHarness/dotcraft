@@ -80,27 +80,34 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
     /// <summary>Releases the thread on the Host, which stops its background terminals; they end here as killed.</summary>
     public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default)
     {
+        using var operation = _operations.TryEnter(cancellationToken);
+        if (operation is null)
+        {
+            // The thread's terminals ended as lost with the session.
+            ForgetThreadTerminals(threadId);
+            throw new ObjectDisposedException(nameof(RemoteExecutionSession));
+        }
+        await _routeGate.WaitAsync(operation.Token).ConfigureAwait(false);
         var running = BeginThreadRelease(threadId);
         try
         {
-            using var operation = _operations.Enter(cancellationToken);
-            await _routeGate.WaitAsync(operation.Token).ConfigureAwait(false);
-            try
+            var lease = RequireLease(Route);
+            await SendAsync<PluginThreadRelease, JsonObject>(lease.Session.Client, RemoteToolHostProtocol.ExecutionThreadRelease,
+                new(Route.LeaseId, Route.WorkspaceId, threadId), operation.Token).ConfigureAwait(false);
+            lock (_stateGate)
             {
-                var lease = RequireLease(Route);
-                await SendAsync<PluginThreadRelease, JsonObject>(lease.Session.Client, RemoteToolHostProtocol.ExecutionThreadRelease,
-                    new(Route.LeaseId, Route.WorkspaceId, threadId), operation.Token).ConfigureAwait(false);
-                lock (_stateGate)
-                {
-                    _snapshots.Remove(threadId);
-                    _preparedSnapshots.Remove(threadId);
-                    _preparationFailures.Remove(threadId);
-                    _turns.Remove(threadId);
-                }
+                _snapshots.Remove(threadId);
+                _preparedSnapshots.Remove(threadId);
+                _preparationFailures.Remove(threadId);
+                _turns.Remove(threadId);
             }
-            finally { _routeGate.Release(); }
         }
-        finally { EndThreadTerminals(threadId, running); }
+        finally
+        {
+            _routeGate.Release();
+            EndTerminals(BackgroundTerminalStatus.Killed, threadId, running);
+            ForgetThreadTerminals(threadId);
+        }
     }
 
     public async ValueTask<ToolExecutionResult> InvokeAsync(

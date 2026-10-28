@@ -296,7 +296,8 @@ returns the settled snapshot and applies the lease and Thread ownership checks o
 The Host stops a session's terminals when the session closes and a Thread's terminals when the Thread
 is released (§5.2), and it cannot report either. The execution session therefore ends a background
 terminal that is still running as `lost` when the session is lost, and as `killed` when its Thread is
-released, and publishes that ending as the terminal's completion notice. A terminal whose `Exec` result
+released, and publishes that ending as the terminal's completion notice. A release canceled before it is
+sent to the Host leaves the Thread's terminals as they are. A terminal whose `Exec` result
 arrives after its Thread's release began is ended the same way and is not kept. Disposing a session
 publishes nothing, and DotCraft's client publishes nothing during Agent Host teardown.
 

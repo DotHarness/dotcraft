@@ -119,9 +119,8 @@ public sealed partial class RemoteExecutionSession
         }
     }
 
-    private void EndThreadTerminals(string threadId, IReadOnlyCollection<string> running)
+    private void ForgetThreadTerminals(string threadId)
     {
-        EndTerminals(BackgroundTerminalStatus.Killed, threadId, running);
         lock (_stateGate)
             foreach (var (id, terminal) in _terminals.ToArray())
                 if (terminal.Snapshot.ThreadId == threadId)

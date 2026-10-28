@@ -208,6 +208,23 @@ public sealed class RemoteExecutionSessionTests
         Assert.Equal(BackgroundTerminalStatus.Killed, notice.Terminal.Status);
     }
 
+    [Fact]
+    public async Task CanceledRelease_KeepsTheThreadsRunningCommand()
+    {
+        await using var fixture = await RemoteExecutionFixture.CreateAsync();
+        await using var session = await fixture.OpenAsync("terminals");
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        session.TerminalEvent += events.Enqueue;
+        var sessionId = await fixture.StartTerminalAsync(session);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            session.ReleaseThreadAsync("thread", new CancellationToken(canceled: true)).AsTask());
+
+        Assert.Equal(BackgroundTerminalStatus.Running, Assert.Single(session.ListTerminals("thread")).Status);
+        Assert.Empty(events);
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await session.StopTerminalAsync("thread", sessionId)).Status);
+    }
+
     private static bool IsRunning(int pid)
     {
         try { using var process = System.Diagnostics.Process.GetProcessById(pid); return !process.HasExited; }
