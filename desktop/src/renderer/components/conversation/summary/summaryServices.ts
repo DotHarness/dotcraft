@@ -31,6 +31,7 @@ import {
 import { useConnectionStore } from '../../../stores/connectionStore'
 import { useConversationStore, type ContextUsage } from '../../../stores/conversationStore'
 import { useThreadStore } from '../../../stores/threadStore'
+import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
 import { showToast } from '../../../stores/toastStore'
 import { useUIStore, type SystemDetailTab } from '../../../stores/uiStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
@@ -52,6 +53,8 @@ export interface SummaryContextState {
 
 export interface SummaryServices {
   readonly appServer: {
+    connectionKey(): string
+    onConnectionChange(listener: (connected: boolean) => void): () => void
     request<M extends keyof ClientRequestMethods>(
       method: M,
       params: ClientRequestMethods[M]['params']
@@ -111,6 +114,16 @@ export interface SummaryServices {
 
 export const desktopSummaryServices: SummaryServices = {
   appServer: {
+    connectionKey: () => useWorkspaceProjectsStore.getState().foregroundProjectId,
+    onConnectionChange(listener) {
+      const stopConnection = useConnectionStore.subscribe((next, previous) => {
+        if (next.connectionEpoch !== previous.connectionEpoch) listener(next.status === 'connected')
+      })
+      const stopProject = useWorkspaceProjectsStore.subscribe((next, previous) => {
+        if (next.foregroundProjectId !== previous.foregroundProjectId) listener(false)
+      })
+      return () => { stopConnection(); stopProject() }
+    },
     request(method, params) {
       return window.api.appServer.sendRequestRaw(method, params) as never
     },
