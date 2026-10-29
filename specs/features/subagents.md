@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-10-29 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -336,6 +336,11 @@ Rollback, compaction, projection rebuild, archive, unload, child closure, and co
 them. An ordinary conversation fork starts with an empty board. Permanent root deletion removes board
 content and prevents delayed writes from recreating it; child deletion preserves it. Single-thread
 recovery packages do not include the board.
+
+Clients read the board through `subagent/board/topics/list` and `subagent/board/topic/read`, and
+learn of committed channels and posts from `subagent/board/changed` ([AppServer
+Protocol](../protocols/appserver-protocol.md) §24.10). Client reads are observation only: they never
+create a board, subscribe, notify an Agent, or write a post.
 
 ## 9. Persistence, recovery, and ownership
 

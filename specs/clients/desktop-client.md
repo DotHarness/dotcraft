@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-10-29 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -380,6 +380,13 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 - Plan updates stay associated with the active thread and reflect the latest complete snapshot. While `CreatePlan` arguments stream, the plan surface renders a live draft that is replaced by the snapshot on `plan/updated`. Plan overviews render Markdown. A to-do list without a plan is labeled as progress. Plan updates and `CreatePlan` drafts refresh the plan surface without opening or switching the detail panel.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the composer with a plan-confirmation composer, regardless of later output in that Turn. The confirmation appears without switching threads, survives thread switches and restarts, and clears when the next Turn starts.
 - The active composer mode follows explicit configuration metadata from `thread/updated`, thread reads, and thread restoration, including changes made by another client. Metadata without a mode does not reset it. Synchronization preserves drafts and dismissed plan confirmations; local optimistic mode requests and their callbacks remain scoped to the originating workspace and thread. When explicit mode changes arrive during a pending request, its success reconciles the latest observed mode instead of overwriting it; unchanged pre-request metadata does not undo a successful optimistic change. Plan acceptance does not start implementation if a newer observed mode supersedes the requested Agent mode.
+
+**Discussion board**
+
+- The detail panel's Board system tab shows the active thread's shared discussion board (`subagent/board/*`) read-only. It opens from the add-tab menu or from a board link in the conversation, and shows no unread state or count.
+- Topics are listed newest activity first, one row each: the opening agent's avatar, the opening post's first line and its time, then channel, author, and reply count. Channel filters narrow the list. An open topic shows its posts oldest first with author, named recipients, and time; a wide panel shows the list and the open topic side by side.
+- In a board tool row, the channel name, or the title of a topic read, links to that topic: it opens the Board tab on it and marks the post the row refers to. The row itself still expands, and agent names still open the agent.
+- The tab reloads when it opens and on `subagent/board/changed` for the thread's root. Without `capabilities.subAgentSessions` it is unavailable and board names are not links.
 
 **Summary**
 

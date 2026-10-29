@@ -4138,6 +4138,158 @@ public sealed class SourceControlUpdateParams : ExtensibleJsonObject
 
 }
 
+public sealed class SubAgentBoardChangedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("rootThreadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> RootThreadId { get; init; }
+
+}
+
+public sealed class SubAgentBoardChannel : ExtensibleJsonObject
+{
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DateTimeOffset> CreatedAt { get; init; }
+
+    [JsonPropertyName("createdBy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CreatedBy { get; init; }
+
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Description { get; init; }
+
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Name { get; init; }
+
+    [JsonPropertyName("topicCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> TopicCount { get; init; }
+
+}
+
+public sealed class SubAgentBoardPost : ExtensibleJsonObject
+{
+    [JsonPropertyName("author")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Author { get; init; }
+
+    [JsonPropertyName("channelName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ChannelName { get; init; }
+
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DateTimeOffset> CreatedAt { get; init; }
+
+    [JsonPropertyName("messageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> MessageId { get; init; }
+
+    [JsonPropertyName("notified")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Notified { get; init; }
+
+    [JsonPropertyName("text")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Text { get; init; }
+
+    [JsonPropertyName("topicId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TopicId { get; init; }
+
+}
+
+public sealed class SubAgentBoardTopic : ExtensibleJsonObject
+{
+    [JsonPropertyName("channelName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ChannelName { get; init; }
+
+    [JsonPropertyName("lastActivityAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DateTimeOffset> LastActivityAt { get; init; }
+
+    [JsonPropertyName("replyCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> ReplyCount { get; init; }
+
+    [JsonPropertyName("rootPost")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<SubAgentBoardPost> RootPost { get; init; }
+
+    [JsonPropertyName("topicId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TopicId { get; init; }
+
+}
+
+public sealed class SubAgentBoardTopicReadParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+    [JsonPropertyName("topicId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TopicId { get; init; }
+
+}
+
+public sealed class SubAgentBoardTopicReadResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("hasMore")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> HasMore { get; init; }
+
+    [JsonPropertyName("posts")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<SubAgentBoardPost>> Posts { get; init; }
+
+    [JsonPropertyName("topic")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<SubAgentBoardTopic?> Topic { get; init; }
+
+}
+
+public sealed class SubAgentBoardTopicsListParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("channelName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ChannelName { get; init; }
+
+    [JsonPropertyName("cursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Cursor { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> Limit { get; init; }
+
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+}
+
+public sealed class SubAgentBoardTopicsListResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("channels")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<SubAgentBoardChannel>> Channels { get; init; }
+
+    [JsonPropertyName("data")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<SubAgentBoardTopic>> Data { get; init; }
+
+    [JsonPropertyName("nextCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> NextCursor { get; init; }
+
+}
+
 public sealed class SubAgentChild : ExtensibleJsonObject
 {
     [JsonPropertyName("edge")]

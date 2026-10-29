@@ -3801,6 +3801,68 @@ export interface SourceControlUpdateParams {
   [key: string]: unknown;
 }
 
+export interface SubAgentBoardChangedNotification {
+  rootThreadId?: string;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardChannel {
+  createdAt?: string;
+  createdBy?: string;
+  description?: string | null;
+  name?: string;
+  topicCount?: number;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardPost {
+  author?: string;
+  channelName?: string;
+  createdAt?: string;
+  messageId?: string;
+  notified?: string[];
+  text?: string;
+  topicId?: string;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardTopic {
+  channelName?: string;
+  lastActivityAt?: string;
+  replyCount?: number;
+  rootPost?: SubAgentBoardPost;
+  topicId?: string;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardTopicReadParams {
+  threadId?: string;
+  topicId?: string;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardTopicReadResult {
+  hasMore?: boolean;
+  posts?: SubAgentBoardPost[];
+  topic?: SubAgentBoardTopic | null;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardTopicsListParams {
+  channelName?: string | null;
+  cursor?: string | null;
+  limit?: number | null;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface SubAgentBoardTopicsListResult {
+  channels?: SubAgentBoardChannel[];
+  data?: SubAgentBoardTopic[];
+  nextCursor?: string | null;
+  [key: string]: unknown;
+}
+
 export interface SubAgentChild {
   edge?: ThreadSpawnEdge;
   thread?: SessionThread | null;

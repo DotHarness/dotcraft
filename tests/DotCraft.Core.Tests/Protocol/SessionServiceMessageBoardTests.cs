@@ -64,6 +64,34 @@ public sealed class SessionServiceMessageBoardTests : SessionServiceRuntimeSigna
     }
 
     [Fact]
+    public async Task MessageBoard_ClientReadsListTopicsByActivityAndReadTopicInOrder()
+    {
+        using var client = new RecordingChatClient("done");
+        await using var factory = CreateAgentFactory(client);
+        var service = CreateService(factory, client);
+        var root = await service.CreateThreadAsync(MakeIdentity());
+        var worker = await BoardChild(service, root, "worker");
+        var changes = new List<string>();
+        service.SubAgentBoardChangedForBroadcast = changes.Add;
+        var first = (await BoardCall(service, root, new("post", NewChannelName: "design", Text: "First topic", AgentsToNotify: ["worker"])))
+            .GetProperty("messageId").GetString()!;
+        var second = (await BoardCall(service, worker, new("post", ChannelName: "design", Text: "Second topic")))
+            .GetProperty("messageId").GetString()!;
+        await BoardCall(service, worker, new("post", ThreadId: first, Text: "Reply"));
+
+        var page = await service.ListBoardTopicsAsync(worker.Id, null, null, 50);
+        Assert.Equal(new[] { first, second }, page.Topics.Select(topic => topic.TopicId));
+        Assert.Equal(1, page.Topics[0].ReplyCount);
+        Assert.Equal(new[] { "/root/worker" }, page.Topics[0].RootPost.Notified);
+        Assert.Equal(2, Assert.Single(page.Channels).TopicCount);
+
+        var read = await service.ReadBoardTopicAsync(root.Id, first);
+        Assert.Equal(new[] { "First topic", "Reply" }, read.Posts.Select(post => post.Text));
+        Assert.Null((await service.ReadBoardTopicAsync(root.Id, "missing")).Topic);
+        Assert.Equal(new[] { root.Id, root.Id, root.Id }, changes);
+    }
+
+    [Fact]
     public async Task MessageBoard_ModelToolUsesRuntimeIdentityAndGenericToolEvents()
     {
         using var client = new CoordinationToolCallChatClient("BoardPost",

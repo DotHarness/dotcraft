@@ -14874,6 +14874,209 @@
       },
       "additionalProperties": true
     },
+    "SubAgentBoardChangedNotification": {
+      "title": "SubAgentBoardChangedNotification",
+      "type": "object",
+      "properties": {
+        "rootThreadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardChannel": {
+      "title": "SubAgentBoardChannel",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "topicCount": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardPost": {
+      "title": "SubAgentBoardPost",
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "channelName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "notified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "topicId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardTopic": {
+      "title": "SubAgentBoardTopic",
+      "type": "object",
+      "properties": {
+        "channelName": {
+          "type": "string"
+        },
+        "lastActivityAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "replyCount": {
+          "type": "integer"
+        },
+        "rootPost": {
+          "$ref": "#/$defs/SubAgentBoardPost"
+        },
+        "topicId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardTopicReadParams": {
+      "title": "SubAgentBoardTopicReadParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "topicId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardTopicReadResult": {
+      "title": "SubAgentBoardTopicReadResult",
+      "type": "object",
+      "properties": {
+        "hasMore": {
+          "type": "boolean"
+        },
+        "posts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubAgentBoardPost"
+          }
+        },
+        "topic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubAgentBoardTopic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardTopicsListParams": {
+      "title": "SubAgentBoardTopicsListParams",
+      "type": "object",
+      "properties": {
+        "channelName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SubAgentBoardTopicsListResult": {
+      "title": "SubAgentBoardTopicsListResult",
+      "type": "object",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubAgentBoardChannel"
+          }
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubAgentBoardTopic"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "SubAgentChild": {
       "title": "SubAgentChild",
       "type": "object",

@@ -20,7 +20,7 @@ function itemIcon(action: AddTabMenuAction): JSX.Element {
   if (action === 'newSubagents') {
     return <Bot size={14} aria-hidden style={style} />
   }
-  if (action === 'newSideChat') {
+  if (action === 'newSideChat' || action === 'newBoard') {
     return <MessagesSquare size={14} aria-hidden style={style} />
   }
   return <SquareTerminal size={14} aria-hidden style={style} />

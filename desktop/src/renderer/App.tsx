@@ -40,6 +40,7 @@ import { prepareDesktopPluginWorkspaceChange } from './plugins/desktopPluginSour
 import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
+import { useBoardStore } from './stores/boardStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
 import { useTurnBookmarkStore } from './stores/turnBookmarkStore'
@@ -2100,6 +2101,12 @@ export function App(): JSX.Element {
             if (threadId && typeof last?.inputTokens === 'number') {
               useSubAgentStore.getState().updateChildUsage(threadId, last.inputTokens + (last.outputTokens ?? 0))
             }
+            break
+          }
+
+          case 'subagent/board/changed': {
+            const rootThreadId = p.rootThreadId as string | undefined
+            if (rootThreadId) useBoardStore.getState().markChanged(rootThreadId)
             break
           }
 

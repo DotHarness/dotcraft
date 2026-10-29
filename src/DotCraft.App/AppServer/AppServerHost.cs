@@ -256,6 +256,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
+        runtime.SubAgentBoardChanged += BroadcastSubAgentBoardChanged;
         runtime.ThreadTokenUsageUpdated += BroadcastThreadTokenUsageUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged += BroadcastWorkflowRunUpdated;
@@ -294,6 +295,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
+        runtime.SubAgentBoardChanged -= BroadcastSubAgentBoardChanged;
         runtime.ThreadTokenUsageUpdated -= BroadcastThreadTokenUsageUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged -= BroadcastWorkflowRunUpdated;
@@ -1678,6 +1680,10 @@ public sealed class AppServerHost(
 
     private void BroadcastImportCompleted(Contract.ImportCompletedNotification parameters) =>
         BroadcastContractNotification(Contract.AppServerRpc.ImportCompleted, parameters);
+
+    private void BroadcastSubAgentBoardChanged(string rootThreadId) =>
+        BroadcastContractNotification(Contract.AppServerRpc.SubAgentBoardChanged,
+            new Contract.SubAgentBoardChangedNotification { RootThreadId = rootThreadId });
 
     private void BroadcastContractNotification<T>(DotCraft.Protocol.RpcNotification<T> descriptor, T parameters) where T : class
     {

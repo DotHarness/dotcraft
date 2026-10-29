@@ -126,11 +126,18 @@ export function parseBoardCall({ operation, args = {}, result, running, invocati
   }
 }
 
-/** A sentence as a catalog key, so the card can render `name` as an agent link. */
+/** A sentence as a catalog key, so the card can render `name` as an agent link and `topic.variable` as a topic link. */
 export interface BoardLabel {
   key: string
   vars: Record<string, string | number>
   agentPath?: string
+  topic?: BoardTopicLink
+}
+
+export interface BoardTopicLink {
+  variable: 'channel' | 'title'
+  topicId: string
+  messageId: string
 }
 
 export function describeBoardCall(call: BoardCall): BoardLabel {
@@ -143,17 +150,20 @@ export function describeBoardCall(call: BoardCall): BoardLabel {
   const counted = (key: string, count: number, vars: Record<string, string | number> = {}): BoardLabel =>
     label(`${key}.${count === 1 ? 'one' : 'other'}`, { count, ...vars })
   const running = call.phase === 'running'
+  const posted = (key: string): BoardLabel => channel && call.post
+    ? { ...label(key), topic: { variable: 'channel', topicId: call.post.threadId ?? call.post.messageId, messageId: call.post.messageId } }
+    : label(key)
 
   if (call.phase === 'failed') return label(`failed.${call.operation}`)
   switch (call.operation) {
     case 'post':
-      if (call.postKind === 'newChannel') return label(running ? 'creatingChannel' : 'openedChannel')
+      if (call.postKind === 'newChannel') return running ? label('creatingChannel') : posted('openedChannel')
       if (call.postKind === 'reply') {
         if (running) return label('replyingGeneric')
-        return label(channel ? 'replied' : 'repliedGeneric')
+        return channel ? posted('replied') : label('repliedGeneric')
       }
       if (running) return label(channel ? 'posting' : 'postingGeneric')
-      return label(channel ? 'startedTopic' : 'startedTopicGeneric')
+      return channel ? posted('startedTopic') : label('startedTopicGeneric')
     case 'createChannel':
       return label(running ? 'creatingChannel' : 'createdChannel')
     case 'getChannels':
@@ -176,7 +186,10 @@ export function describeBoardCall(call: BoardCall): BoardLabel {
     case 'readThread': {
       const root = call.posts[0]
       if (running || !root) return label(running ? 'readingTopic' : 'readTopicGeneric')
-      return label('readTopic', { title: firstLine(root.text, 48) })
+      return {
+        ...label('readTopic', { title: firstLine(root.text, 48) }),
+        topic: { variable: 'title', topicId: root.threadId ?? root.messageId, messageId: root.messageId }
+      }
     }
     case 'readPost':
       if (running || !call.post) return label(running ? 'readingPost' : 'readPostGeneric')

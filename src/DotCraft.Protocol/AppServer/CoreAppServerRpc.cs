@@ -179,6 +179,12 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<SourceControlUpdateParams, SourceControlSnapshot> SourceControlUpdate = new("sourceControl/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", capability: "sourceControlManagement", errors: CommonErrors);
 
+    public static readonly RpcNotification<SubAgentBoardChangedNotification> SubAgentBoardChanged = new("subagent/board/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
+
+    public static readonly RpcRequest<SubAgentBoardTopicReadParams, SubAgentBoardTopicReadResult> SubAgentBoardTopicRead = new("subagent/board/topic/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
+    public static readonly RpcRequest<SubAgentBoardTopicsListParams, SubAgentBoardTopicsListResult> SubAgentBoardTopicsList = new("subagent/board/topics/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
     public static readonly RpcRequest<SubAgentChildrenListParams, SubAgentChildrenListResult> SubAgentChildrenList = new("subagent/children/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<SubAgentTargetParams, SubAgentControlResult> SubAgentClose = new("subagent/close", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);

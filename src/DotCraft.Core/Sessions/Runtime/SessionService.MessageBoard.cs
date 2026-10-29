@@ -38,6 +38,7 @@ public sealed partial class SessionService
             {
                 case "createChannel":
                     result = store.CreateChannel(actor, request);
+                    SubAgentBoardChangedForBroadcast?.Invoke(root);
                     break;
                 case "subscribe":
                     var target = AgentPath.Parse(path).Resolve(request.TargetAgent ?? path).Value;
@@ -64,6 +65,7 @@ public sealed partial class SessionService
                     var posted = store.Post(actor, request, invocationId, recipients.ToArray());
                     if (posted.Created)
                     {
+                        SubAgentBoardChangedForBroadcast?.Invoke(root);
                         foreach (var recipient in posted.Recipients)
                         {
                             try { NotifyBoardRecipient(actor, recipient, posted.Metadata, request.Text!); }
@@ -94,6 +96,31 @@ public sealed partial class SessionService
         {
             return BoardError("board_invalid_argument", ex.Message);
         }
+    }
+
+    public Action<string>? SubAgentBoardChangedForBroadcast { get; set; }
+
+    public async Task<BoardTopicPage> ListBoardTopicsAsync(
+        string threadId, string? channelName, string? cursor, int limit, CancellationToken ct = default)
+    {
+        var root = await ResolveBoardRootAsync(threadId, ct);
+        if (root == null) return new([], [], null);
+        try { return new AgentMessageBoardStore(Persistence.StateDatabase).ListTopics(root, channelName, cursor, limit); }
+        catch (BoardException ex) { throw new ArgumentException(ex.Message, nameof(cursor)); }
+    }
+
+    public async Task<BoardTopicPosts> ReadBoardTopicAsync(string threadId, string topicId, CancellationToken ct = default)
+    {
+        var root = await ResolveBoardRootAsync(threadId, ct);
+        return root == null ? new(null, [], false) : new AgentMessageBoardStore(Persistence.StateDatabase).ReadTopic(root, topicId);
+    }
+
+    private async Task<string?> ResolveBoardRootAsync(string threadId, CancellationToken ct)
+    {
+        var thread = await GetThreadAsync(threadId, ct);
+        var root = thread.Source.SubAgent?.RootThreadId ?? thread.Id;
+        var rootThread = root == thread.Id ? thread : await GetThreadAsync(root, ct);
+        return rootThread.Ephemeral ? null : root;
     }
 
     private static string BoardError(string code, string message) =>

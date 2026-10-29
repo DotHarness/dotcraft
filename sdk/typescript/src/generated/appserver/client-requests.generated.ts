@@ -151,6 +151,8 @@ export interface ClientRequestMethods {
   "sourceControl/threadTarget/get": { params: Models.SourceControlThreadTargetParams; result: Models.SourceControlThreadTargetResult };
   "sourceControl/threadTarget/update": { params: Models.SourceControlThreadTargetUpdateParams; result: Models.SourceControlThreadTargetResult };
   "sourceControl/update": { params: Models.SourceControlUpdateParams; result: Models.SourceControlSnapshot };
+  "subagent/board/topic/read": { params: Models.SubAgentBoardTopicReadParams; result: Models.SubAgentBoardTopicReadResult };
+  "subagent/board/topics/list": { params: Models.SubAgentBoardTopicsListParams; result: Models.SubAgentBoardTopicsListResult };
   "subagent/children/list": { params: Models.SubAgentChildrenListParams; result: Models.SubAgentChildrenListResult };
   "subagent/close": { params: Models.SubAgentTargetParams; result: Models.SubAgentControlResult };
   "subagent/followupTask": { params: Models.SubAgentTargetMessageParams; result: Models.SubAgentControlResult };
