@@ -184,7 +184,7 @@ public sealed class AppServerRequestHandler(
             services.ChatClientRegistry?.RuntimeResolver,
             services.ProviderAuthentication),
         new ModelBackendRequestHandler(transport, connection, services, WorkspaceConfig),
-        new WorkspaceRequestHandler(services.CommitMessageSuggest, services.WelcomeSuggestionService, _configSchema, services.MemoryStore, services.DreamsService, services.AppConfigMonitor, services.HostWorkspacePath),
+        new WorkspaceRequestHandler(services.CommitMessageSuggest, _configSchema, services.MemoryStore, services.DreamsService, services.AppConfigMonitor),
         new ConfigRequestHandler(services.Configuration),
         new SourceControlRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath),
         new HookRequestHandler(services.HookRunner, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, WorkspaceConfig, RuntimeConfig, services.BuiltInPluginSourceRoots),

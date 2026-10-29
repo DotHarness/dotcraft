@@ -71,7 +71,7 @@ An agent's own memory follows its name, so renaming the agent starts it with emp
 
 ## Turn off or delete memory
 
-To stop using memory, turn off **Settings → Personalization → Enable memories** in Desktop. New conversations then neither use nor save memory, and conversations already open keep the setting they started with. Save missed memories, Dreams, and welcome suggestions pause too, and resume with their settings when you turn memory back on.
+To stop using memory, turn off **Settings → Personalization → Enable memories** in Desktop. New conversations then neither use nor save memory, and conversations already open keep the setting they started with. Save missed memories and Dreams pause too, and resume with their settings when you turn memory back on.
 
 To forget one thing, ask DotCraft to forget it, or delete its file and its line in `MEMORY.md`. To clear the workspace's memory, open **Settings → Personalization → Delete memories**. This deletes every memory in the workspace, including the memories that agents and automations keep for themselves, and every Dreams run. Conversation history, settings, skills, and Agent Profiles stay.
 

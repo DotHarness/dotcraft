@@ -37,8 +37,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         ThreadStore threadStore,
         ISessionService sessionService,
         ICommitMessageSuggester commitMessageSuggestService,
-        IWelcomeSuggester welcomeSuggestions,
-        WelcomeSuggestionService welcomeSuggestionService,
         DreamsService dreamsService,
         DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
@@ -54,11 +52,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public ISessionService SessionService { get; } = sessionService;
 
         public ICommitMessageSuggester CommitMessageSuggestService { get; } = commitMessageSuggestService;
-
-        public IWelcomeSuggester WelcomeSuggestions { get; } = welcomeSuggestions;
-
-        /// <summary>The runtime-owned built-in, kept for disposal; consumers get the registry-resolving <see cref="WelcomeSuggestions"/>.</summary>
-        public WelcomeSuggestionService WelcomeSuggestionService { get; } = welcomeSuggestionService;
 
 
 
@@ -136,8 +129,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     public ISessionService Sessions => SessionService;
 
     public ICommitMessageSuggester CommitMessageSuggestService => EnsureStarted().CommitMessageSuggestService;
-
-    public IWelcomeSuggester WelcomeSuggestionService => EnsureStarted().WelcomeSuggestions;
 
 
     public DreamsService DreamsService => EnsureStarted().DreamsService;
@@ -262,7 +253,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var effectiveToolSources = _contributionScope.RegisterToolSources(toolSources);
 
             AgentFactory? agentFactory = null;
-            WelcomeSuggestionService? welcomeSuggestionService = null;
             DreamsService? dreamsService = null;
             DotNetPluginRuntimeManager? pluginRuntime = null;
             var pluginRuntimeStarted = false;
@@ -347,13 +337,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         Paths.WorkspacePath,
                         loggerFactory?.CreateLogger<CommitMessageSuggestService>(),
                         () => _appConfigMonitor.Current.SourceControl);
-                welcomeSuggestionService = new WelcomeSuggestionService(
-                    sessionService,
-                    MemoryStore,
-                    Paths.WorkspacePath,
-                    Config,
-                    Paths.Data.RootPath,
-                    loggerFactory?.CreateLogger<WelcomeSuggestionService>());
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
                     (thread, ct) => sessionService.ReadThreadTurnsAsync(
@@ -368,14 +351,11 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     loggerFactory?.CreateLogger<MemoryExtractionScheduler>());
                 _contributionScope.RegisterSessionContributions(
                     commitMessageSuggestService,
-                    welcomeSuggestionService,
                     memoryExtraction);
-                // Handed out instead of the built-ins so a caller that captures one — an open AppServer
+                // Handed out instead of the built-in so a caller that captures it — an open AppServer
                 // connection, say — still observes a replacement registered after it captured.
                 var commitMessageSuggest =
                     new ContributedCommitMessageSuggestService(contributionRegistry, commitMessageSuggestService);
-                var welcomeSuggestions =
-                    new ContributedWelcomeSuggestionService(contributionRegistry, welcomeSuggestionService);
 
                 var configSchema = Services.GetService<IConfigSchemaProvider>()?.GetConfigSchema()
                     ?? throw new InvalidOperationException(
@@ -423,8 +403,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     Services.GetRequiredService<ThreadStore>(),
                     sessionService,
                     commitMessageSuggest,
-                    welcomeSuggestions,
-                    welcomeSuggestionService,
                     dreamsService,
                     pluginRuntime,
                     configSchema,
@@ -443,18 +421,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     try
                     {
                         await pluginRuntime.StopAsync(CancellationToken.None);
-                    }
-                    catch
-                    {
-                        // ignored during failed startup cleanup
-                    }
-                }
-
-                if (welcomeSuggestionService != null)
-                {
-                    try
-                    {
-                        await welcomeSuggestionService.DisposeAsync();
                     }
                     catch
                     {
@@ -561,15 +527,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             try
             {
                 await started.DreamsService.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
-
-            try
-            {
-                await started.WelcomeSuggestionService.DisposeAsync();
             }
             catch (Exception ex)
             {

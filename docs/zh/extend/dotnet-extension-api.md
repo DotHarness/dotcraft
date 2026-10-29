@@ -33,7 +33,7 @@
 | **可压缩工具** | `ICompactableToolPolicy` | A、B |
 | **Subagent 运行时** | `ISubAgentRuntimeSource` | A |
 | **Trace 汇聚** | `ITraceSink` | A |
-| **辅助生成器** | `ICommitMessageSuggester`、`IWelcomeSuggester` | B |
+| **辅助生成器** | `ICommitMessageSuggester` | B |
 
 失败处理由各贡献点决定。观察与扇出类贡献通常会记录并跳过失败项。结果规范化、上下文压缩这类权威变换则可以让所属操作失败。预期内的失败请通过契约的结果类型返回，不要抛异常。
 

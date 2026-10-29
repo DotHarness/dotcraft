@@ -239,7 +239,6 @@ Features that depend on memory stop while it is disabled and resume with their s
 
 - Memory extraction does not run.
 - Dreams does not start scheduled or manual runs.
-- Welcome suggestions are not generated from memory, and clients fall back to their default suggestions. Conversation prompt suggestions are independent of this switch.
 
 Clients show dependent settings as disabled while memory is off, with their stored values unchanged.
 
@@ -252,7 +251,3 @@ Clients group recall operations as recalled memories and show an update as a mem
 ## 9. Deleting Memory
 
 AppServer `memory/reset` deletes the contents of every memory store in the current workspace: the workspace store and every scope store. It also deletes all Dreams artifacts. It leaves attached stores untouched, because their content belongs to the host that attaches them. It keeps the store directories, sessions, configuration, skills, plugins, plans, automation tasks, Agent Profiles, and the memory switches.
-
-## 10. Welcome Suggestions
-
-Personalized welcome suggestions receive an explicit snapshot of the workspace store as generation input, alongside dedicated system instructions: the loaded index and the listing of its memory files by type, name, and description. The same captured content supplies the generation request and determines the cache fingerprint. Suggestions are generated in the background after a successful Turn when that content has changed since the cached result. They are skipped when memory is disabled or the store holds no memory files.

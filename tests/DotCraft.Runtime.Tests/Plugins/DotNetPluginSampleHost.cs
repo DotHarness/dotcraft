@@ -35,7 +35,7 @@ internal sealed class DotNetPluginSampleHost : IDisposable
             approvalEvaluator: null,
             recorder: HostRecorder,
             resultNormalizer: new DefaultToolResultNormalizer());
-        _scope.RegisterSessionContributions(BuiltInCommitSuggester, BuiltInWelcomeSuggester);
+        _scope.RegisterSessionContributions(BuiltInCommitSuggester);
 
         // The agent layer registers these two behind an AgentFactory the plugin harness does not build.
         CompactableToolPolicyCatalog.RegisterBuiltIns(harness.Registry);
@@ -52,8 +52,6 @@ internal sealed class DotNetPluginSampleHost : IDisposable
     internal RecordingToolRecorder HostRecorder { get; } = new();
 
     internal StubCommitSuggester BuiltInCommitSuggester { get; } = new();
-
-    internal StubWelcomeSuggester BuiltInWelcomeSuggester { get; } = new();
 
     internal ThreadRuntimeSignalDispatcher RuntimeSignals { get; }
 
@@ -163,24 +161,5 @@ internal sealed class DotNetPluginSampleHost : IDisposable
             CommitMessageSuggestionRequest parameters,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new CommitMessageSuggestionResult(Message));
-    }
-
-    /// <summary>Stands in for the workspace runtime's welcome suggestion generator.</summary>
-    internal sealed class StubWelcomeSuggester : IWelcomeSuggester
-    {
-        internal const string SourceName = "built-in";
-
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WelcomeSuggestionSnapshot { Source = SourceName });
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
-        {
-        }
-
-        public void ClearWorkspaceCache(string workspacePath)
-        {
-        }
     }
 }

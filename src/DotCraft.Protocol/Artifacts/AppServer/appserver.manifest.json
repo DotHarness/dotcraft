@@ -27219,102 +27219,6 @@
       "variants": []
     },
     {
-      "id": "core.WelcomeSuggestionItem",
-      "name": "WelcomeSuggestionItem",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WelcomeSuggestionItem.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "prompt",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "reason",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.WelcomeSuggestionsParams",
-      "name": "WelcomeSuggestionsParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WelcomeSuggestionsParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "identity",
-          "type": "core.SessionIdentity",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxItems",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.WelcomeSuggestionsResult",
-      "name": "WelcomeSuggestionsResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/WelcomeSuggestionsResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "fingerprint",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "generatedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "items",
-          "type": "array<core.WelcomeSuggestionItem>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "source",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.WorkflowAgentView",
       "name": "WorkflowAgentView",
       "module": "core",
@@ -34285,26 +34189,6 @@
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "welcome/suggestions",
-      "descriptorMember": "WelcomeSuggestions",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.WelcomeSuggestionsParams",
-      "resultType": "core.WelcomeSuggestionsResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

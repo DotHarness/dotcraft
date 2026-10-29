@@ -20,7 +20,7 @@ public sealed class SuggestionServiceContributionTests
         Assert.Equal(
             "built-in",
             (await new ContributedCommitMessageSuggestService(registry, builtIn).SuggestAsync(CommitRequest)).Message);
-        SuggestionServiceCatalog.RegisterBuiltIns(registry, builtIn, welcomeSuggestions: null);
+        SuggestionServiceCatalog.RegisterBuiltIn(registry, builtIn);
 
         var captured = new ContributedCommitMessageSuggestService(registry, builtIn);
         registry.Add<ICommitMessageSuggester>(
@@ -42,72 +42,24 @@ public sealed class SuggestionServiceContributionTests
     }
 
     [Fact]
-    public async Task AWelcomeReplacement_TakesOverEveryMemberOfTheContract()
-    {
-        var registry = new ContributionRegistry();
-        var builtIn = new StubWelcomeService("built-in");
-        SuggestionServiceCatalog.RegisterBuiltIns(registry, commitMessageSuggest: null, builtIn);
-        var captured = new ContributedWelcomeSuggestionService(registry, builtIn);
-        var replacement = new StubWelcomeService("plugin");
-
-        var handle = registry.Add<IWelcomeSuggester>(
-            replacement,
-            new ContributionOptions(ReplaceTarget: SuggestionServiceNames.WelcomeSuggestions));
-        var snapshot = await captured.SuggestAsync(new WelcomeSuggestionRequest());
-        captured.ScheduleRefresh("F:/ws", "thread-1");
-        captured.ClearWorkspaceCache("F:/ws");
-
-        Assert.Equal("plugin", snapshot.Source);
-        Assert.Equal(1, replacement.Refreshes);
-        Assert.Equal(1, replacement.Clears);
-        Assert.Equal(0, builtIn.Refreshes);
-
-        handle.Dispose();
-        captured.ScheduleRefresh("F:/ws");
-        Assert.Equal(1, builtIn.Refreshes);
-    }
-
-    [Fact]
     public void TheBuiltInHandles_OnlyRemoveTheContribution()
     {
         var registry = new ContributionRegistry();
-        var welcome = new StubWelcomeService("built-in");
-        var handles = SuggestionServiceCatalog.RegisterBuiltIns(
-            registry,
-            new StubCommitService("built-in"),
-            welcome);
+        var commit = new StubCommitService("built-in");
+        SuggestionServiceCatalog.RegisterBuiltIn(registry, commit).Dispose();
 
-        foreach (var handle in handles)
-            handle.Dispose();
-
-        Assert.Empty(registry.Resolve<IWelcomeSuggester>());
-        Assert.False(welcome.Disposed);
+        Assert.Empty(registry.Resolve<ICommitMessageSuggester>());
+        Assert.False(commit.Disposed);
     }
 
-    private sealed class StubCommitService(string message) : ICommitMessageSuggester
+    private sealed class StubCommitService(string message) : ICommitMessageSuggester, IDisposable
     {
+        public bool Disposed { get; private set; }
+
         public Task<CommitMessageSuggestionResult> SuggestAsync(
             CommitMessageSuggestionRequest parameters,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new CommitMessageSuggestionResult(message));
-    }
-
-    private sealed class StubWelcomeService(string source) : IWelcomeSuggester, IDisposable
-    {
-        public int Refreshes { get; private set; }
-
-        public int Clears { get; private set; }
-
-        public bool Disposed { get; private set; }
-
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WelcomeSuggestionSnapshot { Source = source });
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null) => Refreshes++;
-
-        public void ClearWorkspaceCache(string workspacePath) => Clears++;
 
         public void Dispose() => Disposed = true;
     }

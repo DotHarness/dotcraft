@@ -121,7 +121,6 @@ const workspaceConfig = {
   ProviderPreferences: {
     [DEMO_PROVIDER_ID]: { Model: DEMO_MODEL, Reasoning: DEMO_REASONING, Speed: 'standard' }
   },
-  WelcomeSuggestions: { Enabled: false },
   Permissions: { DefaultApprovalPolicy: 'default' }
 }
 

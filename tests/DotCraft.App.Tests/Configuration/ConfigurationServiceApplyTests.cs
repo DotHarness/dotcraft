@@ -130,7 +130,6 @@ public sealed class ConfigurationServiceApplyTests
             "SubAgent.MaxConcurrentSubAgents",
             "SubAgent.MaxDepth",
             "Tools.Shell.Policy.Rules",
-            "WelcomeSuggestions.Enabled",
             "Worktrees.BranchPrefix"
         ];
         var fields = ConfigSchemaRegistrations.CreateDescriptorRegistry().Fields;

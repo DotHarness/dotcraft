@@ -62,7 +62,7 @@ public sealed class HubTurnNotificationPolicyTests
         var thread = new SessionThread
         {
             Id = "thread_hidden",
-            OriginChannel = hiddenBy == "internalOrigin" ? WelcomeSuggestionConstants.ChannelName : "dotcraft-desktop",
+            OriginChannel = hiddenBy == "internalOrigin" ? CommitMessageSuggestConstants.ChannelName : "dotcraft-desktop",
             DisplayName = "Helper",
             Ephemeral = hiddenBy == "ephemeral"
         };

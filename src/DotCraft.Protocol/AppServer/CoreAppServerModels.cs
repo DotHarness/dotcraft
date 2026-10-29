@@ -6641,54 +6641,6 @@ public sealed class UsageThreadsResult : ExtensibleJsonObject
 
 }
 
-public sealed class WelcomeSuggestionItem : ExtensibleJsonObject
-{
-    [JsonPropertyName("prompt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Prompt { get; init; }
-
-    [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; init; }
-
-    [JsonPropertyName("title")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Title { get; init; }
-
-}
-
-public sealed class WelcomeSuggestionsParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("identity")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SessionIdentity> Identity { get; init; }
-
-    [JsonPropertyName("maxItems")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MaxItems { get; init; }
-
-}
-
-public sealed class WelcomeSuggestionsResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("fingerprint")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Fingerprint { get; init; }
-
-    [JsonPropertyName("generatedAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<DateTimeOffset> GeneratedAt { get; init; }
-
-    [JsonPropertyName("items")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<WelcomeSuggestionItem>> Items { get; init; }
-
-    [JsonPropertyName("source")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Source { get; init; }
-
-}
-
 public sealed class WorkspaceCommitMessageSuggestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("maxDiffChars")]

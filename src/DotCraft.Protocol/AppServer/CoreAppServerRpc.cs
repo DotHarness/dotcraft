@@ -307,8 +307,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<VisualizationWidgetStateUpdatedNotification> VisualizationWidgetStateUpdated = new("visualization/widgetState/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "visualizations", notificationOptOut: true);
 
-    public static readonly RpcRequest<WelcomeSuggestionsParams, WelcomeSuggestionsResult> WelcomeSuggestions = new("welcome/suggestions", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
     public static readonly RpcRequest<WorkspaceCommitMessageSuggestParams, WorkspaceCommitMessageSuggestResult> WorkspaceCommitMessageSuggest = new("workspace/commitMessage/suggest", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
     public static readonly RpcRequest<WorktreeCreateAndForkParams, WorktreeCreateAndForkResult> WorktreeCreateAndFork = new("worktree/createAndFork", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: WorktreeEnvironmentErrors);

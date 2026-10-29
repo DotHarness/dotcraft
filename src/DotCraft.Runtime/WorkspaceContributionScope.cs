@@ -72,14 +72,13 @@ internal sealed class WorkspaceContributionScope(IContributionRegistry registry)
     /// <summary>Registers the built-in defaults the session layer owns, so a plugin can replace them by target name.</summary>
     /// <remarks>Scope-owned, not self-guarding: the instances are minted per start, so a restart must re-register its own.</remarks>
     public void RegisterSessionContributions(
-        ICommitMessageSuggester? commitMessageSuggest,
-        IWelcomeSuggester? welcomeSuggestions,
+        ICommitMessageSuggester commitMessageSuggest,
         MemoryExtractionScheduler? memoryExtraction = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Builtin);
         _owned.Add(registrar);
-        SuggestionServiceCatalog.RegisterBuiltIns(_registry, commitMessageSuggest, welcomeSuggestions, registrar);
+        SuggestionServiceCatalog.RegisterBuiltIn(_registry, commitMessageSuggest, registrar);
         if (memoryExtraction is null)
             return;
         registrar.Add<ITurnLifecycleContributor>(memoryExtraction);

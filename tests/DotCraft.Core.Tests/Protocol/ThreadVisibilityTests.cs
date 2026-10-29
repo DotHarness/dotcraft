@@ -10,9 +10,7 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed class ThreadVisibilityTests
 {
     [Theory]
-    [InlineData("dotcraft-desktop", WelcomeSuggestionConstants.InternalMetadataValue, true)]
     [InlineData("dotcraft-desktop", CommitMessageSuggestConstants.InternalMetadataValue, true)]
-    [InlineData(WelcomeSuggestionConstants.ChannelName, null, true)]
     [InlineData(DreamsConstants.ChannelName, null, true)]
     [InlineData(CommitMessageSuggestConstants.ChannelName, null, true)]
     [InlineData("dotcraft-desktop", null, false)]

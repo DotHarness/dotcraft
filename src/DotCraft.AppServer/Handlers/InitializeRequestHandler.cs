@@ -88,8 +88,6 @@ internal sealed class InitializeRequestHandler(
         var capabilityBuilder = new AppServerCapabilityBuilder(capabilities, workspaceCraftPath);
         foreach (var contributor in capabilityContributors)
             contributor.ContributeCapabilities(capabilityBuilder);
-        if (services.WelcomeSuggestionService != null)
-            capabilityBuilder.SetExtension("welcomeSuggestions", true);
 
         var result = new Contract.InitializeResult
         {

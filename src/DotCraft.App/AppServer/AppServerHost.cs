@@ -142,24 +142,14 @@ public sealed class AppServerHost(
                 switch (appServerConfig.Mode)
                 {
                     case AppServerMode.WebSocket:
-                        // -------------------------------------------------------------------
-                        // Pure WebSocket mode: no stdio transport; the WebSocket server is
-                        // the main loop. Stdout remains available for normal console output.
-                        // -------------------------------------------------------------------
                         await RunWebSocketOnlyAsync(appServerConfig.WebSocket, cancellationToken);
                         break;
 
                     case AppServerMode.StdioAndWebSocket:
-                        // -------------------------------------------------------------------
-                        // Dual mode: stdio main loop + WebSocket listener running in parallel.
-                        // -------------------------------------------------------------------
                         await RunStdioWithWebSocketAsync(appServerConfig.WebSocket, cancellationToken);
                         break;
 
                     default:
-                        // -------------------------------------------------------------------
-                        // Stdio-only mode (default): standard subprocess JSON-RPC over stdio.
-                        // -------------------------------------------------------------------
                         await RunStdioOnlyAsync(cancellationToken);
                         break;
                 }
@@ -348,7 +338,6 @@ public sealed class AppServerHost(
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
                 AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
                 CommitMessageSuggest = runtime.CommitMessageSuggestService,
-                WelcomeSuggestionService = runtime.WelcomeSuggestionService,
                 DashboardUrl = _appServerFeature?.DashboardUrl,
                 WireAcpExtensionProxy = WireAcpExtensionProxy,
                 WireNodeReplProxy = WireNodeReplProxy,
@@ -394,10 +383,6 @@ public sealed class AppServerHost(
                 Contributions = runtime.Services.GetService<DotCraft.Contributions.IContributionView>(),
             });
     }
-
-    // -------------------------------------------------------------------------
-    // Run modes
-    // -------------------------------------------------------------------------
 
     private async Task RunStdioOnlyAsync(CancellationToken cancellationToken)
     {
@@ -447,7 +432,6 @@ public sealed class AppServerHost(
             $"[green][[AppServer]][/] DotCraft AppServer started (WebSocket at ws://{wsConfig.Host}:{wsConfig.Port}/ws)");
         _logger.LogInformation("AppServer started with WebSocket transport at {Host}:{Port}", wsConfig.Host, wsConfig.Port);
 
-        // The WebSocket server IS the main loop — RunAsync blocks until shutdown.
         await wsApp.RunAsync(wsUrl);
     }
 
@@ -498,21 +482,15 @@ public sealed class AppServerHost(
             RemoveTerminalNotificationQueue(transport);
             RemovePluginNotificationQueue(transport);
             _threadRuntimeNotifications.RemoveTransport(transport);
-            // Stop the WebSocket server when stdio exits
             await wsApp.StopAsync(CancellationToken.None);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // WebSocket server
-    // -------------------------------------------------------------------------
 
     private (WebApplication App, string Url) BuildWebSocketApp(
         WebSocketServerConfig wsConfig,
         CancellationToken hostCt,
         ExternalChannelRegistry? channelRegistry = null)
     {
-        // Refuse to start if the binding is non-loopback without a token (spec §15.4)
         var isLoopback = wsConfig.Host is "127.0.0.1" or "::1" or "[::1]" or "localhost";
         if (!isLoopback && string.IsNullOrEmpty(wsConfig.Token))
             throw new InvalidOperationException(
@@ -528,10 +506,8 @@ public sealed class AppServerHost(
             KeepAliveInterval = TimeSpan.FromSeconds(30)
         });
 
-        // WebSocket upgrade endpoint
         app.Map("/ws", async context =>
         {
-            // Token authentication: require ?token= when a token is configured (spec §15.4)
             if (!string.IsNullOrEmpty(wsConfig.Token))
             {
                 var supplied = context.Request.Query["token"].FirstOrDefault();
@@ -560,23 +536,16 @@ public sealed class AppServerHost(
             {
                 var wsHandler = CreateRequestHandler(wsTransport, wsConnection);
 
-                // ── Channel adapter routing (external-channel-adapter.md §4.2) ──
-                //
-                // Process the first message (must be 'initialize') manually. After the
-                // handshake, if the client declared channelAdapter capability, route the
-                // connection to the matching ExternalChannelHost and exit this handler.
                 if (channelRegistry != null)
                 {
                     var firstMsg = await wsTransport.ReadMessageAsync(hostCt);
                     if (firstMsg == null)
-                        return; // Client disconnected before sending anything
+                        return;
 
                     if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize)
                     {
-                        // Process the initialize request normally
                         await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
 
-                        // Check if this is a channel adapter connection
                         if (wsConnection.IsChannelAdapter)
                         {
                             var channelName = wsConnection.ChannelAdapterName!;
@@ -608,26 +577,19 @@ public sealed class AppServerHost(
                                     return;
                                 }
 
-                                // Wait for the 'initialized' notification before handover
                                 var initdMsg = await wsTransport.ReadMessageAsync(hostCt);
                                 if (initdMsg is { IsNotification: true, Method: DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized })
                                 {
                                     wsHandler.HandleNotification(initdMsg);
                                 }
 
-                                // Hand over transport and connection to the ExternalChannelHost.
-                                // The host takes over the message loop; this handler returns.
                                 host.AttachTransport(wsTransport, wsConnection);
 
-                                // Block this handler until the transport's reader loop finishes
-                                // (i.e. the WebSocket closes). This keeps the WebSocket and
-                                // transport alive (they are 'using' scoped) without performing
-                                // any additional ReceiveAsync calls on the raw WebSocket.
+                                // Keeps the 'using'-scoped WebSocket alive without another ReceiveAsync on it.
                                 await wsTransport.Completed;
                                 return;
                             }
 
-                            // Channel name not registered — reject with system/event
                             _logger.LogWarning(
                                 "Rejected unregistered channel adapter {Channel}",
                                 channelName);
@@ -645,11 +607,9 @@ public sealed class AppServerHost(
                                 },
                                 hostCt);
 
-                            return; // Close connection
+                            return;
                         }
 
-                        // Not a channel adapter — fall through to normal RunLoopAsync
-                        // (initialize already processed, loop will handle subsequent messages)
                         await RunLoopAsync(
                             wsTransport, wsConnection, wsHandler,
                             WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
@@ -663,7 +623,6 @@ public sealed class AppServerHost(
                         return;
                     }
 
-                    // First message was not initialize — process normally and enter loop
                     if (firstMsg.IsNotification)
                     {
                         HandleNotification(firstMsg, wsHandler);
@@ -694,19 +653,12 @@ public sealed class AppServerHost(
             }
         });
 
-        // Health probes (spec §15.2)
         app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
         app.MapGet("/readyz", () => Results.Ok(new { status = "ok" }));
 
         return (app, $"http://{wsConfig.Host}:{wsConfig.Port}");
     }
 
-    // -------------------------------------------------------------------------
-    // Main message loop
-    // -------------------------------------------------------------------------
-
-    // Fix 9: Bounded concurrency gate — at most 32 concurrent requests.
-    // When full, new requests receive -32001 (server overloaded).
     private static readonly SemaphoreSlim RequestGate = new(32, 32);
 
     private static async Task RunLoopAsync(
@@ -753,7 +705,6 @@ public sealed class AppServerHost(
             if (!msg.IsRequest)
                 continue; // Ignore unexpected responses (approval responses are routed by transport)
 
-            // Reject immediately if the server is at capacity.
             if (!await RequestGate.WaitAsync(0, ct))
             {
                 var overloadErr = AppServerErrors.ServerOverloaded().ToError();
@@ -1507,9 +1458,6 @@ public sealed class AppServerHost(
 
     private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal, SessionTurn? turn)
     {
-        if (signal == SessionThreadRuntimeSignal.TurnCompleted)
-            runtime.WelcomeSuggestionService.ScheduleRefresh(runtime.Paths.WorkspacePath, threadId);
-
         if (_threadRuntimeNotifications.ApplySignal(
                 threadId,
                 signal,
@@ -1621,8 +1569,6 @@ public sealed class AppServerHost(
     {
         var parameters = BuildPlanUpdatedParameters(threadId, plan);
 
-        // Fire-and-forget broadcast to all connected clients.
-        // Errors on individual transports (e.g. disconnected) are silently ignored.
         foreach (var (transport, connection) in _activeTransports)
         {
             if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.PlanUpdated))

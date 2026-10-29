@@ -33,7 +33,7 @@ The catalog of contribution points is the whole contribution surface. Each one d
 | **Compactable tool** | `ICompactableToolPolicy` | A, B |
 | **Subagent runtime** | `ISubAgentRuntimeSource` | A |
 | **Trace sink** | `ITraceSink` | A |
-| **Auxiliary generators** | `ICommitMessageSuggester`, `IWelcomeSuggester` | B |
+| **Auxiliary generators** | `ICommitMessageSuggester` | B |
 
 Failure handling is specific to each contribution point. Observation and fan-out contributions normally log and skip a failing contributor. Authoritative transforms such as result normalization or compaction can fail the owning operation. Return expected failures through the contract's result type instead of throwing.
 

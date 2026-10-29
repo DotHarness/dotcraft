@@ -105,7 +105,7 @@ describe('threadStore.setThreadList', () => {
   it('filters internal helper threads from the thread list', () => {
     s().setThreadList([
       makeThreadSummary('visible'),
-      makeThreadSummary('welcome', { originChannel: 'welcome-suggest' }),
+      makeThreadSummary('commit-helper', { originChannel: 'commit-suggest' }),
       makeThreadSummary('metadata', { metadata: { 'dotcraft.internal': 'background-helper' } })
     ])
 
@@ -168,7 +168,7 @@ describe('threadStore.addThread', () => {
     s().addThread(makeThreadSummary('new'))
     s().addThread(makeThreadSummary('new'))
     s().addThread(makeThreadSummary('existing'))
-    s().addThread(makeThreadSummary('welcome', { originChannel: 'welcome-suggest' }))
+    s().addThread(makeThreadSummary('commit-helper', { originChannel: 'commit-suggest' }))
     s().addThread(makeThreadSummary('commit', { metadata: { 'dotcraft.internal': 'commit-suggest' } }))
 
     expect(s().threadList.map((t) => t.id)).toEqual(['new', 'existing'])
@@ -181,7 +181,7 @@ describe('threadStore.upsertThreads', () => {
 
     s().upsertThreads([
       makeThreadSummary('visible', { displayName: 'New' }),
-      makeThreadSummary('welcome', { originChannel: 'welcome-suggest' }),
+      makeThreadSummary('commit-helper', { originChannel: 'commit-suggest' }),
       makeThreadSummary('metadata', { metadata: { 'dotcraft.internal': 'background-helper' } })
     ])
 

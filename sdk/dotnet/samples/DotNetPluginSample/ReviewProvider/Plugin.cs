@@ -137,9 +137,6 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
         contributions.Add<ICommitMessageSuggester>(
             new ReviewCommitMessageSuggester(service),
             new ContributionOptions(ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest));
-        contributions.Add<IWelcomeSuggester>(
-            new ReviewWelcomeSuggester(),
-            new ContributionOptions(ReplaceTarget: SuggestionServiceNames.WelcomeSuggestions));
         contributions.Add<ISubAgentRuntimeSource>(new ReviewSubAgentRuntimeSource());
 
         contributions.Add<ICodeCommand>(new ReviewCommand(service));

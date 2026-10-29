@@ -997,8 +997,8 @@ describe('thread lifecycle notification dispatch', () => {
       params: {
         thread: {
           ...minimalThread('welcome-internal'),
-          originChannel: 'welcome-suggest',
-          metadata: { 'dotcraft.internal': 'welcome-suggest' }
+          originChannel: 'commit-suggest',
+          metadata: { 'dotcraft.internal': 'commit-suggest' }
         }
       }
     })

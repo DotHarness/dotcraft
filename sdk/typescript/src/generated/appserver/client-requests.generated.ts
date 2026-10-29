@@ -214,7 +214,6 @@ export interface ClientRequestMethods {
   "visualization/view/message": { params: Models.VisualizationViewMessageParams; result: Models.VisualizationViewMessageResult };
   "visualization/view/open": { params: Models.VisualizationViewOpenParams; result: Models.VisualizationViewOpenResult };
   "visualization/view/widgetState/update": { params: Models.VisualizationViewWidgetStateUpdateParams; result: Models.RpcEmpty };
-  "welcome/suggestions": { params: Models.WelcomeSuggestionsParams; result: Models.WelcomeSuggestionsResult };
   "workflow/run/list": { params: Models.WorkflowRunListParams; result: Models.WorkflowRunListResult };
   "workflow/run/pause": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
   "workflow/run/read": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };

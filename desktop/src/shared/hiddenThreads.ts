@@ -1,5 +1,5 @@
 const INTERNAL_METADATA_KEY = 'dotcraft.internal'
-const INTERNAL_ORIGINS = new Set(['welcome-suggest', 'commit-suggest', 'dreams'])
+const INTERNAL_ORIGINS = new Set(['commit-suggest', 'dreams'])
 
 export function isHiddenThread(thread: unknown): boolean {
   if (thread == null || typeof thread !== 'object') return false

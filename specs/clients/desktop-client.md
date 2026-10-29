@@ -97,7 +97,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 ### 3.5 Workspace Switching
 
 - Switching promotes one workspace to foreground and demotes the previous one to secondary when it can remain connected.
-- A switch that completes quickly, such as to a workspace whose AppServer is already running, shows no loading state. Opening placeholders (project thread skeletons, Welcome suggestion and footer skeletons) appear only while the connection is still pending after a short grace period, and reloading the foreground list never replaces or expands a project's known rows.
+- A switch that completes quickly, such as to a workspace whose AppServer is already running, shows no loading state. Opening placeholders (project thread skeletons and the Welcome footer skeleton) appear only while the connection is still pending after a short grace period, and reloading the foreground list never replaces or expands a project's known rows.
 - Window state may be remembered, but protocol state never leaks across workspaces.
 - A switch resets the active thread selection unless the new workspace has a valid remembered equivalent.
 - Workspace-scoped panels and capabilities are rehydrated from the new foreground AppServer; secondary workspace state never drives them.
@@ -240,23 +240,14 @@ If the user switches away while a request is pending, Desktop parks it on that t
 
 The starting point names the foreground project and lets the user switch project in place, using the same project list and actions as the composer's project picker: local projects, remote projects only when already foreground, creating a project, and leaving for the default Chat workspace. In the default Chat workspace there is no project to name.
 
-### 5.1.1 Welcome Suggestions
-
-- In an empty, connected conversation area, the client may show a small set of welcome suggestions that feel like likely next tasks for the workspace.
-- Local fallback suggestions render immediately. If the server advertises `capabilities.extensions.welcomeSuggestions` and the workspace's personalization setting allows it, the client calls `welcome/suggestions` after connection and replaces the fallbacks only with a valid workspace-specific result (`source = dynamic`).
-- Dynamic suggestions come from a server-persisted workspace snapshot of the latest successful result, generated from a snapshot of the workspace memory store and refreshed in the background. Shutdown or failed refreshes never force the client to forget a returned set.
-- Absent capability, failure, timeout, or `source = none` keeps the fallbacks without an error state. Dynamic suggestions never block welcome-screen load and show no loading placeholder.
-- Dynamic suggestions are visually distinguishable from the static defaults.
-- Choosing a suggestion prefills the composer; it never auto-sends or creates a thread.
-
-### 5.1.2 Conversation Prompt Suggestions
+### 5.1.1 Conversation Prompt Suggestions
 
 - A workspace setting (on by default, independent of memory) enables one suggested next user message after a successful Turn in a conversation with an editable composer. Generation runs only while that conversation is active, the composer is empty, and nothing is queued.
 - Desktop generates it in one hidden ephemeral fork of the completed Turn that keeps the parent's model, instructions, tools, provider history, and prompt-cache routing identity. The fork asks for a short next message in the user's own voice, or nothing when no next step is obvious or the topic is unsafe or sensitive. Empty output means no suggestion.
 - The suggestion appears as subdued text whenever the composer is empty, never as a draft or submission. Typing or dictation only hides it, so clearing the composer shows it again. Tab accepts it as editable text; Escape dismisses it. Sending, switching conversations, starting another Turn, disabling the setting, or a deadline cancels the request and cleans up the fork.
 - The ephemeral thread and its notifications never enter visible conversation or navigation state. An older result never replaces a newer one, and failure leaves the composer unchanged. Traces link the parent Turn to the temporary one and record outcome without message content.
 
-### 5.1.3 Workspace Setup
+### 5.1.2 Workspace Setup
 
 - Model access and the default model are personal, so setup runs once per computer rather than once per folder. A local folder is ready when its effective configuration, workspace over personal, resolves a configured provider and a model; whether `.craft/config.json` exists does not matter.
 - Desktop creates a missing `.craft/` for a ready folder non-interactively with `dotcraft setup --skip-provider` before connecting, then opens the folder like any other ready workspace. It never overwrites existing workspace config.
@@ -846,7 +837,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 **Personalization and memory**
 
 - A personal Pet tab configures the default companion ([§6.13](#613-desktop-pet)).
-- A workspace Personalization tab groups Conversation, Skills, and Memory settings by available capability; empty groups are hidden. Its welcome-suggestion toggle is workspace config, applies immediately, and updates the welcome surface on `config/changed`.
+- A workspace Personalization tab groups Conversation, Skills, and Memory settings by available capability; empty groups are hidden.
 - The Memory group holds memory enablement (`memoryEnabled`), automatic extraction of missed memories (`Memory.AutoExtract`), Dreams when `capabilities.dreams = true`, and delete-all when `capabilities.memoryManagement = true` (`memory/reset` after confirmation). Memory toggles affect new sessions only ([Memory](../features/memory.md#7-memory-switches)). While memory is disabled, dependent settings show disabled with their stored values and an explanation.
 - Dreams controls are hidden without `capabilities.dreams`. Entering Personalization or the Dreams page loads `dreams/status`, refreshed after saves and on `config/changed` for `memory` or `Memory`/`Dreams` keys. Manual runs call `dreams/run`, disable while running, and poll status. Run history uses `dreams/list` and opens Dashboard review links at `dashboardUrl#dreams/run/<runId>`; Desktop shows no memory diffs. See [Dreams](../features/dreams.md#10-desktop-ux-contract).
 

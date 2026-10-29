@@ -84,22 +84,12 @@ describe('workspace composer cache cleanup', () => {
     tempRoot = ''
   })
 
-  const pascalCaseWelcomeSuggestionsCache = JSON.stringify({
-    SchemaVersion: 1,
-    Result: {
-      Source: 'dynamic',
-      Fingerprint: 'abc123',
-      GeneratedAt: '2026-05-06T00:00:00.0000000+00:00',
-      Items: [{ Title: 'Review cache cleanup', Prompt: 'Review Desktop welcome suggestion cache cleanup.' }]
-    }
-  })
+  const otherCache = JSON.stringify({ SchemaVersion: 1 })
 
   it.each([
     ['desktop-file-index-v1.json', '{"schemaVersion":999}', false],
-    ['welcome-suggestions.json.tmp', pascalCaseWelcomeSuggestionsCache, false],
-    ['welcome-suggestions.json', pascalCaseWelcomeSuggestionsCache, true],
-    ['welcome-suggestions.json', `\uFEFF${pascalCaseWelcomeSuggestionsCache}`, true],
-    ['welcome-suggestions.json', '{not-json', true]
+    ['other-cache.json.tmp', otherCache, false],
+    ['other-cache.json', '{not-json', true]
   ])('cleans %s with content %#: kept=%s', async (fileName, content, kept) => {
     tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-workspace-cache-'))
     const cacheDir = join(tempRoot, '.craft', 'cache')

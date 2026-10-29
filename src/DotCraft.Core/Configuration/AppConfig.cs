@@ -167,8 +167,6 @@ public sealed partial class AppConfig
     public SubAgentConfig SubAgent { get; set; } = new();
 
     [ConfigField(Ignore = true)]
-    public WelcomeSuggestionsConfig WelcomeSuggestions { get; set; } = new();
-
     public PromptSuggestionsConfig PromptSuggestions { get; set; } = new();
 
     /// <summary>
@@ -983,13 +981,6 @@ public sealed partial class AppConfig
         /// </summary>
         [ConfigField(Ignore = true)]
         public List<SubAgentRoleConfig> Roles { get; set; } = [];
-    }
-
-    [ConfigSection("WelcomeSuggestions", DisplayName = "Welcome Suggestions", Order = 59)]
-    public sealed class WelcomeSuggestionsConfig
-    {
-        [ConfigField(Hint = "Enable personalized welcome suggestions on the Desktop welcome screen.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public bool Enabled { get; set; } = true;
     }
 
     [ConfigSection("PromptSuggestions", DisplayName = "Prompt Suggestions", Order = 60)]

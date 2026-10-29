@@ -186,7 +186,7 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Memory | `IMemoryWriteGate` | A | Resolved per attached-store write, every gate must admit the write |
 | Lifecycle | `IThreadLifecycleContributor`, `ITurnLifecycleContributor` | A | Contained fan-out |
 | Lifecycle | `IThreadRuntimeSignalContributor` | A | Bounded asynchronous fan-out |
-| Suggestions | `ICommitMessageSuggester`, `IWelcomeSuggester` | B | Authority per request |
+| Suggestions | `ICommitMessageSuggester` | B | Authority per request |
 | Subagents | `ISubAgentRuntimeSource` | A | Materialized; runtime is a gated host adapter |
 | Commands | `ICodeCommand` | A | Metadata copied; expansion per invocation |
 | Tracing | `ITraceSink` | A | Bounded asynchronous fan-out when tracing is enabled |

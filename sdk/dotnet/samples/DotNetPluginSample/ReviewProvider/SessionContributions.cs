@@ -23,42 +23,6 @@ internal sealed class ReviewCommitMessageSuggester(IReviewService service) : ICo
             [Subject, string.Empty, .. service.Checklist.Select(static item => $"- {item}")])));
 }
 
-/// <summary>A Tier-B replacement of the built-in welcome suggestion generator.</summary>
-internal sealed class ReviewWelcomeSuggester : IWelcomeSuggester
-{
-    /// <summary>The source name this generator stamps its snapshots with.</summary>
-    internal const string SourceName = "acme.review-core";
-
-    /// <inheritdoc />
-    public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-        WelcomeSuggestionRequest parameters,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(new WelcomeSuggestionSnapshot
-        {
-            Source = SourceName,
-            GeneratedAt = DateTimeOffset.UtcNow,
-            Items =
-            [
-                new WelcomeSuggestion
-                {
-                    Title = "Review the working tree",
-                    Prompt = "Review my uncommitted changes against the review checklist.",
-                    Reason = "The review plugin is active."
-                }
-            ]
-        });
-
-    /// <inheritdoc />
-    public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
-    {
-    }
-
-    /// <inheritdoc />
-    public void ClearWorkspaceCache(string workspacePath)
-    {
-    }
-}
-
 /// <summary>Adds one SubAgent runtime alongside the Host's own, with the profile it ships as a default.</summary>
 /// <remarks>Host-served runtime types win a name collision, so a contribution adds a type and never shadows one.</remarks>
 internal sealed class ReviewSubAgentRuntimeSource : ISubAgentRuntimeSource

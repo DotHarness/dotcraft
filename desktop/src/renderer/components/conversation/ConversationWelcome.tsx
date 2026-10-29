@@ -10,13 +10,12 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentType,
   type CSSProperties,
   type Dispatch,
   type SetStateAction
 } from 'react'
 import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
-import { BookText, Bot, Bug, FileText, ListChecks, Sparkles, Target } from 'lucide-react'
+import { Bot, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type InferenceSpeedWire } from '../../stores/modelCatalogStore'
@@ -62,7 +61,6 @@ import { useComposerThreadReferences } from './useComposerThreadReferences'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
-import { SparkIcon } from '../ui/AppIcons'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import { ProviderUsageBadge } from './ProviderUsageBadge'
@@ -127,46 +125,10 @@ interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
 
 
 
-interface Suggestion {
-  icon: ComponentType<{ size?: number; strokeWidth?: number; style?: CSSProperties }>
-  title: string
-  prompt: string
-}
-
-interface WelcomeSuggestionWireItem {
-  title?: string
-  prompt?: string
-  reason?: string
-}
-
-interface WelcomeSuggestionsWireResult {
-  items?: WelcomeSuggestionWireItem[]
-  source?: string
-  fingerprint?: string
-}
-
-type SuggestionsStatus = 'idle' | 'loading' | 'ready'
-
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const WELCOME_DRAFT_DEBOUNCE_MS = 250
-function sanitizeSuggestionTitle(raw: string): string {
-  const original = raw.trim()
-  if (!original) return ''
-
-  let sanitized = original
-    .replace(/`+/g, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/(^|\s)__([^_]+)__(?=\s|$)/g, '$1$2')
-    .replace(/(^|\s)_([^_]+)_(?=\s|$)/g, '$1$2')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!sanitized) sanitized = original
-  return sanitized
-}
 
 function normalizeWelcomeApprovalPolicy(value: unknown): VisibleApprovalPolicy | null {
   if (value === 'autoApprove') return 'autoApprove'
@@ -231,10 +193,7 @@ function ConversationWelcomeCore({
   const [dragOver, setDragOver] = useState(false)
   const [dragOverThread, setDragOverThread] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
-  const [dynamicSuggestions, setDynamicSuggestions] = useState<Suggestion[] | null>(null)
-  const [, setSuggestionsStatus] = useState<SuggestionsStatus>('idle')
   const [atQuery, setAtQuery] = useState<string | null>(null)
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
@@ -258,8 +217,6 @@ function ConversationWelcomeCore({
   const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
   const [modelApplying, setModelApplying] = useState(false)
   const workspaceConfig = useConfig()
-  const welcomeSuggestionsConfigReady = workspaceConfig != null
-  const welcomeSuggestionsEnabled = readConfigValue(workspaceConfig, 'WelcomeSuggestions.Enabled') === true
   const configuredApprovalDefault = readConfigValue(workspaceConfig, 'Permissions.DefaultApprovalPolicy')
   const workspaceLlmConfigKey = workspaceConfig == null
     ? null
@@ -283,8 +240,6 @@ function ConversationWelcomeCore({
   const workspaceProviderFromConfigRef = useRef<string | null>(null)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
   const lastWorkspaceLlmConfigKeyRef = useRef<string | null>(null)
-  const suggestionFingerprintRef = useRef<string | null>(null)
-  const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const welcomeContentRef = useRef<HTMLDivElement>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
@@ -465,126 +420,6 @@ function ConversationWelcomeCore({
 
     applyResolvedDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(configuredApprovalDefault))
   }, [configuredApprovalDefault])
-
-  const suggestions: Suggestion[] = useMemo(
-    () => [
-      {
-        icon: FileText,
-        title: t('welcome.suggestion.explore'),
-        prompt:
-          'Give me a quick overview of this project: what it does, its structure, and where the main entry points are.'
-      },
-      {
-        icon: Bug,
-        title: t('welcome.suggestion.bug'),
-        prompt:
-          'Scan the codebase for potential bugs, error-prone patterns, or unhandled edge cases and suggest fixes.'
-      },
-      {
-        icon: Sparkles,
-        title: t('welcome.suggestion.feature'),
-        prompt:
-          'Help me design and implement a new feature for this project. Describe what you want to build.'
-      },
-      {
-        icon: BookText,
-        title: t('welcome.suggestion.docs'),
-        prompt:
-          'Generate clear documentation for this codebase: README sections, inline comments, and API docs.'
-      }
-    ],
-    [t]
-  )
-
-  const welcomeSuggestionsSupported = capabilities?.extensions != null
-    && typeof capabilities.extensions === 'object'
-    && capabilities.extensions !== null
-    && (capabilities.extensions as Record<string, unknown>).welcomeSuggestions === true
-
-  useEffect(() => {
-    if (welcomeSuggestionsEnabled) return
-    suggestionRequestSeqRef.current += 1
-    suggestionFingerprintRef.current = null
-    setDynamicSuggestions(null)
-    setSuggestionsStatus('idle')
-  }, [welcomeSuggestionsEnabled])
-
-  useEffect(() => {
-    const requestSeq = ++suggestionRequestSeqRef.current
-
-    if (
-      !welcomeSuggestionsConfigReady ||
-      !isConnected ||
-      !identityPath ||
-      !welcomeSuggestionsSupported ||
-      !welcomeSuggestionsEnabled
-    ) {
-      setDynamicSuggestions(null)
-      suggestionFingerprintRef.current = null
-      setSuggestionsStatus('idle')
-      return
-    }
-
-    setSuggestionsStatus('loading')
-    void window.api.appServer.sendRequest('welcome/suggestions', {
-      identity: {
-        channelName: 'dotcraft-desktop',
-        userId: 'local',
-        channelContext: `workspace:${identityPath}`,
-        workspacePath: identityPath
-      },
-      maxItems: 4
-    }).then((raw) => {
-      if (requestSeq !== suggestionRequestSeqRef.current) return
-
-      const result = raw as WelcomeSuggestionsWireResult
-      if (result.source !== 'dynamic' || !Array.isArray(result.items) || result.items.length === 0) {
-        suggestionFingerprintRef.current = null
-        setDynamicSuggestions(null)
-        setSuggestionsStatus('idle')
-        return
-      }
-      if (result.fingerprint && result.fingerprint === suggestionFingerprintRef.current) {
-        setSuggestionsStatus('ready')
-        return
-      }
-
-      const mapped = result.items
-        .map((item): Suggestion | null => {
-          const title = typeof item.title === 'string' ? sanitizeSuggestionTitle(item.title) : ''
-          const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : ''
-          if (!title || !prompt) return null
-          return {
-            icon: SparkIcon,
-            title,
-            prompt
-          } satisfies Suggestion
-        })
-        .filter((item): item is Suggestion => item !== null)
-
-      if (mapped.length === 0) {
-        setSuggestionsStatus('idle')
-        return
-      }
-      suggestionFingerprintRef.current = typeof result.fingerprint === 'string' ? result.fingerprint : null
-      setDynamicSuggestions(mapped)
-      setSuggestionsStatus('ready')
-    }).catch(() => {
-      if (requestSeq !== suggestionRequestSeqRef.current) return
-      suggestionFingerprintRef.current = null
-      setDynamicSuggestions(null)
-      setSuggestionsStatus('idle')
-    })
-  }, [
-    isConnected,
-    welcomeSuggestionsConfigReady,
-    welcomeSuggestionsEnabled,
-    welcomeSuggestionsSupported,
-    identityPath,
-    workspacePath
-  ])
-
-  const displayedSuggestions = dynamicSuggestions ?? suggestions
 
   const handleAtQuery = useCallback((q: string | null): void => {
     if (remoteWorkspace) {
@@ -1488,20 +1323,6 @@ function ConversationWelcomeCore({
     [attachImages, remoteWorkspace, t, threadReferences]
   )
 
-  function fillSuggestion(prompt: string): void {
-    richRef.current?.setPlainText(prompt)
-    setTimeout(() => {
-      latestDraftSelectionRef.current = {
-        start: prompt.length,
-        end: prompt.length
-      }
-      richRef.current?.setSelectionRange({
-        start: prompt.length,
-        end: prompt.length
-      })
-    }, 0)
-  }
-
   const canSend = useMemo(() => {
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0 || contexts.length > 0) && pastedText.pending === 0 && isConnected && !modelLoading
@@ -1857,72 +1678,6 @@ function ConversationWelcomeCore({
             />
             <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
           </div>
-
-          <div
-            style={{
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              marginTop: '8px',
-              gap: '4px'
-            }}
-          >
-            {openingWorkspace ? (
-              <WelcomeSuggestionSkeletonList />
-            ) : displayedSuggestions.map((s, idx) => {
-              const Icon = s.icon
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => { fillSuggestion(s.prompt) }}
-                  disabled={busy}
-                  onMouseEnter={() => setHoveredIdx(idx)}
-                  onMouseLeave={() => setHoveredIdx(null)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    minHeight: '34px',
-                    boxSizing: 'border-box',
-                    padding: '6px 10px',
-                    margin: 0,
-                    background: hoveredIdx === idx ? 'var(--bg-tertiary)' : 'transparent',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: 'var(--text-secondary)',
-                    cursor: busy ? 'default' : 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--type-ui-size)',
-                    fontWeight: 'var(--type-ui-weight)',
-                    lineHeight: 'var(--type-ui-line-height)',
-                    transition: 'background-color 120ms ease, color 120ms ease',
-                    opacity: busy ? 0.7 : 1
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }}
-                  aria-label={s.title}
-                >
-                  <Icon size={16} strokeWidth={1.8} style={{ flexShrink: 0 }} />
-                  <span
-                    style={{
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {s.title}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
         </div>
       </div>
     </div>
@@ -1949,42 +1704,6 @@ function WelcomeFooterSkeleton(): JSX.Element {
       <Skeleton width={104} height={18} radius={999} />
       <Skeleton width={112} height={18} radius={999} />
       <Skeleton width={168} height={18} radius={999} />
-    </div>
-  )
-}
-
-function WelcomeSuggestionSkeletonList(): JSX.Element {
-  const t = useT()
-  const rows = ['58%', '44%', '52%', '48%']
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label={t('threadList.loading')}
-      style={{
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px'
-      }}
-    >
-      {rows.map((width, index) => (
-        <div
-          key={index}
-          data-testid="welcome-suggestion-skeleton"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            minHeight: '34px',
-            padding: '6px 10px',
-            boxSizing: 'border-box'
-          }}
-        >
-          <Skeleton width={16} height={16} radius={4} />
-          <Skeleton width={width} height={12} />
-        </div>
-      ))}
     </div>
   )
 }

@@ -6,7 +6,7 @@ Workspace memory, Dreams, and how skills load. For the concepts, read [Memory & 
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `Memory.Enabled` | Lets new sessions use and maintain memory. `Memory.AutoExtract`, Dreams, and welcome suggestions also require it | `true` |
+| `Memory.Enabled` | Lets new sessions use and maintain memory. `Memory.AutoExtract` and Dreams also require it | `true` |
 | `Memory.AutoExtract` | Every few replies, new memory-enabled sessions check the conversation for anything worth remembering that was not saved | `false` |
 
 Both switches apply to sessions created after the change.

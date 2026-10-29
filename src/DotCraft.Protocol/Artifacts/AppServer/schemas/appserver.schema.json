@@ -22182,65 +22182,6 @@
         "status"
       ]
     },
-    "WelcomeSuggestionItem": {
-      "title": "WelcomeSuggestionItem",
-      "type": "object",
-      "properties": {
-        "prompt": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "WelcomeSuggestionsParams": {
-      "title": "WelcomeSuggestionsParams",
-      "type": "object",
-      "properties": {
-        "identity": {
-          "$ref": "#/$defs/SessionIdentity"
-        },
-        "maxItems": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "WelcomeSuggestionsResult": {
-      "title": "WelcomeSuggestionsResult",
-      "type": "object",
-      "properties": {
-        "fingerprint": {
-          "type": "string"
-        },
-        "generatedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/WelcomeSuggestionItem"
-          }
-        },
-        "source": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "WorkflowAgentView": {
       "title": "WorkflowAgentView",
       "type": "object",

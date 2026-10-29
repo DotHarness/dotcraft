@@ -1149,12 +1149,12 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         await _h.Service.CreateThreadAsync(_h.Identity);
         var internalThread = await _h.Service.CreateThreadAsync(new SessionIdentity
         {
-            ChannelName = WelcomeSuggestionConstants.ChannelName,
-            UserId = WelcomeSuggestionConstants.InternalUserId,
+            ChannelName = CommitMessageSuggestConstants.ChannelName,
+            UserId = CommitMessageSuggestConstants.InternalUserId,
             WorkspacePath = _h.Identity.WorkspacePath,
             ChannelContext = _h.Identity.ChannelContext
         });
-        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = WelcomeSuggestionConstants.InternalMetadataValue;
+        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = CommitMessageSuggestConstants.InternalMetadataValue;
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
@@ -1164,7 +1164,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
                 userId = _h.Identity.UserId,
                 workspacePath = _h.Identity.WorkspacePath
             },
-            crossChannelOrigins = new[] { WelcomeSuggestionConstants.ChannelName }
+            crossChannelOrigins = new[] { CommitMessageSuggestConstants.ChannelName }
         });
         await _h.ExecuteRequestAsync(msg);
 
@@ -1191,11 +1191,11 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             await _h.Service.CreateThreadAsync(identity);
         var internalThread = await _h.Service.CreateThreadAsync(new SessionIdentity
         {
-            ChannelName = WelcomeSuggestionConstants.ChannelName,
-            UserId = WelcomeSuggestionConstants.InternalUserId,
+            ChannelName = CommitMessageSuggestConstants.ChannelName,
+            UserId = CommitMessageSuggestConstants.InternalUserId,
             WorkspacePath = workspacePath
         });
-        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = WelcomeSuggestionConstants.InternalMetadataValue;
+        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = CommitMessageSuggestConstants.InternalMetadataValue;
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {

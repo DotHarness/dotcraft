@@ -63,8 +63,6 @@ internal static class PluginContributionAdapters
                 new ThreadRuntimeSignalAdapter(value, invocation),
             ICommitMessageSuggester value when typeof(TContract) == typeof(ICommitMessageSuggester) =>
                 new CommitMessageSuggesterAdapter(value, invocation),
-            IWelcomeSuggester value when typeof(TContract) == typeof(IWelcomeSuggester) =>
-                new WelcomeSuggesterAdapter(value, invocation),
             ISubAgentRuntimeSource value when typeof(TContract) == typeof(ISubAgentRuntimeSource) =>
                 new PluginSubAgentRuntimeSourceAdapter(value, invocation),
             ICodeCommand value when typeof(TContract) == typeof(ICodeCommand) =>
@@ -367,27 +365,6 @@ internal static class PluginContributionAdapters
                 HostOwned(
                     await _target.Value.SuggestAsync(parameters, cancellationToken).ConfigureAwait(false),
                     "commit message suggestion")));
-    }
-
-    private sealed class WelcomeSuggesterAdapter(
-        IWelcomeSuggester target,
-        PluginInvocation invocation) : IWelcomeSuggester
-    {
-        private readonly PluginTarget<IWelcomeSuggester> _target = invocation.Capture(target);
-
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
-            CancellationToken cancellationToken = default) =>
-            invocation.InvokeAsync(new Func<Task<WelcomeSuggestionSnapshot>>(async () =>
-                HostOwned(
-                    await _target.Value.SuggestAsync(parameters, cancellationToken).ConfigureAwait(false),
-                    "welcome suggestion")));
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null) =>
-            invocation.Invoke(() => _target.Value.ScheduleRefresh(workspacePath, triggerThreadId));
-
-        public void ClearWorkspaceCache(string workspacePath) =>
-            invocation.Invoke(() => _target.Value.ClearWorkspaceCache(workspacePath));
     }
 
     private sealed class CodeCommandAdapter : ICodeCommand

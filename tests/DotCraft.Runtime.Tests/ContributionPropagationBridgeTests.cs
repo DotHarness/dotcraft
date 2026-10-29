@@ -105,7 +105,6 @@ public sealed class ContributionPropagationBridgeTests
         registry.Add<ICompactionSummarizer>(new StubSummarizer());
         registry.Add<ITraceSink>(new StubTraceSink());
         registry.Add<ICommitMessageSuggester>(new StubCommitService());
-        registry.Add<IWelcomeSuggester>(new StubWelcomeService());
         registry.Add<IThreadRuntimeSignalContributor>(new StubSignalContributor());
         registry.Add<ISystemPromptSection>(new StubSection());
         registry.Add<ISystemPromptAssembler>(new StubAssembler());
@@ -197,22 +196,6 @@ public sealed class ContributionPropagationBridgeTests
             CommitMessageSuggestionRequest parameters,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new CommitMessageSuggestionResult("stub"));
-    }
-
-    private sealed class StubWelcomeService : IWelcomeSuggester
-    {
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WelcomeSuggestionSnapshot());
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
-        {
-        }
-
-        public void ClearWorkspaceCache(string workspacePath)
-        {
-        }
     }
 
     private sealed class StubCompactablePolicy : ICompactableToolPolicy

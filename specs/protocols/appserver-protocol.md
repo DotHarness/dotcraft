@@ -222,7 +222,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`, `subagent/board/*`. |
 | `usageTelemetry` | `usage/*` and `profile/insights`. Absent when tracing is disabled. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
-| `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `welcomeSuggestions`). |
+| `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `dynamicWorkflows`). |
 
 Extension entries with metadata:
 
@@ -716,18 +716,6 @@ Suggest a source-control summary from the source thread's recent conversation pl
 **Result**: `{ message }` — a commit message (subject line, optional body) for Git, or a changelist description for Perforce.
 
 **Errors** include: thread not found, paths outside the workspace, unsupported provider, Git or Perforce context unavailable, empty change context, model did not emit the suggestion tool, timeout.
-
-### 5.4 `welcome/suggestions`
-
-Return advisory welcome-screen prompt suggestions for the workspace. Gated by `capabilities.extensions.welcomeSuggestions`; otherwise `-32601`.
-
-**Params**: `identity` (with required `workspacePath`), `maxItems` (default 4; may be clamped).
-
-**Result**: `items` (`title`, `prompt` to prefill, optional `reason`), `source` (`dynamic` for workspace-specific suggestions, `none` when the server intentionally returns none; `items` may then be empty and client defaults stay out of band), `generatedAt`, and `fingerprint` (stable for unchanged evidence, so clients can skip redundant refreshes).
-
-Suggestions derive from the workspace memory store, never from conversation history, and none are produced when memory is disabled. The method serves a persisted workspace snapshot of the latest successful result without synchronous model generation; refresh runs asynchronously after successful turns and failed refreshes keep the previous snapshot.
-
-**Errors** include missing `identity.workspacePath`, unsupported capability, invalid `maxItems`, and unavailable workspace.
 
 ## 6. Event Notifications
 
@@ -2418,7 +2406,6 @@ A server-authoritative path for destructive workspace memory maintenance. Gated 
 Params none. Result `{}`. Clears the contents of every memory store of the workspace (the workspace store and every scope store) and the Dreams artifacts under `.craft/dreams`, keeping the directories themselves.
 
 - Sessions, thread history, skills, plugins, automations, Agent Profiles, and configuration are untouched; `Memory.Enabled` and `Memory.AutoExtract` are preserved, so later threads may save memory again.
-- Memory-derived welcome suggestion caches are cleared.
 - Success emits `config/changed` with `source: "memory/reset"` and `regions: ["memory"]`.
 
 ## 27. Dreams Management Methods

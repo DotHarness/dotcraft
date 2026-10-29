@@ -352,8 +352,6 @@ export function SettingsView({
     () => configLlmKey == null ? null : JSON.parse(configLlmKey) as [string, ModelPreference | null],
     [configLlmKey]
   )
-  const welcomeSuggestions = useConfigSetting('WelcomeSuggestions.Enabled', (error) =>
-    t('settings.personalization.welcomeSuggestionsSaveFailed', { error }))
   const promptSuggestions = useConfigSetting('PromptSuggestions.Enabled', (error) =>
     t('settings.personalization.promptSuggestionsSaveFailed', { error }))
   const sharedSkills = useConfigSetting('Skills.IncludeSharedSkills', (error) =>
@@ -2167,27 +2165,6 @@ export function SettingsView({
                 <SettingsGroup
                   title={t('settings.personalization.group.conversation')}
                 >
-                  {configManagementEnabled && (
-                    <SettingsRow
-                      label={t('settings.personalization.welcomeSuggestions')}
-                      description={t('settings.personalization.welcomeSuggestionsHint')}
-                      control={
-                        <ActionTooltip
-                          label=""
-                          disabledReason={memoryEnabled ? undefined : t('settings.personalization.memory.requiredForSuggestions')}
-                        >
-                          <PillSwitch
-                            checked={welcomeSuggestions.value === true}
-                            disabled={welcomeSuggestions.pending || !memoryEnabled}
-                            aria-label={t('settings.personalization.welcomeSuggestions')}
-                            onChange={(checked) => {
-                              void welcomeSuggestions.set(checked)
-                            }}
-                          />
-                        </ActionTooltip>
-                      }
-                    />
-                  )}
                   {configManagementEnabled && (
                     <SettingsRow
                       label={t('settings.personalization.promptSuggestions')}

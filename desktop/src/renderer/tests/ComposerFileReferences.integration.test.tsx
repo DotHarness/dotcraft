@@ -72,7 +72,7 @@ describe('file references in real composer draft lifecycles', () => {
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })
     useConfigStore.getState().reset()
-    useConfigStore.setState({ config: { WelcomeSuggestions: { Enabled: false } } })
+    useConfigStore.setState({ config: {} })
     useGitStore.getState().reset()
     useModelCatalogStore.getState().reset()
     useThreadStore.getState().reset()

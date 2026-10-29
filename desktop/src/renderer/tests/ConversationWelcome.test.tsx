@@ -82,7 +82,6 @@ describe('ConversationWelcome composer', () => {
     serverConfig = {
       ProviderId: '',
       ProviderPreferences: {},
-      WelcomeSuggestions: { Enabled: true },
       Permissions: { DefaultApprovalPolicy: 'default' }
     }
     useComposerDraftStore.setState({ draftsByThread: {} })
@@ -164,10 +163,7 @@ describe('ConversationWelcome composer', () => {
         commandManagement: true,
         skillsManagement: true,
         modelCatalogManagement: true,
-        workspaceConfigManagement: true,
-        extensions: {
-          welcomeSuggestions: true
-        }
+        workspaceConfigManagement: true
       }
     })
     useModelCatalogStore.setState({
@@ -216,13 +212,6 @@ describe('ConversationWelcome composer', () => {
               path: '/skills/memory/SKILL.md'
             }
           ]
-        }
-      }
-      if (method === 'welcome/suggestions') {
-        return {
-          source: 'none',
-          items: [],
-          fingerprint: 'none'
         }
       }
       if (method === 'thread/start') {
@@ -393,7 +382,6 @@ describe('ConversationWelcome composer', () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }
       if (method === 'skills/list') return { skills: [] }
-      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
       if (method === 'thread/start') throw new Error('workspace is offline')
       return {}
     })

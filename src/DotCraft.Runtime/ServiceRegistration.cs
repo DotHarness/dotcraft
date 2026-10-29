@@ -135,7 +135,6 @@ public static class ServiceRegistration
         services.AddSingleton<IToolSource, WorktreeToolSource>();
         services.AddSingleton<VisualizationAssetStore>();
 
-        // Hooks
         services.AddSingleton(_ =>
         {
             var hooksLoader = new HooksLoader(paths);
@@ -165,16 +164,9 @@ public static class ServiceRegistration
             reg.Register(
                 CommitMessageSuggestConstants.ToolProfileName,
                 new IToolSource[] { new CommitSuggestToolSource() });
-            reg.Register(
-                WelcomeSuggestionConstants.ToolProfileName,
-                new[]
-                {
-                    new WelcomeSuggestionToolSource()
-                });
             return reg;
         });
 
-        // Register configuration validation
         services.AddConfigurationValidation();
 
         if (config.Tracing.Enabled)

@@ -25,17 +25,7 @@ using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Optional collaborator bundle for <see cref="AppServerRequestHandler"/>.
-///
-/// Collapses the large set of per-connection feature services, broadcast delegates, wire proxies,
-/// and configuration inputs into a single init-only object so construction sites express only the
-/// dependencies they provide (named property initializers) instead of a long positional/named
-/// argument list. The four genuinely required collaborators (session service, connection,
-/// transport, channel-list contributor) remain positional constructor parameters.
-///
-/// Domain handlers receive the subset of services they need from this bundle.
-/// </summary>
+/// <summary>Optional per-connection collaborators for <see cref="AppServerRequestHandler"/>; required ones stay constructor parameters.</summary>
 public sealed record AppServerConnectionServices
 {
     public IReadOnlyList<ISessionRuntimeRefresher> RuntimeRefreshers { get; init; } = [];
@@ -70,7 +60,6 @@ public sealed record AppServerConnectionServices
     public Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
         BroadcastPluginSnapshotUpdated { get; init; }
     public ICommitMessageSuggester? CommitMessageSuggest { get; init; }
-    public IWelcomeSuggester? WelcomeSuggestionService { get; init; }
     public string? DashboardUrl { get; init; }
     public WireAcpExtensionProxy? WireAcpExtensionProxy { get; init; }
     public WireNodeReplProxy? WireNodeReplProxy { get; init; }

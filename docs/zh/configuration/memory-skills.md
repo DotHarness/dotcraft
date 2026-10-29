@@ -6,7 +6,7 @@
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `Memory.Enabled` | 让新会话使用并维护记忆。`Memory.AutoExtract`、梦境和欢迎页建议也依赖此开关 | `true` |
+| `Memory.Enabled` | 让新会话使用并维护记忆。`Memory.AutoExtract` 和梦境也依赖此开关 | `true` |
 | `Memory.AutoExtract` | 每隔几次回复，启用记忆的新会话会检查对话中有没有值得记住但还没保存的内容 | `false` |
 
 两个开关都只影响修改之后新建的会话。

@@ -10,17 +10,14 @@ namespace DotCraft.AppServer;
 
 internal sealed class WorkspaceRequestHandler(
     ICommitMessageSuggester? commitMessageSuggest,
-    IWelcomeSuggester? welcomeSuggestionService,
     IReadOnlyList<ConfigSchemaSection> configSchema,
     MemoryStore? memoryStore,
     DreamsService? dreamsService,
-    IAppConfigMonitor? appConfigMonitor,
-    string? hostWorkspacePath) : IAppServerDomainHandler
+    IAppConfigMonitor? appConfigMonitor) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ConfigSchema, HandleConfigSchemaAsync);
         table.Map(Protocol.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
     }
@@ -54,33 +51,6 @@ internal sealed class WorkspaceRequestHandler(
         catch (ThreadNotFoundException ex)
         {
             throw AppServerErrors.ThreadNotFound(ex.ThreadId);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw AppServerErrors.InvalidRequest(ex.Message);
-        }
-    }
-
-    private async Task<object?> HandleWelcomeSuggestionsAsync(
-        AppServerTypedRequest<Contract.WelcomeSuggestionsParams> request,
-        CancellationToken ct)
-    {
-        if (welcomeSuggestionService == null)
-            throw AppServerErrors.InvalidRequest("Welcome suggestions are not available on this connection.");
-
-        var p = request.Params;
-        var identity = NormalizeIdentityWorkspace(ToDomain(ValueOrDefault(p.Identity)));
-        if (string.IsNullOrWhiteSpace(identity.WorkspacePath))
-            throw AppServerErrors.InvalidParams("'identity.workspacePath' is required.");
-
-        try
-        {
-            var result = await welcomeSuggestionService.SuggestAsync(new WelcomeSuggestionRequest
-            {
-                Identity = identity,
-                MaxItems = ValueOrDefault(p.MaxItems)
-            }, ct);
-            return ToContract(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -128,8 +98,6 @@ internal sealed class WorkspaceRequestHandler(
                 MemoryScopes.ClearAll(memoryStore);
                 new DreamsArtifacts(Path.GetDirectoryName(memoryStore.MemoryDirectoryPath)!).ClearAll();
             }
-            if (!string.IsNullOrWhiteSpace(hostWorkspacePath))
-                welcomeSuggestionService?.ClearWorkspaceCache(hostWorkspacePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -142,35 +110,6 @@ internal sealed class WorkspaceRequestHandler(
 
         return new Contract.MemoryResetResult();
     }
-
-    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity) =>
-        string.IsNullOrEmpty(hostWorkspacePath) ? identity : identity with { WorkspacePath = hostWorkspacePath };
-
-    private static SessionIdentity ToDomain(Contract.SessionIdentity? identity)
-    {
-        if (identity is null)
-            throw AppServerErrors.InvalidParams("'identity' is required.");
-        return new SessionIdentity
-        {
-            ChannelName = identity.ChannelName,
-            UserId = identity.UserId,
-            WorkspacePath = identity.WorkspacePath ?? string.Empty,
-            ChannelContext = identity.ChannelContext
-        };
-    }
-
-    private static Contract.WelcomeSuggestionsResult ToContract(WelcomeSuggestionSnapshot value) => new()
-    {
-        Items = value.Items.Select(static item => new Contract.WelcomeSuggestionItem
-        {
-            Title = item.Title,
-            Prompt = item.Prompt,
-            Reason = item.Reason
-        }).ToArray(),
-        Source = value.Source,
-        GeneratedAt = value.GeneratedAt,
-        Fingerprint = value.Fingerprint
-    };
 
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;

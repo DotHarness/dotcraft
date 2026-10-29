@@ -36,7 +36,7 @@ public sealed class AppServerThreadSearchTests : IDisposable
             "Nothing to see.",
             "Indeed.");
         var internalThread = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Internal");
-        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = "welcome-suggestions";
+        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = "helper";
         await SeedAsync(internalThread, "retry-budget's internal copy", "Done.");
         await SeedAsync(
             await _h.Service.CreateThreadAsync(

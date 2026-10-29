@@ -163,7 +163,6 @@ describe('SettingsView', () => {
       ProviderId: 'openai',
       ProviderPreferences: {},
       InstantInterruptEnabled: true,
-      WelcomeSuggestions: { Enabled: true },
       PromptSuggestions: { Enabled: true },
       Memory: { Enabled: true, AutoExtract: false },
       Skills: { IncludeSharedSkills: true },

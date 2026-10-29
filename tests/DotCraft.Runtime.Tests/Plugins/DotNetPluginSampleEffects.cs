@@ -185,7 +185,7 @@ internal static class DotNetPluginSampleEffects
         await AssertRestrictionAsync(host, manager, planning, ledger);
     }
 
-    /// <summary>The Tier-B suggestion generators, the contributed SubAgent runtime, the command, and the sink.</summary>
+    /// <summary>The Tier-B suggestion generator, the contributed SubAgent runtime, the command, and the sink.</summary>
     internal static async Task AssertSessionAndSurfaceEffectsAsync(
         DotNetPluginSampleHost host,
         SampleCoverageLedger ledger)
@@ -194,12 +194,6 @@ internal static class DotNetPluginSampleEffects
             .SuggestAsync(new CommitMessageSuggestionRequest { ThreadId = ThreadId, Paths = ["src/a.cs"] });
         Assert.StartsWith("review: summarize the staged change", commit.Message, StringComparison.Ordinal);
         ledger.Prove<ICommitMessageSuggester>();
-
-        var welcome = await new ContributedWelcomeSuggestionService(host.Registry, host.BuiltInWelcomeSuggester)
-            .SuggestAsync(new WelcomeSuggestionRequest());
-        Assert.Equal(ProviderId, welcome.Source);
-        Assert.NotEmpty(welcome.Items);
-        ledger.Prove<IWelcomeSuggester>();
 
         var catalog = SubAgentProfileCatalog.Resolve(host.Registry, ThreadId);
         Assert.Contains("acme-review-pass", catalog.KnownRuntimeTypes);

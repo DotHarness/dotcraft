@@ -243,20 +243,15 @@ public sealed class WorkspaceRuntimeTests
             await host.StartAsync();
             var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
 
-            // What an open AppServer connection holds: captured once, never re-read.
-            var captured = runtime.WelcomeSuggestionService;
+            var captured = runtime.CommitMessageSuggestService;
             var registry = host.Services.GetRequiredService<ContributionRegistry>();
-            var replacement = new CountingWelcomeSuggestionService();
-            var handle = registry.Add<IWelcomeSuggester>(
-                replacement,
-                new ContributionOptions(ReplaceTarget: SuggestionServiceNames.WelcomeSuggestions));
-
-            captured.ClearWorkspaceCache(root);
-            Assert.Equal(1, replacement.Clears);
-
-            handle.Dispose();
-            captured.ClearWorkspaceCache(root);
-            Assert.Equal(1, replacement.Clears);
+            using (registry.Add<ICommitMessageSuggester>(
+                new StubCommitMessageSuggester(),
+                new ContributionOptions(ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest)))
+            {
+                var result = await captured.SuggestAsync(new CommitMessageSuggestionRequest { ThreadId = "thread-1", Paths = ["a.cs"] });
+                Assert.Equal(StubCommitMessageSuggester.Message, result.Message);
+            }
 
             await host.StopAsync();
         }
@@ -264,20 +259,14 @@ public sealed class WorkspaceRuntimeTests
         Directory.Delete(root, recursive: true);
     }
 
-    private sealed class CountingWelcomeSuggestionService : IWelcomeSuggester
+    private sealed class StubCommitMessageSuggester : ICommitMessageSuggester
     {
-        public int Clears { get; private set; }
+        public const string Message = "replacement";
 
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
+        public Task<CommitMessageSuggestionResult> SuggestAsync(
+            CommitMessageSuggestionRequest parameters,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WelcomeSuggestionSnapshot { Source = "replacement" });
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
-        {
-        }
-
-        public void ClearWorkspaceCache(string workspacePath) => Clears++;
+            Task.FromResult(new CommitMessageSuggestionResult(Message));
     }
 
     private static string NewTemporaryPath() =>

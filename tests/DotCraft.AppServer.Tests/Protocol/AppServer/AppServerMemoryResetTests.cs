@@ -70,12 +70,10 @@ public sealed class AppServerMemoryResetTests : IDisposable
                 Enabled = false
             }
         });
-        var welcomeSuggestions = new FakeWelcomeSuggestionService();
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             appConfigMonitor: monitor,
-            memoryStore: memoryStore,
-            welcomeSuggestionService: welcomeSuggestions);
+            memoryStore: memoryStore);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
@@ -100,7 +98,6 @@ public sealed class AppServerMemoryResetTests : IDisposable
 
         var threads = await harness.Service.FindThreadsAsync(harness.Identity);
         Assert.Contains(threads, summary => summary.Id == thread.Id);
-        Assert.Single(welcomeSuggestions.ClearedWorkspacePaths);
     }
 
     [Fact]
@@ -203,25 +200,6 @@ public sealed class AppServerMemoryResetTests : IDisposable
         Assert.Equal(expectedSource, payload.GetProperty("source").GetString());
         Assert.Contains(expectedRegion, payload.GetProperty("regions").EnumerateArray().Select(v => v.GetString()));
         _ = payload.GetProperty("changedAt").GetDateTimeOffset();
-    }
-
-    private sealed class FakeWelcomeSuggestionService : IWelcomeSuggester
-    {
-        public List<string> ClearedWorkspacePaths { get; } = [];
-
-        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
-        {
-        }
-
-        public void ClearWorkspaceCache(string workspacePath)
-        {
-            ClearedWorkspacePaths.Add(workspacePath);
-        }
-
-        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
-            WelcomeSuggestionRequest parameters,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new WelcomeSuggestionSnapshot());
     }
 
     private sealed class ActionOnDispose(Action disposeAction) : IDisposable

@@ -14,10 +14,9 @@ Queueing and interrupts while a turn runs, composer suggestions, commit attribut
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `WelcomeSuggestions.Enabled` | Generates welcome-screen suggestions from workspace memory. Requires `Memory.Enabled` | `true` |
 | `PromptSuggestions.Enabled` | Suggests one next message in an empty conversation composer after a completed turn. Independent of workspace memory | `true` |
 
-Both settings can be changed in **Settings → Personalization**. A prompt suggestion remains editable and is sent only when the user submits it.
+This setting can be changed in **Settings → Personalization**. A prompt suggestion remains editable and is sent only when the user submits it.
 
 ## Commit attribution
 

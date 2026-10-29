@@ -5472,27 +5472,6 @@ export interface WebSearchPayload {
   [key: string]: unknown;
 }
 
-export interface WelcomeSuggestionItem {
-  prompt?: string;
-  reason?: string;
-  title?: string;
-  [key: string]: unknown;
-}
-
-export interface WelcomeSuggestionsParams {
-  identity?: SessionIdentity;
-  maxItems?: number | null;
-  [key: string]: unknown;
-}
-
-export interface WelcomeSuggestionsResult {
-  fingerprint?: string;
-  generatedAt?: string;
-  items?: WelcomeSuggestionItem[];
-  source?: string;
-  [key: string]: unknown;
-}
-
 export interface WorkflowAgentView {
   childThreadId?: string;
   completedAt?: string;
