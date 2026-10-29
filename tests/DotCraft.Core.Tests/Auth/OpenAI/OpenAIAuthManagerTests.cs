@@ -140,6 +140,7 @@ public sealed class OpenAIAuthManagerTests : IDisposable
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "{ \"error\": { \"code\": \"refresh_token_expired\", \"message\": \"expired\" } }", OpenAIAuthFailureReason.RefreshTokenExpired)]
     [InlineData(HttpStatusCode.BadRequest, "{ \"error\": { \"code\": \"refresh_token_reused\" } }", OpenAIAuthFailureReason.RefreshTokenReused)]
+    [InlineData(HttpStatusCode.BadRequest, "{ \"error\": \"invalid_grant\" }", OpenAIAuthFailureReason.Unknown)]
     public async Task RefreshKnownFailureMapsToPermanentReason(
         HttpStatusCode status,
         string responseBody,

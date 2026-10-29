@@ -60,6 +60,7 @@ internal sealed class AnthropicProviderFailureClassifier : IProviderFailureClass
             return ProviderFailureKind.RateLimitExceeded;
 
         if (ProviderFailureParsing.Mentions(detail, "invalid_request_error")
+            || ProviderFailureParsing.Mentions(detail, "not_found_error")
             || ProviderFailureParsing.Mentions(detail, "ValidationException"))
         {
             return ProviderFailureKind.BadRequest;
@@ -78,6 +79,7 @@ internal sealed class AnthropicProviderFailureClassifier : IProviderFailureClass
                      "permission_error",
                      "billing_error",
                      "invalid_request_error",
+                     "not_found_error",
                      "insufficient_system_resource",
                      "api_error"
                  ])

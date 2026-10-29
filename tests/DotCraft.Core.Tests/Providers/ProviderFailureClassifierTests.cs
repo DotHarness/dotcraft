@@ -55,6 +55,7 @@ public sealed class ProviderFailureClassifierTests
     [InlineData(true, 503, "{\"error\":{\"code\":\"server_is_overloaded\"}}", ProviderFailureKind.ServerOverloaded, true)]
     [InlineData(true, 503, "{\"error\":{\"code\":\"slow_down\"}}", ProviderFailureKind.RateLimitExceeded, false)]
     [InlineData(true, 500, "{}", ProviderFailureKind.InternalServerError, false)]
+    [InlineData(false, 404, "{\"error\":{\"code\":\"model_not_found\"}}", ProviderFailureKind.BadRequest, true)]
     [InlineData(false, 429, "{\"error\":{\"code\":\"insufficient_quota\"}}", ProviderFailureKind.UsageLimitExceeded, true)]
     [InlineData(true, 429, "{\"error\":{\"code\":\"rate_limit_exceeded\"}}", ProviderFailureKind.ResponseTooManyFailedAttempts, true)]
     [InlineData(true, 429, "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Codex is at capacity, please try again later\"}}", ProviderFailureKind.ServerOverloaded, true)]

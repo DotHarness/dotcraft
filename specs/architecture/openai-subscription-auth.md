@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.9 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-29 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -64,10 +64,10 @@ may update the stored account id. Success sets `last_refresh` to the current tim
 
 Refresh failures use the error code from `error.code`, a string `error`, or top-level `code`.
 `refresh_token_expired`, `refresh_token_reused`, and `refresh_token_invalidated` are permanent
-for every HTTP status; an unclassified HTTP 401 is also permanent. Before surfacing a permanent
-failure, DotCraft reloads `auth.json` once more so a concurrent same-account rotation can satisfy
-the operation. Other HTTP and transport failures are network failures and leave the current token
-bundle available.
+for every HTTP status; an HTTP 400 `invalid_grant` and an unclassified HTTP 401 are also
+permanent. Before surfacing a permanent failure, DotCraft reloads `auth.json` once more so a
+concurrent same-account rotation can satisfy the operation. Other HTTP and transport failures are
+network failures and leave the current token bundle available.
 
 ## On-disk credential layout
 

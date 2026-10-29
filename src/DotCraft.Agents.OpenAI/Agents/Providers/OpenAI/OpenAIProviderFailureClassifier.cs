@@ -53,6 +53,9 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
             return ProviderFailureKind.ServerOverloaded;
         }
 
+        if (ProviderFailureParsing.Mentions(detail, "model_not_found"))
+            return ProviderFailureKind.BadRequest;
+
         if (ProviderFailureParsing.Mentions(detail, "slow_down"))
             return ProviderFailureKind.RateLimitExceeded;
 

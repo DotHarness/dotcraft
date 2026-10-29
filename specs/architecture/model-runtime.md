@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.9 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-29 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -322,6 +322,8 @@ history, tool schema, retry timing, or wire request.
   provider-neutral layer does not re-derive it from message text.
 - An invalid-request failure that a gateway wraps in a server error, such as a Bedrock
   `ValidationException` inside a 502, is classified as invalid-request and is not retried.
+- A rejection naming an unknown model, such as OpenAI `model_not_found` or Anthropic
+  `not_found_error`, is classified as invalid-request whatever its HTTP status and is not retried.
 - A classified failure is the sole authority on whether it may be retried and after how long. A
   server-advised delay takes precedence over local backoff and becomes a process-local monotonic
   deadline when response headers are first observed, or when a provider exposes rate-limit text

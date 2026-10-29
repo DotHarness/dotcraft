@@ -348,8 +348,11 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            var reason = ClassifyRefreshFailure(body);
-            if (response.StatusCode == HttpStatusCode.Unauthorized ||
+            var code = ReadRefreshErrorCode(body);
+            var reason = ClassifyRefreshFailure(code);
+            var invalidGrant = response.StatusCode == HttpStatusCode.BadRequest &&
+                string.Equals(code, "invalid_grant", StringComparison.OrdinalIgnoreCase);
+            if (response.StatusCode == HttpStatusCode.Unauthorized || invalidGrant ||
                 reason != OpenAIAuthFailureReason.Unknown)
             {
                 if (ReloadCachedCredentialsIfChangedLocked())
@@ -391,47 +394,44 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         return false;
     }
 
-    private static OpenAIAuthFailureReason ClassifyRefreshFailure(string body)
+    private static string? ReadRefreshErrorCode(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
-            return OpenAIAuthFailureReason.Unknown;
+            return null;
 
         try
         {
             using var doc = JsonDocument.Parse(body);
-            string? code = null;
             if (doc.RootElement.TryGetProperty("error", out var errorElement))
             {
                 if (errorElement.ValueKind == JsonValueKind.Object &&
                     errorElement.TryGetProperty("code", out var codeElement) &&
                     codeElement.ValueKind == JsonValueKind.String)
                 {
-                    code = codeElement.GetString();
+                    return codeElement.GetString();
                 }
-                else if (errorElement.ValueKind == JsonValueKind.String)
-                {
-                    code = errorElement.GetString();
-                }
+                if (errorElement.ValueKind == JsonValueKind.String)
+                    return errorElement.GetString();
             }
-            if (code is null &&
-                doc.RootElement.TryGetProperty("code", out var topLevelCode) &&
-                topLevelCode.ValueKind == JsonValueKind.String)
-            {
-                code = topLevelCode.GetString();
-            }
-            return code?.ToLowerInvariant() switch
-            {
-                "refresh_token_expired" => OpenAIAuthFailureReason.RefreshTokenExpired,
-                "refresh_token_reused" => OpenAIAuthFailureReason.RefreshTokenReused,
-                "refresh_token_invalidated" => OpenAIAuthFailureReason.RefreshTokenRevoked,
-                _ => OpenAIAuthFailureReason.Unknown
-            };
+            return doc.RootElement.TryGetProperty("code", out var topLevelCode) &&
+                topLevelCode.ValueKind == JsonValueKind.String
+                    ? topLevelCode.GetString()
+                    : null;
         }
         catch (JsonException)
         {
-            return OpenAIAuthFailureReason.Unknown;
+            return null;
         }
     }
+
+    private static OpenAIAuthFailureReason ClassifyRefreshFailure(string? code) =>
+        code?.ToLowerInvariant() switch
+        {
+            "refresh_token_expired" => OpenAIAuthFailureReason.RefreshTokenExpired,
+            "refresh_token_reused" => OpenAIAuthFailureReason.RefreshTokenReused,
+            "refresh_token_invalidated" => OpenAIAuthFailureReason.RefreshTokenRevoked,
+            _ => OpenAIAuthFailureReason.Unknown
+        };
 
     private static string BuildAuthorizeUrl(string redirectUri, string codeChallenge, string state)
     {

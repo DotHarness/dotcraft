@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.10.0 |
+| Version | 0.9.9 |
 | Status | Living |
 | Date | 2026-10-26 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
