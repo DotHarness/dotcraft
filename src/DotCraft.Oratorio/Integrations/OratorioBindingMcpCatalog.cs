@@ -4,7 +4,7 @@ using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Oratorio.Integrations;
 
-/// <summary>MCP-only metadata projected over the shared attribute-authored board descriptors.</summary>
+/// <summary>MCP-only metadata projected over the shared attribute-authored binding descriptors.</summary>
 public static class OratorioBindingMcpCatalog
 {
     public const string AppId = "com.dotharness.oratorio";
@@ -12,18 +12,21 @@ public static class OratorioBindingMcpCatalog
     public const string BoardUiResourceUri = $"{UiResourcePrefix}/board.html";
     public const string ItemUiResourceUri = $"{UiResourcePrefix}/item.html";
     public const string ReviewUiResourceUri = $"{UiResourcePrefix}/review.html";
-    public const string BoardNamespaceDescription = "Inspect and manage the authorized Oratorio project board. Read current board state before making claims; use mutation tools only when the user asks to change Oratorio state.";
+    public const string CredentialUiResourceUri = $"{UiResourcePrefix}/credential.html";
+    public const string ServerInstructions = "Inspect and manage the authorized Oratorio project board and its repository connections. Read current Oratorio state before making claims; use mutation tools only when the user asks to change Oratorio state.";
 
     private static readonly string[] ModelAndAppVisibility = ["model", "app"];
+    private static readonly string[] AppOnlyVisibility = ["app"];
 
-    public static IReadOnlyList<Tool> McpBoardTools(OratorioDynamicToolCatalog tools) =>
-        tools.BoardDescriptors.Select(descriptor =>
+    public static IReadOnlyList<Tool> McpBindingTools(OratorioDynamicToolCatalog tools) =>
+        tools.BindingDescriptors.Select(descriptor =>
         {
             string? resourceUri = descriptor.LocalName switch
             {
                 OratorioDynamicToolCatalog.ListBoardItemsName => BoardUiResourceUri,
                 OratorioDynamicToolCatalog.GetBoardItemName => ItemUiResourceUri,
                 OratorioDynamicToolCatalog.QueueReviewRoundName => ReviewUiResourceUri,
+                OratorioDynamicToolCatalog.RequestSourceCredentialName => CredentialUiResourceUri,
                 _ => null
             };
             return new Tool
@@ -35,11 +38,15 @@ public static class OratorioBindingMcpCatalog
                 {
                     ReadOnlyHint = descriptor.LocalName is
                         OratorioDynamicToolCatalog.ListBoardItemsName or
-                        OratorioDynamicToolCatalog.GetBoardItemName,
+                        OratorioDynamicToolCatalog.GetBoardItemName or
+                        OratorioDynamicToolCatalog.GetSourceSetupName or
+                        OratorioDynamicToolCatalog.RequestSourceCredentialName,
                     DestructiveHint = false,
                     OpenWorldHint = false
                 },
-                Meta = resourceUri is null ? null : UiMeta(resourceUri)
+                Meta = descriptor.LocalName == OratorioDynamicToolCatalog.SaveSourceCredentialName
+                    ? UiMeta(null, AppOnlyVisibility)
+                    : resourceUri is null ? null : UiMeta(resourceUri, ModelAndAppVisibility)
             };
         }).ToArray();
 
@@ -47,7 +54,8 @@ public static class OratorioBindingMcpCatalog
     [
         McpResource(BoardUiResourceUri, "Oratorio board", "board.html"),
         McpResource(ItemUiResourceUri, "Oratorio item", "item.html"),
-        McpResource(ReviewUiResourceUri, "Oratorio review", "review.html")
+        McpResource(ReviewUiResourceUri, "Oratorio review", "review.html"),
+        McpResource(CredentialUiResourceUri, "Oratorio credential", "credential.html")
     ];
 
     public static string? ResolveUiFile(string? uri) => uri switch
@@ -55,6 +63,7 @@ public static class OratorioBindingMcpCatalog
         BoardUiResourceUri => "board.html",
         ItemUiResourceUri => "item.html",
         ReviewUiResourceUri => "review.html",
+        CredentialUiResourceUri => "credential.html",
         _ => null
     };
 
@@ -72,12 +81,14 @@ public static class OratorioBindingMcpCatalog
         Meta = ResourceMeta()
     };
 
-    private static JsonObject UiMeta(string resourceUri) => new()
+    private static JsonObject UiMeta(string? resourceUri, string[] visibility)
     {
-        ["ui"] = new JsonObject
+        var ui = new JsonObject { ["visibility"] = JsonSerializer.SerializeToNode(visibility) };
+        if (resourceUri is not null)
         {
-            ["resourceUri"] = resourceUri,
-            ["visibility"] = JsonSerializer.SerializeToNode(ModelAndAppVisibility)
+            ui["resourceUri"] = resourceUri;
         }
-    };
+
+        return new JsonObject { ["ui"] = ui };
+    }
 }

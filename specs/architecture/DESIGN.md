@@ -1,5 +1,5 @@
 ---
-version: "0.9.6"
+version: "0.9.9"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1613,12 +1613,19 @@ their tool rows.
 MCP tools may render an interactive UI in a sandboxed frame, following MCP Apps.
 The app owns the inner UI; Desktop owns only the host frame.
 
-- The host frame is one neutral surface (`--bg-secondary`, `--border-default`,
-  8–10px radius) with a quiet header (tool title / app attribution) above the
-  frame. When an app sets `prefersBorder: false`, keep the header and controls but
-  drop the border and background. No decorative chrome.
-- Desktop does not restyle the app's content; it passes theme and accent through
-  host context so apps can match.
+- The card answers to the transcript's own [tool row](#tool-rows): the row says
+  what happened to the app (Opening, Opened, or Couldn't open, then the app's
+  name), carries fullscreen as its accessory, and collapses the app like any tool
+  result. The raw tool name never appears. When the app cannot open, the frame
+  shows only the reason, because the row already says it failed.
+- Below the row, the host frame is one neutral surface (`--bg-secondary`,
+  `--border-default`, 8–10px radius) with no header of its own. When an app sets
+  `prefersBorder: false`, drop the border and background. Fullscreen keeps a
+  single exit control in the corner. No decorative chrome.
+- Desktop does not restyle the app's content. Host context carries the theme and
+  the MCP Apps style variables resolved from the active Desktop tokens (surfaces,
+  text, borders, type, radii, shadows), so an app's fields, buttons and choices
+  can mirror the Desktop controls they stand for.
 - Keep the frame compact by default; honor display-mode requests to expand.
 - Non-Desktop clients show the tool result's text instead, so flows must not
   require the interactive UI.

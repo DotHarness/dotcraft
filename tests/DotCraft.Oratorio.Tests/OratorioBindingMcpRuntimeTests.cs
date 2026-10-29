@@ -129,7 +129,7 @@ public sealed class OratorioBindingMcpRuntimeTests
         Assert.True(runtime.Promote("binding-tools", bearer, 9));
 
         var tools = await client.ListToolsAsync(new ListToolsRequestParams(), CancellationToken.None);
-        Assert.Equal(4, tools.Tools.Count);
+        Assert.Equal(9, tools.Tools.Count);
         Assert.All(tools.Tools, tool =>
             Assert.False(tool.InputSchema.GetProperty("additionalProperties").GetBoolean()));
         var listTool = tools.Tools.Single(tool => tool.Name == OratorioDynamicToolCatalog.ListBoardItemsName);
@@ -139,7 +139,7 @@ public sealed class OratorioBindingMcpRuntimeTests
             listTool.Meta?["ui"]?["resourceUri"]?.GetValue<string>());
 
         var resources = await client.ListResourcesAsync(new ListResourcesRequestParams(), CancellationToken.None);
-        Assert.Equal(3, resources.Resources.Count);
+        Assert.Equal(4, resources.Resources.Count);
         var boardResource = await client.ReadResourceAsync(
             new ReadResourceRequestParams { Uri = OratorioBindingMcpCatalog.BoardUiResourceUri },
             CancellationToken.None);

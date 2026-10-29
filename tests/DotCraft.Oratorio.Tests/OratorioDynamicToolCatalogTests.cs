@@ -13,9 +13,9 @@ public sealed class OratorioDynamicToolCatalogTests
         new(NullLogger<OratorioDynamicToolCatalog>.Instance);
 
     [Fact]
-    public void Descriptors_generate_nine_closed_typed_schemas()
+    public void Descriptors_generate_closed_typed_schemas()
     {
-        Assert.Equal(9, _catalog.Descriptors.Count);
+        Assert.Equal(14, _catalog.Descriptors.Count);
         Assert.All(_catalog.Descriptors, descriptor =>
         {
             Assert.Equal(OratorioDynamicToolCatalog.Namespace, descriptor.Namespace);

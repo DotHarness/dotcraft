@@ -21,6 +21,12 @@ public sealed class WorkspaceInventoryService(
         return workspaces.Count > 1 ? "multi" : "single";
     }
 
+    public IReadOnlyList<(string Path, string Label)> ListWorkspacePaths() =>
+        ListConfiguredWorkspaces(options.CurrentValue)
+            .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .Select(x => (x.Path, x.Label))
+            .ToArray();
+
     /// <summary>
     /// Lists configured workspace paths with AppServer endpoint health for each path.
     /// </summary>

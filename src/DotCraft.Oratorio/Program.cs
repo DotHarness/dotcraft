@@ -113,6 +113,7 @@ builder.Services.AddScoped<ConversationThreadLocator>();
 builder.Services.AddSingleton<ConversationThreadStarter>();
 builder.Services.AddScoped<SettingsDiagnosticsService>();
 builder.Services.AddScoped<ServerConfigurationService>();
+builder.Services.AddScoped<SourceSetupService>();
 builder.Services.AddScoped<TaskShortIdAllocator>();
 builder.Services.AddScoped<TaskBoardPlacementService>();
 builder.Services.AddScoped<AppServerPromptBuilder>();
@@ -153,7 +154,7 @@ builder.Services.AddHostedService<OratorioAppBindingReannounceWorker>();
 builder.Services.AddMcpServer(options =>
     {
         options.ServerInfo = new Implementation { Name = "oratorio.board", Version = "1" };
-        options.ServerInstructions = OratorioBindingMcpCatalog.BoardNamespaceDescription;
+        options.ServerInstructions = OratorioBindingMcpCatalog.ServerInstructions;
     })
     .WithHttpTransport(options => options.Stateless = false)
     .WithListToolsHandler((request, ct) =>

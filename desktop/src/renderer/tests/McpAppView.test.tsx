@@ -1,4 +1,5 @@
 import './setupPluginRuntime'
+import { StrictMode } from 'react'
 import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -205,8 +206,6 @@ describe('McpAppView', () => {
     })
 
     await waitFor(() => expect(container.querySelector('iframe')).toBeNull())
-    expect(container.textContent).toContain('This MCP App could not be opened.')
-    expect(container.textContent).toContain('fallback')
     expect(bridgeInstances[0].teardownResource).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('mcpApp/view/close', { viewHandle: 'view-1' }))
   })
@@ -233,6 +232,23 @@ describe('McpAppView', () => {
     } finally {
       warningSpy.mockRestore()
     }
+  })
+
+  it('keeps the bridge answering View tool calls under StrictMode', async () => {
+    render(<StrictMode><LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider></StrictMode>)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+    act(() => bridgeInstances[0].oninitialized?.())
+    await waitFor(() => expect(bridgeInstances[0].sendToolResult).toHaveBeenCalledTimes(1))
+
+    expect(bridgeInstances[0].close).not.toHaveBeenCalled()
+    sendRequest.mockResolvedValueOnce({ content: [{ type: 'text', text: 'saved' }] })
+    const callTool = bridgeInstances[0].oncalltool as (params: { name: string; arguments?: Record<string, unknown> }) => Promise<unknown>
+    await expect(callTool({ name: 'save', arguments: { value: 1 } })).resolves.toEqual({ content: [{ type: 'text', text: 'saved' }] })
+    expect(sendRequest).toHaveBeenCalledWith(
+      'mcpApp/view/tool/call',
+      { viewHandle: 'view-1', tool: 'save', arguments: { value: 1 } },
+      120_000
+    )
   })
 
   it('tears down the resource and closes the View when unmounted', async () => {

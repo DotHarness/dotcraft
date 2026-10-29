@@ -59,6 +59,11 @@ public sealed class OratorioDynamicToolCatalog
     public const string GetBoardItemName = "GetBoardItem";
     public const string CreateBoardTaskName = "CreateBoardTask";
     public const string QueueReviewRoundName = "QueueReviewRound";
+    public const string GetSourceSetupName = "GetSourceSetup";
+    public const string ConnectProjectName = "ConnectProject";
+    public const string SyncProjectName = "SyncProject";
+    public const string RequestSourceCredentialName = "RequestSourceCredential";
+    public const string SaveSourceCredentialName = "SaveSourceCredential";
 
     private static readonly IReadOnlyDictionary<string, string> NamespaceDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -94,12 +99,17 @@ public sealed class OratorioDynamicToolCatalog
         _descriptors = _registry.ListDescriptors().ToDictionary(x => x.LocalName, StringComparer.Ordinal);
     }
 
-    public IReadOnlyList<DynamicToolDescriptor> BoardDescriptors =>
+    public IReadOnlyList<DynamicToolDescriptor> BindingDescriptors =>
         SelectDescriptors(
             ListBoardItemsName,
             GetBoardItemName,
             CreateBoardTaskName,
-            QueueReviewRoundName);
+            QueueReviewRoundName,
+            GetSourceSetupName,
+            ConnectProjectName,
+            SyncProjectName,
+            RequestSourceCredentialName,
+            SaveSourceCredentialName);
 
     public IReadOnlyList<DynamicToolDescriptor> Descriptors =>
         _descriptors.Values.OrderBy(x => x.Order).ThenBy(x => x.LocalName, StringComparer.Ordinal).ToArray();
@@ -275,7 +285,7 @@ public sealed class OratorioDynamicToolCatalog
     }
 }
 
-internal sealed class OratorioDynamicToolFacade
+internal sealed partial class OratorioDynamicToolFacade
 {
     [DynamicTool(
         OratorioDynamicToolCatalog.SubmitDiscussionReplyName,

@@ -18,7 +18,7 @@ Agent work happens in a worktree Oratorio creates for the run, so the checkout y
 
 ## Connect GitHub and GitLab
 
-Select **Connect GitHub** or **Connect GitLab** on the Board and the guided flow takes you from credentials to a first sync. [GitHub](./github) connects through a GitHub App, and [GitLab](./gitlab) through a project-scoped token.
+Select **Connect GitHub** or **Connect GitLab** on the Board and the guided flow takes you from credentials to a first sync. [GitHub](./github) connects through a GitHub App, and [GitLab](./gitlab) through a project-scoped token. You can also [connect a repository from a conversation](#use-oratorio-in-a-conversation).
 
 Oratorio writes nothing back to a provider until you enable it. A public webhook endpoint is optional, since manual and scheduled sync work without one. Project-to-workspace mapping, Agent execution, and automation are set in [Configure Oratorio](./settings).
 
@@ -31,6 +31,8 @@ Connect Oratorio to a conversation to read and move tasks from the chat itself.
    ![Connect Oratorio from its plugin details](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection.png)
 
 2. Start a new conversation. Oratorio is available in it from the first message.
+
+In that conversation you can also connect a repository by asking. Send `$oratorio-setup` from the repository's project, or ask the Agent to connect the repository to Oratorio. The Agent reads the repository's remote, confirms the sync and review settings with you, and saves the connection. When a token or private key is needed, a form appears in the conversation. What you enter there goes straight to Oratorio, and the Agent never sees it.
 
 **Disconnect** in the plugin details removes Oratorio from every conversation in the workspace. See [Connected Apps](../connected-apps) for the full connection and authorization flow.
 

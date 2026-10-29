@@ -43,8 +43,10 @@ public sealed class AppBindingCoordinatorIntegrationTests : IDisposable
         var context = new ToolPlanningContext("thread-1", null, _root, CraftPath, "agent", null, null, 1);
         var online = await new McpToolSource(await runtime.GetEffectiveMcpRuntimeAsync("thread-1"), config,
             [new AppBindingToolCatalogContributor(control)]).GetRegistrationsAsync(context);
-        Assert.Equal(4, online.Count);
-        Assert.All(online, registration => Assert.Equal(ToolExposure.Deferred, registration.Exposure));
+        Assert.Equal(9, online.Count);
+        Assert.All(online, registration => Assert.Equal(
+            registration.Definition.Id.SourceToolId.Value == "SaveSourceCredential" ? ToolExposure.Hidden : ToolExposure.Deferred,
+            registration.Exposure));
 
         await runtime.SetBindingMcpServersAsync("thread-1", enabled.BindingId, [], CancellationToken.None);
         var restarted = new AppBindingService();
@@ -145,7 +147,7 @@ public sealed class AppBindingCoordinatorIntegrationTests : IDisposable
             var result = await activation.WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(AppBindingStates.Active, result.State);
-            Assert.Equal(4, result.ApprovedTools.Count);
+            Assert.Equal(9, result.ApprovedTools.Count);
             var manager = await threadRuntime.GetEffectiveMcpRuntimeAsync("thread-1");
             Assert.NotNull(manager);
             Assert.Contains(

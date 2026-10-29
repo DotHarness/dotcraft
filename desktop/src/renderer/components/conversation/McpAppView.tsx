@@ -1,6 +1,6 @@
 import { AppBridge, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge'
 import type { JsonValue } from '@dotcraft/sdk/contracts'
-import { Maximize2, Minimize2, Puzzle, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { AppWindow, Maximize2, Minimize2 } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
@@ -9,6 +9,9 @@ import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { Skeleton } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
+import { RunningShimmer } from '../ui/RunningShimmer'
+import { useAppBindingStore } from '../../stores/appBindingStore'
+import { ToolDisclosure } from './ToolDisclosure'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
@@ -19,6 +22,7 @@ import {
   SizeLimitedPostMessageTransport
 } from './mcpAppSecurity'
 import { openDesktopPluginUrl } from '../../plugins/desktopPluginOpenUrl'
+import { mcpAppHostStyles } from './mcpAppHostStyles'
 
 const ACTION_TIMEOUT_MS = 120_000
 const OPEN_TIMEOUT_MS = 15_000
@@ -50,7 +54,6 @@ interface McpAppResource {
       baseUriDomains?: string[]
     }
     prefersBorder?: boolean
-    requestedDomain?: string
   }
 }
 
@@ -104,6 +107,7 @@ type HostContainerDimensions =
 function hostContext(locale: string, fullscreen: boolean, containerDimensions: HostContainerDimensions): McpUiHostContext {
   return {
     theme: theme(),
+    styles: { variables: mcpAppHostStyles() },
     locale,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     platform: 'desktop' as const,
@@ -151,6 +155,10 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
   const [frameWidth, setFrameWidth] = useState<number | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [expanded, setExpanded] = useState(true)
+  const bindingName = useAppBindingStore((state) => threadId
+    ? state.bindingsByThread[threadId]?.find((binding) => item.source?.sourceId === `binding:${binding.bindingId}`)?.displayName
+    : null)
   const fullscreenRef = useRef(fullscreen)
   const logTimes = useRef<number[]>([])
   const sizeUpdateAt = useRef(0)
@@ -253,16 +261,6 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     clearPhaseTimeout()
     phaseTimeoutRef.current = window.setTimeout(() => failView('', code), timeoutMs)
   }, [clearPhaseTimeout, failView])
-
-  const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
-    if (iframeRef.current === node) return
-    iframeRef.current = node
-    const previousBridge = bridgeRef.current
-    bridgeRef.current = null
-    if (previousBridge) {
-      void previousBridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => previousBridge.close())
-    }
-  }, [])
 
   const currentContainerDimensions = useCallback((): HostContainerDimensions => {
     if (fullscreenRef.current) {
@@ -522,12 +520,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   }, [fullscreen])
 
   const body = (() => {
-    if (status === 'stale') {
-      return <Fallback icon={<Puzzle size={18} />} title={translate(locale, 'mcpApp.unavailable')} detail={item.result} />
-    }
-    if (status === 'failed') {
-      return <Fallback icon={<TriangleAlert size={18} />} title={translate(locale, 'mcpApp.failed')} detail={error || item.result} />
-    }
+    if (status === 'stale') return <Fallback detail={item.result || translate(locale, 'mcpApp.unavailable')} />
+    if (status === 'failed') return <Fallback detail={error || item.result || translate(locale, 'mcpApp.failed')} />
     if (!openResult) {
       return (
         <div style={{ position: 'relative', width: '100%', height: fullscreen ? '100%' : height, minHeight: MIN_HEIGHT, flex: fullscreen ? 1 : undefined }}>
@@ -553,7 +547,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
           </div>
         )}
         <iframe
-          ref={setIframeRef}
+          ref={iframeRef}
           title={translate(locale, 'mcpApp.title')}
           src="about:blank"
           sandbox="allow-scripts"
@@ -565,13 +559,34 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     )
   })()
 
-  const appName = resolveAppName(item)
-  const sandboxDomain = openResult?.resource.ui.requestedDomain?.trim()
-  const sandboxTooltip = sandboxDomain
-    ? translate(locale, 'mcpApp.sandboxedFrom', { domain: sandboxDomain })
-    : translate(locale, 'mcpApp.sandboxedTooltip')
+  const name = bindingName?.trim() || resolveAppName(item) || translate(locale, 'mcpApp.title')
+  const rowTitle = status === 'opening'
+    ? <RunningShimmer className="dc-tool-row-running-label">{translate(locale, 'mcpApp.opening', { name })}</RunningShimmer>
+    : translate(locale, status === 'ready' ? 'mcpApp.opened' : 'mcpApp.openFailed', { name })
+  const fullscreenLabel = translate(locale, fullscreen ? 'mcpApp.exitFullscreen' : 'mcpApp.fullscreen')
+  const fullscreenToggle = (
+    <IconButton
+      size={24}
+      label={fullscreenLabel}
+      tooltipLabel={fullscreenLabel}
+      tooltipPlacement="top"
+      radius={6}
+      onClick={() => setFullscreen((value) => !value)}
+      icon={fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+    />
+  )
 
   return (
+    <ToolDisclosure
+      expanded={expanded}
+      onToggle={() => setExpanded((value) => !value)}
+      callId={item.toolCallId}
+      icon={{ icon: AppWindow }}
+      title={rowTitle}
+      accessory={status === 'ready' && !fullscreen
+        ? <span onClick={(event) => event.stopPropagation()}>{fullscreenToggle}</span>
+        : undefined}
+    >
     <div
       ref={surfaceRef}
       data-mcp-app-display-mode={fullscreen ? 'fullscreen' : 'inline'}
@@ -585,7 +600,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
             background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
             display: 'flex'
           }
-        : { width: '100%' }}
+        : { width: '100%', marginTop: 4 }}
     >
       <div
         data-mcp-app-frame={borderless ? 'borderless' : 'bordered'}
@@ -599,47 +614,15 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
           width: fullscreen ? '100%' : frameWidth === null ? '100%' : `${frameWidth}px`,
           maxWidth: '100%',
           height: fullscreen ? '100%' : undefined,
-          minWidth: 0
+          minWidth: 0,
+          position: 'relative'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 8px 6px 10px', color: 'var(--text-secondary)', fontSize: 'var(--conversation-secondary-size)', flexShrink: 0 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <span
-              aria-hidden
-              style={{ width: 18, height: 18, borderRadius: 5, background: 'var(--bg-tertiary)', display: 'grid', placeItems: 'center', color: 'var(--text-secondary)', flexShrink: 0 }}
-            >
-              <Puzzle size={12} />
-            </span>
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {appName
-                ? <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{appName}</span>
-                : translate(locale, 'mcpApp.title')}
-            </span>
-          </span>
-          {status !== 'stale' && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <span
-                title={sandboxTooltip}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--text-dimmed)', fontSize: 'var(--conversation-meta-size)', padding: '1px 6px 1px 5px', borderRadius: 999, border: '1px solid var(--border-default)', cursor: 'default' }}
-              >
-                <ShieldCheck size={12} />
-                {translate(locale, 'mcpApp.sandboxed')}
-              </span>
-              <IconButton
-                size={24}
-                label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
-                tooltipLabel={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
-                tooltipPlacement="top"
-                radius={6}
-                onClick={() => setFullscreen((value) => !value)}
-                icon={fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              />
-            </span>
-          )}
-        </div>
+        {fullscreen && <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>{fullscreenToggle}</div>}
         {body}
       </div>
     </div>
+    </ToolDisclosure>
   )
 }
 
@@ -668,16 +651,8 @@ function LoadingSkeleton({ label }: { label: string }): JSX.Element {
   )
 }
 
-function Fallback({ icon, title, detail }: { icon: JSX.Element; title: string; detail?: string }): JSX.Element {
-  return (
-    <div style={{ display: 'flex', gap: 10, padding: 14, color: 'var(--text-secondary)' }}>
-      {icon}
-      <div>
-        <div style={{ fontWeight: 600 }}>{title}</div>
-        {detail && <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', font: 'inherit', color: 'var(--text-dimmed)' }}>{detail}</pre>}
-      </div>
-    </div>
-  )
+function Fallback({ detail }: { detail: string }): JSX.Element {
+  return <pre style={{ whiteSpace: 'pre-wrap', margin: 0, padding: 14, font: 'inherit', color: 'var(--text-secondary)' }}>{detail}</pre>
 }
 
 export const McpAppView = memo(McpAppViewImpl)
