@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -79,6 +79,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     session.openChat(key)
     return () => session.closeChat(key)
   }, [key, session])
+  useFocusEffect(
+    useCallback(() => {
+      session.focusChat(key)
+      return () => session.blurChat(key)
+    }, [key, session]),
+  )
 
   const { chat, project, computer, status, pending, workspacePath } = state
   const online = isReachable(status)

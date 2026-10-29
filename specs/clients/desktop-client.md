@@ -320,7 +320,7 @@ Desktop receives thread truth through durable header/history reads and realtime 
 - An active thread with a parked request keeps retrying head-page reconciliation on foreground, reconnect, and metadata refresh; a failed read keeps the request parked and never synthesizes a response.
 - If completion notifications are missed after a response, the next reconcile restores completed tools, final output, and terminal state without the user switching away.
 - Subagent token counts sum the child's turn `tokenUsage` and rise with `thread/tokenUsage/updated`; they never decrease. Subagent elapsed time derives from `runtime.activeTurnStartedAt` and shows unknown when unavailable.
-- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
+- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
 - Reconciliation is scoped to the active foreground thread and workspace.
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface

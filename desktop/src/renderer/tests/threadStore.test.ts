@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useThreadStore, selectFilteredThreads } from '../stores/threadStore'
+import { readStateMark, useThreadStore, selectFilteredThreads } from '../stores/threadStore'
+import { withReadStates } from '../utils/threadReadState'
 import type { ThreadSummary, Thread, ThreadGoal } from '../types/thread'
 import { registerVoiceOriginCleanup } from '../voice/voiceOriginCleanupBridge'
 
@@ -524,5 +525,18 @@ describe('threadStore indicator state', () => {
     expect(s().runningTurnThreadIds.has('thread-a')).toBe(false)
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(false)
     expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
+  })
+
+  it('keeps a receipt that changed while a thread list request was in flight', () => {
+    const listed = { firstUnread: { type: 'turn' as const, turnId: 'turn_001' }, revision: 'r1' }
+    const notified = { firstUnread: null, revision: 'r2' }
+    s().setThreadList([makeThreadSummary('a', { readState: listed }), makeThreadSummary('b')])
+    const mark = readStateMark()
+    s().setThreadReadState('a', notified)
+
+    s().setThreadList(withReadStates([makeThreadSummary('a'), makeThreadSummary('b')], { a: listed, b: listed }, mark))
+
+    expect(s().threadList.find((thread) => thread.id === 'a')?.readState).toEqual(notified)
+    expect(s().threadList.find((thread) => thread.id === 'b')?.readState).toEqual(listed)
   })
 })

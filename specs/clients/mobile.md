@@ -369,7 +369,8 @@ and shows a Stopped line. Thread summaries do not carry the last turn's result, 
 Chat rows on Home and Project show an unread dot from the chat's server read receipt
 ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from
 `thread/list` and updated by `thread/readState/changed`. Opening a chat marks it read, and so does
-a new result, or the app returning to the foreground, while the chat screen is open. A host that
+a new result, or the app returning to the foreground, while its chat screen has navigation focus; a
+chat left mounted beneath another screen is not marked. A failed mark is retried. A host that
 returns no receipts shows no dots and receives no marks.
 
 Screens paint Desktop's conversation surface: in dark, its vertical gradient from the background

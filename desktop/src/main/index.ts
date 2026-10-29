@@ -218,6 +218,7 @@ import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
   beginWorkspaceThreadListRequest,
+  noteWorkspaceReadStateChange,
   refreshWorkspaceThreadListCache,
   type WorkspaceThreadListResult,
   WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS
@@ -644,6 +645,10 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
 function applyWorkspaceThreadNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
   const result = applyWorkspaceThreadNotificationToCache(entry.threads, method, params)
   entry.threads = result.threads
+  const readStateThreadId = method === 'thread/readState/changed' && params && typeof params === 'object'
+    ? (params as { threadId?: unknown }).threadId
+    : undefined
+  if (typeof readStateThreadId === 'string') noteWorkspaceReadStateChange(entry, readStateThreadId)
   if (result.changed) {
     emitWorkspaceProjects()
   }

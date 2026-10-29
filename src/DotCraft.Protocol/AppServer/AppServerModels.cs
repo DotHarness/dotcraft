@@ -1622,6 +1622,12 @@ public sealed class ThreadDeletedNotification : ExtensibleJsonObject
     public required string ThreadId { get; init; }
 }
 
+public sealed class ThreadRolledBackNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+}
+
 /// <summary>Thread archive notification payload.</summary>
 public sealed class ThreadArchivedNotification : ExtensibleJsonObject
 {

@@ -1,14 +1,18 @@
 import { readAppServerErrorFields } from '../../shared/appServerError'
-import { useThreadStore } from '../stores/threadStore'
+import { readStateChangedSince, useThreadStore } from '../stores/threadStore'
 import type { ThreadReadState, ThreadSummary } from '../types/thread'
 
 export function withReadStates<T extends ThreadSummary>(
   threads: T[],
-  readStates: Record<string, ThreadReadState> | null | undefined
+  readStates: Record<string, ThreadReadState> | null | undefined,
+  requestedAtMark: number
 ): T[] {
-  if (!readStates) return threads
+  const listed = useThreadStore.getState().threadList
   return threads.map((thread) => {
-    const readState = readStates[thread.id]
+    const newer = readStateChangedSince(thread.id, requestedAtMark)
+      ? listed.find((entry) => entry.id === thread.id)?.readState
+      : undefined
+    const readState = newer ?? readStates?.[thread.id]
     return readState ? { ...thread, readState } : thread
   })
 }
@@ -21,7 +25,7 @@ export async function updateThreadReadState(
   threadId: string,
   current: ThreadReadState,
   type: 'read' | 'unread'
-): Promise<void> {
+): Promise<boolean> {
   const store = useThreadStore.getState()
   try {
     const result = await window.api.appServer.sendRequest('thread/readState/update', {
@@ -30,13 +34,15 @@ export async function updateThreadReadState(
       operation: { type }
     }) as { readState: ThreadReadState }
     store.setThreadReadState(threadId, result.readState)
+    return true
   } catch (error) {
     const data = readAppServerErrorFields(error).data
     if (data?.code === 'readStateConflict' && isReadState(data.readState)) {
       store.setThreadReadState(threadId, data.readState)
-      return
+      return true
     }
     console.error('thread/readState/update failed:', error)
+    return false
   }
 }
 

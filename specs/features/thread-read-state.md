@@ -77,7 +77,7 @@ A Turn is not a new result when:
 - it is cancelled by cold-load reconciliation of an interrupted Turn;
 - it arrives through session import or any other replay of existing history.
 
-A new result keeps an existing `firstUnread`, otherwise sets it to that Turn, and always replaces the revision, so a client that saw the older receipt can tell a later result arrived. Each Turn is applied at most once.
+A new result keeps an existing `firstUnread`, otherwise sets it to that Turn, and always replaces the revision, so a client that saw the older receipt can tell a later result arrived. Each Turn is applied at most once. Receipt writes for one thread, from new results, marks, and rollback, are serialized together with the publication of their `thread/readState/changed`, so notifications reach clients in commit order.
 
 The receipt is committed, and `thread/readState/changed` is published, before the Turn's terminal notification (`turn/completed`, `turn/failed`, or `turn/cancelled`). A receipt write that fails is reported as a diagnostic and never changes the Turn's outcome.
 
@@ -113,7 +113,7 @@ Clients never blindly retry a conflict: the client's action may predate a result
 
 ## 6. Client Behavior
 
-A thread row shows the unread dot while its receipt has a non-null `firstUnread` and nothing more urgent occupies its status slot. Clients hydrate receipts from `thread/list` and `thread/read` and apply `thread/readState/changed` as the incremental source of truth. A missing receipt means unknown and shows no dot.
+A thread row shows the unread dot while its receipt has a non-null `firstUnread` and nothing more urgent occupies its status slot. Clients hydrate receipts from `thread/list` and `thread/read` and apply `thread/readState/changed` as the incremental source of truth; a list response never replaces a receipt that a notification or mark changed after the list request was sent. A missing receipt means unknown and shows no dot.
 
 A client marks a thread read only while the user can actually see it, so a window left open elsewhere does not consume results meant for another device. Seeing a thread means:
 
@@ -121,7 +121,7 @@ A client marks a thread read only while the user can actually see it, so a windo
 - a new result arrives while it is open in a focused Desktop window or the foreground Mobile chat screen;
 - the Desktop window regains focus, or the Mobile app returns to the foreground, with it open and a Turn position unread.
 
-An explicit `threadStart` mark is cleared only by the user opening the thread again. On a conflict the client adopts the returned receipt and applies the same rules to it.
+An explicit `threadStart` mark is cleared only by the user opening the thread again. On a conflict the client adopts the returned receipt and applies the same rules to it. A mark that fails for any other reason is retried the next time the same rules apply.
 
 ### 6.1 Desktop
 
@@ -132,7 +132,7 @@ An explicit `threadStart` mark is cleared only by the user opening the thread ag
 ### 6.2 Mobile
 
 - Chat rows on Home and Project screens show receipts.
-- Opening a chat marks it read under the rules above. Mobile offers no unread mark.
+- Opening a chat marks it read under the rules above. Only the chat screen that has navigation focus counts as seen; a chat left mounted beneath another screen does not. Mobile offers no unread mark.
 - Against a host that returns no receipts, Mobile shows no unread dots and sends no marks.
 
 ## 7. Acceptance Checklist

@@ -18722,6 +18722,19 @@
       },
       "additionalProperties": true
     },
+    "ThreadRolledBackNotification": {
+      "title": "ThreadRolledBackNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
     "ThreadRuntimeState": {
       "title": "ThreadRuntimeState",
       "type": "object",

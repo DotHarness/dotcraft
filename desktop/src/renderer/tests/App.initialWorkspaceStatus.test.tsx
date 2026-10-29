@@ -2150,4 +2150,17 @@ describe('warm threads', () => {
       expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(1)
     })
   })
+
+  it('releases a warm thread that another client rolled back', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await app.open('thread-b')
+
+    await act(async () => { app.notify('thread/rolledBack', { threadId: 'thread-a' }) })
+
+    expect(getThreadConversation('thread-a')).toBeUndefined()
+    await waitFor(() => {
+      expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(1)
+    })
+  })
 })

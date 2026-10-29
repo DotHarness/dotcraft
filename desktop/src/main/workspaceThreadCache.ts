@@ -22,6 +22,22 @@ export interface WorkspaceThreadListRefreshOptions {
 
 const threadListRevisions = new WeakMap<WorkspaceThreadListRefreshState, number>()
 const threadListRetryTimers = new WeakMap<WorkspaceThreadListRefreshState, ReturnType<typeof setTimeout>>()
+const readStateClocks = new WeakMap<WorkspaceThreadListRefreshState, { sequence: number; changedAt: Map<string, number> }>()
+const threadListRequestMarks = new WeakMap<WorkspaceThreadListRefreshState, number>()
+
+function readStateClock(entry: WorkspaceThreadListRefreshState): { sequence: number; changedAt: Map<string, number> } {
+  let clock = readStateClocks.get(entry)
+  if (!clock) {
+    clock = { sequence: 0, changedAt: new Map() }
+    readStateClocks.set(entry, clock)
+  }
+  return clock
+}
+
+export function noteWorkspaceReadStateChange(entry: WorkspaceThreadListRefreshState, threadId: string): void {
+  const clock = readStateClock(entry)
+  clock.changedAt.set(threadId, ++clock.sequence)
+}
 
 function advanceThreadListRevision(entry: WorkspaceThreadListRefreshState): number {
   const revision = (threadListRevisions.get(entry) ?? 0) + 1
@@ -181,23 +197,32 @@ export interface WorkspaceThreadListResult {
   readStates?: Record<string, unknown>
 }
 
-function withReadStates(result: WorkspaceThreadListResult): unknown[] {
+function withReadStates(
+  entry: WorkspaceThreadListRefreshState,
+  result: WorkspaceThreadListResult,
+  requestedAtMark: number
+): unknown[] {
   const threads = Array.isArray(result.data) ? result.data : []
   const readStates = isRecord(result.readStates) ? result.readStates : null
-  if (!readStates) return threads
+  const { changedAt } = readStateClock(entry)
   return threads.map((thread) => {
-    const readState = readStates[getThreadId(thread)]
+    const threadId = getThreadId(thread)
+    const cached = (changedAt.get(threadId) ?? 0) > requestedAtMark
+      ? entry.threads.find((candidate) => getThreadId(candidate) === threadId)
+      : undefined
+    const readState = (isRecord(cached) ? cached.readState : undefined) ?? readStates?.[threadId]
     return isRecord(thread) && isRecord(readState) ? { ...thread, readState } : thread
   })
 }
 
 export function applyWorkspaceThreadListRefreshSuccess(
   entry: WorkspaceThreadListRefreshState,
-  result: WorkspaceThreadListResult
+  result: WorkspaceThreadListResult,
+  requestedAtMark: number
 ): void {
   advanceThreadListRevision(entry)
   cancelWorkspaceThreadListRetry(entry)
-  entry.threads = withReadStates(result)
+  entry.threads = withReadStates(entry, result, requestedAtMark)
   entry.errorMessage = undefined
 }
 
@@ -221,6 +246,7 @@ export function beginWorkspaceThreadListRequest(
   params: unknown
 ): number | undefined {
   if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return undefined
+  threadListRequestMarks.set(entry, readStateClock(entry).sequence)
   return advanceThreadListRevision(entry)
 }
 
@@ -235,7 +261,7 @@ export function applyWorkspaceThreadListRequestResult(
   if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return false
   if (!isRecord(result) || !Array.isArray(result.data) || result.nextCursor != null) return false
 
-  applyWorkspaceThreadListRefreshSuccess(entry, result)
+  applyWorkspaceThreadListRefreshSuccess(entry, result, threadListRequestMarks.get(entry) ?? 0)
   return true
 }
 
@@ -262,10 +288,11 @@ async function refreshWorkspaceThreadListAttempt(
 ): Promise<boolean> {
   cancelWorkspaceThreadListRetry(entry)
   const revision = advanceThreadListRevision(entry)
+  const requestedAtMark = readStateClock(entry).sequence
   try {
     const result = await load()
     if (threadListRevisions.get(entry) !== revision) return false
-    applyWorkspaceThreadListRefreshSuccess(entry, result)
+    applyWorkspaceThreadListRefreshSuccess(entry, result, requestedAtMark)
   } catch (error) {
     if (threadListRevisions.get(entry) !== revision) return false
     const retryDelayMs = options.retryDelaysMs?.[attempt]

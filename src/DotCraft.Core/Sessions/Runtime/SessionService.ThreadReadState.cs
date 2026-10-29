@@ -1,9 +1,12 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
+    private readonly ConcurrentDictionary<string, object> _readStateWriteLocks = new(StringComparer.Ordinal);
+
     public Action<string, ThreadReadState>? ThreadReadStateChangedForBroadcast { get; set; }
 
     public Task<ThreadReadState?> GetThreadReadStateAsync(SessionThread thread, CancellationToken ct = default) =>
@@ -34,11 +37,14 @@ public sealed partial class SessionService
         if (!ThreadReadReceipts.IsEligible(thread))
             throw new ThreadReadStateUnavailableException(normalized);
 
-        var outcome = Persistence.ReadStates.Update(normalized, expectedRevision, operation);
-        if (!outcome.Applied)
+        ThreadReadStateUpdateOutcome? outcome = null;
+        WriteReadState(normalized, () =>
+        {
+            outcome = Persistence.ReadStates.Update(normalized, expectedRevision, operation);
+            return outcome.Applied ? outcome.State : null;
+        });
+        if (!outcome!.Applied)
             throw new ThreadReadStateConflictException(normalized, outcome.State);
-
-        ThreadReadStateChangedForBroadcast?.Invoke(normalized, outcome.State);
         return outcome.State;
     }
 
@@ -71,8 +77,7 @@ public sealed partial class SessionService
     {
         try
         {
-            if (Persistence.ReadStates.ApplyNewResult(thread.Id, turn.Id) is { } state)
-                ThreadReadStateChangedForBroadcast?.Invoke(thread.Id, state);
+            WriteReadState(thread.Id, () => Persistence.ReadStates.ApplyNewResult(thread.Id, turn.Id));
         }
         catch (Exception ex)
         {
@@ -92,12 +97,22 @@ public sealed partial class SessionService
                           && thread.Turns.All(turn => !string.Equals(turn.Id, firstUnreadTurnId, StringComparison.Ordinal))
                           && (thread.OmittedTurnCount == 0
                               || (await Persistence.ReadProjectedTurnsAsync(thread.Id, [firstUnreadTurnId])).Count == 0);
-            if (Persistence.ReadStates.ResetAfterRollback(thread.Id, removed ? firstUnreadTurnId : null) is { } state)
-                ThreadReadStateChangedForBroadcast?.Invoke(thread.Id, state);
+            WriteReadState(thread.Id, () => Persistence.ReadStates.ResetAfterRollback(thread.Id, removed ? firstUnreadTurnId : null));
         }
         catch (Exception ex)
         {
             Logger?.LogWarning(ex, "Failed to update the read receipt of thread {ThreadId} after rollback.", thread.Id);
+        }
+    }
+
+    private ThreadReadState? WriteReadState(string threadId, Func<ThreadReadState?> write)
+    {
+        lock (_readStateWriteLocks.GetOrAdd(threadId, static _ => new object()))
+        {
+            var state = write();
+            if (state is not null)
+                ThreadReadStateChangedForBroadcast?.Invoke(threadId, state);
+            return state;
         }
     }
 

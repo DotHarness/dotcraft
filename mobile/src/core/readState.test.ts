@@ -31,6 +31,7 @@ describe('chat read receipts', () => {
     expect(state().chats[key].readState?.firstUnread).not.toBeNull()
 
     harness.link().openChat(key)
+    harness.link().focusChat(key)
     await waitFor(() => state().chats[key].readState?.firstUnread === null)
 
     expect(updates().map((call) => call.params)).toEqual([
@@ -43,15 +44,59 @@ describe('chat read receipts', () => {
       candidate.readState = { firstUnread: null, revision: 'r1' }
     })
     harness.link().openChat(key)
+    harness.link().focusChat(key)
 
     computer.setReadState(thread, { firstUnread: { type: 'threadStart' } })
     await waitFor(() => state().chats[key].readState?.firstUnread?.type === 'threadStart')
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(updates()).toEqual([])
 
-    harness.link().closeChat(key)
-    harness.link().openChat(key)
+    harness.link().blurChat(key)
+    harness.link().focusChat(key)
     await waitFor(() => state().chats[key].readState?.firstUnread === null)
     expect(updates()).toHaveLength(1)
+  })
+
+  it('leaves a chat unread while another chat screen covers it', async () => {
+    const { computer, harness, thread, key, state, updates } = await connected((candidate) => {
+      candidate.readState = { firstUnread: null, revision: 'r1' }
+    })
+    harness.link().openChat(key)
+    harness.link().focusChat(key)
+    harness.link().blurChat(key)
+
+    computer.setReadState(thread, { firstUnread: { type: 'turn', turnId: thread.turns[0].id } })
+    await waitFor(() => state().chats[key].readState?.firstUnread?.type === 'turn')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(updates()).toEqual([])
+  })
+
+  it('retries a read mark that failed when the chat is focused again', async () => {
+    const { computer, harness, key, state, updates } = await connected((thread) => {
+      thread.readState = { firstUnread: { type: 'turn', turnId: thread.turns[0].id }, revision: 'r1' }
+    })
+    computer.failingMethods.add('thread/readState/update')
+    harness.link().openChat(key)
+    harness.link().focusChat(key)
+    await waitFor(() => updates().length === 1)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(updates()).toHaveLength(1)
+
+    computer.failingMethods.delete('thread/readState/update')
+    harness.link().blurChat(key)
+    harness.link().focusChat(key)
+    await waitFor(() => state().chats[key].readState?.firstUnread === null)
+    expect(updates()).toHaveLength(2)
+  })
+
+  it('stops following receipts once its computer is removed', async () => {
+    const { harness, key } = await connected((thread) => {
+      thread.readState = { firstUnread: null, revision: 'r1' }
+    })
+    harness.link().openChat(key)
+    harness.link().focusChat(key)
+
+    await expect(harness.session.removeComputer(harness.link().id)).resolves.toBeUndefined()
   })
 })

@@ -40,6 +40,8 @@ export function useActiveThreadReadReceipt(): void {
     const key = `${activeThreadId}\u0000${readState.revision}`
     if (sentKeyRef.current === key) return
     sentKeyRef.current = key
-    void updateThreadReadState(activeThreadId, readState, 'read')
+    void updateThreadReadState(activeThreadId, readState, 'read').then((settled) => {
+      if (!settled && sentKeyRef.current === key) sentKeyRef.current = null
+    })
   }, [activeThreadId, readState, focused, conversationVisible])
 }

@@ -126,7 +126,7 @@ export class MobileSession {
       const kept = this.live?.enterForeground() ?? false
       for (const link of this.links.values()) {
         if (!kept || link.store.getState().link !== 'online') link.restart()
-        link.readVisibleChats()
+        link.readVisibleChats(true)
       }
       return
     }

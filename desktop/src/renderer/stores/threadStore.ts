@@ -258,6 +258,17 @@ function disposeViewerTabsForThread(threadId: string): void {
   })
 }
 
+let readStateSequence = 0
+const readStateChangedAt = new Map<string, number>()
+
+export function readStateMark(): number {
+  return readStateSequence
+}
+
+export function readStateChangedSince(threadId: string, mark: number): boolean {
+  return (readStateChangedAt.get(threadId) ?? 0) > mark
+}
+
 export const useThreadStore = create<ThreadStore>((set, _get) => ({
   ...initialState,
 
@@ -720,6 +731,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   setThreadReadState(threadId, readState) {
+    readStateChangedAt.set(threadId, ++readStateSequence)
     set((state) => ({
       threadList: state.threadList.map((thread) => thread.id === threadId ? { ...thread, readState } : thread),
       activeThread: state.activeThread?.id === threadId ? { ...state.activeThread, readState } : state.activeThread

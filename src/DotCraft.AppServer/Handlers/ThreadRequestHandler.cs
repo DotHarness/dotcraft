@@ -27,6 +27,7 @@ internal sealed partial class ThreadRequestHandler(
     string? hostWorkspacePath,
     AgentProfileThreadConfigResolver profileResolver,
     SessionStreamDebugLogger? streamDebugLogger,
+    AppServerThreadSubscribers? subscribers,
     ILogger<ThreadRequestHandler>? logger) : IAppServerDomainHandler
 {
     private const int ThreadListDefaultPageLimit = 50;
@@ -567,6 +568,12 @@ internal sealed partial class ThreadRequestHandler(
 
         var thread = await sessionService.RollbackThreadAsync(threadId, numTurns, ct);
         connection.RevokeMcpAppThreadEligibility(threadId);
+        subscribers?.NotifyOthers(
+            Contract.AppServerRpc.ThreadRolledBack,
+            threadId,
+            connection,
+            static _ => true,
+            new Contract.ThreadRolledBackNotification { ThreadId = threadId });
         return AppServerTypedResult<Contract.ThreadRollbackResponse>.FromResult(new()
         {
             Thread = Protocol.Optional<Contract.SessionThread>.FromValue(

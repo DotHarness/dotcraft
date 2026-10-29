@@ -10,7 +10,7 @@ namespace DotCraft.Tests.AppServer;
 public sealed class ThreadReadStateIntegrationTests
 {
     [Fact]
-    public async Task FailedTurn_ProjectsReceiptAcrossConnections()
+    public async Task FailedTurn_ProjectsReceiptAcrossConnections_AndRollbackReachesSubscribers()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-read-state-" + Guid.NewGuid().ToString("N"));
         var workspace = Path.Combine(root, "workspace");
@@ -86,6 +86,13 @@ public sealed class ThreadReadStateIntegrationTests
                 var readRevision = markedState.GetProperty("revision").GetString()!;
                 var passiveSaw = await CollectUntilAsync(server.Process.Wire, IsMethodFor("thread/readState/changed", threadId), deadline.Token);
                 Assert.Equal(readRevision, ReadStateOf(passiveSaw[^1]).GetProperty("revision").GetString());
+
+                using var subscribed = await observer.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
+                Result(subscribed);
+                using var rolledBack = await server.Process.Wire.SendRequestAsync(
+                    "thread/rollback", new { threadId, numTurns = 1 }, ct: deadline.Token);
+                Result(rolledBack);
+                await CollectUntilAsync(observer.Wire, IsMethodFor("thread/rolledBack", threadId), deadline.Token);
 
                 using var ephemeral = await server.Process.Wire.SendRequestAsync(
                     "thread/start", new { identity, ephemeral = true }, ct: deadline.Token);

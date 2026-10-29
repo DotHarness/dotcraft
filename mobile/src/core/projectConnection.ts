@@ -122,6 +122,8 @@ export class ProjectConnection {
   private references: Promise<void> | null = null
   private tasks: BackgroundTaskSync | null = null
   private readonly stream: StreamBatch
+  private readStateSequence = 0
+  private readonly readStateChangedAt = new Map<string, number>()
 
   constructor(private readonly options: ProjectConnectionOptions) {
     this.stream = new StreamBatch((threadId, deltas) => {
@@ -277,7 +279,7 @@ export class ProjectConnection {
         this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
       }
     })
-    on('thread/readState/changed', ({ threadId, readState }) => this.patch(threadId, { readState }))
+    on('thread/readState/changed', ({ threadId, readState }) => this.applyReadState(threadId, readState))
     on('thread/renamed', ({ threadId, displayName }) => {
       if (threadId && displayName) this.patch(threadId, { title: displayName })
     })
@@ -406,7 +408,12 @@ export class ProjectConnection {
   }
 
   private async loadThreads(client: DotCraftWireClient): Promise<void> {
+    const requestedAtMark = this.readStateSequence
     const result = await client.request('thread/list', { identity: PHONE_IDENTITY, scope: 'workspace', limit: 100 })
+    const readStateOf = (threadId: string): ThreadReadState | null =>
+      (this.readStateChangedAt.get(threadId) ?? 0) > requestedAtMark
+        ? this.store.getState().chats[this.key(threadId)]?.readState ?? null
+        : result.readStates?.[threadId] ?? null
     const chats: ChatSummary[] = result.data.map((summary) => ({
       key: this.key(summary.id),
       projectId: this.projectId,
@@ -417,7 +424,7 @@ export class ProjectConnection {
       lastTurnFailed: false,
       profileId: null,
       spawnedFrom: summary.source?.spawnedFromThreadId ?? null,
-      readState: result.readStates?.[summary.id] ?? null,
+      readState: readStateOf(summary.id),
     }))
     this.store.dispatch({ type: 'threads', projectId: this.projectId, chats })
   }
@@ -534,12 +541,17 @@ export class ProjectConnection {
         expectedRevision: current.revision,
         operation: { type: 'read' },
       })
-      this.patch(threadId, { readState })
+      this.applyReadState(threadId, readState)
     } catch (error) {
       const data = error instanceof JsonRpcError ? (error.data as { code?: string; readState?: ThreadReadState } | undefined) : undefined
       if (data?.code !== 'readStateConflict' || !data.readState) throw error
-      this.patch(threadId, { readState: data.readState })
+      this.applyReadState(threadId, data.readState)
     }
+  }
+
+  private applyReadState(threadId: string, readState: ThreadReadState): void {
+    this.readStateChangedAt.set(threadId, ++this.readStateSequence)
+    this.patch(threadId, { readState })
   }
 
   async unsubscribe(threadId: string): Promise<void> {

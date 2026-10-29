@@ -5,7 +5,7 @@ import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
 import { initConnectionStore, useConnectionStore } from './stores/connectionStore'
-import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
+import { readStateMark, useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
 import {
   getThreadConversation,
   selectLatestCreatePlanTurnId,
@@ -111,6 +111,7 @@ import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { withReadStates } from './utils/threadReadState'
+import { reloadThreadAfterRollback } from './utils/threadRollback'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
@@ -932,11 +933,12 @@ export function App(): JSX.Element {
       const settings = await window.api.settings.get()
       if (!isCurrentRequest()) return
       const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
+      const requestedAtMark = readStateMark()
       const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
       const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates), projectKey)
+      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates, requestedAtMark), projectKey)
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
       }
@@ -1748,6 +1750,19 @@ export function App(): JSX.Element {
               useTurnBookmarkStore.getState().forgetThread(pp.threadId)
             }
             useThreadStore.getState().removeThreadTree(pp.threadId)
+            break
+          }
+
+          case 'thread/rolledBack': {
+            const threadId = (p as { threadId?: string }).threadId
+            if (!threadId) break
+            if (useThreadStore.getState().activeThreadId === threadId) {
+              void reloadThreadAfterRollback(threadId).catch((err: unknown) => {
+                console.error('Failed to reload a rolled back thread:', err)
+              })
+            } else {
+              releaseWarmThreadRef.current(threadId)
+            }
             break
           }
 
@@ -2635,6 +2650,7 @@ export function App(): JSX.Element {
     promise: Promise<boolean>
   }>())
   const warmThreadsRef = useRef(createWarmThreads())
+  const releaseWarmThreadRef = useRef<(threadId: string) => void>(() => {})
   const activeThreadHeaderRef = useRef<Thread | null>(null)
   const { activeThreadId, activeThread, threadList, threadListProjectKey } = useThreadStore()
   if (activeThread && activeThread.id === activeThreadId) activeThreadHeaderRef.current = activeThread
@@ -2794,6 +2810,9 @@ export function App(): JSX.Element {
     releaseThreadState(threadId)
     void queueThreadUnsubscribe(threadId).catch(() => {})
   }, [queueThreadUnsubscribe])
+  releaseWarmThreadRef.current = (threadId: string): void => {
+    if (warmThreadsRef.current.take(threadId)) releaseThread(threadId)
+  }
 
   useEffect(() => {
     for (const [threadId, warm] of warmThreadsRef.current.entries()) {

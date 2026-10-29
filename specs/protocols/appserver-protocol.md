@@ -440,7 +440,7 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 
 ### 4.5 `thread/rollback`
 
-Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread must not be archived or contain a `running` or `waitingApproval` turn. Only conversation history changes; workspace files and other side effects are not reverted. A read receipt whose `firstUnread` Turn is removed becomes read and publishes `thread/readState/changed`. Result: `{ thread }` (header). Clients invalidate cursors and reload history.
+Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread must not be archived or contain a `running` or `waitingApproval` turn. Only conversation history changes; workspace files and other side effects are not reverted. A read receipt whose `firstUnread` Turn is removed becomes read and publishes `thread/readState/changed`. Result: `{ thread }` (header). Clients invalidate cursors and reload history. Every other connection subscribed to the thread receives `thread/rolledBack` `{ threadId }` after the rollback commits, so clients holding the thread's history discard it; the caller already has the new header.
 
 ### 4.6 `thread/subscribe`
 
@@ -754,6 +754,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | `thread/resumed` | `{ thread, resumedBy }` | Thread resumed through `thread/resume`; `resumedBy` is the channel name. |
 | `thread/archived` | `{ threadId }` | Archived directly or as part of its parent. |
 | `thread/unarchived` | `{ threadId }` | Restored to Active. |
+| `thread/rolledBack` | `{ threadId }` | Another connection rolled back the thread's history ([4.5](#45-threadrollback)). Sent to the other connections subscribed to the thread. |
 | `thread/readState/changed` | `{ threadId, readState }` | The thread's read receipt changed through a new result, `thread/readState/update`, or rollback ([4.19](#419-threadreadstateupdate)). Broadcast to every initialized connection that has not opted out, subscribed or not. |
 
 #### `thread/status/changed`

@@ -23152,6 +23152,24 @@
       "variants": []
     },
     {
+      "id": "core.ThreadRolledBackNotification",
+      "name": "ThreadRolledBackNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRolledBackNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadRuntimeState",
       "name": "ThreadRuntimeState",
       "module": "core",
@@ -33745,6 +33763,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/rolledBack",
+      "descriptorMember": "ThreadRolledBack",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadRolledBackNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

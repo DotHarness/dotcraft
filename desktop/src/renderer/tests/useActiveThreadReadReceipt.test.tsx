@@ -104,4 +104,22 @@ describe('active thread read receipt', () => {
     expect(useThreadStore.getState().threadList[0].readState).toEqual(current)
     expect(readRequests()).toHaveLength(1)
   })
+
+  it('retries a read mark that failed when the thread is seen again', async () => {
+    sendRequest.mockImplementationOnce(async () => { throw new Error('connection lost') })
+    useThreadStore.getState().setThreadList([summary('a', unreadTurn)])
+    renderHook(() => useActiveThreadReadReceipt())
+    act(() => useThreadStore.getState().setActiveThreadId('a'))
+    await settle()
+    expect(readRequests()).toHaveLength(1)
+
+    act(() => { window.dispatchEvent(new Event('blur')) })
+    act(() => { window.dispatchEvent(new Event('focus')) })
+    await settle()
+
+    expect(readRequests()).toEqual([
+      { threadId: 'a', expectedRevision: 'r1', operation: { type: 'read' } },
+      { threadId: 'a', expectedRevision: 'r1', operation: { type: 'read' } }
+    ])
+  })
 })

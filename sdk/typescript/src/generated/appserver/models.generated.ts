@@ -4695,6 +4695,11 @@ export interface ThreadRollbackResponse {
   [key: string]: unknown;
 }
 
+export interface ThreadRolledBackNotification {
+  threadId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadRuntimeState {
   activeTurnId?: string | null;
   activeTurnStartedAt?: string | null;
