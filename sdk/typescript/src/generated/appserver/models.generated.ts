@@ -3530,6 +3530,7 @@ export interface SessionThread {
   path?: string | null;
   plan?: SessionPlan | null;
   queuedInputs: QueuedTurnInput[];
+  readState?: ThreadReadState | null;
   runtime: ThreadRuntimeState;
   runtimeWorkspaceRoots: string[];
   sessionId: string;
@@ -4364,6 +4365,19 @@ export interface ThreadDeletedNotification {
   [key: string]: unknown;
 }
 
+export type ThreadFirstUnread = ThreadFirstUnreadThreadStart | ThreadFirstUnreadTurn;
+
+export interface ThreadFirstUnreadThreadStart {
+  type: string & "threadStart";
+  [key: string]: unknown;
+}
+
+export interface ThreadFirstUnreadTurn {
+  type: string & "turn";
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadForkParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
   config?: ThreadConfiguration | null;
@@ -4495,6 +4509,7 @@ export interface ThreadListParams {
 export interface ThreadListResult {
   data: ThreadSummary[];
   nextCursor?: string | null;
+  readStates?: Record<string, ThreadReadState> | null;
   totalMatched?: number | null;
   [key: string]: unknown;
 }
@@ -4583,6 +4598,35 @@ export interface ThreadReadParams {
 
 export interface ThreadReadResult {
   thread: SessionThread;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadState {
+  firstUnread: ThreadFirstUnread | null;
+  revision: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadStateChangedNotification {
+  readState: ThreadReadState;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadStateOperation {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadStateUpdateParams {
+  expectedRevision: string;
+  operation: ThreadReadStateOperation;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadStateUpdateResult {
+  readState: ThreadReadState;
   [key: string]: unknown;
 }
 

@@ -37,6 +37,7 @@ export const MESSAGES_FR: Catalog = {
   'state.needsAnswer': 'Réponse requise',
   'state.done': 'Terminée',
   'state.failed': 'Échec',
+  'state.unread': 'Non lu',
 
   'chat.untitled': 'Nouvelle discussion',
   'chat.catchingUp': 'Synchronisation…',

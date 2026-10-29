@@ -216,7 +216,6 @@ describe('threadStore.upsertThreads', () => {
       turnId: 'turn-1',
       rawParams: { threadId: 'leaked', requestId: 'input-1', questions: [] }
     })
-    s().markUnreadCompleted('leaked')
 
     s().upsertThreads([
       makeThreadSummary('leaked', {
@@ -231,13 +230,12 @@ describe('threadStore.upsertThreads', () => {
     expect(state.pendingApprovalThreadIds.has('leaked')).toBe(false)
     expect(state.pendingUserInputThreadIds.has('leaked')).toBe(false)
     expect(state.pendingPlanConfirmationThreadIds.has('leaked')).toBe(false)
-    expect(state.unreadCompletedThreadIds.has('leaked')).toBe(false)
     expect(state.parkedApprovals.has('leaked')).toBe(false)
     expect(state.parkedUserInputs.has('leaked')).toBe(false)
     expect(state.goalSnapshots.has('leaked')).toBe(false)
   })
 
-  it('keeps hidden threads out of running, unread, and badge state', () => {
+  it('keeps hidden threads out of running and badge state', () => {
     const runningSnapshot = {
       running: true,
       waitingOnApproval: true,
@@ -254,7 +252,6 @@ describe('threadStore.upsertThreads', () => {
         isActive: false,
         isDesktopOrigin: true
       })
-      s().markUnreadCompleted(id)
     }
     s().applyRuntimeSnapshot('visible', runningSnapshot, { isActive: false, isDesktopOrigin: true })
 
@@ -262,7 +259,6 @@ describe('threadStore.upsertThreads', () => {
     expect(state.threadList.map((thread) => thread.id)).toEqual(['visible'])
     expect([...state.runningTurnThreadIds]).toEqual(['visible'])
     expect([...state.pendingApprovalThreadIds]).toEqual(['visible'])
-    expect(state.unreadCompletedThreadIds.size).toBe(0)
     expect(state.runtimeSnapshots.has('fork')).toBe(false)
     expect(state.runtimeSnapshots.has('builder')).toBe(false)
   })
@@ -483,7 +479,7 @@ describe('threadStore indicator state', () => {
     expect(s().parkedUserInputs.has('t1')).toBe(false)
   })
 
-  it('tracks and clears pending plan/unread-completed on thread activation', () => {
+  it('tracks and clears pending plan on thread activation', () => {
     s().applyRuntimeSnapshot('thread-a', {
       running: false,
       waitingOnApproval: true,
@@ -493,18 +489,15 @@ describe('threadStore indicator state', () => {
       isDesktopOrigin: true
     })
     s().markPlanConfirmationPending('thread-a')
-    s().markUnreadCompleted('thread-a')
     expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
-    expect(s().unreadCompletedThreadIds.has('thread-a')).toBe(true)
 
     s().setActiveThreadId('thread-a')
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(false)
     expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(false)
-    expect(s().unreadCompletedThreadIds.has('thread-a')).toBe(false)
   })
 
-  it('applies runtime snapshots for running, approval, plan, and unread state', () => {
+  it('applies runtime snapshots for running, approval, and plan state', () => {
     s().setThreadList([makeThreadSummary('thread-a', { originChannel: 'dotcraft-desktop' })])
 
     s().applyRuntimeSnapshot('thread-a', {
@@ -518,7 +511,6 @@ describe('threadStore indicator state', () => {
 
     expect(s().runningTurnThreadIds.has('thread-a')).toBe(true)
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
-    expect(s().unreadCompletedThreadIds.has('thread-a')).toBe(false)
 
     s().applyRuntimeSnapshot('thread-a', {
       running: false,
@@ -532,6 +524,5 @@ describe('threadStore indicator state', () => {
     expect(s().runningTurnThreadIds.has('thread-a')).toBe(false)
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(false)
     expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
-    expect(s().unreadCompletedThreadIds.has('thread-a')).toBe(true)
   })
 })

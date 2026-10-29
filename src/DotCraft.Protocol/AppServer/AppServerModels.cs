@@ -1138,6 +1138,10 @@ public sealed class SessionThread : ExtensibleJsonObject
     [JsonPropertyName("contextUsage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextUsageSnapshot? ContextUsage { get; init; }
+
+    [JsonPropertyName("readState")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadReadState? ReadState { get; init; }
 }
 
 /// <summary>Describes why a thread exists.</summary>
@@ -1492,6 +1496,11 @@ public sealed class ThreadListResult : ExtensibleJsonObject
     [JsonPropertyName("totalMatched")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TotalMatched { get; init; }
+
+    /// <summary>Receipts of the eligible threads on this page; an id without an entry has no receipt.</summary>
+    [JsonPropertyName("readStates")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, ThreadReadState>? ReadStates { get; init; }
 }
 
 public sealed class ThreadSearchMatch : ExtensibleJsonObject

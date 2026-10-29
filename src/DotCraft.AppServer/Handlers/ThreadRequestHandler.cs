@@ -62,6 +62,7 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadUnarchive, HandleThreadUnarchiveAsync);
         table.Map(Contract.AppServerRpc.ThreadDelete, HandleThreadDeleteAsync);
         table.Map(Contract.AppServerRpc.ThreadRename, HandleThreadRenameAsync);
+        table.Map(Contract.AppServerRpc.ThreadReadStateUpdate, HandleThreadReadStateUpdateAsync);
         table.Map(Contract.AppServerRpc.ThreadModeSet, HandleThreadModeSetAsync);
         table.Map(Contract.AppServerRpc.ThreadConfigUpdate, HandleThreadConfigUpdateAsync);
     }
@@ -332,7 +333,8 @@ internal sealed partial class ThreadRequestHandler(
         {
             Data = data,
             NextCursor = nextCursor,
-            TotalMatched = isPaged || !string.IsNullOrWhiteSpace(p.Query) ? totalMatched : null
+            TotalMatched = isPaged || !string.IsNullOrWhiteSpace(p.Query) ? totalMatched : null,
+            ReadStates = await threadProjector.GetReadStatesAsync(page, ct)
         };
         return AppServerTypedResult<Contract.ThreadListResult>.FromResult(result);
     }

@@ -12,6 +12,8 @@ public sealed partial class SessionService
     {
         public bool Enabled => CurrentConfig.Enabled;
 
+        public bool AutoContinues => CurrentConfig is { Enabled: true, AutoContinueEnabled: true };
+
         private AppConfig.GoalsConfig CurrentConfig =>
             (owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config).Goals;
 

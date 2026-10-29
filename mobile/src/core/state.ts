@@ -1,4 +1,4 @@
-import type { ModelCatalogItem, ThreadConfiguration, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
+import type { ModelCatalogItem, ThreadConfiguration, ThreadReadState, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
 import type { ProviderUsage } from './accountUsage'
 import type { BackgroundTask, TaskSource, TaskSources } from './backgroundTasks'
 import { chatState, needsYou, type ChatState } from './chatState'
@@ -51,6 +51,7 @@ export interface ChatSummary {
   lastTurnFailed: boolean
   profileId: string | null
   spawnedFrom?: string | null
+  readState?: ThreadReadState | null
 }
 
 export interface ChatDetail {

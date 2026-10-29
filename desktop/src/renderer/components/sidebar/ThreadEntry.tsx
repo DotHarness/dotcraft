@@ -11,7 +11,7 @@ import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Spinner } from '../ui/Spinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
-import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, ArrowRightLeft, CircleDot, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
 import { THREAD_DRAG_MIME } from '../../utils/threadReferences'
 import { useAutomationsStore } from '../../stores/automationsStore'
@@ -22,6 +22,7 @@ import { IconButton } from '../ui/IconButton'
 import { getSubAgentDepth, isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
+import { isThreadUnread, updateThreadReadState } from '../../utils/threadReadState'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
@@ -48,8 +49,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     runningTurnThreadIds,
     pendingApprovalThreadIds,
     pendingUserInputThreadIds,
-    pendingPlanConfirmationThreadIds,
-    unreadCompletedThreadIds
+    pendingPlanConfirmationThreadIds
   } = useThreadStore()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
@@ -64,7 +64,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const hasPendingApproval = pendingApprovalThreadIds.has(thread.id)
   const hasPendingUserInput = pendingUserInputThreadIds.has(thread.id)
   const hasPendingPlanConfirmation = pendingPlanConfirmationThreadIds.has(thread.id)
-  const hasUnreadCompleted = unreadCompletedThreadIds.has(thread.id)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -134,12 +133,11 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
-  const showUnreadCompletedDot =
-    !isActive
-    && !hasRunningTurn
+  const showUnreadDot =
+    !hasRunningTurn
     && !isSubAgent
     && thread.status === 'active'
-    && hasUnreadCompleted
+    && isThreadUnread(thread)
   const compactStatusColumn = '24px'
   const statusColumn = showPendingInStatus ? 'minmax(24px, max-content)' : compactStatusColumn
   const statusSlotWidth = showPendingInStatus ? 'max-content' : compactStatusColumn
@@ -490,13 +488,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     testId={`thread-running-indicator-${thread.id}`}
                   />
                 </span>
-              ) : showUnreadCompletedDot ? (
-                <ActionTooltip label={t('threadEntry.unreadCompleted')}>
+              ) : showUnreadDot ? (
+                <ActionTooltip label={t('threadEntry.unread')}>
                   <span
                     className="dc-status-indicator"
                     role="img"
-                    aria-label={t('threadEntry.unreadCompleted')}
-                    data-testid={`thread-unread-completed-${thread.id}`}
+                    aria-label={t('threadEntry.unread')}
+                    data-testid={`thread-unread-${thread.id}`}
                   >
                     <span className="dc-status-indicator__dot" data-tone="success" />
                   </span>
@@ -609,6 +607,8 @@ function ThreadEntryContextMenu({
   } = useThreadStore()
   const threadId = thread.id
   const pinned = pinnedThreadIds.includes(threadId)
+  const readState = thread.readState
+  const unread = isThreadUnread(thread)
 
   async function handleDelete(): Promise<void> {
     onClose()
@@ -676,6 +676,15 @@ function ThreadEntryContextMenu({
           icon: <Pencil size={14} aria-hidden />,
           onClick: onRename
         },
+        ...(allowLifecycleActions && readState
+          ? [
+              {
+                label: unread ? t('threadEntry.markRead') : t('threadEntry.markUnread'),
+                icon: <CircleDot size={14} aria-hidden />,
+                onClick: () => void updateThreadReadState(threadId, readState, unread ? 'read' : 'unread')
+              }
+            ]
+          : []),
         ...(allowLifecycleActions
           ? [
               {

@@ -905,6 +905,7 @@ public sealed partial class SessionService(
         ForgetContextPages(threadId);
         var survivingSession = await TryLoadSurvivingModelHistoryAsync(thread, ct);
         await SaveContextUsageFromSessionAsync(thread, survivingSession, ct);
+        await ResetReadStateAfterRollbackAsync(thread);
         ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.HistoryRolledBack, null);
         return thread;
     }
@@ -1521,7 +1522,8 @@ public sealed partial class SessionService(
     private static string ResolveApprovalSource(string? channelName) =>
         channelName?.ToLowerInvariant() ?? "console";
 
-    private static void FailTurn(
+    private void FailTurn(
+        SessionThread thread,
         SessionTurn turn,
         SessionEventChannel channel,
         string errorMsg,
@@ -1534,6 +1536,7 @@ public sealed partial class SessionService(
             : ProviderFailureKinds.ToWireName(providerFailure.Kind);
         turn.HttpStatus = providerFailure?.HttpStatus;
         turn.CompletedAt = DateTimeOffset.UtcNow;
+        RecordFailedTurnReadState(thread, turn);
         channel.EmitTurnFailed(turn, errorMsg);
     }
 

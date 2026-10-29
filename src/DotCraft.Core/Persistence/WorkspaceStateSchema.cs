@@ -138,6 +138,15 @@ internal static class WorkspaceStateSchema
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS thread_read_receipts (
+                    thread_id TEXT PRIMARY KEY,
+                    first_unread_turn_id TEXT,
+                    revision TEXT NOT NULL,
+                    last_result_turn_id TEXT,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS thread_plans (
                     thread_id TEXT PRIMARY KEY,
                     plan_json TEXT,

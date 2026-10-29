@@ -16,7 +16,7 @@ export function isSessionImportAvailable(capabilities: ServerCapabilities | null
   return capabilities?.extensions?.agentImport != null
 }
 
-export function isSessionImportThread(thread: Pick<ThreadSummary, 'originChannel'>): boolean {
+function isSessionImportThread(thread: Pick<ThreadSummary, 'originChannel'>): boolean {
   return thread.originChannel?.toLowerCase() === 'session-import'
 }
 

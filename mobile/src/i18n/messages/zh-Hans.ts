@@ -37,6 +37,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'state.needsAnswer': '需要回答',
   'state.done': '已完成',
   'state.failed': '失败',
+  'state.unread': '未读',
 
   'chat.untitled': '新聊天',
   'chat.catchingUp': '正在同步…',

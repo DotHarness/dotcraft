@@ -92,6 +92,7 @@ export class MobileSession {
       random: this.platform.random,
       appVersion: this.platform.device.appVersion,
       awake: () => this.awake,
+      foreground: () => this.foreground,
       revoked: (computerId) => void this.forget(computerId, true),
     })
     this.links.set(computer.id, link)
@@ -125,6 +126,7 @@ export class MobileSession {
       const kept = this.live?.enterForeground() ?? false
       for (const link of this.links.values()) {
         if (!kept || link.store.getState().link !== 'online') link.restart()
+        link.readVisibleChats()
       }
       return
     }

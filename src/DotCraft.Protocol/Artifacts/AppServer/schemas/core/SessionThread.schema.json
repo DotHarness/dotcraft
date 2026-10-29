@@ -175,6 +175,16 @@
         "$ref": "./QueuedTurnInput.schema.json"
       }
     },
+    "readState": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadReadState.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "runtime": {
       "$ref": "./ThreadRuntimeState.schema.json"
     },

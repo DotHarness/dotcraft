@@ -23,6 +23,7 @@ import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
+import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
 import { normalizeThreadRuntime, runtimeSnapshotFromThread } from './utils/threadRuntime'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
@@ -93,7 +94,7 @@ import {
   type McpElicitationResponse
 } from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
-import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
+import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
@@ -107,7 +108,7 @@ import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseO
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
-import { isSessionImportThread } from './utils/sessionImport'
+import { withReadStates } from './utils/threadReadState'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
@@ -928,9 +929,9 @@ export function App(): JSX.Element {
       const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
       const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
-      const res = result as unknown as { data: ThreadSummary[] }
+      const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(res.data ?? [], projectKey)
+      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates), projectKey)
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
       }
@@ -1710,9 +1711,6 @@ export function App(): JSX.Element {
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
             doAddThread(pp.thread)
-            if (isSessionImportThread(pp.thread)) {
-              useThreadStore.getState().markUnreadCompleted(pp.thread.id)
-            }
             if (pp.thread && isSubAgentThread(pp.thread)) {
               const parentThreadId = getSubAgentParentThreadId(pp.thread)
               if (parentThreadId) {
@@ -1765,6 +1763,14 @@ export function App(): JSX.Element {
             const pp = p as { threadId?: string; queuedInputs?: unknown[] }
             if (shouldUpdateActiveConversation(pp.threadId)) {
               useConversationStore.getState().setQueuedInputs((pp.queuedInputs ?? []) as QueuedTurnInput[])
+            }
+            break
+          }
+
+          case 'thread/readState/changed': {
+            const pp = p as { threadId?: string; readState?: ThreadReadState }
+            if (pp.threadId && pp.readState) {
+              useThreadStore.getState().setThreadReadState(pp.threadId, pp.readState)
             }
             break
           }
@@ -3145,6 +3151,7 @@ export function App(): JSX.Element {
   ])
 
   useActiveThreadModeSync(activeProjectKey)
+  useActiveThreadReadReceipt()
 
   useEffect(() => {
     if (status !== 'connected') {

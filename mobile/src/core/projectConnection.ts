@@ -8,6 +8,7 @@ import type {
   SessionThread,
   ServerNotificationMethods,
   ThreadConfiguration,
+  ThreadReadState,
   ThreadRuntimeState,
   TurnNotification,
   UserInputResponseResult,
@@ -276,6 +277,7 @@ export class ProjectConnection {
         this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
       }
     })
+    on('thread/readState/changed', ({ threadId, readState }) => this.patch(threadId, { readState }))
     on('thread/renamed', ({ threadId, displayName }) => {
       if (threadId && displayName) this.patch(threadId, { title: displayName })
     })
@@ -368,6 +370,7 @@ export class ProjectConnection {
         lastTurnFailed: previous?.lastTurnFailed ?? false,
         profileId: thread.configuration?.agentProfileId ?? null,
         spawnedFrom: thread.source.spawnedFromThreadId ?? null,
+        readState: thread.readState ?? previous?.readState ?? null,
       },
     })
   }
@@ -414,6 +417,7 @@ export class ProjectConnection {
       lastTurnFailed: false,
       profileId: null,
       spawnedFrom: summary.source?.spawnedFromThreadId ?? null,
+      readState: result.readStates?.[summary.id] ?? null,
     }))
     this.store.dispatch({ type: 'threads', projectId: this.projectId, chats })
   }
@@ -519,6 +523,22 @@ export class ProjectConnection {
       if (!answered.has(requestId)) continue
       this.held.delete(requestId)
       this.store.dispatch({ type: 'pendingRemoved', key, requestId })
+    }
+  }
+
+  async markRead(threadId: string, current: ThreadReadState): Promise<void> {
+    const client = this.requireClient()
+    try {
+      const { readState } = await client.request('thread/readState/update', {
+        threadId,
+        expectedRevision: current.revision,
+        operation: { type: 'read' },
+      })
+      this.patch(threadId, { readState })
+    } catch (error) {
+      const data = error instanceof JsonRpcError ? (error.data as { code?: string; readState?: ThreadReadState } | undefined) : undefined
+      if (data?.code !== 'readStateConflict' || !data.readState) throw error
+      this.patch(threadId, { readState: data.readState })
     }
   }
 

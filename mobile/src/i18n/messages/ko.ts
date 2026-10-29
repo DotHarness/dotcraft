@@ -37,6 +37,7 @@ export const MESSAGES_KO: Catalog = {
   'state.needsAnswer': '답변 필요',
   'state.done': '완료',
   'state.failed': '실패',
+  'state.unread': '읽지 않음',
 
   'chat.untitled': '새 채팅',
   'chat.catchingUp': '동기화하는 중…',

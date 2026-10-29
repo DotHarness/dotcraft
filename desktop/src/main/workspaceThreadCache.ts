@@ -165,6 +165,8 @@ export function applyWorkspaceThreadNotificationToCache(
     }
   } else if (method === 'thread/status/changed') {
     next = updateWorkspaceThread(threads, stringField(p.threadId), { runtime: p.runtime })
+  } else if (method === 'thread/readState/changed' && isRecord(p.readState)) {
+    next = updateWorkspaceThread(threads, stringField(p.threadId), { readState: p.readState })
   }
 
   return {
@@ -174,13 +176,28 @@ export function applyWorkspaceThreadNotificationToCache(
   }
 }
 
+export interface WorkspaceThreadListResult {
+  data?: unknown[]
+  readStates?: Record<string, unknown> | null
+}
+
+function withReadStates(result: WorkspaceThreadListResult): unknown[] {
+  const threads = Array.isArray(result.data) ? result.data : []
+  const readStates = isRecord(result.readStates) ? result.readStates : null
+  if (!readStates) return threads
+  return threads.map((thread) => {
+    const readState = readStates[getThreadId(thread)]
+    return isRecord(thread) && isRecord(readState) ? { ...thread, readState } : thread
+  })
+}
+
 export function applyWorkspaceThreadListRefreshSuccess(
   entry: WorkspaceThreadListRefreshState,
-  data: unknown
+  result: WorkspaceThreadListResult
 ): void {
   advanceThreadListRevision(entry)
   cancelWorkspaceThreadListRetry(entry)
-  entry.threads = Array.isArray(data) ? data : []
+  entry.threads = withReadStates(result)
   entry.errorMessage = undefined
 }
 
@@ -218,13 +235,13 @@ export function applyWorkspaceThreadListRequestResult(
   if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return false
   if (!isRecord(result) || !Array.isArray(result.data) || result.nextCursor != null) return false
 
-  applyWorkspaceThreadListRefreshSuccess(entry, result.data)
+  applyWorkspaceThreadListRefreshSuccess(entry, result)
   return true
 }
 
 export function refreshWorkspaceThreadListCache(
   entry: WorkspaceThreadListRefreshState,
-  load: () => Promise<{ data?: unknown[] }>,
+  load: () => Promise<WorkspaceThreadListResult>,
   options: WorkspaceThreadListRefreshOptions = {}
 ): Promise<boolean> {
   return refreshWorkspaceThreadListAttempt(entry, load, options, 0)
@@ -239,7 +256,7 @@ function cancelWorkspaceThreadListRetry(entry: WorkspaceThreadListRefreshState):
 
 async function refreshWorkspaceThreadListAttempt(
   entry: WorkspaceThreadListRefreshState,
-  load: () => Promise<{ data?: unknown[] }>,
+  load: () => Promise<WorkspaceThreadListResult>,
   options: WorkspaceThreadListRefreshOptions,
   attempt: number
 ): Promise<boolean> {
@@ -248,7 +265,7 @@ async function refreshWorkspaceThreadListAttempt(
   try {
     const result = await load()
     if (threadListRevisions.get(entry) !== revision) return false
-    applyWorkspaceThreadListRefreshSuccess(entry, result.data)
+    applyWorkspaceThreadListRefreshSuccess(entry, result)
   } catch (error) {
     if (threadListRevisions.get(entry) !== revision) return false
     const retryDelayMs = options.retryDelaysMs?.[attempt]

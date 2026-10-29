@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.9.9 |
 | **Status** | Living |
 | **Date** | 2026-10-29 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -387,6 +387,7 @@ List threads matching an identity.
 **Result**: `{ data: ThreadSummary[], nextCursor, totalMatched }`. Summaries carry the same `worktree` and `gitInfo` as the Thread object. Ordered by `lastActiveAt` descending; filters apply before pagination; `totalMatched` counts after filters and before pagination.
 
 - `runtime`: optional best-effort, process-local snapshot with the shape of `thread/status/changed`, for hydrating activity indicators after reconnect. Clients continue to consume `thread/status/changed` as the source of truth and treat omission as unknown, not idle.
+- `readStates`: a map from each read-receipt-eligible thread id on the returned page to its `ThreadReadState` ([4.19](#419-threadreadstateupdate)). Omitted when receipts are unavailable; an id without an entry has no receipt.
 - `originApp` (`appId`, `displayName`, optional `icon`, optional `memberId`): set when the summary's `originChannel` matches an installed App Binding app's declared origin channel. When the app declares origin members and `channelContext` matches one, the branding is the member's and `memberId` is set. Clients fall back to the generic origin badge when absent. The same attribution is attached to full Thread objects from `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback`.
 
 ### 4.3.1 `channel/list`
@@ -411,6 +412,7 @@ Read the current Thread header without resuming it. Params: `threadId`. Result: 
 
 `thread/read` is read-only: it does not load the thread, resume execution, start background services, apply execution-time configuration, or replay the rollout. The header omits historical `turns`; current state such as `queuedInputs`, `runtime`, `goal`, `plan`, and `contextUsage` is included when available. History is read only through `thread/turns/list` and `thread/items/list`.
 
+- `readState`: the thread's `ThreadReadState` ([4.19](#419-threadreadstateupdate)); omitted for a thread without a receipt or when receipts are unavailable.
 - `plan`: the current persisted plan for the thread, in the `plan/updated` shape; clients use it to restore plan UI after switching threads.
 - `contextUsage`: context-window occupancy, not cumulative billing. `tokens` (approximate occupancy), `contextWindow` (effective denominator after budget and reserve rules, not the raw catalog window), `autoCompactThreshold`, `warningThreshold`, `errorThreshold`, `percentLeft` (0.0-1.0), and optional `source` and `isEstimate`. It also appears on `thread/start` and `thread/resume` results and matching notifications. New threads report `tokens = 0`; a thread without persisted occupancy omits it. Accounting follows [Session Core](../architecture/session-core.md#52-turn-lifecycle); replacement estimates follow [Context Compaction](../architecture/context-compaction.md#context-usage).
 
@@ -438,7 +440,7 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 
 ### 4.5 `thread/rollback`
 
-Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread must not be archived or contain a `running` or `waitingApproval` turn. Only conversation history changes; workspace files and other side effects are not reverted. Result: `{ thread }` (header). Clients invalidate cursors and reload history.
+Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread must not be archived or contain a `running` or `waitingApproval` turn. Only conversation history changes; workspace files and other side effects are not reverted. A read receipt whose `firstUnread` Turn is removed becomes read and publishes `thread/readState/changed`. Result: `{ thread }` (header). Clients invalidate cursors and reload history.
 
 ### 4.6 `thread/subscribe`
 
@@ -603,6 +605,21 @@ Restore validates package version, Session and provider-history schemas, origina
 
 Errors use JSON-RPC code `-32097` with `error.data.code` `ThreadRecoveryPackageInvalid`, `ThreadRecoveryPackageIncompatible`, `ThreadRecoveryWorkspaceMismatch`, or `ThreadRecoveryTargetExists`. A missing export source returns `ThreadNotFound`; a busy source returns `TurnInProgress`.
 
+### 4.19 `thread/readState/update`
+
+Every persisted, non-hidden, non-SubAgent thread has one server-owned read receipt shared by all clients of the workspace ([Thread Read State](../features/thread-read-state.md)). `ThreadReadState` is `{ firstUnread, revision }`:
+
+- `firstUnread`: `null` when read; `{ type: "threadStart" }` for an explicit unread mark; `{ type: "turn", turnId }` for the earliest Turn whose result is unseen.
+- `revision`: an opaque string that changes on every receipt write. It is an equality token for its thread only; clients never order or compare it across threads or hosts.
+
+A Turn that delivers a new result keeps an existing `firstUnread`, otherwise sets it to that Turn, and always replaces the revision; the receipt is written and `thread/readState/changed` is published before the Turn's terminal notification. Loading, reading, listing, resuming, and forking never mark a thread read.
+
+**Params**: `{ threadId, expectedRevision, operation }`, where `operation` is `{ type: "read" }` (clears `firstUnread`) or `{ type: "unread" }` (sets `threadStart`). **Result**: `{ readState }`.
+
+- The write requires `expectedRevision` to equal the current revision and always produces a new revision. It never changes `lastActiveAt`, list order, status, or history, and never loads or resumes the thread.
+- A mismatch changes nothing and returns `-32600` with `error.data.code = "readStateConflict"` and the current receipt in `error.data.readState`. Clients adopt that receipt rather than retrying: the original action may predate a result or another client's mark.
+- A thread without a receipt, or a server whose receipts are unavailable, returns `-32600` with `error.data.code = "readStateUnavailable"`; an unknown thread returns `-32010`.
+
 ## 5. Turn Methods
 
 Turn methods correspond to `ISessionService` turn lifecycle operations in [Session Core, Section 5.2](../architecture/session-core.md#52-turn-lifecycle).
@@ -723,7 +740,7 @@ Event notifications are server-initiated JSON-RPC notifications that stream the 
 
 ### 6.1 Thread Notifications
 
-A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper threads marked with `dotcraft.internal` metadata or a known internal origin, and conversational Agent Builder threads). The workspace-level broadcasts below — `thread/started`, `thread/updated`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, and `thread/status/changed` — reach a hidden thread's events only on connections subscribed to it; the creating connection already has the thread from its result. SubAgent child threads are not hidden. Turn and item notifications keep subscription rules.
+A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper threads marked with `dotcraft.internal` metadata or a known internal origin, and conversational Agent Builder threads). The workspace-level broadcasts below — `thread/started`, `thread/updated`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`, and `thread/readState/changed` — reach a hidden thread's events only on connections subscribed to it; the creating connection already has the thread from its result. SubAgent child threads are not hidden. Turn and item notifications keep subscription rules.
 
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
@@ -737,6 +754,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | `thread/resumed` | `{ thread, resumedBy }` | Thread resumed through `thread/resume`; `resumedBy` is the channel name. |
 | `thread/archived` | `{ threadId }` | Archived directly or as part of its parent. |
 | `thread/unarchived` | `{ threadId }` | Restored to Active. |
+| `thread/readState/changed` | `{ threadId, readState }` | The thread's read receipt changed through a new result, `thread/readState/update`, or rollback ([4.19](#419-threadreadstateupdate)). Broadcast to every initialized connection that has not opted out, subscribed or not. |
 
 #### `thread/status/changed`
 
@@ -934,7 +952,7 @@ Delivers a server-managed automation run's result out of band: `source` (`"autom
 
 The server delivers each event notification **at most once per connection**, however many delivery paths exist. When a connection subscribed to a thread calls `turn/start` on it, the subscription dispatcher is the sole delivery path for all turn-scoped notifications (`turn/*`, `turn/diff/updated`, `item/*` including deltas and usage, `subagent/progress`, `system/event`). The `turn/start` response still arrives before the first `turn/started`.
 
-Workspace broadcasts (`thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`) are outside this rule.
+Workspace broadcasts (`thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`, `thread/readState/changed`) are outside this rule.
 
 Delivery is best-effort per connection. A transport write failure stops writes to that client but never stops the server from draining an already-started persisted turn. Passive subscriptions are cancelled with their connection; the internal active-turn drain continues. Outstanding interactive requests belong to their thread and resolve only through a client response, the non-interactive fallback for a turn started by a client without the capability ([Section 7.4](#74-clients-without-approval-support), [Section 7.5](#75-model-initiated-user-input-requests)), or the end of their turn ([Section 7.6](#76-pending-requests-and-multiple-connections)); a write failure, disconnect, or `thread/unsubscribe` never answers them. Returning clients recover through `thread/read`, fresh history pages, `thread/list`, fresh subscriptions, and server replay of unresolved requests on `thread/subscribe` or `thread/resume`.
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.9.9 |
 | **Status** | Living |
 | **Date** | 2026-10-29 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -132,12 +132,13 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Secondary connections load thread summaries and consume only thread-list and runtime notifications; they do not receive turn, item, job, configuration, MCP, or server-request streams.
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
-- A secondary row whose thread stops running is marked unread and shows the unread dot, as foreground rows do, until the thread runs again or is opened. Promoting the project keeps its unread marks.
+- Foreground and secondary rows show the unread dot from the thread's server read receipt ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from `thread/list` and updated by `thread/readState/changed`. Desktop marks a thread read only while it is open in a focused window. Promoting a project keeps its receipts.
 - Remote projects are never background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting an unsaved remote project removes it from the rail; a saved SSH remote project stays listed without thread rows.
 
 **Actions**
 
 - Clicking a background thread promotes its owning workspace, then opens the thread on the foreground connection.
+- A foreground project's eligible thread row context menu offers **Mark as unread** while the thread is read and **Mark as read** while it is unread, after Rename.
 - The global New Chat action starts in the current foreground project. A project-level New Chat first promotes or starts that project; new thread creation always uses the foreground AppServer. The welcome composer keeps a separate draft per project identity and reloads capabilities, skills, plugins, and model state after promotion.
 - Project actions depend on project kind: open, pin, edit, open folder in the system file explorer, **Archive chats**, and **Remove project** (unavailable for the foreground project). Remote projects have no edit or file explorer action, and an open remote project offers disconnect instead of removal. Workspace restart and stop live in the tray, not in project actions.
 - **Archive chats** archives every loaded, unpinned chat in the project after a confirmation stating the count and warning when work is running.
@@ -158,6 +159,7 @@ This section defines how protocol messages affect user-visible behavior, as UX o
 | `thread/archived`, `thread/unarchived` | Thread availability updates immediately; invalid actions are disabled. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
 | `thread/status/changed` | Activity indicators update in the owning workspace's navigation, including secondary workspaces. Summaries use the current Turn identity and start time for elapsed-time display when available. |
+| `thread/readState/changed` | The thread's unread dot updates in the owning workspace's navigation, including secondary workspaces. |
 
 A client that displays multiple workspaces routes each notification with the workspace identity of the connection that received it. For secondary connections, only thread-list and runtime notifications update background project groups; notifications affecting conversation content, configuration, tools, MCP, jobs, approvals, user-input requests, or other interactive surfaces are foreground-only.
 
@@ -850,7 +852,7 @@ When `capabilities.extensions.agentImport` is present, Settings shows an Import 
 - Confirming submits the selected item identities, fingerprints, and categories, plus the categories offered, to `import/run`. `import/progress` updates progress; completion refreshes candidates, settings, and history. `import_busy` shows the running pass instead.
 - Keep-in-sync applies immediately and can be paused without losing imported content or selections; a workspace opt-out disables it. After the first import the synced categories can be customized (at least one required, optionally including future categories), affecting future syncs only.
 - History shows one entry per pass with per-item status, a localized reason, and a link to imported content. Outstanding setup (hook trust, missing MCP environment variables, plugin review) is listed with a direct action. A sync pass that changed nothing stays silent.
-- Imported threads arrive through `thread/started`, are marked unread, and show their source app.
+- Imported threads arrive through `thread/started` and show their source app; imported history never makes them unread.
 
 #### 6.7.2 Computer Use
 

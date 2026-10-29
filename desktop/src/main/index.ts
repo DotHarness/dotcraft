@@ -219,6 +219,7 @@ import {
   applyWorkspaceThreadNotificationToCache,
   beginWorkspaceThreadListRequest,
   refreshWorkspaceThreadListCache,
+  type WorkspaceThreadListResult,
   WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS
 } from './workspaceThreadCache'
 
@@ -627,7 +628,7 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
   const changed = await refreshWorkspaceThreadListCache(
     entry,
     () =>
-      entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
+      entry.client.sendRequest<WorkspaceThreadListResult>('thread/list', {
         identity: makeThreadListIdentity(entry.workspacePath),
         scope: 'workspace',
         includeSubAgents: true

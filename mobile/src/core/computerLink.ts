@@ -23,6 +23,7 @@ export interface ComputerLinkHost {
   random?: () => number
   appVersion: string
   awake(): boolean
+  foreground(): boolean
   revoked(computerId: string): void
 }
 
@@ -33,6 +34,8 @@ export class ComputerLink {
   private readonly connections = new Map<string, ProjectConnection>()
   private readonly opening = new Map<string, Promise<void>>()
   private readonly views = new Map<string, number>()
+  private readonly justOpened = new Set<string>()
+  private readonly readSent = new Map<string, string>()
   private events: SocketHandle | null = null
   private generation = 0
   private attempt: Promise<void> = Promise.resolve()
@@ -49,6 +52,7 @@ export class ComputerLink {
       dispatch: (action) => root.dispatch({ type: 'computer', computerId: id, action }),
     }
     this.reconnector = new Reconnector(() => void this.connect(true), host.timers, host.random)
+    this.store.subscribe(() => this.readVisibleChats())
   }
 
   private get state(): ComputerState {
@@ -334,6 +338,8 @@ export class ComputerLink {
   openChat(key: string): void {
     const count = this.views.get(key) ?? 0
     this.views.set(key, count + 1)
+    this.justOpened.add(key)
+    this.readIfSeen(key)
     if (count > 0) return
     const { projectId, threadId } = this.split(key)
     const connection = this.connections.get(projectId)
@@ -353,8 +359,27 @@ export class ComputerLink {
       return
     }
     this.views.delete(key)
+    this.justOpened.delete(key)
     const { projectId, threadId } = this.split(key)
     void this.connections.get(projectId)?.unsubscribe(threadId)
+  }
+
+  readVisibleChats(): void {
+    for (const key of this.views.keys()) this.readIfSeen(key)
+  }
+
+  private readIfSeen(key: string): void {
+    if (!this.host.foreground()) return
+    const readState = this.state.chats[key]?.readState
+    const { projectId, threadId } = this.split(key)
+    const connection = this.connections.get(projectId)
+    if (!readState || !connection?.ready) return
+    const justOpened = this.justOpened.delete(key)
+    const position = readState.firstUnread
+    if (!position || (position.type === 'threadStart' && !justOpened)) return
+    if (this.readSent.get(key) === readState.revision) return
+    this.readSent.set(key, readState.revision)
+    void connection.markRead(threadId, readState).catch(() => undefined)
   }
 
   async send(key: string, draft: MessageDraft): Promise<void> {

@@ -37,6 +37,7 @@ export const MESSAGES_JA: Catalog = {
   'state.needsAnswer': '回答が必要',
   'state.done': '完了',
   'state.failed': '失敗',
+  'state.unread': '未読',
 
   'chat.untitled': '新しいチャット',
   'chat.catchingUp': '同期しています…',

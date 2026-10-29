@@ -131,6 +131,23 @@ public interface ISessionService
     Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         GetThreadGoalAsync(threadId, ct);
 
+    /// <summary>Returns the thread's read receipt, or null when it has none or receipts are unavailable.</summary>
+    Task<ThreadReadState?> GetThreadReadStateAsync(SessionThread thread, CancellationToken ct = default) =>
+        Task.FromResult<ThreadReadState?>(null);
+
+    /// <summary>Returns the receipts of the eligible threads, or null when receipts are unavailable.</summary>
+    Task<IReadOnlyDictionary<string, ThreadReadState>?> GetThreadReadStatesAsync(
+        IReadOnlyList<ThreadSummary> threads,
+        CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyDictionary<string, ThreadReadState>?>(null);
+
+    Task<ThreadReadState> UpdateThreadReadStateAsync(
+        string threadId,
+        string expectedRevision,
+        ThreadReadStateOperation operation,
+        CancellationToken ct = default) =>
+        throw new ThreadReadStateUnavailableException(threadId);
+
     VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path) =>
         throw new NotSupportedException("Visualization widget state is not supported by this session service.");
 

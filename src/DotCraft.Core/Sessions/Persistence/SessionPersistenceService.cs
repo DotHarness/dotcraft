@@ -304,6 +304,8 @@ public sealed class SessionPersistenceService(
 
     public GenerativeUiStateStore GenerativeUiStates => threadStore.GenerativeUiStates;
 
+    internal ThreadReadStateStore ReadStates => threadStore.ReadStates;
+
     public Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
         => threadStore.GetThreadGoalAsync(threadId, ct);
 

@@ -48,6 +48,7 @@ export interface ServerNotificationMethods {
   "thread/goal/cleared": { params: Models.ThreadGoalClearedNotification; result: Models.RpcEmpty };
   "thread/goal/updated": { params: Models.ThreadGoalUpdatedNotification; result: Models.RpcEmpty };
   "thread/queue/updated": { params: Models.ThreadQueueUpdatedNotification; result: Models.RpcEmpty };
+  "thread/readState/changed": { params: Models.ThreadReadStateChangedNotification; result: Models.RpcEmpty };
   "thread/renamed": { params: Models.ThreadRenamedNotification; result: Models.RpcEmpty };
   "thread/resumed": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "thread/started": { params: Models.ThreadNotification; result: Models.RpcEmpty };

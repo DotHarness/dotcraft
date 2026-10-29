@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.6 |
+| Version | 0.9.9 |
 | Status | Draft |
-| Date | 2026-10-26 |
+| Date | 2026-10-29 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -365,6 +365,12 @@ Chat states use one vocabulary: **running**, **needs approval**, **needs answer*
 **failed**, from `thread/list` runtime snapshots and `thread/status/changed`. A stopped turn is done
 and shows a Stopped line. Thread summaries do not carry the last turn's result, so a list shows
 **failed** only for a failure the phone has seen.
+
+Chat rows on Home and Project show an unread dot from the chat's server read receipt
+([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from
+`thread/list` and updated by `thread/readState/changed`. Opening a chat marks it read, and so does
+a new result, or the app returning to the foreground, while the chat screen is open. A host that
+returns no receipts shows no dots and receives no marks.
 
 Screens paint Desktop's conversation surface: in dark, its vertical gradient from the background
 lifted by 0.5% of the ink to the background darkened by 20% black; in light, its white surface. Bars,
