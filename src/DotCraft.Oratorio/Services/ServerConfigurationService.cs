@@ -216,6 +216,36 @@ public sealed class ServerConfigurationService(
             throw ConfigurationValidationFailed("Configuration payload is required.");
         }
 
+        var applied = await ApplyAsync(
+            new ServerConfigurationApplyRequest(
+                request.BaseRevision,
+                request.Configuration,
+                request.ConfirmImpact,
+                request.DetectGitHubInstallations,
+                "local-admin",
+                context.Connection.RemoteIpAddress?.ToString()),
+            ct);
+        var recent = await GetRecentChangesAsync(5, ct);
+        var response = BuildResponse(context, recent, applied.Configuration, applied.Revision);
+        return new ServerConfigurationUpdateResponse(response, applied.ChangeId, applied.ChangedFields, applied.GitHubInstallationWarnings);
+    }
+
+    public ServerConfigurationSnapshot GetSnapshot() =>
+        new(ComputeRevision(ResolveOverlayPath()), BuildConfiguration());
+
+    public bool DeploymentWritable => settingsOptions.CurrentValue.Writable;
+
+    /// <summary>Validates, persists, reloads and audits a configuration; callers own their transport's authorization.</summary>
+    public async Task<ServerConfigurationApplyResult> ApplyAsync(ServerConfigurationApplyRequest request, CancellationToken ct)
+    {
+        if (!DeploymentWritable)
+        {
+            throw new OratorioApiException(
+                StatusCodes.Status403Forbidden,
+                "configWritesForbidden",
+                "Server configuration writes are disabled for this deployment.");
+        }
+
         ValidateConfiguration(request.Configuration);
         var (nextConfiguration, gitHubInstallationWarnings) = request.DetectGitHubInstallations
             ? await DetectGitHubInstallationProfilesAsync(request.Configuration, ct)
@@ -260,14 +290,11 @@ public sealed class ServerConfigurationService(
 
         var newRevision = ComputeRevision(overlayPath);
         var savedConfiguration = BuildSavedConfiguration(nextConfiguration, before.GitHub.Secrets, before.GitLab.ProjectProfiles);
-        const bool restartRequired = false;
-        string? restartSignature = null;
-        var now = clock.UtcNow;
         var change = new OratorioConfigurationChange
         {
-            CreatedAt = now,
-            Actor = "local-admin",
-            RemoteAddress = context.Connection.RemoteIpAddress?.ToString(),
+            CreatedAt = clock.UtcNow,
+            Actor = request.Actor,
+            RemoteAddress = request.RemoteAddress,
             BaseRevision = currentRevision,
             NewRevision = newRevision,
             ChangedFieldsJson = JsonSerializer.Serialize(changedFields, JsonOptions),
@@ -278,18 +305,14 @@ public sealed class ServerConfigurationService(
         db.ConfigurationChanges.Add(change);
         await db.SaveChangesAsync(ct);
 
-        var recent = await GetRecentChangesAsync(5, ct);
-        var response = BuildResponse(context, recent, savedConfiguration, newRevision, restartRequired, restartSignature);
-        return new ServerConfigurationUpdateResponse(response, change.ChangeId, changedFields, gitHubInstallationWarnings, restartRequired, restartSignature);
+        return new ServerConfigurationApplyResult(savedConfiguration, newRevision, change.ChangeId, changedFields, gitHubInstallationWarnings);
     }
 
     private ServerConfigurationResponse BuildResponse(
         HttpContext context,
         IReadOnlyList<ConfigurationChangeDto> recentChanges,
         ServerConfigurationDto? configurationOverride = null,
-        string? revisionOverride = null,
-        bool restartRequired = false,
-        string? restartSignature = null)
+        string? revisionOverride = null)
     {
         var overlayPath = ResolveOverlayPath();
         var (writable, disabledReason) = ResolveWritable(context);
@@ -301,9 +324,7 @@ public sealed class ServerConfigurationService(
             overlayPath,
             configurationOverride ?? BuildConfiguration(),
             [],
-            recentChanges,
-            restartRequired,
-            restartSignature);
+            recentChanges);
     }
 
     private ServerConfigurationDto BuildConfiguration()
@@ -1551,9 +1572,6 @@ public sealed class ServerConfigurationService(
     private static string NormalizeSecretMode(SecretConfigurationFieldDto? field) =>
         string.IsNullOrWhiteSpace(field?.Mode) ? "unchanged" : field.Mode.Trim();
 
-    private static string BuildRestartSignature(string revision, IReadOnlyList<string> changedFields) =>
-        HashString(revision + "\n" + string.Join("\n", changedFields.Order(StringComparer.Ordinal)));
-
     private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
     {
         foreach (var property in element.EnumerateObject())
@@ -1578,3 +1596,20 @@ public sealed class ServerConfigurationService(
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 }
+
+public sealed record ServerConfigurationSnapshot(string Revision, ServerConfigurationDto Configuration);
+
+public sealed record ServerConfigurationApplyRequest(
+    string? BaseRevision,
+    ServerConfigurationDto Configuration,
+    bool ConfirmImpact,
+    bool DetectGitHubInstallations,
+    string Actor,
+    string? RemoteAddress);
+
+public sealed record ServerConfigurationApplyResult(
+    ServerConfigurationDto Configuration,
+    string Revision,
+    string ChangeId,
+    IReadOnlyList<string> ChangedFields,
+    IReadOnlyList<GitHubInstallationProfileDetectionWarningDto> GitHubInstallationWarnings);

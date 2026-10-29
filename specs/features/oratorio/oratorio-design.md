@@ -2,9 +2,9 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.9.3    |
+| Version      | 0.9.9    |
 | Status       | Living |
-| Date         | 2026-10-24        |
+| Date         | 2026-10-30        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
@@ -236,8 +236,8 @@ Mutating calls validate lifecycle transitions at write time. Retrying a failed
 source write retries only that write and never creates a new decision.
 
 Server configuration writes are a local-admin capability, not a general remote
-administration API; they require a trusted local boundary or operator
-authentication. Writable settings are the source provider connections and
+administration API; they require a trusted local boundary, operator
+authentication, or an active App Binding grant (§5.4). Writable settings are the source provider connections and
 credentials, the DotCraft bridge, workspace routing, managed worktrees,
 concurrency, retry, timeout and cleanup policy, implementation auto-dispatch
 policy, the repository Auto Review list, and the Implementation Follow-up
@@ -383,6 +383,49 @@ hidden unless the archived view is selected.
 
 Local tasks may take part in implementation auto-dispatch. They are still not a
 general cron or reminder system.
+
+### 5.4 Source Setup Through the App Binding
+
+An active App Binding exposes source setup tools, so a user can connect a
+repository by talking to the agent instead of opening Settings:
+
+- **Read setup** returns the provider connections, every connected project with
+  its workspace, automatic review, credential readiness and last sync, and the
+  workspaces already routed. It never returns secret values.
+- **Connect project** adds or updates one GitHub repository or GitLab project
+  the way the Settings connect flow does: provider endpoint and write access,
+  the project, its workspace route, its credential profile, its Auto Review
+  entry and the provider sync schedule. Repeating it updates the same project
+  instead of duplicating it. Omitted settings keep their current values. A new
+  project starts with Auto Review on, and a provider that has never run a
+  scheduled sync gets a 15-minute schedule. The workspace must be an existing absolute
+  directory on the Oratorio server. A GitHub App installation is detected for
+  an owner that has none. When credentials are ready it runs an incremental
+  sync of that project and waits briefly for the result; otherwise it reports
+  which credential is missing.
+- **Sync project** runs an incremental sync of one connected project and waits
+  briefly for the result. When a sync that leaves the project out is already
+  running, it reports that the project did not sync rather than that job's
+  result; connect reports the same as a warning.
+- **Request credential** shows an MCP App card in which the user enters the
+  GitLab project token or the GitHub App private key. The model learns only
+  which credential is needed and whether one is already saved.
+- **Save credential** is callable only from that card, never by the model. It
+  replaces the secret and returns only that it is configured.
+
+Secrets therefore never enter model context or thread history, and a GitHub
+key file is referenced by its server path, never by its content.
+
+The setup tools exist only where the App Binding does, which is a Desktop-local
+Oratorio: its binding endpoint is loopback only. A server deployment has no App
+Binding, so an agent never changes its configuration; the server is configured
+through its own configuration.
+
+Binding writes are authorized by the binding grant instead of the loopback rule
+for direct configuration writes. Approving the tool call confirms the change's
+impact. Binding writes still respect a deployment that disables configuration
+writes, are recorded in the redacted change audit as App Binding changes, and
+apply immediately like any Settings save.
 
 ## 6. Review Draft Contract
 

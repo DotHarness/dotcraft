@@ -8,13 +8,13 @@ using ModelContextProtocol.Server;
 
 namespace DotCraft.Oratorio.Integrations;
 
-/// <summary>Projects Oratorio board tools and MCP App resources through SDK handlers.</summary>
+/// <summary>Projects Oratorio binding tools and MCP App resources through SDK handlers.</summary>
 internal sealed class OratorioBindingMcpHandlers(
     IServiceScopeFactory scopeFactory,
     OratorioDynamicToolCatalog dynamicTools,
     OratorioBindingMcpRuntime runtime)
 {
-    private readonly IReadOnlySet<string> _allowedTools = dynamicTools.BoardDescriptors
+    private readonly IReadOnlySet<string> _allowedTools = dynamicTools.BindingDescriptors
         .Select(descriptor => descriptor.LocalName)
         .ToHashSet(StringComparer.Ordinal);
 
@@ -23,7 +23,7 @@ internal sealed class OratorioBindingMcpHandlers(
         CancellationToken cancellationToken) =>
         ValueTask.FromResult(new ListToolsResult
         {
-            Tools = OratorioBindingMcpCatalog.McpBoardTools(dynamicTools).ToList()
+            Tools = OratorioBindingMcpCatalog.McpBindingTools(dynamicTools).ToList()
         });
 
     public async ValueTask<CallToolResult> CallToolAsync(

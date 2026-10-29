@@ -1,0 +1,6 @@
+interface:
+  display_name: "Oratorio Setup"
+  short_description: "Connect a GitHub or GitLab repository to Oratorio."
+  icon_small: "../../assets/oratorio-small.svg"
+  icon_large: "../../assets/oratorio.svg"
+  default_prompt: "Use $oratorio-setup to connect this repository to Oratorio."

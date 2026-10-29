@@ -18,7 +18,7 @@ Agent 的工作发生在 Oratorio 单独创建的工作树里，运行期间不�
 
 ## 接入 GitHub 与 GitLab
 
-在 Board 上选择 **Connect GitHub** 或 **Connect GitLab**，引导流程会带你从凭据一路走到首次同步。[GitHub](./github) 用 GitHub App 接入，[GitLab](./gitlab) 用项目级 Token 接入。
+在 Board 上选择 **Connect GitHub** 或 **Connect GitLab**，引导流程会带你从凭据一路走到首次同步。[GitHub](./github) 用 GitHub App 接入，[GitLab](./gitlab) 用项目级 Token 接入。也可以[在会话中接入仓库](#在会话中使用-oratorio)。
 
 Oratorio 默认不向代码托管平台写入任何内容，需要你显式启用。没有公网 Webhook endpoint 也不影响使用，手动同步和定时同步照常工作。项目与工作区的映射、Agent 执行策略和自动化都在[配置 Oratorio](./settings)里调整。
 
@@ -31,6 +31,8 @@ Oratorio 默认不向代码托管平台写入任何内容，需要你显式启�
    ![在插件详情中连接 Oratorio](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/app-connection.png)
 
 2. 新建一个会话，从第一条消息起就能用上 Oratorio。
+
+在这样的会话里，也可以直接让 Agent 帮你接入仓库。在仓库所在的项目中发送 `$oratorio-setup`，或者直接让 Agent 把仓库接入 Oratorio。Agent 会读取仓库的远程地址，和你确认同步与审查设置，然后保存连接。需要 Token 或私钥时，会话里会出现一张表单，填入的内容直接交给 Oratorio，Agent 看不到。
 
 插件详情中的 **Disconnect** 会把 Oratorio 从这个工作区的所有会话中移除。完整的连接与授权流程见[应用连接](../connected-apps)。
 
