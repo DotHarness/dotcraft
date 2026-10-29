@@ -256,6 +256,32 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
+    public async Task Compactor_TruncatesOlderToolOutputsInsideTheNewestTurn()
+    {
+        var transport = new FakeTransport(CompactionResponseJson);
+        var bigOutput = new string('x', 40_000);
+        var input = new ProviderNativeCompactionInput(
+            [
+                new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"start"}]}""")),
+                new ProviderHistoryItem("input:1", ReadObject("""{"type":"function_call","call_id":"call_a","name":"read","arguments":"{}"}""")),
+                new ProviderHistoryItem("input:2", ReadObject($$"""{"type":"function_call_output","call_id":"call_a","output":"{{bigOutput}}"}""")),
+                new ProviderHistoryItem("input:3", ReadObject("""{"type":"function_call","call_id":"call_b","name":"read","arguments":"{}"}""")),
+                new ProviderHistoryItem("input:4", ReadObject("""{"type":"function_call_output","call_id":"call_b","output":"small"}"""))
+            ],
+            1,
+            "turn_1",
+            RequestTokenLimit: 2_000);
+
+        await new OpenAIResponsesCompactor("gpt-test", useResponsesLite: false, transport)
+            .CompactAsync(input, [], null, CancellationToken.None);
+
+        var request = transport.LastRequest!.Input;
+        Assert.Equal(6, request.Count);
+        Assert.Equal(ResponsesCompactRequestFitter.TruncatedOutputNotice, request[2].GetProperty("output").GetString());
+        Assert.Equal("call_a", request[2].GetProperty("call_id").GetString());
+    }
+
+    [Fact]
     public async Task Compactor_DropsOldestTurnsToFitRequestButRetainsCompleteInput()
     {
         var transport = new FakeTransport(CompactionResponseJson);

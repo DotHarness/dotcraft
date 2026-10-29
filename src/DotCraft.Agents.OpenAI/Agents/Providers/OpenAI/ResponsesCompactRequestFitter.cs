@@ -25,13 +25,11 @@ internal static class ResponsesCompactRequestFitter
         var fitted = items.ToList();
         for (var index = fitted.Count - 1; index >= 0 && total > limit; index--)
         {
-            if (TryTruncateToolOutput(fitted[index]) is not { } truncated)
+            if (!Truncate(index))
                 break;
-            var tokens = EstimateItem(truncated);
-            total += tokens - itemTokens[index];
-            fitted[index] = truncated;
-            itemTokens[index] = tokens;
         }
+        for (var index = 0; index < fitted.Count && total > limit; index++)
+            Truncate(index);
 
         var start = 0;
         while (total > limit && NextUserMessage(fitted, start + 1) is { } next)
@@ -42,6 +40,17 @@ internal static class ResponsesCompactRequestFitter
         }
 
         return start == 0 ? fitted : fitted.GetRange(start, fitted.Count - start);
+
+        bool Truncate(int index)
+        {
+            if (TryTruncateToolOutput(fitted[index]) is not { } truncated)
+                return false;
+            var tokens = EstimateItem(truncated);
+            total += tokens - itemTokens[index];
+            fitted[index] = truncated;
+            itemTokens[index] = tokens;
+            return true;
+        }
     }
 
     private static long EstimateItem(JsonElement item) =>

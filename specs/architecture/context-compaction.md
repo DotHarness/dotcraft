@@ -198,7 +198,9 @@ window, the backend shrinks the request only, never the captured input:
 
 1. From the newest item backward, it replaces the output of each tool result with a fixed
    truncation notice until the request fits or a non-tool-result item is reached.
-2. If the request still exceeds the window, it drops the oldest items through the next user message
+2. If the request still exceeds the window, it replaces the remaining tool-result outputs from the
+   oldest item forward, including the newest user-message segment, until the request fits.
+3. If the request still exceeds the window, it drops the oldest items through the next user message
    boundary, keeping tool calls paired with their results, until the request fits or only the newest
    user-message segment remains.
 
