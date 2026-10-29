@@ -215,12 +215,11 @@
   --composer-input-rest-border: transparent;
   --composer-input-border: var(--border-default);
   --composer-input-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-  /* Brand gradient (docs/public/dotcraft-logo.svg) — drives the composer focus glow. */
+  /* Brand gradient (docs/public/dotcraft-logo.svg) — drives the docs home composer glow. */
   --brand-blue-1: #2458f7;
   --brand-blue-2: #5f82f7;
   --brand-blue-3: #8fa5ff;
   --composer-focus-glow: linear-gradient(48deg, var(--brand-blue-1), var(--brand-blue-2) 46%, var(--brand-blue-3));
-  --composer-focus-border: color-mix(in srgb, var(--brand-blue-2) 34%, transparent);
   --composer-action-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
   --corner-radius-scale: 1;
   --control-radius-md-base: 0.5rem;

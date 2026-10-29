@@ -188,7 +188,7 @@ step.
 `--accent` and `--accent-hover` are reserved for restrained brand or navigation
 emphasis:
 
-- field focus borders, focus-visible outlines, and accessibility affordances;
+- keyboard focus-visible outlines and accessibility affordances;
 - selected navigation or live-state accents when neutral inversion is not
   appropriate;
 - links or small inline affordances where product recognition helps;
@@ -333,8 +333,6 @@ The Appearance settings expose:
 - Reduced motion (`system | on | off`), which gates animations, and pointer
   cursors on interactive elements.
 - The [Welcome backdrop](#welcome-backdrop) on or off.
-- The composer glow on or off (on by default). Off removes the focus and hover
-  glow from every composer and keeps its border at rest while focused.
 
 Animated, accent-driven, or code-sized UI relies on these tokens and preferences
 rather than hardcoding colors, sizes, or unconditional animations.
@@ -1102,15 +1100,16 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 - use `--bg-primary`, `--bg-secondary`, or dedicated input tokens such as
   `--composer-input-background`;
 - use `--border-default` for the rest state;
-- use `--accent` only for subtle focus affordances;
+- use `--border-active` for the focus border, never `--accent`;
 - use `--text-primary` for values and secondary/dimmed tokens for placeholders;
 - do not use brand or semantic fills for ordinary input backgrounds.
 
 ### Focus and hover
 
 A field's focus indicator is its own border, and nothing else. Focus moves the
-border to `--accent`; it never adds an outline, ring, or glow, which would read as
-a second frame. The global focus-visible outline remains only for elements with no
+border to the neutral `--border-active`; it never turns accent and never adds an
+outline, ring, or glow, which would read as a second frame. Typing is not an
+accent moment. The global focus-visible outline remains only for elements with no
 focus treatment of their own. This holds for every field shape below and for
 composed fields.
 
@@ -1122,9 +1121,9 @@ Whatever a field's resting shape, the focus border wins while it has focus.
 
 Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
 
-- bordered at rest with `--border-default`, moving to `--accent` on focus. This is
-  the default, and dense multi-field forms use it.
-- frameless at rest, showing the accent border only on focus. A simple action
+- bordered at rest with `--border-default`, moving to `--border-active` on focus.
+  This is the default, and dense multi-field forms use it.
+- frameless at rest, showing the `--border-active` border only on focus. A simple action
   dialog's single message or objective input (commit message, thread goal) is the
   reference.
 - bare: no frame, fill, or sizing of its own, for the inner field of a composed
@@ -1194,12 +1193,10 @@ and state already say.
   stays on one line the same way, dropping secondary labels and status before
   project and location, with accessible names kept for icon-only controls.
 - The primary composer uses `--composer-input-rest-border`, so the light theme
-  has a subtle frame while the dark theme can stay effectively frameless. It shows
-  a soft breathing brand-gradient glow on focus (`--composer-focus-glow`) and lifts
-  slightly on hover, unless the Appearance composer glow is off.
+  has a subtle frame while the dark theme can stay effectively frameless. Focus and
+  hover leave that frame unchanged; the caret is the focus cue.
 - Approval, question, and plan-confirmation composers take the composer's place
-  with the same frame; they glow only while their own text field is focused, never
-  merely because a decision is waiting.
+  with the same frame.
 - The action row holds model, context-window, and send. The context row below the
   card holds project, Run on, work location, branch or changelist, and provider
   subscription status (right after the branch). Context-row chips share one 28px

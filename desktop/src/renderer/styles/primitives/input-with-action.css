@@ -1,5 +1,5 @@
 .dc-input-with-action:focus-within {
-  border-color: var(--accent);
+  border-color: var(--border-active);
 }
 
 .dc-model-preference-field {
@@ -7,7 +7,7 @@
 }
 
 .dc-model-preference-field:focus-within {
-  border-color: var(--accent) !important;
+  border-color: var(--border-active) !important;
 }
 
 .dc-input-with-action[data-invalid] {

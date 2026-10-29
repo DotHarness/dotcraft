@@ -1313,8 +1313,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.appearance.reduceMotion.off': '关闭',
   'settings.appearance.welcomeBackdrop.label': '欢迎页背景',
   'settings.appearance.welcomeBackdrop.hint': '在新对话输入框背后，让淡淡的字符随风流动。',
-  'settings.appearance.composerGlow.label': '输入框光效',
-  'settings.appearance.composerGlow.hint': '输入时在输入框周围显示柔和的呼吸光效。',
   'settings.appearance.pointerCursors.label': '使用手型指针',
   'settings.appearance.pointerCursors.hint': '将光标悬停在可交互元素上时变为手型指针。',
   'settings.appearance.group.interface': '界面',

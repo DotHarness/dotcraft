@@ -280,9 +280,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
     ? 'translateY(2px) rotate(2.6deg) scale(0.985)'
     : light === 'error'
       ? 'translateY(2px) rotate(-3deg) scale(0.98)'
-      : focused
-        ? 'scale(1.1)'
-        : 'scale(1)'
+      : 'scale(1)'
 
   const shotClass = cheering
     ? 'composer-mascot-cheer'

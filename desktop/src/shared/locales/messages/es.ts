@@ -1203,8 +1203,6 @@ export const MESSAGES_ES = {
   'settings.appearance.reduceMotion.off': 'Desactivado',
   'settings.appearance.welcomeBackdrop.label': 'Fondo de bienvenida',
   'settings.appearance.welcomeBackdrop.hint': 'Deja que caracteres tenues floten detrás del editor de chat nuevo.',
-  'settings.appearance.composerGlow.label': 'Brillo del editor',
-  'settings.appearance.composerGlow.hint': 'Muestra un brillo suave y pulsante alrededor del editor mientras escribes.',
   'settings.appearance.pointerCursors.label': 'Usar cursores de puntero',
   'settings.appearance.pointerCursors.hint': 'Cambia el cursor a un puntero al pasar sobre elementos interactivos.',
   'settings.appearance.group.interface': 'Interfaz',

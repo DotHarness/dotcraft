@@ -10,8 +10,7 @@ import {
   applyPointerCursors,
   applyReduceMotion,
   applyTranslucentSidebar,
-  applyWelcomeBackdrop,
-  applyComposerGlow
+  applyWelcomeBackdrop
 } from '../../../utils/appearance'
 import {
   CODE_FONT_SIZE_MAX,
@@ -170,12 +169,6 @@ export function AppearancePanel(): JSX.Element {
     setAppearance((prev) => ({ ...prev, welcomeBackdrop: on }))
     applyWelcomeBackdrop(on)
     void persist({ welcomeBackdrop: on })
-  }
-
-  function handleComposerGlow(on: boolean): void {
-    setAppearance((prev) => ({ ...prev, composerGlow: on }))
-    applyComposerGlow(on)
-    void persist({ composerGlow: on })
   }
 
   function handlePointerCursors(on: boolean): void {
@@ -397,17 +390,6 @@ export function AppearancePanel(): JSX.Element {
               checked={appearance.welcomeBackdrop}
               aria-label={t('settings.appearance.welcomeBackdrop.label')}
               onChange={handleWelcomeBackdrop}
-            />
-          }
-        />
-        <SettingsRow
-          label={t('settings.appearance.composerGlow.label')}
-          description={t('settings.appearance.composerGlow.hint')}
-          control={
-            <PillSwitch
-              checked={appearance.composerGlow}
-              aria-label={t('settings.appearance.composerGlow.label')}
-              onChange={handleComposerGlow}
             />
           }
         />

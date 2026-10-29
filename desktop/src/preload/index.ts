@@ -1606,7 +1606,6 @@ const api = {
       interfaceZoom?: number
       translucentSidebar?: boolean
       welcomeBackdrop?: boolean
-      composerGlow?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
@@ -1696,7 +1695,6 @@ const api = {
       interfaceZoom?: number
       translucentSidebar?: boolean
       welcomeBackdrop?: boolean
-      composerGlow?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode

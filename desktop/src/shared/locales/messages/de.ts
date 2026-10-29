@@ -1203,8 +1203,6 @@ export const MESSAGES_DE = {
   'settings.appearance.reduceMotion.off': 'Aus',
   'settings.appearance.welcomeBackdrop.label': 'Begrüßungshintergrund',
   'settings.appearance.welcomeBackdrop.hint': 'Lässt blasse Zeichen hinter dem Eingabefeld für neue Chats treiben.',
-  'settings.appearance.composerGlow.label': 'Leuchten des Eingabefelds',
-  'settings.appearance.composerGlow.hint': 'Zeigt beim Schreiben ein sanft pulsierendes Leuchten um das Eingabefeld.',
   'settings.appearance.pointerCursors.label': 'Zeiger-Cursor verwenden',
   'settings.appearance.pointerCursors.hint': 'Ändert den Cursor in einen Zeiger, wenn du über interaktive Elemente fährst.',
   'settings.appearance.group.interface': 'Oberfläche',

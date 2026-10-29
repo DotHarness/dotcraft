@@ -1203,8 +1203,6 @@ export const MESSAGES_JA = {
   'settings.appearance.reduceMotion.off': 'オフ',
   'settings.appearance.welcomeBackdrop.label': 'ようこそ画面の背景',
   'settings.appearance.welcomeBackdrop.hint': '新しいチャットの入力欄の背後で、淡い文字を風のように流します。',
-  'settings.appearance.composerGlow.label': '入力欄の光彩',
-  'settings.appearance.composerGlow.hint': '入力中、入力欄の周りにやわらかく明滅する光を表示します。',
   'settings.appearance.pointerCursors.label': 'ポインターカーソルを使用',
   'settings.appearance.pointerCursors.hint': '操作可能な要素にカーソルを合わせたときにポインターカーソルへ変更します。',
   'settings.appearance.group.interface': 'インターフェース',

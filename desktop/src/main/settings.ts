@@ -132,7 +132,6 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   interfaceZoom?: number
   translucentSidebar?: boolean
   welcomeBackdrop?: boolean
-  composerGlow?: boolean
   locale?: AppLocale
   showThinkingContent?: boolean
   projectsSectionCollapsed?: boolean
@@ -338,10 +337,6 @@ function normalizeTranslucentSidebarSetting(settings: AppSettings): boolean | un
 
 function normalizeWelcomeBackdropSetting(settings: AppSettings): boolean | undefined {
   return settings.welcomeBackdrop === false ? false : undefined
-}
-
-function normalizeComposerGlowSetting(settings: AppSettings): boolean | undefined {
-  return settings.composerGlow === false ? false : undefined
 }
 
 function normalizeNewTaskPromptSetting(settings: AppSettings): NewTaskPromptMode | undefined {
@@ -632,7 +627,6 @@ export function loadSettings(): AppSettings {
       raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
       raw.welcomeBackdrop = normalizeWelcomeBackdropSetting(raw)
-      raw.composerGlow = normalizeComposerGlowSetting(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.voice = normalizeVoiceSettings(raw)
@@ -699,7 +693,6 @@ export function saveSettings(settings: AppSettings): void {
     settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)
     settings.welcomeBackdrop = normalizeWelcomeBackdropSetting(settings)
-    settings.composerGlow = normalizeComposerGlowSetting(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.voice = normalizeVoiceSettings(settings)

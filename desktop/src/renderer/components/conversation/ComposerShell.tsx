@@ -132,7 +132,6 @@ export function ComposerShell({
     threadId: desktopPluginSurfaceContext.threadId,
     mascotName: renderedMascotAvatar ?? ''
   })
-  const [hovered, setHovered] = useState(false)
   const { toolbarRef, hidden } = useAdaptiveComposerToolbar(adaptiveToolbar, [footerLeading, footerAction])
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
@@ -190,8 +189,6 @@ export function ComposerShell({
       data-composer-root
       className={adaptiveToolbar ? css.adaptiveRoot : undefined}
       ref={petRoot}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
         padding: '0 0 14px',
@@ -240,24 +237,6 @@ export function ComposerShell({
       )}
       <div data-composer-card-layer style={{ position: 'relative' }}>
         <div
-          aria-hidden
-          data-composer-glow-layer
-          className={focused ? 'composer-focus-glow' : undefined}
-          style={{
-            position: 'absolute',
-            inset: '-3px',
-            borderRadius: '23px',
-            background: 'var(--composer-focus-glow)',
-            filter: 'blur(8px)',
-            opacity: focused ? 0.22 : hovered ? 0.18 : 0,
-            // While focused the breathing animation drives opacity, so this
-            // transition only governs the hover halo.
-            transition: 'opacity 420ms ease',
-            zIndex: -1,
-            pointerEvents: 'none'
-          }}
-        />
-        <div
           data-composer-card
           className={adaptiveToolbar ? css.adaptiveCard : undefined}
           style={{
@@ -265,13 +244,10 @@ export function ComposerShell({
             zIndex: 1,
             ['--composer-overlay-inset' as string]:
               `${COMPOSER_CARD_INLINE_PADDING + COMPOSER_CARD_BORDER}px`,
-            border: focused
-              ? `${COMPOSER_CARD_BORDER}px solid var(--composer-focus-border)`
-              : `${COMPOSER_CARD_BORDER}px solid var(--composer-input-rest-border)`,
+            border: `${COMPOSER_CARD_BORDER}px solid var(--composer-input-rest-border)`,
             borderRadius: '20px',
             background: 'var(--composer-input-background)',
             padding: `10px ${COMPOSER_CARD_INLINE_PADDING}px 8px`,
-            transition: 'border-color 0.2s ease',
             boxShadow: topAccessoryVisible
               ? 'var(--composer-input-shadow), inset 0 1px 0 var(--composer-top-accessory-separator)'
               : 'var(--composer-input-shadow)'

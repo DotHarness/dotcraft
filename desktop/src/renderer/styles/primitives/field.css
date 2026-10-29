@@ -39,7 +39,7 @@
 }
 
 /* The prominent single message/objective input in an action dialog: same field,
-   frameless at rest so the accent border is the only frame the user ever sees. */
+   frameless at rest so the focus border is the only frame the user ever sees. */
 .dc-field[data-frameless] {
   border-color: transparent;
 }
@@ -67,7 +67,7 @@
 .dc-field:focus-visible,
 .dc-field[data-frameless]:focus,
 .dc-field[data-frameless]:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--border-active);
   outline: none;
 }
 

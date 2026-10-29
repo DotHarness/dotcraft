@@ -64,8 +64,7 @@ describe('resolveAppearanceSettings', () => {
         pointerCursors: true,
         interfaceZoom: 1.2,
         translucentSidebar: false,
-        welcomeBackdrop: false,
-        composerGlow: false
+        welcomeBackdrop: false
       })
     ).toEqual({
       themeMode: 'system',
@@ -77,8 +76,7 @@ describe('resolveAppearanceSettings', () => {
       pointerCursors: true,
       interfaceZoom: 17 / 14,
       translucentSidebar: false,
-      welcomeBackdrop: false,
-      composerGlow: false
+      welcomeBackdrop: false
     })
   })
 })

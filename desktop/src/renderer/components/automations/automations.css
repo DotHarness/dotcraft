@@ -336,7 +336,7 @@
 }
 
 .dc-automation-prompt:focus,
-.dc-automation-prompt:focus-visible { border-color: var(--accent) !important; }
+.dc-automation-prompt:focus-visible { border-color: var(--border-active) !important; }
 
 .dc-automation-section { margin-top: 30px; }
 .dc-automation-section > h3 {

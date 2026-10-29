@@ -1203,8 +1203,6 @@ export const MESSAGES_FR = {
   'settings.appearance.reduceMotion.off': 'Désactivé',
   'settings.appearance.welcomeBackdrop.label': 'Arrière-plan d’accueil',
   'settings.appearance.welcomeBackdrop.hint': 'Fait dériver des caractères discrets derrière l’éditeur de nouvelle discussion.',
-  'settings.appearance.composerGlow.label': 'Halo de l’éditeur',
-  'settings.appearance.composerGlow.hint': 'Affiche un halo doux et pulsé autour de l’éditeur pendant la saisie.',
   'settings.appearance.pointerCursors.label': 'Utiliser le curseur en main',
   'settings.appearance.pointerCursors.hint': 'Change le curseur en pointeur lors du survol des éléments interactifs.',
   'settings.appearance.group.interface': 'Interface',

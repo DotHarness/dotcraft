@@ -1,28 +1,3 @@
-@keyframes composer-focus-breathe {
-  0%,
-  100% {
-    opacity: 0.18;
-    filter: blur(7px);
-  }
-  50% {
-    opacity: 0.28;
-    filter: blur(9px);
-  }
-}
-
-.composer-focus-glow {
-  animation: composer-focus-breathe 3.4s ease-in-out infinite;
-  will-change: opacity, filter;
-}
-
-html[data-composer-glow='false'] [data-composer-glow-layer] {
-  display: none;
-}
-
-html[data-composer-glow='false'] [data-composer-card] {
-  border-color: var(--composer-input-rest-border) !important;
-}
-
 .request-user-input-countdown {
   color: var(--text-dimmed);
   font-size: var(--conversation-meta-size);

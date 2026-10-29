@@ -221,7 +221,7 @@ export function CatalogSearchBox({
       style={{
         ...styles.searchBox,
         ...style,
-        borderColor: focused ? 'var(--accent)' : style?.borderColor ?? 'var(--border-default)'
+        borderColor: focused ? 'var(--border-active)' : style?.borderColor ?? 'var(--border-default)'
       }}
     >
       <Search size={15} aria-hidden />

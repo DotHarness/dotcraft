@@ -1203,8 +1203,6 @@ export const MESSAGES_KO = {
   'settings.appearance.reduceMotion.off': '끄기',
   'settings.appearance.welcomeBackdrop.label': '시작 화면 배경',
   'settings.appearance.welcomeBackdrop.hint': '새 채팅 입력창 뒤로 희미한 문자가 바람처럼 흐르게 합니다.',
-  'settings.appearance.composerGlow.label': '입력창 빛 효과',
-  'settings.appearance.composerGlow.hint': '입력하는 동안 입력창 주변에 은은하게 숨 쉬는 빛을 표시합니다.',
   'settings.appearance.pointerCursors.label': '포인터 커서 사용',
   'settings.appearance.pointerCursors.hint': '상호작용 요소 위에 마우스를 올리면 커서를 포인터로 바꿉니다.',
   'settings.appearance.group.interface': '인터페이스',

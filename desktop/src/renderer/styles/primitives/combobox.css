@@ -14,7 +14,7 @@
    no outer ring on top of it. See DESIGN.md Inputs. */
 .dc-combobox:focus-within,
 .dc-combobox[data-open="true"] {
-  border-color: var(--accent);
+  border-color: var(--border-active);
 }
 
 .dc-combobox[data-disabled="true"] {

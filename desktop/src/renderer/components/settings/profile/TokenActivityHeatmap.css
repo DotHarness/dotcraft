@@ -63,8 +63,7 @@
   .composer-mascot-breathe,
   .composer-mascot-bounce,
   .composer-mascot-bubble,
-  .composer-mascot-jelly:hover,
-  .composer-focus-glow {
+  .composer-mascot-jelly:hover {
     animation: none !important;
   }
 
