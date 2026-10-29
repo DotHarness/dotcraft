@@ -80,6 +80,13 @@ export function fuzzyFilter<T>(items: readonly T[], query: string, fields: (item
     .map((entry) => entry.item)
 }
 
+export function fuzzyRank<T>(items: readonly T[], query: string, fields: (item: T) => readonly string[]): T[] {
+  return items
+    .map((item, index) => ({ item, index, score: Math.max(1, bestFuzzyScore(fields(item), query)) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((entry) => entry.item)
+}
+
 export function fuzzyHighlightRanges(text: string, rawQuery: string): Fragment[] {
   const query = rawQuery.replace(/\s+/g, '').toLowerCase()
   if (!query) return []

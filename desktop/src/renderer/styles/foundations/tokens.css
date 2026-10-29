@@ -215,7 +215,6 @@
   --composer-input-rest-border: transparent;
   --composer-input-border: var(--border-default);
   --composer-input-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-  /* Brand gradient (docs/public/dotcraft-logo.svg) — drives the docs home composer glow. */
   --brand-blue-1: #2458f7;
   --brand-blue-2: #5f82f7;
   --brand-blue-3: #8fa5ff;

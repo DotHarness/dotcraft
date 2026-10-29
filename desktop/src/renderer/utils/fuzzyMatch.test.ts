@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fuzzyFilter, fuzzyHighlightRanges, fuzzyScore } from './fuzzyMatch'
+import { fuzzyFilter, fuzzyHighlightRanges, fuzzyRank, fuzzyScore } from './fuzzyMatch'
 
 describe('fuzzyScore', () => {
   it('matches word starts and long mid-word runs but not scattered letters', () => {
@@ -27,6 +27,13 @@ describe('fuzzyFilter', () => {
     const items = ['unreleased', 'draft-release', 'release-notes', 'plan']
     expect(fuzzyFilter(items, '', (item) => [item])).toEqual(items)
     expect(fuzzyFilter(items, 'rel', (item) => [item])).toEqual(['release-notes', 'draft-release', 'unreleased'])
+  })
+})
+
+describe('fuzzyRank', () => {
+  it('breaks ties by input order and keeps source matches the scorer misses', () => {
+    expect(fuzzyRank(['a-vi', 'b-vi', 'view'], 'vi', (item) => [item])).toEqual(['view', 'a-vi', 'b-vi'])
+    expect(fuzzyRank(['first', 'second'], 'zz', (item) => [item])).toEqual(['first', 'second'])
   })
 })
 

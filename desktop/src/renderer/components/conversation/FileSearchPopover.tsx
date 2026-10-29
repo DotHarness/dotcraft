@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { MessagesSquare } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
+import type { ThreadSummary } from '../../types/thread'
+import { fuzzyRank } from '../../utils/fuzzyMatch'
 import { searchThreadMentions, threadMentionTitle } from '../../utils/threadReferences'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -9,7 +11,6 @@ import type { ThreadMentionSource } from './useComposerThreadReferences'
 import { useThreadContentSearch } from './useThreadContentSearch'
 import {
   MentionRowIcon,
-  MentionSectionHeader,
   mentionEmptyStyle,
   MentionPopoverSurface,
   mentionRowDescStyle,
@@ -19,6 +20,7 @@ import {
 
 const DEBOUNCE_MS = 80
 const INDEX_POLL_MS = 1500
+const MAX_RESULTS = 8
 
 export interface FileMatch {
   name: string
@@ -27,6 +29,8 @@ export interface FileMatch {
 }
 
 type IndexStatus = 'empty' | 'building' | 'ready'
+
+type MentionEntry = { kind: 'file'; file: FileMatch } | { kind: 'thread'; thread: ThreadSummary }
 
 interface FileSearchPopoverProps {
   query: string
@@ -37,13 +41,6 @@ interface FileSearchPopoverProps {
   threadMentions?: ThreadMentionSource
 }
 
-/**
- * Floating file search for @ mentions; debounced IPC to workspace.searchFiles.
- * When the workspace index is still being built (typical for very large
- * projects on first open), the popover surfaces "Indexing files…" and polls
- * the IPC every {@link INDEX_POLL_MS} until the index reaches `ready`, so the
- * user does not have to close and reopen the @ trigger to see results.
- */
 export function FileSearchPopover({
   query,
   visible,
@@ -73,8 +70,15 @@ export function FileSearchPopover({
       : searchThreadMentions(threadList, query, excludedKey.split('\0'), contentSearch.threads),
     [contentSearch.threads, excludedKey, query, threadList]
   )
-  const searchingChats = contentSearch.pending && threads.length === 0
-  const entryCount = threads.length + files.length
+  const entries = useMemo(
+    () => fuzzyRank<MentionEntry>(
+      [...files.map((file) => ({ kind: 'file' as const, file })), ...threads.map((thread) => ({ kind: 'thread' as const, thread }))],
+      query,
+      (entry) => entry.kind === 'file' ? [entry.file.name, entry.file.relativePath] : [threadMentionTitle(entry.thread)]
+    ).slice(0, MAX_RESULTS),
+    [files, query, threads]
+  )
+  const entryCount = entries.length
 
   const clearPoll = useCallback((): void => {
     if (pollRef.current) {
@@ -97,15 +101,12 @@ export function FileSearchPopover({
         })
         if (id !== lastReq.current) return
         const status: IndexStatus = res.indexStatus ?? 'ready'
-        // Empty query never shows arbitrary files; we still issue the IPC so
-        // the popover knows when the index is still being built.
+        // An empty query lists no files but still reports the index status.
         setFiles(trimmed ? (res.files ?? []) : [])
         setIndexStatus(status)
         setIndexedCount(res.indexedCount ?? 0)
         clearPoll()
         if (status === 'building') {
-          // Index is still being built; auto-retry so the popover refreshes
-          // as soon as new entries are available without user action.
           pollRef.current = setTimeout(() => {
             void runSearch(lastQueryRef.current)
           }, INDEX_POLL_MS)
@@ -141,9 +142,8 @@ export function FileSearchPopover({
 
   useEffect(() => {
     setHighlight(0)
-  }, [files, threads])
+  }, [entries])
 
-  // Arrow keys only; see CommandSearchPopover for why hover must not scroll.
   useEffect(() => {
     if (!visible || !keyboardNavRef.current) return
     keyboardNavRef.current = false
@@ -151,7 +151,7 @@ export function FileSearchPopover({
     if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
       active.scrollIntoView({ block: 'nearest' })
     }
-  }, [highlight, visible, files, threads])
+  }, [highlight, visible, entries])
 
   useEffect(() => {
     if (!visible) return
@@ -176,15 +176,14 @@ export function FileSearchPopover({
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
         e.stopPropagation()
-        const thread = threads[highlight]
-        if (thread) threadMentions?.onSelect(thread)
-        const f = files[highlight - threads.length]
-        if (f) onSelect(f.relativePath)
+        const entry = entries[highlight]
+        if (entry?.kind === 'thread') threadMentions?.onSelect(entry.thread)
+        else if (entry) onSelect(entry.file.relativePath)
       }
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [visible, entryCount, threads, files, highlight, onSelect, onDismiss, threadMentions])
+  }, [visible, entryCount, entries, highlight, onSelect, onDismiss, threadMentions])
 
   if (!visible) return null
 
@@ -195,7 +194,7 @@ export function FileSearchPopover({
       role="listbox"
       maxHeight={260}
     >
-      {loading && entryCount === 0 && !searchingChats && (
+      {entryCount === 0 && (loading || (contentSearch.pending && indexStatus !== 'building')) && (
         <div style={mentionEmptyStyle}>{t('fileSearch.loading')}</div>
       )}
       {!loading && entryCount === 0 && indexStatus === 'building' && (
@@ -205,23 +204,21 @@ export function FileSearchPopover({
             : t('fileSearch.building')}
         />
       )}
-      {!loading && entryCount === 0 && indexStatus !== 'building' && query.trim() !== '' && !searchingChats && (
+      {!loading && !contentSearch.pending && entryCount === 0 && indexStatus !== 'building' && query.trim() !== '' && (
         <div style={mentionEmptyStyle}>{t('fileSearch.noMatch')}</div>
       )}
       {!loading && entryCount === 0 && indexStatus !== 'building' && query.trim() === '' && (
         <div style={mentionEmptyStyle}>{t(threadMentions ? 'fileSearch.hintWithChats' : 'fileSearch.hint')}</div>
       )}
-      {(threads.length > 0 || searchingChats) && <MentionSectionHeader label={t('fileSearch.chatsGroup')} />}
-      {searchingChats && <div style={mentionEmptyStyle}>{t('fileSearch.chatsSearching')}</div>}
-      {threads.map((thread, i) => (
+      {entries.map((entry, i) => entry.kind === 'thread' ? (
         <button
-          key={thread.id}
+          key={`thread:${entry.thread.id}`}
           type="button"
           role="option"
           data-entry-index={i}
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
-          onClick={() => { threadMentions?.onSelect(thread) }}
+          onClick={() => { threadMentions?.onSelect(entry.thread) }}
           className="dotcraft-sidebar-row-radius"
           style={mentionRowStyle(i === highlight)}
         >
@@ -229,35 +226,29 @@ export function FileSearchPopover({
             <MessagesSquare size={15} strokeWidth={2} aria-hidden />
           </MentionRowIcon>
           <span style={{ ...mentionRowNameStyle, maxWidth: '100%', flexShrink: 1 }}>
-            {highlightMatch(threadMentionTitle(thread), query)}
+            {highlightMatch(threadMentionTitle(entry.thread), query)}
           </span>
         </button>
-      ))}
-      {files.length > 0 && <MentionSectionHeader label={t('fileSearch.filesGroup')} />}
-      {files.map((f, fileIndex) => {
-        const dirLabel = f.dir || '.'
-        const i = threads.length + fileIndex
-        return (
-        <ActionTooltip key={f.relativePath} label={f.relativePath} wrapperStyle={{ display: 'block', width: '100%' }}>
+      ) : (
+        <ActionTooltip key={`file:${entry.file.relativePath}`} label={entry.file.relativePath} wrapperStyle={{ display: 'block', width: '100%' }}>
         <button
           type="button"
           role="option"
           data-entry-index={i}
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
-          onClick={() => { onSelect(f.relativePath) }}
+          onClick={() => { onSelect(entry.file.relativePath) }}
           className="dotcraft-sidebar-row-radius"
           style={mentionRowStyle(i === highlight)}
         >
           <MentionRowIcon>
-            <FileTypeIcon path={f.relativePath} size={16} />
+            <FileTypeIcon path={entry.file.relativePath} size={16} />
           </MentionRowIcon>
-          <span style={mentionRowNameStyle}>{highlightMatch(f.name, query)}</span>
-          <span style={mentionRowDescStyle}>{dirLabel}</span>
+          <span style={mentionRowNameStyle}>{highlightMatch(entry.file.name, query)}</span>
+          <span style={mentionRowDescStyle}>{entry.file.dir || '.'}</span>
         </button>
         </ActionTooltip>
-        )
-      })}
+      ))}
     </MentionPopoverSurface>
   )
 }
