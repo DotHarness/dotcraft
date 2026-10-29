@@ -178,7 +178,7 @@ export function applyWorkspaceThreadNotificationToCache(
 
 export interface WorkspaceThreadListResult {
   data?: unknown[]
-  readStates?: Record<string, unknown> | null
+  readStates?: Record<string, unknown>
 }
 
 function withReadStates(result: WorkspaceThreadListResult): unknown[] {

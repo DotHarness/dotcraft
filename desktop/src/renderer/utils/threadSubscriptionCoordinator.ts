@@ -17,17 +17,21 @@ export interface ActiveThreadSubscriptionState {
   threadIds: readonly string[]
 }
 
-export function resolveActiveThreadSubscriptionTarget(
-  state: ActiveThreadSubscriptionState,
-  requestedThreadId = state.activeThreadId
+export function resolveActiveThreadSubscriptionTarget(state: ActiveThreadSubscriptionState): ThreadSubscriptionTarget | null {
+  return state.activeThreadId ? resolveThreadSubscriptionTarget(state, state.activeThreadId) : null
+}
+
+export function resolveThreadSubscriptionTarget(
+  state: Omit<ActiveThreadSubscriptionState, 'activeThreadId'>,
+  threadId: string
 ): ThreadSubscriptionTarget | null {
-  if (!state.connected || !requestedThreadId || state.activeThreadId !== requestedThreadId) return null
+  if (!state.connected) return null
   if (!state.workspaceIdentity || !state.workspaceKey) return null
   if (state.threadListWorkspaceKey !== state.workspaceKey) return null
-  if (!state.threadIds.includes(requestedThreadId)) return null
+  if (!state.threadIds.includes(threadId)) return null
 
   return {
-    threadId: requestedThreadId,
+    threadId,
     workspaceIdentity: state.workspaceIdentity,
     workspaceKey: state.workspaceKey,
     connectionEpoch: state.connectionEpoch

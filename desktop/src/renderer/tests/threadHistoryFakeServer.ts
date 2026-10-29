@@ -2,7 +2,8 @@ import { vi } from 'vitest'
 import { wireTurnToConversationTurn } from '../types/conversation'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { applyThreadHistoryHead, beginThreadHistory } from '../stores/threadHistoryStore'
+import { applyThreadHistoryHead } from '../stores/threadHistoryStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { readThreadHistoryHead } from '../utils/threadHistory'
 
 export interface WireTurn {
@@ -106,7 +107,8 @@ export function createFakeHistoryServer(
 
 export async function openThreadHistory(server: FakeHistoryServer, threadId: string): Promise<void> {
   useThreadStore.setState({ activeThreadId: threadId })
-  beginThreadHistory(threadId)
+  releaseThreadState(threadId)
+  openThreadState(threadId)
   const head = await readThreadHistoryHead(server.request, threadId)
   const turns = head.thread.turns ?? []
   applyThreadHistoryHead(threadId, turns, head.turnCursor)

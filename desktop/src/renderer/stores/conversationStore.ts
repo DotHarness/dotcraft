@@ -1,6 +1,6 @@
 import { shouldUseTerminalSnapshotOutput, appendTerminalDelta, mergeTerminalAcrossItems } from './terminalState'
 import { optimisticUserMessageRepresentedByIncoming, removeRepresentedOptimisticTurns, turnRepresentsOptimisticTurn } from './optimisticMessages'
-import { create } from 'zustand'
+import { createStore, type StoreApi } from 'zustand'
 import type {
   ConversationTurn,
   ConversationItem,
@@ -50,6 +50,7 @@ import {
   type ShellRuntimeEntry
 } from './shellRuntimeBuffer'
 import { createConversationTextDeltaBuffer } from './conversationTextDeltaBuffer'
+import { createThreadScopedStores } from './threadScopedStore'
 
 export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
 
@@ -214,7 +215,6 @@ interface StreamingFileBaseline {
 
 const SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS = 12000
 const SUB_AGENT_ARGUMENT_FIELD_MAX_CHARS = 800
-const subAgentStreamingArgumentBuffers = new Map<string, string>()
 
 const approvalDecisionToState: Record<ApprovalDecision, ApprovalState> = {
   accept: 'accepted',
@@ -475,96 +475,41 @@ interface ConversationActions {
 
 export interface ConversationStore extends ConversationState, ConversationActions {}
 
-const initialState: ConversationState = {
-  turns: [],
-  turnStatus: 'idle',
-  activeTurnId: null,
-  interruptingTurnId: null,
-  genericApproval: null,
-  pendingApproval: null,
-  pendingApprovals: [],
-  pendingUserInput: null,
-  streamingMessage: '',
-  streamingMessageLastDeltaAt: null,
-  streamingReasoning: '',
-  activeItemId: null,
-  turnStartedAt: null,
-  inputTokens: 0,
-  outputTokens: 0,
-  systemLabel: null,
-  streamRetry: null,
-  maintenanceKind: null,
-  pendingMessage: null,
-  queuedInputs: [],
-  threadMode: 'agent',
-  workspacePath: '',
-  remoteWorkspaceActive: false,
-  turnDiffs: new Map<string, TurnDiff>(),
-  itemDiffs: new Map<string, FileDiff>(),
-  streamingItemDiffs: new Map<string, FileDiff>(),
-  streamingBaselines: new Map<string, StreamingFileBaseline>(),
-  pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
-  shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
-  pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
-  plan: null,
-  contextUsage: null
-}
-
-const shellRuntimeBuffer = createShellRuntimeBuffer((updates) => {
-  useConversationStore.setState((state) => {
-    const shellRuntimeByCallId = mergeShellRuntimeUpdates(
-      state.shellRuntimeByCallId,
-      updates,
-      limitShellRuntimeOutput
-    )
-    return shellRuntimeByCallId === state.shellRuntimeByCallId
-      ? state
-      : { shellRuntimeByCallId }
-  })
-}, { transformOutput: limitShellRuntimeOutput })
-
-const conversationTextDeltaBuffer = createConversationTextDeltaBuffer((batch) => {
-  useConversationStore.setState((state) => ({
-    streamingMessage: batch.agentMessage
-      ? state.streamingMessage + batch.agentMessage
-      : state.streamingMessage,
-    streamingMessageLastDeltaAt: batch.agentMessageLastDeltaAt ?? state.streamingMessageLastDeltaAt,
-    streamingReasoning: batch.reasoning
-      ? state.streamingReasoning + batch.reasoning
-      : state.streamingReasoning
-  }))
-})
-
-function queueShellRuntimeUpdate(
-  callId: string,
-  source: ShellRuntimeEntry['source'],
-  output: string,
-  replace: boolean
-): void {
-  shellRuntimeBuffer.queue(callId, source, output, replace)
-}
-
-function flushShellRuntimeUpdates(): void {
-  shellRuntimeBuffer.flush()
-}
-
-function clearShellRuntime(callId: string): void {
-  shellRuntimeBuffer.clear(callId)
-}
-
-function resetShellRuntimeBuffer(): void {
-  shellRuntimeBuffer.reset()
-  terminalInputBuffers.clear()
-}
-
-const terminalInputBuffers = new Map<string, string>()
-
-function flushConversationTextDeltas(): void {
-  conversationTextDeltaBuffer.flush()
-}
-
-function resetConversationTextDeltas(): void {
-  conversationTextDeltaBuffer.reset()
+function createInitialState(): ConversationState {
+  return {
+    turns: [],
+    turnStatus: 'idle',
+    activeTurnId: null,
+    interruptingTurnId: null,
+    genericApproval: null,
+    pendingApproval: null,
+    pendingApprovals: [],
+    pendingUserInput: null,
+    streamingMessage: '',
+    streamingMessageLastDeltaAt: null,
+    streamingReasoning: '',
+    activeItemId: null,
+    turnStartedAt: null,
+    inputTokens: 0,
+    outputTokens: 0,
+    systemLabel: null,
+    streamRetry: null,
+    maintenanceKind: null,
+    pendingMessage: null,
+    queuedInputs: [],
+    threadMode: 'agent',
+    workspacePath: '',
+    remoteWorkspaceActive: false,
+    turnDiffs: new Map<string, TurnDiff>(),
+    itemDiffs: new Map<string, FileDiff>(),
+    streamingItemDiffs: new Map<string, FileDiff>(),
+    streamingBaselines: new Map<string, StreamingFileBaseline>(),
+    pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+    shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
+    pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
+    plan: null,
+    contextUsage: null
+  }
 }
 
 /** Stable chronological order for turn items (Wire Protocol may interleave events). */
@@ -1412,6 +1357,7 @@ function latestCompactedNotice(turns: ConversationTurn[]): {
 }
 
 function appendStreamingArgumentsPreview(
+  buffers: Map<string, string>,
   bufferKey: string,
   kind: ToolKind | null,
   currentPreview: string | undefined,
@@ -1421,12 +1367,12 @@ function appendStreamingArgumentsPreview(
     return (currentPreview ?? '') + delta
   }
 
-  const existing = subAgentStreamingArgumentBuffers.get(bufferKey) ?? ''
+  const existing = buffers.get(bufferKey) ?? ''
   let buffer = existing + delta
   if (buffer.length > SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS) {
     buffer = buffer.slice(0, SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS)
   }
-  subAgentStreamingArgumentBuffers.set(bufferKey, buffer)
+  buffers.set(bufferKey, buffer)
   return buildSubAgentArgumentsPreview(buffer)
 }
 
@@ -1466,180 +1412,1383 @@ function readRetryCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-export const useConversationStore = create<ConversationStore>((set, get) => ({
-  ...initialState,
+type ConversationWorkspace = Pick<ConversationState, 'workspacePath' | 'remoteWorkspaceActive'>
 
-  setTurns(turns, options = {}) {
-    if (options.preserveExistingRealtime) {
-      flushConversationTextDeltas()
-    } else {
-      resetConversationTextDeltas()
-    }
-    const converted = (turns as Array<Record<string, unknown>>).map((t) => {
-      const maybeTurn = t as unknown as ConversationTurn
-      if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
-        return wireTurnToConversationTurn(t)
-      }
-      if (Array.isArray(maybeTurn.items) && maybeTurn.id) {
-        return maybeTurn
-      }
-      return wireTurnToConversationTurn(t)
-    })
-
-    const rehydratedTurns = attachTerminalInputs(converted.map((turn) => {
-      const resultByCallId = new Map<string, ConversationItem>()
-      const commandExecutionByCallId = new Map<string, ConversationItem>()
-      const toolExecutionByCallId = new Map<string, ConversationItem>()
-      for (const item of turn.items) {
-        if (item.type === 'toolResult' && item.toolCallId) {
-          resultByCallId.set(item.toolCallId, item)
-        }
-        if (item.type === 'commandExecution' && item.toolCallId) {
-          commandExecutionByCallId.set(item.toolCallId, item)
-        }
-        if (item.type === 'toolExecution' && item.toolCallId) {
-          toolExecutionByCallId.set(item.toolCallId, item)
-        }
-      }
-      if (resultByCallId.size === 0 && commandExecutionByCallId.size === 0 && toolExecutionByCallId.size === 0) return turn
-
-      const mergedItems = turn.items.map((item) => {
-        if (item.type !== 'toolCall') return item
-        const resultItem = resultByCallId.get(item.toolCallId ?? '')
-        const commandExecution = commandExecutionByCallId.get(item.toolCallId ?? '')
-        const toolExecution = toolExecutionByCallId.get(item.toolCallId ?? '')
-        if (!resultItem) {
-          const mergedWithToolExecution = toolExecution
-            ? mergeToolExecutionIntoToolCall(item, toolExecution)
-            : item
-          return commandExecution
-            ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
-            : mergedWithToolExecution
-        }
-
-        const resultText = resultItem.result ?? ''
-        const success = resultItem.success !== false
-        const startMs = item.createdAt ? new Date(item.createdAt).getTime() : 0
-        const endMs = resultItem.completedAt ? new Date(resultItem.completedAt).getTime() : startMs
-
-        const merged: ConversationItem = {
-          ...item,
-          result: resultText,
-          structuredResult: resultItem.structuredResult ?? item.structuredResult,
-          success,
-          duration: endMs - startMs,
-          completedAt: resultItem.completedAt
-        }
-        const mergedWithToolExecution = toolExecution
-          ? mergeToolExecutionIntoToolCall(merged, toolExecution)
-          : merged
-        return commandExecution
-          ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
-          : mergedWithToolExecution
+function createConversationStore(workspace: ConversationWorkspace): StoreApi<ConversationStore> {
+  return createStore<ConversationStore>((set, get) => {
+    const subAgentStreamingArgumentBuffers = new Map<string, string>()
+    const terminalInputBuffers = new Map<string, string>()
+    const shellRuntimeBuffer = createShellRuntimeBuffer((updates) => {
+      set((state) => {
+        const shellRuntimeByCallId = mergeShellRuntimeUpdates(
+          state.shellRuntimeByCallId,
+          updates,
+          limitShellRuntimeOutput
+        )
+        return shellRuntimeByCallId === state.shellRuntimeByCallId
+          ? state
+          : { shellRuntimeByCallId }
       })
-
-      return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
-    }))
-
-    // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
-    // that had an active turn or is waiting on a user decision), restore active state.
-    const currentTurns = get().turns
-    const preserveExistingRealtime =
-      options.preserveExistingRealtime === true &&
-      hasSharedRealtimeScope(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
-    const turnsForState = preserveExistingRealtime
-      ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
-      : rehydratedTurns
-    const preserveEmptyRealtimeSnapshot =
-      preserveExistingRealtime &&
-      rehydratedTurns.length === 0 &&
-      turnsForState.length > 0
-    if (!preserveExistingRealtime) resetShellRuntimeBuffer()
-
-    const activeTurn = [...turnsForState]
-      .reverse()
-      .find((t) => t.status === 'running' || t.status === 'waitingApproval' || t.status === 'waitingInput')
-    const activeTurnStatus =
-      activeTurn?.status === 'waitingApproval' || activeTurn?.status === 'waitingInput'
-        ? activeTurn.status
-        : activeTurn
-          ? 'running'
-          : 'idle'
-    const compactedNotice = latestCompactedNotice(rehydratedTurns)
-    set((state) => {
-      // A stale thread/read can still report waitingApproval after the local decision
-      // has already cleared its request.
-      const restoredTurnStatus = activeTurnStatus === 'waitingApproval' && state.pendingApproval == null
-        ? 'running'
-        : activeTurnStatus
-      const terminalApplied = applyPendingTerminalsToTurns(
-        turnsForState,
-        state.pendingTerminalByCallId
-      )
-      const toolCompletionApplied = applyPendingToolCompletionsToTurns(
-        terminalApplied.turns,
-        state.pendingToolCompletionsByCallKey
-      )
-      const itemDiffs = deriveItemDiffs(
-        toolCompletionApplied.turns,
-        preserveExistingRealtime ? state.itemDiffs : new Map(),
-        state.workspacePath
-      )
-      return {
-        turns: toolCompletionApplied.turns,
-        turnStatus: restoredTurnStatus,
-        activeTurnId: activeTurn ? activeTurn.id : null,
-        interruptingTurnId: null,
-        streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',
-        streamingMessageLastDeltaAt: preserveEmptyRealtimeSnapshot ? state.streamingMessageLastDeltaAt : null,
-        streamingReasoning: preserveEmptyRealtimeSnapshot ? state.streamingReasoning : '',
-        activeItemId: preserveEmptyRealtimeSnapshot ? state.activeItemId : null,
-        turnStartedAt: activeTurn
-          ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
-          : null,
-        maintenanceKind: null,
-        streamRetry: null,
-        itemDiffs,
-        turnDiffs: foldHistoryTurnDiffs(
-          toolCompletionApplied.turns,
-          itemDiffs,
-          preserveExistingRealtime ? state.turnDiffs : new Map(),
-          state.workspacePath
-        ),
-        streamingItemDiffs: new Map<string, FileDiff>(),
-        streamingBaselines: new Map<string, StreamingFileBaseline>(),
-        shellRuntimeByCallId: preserveExistingRealtime
-          ? state.shellRuntimeByCallId
-          : new Map<string, ShellRuntimeEntry>(),
-        pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,
-        pendingToolCompletionsByCallKey: toolCompletionApplied.pendingToolCompletionsByCallKey,
-        contextUsage: compactedNotice
-          ? applyCompactedNoticeToContextUsage(state.contextUsage, compactedNotice)
-          : state.contextUsage
-      }
+    }, { transformOutput: limitShellRuntimeOutput })
+    const conversationTextDeltaBuffer = createConversationTextDeltaBuffer((batch) => {
+      set((state) => ({
+        streamingMessage: batch.agentMessage
+          ? state.streamingMessage + batch.agentMessage
+          : state.streamingMessage,
+        streamingMessageLastDeltaAt: batch.agentMessageLastDeltaAt ?? state.streamingMessageLastDeltaAt,
+        streamingReasoning: batch.reasoning
+          ? state.streamingReasoning + batch.reasoning
+          : state.streamingReasoning
+      }))
     })
-  },
+    const resetShellRuntimeBuffer = (): void => {
+      shellRuntimeBuffer.reset()
+      terminalInputBuffers.clear()
+    }
 
-  onTurnStarted(rawTurn) {
-    resetConversationTextDeltas()
-    const turn = wireTurnToConversationTurn(rawTurn)
-    set((state) => {
-      // Guard: if this turn ID already exists (was promoted via promoteOptimisticTurn before
-      // the notification arrived), update in-place to avoid creating a duplicate key.
-      const alreadyExists = state.turns.find((t) => t.id === turn.id)
-      if (alreadyExists) {
-        return {
-          turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
+    return {
+      ...createInitialState(),
+      ...workspace,
+
+      setTurns(turns, options = {}) {
+        if (options.preserveExistingRealtime) {
+          conversationTextDeltaBuffer.flush()
+        } else {
+          conversationTextDeltaBuffer.reset()
+        }
+        const converted = (turns as Array<Record<string, unknown>>).map((t) => {
+          const maybeTurn = t as unknown as ConversationTurn
+          if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
+            return wireTurnToConversationTurn(t)
+          }
+          if (Array.isArray(maybeTurn.items) && maybeTurn.id) {
+            return maybeTurn
+          }
+          return wireTurnToConversationTurn(t)
+        })
+
+        const rehydratedTurns = attachTerminalInputs(converted.map((turn) => {
+          const resultByCallId = new Map<string, ConversationItem>()
+          const commandExecutionByCallId = new Map<string, ConversationItem>()
+          const toolExecutionByCallId = new Map<string, ConversationItem>()
+          for (const item of turn.items) {
+            if (item.type === 'toolResult' && item.toolCallId) {
+              resultByCallId.set(item.toolCallId, item)
+            }
+            if (item.type === 'commandExecution' && item.toolCallId) {
+              commandExecutionByCallId.set(item.toolCallId, item)
+            }
+            if (item.type === 'toolExecution' && item.toolCallId) {
+              toolExecutionByCallId.set(item.toolCallId, item)
+            }
+          }
+          if (resultByCallId.size === 0 && commandExecutionByCallId.size === 0 && toolExecutionByCallId.size === 0) return turn
+
+          const mergedItems = turn.items.map((item) => {
+            if (item.type !== 'toolCall') return item
+            const resultItem = resultByCallId.get(item.toolCallId ?? '')
+            const commandExecution = commandExecutionByCallId.get(item.toolCallId ?? '')
+            const toolExecution = toolExecutionByCallId.get(item.toolCallId ?? '')
+            if (!resultItem) {
+              const mergedWithToolExecution = toolExecution
+                ? mergeToolExecutionIntoToolCall(item, toolExecution)
+                : item
+              return commandExecution
+                ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
+                : mergedWithToolExecution
+            }
+
+            const resultText = resultItem.result ?? ''
+            const success = resultItem.success !== false
+            const startMs = item.createdAt ? new Date(item.createdAt).getTime() : 0
+            const endMs = resultItem.completedAt ? new Date(resultItem.completedAt).getTime() : startMs
+
+            const merged: ConversationItem = {
+              ...item,
+              result: resultText,
+              structuredResult: resultItem.structuredResult ?? item.structuredResult,
+              success,
+              duration: endMs - startMs,
+              completedAt: resultItem.completedAt
+            }
+            const mergedWithToolExecution = toolExecution
+              ? mergeToolExecutionIntoToolCall(merged, toolExecution)
+              : merged
+            return commandExecution
+              ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
+              : mergedWithToolExecution
+          })
+
+          return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
+        }))
+
+        // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
+        // that had an active turn or is waiting on a user decision), restore active state.
+        const currentTurns = get().turns
+        const preserveExistingRealtime =
+          options.preserveExistingRealtime === true &&
+          hasSharedRealtimeScope(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
+        const turnsForState = preserveExistingRealtime
+          ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
+          : rehydratedTurns
+        const preserveEmptyRealtimeSnapshot =
+          preserveExistingRealtime &&
+          rehydratedTurns.length === 0 &&
+          turnsForState.length > 0
+        if (!preserveExistingRealtime) resetShellRuntimeBuffer()
+
+        const activeTurn = [...turnsForState]
+          .reverse()
+          .find((t) => t.status === 'running' || t.status === 'waitingApproval' || t.status === 'waitingInput')
+        const activeTurnStatus =
+          activeTurn?.status === 'waitingApproval' || activeTurn?.status === 'waitingInput'
+            ? activeTurn.status
+            : activeTurn
+              ? 'running'
+              : 'idle'
+        const compactedNotice = latestCompactedNotice(rehydratedTurns)
+        set((state) => {
+          // A stale thread/read can still report waitingApproval after the local decision
+          // has already cleared its request.
+          const restoredTurnStatus = activeTurnStatus === 'waitingApproval' && state.pendingApproval == null
+            ? 'running'
+            : activeTurnStatus
+          const terminalApplied = applyPendingTerminalsToTurns(
+            turnsForState,
+            state.pendingTerminalByCallId
+          )
+          const toolCompletionApplied = applyPendingToolCompletionsToTurns(
+            terminalApplied.turns,
+            state.pendingToolCompletionsByCallKey
+          )
+          const itemDiffs = deriveItemDiffs(
+            toolCompletionApplied.turns,
+            preserveExistingRealtime ? state.itemDiffs : new Map(),
+            state.workspacePath
+          )
+          return {
+            turns: toolCompletionApplied.turns,
+            turnStatus: restoredTurnStatus,
+            activeTurnId: activeTurn ? activeTurn.id : null,
+            interruptingTurnId: null,
+            streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',
+            streamingMessageLastDeltaAt: preserveEmptyRealtimeSnapshot ? state.streamingMessageLastDeltaAt : null,
+            streamingReasoning: preserveEmptyRealtimeSnapshot ? state.streamingReasoning : '',
+            activeItemId: preserveEmptyRealtimeSnapshot ? state.activeItemId : null,
+            turnStartedAt: activeTurn
+              ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
+              : null,
+            maintenanceKind: null,
+            streamRetry: null,
+            itemDiffs,
+            turnDiffs: foldHistoryTurnDiffs(
+              toolCompletionApplied.turns,
+              itemDiffs,
+              preserveExistingRealtime ? state.turnDiffs : new Map(),
+              state.workspacePath
+            ),
+            streamingItemDiffs: new Map<string, FileDiff>(),
+            streamingBaselines: new Map<string, StreamingFileBaseline>(),
+            shellRuntimeByCallId: preserveExistingRealtime
+              ? state.shellRuntimeByCallId
+              : new Map<string, ShellRuntimeEntry>(),
+            pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,
+            pendingToolCompletionsByCallKey: toolCompletionApplied.pendingToolCompletionsByCallKey,
+            contextUsage: compactedNotice
+              ? applyCompactedNoticeToContextUsage(state.contextUsage, compactedNotice)
+              : state.contextUsage
+          }
+        })
+      },
+
+      onTurnStarted(rawTurn) {
+        conversationTextDeltaBuffer.reset()
+        const turn = wireTurnToConversationTurn(rawTurn)
+        set((state) => {
+          // Guard: if this turn ID already exists (was promoted via promoteOptimisticTurn before
+          // the notification arrived), update in-place to avoid creating a duplicate key.
+          const alreadyExists = state.turns.find((t) => t.id === turn.id)
+          if (alreadyExists) {
+            return {
+              turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
+                t.id === turn.id
+                  ? { ...mergeExistingRealtimeTurn(turn, t), status: 'running', startedAt: turn.startedAt }
+                  : t
+              )),
+              turnStatus: 'running',
+              activeTurnId: turn.id,
+              interruptingTurnId: null,
+              pendingApproval: null,
+              pendingApprovals: [],
+              pendingUserInput: null,
+              streamingMessage: '',
+              streamingMessageLastDeltaAt: null,
+              streamingReasoning: '',
+              activeItemId: null,
+              turnStartedAt: Date.now(),
+              inputTokens: 0,
+              outputTokens: 0,
+              systemLabel: null,
+              streamRetry: null,
+              maintenanceKind: null,
+                      streamingItemDiffs: new Map<string, FileDiff>(),
+              streamingBaselines: new Map<string, StreamingFileBaseline>()
+            }
+          }
+
+                const lastOptimistic = state.turns.find((candidate) => turnRepresentsOptimisticTurn(turn, candidate))
+          let nextTurns: ConversationTurn[]
+          if (lastOptimistic) {
+            nextTurns = state.turns.map((t) =>
+              t.id === lastOptimistic.id ? mergeExistingRealtimeTurn(turn, lastOptimistic) : t
+            )
+          } else {
+            nextTurns = [...state.turns, turn]
+          }
+          return {
+            turns: nextTurns,
+            turnStatus: 'running',
+            activeTurnId: turn.id,
+            interruptingTurnId: null,
+            pendingApproval: null,
+            pendingApprovals: [],
+            pendingUserInput: null,
+            streamingMessage: '',
+            streamingMessageLastDeltaAt: null,
+            streamingReasoning: '',
+            activeItemId: null,
+            turnStartedAt: Date.now(),
+            inputTokens: 0,
+            outputTokens: 0,
+            systemLabel: null,
+            streamRetry: null,
+            maintenanceKind: null,
+                  streamingItemDiffs: new Map<string, FileDiff>(),
+            streamingBaselines: new Map<string, StreamingFileBaseline>()
+          }
+        })
+      },
+
+      onTurnCompleted(rawTurn) {
+        conversationTextDeltaBuffer.flush()
+        const turn = wireTurnToConversationTurn(rawTurn)
+        set((state) => {
+          return {
+            turns: state.turns.map((t) =>
+              t.id === turn.id
+                ? {
+                    ...mergeExistingRealtimeTurn(turn, t),
+                    status: 'completed' as TurnStatus,
+                    completedAt: turn.completedAt ?? t.completedAt,
+                    tokenUsage: turn.tokenUsage ?? t.tokenUsage
+                  }
+                : t
+            ),
+            turnStatus: 'idle',
+            activeTurnId: null,
+            interruptingTurnId: null,
+            pendingApproval: null,
+            pendingApprovals: [],
+            pendingUserInput: null,
+            streamingMessage: '',
+            streamingMessageLastDeltaAt: null,
+            streamingReasoning: '',
+            activeItemId: null,
+            turnStartedAt: null,
+            systemLabel: null,
+            streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry,
+            pendingMessage: null
+          }
+        })
+        // App.tsx reads conv.pendingMessage BEFORE calling onTurnCompleted, so the
+        // pending-message auto-send is handled there, not here.
+      },
+
+      onTurnFailed(rawTurn, error) {
+        conversationTextDeltaBuffer.flush()
+        const turn = wireTurnToConversationTurn(rawTurn)
+        set((state) => ({
+          turns: state.turns.map((t) =>
             t.id === turn.id
-              ? { ...mergeExistingRealtimeTurn(turn, t), status: 'running', startedAt: turn.startedAt }
+              ? {
+                ...t,
+                status: 'failed' as TurnStatus,
+                error,
+                providerError: turn.providerError,
+                completedAt: turn.completedAt
+              }
               : t
-          )),
-          turnStatus: 'running',
-          activeTurnId: turn.id,
+          ),
+          turnStatus: 'idle',
+          activeTurnId: null,
           interruptingTurnId: null,
           pendingApproval: null,
           pendingApprovals: [],
           pendingUserInput: null,
+          streamingMessage: '',
+          streamingMessageLastDeltaAt: null,
+          streamingReasoning: '',
+          activeItemId: null,
+          turnStartedAt: null,
+          systemLabel: null,
+          streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
+        }))
+      },
+
+      onTurnCancelled(rawTurn, reason) {
+        conversationTextDeltaBuffer.flush()
+        const turn = wireTurnToConversationTurn(rawTurn)
+        set((state) => ({
+          turns: state.turns.map((t) =>
+            t.id === turn.id
+              ? {
+                  ...t,
+                  status: 'cancelled' as TurnStatus,
+                  cancelReason: reason,
+                  completedAt: turn.completedAt,
+                  items: t.items.map((item) =>
+                    item.status === 'completed' ? item : { ...item, status: 'completed' }
+                  )
+                }
+              : t
+          ),
+          turnStatus: 'idle',
+          activeTurnId: null,
+          interruptingTurnId: null,
+          pendingApproval: null,
+          pendingApprovals: [],
+          pendingUserInput: null,
+          streamingMessage: '',
+          streamingMessageLastDeltaAt: null,
+          streamingReasoning: '',
+          activeItemId: null,
+          turnStartedAt: null,
+          systemLabel: null,
+          streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
+        }))
+      },
+
+      onItemStarted(params) {
+        conversationTextDeltaBuffer.flush()
+        const item = params.item as Record<string, unknown>
+        const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
+        const itemId = item?.id as string
+        const turnId = params.turnId as string
+
+        if (type === 'agentMessage') {
+          const newItem: ConversationItem = {
+            id: itemId ?? '',
+            type: 'agentMessage',
+            status: 'streaming',
+            text: '',
+            createdAt: (item?.createdAt as string) ?? new Date().toISOString()
+          }
+          set((state) => ({
+            streamingMessage: '',
+            streamingMessageLastDeltaAt: null,
+            activeItemId: itemId,
+            turns: state.turns.map((t) =>
+              t.id === turnId && !t.items.some((existing) => existing.id === newItem.id)
+                ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
+                : t
+            )
+          }))
+        } else if (type === 'userMessage') {
+          const newItem = wireItemToConversationItem(item)
+          set((state) => ({
+            turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
+              t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
+            ))
+          }))
+        } else if (type === 'reasoningContent') {
+          const newItem: ConversationItem = {
+            id: itemId ?? '',
+            type: 'reasoningContent',
+            status: 'streaming',
+            reasoning: '',
+            createdAt: (item?.createdAt as string) ?? new Date().toISOString()
+          }
+          set((state) => ({
+            streamingReasoning: '',
+            activeItemId: itemId,
+            turns: state.turns.map((t) =>
+              t.id === turnId && !t.items.some((existing) => existing.id === newItem.id)
+                ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
+                : t
+            )
+          }))
+        } else if (type === 'imageGeneration') {
+          const mappedItem = wireItemToConversationItem(item)
+          const newItem: ConversationItem = {
+            ...mappedItem,
+            status: mappedItem.imageGenerationStatus === 'completed' || mappedItem.imageGenerationStatus === 'failed'
+              ? 'completed'
+              : 'started',
+            imageGenerationStatus: mappedItem.imageGenerationStatus ?? 'inProgress'
+          }
+          set((state) => ({
+            turns: state.turns.map((t) => {
+              if (t.id !== turnId) return t
+              const existing = t.items.find((candidate) => candidate.id === newItem.id)
+              if (
+                existing?.type === 'imageGeneration' &&
+                (existing.status === 'completed' ||
+                  existing.imageGenerationStatus === 'completed' ||
+                  existing.imageGenerationStatus === 'failed')
+              ) {
+                return t
+              }
+              return { ...t, items: upsertItemById(t.items, newItem) }
+            })
+          }))
+        } else if (type === 'webSearch') {
+          const mappedItem = wireItemToConversationItem(item)
+          const newItem: ConversationItem = {
+            ...mappedItem,
+            status: mappedItem.webSearch?.status === 'inProgress' ? 'started' : 'completed'
+          }
+          set((state) => ({
+            turns: state.turns.map((t) => {
+              if (t.id !== turnId) return t
+              if (t.items.some((candidate) => candidate.id === newItem.id && candidate.status === 'completed')) return t
+              return { ...t, items: upsertItemById(t.items, newItem) }
+            })
+          }))
+        } else if (isToolLikeItemType(type)) {
+          const baseItem = buildToolLikeItem(item, type, 'started')
+          set((state) => {
+            let nextPending = state.pendingTerminalByCallId
+            let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
+            const turns = state.turns.map((t) => {
+              if (t.id !== turnId) return t
+              const existing = t.items.find((candidate) => candidate.id === baseItem.id)
+              if (existing?.status === 'completed') return t
+              const projectedItem = existing
+                ? mergeToolLikeProjection(existing, baseItem, true)
+                : baseItem
+              const nextItem = type === 'toolCall'
+                ? mergeExistingCommandExecutionIntoToolCall(projectedItem, t.items)
+                : projectedItem
+              const nextTurn = {
+                ...t,
+                items: sortItemsByCreatedAt(existing
+                  ? t.items.map((candidate) => candidate.id === nextItem.id ? nextItem : candidate)
+                  : [...t.items, nextItem])
+              }
+              if (type !== 'toolCall') return nextTurn
+              const applied = applyPendingTerminalsToTurn(nextTurn, state.pendingTerminalByCallId)
+              nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
+              const completionApplied = applyPendingToolCompletionsToTurn(
+                applied.turn,
+                state.pendingToolCompletionsByCallKey
+              )
+              nextPendingToolCompletions = removePendingToolCompletionEntries(
+                nextPendingToolCompletions,
+                completionApplied.appliedKeys
+              )
+              return completionApplied.turn
+            })
+            return {
+              turns,
+              pendingTerminalByCallId: nextPending,
+              pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+              ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
+                ? refreshTurnFileChanges(turns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
+                : {})
+            }
+          })
+        } else if (type === 'commandExecution') {
+          const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
+          const newItem: ConversationItem = {
+            id: itemId ?? '',
+            type: 'commandExecution',
+            status: 'started',
+            command: (item?.command as string | undefined) ?? (itemPayload.command as string | undefined) ?? '',
+            workingDirectory: (item?.workingDirectory as string | undefined)
+              ?? (itemPayload.workingDirectory as string | undefined),
+            commandSource: (item?.source as 'host' | undefined)
+              ?? (itemPayload.source as 'host' | undefined),
+            aggregatedOutput: (item?.aggregatedOutput as string | undefined)
+              ?? (itemPayload.aggregatedOutput as string | undefined)
+              ?? '',
+            exitCode: (item?.exitCode as number | null | undefined)
+              ?? (itemPayload.exitCode as number | null | undefined),
+            // Wire item.status is item lifecycle (started/completed), not shell execution state.
+            // Prefer payload.status (inProgress/completed/failed/cancelled).
+            executionStatus: (itemPayload.status as ConversationItem['executionStatus'] | undefined)
+              ?? 'inProgress',
+            toolCallId: (item?.callId as string | undefined)
+              ?? (itemPayload.callId as string | undefined),
+            terminalSessionId: itemPayload.sessionId as string | undefined,
+            createdAt: (item?.createdAt as string) ?? new Date().toISOString()
+          }
+          set((state) => ({
+            turns: state.turns.map((t) =>
+              t.id !== turnId
+                ? t
+                : t.items.some((existing) => existing.id === newItem.id)
+                  ? t
+                : {
+                    ...t,
+                    items: sortItemsByCreatedAt(
+                      mergeCommandExecutionAcrossItems([...t.items, newItem], newItem)
+                    )
+                  }
+            )
+          }))
+        }
+      },
+
+      onAgentMessageDelta(delta) {
+        const receivedAt = Date.now()
+        conversationTextDeltaBuffer.queueAgentMessage(delta, receivedAt)
+      },
+
+      onReasoningDelta(delta) {
+        conversationTextDeltaBuffer.queueReasoning(delta)
+      },
+
+      onCommandExecutionDelta(params) {
+        const turnId = params.turnId ?? ''
+        const itemId = params.itemId ?? ''
+        const delta = params.delta ?? ''
+        if (!turnId || !itemId || !delta) return
+
+        const commandExecution = get().turns
+          .find((turn) => turn.id === turnId)
+          ?.items.find((item) => item.id === itemId && item.type === 'commandExecution')
+        if (!commandExecution?.toolCallId) return
+        const matchingToolCall = get().turns
+          .find((turn) => turn.id === turnId)
+          ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === commandExecution.toolCallId)
+        if (isTerminalExecutionStatus(commandExecution.executionStatus)
+            || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+        shellRuntimeBuffer.queue(commandExecution.toolCallId, 'commandExecution', delta, false)
+      },
+
+      onToolExecutionProgress(params) {
+        const turnId = params.turnId ?? ''
+        const itemId = params.itemId ?? ''
+        const callId = params.callId ?? ''
+        if (!turnId || !itemId || !callId) return
+
+        set((state) => ({
+          turns: state.turns.map((turn) => turn.id !== turnId
+            ? turn
+            : {
+                ...turn,
+                items: turn.items.map((item) => {
+                  const isExecution = item.id === itemId && item.type === 'toolExecution'
+                  const isToolCall = item.type === 'toolCall' && item.toolCallId === callId
+                  return isExecution || isToolCall
+                    ? { ...item, transferProgress: params.progress }
+                    : item
+                })
+              })
+        }))
+      },
+
+      onTerminalInteraction({ turnId, itemId, stdin }) {
+        if (!turnId || !itemId || !stdin) return
+        const read = readTerminalInput(terminalInputBuffers.get(itemId) ?? '', stdin)
+        if (read.buffer) terminalInputBuffers.set(itemId, read.buffer)
+        else terminalInputBuffers.delete(itemId)
+        if (read.commands.length === 0) return
+
+        set((state) => ({
+          turns: state.turns.map((turn) => {
+            if (turn.id !== turnId) return turn
+            const callId = turn.items.find((item) => item.id === itemId && item.type === 'commandExecution')?.toolCallId
+            if (!callId) return turn
+            return {
+              ...turn,
+              items: turn.items.map((item) =>
+                item.type === 'toolCall' && item.toolCallId === callId
+                  ? { ...item, terminalInputs: [...(item.terminalInputs ?? []), ...read.commands] }
+                  : item
+              )
+            }
+          })
+        }))
+      },
+
+      onTerminalEvent(params) {
+        const terminal = params.terminal ?? {}
+        const callId = terminal.callId as string | undefined
+        if (!callId) return
+
+        const turnId = (terminal.turnId as string | undefined) ?? ''
+        const delta = params.delta ?? ''
+        if (params.event === 'terminal/outputDelta') {
+          const existing = get()
+          const completedPending = existing.pendingTerminalByCallId.get(callId)
+          const matchingToolCall = existing.turns
+            .find((turn) => !turnId || turn.id === turnId)
+            ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === callId)
+          if (completedPending?.event === 'terminal/completed'
+              || completedPending?.event === 'terminal/cleaned'
+              || (isTerminalExecutionStatus(matchingToolCall?.executionStatus) && !matchingToolCall?.terminalRunning)) return
+
+          const snapshotOutput = terminal.output as string | undefined
+          shellRuntimeBuffer.queue(
+            callId,
+            'terminal',
+            shouldUseTerminalSnapshotOutput(params.event, snapshotOutput) ? snapshotOutput : delta,
+            shouldUseTerminalSnapshotOutput(params.event, snapshotOutput)
+          )
+          const hasMatchingToolCall = get().turns.some(
+            (turn) => (!turnId || turn.id === turnId) && turnHasShellToolCall(turn, callId)
+          )
+          if (!hasMatchingToolCall) {
+            set((state) => {
+              const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
+              pendingTerminalByCallId.set(callId, mergePendingTerminalEntry(
+                pendingTerminalByCallId.get(callId),
+                terminal,
+                params.event,
+                delta
+              ))
+              return { pendingTerminalByCallId }
+            })
+          }
+          return
+        }
+
+        const isTerminalEnd = params.event === 'terminal/completed' || params.event === 'terminal/cleaned'
+        if (isTerminalEnd) {
+          shellRuntimeBuffer.flush()
+          shellRuntimeBuffer.clear(callId)
+        }
+        set((state) => {
+          const pendingEntry = mergePendingTerminalEntry(
+            state.pendingTerminalByCallId.get(callId),
+            terminal,
+            params.event,
+            delta
+          )
+          let applied = false
+          const turns = state.turns.map((t) => {
+            if (turnId && t.id !== turnId) return t
+            if (!turnHasShellToolCall(t, callId)) {
+              return t
+            }
+            applied = true
+            return {
+              ...t,
+              items: sortItemsByCreatedAt(
+                mergeTerminalAcrossItems(t.items, pendingEntry.terminal, pendingEntry.event, '')
+              )
+            }
+          })
+          const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
+          if (applied) {
+            pendingTerminalByCallId.delete(callId)
+          } else {
+            pendingTerminalByCallId.set(callId, pendingEntry)
+          }
+          const shellRuntimeByCallId = isTerminalEnd
+            ? (() => {
+                const next = new Map(state.shellRuntimeByCallId)
+                next.delete(callId)
+                return next
+              })()
+            : state.shellRuntimeByCallId
+          return { turns, pendingTerminalByCallId, shellRuntimeByCallId }
+        })
+      },
+
+      onToolCallArgumentsDelta(params) {
+        const turnId = params.turnId ?? ''
+        const itemId = params.itemId ?? ''
+        const delta = params.delta ?? ''
+        if (!turnId || !itemId || !delta) return
+        const streamingBufferKey = `${turnId}:${itemId}`
+        let shouldLoadBaseline = false
+        let baselinePath = ''
+        let nextArgumentsPreviewForLoad = ''
+
+        set((state) => {
+          let capturedToolName = ''
+          let capturedKind: ToolKind | null = null
+          let capturedPreview = ''
+          let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
+          const nextTurns = state.turns.map((t) => {
+            if (t.id !== turnId) return t
+            const existing = t.items.find((i) => i.id === itemId)
+            const nextItems = existing
+              ? t.items.map((i) => {
+                  if (i.id !== itemId) return i
+                  const nextToolName = params.toolName ?? i.toolName ?? 'tool'
+                  const kind = resolveToolKind(i)
+                  const nextArgumentsPreview = appendStreamingArgumentsPreview(
+                    subAgentStreamingArgumentBuffers,
+                    streamingBufferKey,
+                    kind,
+                    i.argumentsPreview,
+                    delta
+                  )
+                  capturedToolName = nextToolName
+                  capturedKind = kind
+                  capturedPreview = nextArgumentsPreview
+                  return {
+                    ...i,
+                    type: 'toolCall' as const,
+                    status: 'streaming' as const,
+                    toolName: nextToolName,
+                    toolCallId: params.callId ?? i.toolCallId ?? itemId,
+                    argumentsPreview: nextArgumentsPreview,
+                    streamingFileContent: extractPartialJsonStringValue(nextArgumentsPreview, 'content')
+                      ?? extractPartialJsonStringValue(nextArgumentsPreview, 'newText')
+                      ?? i.streamingFileContent
+                  }
+                })
+              : [
+                  ...t.items,
+                  (() => {
+                    const toolName = params.toolName ?? 'tool'
+                    const argumentsPreview = appendStreamingArgumentsPreview(
+                      subAgentStreamingArgumentBuffers,
+                      streamingBufferKey,
+                      null,
+                      undefined,
+                      delta
+                    )
+                    return {
+                      id: itemId,
+                      type: 'toolCall' as const,
+                      status: 'streaming' as const,
+                      toolName,
+                      toolCallId: params.callId ?? itemId,
+                      createdAt: new Date().toISOString(),
+                      argumentsPreview,
+                      streamingFileContent: extractPartialJsonStringValue(argumentsPreview, 'content')
+                        ?? extractPartialJsonStringValue(argumentsPreview, 'newText')
+                        ?? undefined
+                    }
+                  })()
+                ]
+            if (!capturedToolName) {
+              const created = nextItems.find((i) => i.id === itemId)
+              capturedToolName = created?.toolName ?? params.toolName ?? ''
+              capturedPreview = created?.argumentsPreview ?? delta
+            }
+            const nextTurn = { ...t, items: sortItemsByCreatedAt(nextItems) }
+            const completionApplied = applyPendingToolCompletionsToTurn(
+              nextTurn,
+              state.pendingToolCompletionsByCallKey
+            )
+            nextPendingToolCompletions = removePendingToolCompletionEntries(
+              nextPendingToolCompletions,
+              completionApplied.appliedKeys
+            )
+            return completionApplied.turn
+          })
+
+          const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
+          const nextStreamingBaselines = new Map(state.streamingBaselines)
+          if (isFileWriteKind(capturedKind)) {
+            const previewPath = extractStreamingFilePath(capturedPreview)
+            const baseline = nextStreamingBaselines.get(itemId)
+            if (previewPath && baseline?.path !== previewPath) {
+              nextStreamingBaselines.set(itemId, { path: previewPath, originalContent: baseline?.originalContent ?? '' })
+            }
+            const baselineContent = baseline?.originalContent ?? (previewPath ? nextStreamingBaselines.get(itemId)?.originalContent : undefined)
+            const streamingDiff = computeStreamingFileDiff({
+              kind: capturedKind,
+              argumentsPreview: capturedPreview,
+              filePath: previewPath ?? baseline?.path ?? null,
+              baselineContent
+            })
+            if (streamingDiff) {
+              nextStreamingItemDiffs.set(itemId, streamingDiff)
+            } else {
+              nextStreamingItemDiffs.delete(itemId)
+            }
+            if (previewPath && !baseline && state.workspacePath && !state.remoteWorkspaceActive) {
+              shouldLoadBaseline = true
+              baselinePath = previewPath
+              nextArgumentsPreviewForLoad = capturedPreview
+            }
+          } else {
+            nextStreamingItemDiffs.delete(itemId)
+          }
+
+          return {
+            turns: nextTurns,
+            streamingItemDiffs: nextStreamingItemDiffs,
+            streamingBaselines: nextStreamingBaselines,
+            pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+            ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
+              ? refreshTurnFileChanges(nextTurns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
+              : {})
+          }
+        })
+
+        if (!shouldLoadBaseline || !baselinePath) return
+        const state = get()
+        if (state.remoteWorkspaceActive) return
+        const workspacePath = state.workspacePath
+        if (!workspacePath || typeof window === 'undefined' || !window.api?.file?.readFile) return
+        const absPath = toAbsoluteWorkspacePath(workspacePath, baselinePath)
+        void window.api.file.readFile(absPath)
+          .then((content) => content ?? '')
+          .catch(() => '')
+          .then((originalContent) => {
+            set((state) => {
+              const turn = state.turns.find((t) => t.id === turnId)
+              const item = turn?.items.find((i) => i.id === itemId)
+              if (!item) return {}
+
+              const kind = resolveToolKind(item)
+              if (!isFileWriteKind(kind)) return {}
+              const preview = item.argumentsPreview ?? nextArgumentsPreviewForLoad
+              if (!preview) return {}
+              const resolvedPath = extractStreamingFilePath(preview) ?? baselinePath
+
+              const nextStreamingBaselines = new Map(state.streamingBaselines)
+              nextStreamingBaselines.set(itemId, {
+                path: resolvedPath,
+                originalContent
+              })
+
+              const streamingDiff = computeStreamingFileDiff({
+                kind,
+                argumentsPreview: preview,
+                filePath: resolvedPath,
+                baselineContent: originalContent
+              })
+              const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
+              if (streamingDiff) {
+                nextStreamingItemDiffs.set(itemId, streamingDiff)
+              } else {
+                nextStreamingItemDiffs.delete(itemId)
+              }
+
+              return {
+                streamingBaselines: nextStreamingBaselines,
+                streamingItemDiffs: nextStreamingItemDiffs
+              }
+            })
+          })
+      },
+
+      onItemCompleted(params) {
+        conversationTextDeltaBuffer.flush()
+        const item = params.item as Record<string, unknown>
+        const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
+        const turnId = params.turnId as string
+        const state = get()
+
+        if (type === 'agentMessage') {
+          const mappedItem = wireItemToConversationItem(item)
+          const itemId = mappedItem.id
+          set((s) => {
+            const turn = s.turns.find((t) => t.id === turnId)
+            if (!turn) {
+              return s.activeItemId === itemId
+                ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
+                : {}
+            }
+            const existingItem = turn.items.find((i) => i.id === itemId && i.type === 'agentMessage')
+            const streamingText = s.activeItemId === itemId ? s.streamingMessage : ''
+            const finalText = streamingText || mappedItem.text || existingItem?.text || ''
+            const completedAt = mappedItem.completedAt ?? existingItem?.completedAt ?? new Date().toISOString()
+            const completedItem: ConversationItem = {
+              ...existingItem,
+              ...mappedItem,
+              status: 'completed',
+              text: finalText,
+              createdAt: typeof item?.createdAt === 'string'
+                ? mappedItem.createdAt
+                : existingItem?.createdAt ?? mappedItem.createdAt,
+              completedAt
+            }
+            const nextItems = existingItem
+              ? turn.items.map((i) =>
+                  i.id === itemId && i.type === 'agentMessage'
+                    ? completedItem
+                    : i
+                )
+              : sortItemsByCreatedAt([
+                  ...turn.items,
+                  completedItem
+                ])
+            return {
+              turns: s.turns.map((t) =>
+                t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
+              ),
+              ...(s.activeItemId === itemId
+                ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
+                : {})
+            }
+          })
+        } else if (type === 'reasoningContent') {
+          const itemId = (item?.id as string) ?? ''
+          const alreadyCommitted = state.turns
+            .find((t) => t.id === turnId)
+            ?.items.some((i) => i.id === itemId && i.type === 'reasoningContent' && i.status === 'completed')
+          if (alreadyCommitted) {
+            set({ streamingReasoning: '', activeItemId: null })
+            return
+          }
+          const finalText = state.streamingReasoning || ((item?.text as string) ?? (item?.content as string) ?? '')
+          const completedAt = (item?.completedAt as string) ?? new Date().toISOString()
+          set((s) => {
+            const turn = s.turns.find((t) => t.id === turnId)
+            if (!turn) {
+              return { streamingReasoning: '', activeItemId: null }
+            }
+            const hasPlaceholder = turn.items.some((i) => i.id === itemId && i.type === 'reasoningContent')
+            const nextItems = hasPlaceholder
+              ? turn.items.map((i) =>
+                  i.id === itemId && i.type === 'reasoningContent'
+                    ? {
+                        ...i,
+                        status: 'completed' as const,
+                        reasoning: finalText,
+                        completedAt
+                      }
+                    : i
+                )
+              : sortItemsByCreatedAt([
+                  ...turn.items,
+                  {
+                    id: itemId,
+                    type: 'reasoningContent' as const,
+                    status: 'completed' as const,
+                    reasoning: finalText,
+                    createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
+                    completedAt
+                  }
+                ])
+            return {
+              turns: s.turns.map((t) =>
+                t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
+              ),
+              streamingReasoning: '',
+              activeItemId: null
+            }
+          })
+        } else if (type === 'userMessage') {
+          const newItem = wireItemToConversationItem(item)
+          set((s) => ({
+            turns: removeRepresentedOptimisticTurns(s.turns.map((t) =>
+              t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
+            ))
+          }))
+        } else if (type === 'error') {
+          const newItem = wireItemToConversationItem(item)
+          set((s) => ({
+            turns: s.turns.map((t) =>
+              t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
+            )
+          }))
+        } else if (type === 'systemNotice') {
+          const newItem = wireItemToConversationItem(item)
+          const notice = newItem.systemNotice
+          set((s) => ({
+            turns: s.turns.map((t) => {
+              if (t.id !== turnId) return t
+              if (t.items.some((i) => i.id === newItem.id)) return t
+              return { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
+            }),
+            contextUsage: notice
+              ? applyCompactedNoticeToContextUsage(s.contextUsage, notice)
+              : s.contextUsage
+          }))
+        } else if (type === 'imageGeneration' || type === 'webSearch') {
+          const completedItem: ConversationItem = {
+            ...wireItemToConversationItem(item),
+            status: 'completed'
+          }
+          set((s) => ({
+            turns: s.turns.map((t) =>
+              t.id === turnId ? { ...t, items: upsertItemById(t.items, completedItem) } : t
+            )
+          }))
+        } else if (type === 'toolCall') {
+          const itemId = (item?.id as string) ?? ''
+          if (itemId) subAgentStreamingArgumentBuffers.delete(`${turnId}:${itemId}`)
+          const completedProjection = buildToolLikeItem(item, 'toolCall', 'completed')
+          set((s) => {
+            let nextPending = s.pendingTerminalByCallId
+            let nextPendingToolCompletions = s.pendingToolCompletionsByCallKey
+            const turns = s.turns.map((t) => {
+              if (t.id !== turnId) return t
+              const nextTurn = {
+                ...t,
+                items: sortItemsByCreatedAt(
+                  t.items.map((i) =>
+                    i.id === itemId
+                      ? mergeExistingCommandExecutionIntoToolCall(
+                          mergeToolLikeProjection(i, completedProjection, false),
+                          t.items
+                        )
+                      : i
+                  )
+                )
+              }
+              const applied = applyPendingTerminalsToTurn(nextTurn, s.pendingTerminalByCallId)
+              nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
+              const completionApplied = applyPendingToolCompletionsToTurn(
+                applied.turn,
+                s.pendingToolCompletionsByCallKey
+              )
+              nextPendingToolCompletions = removePendingToolCompletionEntries(
+                nextPendingToolCompletions,
+                completionApplied.appliedKeys
+              )
+              return completionApplied.turn
+            })
+            return {
+              turns,
+              pendingTerminalByCallId: nextPending,
+              pendingToolCompletionsByCallKey: nextPendingToolCompletions,
+              ...(nextPendingToolCompletions !== s.pendingToolCompletionsByCallKey
+                ? refreshTurnFileChanges(turns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath)
+                : {})
+            }
+          })
+        } else if (type === 'commandExecution') {
+          const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
+          const completedCallId = (item?.callId as string | undefined)
+            ?? (itemPayload.callId as string | undefined)
+          shellRuntimeBuffer.flush()
+          if (completedCallId) shellRuntimeBuffer.clear(completedCallId)
+          set((s) => ({
+            turns: s.turns.map((t) =>
+              t.id !== turnId
+                ? t
+                : {
+                    ...t,
+                    items: sortItemsByCreatedAt((() => {
+                      const updatedItems = t.items.map((i) => {
+                        if (i.id !== (item?.id as string) || i.type !== 'commandExecution') return i
+                        const startMs = i.createdAt ? new Date(i.createdAt).getTime() : Date.now()
+                        const endMs = (item?.completedAt as string)
+                          ? new Date(item.completedAt as string).getTime()
+                          : Date.now()
+                        return {
+                          ...i,
+                          status: 'completed' as const,
+                          command: (item?.command as string | undefined)
+                            ?? (itemPayload.command as string | undefined)
+                            ?? i.command,
+                          workingDirectory: (item?.workingDirectory as string | undefined)
+                            ?? (itemPayload.workingDirectory as string | undefined)
+                            ?? i.workingDirectory,
+                          commandSource: (item?.source as 'host' | undefined)
+                            ?? (itemPayload.source as 'host' | undefined)
+                            ?? i.commandSource,
+                          aggregatedOutput: (item?.aggregatedOutput as string | undefined)
+                            ?? (itemPayload.aggregatedOutput as string | undefined)
+                            ?? (completedCallId ? s.shellRuntimeByCallId.get(completedCallId)?.output : undefined)
+                            ?? i.aggregatedOutput
+                            ?? '',
+                          exitCode: (item?.exitCode as number | null | undefined)
+                            ?? (itemPayload.exitCode as number | null | undefined)
+                            ?? i.exitCode,
+                          executionStatus: (itemPayload.status as ConversationItem['executionStatus'] | undefined)
+                            ?? i.executionStatus
+                            ?? 'completed',
+                          toolCallId: (item?.callId as string | undefined)
+                            ?? (itemPayload.callId as string | undefined)
+                            ?? i.toolCallId,
+                          terminalSessionId: (itemPayload.sessionId as string | undefined) ?? i.terminalSessionId,
+                          duration: (itemPayload.durationMs as number | undefined) ?? (endMs - startMs),
+                          completedAt: (item?.completedAt as string) ?? new Date().toISOString()
+                        }
+                      })
+                      const commandExecution = updatedItems.find(
+                        (i) => i.id === (item?.id as string) && i.type === 'commandExecution'
+                      )
+                      return commandExecution
+                        ? mergeCommandExecutionAcrossItems(updatedItems, commandExecution)
+                        : updatedItems
+                    })())
+                }
+            ),
+            shellRuntimeByCallId: completedCallId
+              ? (() => {
+                  const next = new Map(s.shellRuntimeByCallId)
+                  next.delete(completedCallId)
+                  return next
+                })()
+              : s.shellRuntimeByCallId
+          }))
+        } else if (type === 'toolExecution') {
+          const toolExecution = wireItemToConversationItem(item)
+          const callId = toolExecution.toolCallId
+          const key = toolCompletionKey(turnId, callId)
+          if (!callId || !key) return
+
+          set((s) => {
+            let matched = false
+            const pending = new Map(s.pendingToolCompletionsByCallKey)
+            const entry = mergePendingToolCompletionEntry(pending.get(key), {
+              turnId,
+              callId,
+              toolExecution
+            })
+            const turns = s.turns.map((t) => {
+              if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
+              matched = true
+              return {
+                ...t,
+                items: sortItemsByCreatedAt(
+                  mergeToolCompletionEntryIntoItems(t.items, entry)
+                )
+              }
+            })
+
+            if (matched) {
+              pending.delete(key)
+            } else {
+              pending.set(key, entry)
+            }
+            return { turns, pendingToolCompletionsByCallKey: pending }
+          })
+        } else if (type === 'dynamicToolCall' || type === 'mcpToolCall') {
+          const completedItem = buildToolLikeItem(
+            item,
+            type,
+            'completed'
+          )
+          set((s) => ({
+            turns: s.turns.map((t) =>
+              t.id !== turnId
+                ? t
+                : {
+                    ...t,
+                    items: sortItemsByCreatedAt(
+                      t.items.map((i) => {
+                        if (i.id !== (item?.id as string)) return i
+                        const startMs = i.createdAt ? new Date(i.createdAt).getTime() : Date.now()
+                        const endMs = (item?.completedAt as string)
+                          ? new Date(item.completedAt as string).getTime()
+                          : Date.now()
+                        return {
+                          ...i,
+                          status: 'completed' as const,
+                          toolName: completedItem.toolName ?? i.toolName,
+                          toolCallId: completedItem.toolCallId ?? i.toolCallId,
+                          arguments: completedItem.arguments ?? i.arguments,
+                          result: completedItem.result ?? i.result,
+                          success: completedItem.success ?? true,
+                          pluginId: completedItem.pluginId ?? i.pluginId,
+                          pluginNamespace: completedItem.pluginNamespace ?? i.pluginNamespace,
+                          functionName: completedItem.functionName ?? i.functionName,
+                          contentItems: completedItem.contentItems ?? i.contentItems,
+                          structuredResult: completedItem.structuredResult ?? i.structuredResult,
+                          mcpAppResourceUri: completedItem.mcpAppResourceUri ?? i.mcpAppResourceUri,
+                          meta: completedItem.meta ?? i.meta,
+                          toolUi: completedItem.toolUi ?? i.toolUi,
+                          errorCode: completedItem.errorCode ?? i.errorCode,
+                          errorMessage: completedItem.errorMessage ?? i.errorMessage,
+                          duration: endMs - startMs,
+                          completedAt: (item?.completedAt as string) ?? new Date().toISOString()
+                        }
+                      })
+                    )
+                  }
+            )
+          }))
+        } else if (type === 'toolResult') {
+          // Extract nested payload for toolResult items (wire protocol: item.payload.{callId,result,success})
+          const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
+          const callId = (item?.callId as string | undefined)
+            ?? (itemPayload.callId as string | undefined)
+            ?? (item?.toolCallId as string | undefined)
+          const key = toolCompletionKey(turnId, callId)
+          if (!callId || !key) return
+          const resultText = (item?.result as string | undefined)
+            ?? (itemPayload.result as string | undefined)
+            ?? (item?.text as string | undefined)
+            ?? ''
+          const success = (item?.success as boolean | undefined)
+            ?? (itemPayload.success as boolean | undefined)
+            ?? true
+          const toolResult = wireItemToConversationItem(item)
+
+          set((s) => {
+            let matched = false
+            const pending = new Map(s.pendingToolCompletionsByCallKey)
+            const entry = mergePendingToolCompletionEntry(pending.get(key), {
+              turnId,
+              callId,
+              toolResult: {
+                ...toolResult,
+                toolCallId: callId,
+                result: resultText,
+                success
+              }
+            })
+            const nextTurns = s.turns.map((t) => {
+              if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
+              matched = true
+              return {
+                ...t,
+                items: sortItemsByCreatedAt(
+                  mergeToolCompletionEntryIntoItems(t.items, entry)
+                )
+              }
+            })
+
+            if (matched) {
+              pending.delete(key)
+            } else {
+              pending.set(key, entry)
+            }
+            return {
+              turns: nextTurns,
+              pendingToolCompletionsByCallKey: pending,
+              ...(matched ? refreshTurnFileChanges(nextTurns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath) : {})
+            }
+          })
+
+          const matchedCallItem = get()
+            .turns.find((t) => t.id === turnId)
+            ?.items.find((i) => i.type === 'toolCall' && i.toolCallId === callId)
+          if (matchedCallItem?.id) {
+            set((s) => {
+              const nextStreamingItemDiffs = new Map(s.streamingItemDiffs)
+              const nextStreamingBaselines = new Map(s.streamingBaselines)
+              nextStreamingItemDiffs.delete(matchedCallItem.id)
+              nextStreamingBaselines.delete(matchedCallItem.id)
+              return {
+                streamingItemDiffs: nextStreamingItemDiffs,
+                streamingBaselines: nextStreamingBaselines
+              }
+            })
+          }
+        }
+      },
+
+      onUsageDelta(inputTokens, outputTokens, totalInputTokens, totalOutputTokens, contextUsageSnapshot) {
+        set((state) => {
+          const nextInput = state.inputTokens + inputTokens
+          const nextOutput = state.outputTokens + outputTokens
+          const nextContextUsage = contextUsageSnapshot
+            ? toContextUsage(contextUsageSnapshot)
+            : applyTokensToContextUsage(
+              state.contextUsage,
+              typeof totalInputTokens === 'number' ? totalInputTokens : null
+            )
+          void totalOutputTokens
+          return {
+            inputTokens: nextInput,
+            outputTokens: nextOutput,
+            contextUsage: nextContextUsage
+          }
+        })
+      },
+
+      clearStreamRetry(turnId) {
+        if (get().streamRetry?.turnId === turnId) set({ streamRetry: null })
+      },
+
+      onSystemEvent(kind, params) {
+        const label = systemLabelForEvent(kind, params)
+        const maintenanceKind = maintenanceKindForSystemEvent(kind, params)
+        if (label !== undefined) {
+          set({ systemLabel: label })
+        }
+        if (maintenanceKind !== undefined) {
+          set({ maintenanceKind })
+        }
+
+        if (kind === 'streamError') {
+          const turnId = params?.turnId ?? get().activeTurnId
+          const attempt = readRetryCount(params?.params?.attempt)
+          // A first attempt that recovers immediately is noise, so only a repeat is surfaced.
+          if (turnId && attempt !== null && attempt > 1) {
+            set({
+              streamRetry: {
+                turnId,
+                attempt,
+                max: readRetryCount(params?.params?.max),
+                serverBusy: params?.messageKey === SERVER_BUSY_RETRY_KEY
+              }
+            })
+          }
+        }
+
+        if (kind === 'compacting') {
+          return
+        }
+
+        if (kind === 'compacted' || kind === 'compactSkipped' || kind === 'compactFailed' || kind === 'compactCancelled') {
+          if (params?.contextUsage) {
+            set({ contextUsage: toContextUsage(params.contextUsage) })
+            return
+          }
+
+          const tokens = typeof params?.tokenCount === 'number' ? params.tokenCount : null
+          set((state) => ({
+            contextUsage: applyTokensToContextUsage(
+              state.contextUsage,
+              tokens,
+              typeof params?.percentLeft === 'number' ? params.percentLeft : null
+            )
+          }))
+        }
+        // compactWarning / compactError only drive transient warning state; usage
+        // deltas already carry the live context snapshot.
+      },
+
+      setContextUsage(snapshot) {
+        if (!snapshot) {
+          set({ contextUsage: null })
+          return
+        }
+        set({ contextUsage: toContextUsage(snapshot) })
+      },
+
+      setMaintenanceKind(kind) {
+        const maintenanceKind = normalizeMaintenanceKind(kind)
+        set((state) => {
+          if (maintenanceKind) {
+            return {
+              maintenanceKind,
+              systemLabel: MANUAL_COMPACTING_LABEL
+            }
+          }
+
+          return {
+            maintenanceKind: null,
+            systemLabel: state.systemLabel === MANUAL_COMPACTING_LABEL
+              ? null
+              : state.systemLabel
+          }
+        })
+      },
+
+      setPendingMessage(msg) {
+        set({ pendingMessage: msg })
+      },
+
+      setQueuedInputs(inputs) {
+        set({ queuedInputs: inputs })
+      },
+
+      setSystemLabel(label) {
+        set({ systemLabel: label })
+      },
+
+      setThreadMode(mode) {
+        set({ threadMode: mode })
+      },
+
+      setInterruptingTurnId(turnId) {
+        set({ interruptingTurnId: turnId })
+      },
+
+      addOptimisticTurn(turn) {
+        set((state) => ({
+          turns: [...state.turns, turn],
+          turnStatus: 'running',
+          activeTurnId: turn.id,
+          interruptingTurnId: null,
           streamingMessage: '',
           streamingMessageLastDeltaAt: null,
           streamingReasoning: '',
@@ -1649,1468 +2798,303 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           outputTokens: 0,
           systemLabel: null,
           streamRetry: null,
-          maintenanceKind: null,
-                  streamingItemDiffs: new Map<string, FileDiff>(),
-          streamingBaselines: new Map<string, StreamingFileBaseline>()
-        }
-      }
+          maintenanceKind: null
+        }))
+      },
 
-            const lastOptimistic = state.turns.find((candidate) => turnRepresentsOptimisticTurn(turn, candidate))
-      let nextTurns: ConversationTurn[]
-      if (lastOptimistic) {
-        nextTurns = state.turns.map((t) =>
-          t.id === lastOptimistic.id ? mergeExistingRealtimeTurn(turn, lastOptimistic) : t
-        )
-      } else {
-        nextTurns = [...state.turns, turn]
-      }
-      return {
-        turns: nextTurns,
-        turnStatus: 'running',
-        activeTurnId: turn.id,
-        interruptingTurnId: null,
-        pendingApproval: null,
-        pendingApprovals: [],
-        pendingUserInput: null,
-        streamingMessage: '',
-        streamingMessageLastDeltaAt: null,
-        streamingReasoning: '',
-        activeItemId: null,
-        turnStartedAt: Date.now(),
-        inputTokens: 0,
-        outputTokens: 0,
-        systemLabel: null,
-        streamRetry: null,
-        maintenanceKind: null,
-              streamingItemDiffs: new Map<string, FileDiff>(),
-        streamingBaselines: new Map<string, StreamingFileBaseline>()
-      }
-    })
-  },
+      removeOptimisticTurn(turnId) {
+        set((state) => ({
+          turns: state.turns.filter((t) => t.id !== turnId),
+          turnStatus: 'idle',
+          activeTurnId: null,
+          streamingMessage: '',
+          streamingMessageLastDeltaAt: null,
+          streamingReasoning: '',
+          activeItemId: null,
+          turnStartedAt: null,
+          streamRetry: state.streamRetry?.turnId === turnId ? null : state.streamRetry
+        }))
+      },
 
-  onTurnCompleted(rawTurn) {
-    flushConversationTextDeltas()
-    const turn = wireTurnToConversationTurn(rawTurn)
-    set((state) => {
-      return {
-        turns: state.turns.map((t) =>
-          t.id === turn.id
-            ? {
-                ...mergeExistingRealtimeTurn(turn, t),
-                status: 'completed' as TurnStatus,
-                completedAt: turn.completedAt ?? t.completedAt,
-                tokenUsage: turn.tokenUsage ?? t.tokenUsage
-              }
-            : t
-        ),
-        turnStatus: 'idle',
-        activeTurnId: null,
-        interruptingTurnId: null,
-        pendingApproval: null,
-        pendingApprovals: [],
-        pendingUserInput: null,
-        streamingMessage: '',
-        streamingMessageLastDeltaAt: null,
-        streamingReasoning: '',
-        activeItemId: null,
-        turnStartedAt: null,
-        systemLabel: null,
-        streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry,
-        pendingMessage: null
-      }
-    })
-    // App.tsx reads conv.pendingMessage BEFORE calling onTurnCompleted, so the
-    // pending-message auto-send is handled there, not here.
-  },
-
-  onTurnFailed(rawTurn, error) {
-    flushConversationTextDeltas()
-    const turn = wireTurnToConversationTurn(rawTurn)
-    set((state) => ({
-      turns: state.turns.map((t) =>
-        t.id === turn.id
-          ? {
-            ...t,
-            status: 'failed' as TurnStatus,
-            error,
-            providerError: turn.providerError,
-            completedAt: turn.completedAt
-          }
-          : t
-      ),
-      turnStatus: 'idle',
-      activeTurnId: null,
-      interruptingTurnId: null,
-      pendingApproval: null,
-      pendingApprovals: [],
-      pendingUserInput: null,
-      streamingMessage: '',
-      streamingMessageLastDeltaAt: null,
-      streamingReasoning: '',
-      activeItemId: null,
-      turnStartedAt: null,
-      systemLabel: null,
-      streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
-    }))
-  },
-
-  onTurnCancelled(rawTurn, reason) {
-    flushConversationTextDeltas()
-    const turn = wireTurnToConversationTurn(rawTurn)
-    set((state) => ({
-      turns: state.turns.map((t) =>
-        t.id === turn.id
-          ? {
-              ...t,
-              status: 'cancelled' as TurnStatus,
-              cancelReason: reason,
-              completedAt: turn.completedAt,
-              items: t.items.map((item) =>
-                item.status === 'completed' ? item : { ...item, status: 'completed' }
-              )
-            }
-          : t
-      ),
-      turnStatus: 'idle',
-      activeTurnId: null,
-      interruptingTurnId: null,
-      pendingApproval: null,
-      pendingApprovals: [],
-      pendingUserInput: null,
-      streamingMessage: '',
-      streamingMessageLastDeltaAt: null,
-      streamingReasoning: '',
-      activeItemId: null,
-      turnStartedAt: null,
-      systemLabel: null,
-      streamRetry: state.streamRetry?.turnId === turn.id ? null : state.streamRetry
-    }))
-  },
-
-  onItemStarted(params) {
-    flushConversationTextDeltas()
-    const item = params.item as Record<string, unknown>
-    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
-    const itemId = item?.id as string
-    const turnId = params.turnId as string
-
-    if (type === 'agentMessage') {
-      const newItem: ConversationItem = {
-        id: itemId ?? '',
-        type: 'agentMessage',
-        status: 'streaming',
-        text: '',
-        createdAt: (item?.createdAt as string) ?? new Date().toISOString()
-      }
-      set((state) => ({
-        streamingMessage: '',
-        streamingMessageLastDeltaAt: null,
-        activeItemId: itemId,
-        turns: state.turns.map((t) =>
-          t.id === turnId && !t.items.some((existing) => existing.id === newItem.id)
-            ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
-            : t
-        )
-      }))
-    } else if (type === 'userMessage') {
-      const newItem = wireItemToConversationItem(item)
-      set((state) => ({
-        turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
-          t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-        ))
-      }))
-    } else if (type === 'reasoningContent') {
-      const newItem: ConversationItem = {
-        id: itemId ?? '',
-        type: 'reasoningContent',
-        status: 'streaming',
-        reasoning: '',
-        createdAt: (item?.createdAt as string) ?? new Date().toISOString()
-      }
-      set((state) => ({
-        streamingReasoning: '',
-        activeItemId: itemId,
-        turns: state.turns.map((t) =>
-          t.id === turnId && !t.items.some((existing) => existing.id === newItem.id)
-            ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
-            : t
-        )
-      }))
-    } else if (type === 'imageGeneration') {
-      const mappedItem = wireItemToConversationItem(item)
-      const newItem: ConversationItem = {
-        ...mappedItem,
-        status: mappedItem.imageGenerationStatus === 'completed' || mappedItem.imageGenerationStatus === 'failed'
-          ? 'completed'
-          : 'started',
-        imageGenerationStatus: mappedItem.imageGenerationStatus ?? 'inProgress'
-      }
-      set((state) => ({
-        turns: state.turns.map((t) => {
-          if (t.id !== turnId) return t
-          const existing = t.items.find((candidate) => candidate.id === newItem.id)
-          if (
-            existing?.type === 'imageGeneration' &&
-            (existing.status === 'completed' ||
-              existing.imageGenerationStatus === 'completed' ||
-              existing.imageGenerationStatus === 'failed')
-          ) {
-            return t
-          }
-          return { ...t, items: upsertItemById(t.items, newItem) }
-        })
-      }))
-    } else if (type === 'webSearch') {
-      const mappedItem = wireItemToConversationItem(item)
-      const newItem: ConversationItem = {
-        ...mappedItem,
-        status: mappedItem.webSearch?.status === 'inProgress' ? 'started' : 'completed'
-      }
-      set((state) => ({
-        turns: state.turns.map((t) => {
-          if (t.id !== turnId) return t
-          if (t.items.some((candidate) => candidate.id === newItem.id && candidate.status === 'completed')) return t
-          return { ...t, items: upsertItemById(t.items, newItem) }
-        })
-      }))
-    } else if (isToolLikeItemType(type)) {
-      const baseItem = buildToolLikeItem(item, type, 'started')
-      set((state) => {
-        let nextPending = state.pendingTerminalByCallId
-        let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
-        const turns = state.turns.map((t) => {
-          if (t.id !== turnId) return t
-          const existing = t.items.find((candidate) => candidate.id === baseItem.id)
-          if (existing?.status === 'completed') return t
-          const projectedItem = existing
-            ? mergeToolLikeProjection(existing, baseItem, true)
-            : baseItem
-          const nextItem = type === 'toolCall'
-            ? mergeExistingCommandExecutionIntoToolCall(projectedItem, t.items)
-            : projectedItem
-          const nextTurn = {
-            ...t,
-            items: sortItemsByCreatedAt(existing
-              ? t.items.map((candidate) => candidate.id === nextItem.id ? nextItem : candidate)
-              : [...t.items, nextItem])
-          }
-          if (type !== 'toolCall') return nextTurn
-          const applied = applyPendingTerminalsToTurn(nextTurn, state.pendingTerminalByCallId)
-          nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
-          const completionApplied = applyPendingToolCompletionsToTurn(
-            applied.turn,
-            state.pendingToolCompletionsByCallKey
-          )
-          nextPendingToolCompletions = removePendingToolCompletionEntries(
-            nextPendingToolCompletions,
-            completionApplied.appliedKeys
-          )
-          return completionApplied.turn
-        })
-        return {
-          turns,
-          pendingTerminalByCallId: nextPending,
-          pendingToolCompletionsByCallKey: nextPendingToolCompletions,
-          ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
-            ? refreshTurnFileChanges(turns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
-            : {})
-        }
-      })
-    } else if (type === 'commandExecution') {
-      const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
-      const newItem: ConversationItem = {
-        id: itemId ?? '',
-        type: 'commandExecution',
-        status: 'started',
-        command: (item?.command as string | undefined) ?? (itemPayload.command as string | undefined) ?? '',
-        workingDirectory: (item?.workingDirectory as string | undefined)
-          ?? (itemPayload.workingDirectory as string | undefined),
-        commandSource: (item?.source as 'host' | undefined)
-          ?? (itemPayload.source as 'host' | undefined),
-        aggregatedOutput: (item?.aggregatedOutput as string | undefined)
-          ?? (itemPayload.aggregatedOutput as string | undefined)
-          ?? '',
-        exitCode: (item?.exitCode as number | null | undefined)
-          ?? (itemPayload.exitCode as number | null | undefined),
-        // Wire item.status is item lifecycle (started/completed), not shell execution state.
-        // Prefer payload.status (inProgress/completed/failed/cancelled).
-        executionStatus: (itemPayload.status as ConversationItem['executionStatus'] | undefined)
-          ?? 'inProgress',
-        toolCallId: (item?.callId as string | undefined)
-          ?? (itemPayload.callId as string | undefined),
-        terminalSessionId: itemPayload.sessionId as string | undefined,
-        createdAt: (item?.createdAt as string) ?? new Date().toISOString()
-      }
-      set((state) => ({
-        turns: state.turns.map((t) =>
-          t.id !== turnId
-            ? t
-            : t.items.some((existing) => existing.id === newItem.id)
-              ? t
-            : {
-                ...t,
-                items: sortItemsByCreatedAt(
-                  mergeCommandExecutionAcrossItems([...t.items, newItem], newItem)
-                )
-              }
-        )
-      }))
-    }
-  },
-
-  onAgentMessageDelta(delta) {
-    const receivedAt = Date.now()
-    conversationTextDeltaBuffer.queueAgentMessage(delta, receivedAt)
-  },
-
-  onReasoningDelta(delta) {
-    conversationTextDeltaBuffer.queueReasoning(delta)
-  },
-
-  onCommandExecutionDelta(params) {
-    const turnId = params.turnId ?? ''
-    const itemId = params.itemId ?? ''
-    const delta = params.delta ?? ''
-    if (!turnId || !itemId || !delta) return
-
-    const commandExecution = get().turns
-      .find((turn) => turn.id === turnId)
-      ?.items.find((item) => item.id === itemId && item.type === 'commandExecution')
-    if (!commandExecution?.toolCallId) return
-    const matchingToolCall = get().turns
-      .find((turn) => turn.id === turnId)
-      ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === commandExecution.toolCallId)
-    if (isTerminalExecutionStatus(commandExecution.executionStatus)
-        || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
-    queueShellRuntimeUpdate(commandExecution.toolCallId, 'commandExecution', delta, false)
-  },
-
-  onToolExecutionProgress(params) {
-    const turnId = params.turnId ?? ''
-    const itemId = params.itemId ?? ''
-    const callId = params.callId ?? ''
-    if (!turnId || !itemId || !callId) return
-
-    set((state) => ({
-      turns: state.turns.map((turn) => turn.id !== turnId
-        ? turn
-        : {
-            ...turn,
-            items: turn.items.map((item) => {
-              const isExecution = item.id === itemId && item.type === 'toolExecution'
-              const isToolCall = item.type === 'toolCall' && item.toolCallId === callId
-              return isExecution || isToolCall
-                ? { ...item, transferProgress: params.progress }
-                : item
-            })
-          })
-    }))
-  },
-
-  onTerminalInteraction({ turnId, itemId, stdin }) {
-    if (!turnId || !itemId || !stdin) return
-    const read = readTerminalInput(terminalInputBuffers.get(itemId) ?? '', stdin)
-    if (read.buffer) terminalInputBuffers.set(itemId, read.buffer)
-    else terminalInputBuffers.delete(itemId)
-    if (read.commands.length === 0) return
-
-    set((state) => ({
-      turns: state.turns.map((turn) => {
-        if (turn.id !== turnId) return turn
-        const callId = turn.items.find((item) => item.id === itemId && item.type === 'commandExecution')?.toolCallId
-        if (!callId) return turn
-        return {
-          ...turn,
-          items: turn.items.map((item) =>
-            item.type === 'toolCall' && item.toolCallId === callId
-              ? { ...item, terminalInputs: [...(item.terminalInputs ?? []), ...read.commands] }
-              : item
-          )
-        }
-      })
-    }))
-  },
-
-  onTerminalEvent(params) {
-    const terminal = params.terminal ?? {}
-    const callId = terminal.callId as string | undefined
-    if (!callId) return
-
-    const turnId = (terminal.turnId as string | undefined) ?? ''
-    const delta = params.delta ?? ''
-    if (params.event === 'terminal/outputDelta') {
-      const existing = get()
-      const completedPending = existing.pendingTerminalByCallId.get(callId)
-      const matchingToolCall = existing.turns
-        .find((turn) => !turnId || turn.id === turnId)
-        ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === callId)
-      if (completedPending?.event === 'terminal/completed'
-          || completedPending?.event === 'terminal/cleaned'
-          || (isTerminalExecutionStatus(matchingToolCall?.executionStatus) && !matchingToolCall?.terminalRunning)) return
-
-      const snapshotOutput = terminal.output as string | undefined
-      queueShellRuntimeUpdate(
-        callId,
-        'terminal',
-        shouldUseTerminalSnapshotOutput(params.event, snapshotOutput) ? snapshotOutput : delta,
-        shouldUseTerminalSnapshotOutput(params.event, snapshotOutput)
-      )
-      const hasMatchingToolCall = get().turns.some(
-        (turn) => (!turnId || turn.id === turnId) && turnHasShellToolCall(turn, callId)
-      )
-      if (!hasMatchingToolCall) {
+      promoteOptimisticTurn(localId, serverId) {
         set((state) => {
-          const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
-          pendingTerminalByCallId.set(callId, mergePendingTerminalEntry(
-            pendingTerminalByCallId.get(callId),
-            terminal,
-            params.event,
-            delta
-          ))
-          return { pendingTerminalByCallId }
-        })
-      }
-      return
-    }
-
-    const isTerminalEnd = params.event === 'terminal/completed' || params.event === 'terminal/cleaned'
-    if (isTerminalEnd) {
-      flushShellRuntimeUpdates()
-      clearShellRuntime(callId)
-    }
-    set((state) => {
-      const pendingEntry = mergePendingTerminalEntry(
-        state.pendingTerminalByCallId.get(callId),
-        terminal,
-        params.event,
-        delta
-      )
-      let applied = false
-      const turns = state.turns.map((t) => {
-        if (turnId && t.id !== turnId) return t
-        if (!turnHasShellToolCall(t, callId)) {
-          return t
-        }
-        applied = true
-        return {
-          ...t,
-          items: sortItemsByCreatedAt(
-            mergeTerminalAcrossItems(t.items, pendingEntry.terminal, pendingEntry.event, '')
-          )
-        }
-      })
-      const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
-      if (applied) {
-        pendingTerminalByCallId.delete(callId)
-      } else {
-        pendingTerminalByCallId.set(callId, pendingEntry)
-      }
-      const shellRuntimeByCallId = isTerminalEnd
-        ? (() => {
-            const next = new Map(state.shellRuntimeByCallId)
-            next.delete(callId)
-            return next
-          })()
-        : state.shellRuntimeByCallId
-      return { turns, pendingTerminalByCallId, shellRuntimeByCallId }
-    })
-  },
-
-  onToolCallArgumentsDelta(params) {
-    const turnId = params.turnId ?? ''
-    const itemId = params.itemId ?? ''
-    const delta = params.delta ?? ''
-    if (!turnId || !itemId || !delta) return
-    const streamingBufferKey = `${turnId}:${itemId}`
-    let shouldLoadBaseline = false
-    let baselinePath = ''
-    let nextArgumentsPreviewForLoad = ''
-
-    set((state) => {
-      let capturedToolName = ''
-      let capturedKind: ToolKind | null = null
-      let capturedPreview = ''
-      let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
-      const nextTurns = state.turns.map((t) => {
-        if (t.id !== turnId) return t
-        const existing = t.items.find((i) => i.id === itemId)
-        const nextItems = existing
-          ? t.items.map((i) => {
-              if (i.id !== itemId) return i
-              const nextToolName = params.toolName ?? i.toolName ?? 'tool'
-              const kind = resolveToolKind(i)
-              const nextArgumentsPreview = appendStreamingArgumentsPreview(
-                streamingBufferKey,
-                kind,
-                i.argumentsPreview,
-                delta
-              )
-              capturedToolName = nextToolName
-              capturedKind = kind
-              capturedPreview = nextArgumentsPreview
-              return {
-                ...i,
-                type: 'toolCall' as const,
-                status: 'streaming' as const,
-                toolName: nextToolName,
-                toolCallId: params.callId ?? i.toolCallId ?? itemId,
-                argumentsPreview: nextArgumentsPreview,
-                streamingFileContent: extractPartialJsonStringValue(nextArgumentsPreview, 'content')
-                  ?? extractPartialJsonStringValue(nextArgumentsPreview, 'newText')
-                  ?? i.streamingFileContent
-              }
-            })
-          : [
-              ...t.items,
-              (() => {
-                const toolName = params.toolName ?? 'tool'
-                const argumentsPreview = appendStreamingArgumentsPreview(
-                  streamingBufferKey,
-                  null,
-                  undefined,
-                  delta
-                )
-                return {
-                  id: itemId,
-                  type: 'toolCall' as const,
-                  status: 'streaming' as const,
-                  toolName,
-                  toolCallId: params.callId ?? itemId,
-                  createdAt: new Date().toISOString(),
-                  argumentsPreview,
-                  streamingFileContent: extractPartialJsonStringValue(argumentsPreview, 'content')
-                    ?? extractPartialJsonStringValue(argumentsPreview, 'newText')
-                    ?? undefined
-                }
-              })()
-            ]
-        if (!capturedToolName) {
-          const created = nextItems.find((i) => i.id === itemId)
-          capturedToolName = created?.toolName ?? params.toolName ?? ''
-          capturedPreview = created?.argumentsPreview ?? delta
-        }
-        const nextTurn = { ...t, items: sortItemsByCreatedAt(nextItems) }
-        const completionApplied = applyPendingToolCompletionsToTurn(
-          nextTurn,
-          state.pendingToolCompletionsByCallKey
-        )
-        nextPendingToolCompletions = removePendingToolCompletionEntries(
-          nextPendingToolCompletions,
-          completionApplied.appliedKeys
-        )
-        return completionApplied.turn
-      })
-
-      const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
-      const nextStreamingBaselines = new Map(state.streamingBaselines)
-      if (isFileWriteKind(capturedKind)) {
-        const previewPath = extractStreamingFilePath(capturedPreview)
-        const baseline = nextStreamingBaselines.get(itemId)
-        if (previewPath && baseline?.path !== previewPath) {
-          nextStreamingBaselines.set(itemId, { path: previewPath, originalContent: baseline?.originalContent ?? '' })
-        }
-        const baselineContent = baseline?.originalContent ?? (previewPath ? nextStreamingBaselines.get(itemId)?.originalContent : undefined)
-        const streamingDiff = computeStreamingFileDiff({
-          kind: capturedKind,
-          argumentsPreview: capturedPreview,
-          filePath: previewPath ?? baseline?.path ?? null,
-          baselineContent
-        })
-        if (streamingDiff) {
-          nextStreamingItemDiffs.set(itemId, streamingDiff)
-        } else {
-          nextStreamingItemDiffs.delete(itemId)
-        }
-        if (previewPath && !baseline && state.workspacePath && !state.remoteWorkspaceActive) {
-          shouldLoadBaseline = true
-          baselinePath = previewPath
-          nextArgumentsPreviewForLoad = capturedPreview
-        }
-      } else {
-        nextStreamingItemDiffs.delete(itemId)
-      }
-
-      return {
-        turns: nextTurns,
-        streamingItemDiffs: nextStreamingItemDiffs,
-        streamingBaselines: nextStreamingBaselines,
-        pendingToolCompletionsByCallKey: nextPendingToolCompletions,
-        ...(nextPendingToolCompletions !== state.pendingToolCompletionsByCallKey
-          ? refreshTurnFileChanges(nextTurns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
-          : {})
-      }
-    })
-
-    if (!shouldLoadBaseline || !baselinePath) return
-    const state = get()
-    if (state.remoteWorkspaceActive) return
-    const workspacePath = state.workspacePath
-    if (!workspacePath || typeof window === 'undefined' || !window.api?.file?.readFile) return
-    const absPath = toAbsoluteWorkspacePath(workspacePath, baselinePath)
-    void window.api.file.readFile(absPath)
-      .then((content) => content ?? '')
-      .catch(() => '')
-      .then((originalContent) => {
-        set((state) => {
-          const turn = state.turns.find((t) => t.id === turnId)
-          const item = turn?.items.find((i) => i.id === itemId)
-          if (!item) return {}
-
-          const kind = resolveToolKind(item)
-          if (!isFileWriteKind(kind)) return {}
-          const preview = item.argumentsPreview ?? nextArgumentsPreviewForLoad
-          if (!preview) return {}
-          const resolvedPath = extractStreamingFilePath(preview) ?? baselinePath
-
-          const nextStreamingBaselines = new Map(state.streamingBaselines)
-          nextStreamingBaselines.set(itemId, {
-            path: resolvedPath,
-            originalContent
-          })
-
-          const streamingDiff = computeStreamingFileDiff({
-            kind,
-            argumentsPreview: preview,
-            filePath: resolvedPath,
-            baselineContent: originalContent
-          })
-          const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
-          if (streamingDiff) {
-            nextStreamingItemDiffs.set(itemId, streamingDiff)
-          } else {
-            nextStreamingItemDiffs.delete(itemId)
-          }
+          const localTurn = state.turns.find((turn) => turn.id === localId)
+          const serverTurn = state.turns.find((turn) => turn.id === serverId)
+          const turns = localTurn && serverTurn
+            ? state.turns
+              .flatMap((turn) => {
+                if (turn.id === serverId) return [mergeExistingRealtimeTurn(serverTurn, localTurn)]
+                if (turn.id === localId) return []
+                return [turn]
+              })
+              .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
+            : state.turns.map((turn) => (turn.id === localId ? { ...turn, id: serverId } : turn))
 
           return {
-            streamingBaselines: nextStreamingBaselines,
-            streamingItemDiffs: nextStreamingItemDiffs
+            turns,
+            activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
+            streamRetry: state.streamRetry?.turnId === localId
+              ? { ...state.streamRetry, turnId: serverId }
+              : state.streamRetry
           }
         })
-      })
-  },
+      },
 
-  onItemCompleted(params) {
-    flushConversationTextDeltas()
-    const item = params.item as Record<string, unknown>
-    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
-    const turnId = params.turnId as string
-    const state = get()
+      onTurnDiffUpdated({ turnId, diff }) {
+        if (!turnId) return
+        set((state) => ({
+          turnDiffs: applyLiveTurnDiff(
+            state.turnDiffs,
+            state.turns,
+            state.itemDiffs,
+            turnId,
+            diff === '' ? null : parseUnifiedDiff(diff, state.workspacePath),
+            state.workspacePath
+          )
+        }))
+      },
 
-    if (type === 'agentMessage') {
-      const mappedItem = wireItemToConversationItem(item)
-      const itemId = mappedItem.id
-      set((s) => {
-        const turn = s.turns.find((t) => t.id === turnId)
-        if (!turn) {
-          return s.activeItemId === itemId
-            ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
-            : {}
-        }
-        const existingItem = turn.items.find((i) => i.id === itemId && i.type === 'agentMessage')
-        const streamingText = s.activeItemId === itemId ? s.streamingMessage : ''
-        const finalText = streamingText || mappedItem.text || existingItem?.text || ''
-        const completedAt = mappedItem.completedAt ?? existingItem?.completedAt ?? new Date().toISOString()
-        const completedItem: ConversationItem = {
-          ...existingItem,
-          ...mappedItem,
+      setTurnFileStatus(turnId, key, status) {
+        set((state) => ({ turnDiffs: withTurnFileStatus(state.turnDiffs, turnId, key, status) }))
+      },
+
+      setWorkspacePath(path) {
+        set({ workspacePath: path })
+      },
+      setRemoteWorkspaceActive(active) {
+        set({ remoteWorkspaceActive: active })
+      },
+
+      setGenericApproval(approval) {
+        set({ genericApproval: approval })
+      },
+
+      onApprovalRequest(bridgeId, params) {
+        const activeTurnId = get().activeTurnId
+        const pending = parsePendingApproval(bridgeId, params, activeTurnId)
+        const turnId = pending.turnId
+        if (!turnId) return
+
+        const approvalItem: ConversationItem = {
+          id: pending.itemId,
+          type: 'approvalCard',
           status: 'completed',
-          text: finalText,
-          createdAt: typeof item?.createdAt === 'string'
-            ? mappedItem.createdAt
-            : existingItem?.createdAt ?? mappedItem.createdAt,
-          completedAt
+          approvalRequestId: pending.requestId,
+          approvalType: pending.approvalType,
+          approvalOperation: pending.operation,
+          approvalTarget: pending.target,
+          approvalReason: pending.reason,
+          approvalShell: pending.shell,
+          approvalState: 'pending',
+          createdAt: new Date().toISOString()
         }
-        const nextItems = existingItem
-          ? turn.items.map((i) =>
-              i.id === itemId && i.type === 'agentMessage'
-                ? completedItem
-                : i
-            )
-          : sortItemsByCreatedAt([
-              ...turn.items,
-              completedItem
-            ])
-        return {
-          turns: s.turns.map((t) =>
-            t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
-          ),
-          ...(s.activeItemId === itemId
-            ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
-            : {})
-        }
-      })
-    } else if (type === 'reasoningContent') {
-      const itemId = (item?.id as string) ?? ''
-      const alreadyCommitted = state.turns
-        .find((t) => t.id === turnId)
-        ?.items.some((i) => i.id === itemId && i.type === 'reasoningContent' && i.status === 'completed')
-      if (alreadyCommitted) {
-        set({ streamingReasoning: '', activeItemId: null })
-        return
-      }
-      const finalText = state.streamingReasoning || ((item?.text as string) ?? (item?.content as string) ?? '')
-      const completedAt = (item?.completedAt as string) ?? new Date().toISOString()
-      set((s) => {
-        const turn = s.turns.find((t) => t.id === turnId)
-        if (!turn) {
-          return { streamingReasoning: '', activeItemId: null }
-        }
-        const hasPlaceholder = turn.items.some((i) => i.id === itemId && i.type === 'reasoningContent')
-        const nextItems = hasPlaceholder
-          ? turn.items.map((i) =>
-              i.id === itemId && i.type === 'reasoningContent'
-                ? {
-                    ...i,
-                    status: 'completed' as const,
-                    reasoning: finalText,
-                    completedAt
-                  }
-                : i
-            )
-          : sortItemsByCreatedAt([
-              ...turn.items,
-              {
-                id: itemId,
-                type: 'reasoningContent' as const,
-                status: 'completed' as const,
-                reasoning: finalText,
-                createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
-                completedAt
-              }
-            ])
-        return {
-          turns: s.turns.map((t) =>
-            t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
-          ),
-          streamingReasoning: '',
-          activeItemId: null
-        }
-      })
-    } else if (type === 'userMessage') {
-      const newItem = wireItemToConversationItem(item)
-      set((s) => ({
-        turns: removeRepresentedOptimisticTurns(s.turns.map((t) =>
-          t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-        ))
-      }))
-    } else if (type === 'error') {
-      const newItem = wireItemToConversationItem(item)
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-        )
-      }))
-    } else if (type === 'systemNotice') {
-      const newItem = wireItemToConversationItem(item)
-      const notice = newItem.systemNotice
-      set((s) => ({
-        turns: s.turns.map((t) => {
-          if (t.id !== turnId) return t
-          if (t.items.some((i) => i.id === newItem.id)) return t
-          return { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
-        }),
-        contextUsage: notice
-          ? applyCompactedNoticeToContextUsage(s.contextUsage, notice)
-          : s.contextUsage
-      }))
-    } else if (type === 'imageGeneration' || type === 'webSearch') {
-      const completedItem: ConversationItem = {
-        ...wireItemToConversationItem(item),
-        status: 'completed'
-      }
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id === turnId ? { ...t, items: upsertItemById(t.items, completedItem) } : t
-        )
-      }))
-    } else if (type === 'toolCall') {
-      const itemId = (item?.id as string) ?? ''
-      if (itemId) subAgentStreamingArgumentBuffers.delete(`${turnId}:${itemId}`)
-      const completedProjection = buildToolLikeItem(item, 'toolCall', 'completed')
-      set((s) => {
-        let nextPending = s.pendingTerminalByCallId
-        let nextPendingToolCompletions = s.pendingToolCompletionsByCallKey
-        const turns = s.turns.map((t) => {
-          if (t.id !== turnId) return t
-          const nextTurn = {
-            ...t,
-            items: sortItemsByCreatedAt(
-              t.items.map((i) =>
-                i.id === itemId
-                  ? mergeExistingCommandExecutionIntoToolCall(
-                      mergeToolLikeProjection(i, completedProjection, false),
-                      t.items
-                    )
+
+        set((s) => {
+          const pendingApprovals = upsertPendingApproval(
+            queueWithPendingApproval(s.pendingApprovals, s.pendingApproval),
+            pending
+          )
+          return {
+            turns: s.turns.map((t) =>
+              t.id === turnId ? { ...t, items: upsertItemById(t.items, approvalItem) } : t
+            ),
+            activeTurnId: turnId ?? activeTurnId,
+            turnStatus: 'waitingApproval',
+            pendingApprovals,
+            pendingApproval: activePendingApproval(pendingApprovals)
+          }
+        })
+      },
+
+      onApprovalSubmitStarted(decision, target) {
+        set((state) => {
+          const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+          const pending = target
+            ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+            : activePendingApproval(queue)
+          if (!pending) return state
+
+          const pendingApprovals = updatePendingApprovalInQueue(
+            queue,
+            pending,
+            (approval) => ({
+              ...approval,
+              locallySubmittedDecision: decision
+            })
+          )
+
+          return {
+            pendingApprovals,
+            pendingApproval: activePendingApproval(pendingApprovals)
+          }
+        })
+      },
+
+      onApprovalSubmitFailed(target) {
+        set((state) => {
+          const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+          const pending = target
+            ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+            : activePendingApproval(queue)
+          if (!pending) return state
+
+          const pendingApprovals = updatePendingApprovalInQueue(
+            queue,
+            pending,
+            (approval) => ({
+              ...approval,
+              locallySubmittedDecision: null
+            })
+          )
+
+          return {
+            pendingApprovals,
+            pendingApproval: activePendingApproval(pendingApprovals)
+          }
+        })
+      },
+
+      onApprovalDecision(decision, target) {
+        set((state) => {
+          const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+          const pending = target
+            ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+            : activePendingApproval(queue)
+          const itemId = pending?.itemId ?? target?.itemId ?? null
+          const requestId = pending?.requestId ?? target?.requestId ?? null
+          if (!itemId && !requestId) return state
+
+          const newState = approvalDecisionToState[decision]
+          const pendingApprovals = pending
+            ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
+            : queue
+          const nextPendingApproval = activePendingApproval(pendingApprovals)
+          const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
+
+          return {
+            turns: state.turns.map((t) => ({
+              ...t,
+              items: t.items.map((i) =>
+                approvalCardMatchesResolution(i, itemId, requestId)
+                  ? { ...i, approvalState: newState }
                   : i
               )
-            )
-          }
-          const applied = applyPendingTerminalsToTurn(nextTurn, s.pendingTerminalByCallId)
-          nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
-          const completionApplied = applyPendingToolCompletionsToTurn(
-            applied.turn,
-            s.pendingToolCompletionsByCallKey
-          )
-          nextPendingToolCompletions = removePendingToolCompletionEntries(
-            nextPendingToolCompletions,
-            completionApplied.appliedKeys
-          )
-          return completionApplied.turn
-        })
-        return {
-          turns,
-          pendingTerminalByCallId: nextPending,
-          pendingToolCompletionsByCallKey: nextPendingToolCompletions,
-          ...(nextPendingToolCompletions !== s.pendingToolCompletionsByCallKey
-            ? refreshTurnFileChanges(turns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath)
-            : {})
-        }
-      })
-    } else if (type === 'commandExecution') {
-      const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
-      const completedCallId = (item?.callId as string | undefined)
-        ?? (itemPayload.callId as string | undefined)
-      flushShellRuntimeUpdates()
-      if (completedCallId) clearShellRuntime(completedCallId)
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id !== turnId
-            ? t
-            : {
-                ...t,
-                items: sortItemsByCreatedAt((() => {
-                  const updatedItems = t.items.map((i) => {
-                    if (i.id !== (item?.id as string) || i.type !== 'commandExecution') return i
-                    const startMs = i.createdAt ? new Date(i.createdAt).getTime() : Date.now()
-                    const endMs = (item?.completedAt as string)
-                      ? new Date(item.completedAt as string).getTime()
-                      : Date.now()
-                    return {
-                      ...i,
-                      status: 'completed' as const,
-                      command: (item?.command as string | undefined)
-                        ?? (itemPayload.command as string | undefined)
-                        ?? i.command,
-                      workingDirectory: (item?.workingDirectory as string | undefined)
-                        ?? (itemPayload.workingDirectory as string | undefined)
-                        ?? i.workingDirectory,
-                      commandSource: (item?.source as 'host' | undefined)
-                        ?? (itemPayload.source as 'host' | undefined)
-                        ?? i.commandSource,
-                      aggregatedOutput: (item?.aggregatedOutput as string | undefined)
-                        ?? (itemPayload.aggregatedOutput as string | undefined)
-                        ?? (completedCallId ? s.shellRuntimeByCallId.get(completedCallId)?.output : undefined)
-                        ?? i.aggregatedOutput
-                        ?? '',
-                      exitCode: (item?.exitCode as number | null | undefined)
-                        ?? (itemPayload.exitCode as number | null | undefined)
-                        ?? i.exitCode,
-                      executionStatus: (itemPayload.status as ConversationItem['executionStatus'] | undefined)
-                        ?? i.executionStatus
-                        ?? 'completed',
-                      toolCallId: (item?.callId as string | undefined)
-                        ?? (itemPayload.callId as string | undefined)
-                        ?? i.toolCallId,
-                      terminalSessionId: (itemPayload.sessionId as string | undefined) ?? i.terminalSessionId,
-                      duration: (itemPayload.durationMs as number | undefined) ?? (endMs - startMs),
-                      completedAt: (item?.completedAt as string) ?? new Date().toISOString()
-                    }
-                  })
-                  const commandExecution = updatedItems.find(
-                    (i) => i.id === (item?.id as string) && i.type === 'commandExecution'
-                  )
-                  return commandExecution
-                    ? mergeCommandExecutionAcrossItems(updatedItems, commandExecution)
-                    : updatedItems
-                })())
-            }
-        ),
-        shellRuntimeByCallId: completedCallId
-          ? (() => {
-              const next = new Map(s.shellRuntimeByCallId)
-              next.delete(completedCallId)
-              return next
-            })()
-          : s.shellRuntimeByCallId
-      }))
-    } else if (type === 'toolExecution') {
-      const toolExecution = wireItemToConversationItem(item)
-      const callId = toolExecution.toolCallId
-      const key = toolCompletionKey(turnId, callId)
-      if (!callId || !key) return
-
-      set((s) => {
-        let matched = false
-        const pending = new Map(s.pendingToolCompletionsByCallKey)
-        const entry = mergePendingToolCompletionEntry(pending.get(key), {
-          turnId,
-          callId,
-          toolExecution
-        })
-        const turns = s.turns.map((t) => {
-          if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
-          matched = true
-          return {
-            ...t,
-            items: sortItemsByCreatedAt(
-              mergeToolCompletionEntryIntoItems(t.items, entry)
-            )
+            })),
+            pendingApprovals,
+            pendingApproval: nextPendingApproval,
+            turnStatus: nextPendingApproval
+              ? 'waitingApproval'
+              : shouldRestoreRunning
+                ? 'running'
+                : state.turnStatus
           }
         })
+      },
 
-        if (matched) {
-          pending.delete(key)
-        } else {
-          pending.set(key, entry)
-        }
-        return { turns, pendingToolCompletionsByCallKey: pending }
-      })
-    } else if (type === 'dynamicToolCall' || type === 'mcpToolCall') {
-      const completedItem = buildToolLikeItem(
-        item,
-        type,
-        'completed'
-      )
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id !== turnId
-            ? t
-            : {
-                ...t,
-                items: sortItemsByCreatedAt(
-                  t.items.map((i) => {
-                    if (i.id !== (item?.id as string)) return i
-                    const startMs = i.createdAt ? new Date(i.createdAt).getTime() : Date.now()
-                    const endMs = (item?.completedAt as string)
-                      ? new Date(item.completedAt as string).getTime()
-                      : Date.now()
-                    return {
-                      ...i,
-                      status: 'completed' as const,
-                      toolName: completedItem.toolName ?? i.toolName,
-                      toolCallId: completedItem.toolCallId ?? i.toolCallId,
-                      arguments: completedItem.arguments ?? i.arguments,
-                      result: completedItem.result ?? i.result,
-                      success: completedItem.success ?? true,
-                      pluginId: completedItem.pluginId ?? i.pluginId,
-                      pluginNamespace: completedItem.pluginNamespace ?? i.pluginNamespace,
-                      functionName: completedItem.functionName ?? i.functionName,
-                      contentItems: completedItem.contentItems ?? i.contentItems,
-                      structuredResult: completedItem.structuredResult ?? i.structuredResult,
-                      mcpAppResourceUri: completedItem.mcpAppResourceUri ?? i.mcpAppResourceUri,
-                      meta: completedItem.meta ?? i.meta,
-                      toolUi: completedItem.toolUi ?? i.toolUi,
-                      errorCode: completedItem.errorCode ?? i.errorCode,
-                      errorMessage: completedItem.errorMessage ?? i.errorMessage,
-                      duration: endMs - startMs,
-                      completedAt: (item?.completedAt as string) ?? new Date().toISOString()
-                    }
-                  })
+      onApprovalResolved(params) {
+        set((state) => {
+          const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+          const pending = params
+            ? queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
+            : activePendingApproval(queue)
+          if (queue.length > 0 && !pending) return state
+
+          const requestId = params?.requestId ?? pending?.requestId ?? null
+          const itemId = pending?.itemId ?? null
+          const resolvedState = params?.decision ? approvalDecisionToState[params.decision] : undefined
+          const turns = resolvedState
+            ? state.turns.map((turn) => ({
+                ...turn,
+                items: turn.items.map((item) =>
+                  approvalCardMatchesResolution(item, itemId, requestId)
+                    ? { ...item, approvalState: resolvedState }
+                    : item
                 )
-              }
-        )
-      }))
-    } else if (type === 'toolResult') {
-      // Extract nested payload for toolResult items (wire protocol: item.payload.{callId,result,success})
-      const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
-      const callId = (item?.callId as string | undefined)
-        ?? (itemPayload.callId as string | undefined)
-        ?? (item?.toolCallId as string | undefined)
-      const key = toolCompletionKey(turnId, callId)
-      if (!callId || !key) return
-      const resultText = (item?.result as string | undefined)
-        ?? (itemPayload.result as string | undefined)
-        ?? (item?.text as string | undefined)
-        ?? ''
-      const success = (item?.success as boolean | undefined)
-        ?? (itemPayload.success as boolean | undefined)
-        ?? true
-      const toolResult = wireItemToConversationItem(item)
+              }))
+            : state.turns
+          const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
+          const pendingApprovals = pending
+            ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
+            : queue
+          const nextPendingApproval = activePendingApproval(pendingApprovals)
 
-      set((s) => {
-        let matched = false
-        const pending = new Map(s.pendingToolCompletionsByCallKey)
-        const entry = mergePendingToolCompletionEntry(pending.get(key), {
-          turnId,
-          callId,
-          toolResult: {
-            ...toolResult,
-            toolCallId: callId,
-            result: resultText,
-            success
-          }
-        })
-        const nextTurns = s.turns.map((t) => {
-          if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
-          matched = true
           return {
-            ...t,
-            items: sortItemsByCreatedAt(
-              mergeToolCompletionEntryIntoItems(t.items, entry)
-            )
+            turns,
+            pendingApprovals,
+            pendingApproval: nextPendingApproval,
+            turnStatus: nextPendingApproval
+              ? 'waitingApproval'
+              : shouldRestoreRunning
+                ? 'running'
+                : state.turnStatus
           }
         })
+      },
 
-        if (matched) {
-          pending.delete(key)
-        } else {
-          pending.set(key, entry)
-        }
-        return {
-          turns: nextTurns,
-          pendingToolCompletionsByCallKey: pending,
-          ...(matched ? refreshTurnFileChanges(nextTurns, turnId, s.itemDiffs, s.turnDiffs, s.workspacePath) : {})
-        }
-      })
+      onApprovalNoLongerPending(params) {
+        set((state) => {
+          const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+          const pending = queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
+          if (!pending) return state
 
-      const matchedCallItem = get()
-        .turns.find((t) => t.id === turnId)
-        ?.items.find((i) => i.type === 'toolCall' && i.toolCallId === callId)
-      if (matchedCallItem?.id) {
-        set((s) => {
-          const nextStreamingItemDiffs = new Map(s.streamingItemDiffs)
-          const nextStreamingBaselines = new Map(s.streamingBaselines)
-          nextStreamingItemDiffs.delete(matchedCallItem.id)
-          nextStreamingBaselines.delete(matchedCallItem.id)
+          const pendingApprovals = queue.filter((candidate) => !samePendingApproval(candidate, pending))
+          const nextPendingApproval = activePendingApproval(pendingApprovals)
+
           return {
-            streamingItemDiffs: nextStreamingItemDiffs,
-            streamingBaselines: nextStreamingBaselines
+            pendingApprovals,
+            pendingApproval: nextPendingApproval,
+            turnStatus: nextPendingApproval ? 'waitingApproval' : params.nextTurnStatus,
+            activeTurnId: !nextPendingApproval && params.nextTurnStatus === 'idle'
+              ? null
+              : state.activeTurnId
           }
         })
-      }
-    }
-  },
+      },
 
-  onUsageDelta(inputTokens, outputTokens, totalInputTokens, totalOutputTokens, contextUsageSnapshot) {
-    set((state) => {
-      const nextInput = state.inputTokens + inputTokens
-      const nextOutput = state.outputTokens + outputTokens
-      const nextContextUsage = contextUsageSnapshot
-        ? toContextUsage(contextUsageSnapshot)
-        : applyTokensToContextUsage(
-          state.contextUsage,
-          typeof totalInputTokens === 'number' ? totalInputTokens : null
-        )
-      void totalOutputTokens
-      return {
-        inputTokens: nextInput,
-        outputTokens: nextOutput,
-        contextUsage: nextContextUsage
-      }
-    })
-  },
+      onUserInputRequest(bridgeId, params) {
+        const request = parseUserInputRequest(bridgeId, params)
+        if (!request) return
+        set({ turnStatus: 'waitingInput', activeTurnId: request.turnId, pendingUserInput: request })
+      },
 
-  clearStreamRetry(turnId) {
-    if (get().streamRetry?.turnId === turnId) set({ streamRetry: null })
-  },
+      onUserInputResolved() {
+        set({ pendingUserInput: null, turnStatus: 'running' })
+      },
 
-  onSystemEvent(kind, params) {
-    const label = systemLabelForEvent(kind, params)
-    const maintenanceKind = maintenanceKindForSystemEvent(kind, params)
-    if (label !== undefined) {
-      set({ systemLabel: label })
-    }
-    if (maintenanceKind !== undefined) {
-      set({ maintenanceKind })
-    }
-
-    if (kind === 'streamError') {
-      const turnId = params?.turnId ?? get().activeTurnId
-      const attempt = readRetryCount(params?.params?.attempt)
-      // A first attempt that recovers immediately is noise, so only a repeat is surfaced.
-      if (turnId && attempt !== null && attempt > 1) {
-        set({
-          streamRetry: {
-            turnId,
-            attempt,
-            max: readRetryCount(params?.params?.max),
-            serverBusy: params?.messageKey === SERVER_BUSY_RETRY_KEY
-          }
-        })
-      }
-    }
-
-    if (kind === 'compacting') {
-      return
-    }
-
-    if (kind === 'compacted' || kind === 'compactSkipped' || kind === 'compactFailed' || kind === 'compactCancelled') {
-      if (params?.contextUsage) {
-        set({ contextUsage: toContextUsage(params.contextUsage) })
-        return
-      }
-
-      const tokens = typeof params?.tokenCount === 'number' ? params.tokenCount : null
-      set((state) => ({
-        contextUsage: applyTokensToContextUsage(
-          state.contextUsage,
-          tokens,
-          typeof params?.percentLeft === 'number' ? params.percentLeft : null
-        )
-      }))
-    }
-    // compactWarning / compactError only drive transient warning state; usage
-    // deltas already carry the live context snapshot.
-  },
-
-  setContextUsage(snapshot) {
-    if (!snapshot) {
-      set({ contextUsage: null })
-      return
-    }
-    set({ contextUsage: toContextUsage(snapshot) })
-  },
-
-  setMaintenanceKind(kind) {
-    const maintenanceKind = normalizeMaintenanceKind(kind)
-    set((state) => {
-      if (maintenanceKind) {
-        return {
-          maintenanceKind,
-          systemLabel: MANUAL_COMPACTING_LABEL
+      onPlanUpdated(rawPlan) {
+        const plan: AgentPlan = {
+          title: (rawPlan.title as string) ?? '',
+          overview: (rawPlan.overview as string) ?? '',
+          content: (rawPlan.content as string) ?? '',
+          todos: (rawPlan.todos as PlanTodoItem[]) ?? []
         }
+        set({ plan })
+      },
+
+      reset() {
+        subAgentStreamingArgumentBuffers.clear()
+        conversationTextDeltaBuffer.reset()
+        resetShellRuntimeBuffer()
+        set((state) => ({
+          ...createInitialState(),
+          workspacePath: state.workspacePath,
+          remoteWorkspaceActive: state.remoteWorkspaceActive
+        }))
       }
-
-      return {
-        maintenanceKind: null,
-        systemLabel: state.systemLabel === MANUAL_COMPACTING_LABEL
-          ? null
-          : state.systemLabel
-      }
-    })
-  },
-
-  setPendingMessage(msg) {
-    set({ pendingMessage: msg })
-  },
-
-  setQueuedInputs(inputs) {
-    set({ queuedInputs: inputs })
-  },
-
-  setSystemLabel(label) {
-    set({ systemLabel: label })
-  },
-
-  setThreadMode(mode) {
-    set({ threadMode: mode })
-  },
-
-  setInterruptingTurnId(turnId) {
-    set({ interruptingTurnId: turnId })
-  },
-
-  addOptimisticTurn(turn) {
-    set((state) => ({
-      turns: [...state.turns, turn],
-      turnStatus: 'running',
-      activeTurnId: turn.id,
-      interruptingTurnId: null,
-      streamingMessage: '',
-      streamingMessageLastDeltaAt: null,
-      streamingReasoning: '',
-      activeItemId: null,
-      turnStartedAt: Date.now(),
-      inputTokens: 0,
-      outputTokens: 0,
-      systemLabel: null,
-      streamRetry: null,
-      maintenanceKind: null
-    }))
-  },
-
-  removeOptimisticTurn(turnId) {
-    set((state) => ({
-      turns: state.turns.filter((t) => t.id !== turnId),
-      turnStatus: 'idle',
-      activeTurnId: null,
-      streamingMessage: '',
-      streamingMessageLastDeltaAt: null,
-      streamingReasoning: '',
-      activeItemId: null,
-      turnStartedAt: null,
-      streamRetry: state.streamRetry?.turnId === turnId ? null : state.streamRetry
-    }))
-  },
-
-  promoteOptimisticTurn(localId, serverId) {
-    set((state) => {
-      const localTurn = state.turns.find((turn) => turn.id === localId)
-      const serverTurn = state.turns.find((turn) => turn.id === serverId)
-      const turns = localTurn && serverTurn
-        ? state.turns
-          .flatMap((turn) => {
-            if (turn.id === serverId) return [mergeExistingRealtimeTurn(serverTurn, localTurn)]
-            if (turn.id === localId) return []
-            return [turn]
-          })
-          .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-        : state.turns.map((turn) => (turn.id === localId ? { ...turn, id: serverId } : turn))
-
-      return {
-        turns,
-        activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
-        streamRetry: state.streamRetry?.turnId === localId
-          ? { ...state.streamRetry, turnId: serverId }
-          : state.streamRetry
-      }
-    })
-  },
-
-  onTurnDiffUpdated({ turnId, diff }) {
-    if (!turnId) return
-    set((state) => ({
-      turnDiffs: applyLiveTurnDiff(
-        state.turnDiffs,
-        state.turns,
-        state.itemDiffs,
-        turnId,
-        diff === '' ? null : parseUnifiedDiff(diff, state.workspacePath),
-        state.workspacePath
-      )
-    }))
-  },
-
-  setTurnFileStatus(turnId, key, status) {
-    set((state) => ({ turnDiffs: withTurnFileStatus(state.turnDiffs, turnId, key, status) }))
-  },
-
-  setWorkspacePath(path) {
-    set({ workspacePath: path })
-  },
-  setRemoteWorkspaceActive(active) {
-    set({ remoteWorkspaceActive: active })
-  },
-
-  setGenericApproval(approval) {
-    set({ genericApproval: approval })
-  },
-
-  onApprovalRequest(bridgeId, params) {
-    const activeTurnId = get().activeTurnId
-    const pending = parsePendingApproval(bridgeId, params, activeTurnId)
-    const turnId = pending.turnId
-    if (!turnId) return
-
-    const approvalItem: ConversationItem = {
-      id: pending.itemId,
-      type: 'approvalCard',
-      status: 'completed',
-      approvalRequestId: pending.requestId,
-      approvalType: pending.approvalType,
-      approvalOperation: pending.operation,
-      approvalTarget: pending.target,
-      approvalReason: pending.reason,
-      approvalShell: pending.shell,
-      approvalState: 'pending',
-      createdAt: new Date().toISOString()
     }
+  })
+}
 
-    set((s) => {
-      const pendingApprovals = upsertPendingApproval(
-        queueWithPendingApproval(s.pendingApprovals, s.pendingApproval),
-        pending
-      )
-      return {
-        turns: s.turns.map((t) =>
-          t.id === turnId ? { ...t, items: upsertItemById(t.items, approvalItem) } : t
-        ),
-        activeTurnId: turnId ?? activeTurnId,
-        turnStatus: 'waitingApproval',
-        pendingApprovals,
-        pendingApproval: activePendingApproval(pendingApprovals)
-      }
-    })
-  },
-
-  onApprovalSubmitStarted(decision, target) {
-    set((state) => {
-      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-      const pending = target
-        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
-        : activePendingApproval(queue)
-      if (!pending) return state
-
-      const pendingApprovals = updatePendingApprovalInQueue(
-        queue,
-        pending,
-        (approval) => ({
-          ...approval,
-          locallySubmittedDecision: decision
-        })
-      )
-
-      return {
-        pendingApprovals,
-        pendingApproval: activePendingApproval(pendingApprovals)
-      }
-    })
-  },
-
-  onApprovalSubmitFailed(target) {
-    set((state) => {
-      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-      const pending = target
-        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
-        : activePendingApproval(queue)
-      if (!pending) return state
-
-      const pendingApprovals = updatePendingApprovalInQueue(
-        queue,
-        pending,
-        (approval) => ({
-          ...approval,
-          locallySubmittedDecision: null
-        })
-      )
-
-      return {
-        pendingApprovals,
-        pendingApproval: activePendingApproval(pendingApprovals)
-      }
-    })
-  },
-
-  onApprovalDecision(decision, target) {
-    set((state) => {
-      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-      const pending = target
-        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
-        : activePendingApproval(queue)
-      const itemId = pending?.itemId ?? target?.itemId ?? null
-      const requestId = pending?.requestId ?? target?.requestId ?? null
-      if (!itemId && !requestId) return state
-
-      const newState = approvalDecisionToState[decision]
-      const pendingApprovals = pending
-        ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
-        : queue
-      const nextPendingApproval = activePendingApproval(pendingApprovals)
-      const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
-
-      return {
-        turns: state.turns.map((t) => ({
-          ...t,
-          items: t.items.map((i) =>
-            approvalCardMatchesResolution(i, itemId, requestId)
-              ? { ...i, approvalState: newState }
-              : i
-          )
-        })),
-        pendingApprovals,
-        pendingApproval: nextPendingApproval,
-        turnStatus: nextPendingApproval
-          ? 'waitingApproval'
-          : shouldRestoreRunning
-            ? 'running'
-            : state.turnStatus
-      }
-    })
-  },
-
-  onApprovalResolved(params) {
-    set((state) => {
-      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-      const pending = params
-        ? queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
-        : activePendingApproval(queue)
-      if (queue.length > 0 && !pending) return state
-
-      const requestId = params?.requestId ?? pending?.requestId ?? null
-      const itemId = pending?.itemId ?? null
-      const resolvedState = params?.decision ? approvalDecisionToState[params.decision] : undefined
-      const turns = resolvedState
-        ? state.turns.map((turn) => ({
-            ...turn,
-            items: turn.items.map((item) =>
-              approvalCardMatchesResolution(item, itemId, requestId)
-                ? { ...item, approvalState: resolvedState }
-                : item
-            )
-          }))
-        : state.turns
-      const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
-      const pendingApprovals = pending
-        ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
-        : queue
-      const nextPendingApproval = activePendingApproval(pendingApprovals)
-
-      return {
-        turns,
-        pendingApprovals,
-        pendingApproval: nextPendingApproval,
-        turnStatus: nextPendingApproval
-          ? 'waitingApproval'
-          : shouldRestoreRunning
-            ? 'running'
-            : state.turnStatus
-      }
-    })
-  },
-
-  onApprovalNoLongerPending(params) {
-    set((state) => {
-      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-      const pending = queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
-      if (!pending) return state
-
-      const pendingApprovals = queue.filter((candidate) => !samePendingApproval(candidate, pending))
-      const nextPendingApproval = activePendingApproval(pendingApprovals)
-
-      return {
-        pendingApprovals,
-        pendingApproval: nextPendingApproval,
-        turnStatus: nextPendingApproval ? 'waitingApproval' : params.nextTurnStatus,
-        activeTurnId: !nextPendingApproval && params.nextTurnStatus === 'idle'
-          ? null
-          : state.activeTurnId
-      }
-    })
-  },
-
-  onUserInputRequest(bridgeId, params) {
-    const request = parseUserInputRequest(bridgeId, params)
-    if (!request) return
-    set({ turnStatus: 'waitingInput', activeTurnId: request.turnId, pendingUserInput: request })
-  },
-
-  onUserInputResolved() {
-    set({ pendingUserInput: null, turnStatus: 'running' })
-  },
-
-  onPlanUpdated(rawPlan) {
-    const plan: AgentPlan = {
-      title: (rawPlan.title as string) ?? '',
-      overview: (rawPlan.overview as string) ?? '',
-      content: (rawPlan.content as string) ?? '',
-      todos: (rawPlan.todos as PlanTodoItem[]) ?? []
-    }
-    set({ plan })
-  },
-
-  reset() {
-    subAgentStreamingArgumentBuffers.clear()
-    resetConversationTextDeltas()
-    resetShellRuntimeBuffer()
-    set((state) => ({
-      ...initialState,
-      workspacePath: state.workspacePath,
-      remoteWorkspaceActive: state.remoteWorkspaceActive,
-      turnDiffs: new Map<string, TurnDiff>(),
-      itemDiffs: new Map<string, FileDiff>(),
-      streamingItemDiffs: new Map<string, FileDiff>(),
-      streamingBaselines: new Map<string, StreamingFileBaseline>(),
-      pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
-      shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
-      pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
-          pendingApproval: null,
-      pendingApprovals: [],
-      pendingUserInput: null,
-      plan: null,
-      contextUsage: null
-    }))
-  }
+const conversations = createThreadScopedStores<ConversationStore>((_threadId, active) => createConversationStore({
+  workspacePath: active?.workspacePath ?? '',
+  remoteWorkspaceActive: active?.remoteWorkspaceActive ?? false
 }))
+
+export const useConversationStore = conversations.useActive
+export const getThreadConversation = conversations.get
+export const createThreadConversation = conversations.create
+export const activateThreadConversation = conversations.activate
+export const releaseThreadConversation = conversations.release
 
 /**
  * Partial plan draft reconstructed from the in-flight `CreatePlan` tool call's

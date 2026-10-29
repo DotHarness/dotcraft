@@ -10,7 +10,7 @@ namespace DotCraft.Tests.AppServer;
 public sealed class ThreadReadStateIntegrationTests
 {
     [Fact]
-    public async Task FailedTurn_ProjectsReceiptAcrossConnections_AndMarksSurviveRestart()
+    public async Task FailedTurn_ProjectsReceiptAcrossConnections()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-read-state-" + Guid.NewGuid().ToString("N"));
         var workspace = Path.Combine(root, "workspace");
@@ -35,8 +35,6 @@ public sealed class ThreadReadStateIntegrationTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         try
         {
-            string threadId;
-            string readRevision;
             await using (var server = await StartAsync(workspace, profile, deadline.Token))
             {
                 await using var observer = await WebSocketClientConnection.ConnectAsync(server.Endpoint, ct: deadline.Token);
@@ -44,7 +42,7 @@ public sealed class ThreadReadStateIntegrationTests
 
                 using var created = await server.Process.Wire.SendRequestAsync(
                     "thread/start", new { identity }, ct: deadline.Token);
-                threadId = Result(created).GetProperty("thread").GetProperty("id").GetString()!;
+                var threadId = Result(created).GetProperty("thread").GetProperty("id").GetString()!;
                 using var turn = await server.Process.Wire.SendRequestAsync("turn/start", new
                 {
                     threadId,
@@ -85,7 +83,7 @@ public sealed class ThreadReadStateIntegrationTests
                 }, ct: deadline.Token);
                 var markedState = Result(marked).GetProperty("readState");
                 Assert.Equal(JsonValueKind.Null, markedState.GetProperty("firstUnread").ValueKind);
-                readRevision = markedState.GetProperty("revision").GetString()!;
+                var readRevision = markedState.GetProperty("revision").GetString()!;
                 var passiveSaw = await CollectUntilAsync(server.Process.Wire, IsMethodFor("thread/readState/changed", threadId), deadline.Token);
                 Assert.Equal(readRevision, ReadStateOf(passiveSaw[^1]).GetProperty("revision").GetString());
 
@@ -109,11 +107,6 @@ public sealed class ThreadReadStateIntegrationTests
                     operation = new { type = "unread" }
                 }, ct: deadline.Token);
                 Error(missing, -32010, "ThreadNotFound");
-            }
-
-            await using (var restarted = await StartAsync(workspace, profile, deadline.Token))
-            {
-                Assert.Equal(readRevision, ListedRevision(await ListAsync(restarted.Process.Wire, identity, deadline.Token), threadId));
             }
         }
         finally

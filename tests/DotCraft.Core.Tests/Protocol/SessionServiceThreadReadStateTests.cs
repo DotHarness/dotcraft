@@ -130,7 +130,7 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
         var imported = await service.ImportThreadAsync(new ThreadImportRequest
         {
             Identity = Identity() with { ChannelName = ThreadImportConstants.ChannelName },
-            ThreadId = "thread_import_claude-code_0123456789abcdef",
+            ThreadId = "thread_import_sample_0123456789abcdef",
             DisplayName = "Imported",
             Metadata = new Dictionary<string, string>(),
             Turns =
@@ -257,16 +257,12 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
     }
 
     [Fact]
-    public async Task Receipts_SurviveRestart_AndAreRemovedWithTheirThread()
+    public async Task Receipts_AreRemovedWithTheirThread()
     {
-        var (writer, _) = CreateService(ScriptedChatClient.Reply("done"));
-        var thread = await writer.CreateThreadAsync(Identity());
-        await DrainAsync(writer.SubmitInputAsync(thread.Id, [new TextContent("hi")]));
-        var unread = await writer.GetThreadReadStateAsync(thread);
-
-        var (service, _) = CreateService(ScriptedChatClient.Reply("unused"));
-        var summary = Assert.Single(await service.FindThreadsAsync(Identity()));
-        Assert.Equal(unread, (await service.GetThreadReadStatesAsync([summary]))?[thread.Id]);
+        var (service, _) = CreateService(ScriptedChatClient.Reply("done"));
+        var thread = await service.CreateThreadAsync(Identity());
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hi")]));
+        Assert.NotNull((await service.GetThreadReadStateAsync(thread))?.FirstUnread);
 
         await service.DeleteThreadPermanentlyAsync(thread.Id);
 

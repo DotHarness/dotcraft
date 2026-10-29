@@ -28,8 +28,8 @@ export async function updateThreadReadState(
       threadId,
       expectedRevision: current.revision,
       operation: { type }
-    }) as { readState?: ThreadReadState }
-    if (result.readState) store.setThreadReadState(threadId, result.readState)
+    }) as { readState: ThreadReadState }
+    store.setThreadReadState(threadId, result.readState)
   } catch (error) {
     const data = readAppServerErrorFields(error).data
     if (data?.code === 'readStateConflict' && isReadState(data.readState)) {

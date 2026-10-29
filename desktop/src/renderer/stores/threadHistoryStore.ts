@@ -1,7 +1,8 @@
-import { create } from 'zustand'
-import { useConversationStore } from './conversationStore'
+import { createStore } from 'zustand'
+import { getThreadConversation } from './conversationStore'
+import { createThreadScopedStores } from './threadScopedStore'
 import { useThreadStore } from './threadStore'
-import { wireTurnToConversationTurn } from '../types/conversation'
+import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
 import type { Turn } from '../types/thread'
 import { hydrateTurns, listThreadTurns, type HistoryRequest } from '../utils/threadHistory'
 
@@ -28,12 +29,18 @@ interface ThreadHistoryState {
   gaps: HistoryGap[]
 }
 
-export const useThreadHistoryStore = create<ThreadHistoryState>(() => ({
-  threadId: null,
-  generation: 0,
+let nextGeneration = 1
+
+const histories = createThreadScopedStores<ThreadHistoryState>((threadId) => createStore<ThreadHistoryState>(() => ({
+  threadId,
+  generation: nextGeneration++,
   headLoaded: false,
   gaps: []
-}))
+})))
+
+export const useThreadHistoryStore = histories.useActive
+export const activateThreadHistory = histories.activate
+export const releaseThreadHistory = histories.release
 
 const requestAppServer: HistoryRequest = (method, params) => window.api.appServer.sendRequest(method, params)
 const inFlightEdgeLoads = new Map<string, Promise<void>>()
@@ -49,14 +56,15 @@ function edgeCursor(gap: HistoryGap, edge: HistoryGapEdge): string | null {
 }
 
 function isCurrent(threadId: string, generation: number): boolean {
-  const state = useThreadHistoryStore.getState()
-  return state.threadId === threadId &&
-    state.generation === generation &&
-    useThreadStore.getState().activeThreadId === threadId
+  return histories.get(threadId)?.getState().generation === generation
 }
 
-function loadedTurnIds(): Set<string> {
-  return new Set(useConversationStore.getState().turns.map((turn) => turn.id))
+function conversationTurns(threadId: string): ConversationTurn[] {
+  return getThreadConversation(threadId)?.getState().turns ?? []
+}
+
+function loadedTurnIds(threadId: string): Set<string> {
+  return new Set(conversationTurns(threadId).map((turn) => turn.id))
 }
 
 function takeUntilLoaded<T extends { id: string }>(
@@ -72,9 +80,13 @@ function commit(
   chronological: readonly Turn[],
   nextGaps: (gaps: HistoryGap[]) => HistoryGap[]
 ): void {
-  for (const listener of layoutChangeListeners) listener()
+  const history = histories.get(threadId)
+  const conversation = getThreadConversation(threadId)?.getState()
+  if (!history || !conversation) return
+  if (histories.active() === history) {
+    for (const listener of layoutChangeListeners) listener()
+  }
   if (chronological.length > 0) {
-    const conversation = useConversationStore.getState()
     conversation.setTurns(
       [
         ...chronological.map((turn) => wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)),
@@ -83,7 +95,7 @@ function commit(
       { preserveExistingRealtime: true, realtimeScopeThreadId: threadId }
     )
   }
-  useThreadHistoryStore.setState((state) => ({ gaps: nextGaps(state.gaps) }))
+  history.setState((state) => ({ gaps: nextGaps(state.gaps) }))
 }
 
 /** Called right before history pages change the transcript layout, while the old layout is still mounted. */
@@ -93,12 +105,8 @@ export function subscribeHistoryLayoutChange(listener: () => void): () => void {
 }
 
 export function beginThreadHistory(threadId: string | null): void {
-  useThreadHistoryStore.setState((state) => ({
-    threadId,
-    generation: state.generation + 1,
-    headLoaded: false,
-    gaps: []
-  }))
+  if (threadId) histories.create(threadId)
+  histories.activate(threadId)
 }
 
 /** Must run before the head page's Turns are merged into the conversation store. */
@@ -107,18 +115,19 @@ export function applyThreadHistoryHead(
   chronological: readonly { id: string }[],
   olderCursor: string | null
 ): void {
-  if (useThreadHistoryStore.getState().threadId !== threadId) beginThreadHistory(threadId)
+  const history = histories.get(threadId)
+  if (!history) return
   const oldest = chronological[0]
-  if (!useThreadHistoryStore.getState().headLoaded) {
-    useThreadHistoryStore.setState({
+  if (!history.getState().headLoaded) {
+    history.setState({
       headLoaded: true,
       gaps: oldest && olderCursor ? [createGap(oldest.id, olderCursor, null)] : []
     })
     return
   }
-  const loaded = loadedTurnIds()
+  const loaded = loadedTurnIds(threadId)
   if (!oldest || !olderCursor || chronological.some((turn) => loaded.has(turn.id))) return
-  useThreadHistoryStore.setState((state) => ({
+  history.setState((state) => ({
     gaps: [...state.gaps, createGap(oldest.id, olderCursor, null)]
   }))
 }
@@ -128,7 +137,7 @@ export function restartThreadHistory(
   chronological: readonly { id: string }[],
   olderCursor: string | null
 ): void {
-  beginThreadHistory(threadId)
+  histories.get(threadId)?.setState({ generation: nextGeneration++, headLoaded: false, gaps: [] })
   applyThreadHistoryHead(threadId, chronological, olderCursor)
 }
 
@@ -160,13 +169,13 @@ async function readGapEdge(
     edge === 'older' ? 'descending' : 'ascending'
   )
   if (!isCurrent(threadId, generation)) return
-  const listed = takeUntilLoaded(page.turns, loadedTurnIds())
+  const listed = takeUntilLoaded(page.turns, loadedTurnIds(threadId))
   const hydrated = await hydrateTurns(requestAppServer, threadId, listed.fresh)
   if (!isCurrent(threadId, generation)) return
-  const index = useThreadHistoryStore.getState().gaps.findIndex((gap) => edgeCursor(gap, edge) === cursor)
+  const index = histories.get(threadId)?.getState().gaps.findIndex((gap) => edgeCursor(gap, edge) === cursor) ?? -1
   if (index < 0) return
 
-  const { fresh, met } = takeUntilLoaded(hydrated, loadedTurnIds())
+  const { fresh, met } = takeUntilLoaded(hydrated, loadedTurnIds(threadId))
   const nextCursor = listed.met || met || fresh.length === 0 ? null : page.nextCursor
   commit(threadId, edge === 'older' ? [...fresh].reverse() : fresh, (gaps) => {
     if (!nextCursor) return gaps.filter((_gap, position) => position !== index)
@@ -183,9 +192,13 @@ export async function openThreadHistoryAround(
   threadId: string,
   position: ListedTurnPosition
 ): Promise<string> {
-  const { generation, headLoaded } = useThreadHistoryStore.getState()
+  const opened = histories.get(threadId)?.getState()
   const assertCurrent = (): void => {
-    if (!headLoaded || !isCurrent(threadId, generation)) {
+    if (
+      !opened?.headLoaded ||
+      !isCurrent(threadId, opened.generation) ||
+      useThreadStore.getState().activeThreadId !== threadId
+    ) {
       throw new Error(`thread history for ${threadId} is no longer open`)
     }
   }
@@ -205,11 +218,11 @@ export async function openThreadHistoryAround(
   const target = older?.turns[0]
   if (!older?.backwardsCursor || !target) throw new Error('listed turn is no longer in the thread')
   assertCurrent()
-  if (loadedTurnIds().has(target.id)) return target.id
+  if (loadedTurnIds(threadId).has(target.id)) return target.id
 
   const newer = await listThreadTurns(requestAppServer, threadId, older.backwardsCursor, 'ascending')
   assertCurrent()
-  const listedLoaded = loadedTurnIds()
+  const listedLoaded = loadedTurnIds(threadId)
   const olderListed = takeUntilLoaded(older.turns, listedLoaded)
   const newerListed = takeUntilLoaded(newer.turns.filter((turn) => turn.id !== target.id), listedLoaded)
   const hydrated = await hydrateTurns(
@@ -219,7 +232,7 @@ export async function openThreadHistoryAround(
   )
   assertCurrent()
 
-  const loaded = loadedTurnIds()
+  const loaded = loadedTurnIds(threadId)
   if (loaded.has(target.id)) return target.id
   const olderSide = takeUntilLoaded(hydrated.slice(0, olderListed.fresh.length).reverse(), loaded)
   const newerSide = takeUntilLoaded(hydrated.slice(olderListed.fresh.length), loaded)
@@ -228,7 +241,7 @@ export async function openThreadHistoryAround(
   const newerCursor = newerListed.met || newerSide.met ? null : newer.nextCursor
 
   commit(threadId, segment, (gaps) => {
-    const turns = useConversationStore.getState().turns
+    const turns = conversationTurns(threadId)
     const newestIndex = turns.findIndex((turn) => turn.id === segment[segment.length - 1].id)
     const following = turns.slice(newestIndex + 1).find((turn) => loaded.has(turn.id))
     const index = following ? gaps.findIndex((gap) => gap.followingTurnId === following.id) : -1

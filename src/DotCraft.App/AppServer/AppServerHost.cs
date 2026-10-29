@@ -1367,8 +1367,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadReadStateChanged.Name)
-                || !_hiddenThreads.Accepts(threadId, connection))
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadReadStateChanged.Name))
                 continue;
 
             // Started synchronously so the write is queued ahead of the Turn's terminal notification.

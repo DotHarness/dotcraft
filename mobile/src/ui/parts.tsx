@@ -78,7 +78,7 @@ function StatusIndicator({ tone }: { tone: 'success' | 'neutral' | 'pending' }) 
   )
 }
 
-export function StateMark({ state, live, unread = false }: { state: ChatState; live: boolean; unread?: boolean }) {
+export function StateMark({ state, live, unread }: { state: ChatState; live: boolean; unread: boolean }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   let glyph: ReactNode

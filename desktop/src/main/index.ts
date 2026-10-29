@@ -273,7 +273,7 @@ interface WorkspaceConnectionEntry {
   lastUsedAt: number
   initializeResult?: InitializeResult
   threads: unknown[]
-  subscribedThreadId?: string
+  subscribedThreadIds: Set<string>
   errorMessage?: string
 }
 
@@ -446,16 +446,17 @@ function threadIdFromRequestParams(params: unknown): string | null {
   return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null
 }
 
-function releaseConnectionThreadSubscription(entry: WorkspaceConnectionEntry, reason: string): void {
-  const threadId = entry.subscribedThreadId
-  if (!threadId) return
-  entry.subscribedThreadId = undefined
-  entry.client.sendRequest('thread/unsubscribe', { threadId })
-    .catch((error: unknown) => {
-      if (!isAppQuitting) {
-        console.warn(`[desktop] failed to unsubscribe ${threadId} during ${reason}`, error)
-      }
-    })
+function releaseConnectionThreadSubscriptions(entry: WorkspaceConnectionEntry, reason: string): void {
+  const threadIds = [...entry.subscribedThreadIds]
+  entry.subscribedThreadIds.clear()
+  for (const threadId of threadIds) {
+    entry.client.sendRequest('thread/unsubscribe', { threadId })
+      .catch((error: unknown) => {
+        if (!isAppQuitting) {
+          console.warn(`[desktop] failed to unsubscribe ${threadId} during ${reason}`, error)
+        }
+      })
+  }
 }
 
 function observeAppServerRequestCompletion(
@@ -476,16 +477,14 @@ function observeAppServerRequestCompletion(
   if (!threadId) return
 
   if (method === 'thread/subscribe') {
-    entry.subscribedThreadId = threadId
+    entry.subscribedThreadIds.add(threadId)
     if (entry.role !== 'foreground' || wireClient !== client) {
-      releaseConnectionThreadSubscription(entry, 'late secondary subscribe')
+      releaseConnectionThreadSubscriptions(entry, 'late secondary subscribe')
     }
     return
   }
 
-  if (entry.subscribedThreadId === threadId) {
-    entry.subscribedThreadId = undefined
-  }
+  entry.subscribedThreadIds.delete(threadId)
 }
 
 function makeThreadListIdentity(workspacePath: string): Record<string, unknown> {
@@ -657,7 +656,7 @@ function disposeWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
   if (wireClient === entry.client) {
     wireClient = null
   }
-  entry.subscribedThreadId = undefined
+  entry.subscribedThreadIds.clear()
   entry.client.dispose()
   workspaceConnections.delete(entry.key)
   releaseWorkspaceLock(entry.workspacePath)
@@ -1429,7 +1428,7 @@ async function teardownRuntime(
   clearActiveRemoteReconnectTimer()
   connectionGeneration += 1
   for (const entry of [...workspaceConnections.values()]) {
-    entry.subscribedThreadId = undefined
+    entry.subscribedThreadIds.clear()
     releaseWorkspaceLock(entry.workspacePath)
     entry.client.dispose()
   }
@@ -2293,7 +2292,8 @@ async function connectViaWebSocket(
     connected: false,
     connecting: true,
     lastUsedAt: Date.now(),
-    threads: []
+    threads: [],
+    subscribedThreadIds: new Set()
   }
   workspaceConnections.set(connectionKey, entry)
   wireClient = client
@@ -2584,7 +2584,7 @@ function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
   if (previous && previous.client !== entry.client) {
     previous.role = 'secondary'
     previous.lastUsedAt = Date.now()
-    releaseConnectionThreadSubscription(previous, 'workspace demote')
+    releaseConnectionThreadSubscriptions(previous, 'workspace demote')
     releaseWorkspaceLock(previous.workspacePath)
   }
 
@@ -2649,7 +2649,8 @@ function createSecondaryWorkspaceConnection(
     connected: false,
     connecting: true,
     lastUsedAt: Date.now(),
-    threads: []
+    threads: [],
+    subscribedThreadIds: new Set()
   }
   workspaceConnections.set(key, entry)
   emitWorkspaceProjects()
@@ -3078,7 +3079,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
     if (previous?.role === 'foreground') {
       previous.role = 'secondary'
       previous.lastUsedAt = Date.now()
-      releaseConnectionThreadSubscription(previous, 'remote foreground connect')
+      releaseConnectionThreadSubscriptions(previous, 'remote foreground connect')
       releaseWorkspaceLock(previous.workspacePath)
     }
   } else if (preserveLocalConnections) {
@@ -3093,7 +3094,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
       if (previous) {
         previous.role = 'secondary'
         previous.lastUsedAt = Date.now()
-        releaseConnectionThreadSubscription(previous, 'workspace demote')
+        releaseConnectionThreadSubscriptions(previous, 'workspace demote')
         releaseWorkspaceLock(previous.workspacePath)
       }
       stopWorkspaceActivation()

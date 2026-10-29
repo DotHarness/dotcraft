@@ -36,7 +36,5 @@ public sealed class ThreadReadStateUnavailableException(string threadId)
 public sealed class ThreadReadStateConflictException(string threadId, ThreadReadState current)
     : Exception($"Thread '{threadId}' read receipt revision does not match.")
 {
-    public string ThreadId { get; } = threadId;
-
     public ThreadReadState Current { get; } = current;
 }

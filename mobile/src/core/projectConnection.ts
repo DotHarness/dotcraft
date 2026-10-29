@@ -350,7 +350,7 @@ export class ProjectConnection {
     if (this.store.getState().chats[key]) return
     this.store.dispatch({
       type: 'chatUpserted',
-      chat: { key, projectId: this.projectId, threadId, title: null, updatedAt: now(), runtime: null, lastTurnFailed: false, profileId: null },
+      chat: { key, projectId: this.projectId, threadId, title: null, updatedAt: now(), runtime: null, lastTurnFailed: false, profileId: null, readState: null },
     })
   }
 

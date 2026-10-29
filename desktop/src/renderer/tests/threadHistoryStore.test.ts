@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useConversationStore } from '../stores/conversationStore'
+import { getThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import {
   beginThreadHistory,
@@ -8,6 +8,7 @@ import {
   restartThreadHistory,
   useThreadHistoryStore
 } from '../stores/threadHistoryStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { listThreadTurns } from '../utils/threadHistory'
 import {
   createFakeHistoryServer,
@@ -142,6 +143,38 @@ describe('thread history segments', () => {
 
     expect(loadedTurnIds()).toEqual(turnRange(8, 12))
     expect(gapPositions()).toEqual([])
+  })
+
+  it('applies a page that lands after the thread was left warm to that thread', async () => {
+    const server = useServer(12)
+    await openThreadHistory(server, THREAD)
+    const release = server.holdNextTurnsList()
+    const load = loadThreadHistoryGap(gapBefore('turn-8'), 'older')
+
+    useThreadStore.getState().setActiveThreadId('thread-2')
+    openThreadState('thread-2')
+    release()
+    await load
+
+    expect(getThreadConversation(THREAD)?.getState().turns.map((turn) => turn.id)).toEqual(turnRange(3, 12))
+    expect(useConversationStore.getState().turns).toEqual([])
+    expect(useThreadHistoryStore.getState().threadId).toBe('thread-2')
+  })
+
+  it('ignores a page that lands after the thread was released', async () => {
+    const server = useServer(12)
+    await openThreadHistory(server, THREAD)
+    const release = server.holdNextTurnsList()
+    const load = loadThreadHistoryGap(gapBefore('turn-8'), 'older')
+
+    useThreadStore.getState().setActiveThreadId('thread-2')
+    openThreadState('thread-2')
+    releaseThreadState(THREAD)
+    release()
+    await load
+
+    expect(getThreadConversation(THREAD)).toBeUndefined()
+    expect(useConversationStore.getState().turns).toEqual([])
   })
 
   it('rejects opening a segment once the thread is switched away', async () => {

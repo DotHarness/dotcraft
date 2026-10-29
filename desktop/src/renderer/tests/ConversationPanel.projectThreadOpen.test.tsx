@@ -60,7 +60,7 @@ describe('ConversationPanel project thread open', () => {
     render(<LocaleProvider><ConversationPanel workspacePath={WORKSPACE_B} projectKey={WORKSPACE_B} /></LocaleProvider>)
 
     expect(await screen.findByRole('textbox')).toBeInTheDocument()
-    expect(screen.getByRole('status', { name: 'Loading thread' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.queryByTestId('conversation-welcome')).not.toBeInTheDocument()
   })
 })

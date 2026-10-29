@@ -51,7 +51,7 @@ export interface ChatSummary {
   lastTurnFailed: boolean
   profileId: string | null
   spawnedFrom?: string | null
-  readState?: ThreadReadState | null
+  readState: ThreadReadState | null
 }
 
 export interface ChatDetail {

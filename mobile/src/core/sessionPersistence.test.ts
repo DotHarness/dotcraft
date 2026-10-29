@@ -55,7 +55,7 @@ afterEach(() => vi.useRealTimers())
 function withChat(items: HistoryItem[] = []): MobileState {
   let state = initial()
   const actions: ComputerAction[] = [
-    { type: 'chatUpserted', chat: { key: 'p:t', projectId: 'p', threadId: 't', title: 'Chat', updatedAt: null, runtime: null, lastTurnFailed: false, profileId: null } },
+    { type: 'chatUpserted', chat: { key: 'p:t', projectId: 'p', threadId: 't', title: 'Chat', updatedAt: null, runtime: null, lastTurnFailed: false, profileId: null, readState: null } },
     { type: 'detailLoaded', key: 'p:t', history: { items, turns: [{ id: 'turn', status: 'running', error: null }], echoes: [] }, profileName: null, config: null, workspacePath: null, effectiveWorkspacePath: null, context: null },
   ]
   for (const action of actions) state = reducer(state, { type: 'computer', computerId: 'pc', action })
