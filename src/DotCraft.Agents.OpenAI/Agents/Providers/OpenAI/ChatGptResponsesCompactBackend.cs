@@ -85,9 +85,17 @@ internal sealed class OpenAIResponsesCompactor(
         if (input.Items.Count == 0)
             throw new InvalidOperationException("provider_compaction_empty_input");
 
+        var payloads = input.Items.Select(static item => item.Payload).ToArray();
+        var requestItems = ResponsesCompactRequestFitter.Fit(payloads, options, input.RequestTokenLimit);
+        var requestInput = ReferenceEquals(requestItems, payloads)
+            ? input
+            : input with
+            {
+                Items = requestItems.Select(static (item, index) => new ProviderHistoryItem($"compact-input:{index}", item)).ToArray()
+            };
         var body = ChatGptResponsesCompactRequestBuilder.Build(
             model,
-            input,
+            requestInput,
             neutralHistory,
             options,
             useResponsesLite,

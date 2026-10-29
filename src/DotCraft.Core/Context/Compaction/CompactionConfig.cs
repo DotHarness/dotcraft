@@ -25,7 +25,7 @@ public sealed class CompactionConfig
     public bool ReactiveCompactEnabled { get; set; } = true;
 
     /// <summary>
-    /// Runtime window after applying the client budget to the effective model's capacity.
+    /// Runtime window after applying the client budget to the effective model's input capacity.
     /// </summary>
     [ConfigField(Ignore = true)]
     [System.Text.Json.Serialization.JsonIgnore]

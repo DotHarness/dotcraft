@@ -101,6 +101,29 @@ public sealed class ModelCatalogTests : IDisposable
         Assert.Equal(expectedWindow - 20_000, compaction.EffectiveContextWindow());
     }
 
+    [Theory]
+    [InlineData("large-model", 922_000)]
+    [InlineData("large-model-mini", 400_000)]
+    public void ResolveCompactionConfig_LimitsWindowToDeclaredInputTokens(string model, int expectedWindow)
+    {
+        var configPath = WriteConfig("input-limit", "{}");
+        WriteCatalog("input-limit", """
+            {
+              "models": {
+                "large-model": { "contextWindow": 1050000, "maxInputTokens": 922000 },
+                "large-model-mini": { "contextWindow": 400000 }
+              }
+            }
+            """);
+        var config = new AppConfig();
+        ModelCatalog.ApplyToConfig(config, globalConfigPath: configPath, workspaceConfigPath: null);
+
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, $"gateway/{model}");
+
+        Assert.Equal(expectedWindow, compaction.ContextWindow);
+        Assert.Equal(model == "large-model" ? 1_050_000 : 400_000, ModelCatalog.Resolve(config, model));
+    }
+
     [Fact]
     public void ResolveCompactionConfig_UsesEffectiveModel()
     {

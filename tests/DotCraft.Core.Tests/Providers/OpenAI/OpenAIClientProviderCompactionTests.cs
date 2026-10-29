@@ -89,6 +89,18 @@ public sealed partial class OpenAIClientProviderTests
         Assert.StartsWith("provider_compaction_invalid_response:", error.Message);
     }
 
+    [Theory]
+    [InlineData("data: {\"type\":\"error\",\"code\":\"context_length_exceeded\",\"message\":\"Your input exceeds the context window of this model.\",\"param\":\"input\"}\n\n")]
+    [InlineData("data: {\"type\":\"response.failed\",\"response\":{\"id\":\"x\",\"status\":\"failed\",\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"Your input exceeds the context window of this model.\"}}}\n\n")]
+    public async Task CompactTransportReportsProviderErrorCode(string stream)
+    {
+        using var body = new MemoryStream(Encoding.UTF8.GetBytes(stream));
+        var error = await Assert.ThrowsAsync<ChatGptResponsesCompactProviderException>(() =>
+            SdkChatGptResponsesCompactTransport.ReadResponseAsync(body, CancellationToken.None));
+        Assert.Equal("context_length_exceeded", error.Code);
+        Assert.Contains("Your input exceeds the context window", error.Message);
+    }
+
     [Fact]
     public async Task CompactTransportIgnoresExtraOutputItems()
     {

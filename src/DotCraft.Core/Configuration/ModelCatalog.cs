@@ -27,7 +27,8 @@ public static class ModelCatalog
     {
         ArgumentNullException.ThrowIfNull(config);
         var compaction = config.Compaction.Clone();
-        var catalogWindow = Resolve(config, model);
+        var catalogWindow = ResolveInputCapacity(model,
+            CatalogPathForConfig(config.GlobalConfigPath), CatalogPathForConfig(config.WorkspaceConfigPath));
         compaction.ContextWindow = compaction.MaxContextWindow > 0
             ? Math.Min(catalogWindow, compaction.MaxContextWindow)
             : catalogWindow;
@@ -61,6 +62,22 @@ public static class ModelCatalog
                 HasExplicitMatch: true,
                 match.Pattern,
                 match.MatchKind);
+    }
+
+    internal static int ResolveInputCapacity(
+        string? model,
+        string? globalCatalogPath = null,
+        string? workspaceCatalogPath = null)
+    {
+        var catalog = LoadBuiltInCatalog();
+        MergeFile(catalog, globalCatalogPath);
+        MergeFile(catalog, workspaceCatalogPath);
+
+        var window = ResolveModelWindow(model, catalog.Models)?.Value
+                     ?? catalog.DefaultContextWindow ?? DefaultContextWindow;
+        var maxInput = ResolveModelCapability(model, catalog.Models, static entry => entry.MaxInputTokens is not null)
+            ?.Value.MaxInputTokens;
+        return maxInput is { } limit ? Math.Min(window, limit) : window;
     }
 
     public static bool SupportsFast(AppConfig config, string? protocol, string? model)
@@ -120,6 +137,12 @@ public static class ModelCatalog
                     entry.ContextWindow = contextWindow;
                 }
 
+                if (TryGetProperty(model.Value, "maxInputTokens", out var maxInputElement)
+                    && TryReadContextWindow(maxInputElement, out var maxInputTokens))
+                {
+                    entry.MaxInputTokens = maxInputTokens;
+                }
+
                 if (TryGetProperty(model.Value, "fast", out var fastElement))
                 {
                     if (fastElement.ValueKind == JsonValueKind.Null)
@@ -133,7 +156,7 @@ public static class ModelCatalog
                     }
                 }
 
-                if (entry.ContextWindow is not null || entry.HasFastDeclaration)
+                if (entry.ContextWindow is not null || entry.MaxInputTokens is not null || entry.HasFastDeclaration)
                     catalog.Models[model.Name.Trim()] = entry;
             }
         }
@@ -350,6 +373,8 @@ public static class ModelCatalog
 
                 if (source.ContextWindow is not null)
                     target.ContextWindow = source.ContextWindow;
+                if (source.MaxInputTokens is not null)
+                    target.MaxInputTokens = source.MaxInputTokens;
                 if (source.HasFastDeclaration)
                 {
                     target.HasFastDeclaration = true;
@@ -363,6 +388,8 @@ public static class ModelCatalog
     {
         public int? ContextWindow { get; set; }
 
+        public int? MaxInputTokens { get; set; }
+
         public bool HasFastDeclaration { get; set; }
 
         public FastCapabilityData? Fast { get; set; }
@@ -370,6 +397,7 @@ public static class ModelCatalog
         public ModelData Clone() => new()
         {
             ContextWindow = ContextWindow,
+            MaxInputTokens = MaxInputTokens,
             HasFastDeclaration = HasFastDeclaration,
             Fast = Fast?.Clone()
         };

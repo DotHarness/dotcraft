@@ -442,7 +442,8 @@ public sealed partial class SessionService
                     factory.CreateCompactor(
                         runtime,
                         owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)),
-                    pipeline.EvaluateThreshold),
+                    pipeline.EvaluateThreshold,
+                    pipeline.EffectiveContextWindow),
                 pipeline.GetBackendFailureTracker);
         }
 

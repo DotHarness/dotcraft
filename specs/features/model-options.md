@@ -45,8 +45,12 @@ metadata declares tool calling, text output, and a context window of at least 1,
 segment of each canonical model id becomes a lowercase matching key, and duplicate keys are rejected. Provider-specific limits remain outside this
 provider-agnostic catalog.
 
+An entry may also declare `maxInputTokens` when the model accepts less input than its context window
+because output tokens are reserved inside it. The built-in value comes from the model's first-party
+provider entry on models.dev; input caps that only a gateway applies are not synchronized.
+
 Optional global and workspace `.craft/models.json` files override the built-in catalog in that order.
-Model entries may independently declare `contextWindow` and Fast routing selectors, and matching uses
+Model entries may independently declare `contextWindow`, `maxInputTokens`, and Fast routing selectors, and matching uses
 the most specific model prefix or namespaced suffix that declares the requested capability. More
 specific model keys therefore override family prefixes without changing the matching schema. Fast
 selectors constrain normalized protocols; `fast: null` explicitly disables an inherited Fast
@@ -244,8 +248,8 @@ Its default is `-1`: omitted or `-1` uses the catalog window; a positive value l
 window to the smaller of that value and the catalog window. Workspace values override global values,
 including an explicit `-1` that restores the catalog window. This setting is independent of reasoning.
 
-Compaction receives the resulting window as runtime data and applies summary reserves, safety buffers,
-and compaction thresholds. Model changes affect subsequent requests and maintenance work;
+Compaction receives the resulting window as runtime data, limited to the model's `maxInputTokens`
+when declared, and applies summary reserves, safety buffers, and compaction thresholds. Model changes affect subsequent requests and maintenance work;
 running operations keep their captured configuration.
 
 `model/list.contextWindow` is the resolved numeric capacity. The context usage snapshot's

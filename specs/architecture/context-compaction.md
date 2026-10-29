@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.9.6 |
+| **Version** | 0.9.7 |
 | **Status** | Draft |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-10-29 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline. This spec owns backend selection,
@@ -192,6 +192,20 @@ persisted. The Responses mapper and OAuth pipeline own tools, instructions, reas
 prompt cache, client metadata, streaming flags, and conversation routing. The request kind is
 `compaction`.
 
+The compact request must fit the effective context window, because it carries the same history
+that may have just been rejected. When the provider-native estimate of the request exceeds that
+window, the backend shrinks the request only, never the captured input:
+
+1. From the newest item backward, it replaces the output of each tool result with a fixed
+   truncation notice until the request fits or a non-tool-result item is reached.
+2. If the request still exceeds the window, it replaces the remaining tool-result outputs from the
+   oldest item forward, including the newest user-message segment, until the request fits.
+3. If the request still exceeds the window, it drops the oldest items through the next user message
+   boundary, keeping tool calls paired with their results, until the request fits or only the newest
+   user-message segment remains.
+
+Coverage and retained messages still derive from the complete captured input.
+
 The backend consumes raw SSE events and never passes compaction through the normal chat adapter or
 tool loop, which would append provider outputs or execute tools in the live conversation.
 
@@ -199,7 +213,8 @@ tool loop, which would append provider outputs or execute tools in the live conv
 
 A successful stream reaches `response.completed` after exactly one `compaction` item has been
 observed in `response.output_item.done`. Missing or duplicate compaction items, malformed events,
-`response.failed`, `response.incomplete`, errors, and premature EOF fail the attempt. Extra output
+`response.failed`, `response.incomplete`, errors, and premature EOF fail the attempt. A provider error
+event fails it with the provider error code. Extra output
 items are ignored and never executed. The compaction item's unknown fields and encrypted content are
 preserved as raw JSON.
 
@@ -240,7 +255,7 @@ compacted history.
 | **MidTurn** | Current native generation plus a read-only mapping of the active Turn's uncovered tool/guidance tail. | Covers the complete current sampling list and current Turn. |
 | **PostTurn** | Current native generation plus a read-only mapping of the complete current Turn, including the final assistant response. | Covers the complete current sampling list and current Turn. |
 | **Manual** | The current persisted generation after protocol-return alignment, if needed. | Covers the full neutral session and latest terminal Turn represented by that generation. |
-| **Reactive** | The exact native input rejected by the provider for context overflow. | Covers that submitted sampling list and the failing Turn. |
+| **Reactive** | The exact native input rejected by the provider for context overflow; the compact request is fitted to the window. | Covers that submitted sampling list and the failing Turn. |
 
 If manual compaction finds that non-Responses Turns occurred after the stored Responses generation,
 Session Core first performs a `protocol_return` replacement from neutral history, and the backend
@@ -332,7 +347,7 @@ messages take the remainder of the current usage.
 | Native capability absent or corrupt | `provider_compaction_unavailable` | Fail selected backend; no local fallback. |
 | Empty phase input | `provider_compaction_empty_input` | Skip unless the caller's blocking policy requires failure. |
 | Invalid or empty response | `provider_compaction_invalid_response` | Fail selected backend; keep old generation. |
-| Authentication, transport, or provider error | The provider error or `provider_compaction_failed` | Fail selected backend after normal bounded OAuth recovery. |
+| Authentication, transport, or provider error | The provider error code, such as `context_length_exceeded` from an SSE `error` or `response.failed` event, or `provider_compaction_failed` | Fail selected backend after normal bounded OAuth recovery. The provider message is kept in the failure message. |
 | Replacement rollout append failure | `provider_history_persist_failed` | Keep old live generation and fail the attempt. |
 | Context-window projection is stale after commit | State-store diagnostic | Keep the committed generation live and reconcile before the next request. |
 | User cancellation during manual compaction | `cancelled` | Emit `compactCancelled`; install nothing. |
