@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import { planToolRunRender } from '../utils/toolCallAggregation'
-import { parseBoardCall, type BoardOperation } from '../utils/boardToolDisplay'
+import { describeBoardCall, parseBoardCall, type BoardOperation } from '../utils/boardToolDisplay'
 import { isToolExecutionFailure } from '../utils/toolCallDisplay'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
@@ -47,6 +47,24 @@ describe('board tool display', () => {
 
     expect(call.posts.map((post) => post.messageId)).toEqual([TOPIC, 'reply-1', 'reply-2'])
     expect(call.posts[0].topic).toBe(true)
+  })
+
+  it('links a posted reply and a read topic to the topic on the board', () => {
+    const reply = parseBoardCall({
+      operation: 'post',
+      args: { threadId: TOPIC, text: 'Tests pass' },
+      result: JSON.stringify({ messageId: 'reply-1', channelName: 'release', author: '/root', threadId: TOPIC }),
+      running: false
+    })
+    const read = parseBoardCall({
+      operation: 'readThread',
+      args: { threadId: TOPIC },
+      result: JSON.stringify({ rootPost: preview(TOPIC, '/root', 'Release review'), results: [] }),
+      running: false
+    })
+
+    expect(describeBoardCall(reply).topic).toEqual({ variable: 'channel', topicId: TOPIC, messageId: 'reply-1' })
+    expect(describeBoardCall(read).topic).toEqual({ variable: 'title', topicId: TOPIC, messageId: TOPIC })
   })
 
   it('treats a board error result as a failed call and failed tool', () => {

@@ -59,10 +59,15 @@ internal sealed partial class AgentMessageBoardStore(WorkspaceStateDatabase data
 
     private static void CheckDeleted(SqliteConnection connection, SqliteTransaction? transaction, string root)
     {
+        if (IsDeleted(connection, transaction, root))
+            throw new BoardException("board_deleted", "The message board's root has been permanently deleted.");
+    }
+
+    private static bool IsDeleted(SqliteConnection connection, SqliteTransaction? transaction, string root)
+    {
         using var check = Command(connection, transaction,
             "SELECT deleted FROM agent_boards WHERE root_id=$root", ("$root", root));
-        if (check.ExecuteScalar() is long value && value != 0)
-            throw new BoardException("board_deleted", "The message board's root has been permanently deleted.");
+        return check.ExecuteScalar() is long value && value != 0;
     }
 
     public void Delete(string root)

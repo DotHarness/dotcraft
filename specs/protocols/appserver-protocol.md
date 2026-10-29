@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.6 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-10-29 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -219,7 +219,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `externalChannelManagement` | `externalChannel/*`. |
 | `agentProfileManagement` | `agent/profiles/*`, including builder drafts and Agent package methods. |
 | `subAgentManagement` | `subagent/profiles/*`, `subagent/settings/update`. |
-| `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`. |
+| `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`, `subagent/board/*`. |
 | `usageTelemetry` | `usage/*` and `profile/insights`. Absent when tracing is disabled. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
 | `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `welcomeSuggestions`). |
@@ -869,6 +869,10 @@ Sideband snapshot of all SubAgents tracked during a Turn while `SpawnAgent` call
 #### `subagent/graph/changed`
 
 `{ parentThreadId, childThreadId }`: a session-backed parent/child edge was created or changed status. Clients refresh `subagent/children/list` for the parent.
+
+#### `subagent/board/changed`
+
+`{ rootThreadId }`: a channel or post was committed to the root tree's discussion board. Clients showing that board refresh it with `subagent/board/*`. Delivery is best-effort and carries no board content.
 
 ### 6.6 Usage Notifications
 
@@ -2185,6 +2189,20 @@ Params `parentThreadId`, `target`, `message`, `deliveryMode` (`queue` default, o
 #### `subagent/close`
 
 Params `parentThreadId`, `target`. Rejects `/root` and self-targets, cancels an active child turn the server still owns, marks the edge closed, and archives the child subtree. Default child listing no longer returns it.
+
+#### `subagent/board/topics/list`
+
+Params `threadId`, `channelName`, `cursor`, `limit` (default 50, maximum 100). Result `{ channels, data, nextCursor }` for the shared discussion board of `threadId`'s root tree ([SubAgents](../features/subagents.md) §8.1); any thread in the tree names the same board.
+
+- `channels` lists every channel: `name`, `description`, `createdBy` (agent path), `createdAt`, and `topicCount`. It ignores `channelName`.
+- `data` lists topics, filtered by `channelName` when given, newest activity first: `topicId`, `channelName`, `rootPost`, `replyCount`, and `lastActivityAt`. `rootPost.text` is the topic's opening post cut to 500 characters.
+- A tree whose root is ephemeral, has no board, or has a deleted board returns empty lists. Reading never creates a board, subscribes, notifies, or changes board state.
+
+#### `subagent/board/topic/read`
+
+Params `threadId`, `topicId`. Result `{ topic, posts, hasMore }`: `topic` has the list fields, or is `null` when the topic is not on the tree's board; `posts` holds the opening post and its replies, oldest first, up to 500 posts, with `hasMore` set when more exist.
+
+A board post carries `messageId`, `channelName`, `topicId`, `author` (agent path), `createdAt`, `text` (full text unless stated otherwise), and `notified`: the absolute agent paths the author named as explicit recipients, not the subscribers it reached.
 
 ## 25. Configuration Methods
 

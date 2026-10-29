@@ -30,7 +30,7 @@ const EXPLORER_MAX_WIDTH = 480
 
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
-export type SystemDetailTab = 'changes' | 'plan' | 'subagents'
+export type SystemDetailTab = 'changes' | 'plan' | 'subagents' | 'board'
 export type ChangesDiffMode = 'inline' | 'split'
 
 /** @deprecated Use `ActiveDetailTab` instead. */
@@ -41,7 +41,7 @@ export type ActiveDetailTab =
   | { kind: 'viewer'; id: string }
   | { kind: 'launcher' }
 
-const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents']
+const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents', 'board']
 
 function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {
   if (open.includes(id)) return open

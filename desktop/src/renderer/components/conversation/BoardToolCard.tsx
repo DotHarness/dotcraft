@@ -3,6 +3,7 @@ import { MessagesSquare } from 'lucide-react'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
+import { useConnectionStore } from '../../stores/connectionStore'
 import type { ConversationItem } from '../../types/conversation'
 import {
   describeBoardAccessory,
@@ -15,7 +16,7 @@ import {
 } from '../../utils/boardToolDisplay'
 import { extractBoardArguments } from '../../utils/toolCallDisplay'
 import { RunningShimmer } from '../ui/RunningShimmer'
-import { BoardAgentList, BoardAgentName, renderWithNode, type BoardAgentContext } from './BoardAgentName'
+import { BoardAgentList, BoardAgentName, BoardTopicLinkButton, renderWithNode, type BoardAgentContext } from './BoardAgentName'
 import { BoardToolDetail, hasBoardToolDetail } from './BoardToolDetail'
 import { ToolDisclosure } from './ToolDisclosure'
 import styles from './BoardToolCard.module.css'
@@ -120,6 +121,14 @@ function BoardCallRow({ call, context }: { call: BoardCall; context: BoardAgentC
 
 function useBoardLabel(label: BoardLabel, context: BoardAgentContext): ReactNode {
   const locale = useLocale()
+  const boardAvailable = useConnectionStore((state) => state.capabilities?.subAgentSessions === true)
+  const topic = label.topic
+  if (topic && boardAvailable) {
+    return renderWithNode(
+      (value) => translate(locale, label.key, { ...label.vars, [topic.variable]: value }),
+      <BoardTopicLinkButton text={String(label.vars[topic.variable] ?? '')} link={topic} context={context} />
+    )
+  }
   if (!label.agentPath) return translate(locale, label.key, label.vars)
   return renderWithNode(
     (name) => translate(locale, label.key, { ...label.vars, name }),

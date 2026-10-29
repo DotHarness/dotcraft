@@ -192,6 +192,17 @@ public interface ISessionService
     Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default) =>
         throw new NotSupportedException("SubAgent mailbox is not supported by this session service.");
 
+    Task<BoardTopicPage> ListBoardTopicsAsync(
+        string threadId,
+        string? channelName,
+        string? cursor,
+        int limit,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("The discussion board is not supported by this session service.");
+
+    Task<BoardTopicPosts> ReadBoardTopicAsync(string threadId, string topicId, CancellationToken ct = default) =>
+        throw new NotSupportedException("The discussion board is not supported by this session service.");
+
     Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
         string rootThreadId,
         string targetAgentPath,

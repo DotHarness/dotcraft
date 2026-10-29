@@ -4,7 +4,9 @@ import { translate } from '../../../shared/locales'
 import type { SubAgentLookupSources } from '../../utils/subAgentIdentity'
 import { findSubAgentChild } from '../../utils/subAgentIdentity'
 import { openSubAgent } from '../../utils/subAgentNavigation'
-import { boardAgentName, isRootAgentPath } from '../../utils/boardToolDisplay'
+import { boardAgentName, isRootAgentPath, type BoardTopicLink } from '../../utils/boardToolDisplay'
+import { useBoardStore } from '../../stores/boardStore'
+import { useThreadStore } from '../../stores/threadStore'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import styles from './BoardToolCard.module.css'
 
@@ -45,6 +47,32 @@ export function BoardAgentName({
         {name}
       </button>
     </span>
+  )
+}
+
+export function BoardTopicLinkButton({
+  text,
+  link,
+  context
+}: {
+  text: string
+  link: BoardTopicLink
+  context: BoardAgentContext
+}): JSX.Element {
+  const locale = useLocale()
+  return (
+    <button
+      type="button"
+      className="dc-subagent-name"
+      onClick={(event) => {
+        event.stopPropagation()
+        const panelThreadId = useThreadStore.getState().activeThreadId ?? context.threadId
+        useBoardStore.getState().openTopic(panelThreadId, link.topicId, link.messageId)
+      }}
+      aria-label={translate(locale, 'boardPanel.openTopicAria', { name: text })}
+    >
+      {text}
+    </button>
   )
 }
 

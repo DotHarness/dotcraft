@@ -32,6 +32,7 @@ export interface ServerNotificationMethods {
   "provider/auth/updated": { params: Models.ProviderAuthLoginState; result: Models.RpcEmpty };
   "provider/auth/usage/updated": { params: Models.ProviderAuthUsageUpdatedNotification; result: Models.RpcEmpty };
   "remoteToolHost/route/changed": { params: Models.RemoteToolHostRouteChangedNotification; result: Models.RpcEmpty };
+  "subagent/board/changed": { params: Models.SubAgentBoardChangedNotification; result: Models.RpcEmpty };
   "subagent/graph/changed": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };
   "system/event": { params: Models.SystemEventNotification; result: Models.RpcEmpty };

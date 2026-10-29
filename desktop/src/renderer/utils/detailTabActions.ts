@@ -4,10 +4,17 @@
  */
 import type { AddTabMenuAction } from '../../shared/addTabMenu'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
+import { useUIStore, type SystemDetailTab } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { activeDetailScopeId } from './detailPanelScope'
 import { openActiveSideChat } from './sideChat'
+
+const SYSTEM_TAB_ACTIONS = {
+  newChanges: 'changes',
+  newPlan: 'plan',
+  newSubagents: 'subagents',
+  newBoard: 'board'
+} satisfies Partial<Record<AddTabMenuAction, SystemDetailTab>>
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
 
@@ -22,9 +29,10 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   const ui = useUIStore.getState()
 
   // System tabs (Diff / Progress) — no active workspace required.
-  if (action === 'newChanges' || action === 'newPlan' || action === 'newSubagents') {
+  const systemTab = SYSTEM_TAB_ACTIONS[action as keyof typeof SYSTEM_TAB_ACTIONS]
+  if (systemTab) {
     if (!useThreadStore.getState().activeThreadId) return
-    ui.setActiveDetailTab(action === 'newChanges' ? 'changes' : action === 'newPlan' ? 'plan' : 'subagents')
+    ui.setActiveDetailTab(systemTab)
     return
   }
 

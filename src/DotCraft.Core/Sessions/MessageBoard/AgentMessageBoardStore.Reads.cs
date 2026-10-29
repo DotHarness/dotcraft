@@ -111,8 +111,11 @@ internal sealed partial class AgentMessageBoardStore
     {
         var more = results.Count > limit;
         if (more) results.RemoveRange(limit, results.Count - limit);
-        return new(results, results.Count, more, more ? Convert.ToBase64String(Encoding.UTF8.GetBytes(checked(offset + results.Count).ToString(CultureInfo.InvariantCulture))) : null);
+        return new(results, results.Count, more, more ? EncodeCursor(checked(offset + results.Count)) : null);
     }
+
+    private static string EncodeCursor(int offset) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(offset.ToString(CultureInfo.InvariantCulture)));
 
     private static int DecodeCursor(string? cursor)
     {

@@ -5,11 +5,13 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useConnectionStore } from '../../stores/connectionStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, Workflow, CalendarClock, Maximize2, Minimize2 } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2 } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
+import { BoardTab } from '../detail/BoardTab'
 import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
@@ -83,6 +85,7 @@ export function DetailPanel({
   )
 
   const sideChatAvailable = useCanOpenSideChat()
+  const boardAvailable = useConnectionStore((state) => state.capabilities?.subAgentSessions === true)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
 
@@ -183,6 +186,13 @@ export function DetailPanel({
               label: t('detailPanel.tabSubagents'),
               enabled: true
             }]),
+        ...(!systemTabsAvailable || !boardAvailable || openSystemTabs.includes('board')
+          ? []
+          : [{
+              action: 'newBoard' as const,
+              label: t('detailPanel.tabBoard'),
+              enabled: true
+            }]),
         ...(systemTabsAvailable
           ? [{
               action: 'newSideChat' as const,
@@ -213,6 +223,10 @@ export function DetailPanel({
       label: t('detailPanel.tabSubagents'),
       icon: <Bot size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />,
       badge: runningSubagentCount > 0 ? runningSubagentCount : undefined
+    },
+    board: {
+      label: t('detailPanel.tabBoard'),
+      icon: <MessagesSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
     }
   }
 
@@ -371,6 +385,7 @@ export function DetailPanel({
         {activeSystemId === 'changes' && <ChangesTab workspacePath={workspacePath} />}
         {activeSystemId === 'plan' && <PlanTab />}
         {activeSystemId === 'subagents' && <SubagentsTab />}
+        {activeSystemId === 'board' && <BoardTab />}
         {activeDetailTab.kind === 'viewer' && (
           <ViewerTabContainer tabId={activeDetailTab.id} />
         )}

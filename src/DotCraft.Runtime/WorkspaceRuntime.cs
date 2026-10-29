@@ -177,6 +177,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public event Action<string, string>? SubAgentGraphChanged;
 
+    public event Action<string>? SubAgentBoardChanged;
+
     public event Action<ThreadTokenUsageUpdate>? ThreadTokenUsageUpdated;
 
     /// <summary>
@@ -334,6 +336,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     threadId => ThreadGoalCleared?.Invoke(threadId);
                 sessionService.SubAgentGraphChangedForBroadcast =
                     (parentThreadId, childThreadId) => SubAgentGraphChanged?.Invoke(parentThreadId, childThreadId);
+                sessionService.SubAgentBoardChangedForBroadcast = rootThreadId => SubAgentBoardChanged?.Invoke(rootThreadId);
                 sessionService.ThreadTokenUsageUpdatedForBroadcast =
                     update => ThreadTokenUsageUpdated?.Invoke(update);
 
@@ -584,6 +587,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 if (started.SessionService is SessionService sessionService)
                 {
                     sessionService.SubAgentGraphChangedForBroadcast = null;
+                    sessionService.SubAgentBoardChangedForBroadcast = null;
                     sessionService.ThreadTokenUsageUpdatedForBroadcast = null;
                 }
             }

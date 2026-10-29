@@ -18785,6 +18785,304 @@
       "variants": []
     },
     {
+      "id": "core.SubAgentBoardChangedNotification",
+      "name": "SubAgentBoardChangedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardChangedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "rootThreadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardChannel",
+      "name": "SubAgentBoardChannel",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardChannel.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "createdBy",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "topicCount",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardPost",
+      "name": "SubAgentBoardPost",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardPost.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "author",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "messageId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "notified",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "topicId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardTopic",
+      "name": "SubAgentBoardTopic",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardTopic.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "lastActivityAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "replyCount",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "rootPost",
+          "type": "core.SubAgentBoardPost",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "topicId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardTopicReadParams",
+      "name": "SubAgentBoardTopicReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardTopicReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "topicId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardTopicReadResult",
+      "name": "SubAgentBoardTopicReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardTopicReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "hasMore",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "posts",
+          "type": "array<core.SubAgentBoardPost>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "topic",
+          "type": "core.SubAgentBoardTopic",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardTopicsListParams",
+      "name": "SubAgentBoardTopicsListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardTopicsListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.SubAgentBoardTopicsListResult",
+      "name": "SubAgentBoardTopicsListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentBoardTopicsListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "channels",
+          "type": "array<core.SubAgentBoardChannel>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "data",
+          "type": "array<core.SubAgentBoardTopic>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextCursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.SubAgentChild",
       "name": "SubAgentChild",
       "module": "core",
@@ -32224,6 +32522,62 @@
       "module": "core",
       "capability": "sourceControlManagement",
       "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "subagent/board/changed",
+      "descriptorMember": "SubAgentBoardChanged",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.SubAgentBoardChangedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "subagent/board/topic/read",
+      "descriptorMember": "SubAgentBoardTopicRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.SubAgentBoardTopicReadParams",
+      "resultType": "core.SubAgentBoardTopicReadResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "subagent/board/topics/list",
+      "descriptorMember": "SubAgentBoardTopicsList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.SubAgentBoardTopicsListParams",
+      "resultType": "core.SubAgentBoardTopicsListResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
       "notificationOptOut": false,
       "errors": [
         "InvalidParams",
