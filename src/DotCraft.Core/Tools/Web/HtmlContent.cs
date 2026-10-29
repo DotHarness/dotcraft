@@ -86,9 +86,9 @@ internal static partial class HtmlContent
     {
         if (node.Attributes.Contains("hidden"))
             return true;
-        if (string.Equals(node.GetAttributeValue("aria-hidden", null), "true", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(node.GetAttributeValue("aria-hidden", string.Empty), "true", StringComparison.OrdinalIgnoreCase))
             return true;
-        var style = node.GetAttributeValue("style", null);
+        var style = node.GetAttributeValue("style", string.Empty);
         if (string.IsNullOrEmpty(style))
             return false;
         var compact = string.Concat(style.Where(c => !char.IsWhiteSpace(c))).ToLowerInvariant();
@@ -97,7 +97,7 @@ internal static partial class HtmlContent
 
     private static void Absolutize(HtmlNode node, string attribute, Uri baseUri)
     {
-        var value = node.GetAttributeValue(attribute, null);
+        var value = node.GetAttributeValue(attribute, string.Empty);
         if (string.IsNullOrWhiteSpace(value))
             return;
         if (Uri.TryCreate(baseUri, HtmlEntity.DeEntitize(value).Trim(), out var absolute)

@@ -14,8 +14,6 @@ public sealed class AuthoringReferencePackFixture : IDisposable
 
     public AuthoringReferencePackFixture()
     {
-        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath));
-        _inspector = new(() => new DotNetPluginApiInspector(Load()));
         Root = Path.Combine(
             Path.GetTempPath(),
             "dotcraft-tests",
@@ -25,6 +23,8 @@ public sealed class AuthoringReferencePackFixture : IDisposable
         Directory.CreateDirectory(ReferencesRoot);
 
         HostAssemblyPath = Path.Combine(Root, "DotCraft.Core.dll");
+        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath));
+        _inspector = new(() => new DotNetPluginApiInspector(Load()));
         CopyWithDocumentation(typeof(IDotCraftPlugin).Assembly.Location, Root);
         CopyWithDocumentation(typeof(ChatClientAgent).Assembly.Location, Root);
         CopyFrameworkReferences();
