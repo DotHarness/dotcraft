@@ -22,7 +22,9 @@ describe('ConversationPanel project thread open', () => {
       appServer: { sendRequest: vi.fn().mockResolvedValue({}) },
       file: { readFile: vi.fn().mockResolvedValue('{}') },
       shell: { listOpenTargets: vi.fn().mockResolvedValue([]) },
-      workspace: { saveImageToTemp: vi.fn() }
+      workspace: { saveImageToTemp: vi.fn(), getPathForFile: vi.fn() },
+      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
+      voice: undefined
     })
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()
@@ -40,6 +42,25 @@ describe('ConversationPanel project thread open', () => {
     render(<LocaleProvider><ConversationPanel workspacePath={WORKSPACE_B} projectKey={WORKSPACE_B} /></LocaleProvider>)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByTestId('conversation-welcome')).not.toBeInTheDocument()
+  })
+
+  it('opens a listed thread with its composer while the thread loads', async () => {
+    useThreadStore.getState().setThreadList([{
+      id: 'thread-a',
+      displayName: 'Listed thread',
+      status: 'active',
+      originChannel: 'dotcraft-desktop',
+      createdAt: '2026-10-29T00:00:00Z',
+      lastActiveAt: '2026-10-29T00:00:00Z',
+      workspacePath: WORKSPACE_B
+    }])
+    useThreadStore.getState().setActiveThreadId('thread-a')
+
+    render(<LocaleProvider><ConversationPanel workspacePath={WORKSPACE_B} projectKey={WORKSPACE_B} /></LocaleProvider>)
+
+    expect(await screen.findByRole('textbox')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading thread' })).toBeInTheDocument()
     expect(screen.queryByTestId('conversation-welcome')).not.toBeInTheDocument()
   })
 })

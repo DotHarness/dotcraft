@@ -277,6 +277,8 @@ When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` dur
 
 Selecting a thread starts one coordinated subscription and paged-hydration operation (5.3.1). If the thread is not turn-capable, the user sees why and which actions remain allowed.
 
+The conversation never blanks while it restores. A thread present in the thread list opens at once with its header and composer, using the list summary until the header read lands; only the transcript area waits, with an indicator revealed after 400ms. Submitting before the thread is ready keeps the message in the composer and says the conversation is still loading.
+
 ### 5.3.1 Desktop Thread Restore Pipeline
 
 Selecting a thread opens a new restore generation and clears the previous one. These invariants hold for every restore; page count, direction, and size are client choices.
