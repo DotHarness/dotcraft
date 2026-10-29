@@ -1205,7 +1205,10 @@ and state already say.
 - The action row holds model, context-window, and send. The context row below the
   card holds project, Run on, work location, branch or changelist, and provider
   subscription status (right after the branch). Context-row chips share one 28px
-  footer pill in `--composer-footer-text` and open their menus upward.
+  footer pill in `--composer-footer-text` and open their menus upward. The context
+  row is centred between the card and the bottom of its panel, 10px above and
+  below, in every composer that has one; a composer without it keeps 14px below
+  the card.
 - Every capsule in either row is transparent at rest, takes
   `--sidebar-control-hover` on hover and keeps it while its menu is open, so
   opening a menu does not change the fill, and shows an accent outline only for

@@ -2033,7 +2033,6 @@ function InputComposerCore({
         belowFooter={(
           <ComposerStatusContent
             context={desktopPluginSurfaceContext}
-            topSpacing={!minimalChrome}
             workspace={minimalChrome ? null : (
               <ComposerWorkspaceFooter
                 workspacePath={effectiveFileWorkspacePath}
