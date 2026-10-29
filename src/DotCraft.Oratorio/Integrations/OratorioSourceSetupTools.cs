@@ -48,7 +48,7 @@ internal sealed partial class OratorioDynamicToolFacade
             {
                 message += $" {SyncMessage(result.Sync)}";
             }
-            else
+            else if (result.Credentials == "missing")
             {
                 message += " It cannot sync until its credentials are configured.";
             }

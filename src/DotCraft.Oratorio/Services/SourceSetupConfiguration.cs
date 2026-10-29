@@ -136,7 +136,7 @@ public static class SourceSetupConfiguration
 
         var routes = next.DotCraft.RepositoryWorkspaceRoutes.ToList();
         var routeIndex = routes.FindIndex(route => SameProject(route.Project, provider, project));
-        if (routeIndex >= 0) routes[routeIndex] = routes[routeIndex] with { WorkspacePath = request.WorkspacePath };
+        if (routeIndex >= 0) routes[routeIndex] = routes[routeIndex] with { Project = canonical, WorkspacePath = request.WorkspacePath };
         else routes.Add(new DotCraftRepositoryWorkspaceRouteDto(canonical, request.WorkspacePath));
 
         var existing = FindProject(configuration, provider, project);

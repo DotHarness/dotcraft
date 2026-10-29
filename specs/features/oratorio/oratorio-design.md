@@ -404,7 +404,9 @@ repository by talking to the agent instead of opening Settings:
   sync of that project and waits briefly for the result; otherwise it reports
   which credential is missing.
 - **Sync project** runs an incremental sync of one connected project and waits
-  briefly for the result.
+  briefly for the result. When a sync that leaves the project out is already
+  running, it reports that the project did not sync rather than that job's
+  result; connect reports the same as a warning.
 - **Request credential** shows an MCP App card in which the user enters the
   GitLab project token or the GitHub App private key. The model learns only
   which credential is needed and whether one is already saved.

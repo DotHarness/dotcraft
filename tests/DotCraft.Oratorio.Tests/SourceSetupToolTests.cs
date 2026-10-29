@@ -106,6 +106,29 @@ public sealed class SourceSetupToolTests : IDisposable
     }
 
     [Fact]
+    public async Task ConnectProject_moves_the_workspace_route_to_a_new_endpoint()
+    {
+        await using var app = CreateApp();
+        var workspace = Workspace("moved");
+        foreach (var endpoint in new[] { "https://old.example.test", "https://new.example.test" })
+        {
+            var connected = await CallAsync(app, OratorioDynamicToolCatalog.ConnectProjectName, new
+            {
+                provider = "gitlab",
+                project = "group/project",
+                workspacePath = workspace,
+                endpoint
+            });
+            Assert.True(connected.Success, Text(connected));
+        }
+
+        var route = Assert.Single(
+            (await GetConfigurationAsync(app)).Configuration.DotCraft.RepositoryWorkspaceRoutes,
+            x => x.Project.StartsWith("gitlab:", StringComparison.Ordinal));
+        Assert.Equal("gitlab:new.example.test/group/project", route.Project);
+    }
+
+    [Fact]
     public async Task GitLab_project_reports_missing_credentials_until_the_token_is_saved()
     {
         const string token = "glpat-source-setup-secret";

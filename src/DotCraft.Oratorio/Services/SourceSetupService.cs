@@ -121,7 +121,9 @@ public sealed class SourceSetupService(
             throw new OratorioApiException(StatusCodes.Status409Conflict, "sourceCredentialsMissing", warning.Message);
         }
 
-        return await RunSyncAsync(provider, connected.Project, [], ct);
+        List<SourceSetupWarningDto> warnings = [];
+        return await RunSyncAsync(provider, connected.Project, warnings, ct)
+            ?? throw new OratorioApiException(StatusCodes.Status409Conflict, warnings[0].Code, warnings[0].Message);
     }
 
     public SourceCredentialRequestDto RequestCredential(string provider, string project)
@@ -239,7 +241,7 @@ public sealed class SourceSetupService(
             clock.UtcNow));
     }
 
-    private async Task<SourceSetupSyncDto> RunSyncAsync(
+    private async Task<SourceSetupSyncDto?> RunSyncAsync(
         string provider,
         string project,
         List<SourceSetupWarningDto> warnings,
@@ -268,9 +270,9 @@ public sealed class SourceSetupService(
         if (run is null)
         {
             warnings.Add(new SourceSetupWarningDto(
-                "syncAlreadyRunning",
-                "Another sync was already running, so this project is picked up by the next sync."));
-            return new SourceSetupSyncDto(job.JobId, Wire(job.Status), job.IssuesImported, job.ReviewTargetsImported, job.ErrorMessage);
+                "sourceSyncNotStarted",
+                $"Another sync is running without {project}, so {project} has not synced. Call SyncProject again once it finishes."));
+            return null;
         }
 
         return new SourceSetupSyncDto(
