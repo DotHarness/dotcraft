@@ -72,6 +72,7 @@ import {
   ComposerShell,
   composerModelPillStyle
 } from './ComposerShell'
+import { ConversationColumn } from './ConversationColumn'
 import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { WelcomeHeading } from './WelcomeHeading'
@@ -1366,29 +1367,24 @@ function ConversationWelcomeCore({
           minHeight: 0,
           overflowY: 'auto',
           display: 'flex',
-          justifyContent: 'center',
-          padding: '48px 24px'
+          flexDirection: 'column',
+          padding: '0 clamp(20px, 4vw, 40px)'
         }}
       >
-        <div
+        <ConversationColumn
           ref={welcomeContentRef}
-          style={{
-            width: '100%',
-            maxWidth: 'var(--conversation-reading-width)',
-            margin: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center'
-          }}
+          style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}
         >
-          <div className="welcome-heading-block">
-            <WelcomeHeading
-              workspacePath={workspacePath}
-              onSelectWorkspace={switchWelcomeWorkspace}
-            />
+          <div className="welcome-hero">
+            <div className="welcome-heading-block">
+              <WelcomeHeading
+                workspacePath={workspacePath}
+                onSelectWorkspace={switchWelcomeWorkspace}
+              />
+            </div>
           </div>
 
-          <div style={{ width: '100%' }}>
+          <div className="welcome-composer-dock">
             <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
             <ComposerShell
               adaptiveToolbar
@@ -1678,7 +1674,7 @@ function ConversationWelcomeCore({
             />
             <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
           </div>
-        </div>
+        </ConversationColumn>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 ---
-version: "0.9.6"
+version: "0.9.9"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1186,6 +1186,11 @@ and state already say.
 
 ## Composer
 
+- On the welcome screen the input card sits where it sits in a conversation: at
+  the bottom of the conversation column with the same insets, so sending the
+  first message does not move it. The heading sits in the upper half of the
+  column, bottom-aligned with 96px to spare; in a window too short for both, the
+  heading keeps 24px from the top and the card follows it.
 - At narrow widths, the input card keeps one action row. It first reduces
   secondary labels and model details to icons, then removes optional context,
   model, goal, and mode controls as space requires. Command, permission,

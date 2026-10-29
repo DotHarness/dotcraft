@@ -1,3 +1,18 @@
+.welcome-hero {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px 0 48px;
+}
+
+.welcome-composer-dock {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
 /* Clears the composer mascot, which rises 43px above the card. */
 .welcome-heading-block {
   display: flex;
