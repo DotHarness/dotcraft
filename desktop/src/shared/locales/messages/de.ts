@@ -3812,7 +3812,7 @@ export const MESSAGES_DE = {
   'errors.invalidParams': 'Ungültige Parameter',
   'errors.input.remoteImageUrlNotSupported': 'Remote-Bild-URLs werden nicht unterstützt. Verwende stattdessen eine eingebettete Daten-URL.',
   'errors.internal': 'Interner Fehler',
-  'errors.serverOverloaded': 'Server überlastet; Versuchen Sie es später noch einmal.',
+  'errors.serverOverloaded': 'Server ist ausgelastet. Versuchen Sie es später erneut.',
   'errors.notInitialized': 'Nicht initialisiert',
   'errors.alreadyInitialized': 'Bereits initialisiert',
   'errors.threadNotFound': 'Thread nicht gefunden: {{threadId}}',

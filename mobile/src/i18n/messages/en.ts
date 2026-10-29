@@ -137,7 +137,7 @@ export const MESSAGES_EN = {
   'notice.allowedAlways': 'Always allowed',
   'notice.rejected': 'Rejected',
   'notice.answered': 'Answered',
-  'failure.overloaded': 'Server overloaded; retry later.',
+  'failure.overloaded': 'Server is busy. Try again later.',
   'failure.retry': "Retry",
   'failure.retryCountdown': "Retry in {{seconds}}s",
   'failure.copy': 'Copy error',

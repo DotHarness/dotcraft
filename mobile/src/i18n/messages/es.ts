@@ -139,7 +139,7 @@ export const MESSAGES_ES: Catalog = {
   'notice.allowedAlways': 'Permitido siempre',
   'notice.rejected': 'Rechazado',
   'notice.answered': 'Respondido',
-  'failure.overloaded': 'Servidor sobrecargado; Vuelva a intentarlo más tarde.',
+  'failure.overloaded': 'El servidor está ocupado. Vuelva a intentarlo más tarde.',
   'failure.retry': "Reintentar",
   'failure.retryCountdown': "Reintentar en {{seconds}} s",
   'failure.copy': 'Copiar error',

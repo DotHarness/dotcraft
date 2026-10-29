@@ -139,7 +139,7 @@ export const MESSAGES_DE: Catalog = {
   'notice.allowedAlways': 'Immer zugelassen',
   'notice.rejected': 'Abgelehnt',
   'notice.answered': 'Beantwortet',
-  'failure.overloaded': 'Server überlastet; Versuchen Sie es später noch einmal.',
+  'failure.overloaded': 'Server ist ausgelastet. Versuchen Sie es später erneut.',
   'failure.retry': "Erneut versuchen",
   'failure.retryCountdown': "Erneut versuchen in {{seconds}} s",
   'failure.copy': 'Fehler kopieren',

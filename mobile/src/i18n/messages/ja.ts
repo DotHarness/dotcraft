@@ -139,7 +139,7 @@ export const MESSAGES_JA: Catalog = {
   'notice.allowedAlways': '常に許可しました',
   'notice.rejected': '拒否しました',
   'notice.answered': '回答しました',
-  'failure.overloaded': 'サーバーが過負荷になっています。後で再試行してください。',
+  'failure.overloaded': 'サーバーが混雑しています。しばらくしてから再試行してください。',
   'failure.retry': "再試行",
   'failure.retryCountdown': "{{seconds}} 秒後に再試行",
   'failure.copy': 'エラーをコピー',

@@ -139,7 +139,7 @@ export const MESSAGES_KO: Catalog = {
   'notice.allowedAlways': '항상 허용함',
   'notice.rejected': '거부함',
   'notice.answered': '답변함',
-  'failure.overloaded': '서버 과부하; 나중에 다시 시도하세요.',
+  'failure.overloaded': '서버가 혼잡합니다. 잠시 후 다시 시도하세요.',
   'failure.retry': "다시 시도",
   'failure.retryCountdown': "{{seconds}}초 후 다시 시도",
   'failure.copy': '오류 복사',

@@ -3812,7 +3812,7 @@ export const MESSAGES_FR = {
   'errors.invalidParams': 'Paramètres invalides',
   'errors.input.remoteImageUrlNotSupported': 'Les URL d’images distantes ne sont pas prises en charge. Utilisez une URL de données intégrée.',
   'errors.internal': 'Erreur interne',
-  'errors.serverOverloaded': 'Serveur surchargé ; réessayez plus tard.',
+  'errors.serverOverloaded': 'Le serveur est occupé. Réessayez plus tard.',
   'errors.notInitialized': 'Non initialisé',
   'errors.alreadyInitialized': 'Déjà initialisé',
   'errors.threadNotFound': 'Sujet introuvable : {{threadId}}',

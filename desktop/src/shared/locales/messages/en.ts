@@ -3023,7 +3023,7 @@ export const MESSAGES_EN = {
   'errors.invalidParams': 'Invalid params',
   'errors.input.remoteImageUrlNotSupported': 'Remote image URLs are not supported. Use an inline data URL instead.',
   'errors.internal': 'Internal error',
-  'errors.serverOverloaded': 'Server overloaded; retry later.',
+  'errors.serverOverloaded': 'Server is busy. Try again later.',
   'errors.notInitialized': 'Not initialized',
   'errors.alreadyInitialized': 'Already initialized',
   'errors.threadNotFound': 'Thread not found: {{threadId}}',

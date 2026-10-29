@@ -3812,7 +3812,7 @@ export const MESSAGES_JA = {
   'errors.invalidParams': '無効なパラメータ',
   'errors.input.remoteImageUrlNotSupported': 'リモート画像 URL はサポートされていません。インライン data URL を使用してください。',
   'errors.internal': '内部エラー',
-  'errors.serverOverloaded': 'サーバーが過負荷になっています。後で再試行してください。',
+  'errors.serverOverloaded': 'サーバーが混雑しています。しばらくしてから再試行してください。',
   'errors.notInitialized': '初期化されていません',
   'errors.alreadyInitialized': '初期化済み',
   'errors.threadNotFound': 'スレッドが見つかりません: {{threadId}}',
