@@ -178,7 +178,6 @@ import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult,
   WorkspaceSetupRequest,
-  WorkspaceSetupRunResult,
   WorkspaceSetupSignInResult,
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
@@ -1086,7 +1085,7 @@ const api = {
       return ipcRenderer.invoke('workspace:login-setup-chatgpt', request)
     },
 
-    runSetup(request: WorkspaceSetupRequest): Promise<WorkspaceSetupRunResult> {
+    runSetup(request: WorkspaceSetupRequest): Promise<void> {
       return ipcRenderer.invoke('workspace:run-setup', request)
     },
 

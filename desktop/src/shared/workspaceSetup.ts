@@ -4,15 +4,7 @@ import type { DesktopProviderProtocol } from './providerProtocols'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
-export type WorkspaceSetupBootstrapImportSourceId = 'claude'
 export type ProviderAuthMethod = 'apiKey' | 'chatgptOAuth'
-
-export interface WorkspaceSetupBootstrapImportSource {
-  id: WorkspaceSetupBootstrapImportSourceId
-  fileName: 'CLAUDE.md'
-  path: string
-  relativePath: string
-}
 
 export interface WorkspaceSetupProviderSummary {
   id: string
@@ -52,7 +44,6 @@ export interface WorkspaceStatusPayload {
   hasUserConfig: boolean
   userConfigDefaults?: WorkspaceUserConfigDefaults
   providers: WorkspaceSetupProviderSummary[]
-  bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
   remote?: RemoteWorkspaceStatusPayload
 }
 
@@ -72,18 +63,6 @@ export interface WorkspaceSetupRequest {
   providerMode: WorkspaceSetupProviderMode
   providerId?: string
   provider?: WorkspaceSetupProviderDraft
-  setAsUserDefault: boolean
-  bootstrapImportSourceId?: WorkspaceSetupBootstrapImportSourceId | null
-}
-
-export interface WorkspaceSetupBootstrapImportResult {
-  sourceId: WorkspaceSetupBootstrapImportSourceId
-  status: 'success' | 'failed'
-  warning?: string
-}
-
-export interface WorkspaceSetupRunResult {
-  bootstrapImport?: WorkspaceSetupBootstrapImportResult
 }
 
 export type WorkspaceSetupModelListRequest =

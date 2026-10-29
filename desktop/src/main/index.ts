@@ -131,6 +131,7 @@ import {
   getWorkspaceStatus,
   shouldRouteWorkspaceThroughSetupBeforeAppServerStart,
   runWorkspaceSetup,
+  initializeWorkspace,
   listSetupModels,
   loginSetupChatGpt
 } from './workspaceSetup'
@@ -2874,10 +2875,9 @@ function buildCallbacks(): IpcHandlerCallbacks {
       if (!currentWorkspacePath) {
         throw new Error('Open a workspace before running setup.')
       }
-      const result = await runWorkspaceSetup(currentWorkspacePath, request, sharedSettings)
+      await runWorkspaceSetup(currentWorkspacePath, request, sharedSettings)
       emitCurrentWorkspaceStatus(currentWorkspacePath)
       await connectToAppServer(currentWorkspacePath)
-      return result
     },
     onListSetupModels: async (request: WorkspaceSetupModelListRequest) => {
       return listSetupModels(request, { settings: sharedSettings })
@@ -3063,6 +3063,9 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   if (shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspacePath, { usingRemoteConnection })) {
     await openWorkspaceWithoutConnection(workspacePath)
     return false
+  }
+  if (!usingRemoteConnection && workspacePath) {
+    await initializeWorkspace(workspacePath, sharedSettings)
   }
 
   if (!usingRemoteConnection) {
@@ -3645,6 +3648,7 @@ app.whenReady().then(async () => {
   if (
     workspacePath
     && initialWorkspaceStatus.status === 'ready'
+    && existsSync(join(workspacePath, '.craft', 'config.json'))
     && resolveConnectionMode(sharedSettings) !== 'remote'
     && !hasRemoteEndpointArg()
   ) {

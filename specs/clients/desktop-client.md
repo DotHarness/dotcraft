@@ -258,14 +258,15 @@ The starting point names the foreground project and lets the user switch project
 
 ### 5.1.3 Workspace Setup
 
-- If a selected folder has no `.craft/config.json`, Desktop may show a guided setup flow before connecting. The flow is local to Desktop and `dotcraft setup` and does not depend on AppServer provider RPCs.
-- Setup covers folder and interface language, project instructions (only when a migration source exists), model access, and model. Completed steps can be revisited; the last step creates the workspace.
+- Model access and the default model are personal, so setup runs once per computer rather than once per folder. A local folder is ready when its effective configuration, workspace over personal, resolves a configured provider and a model; whether `.craft/config.json` exists does not matter.
+- Desktop creates a missing `.craft/` for a ready folder non-interactively with `dotcraft setup --skip-provider` before connecting, then opens the folder like any other ready workspace. It never overwrites existing workspace config.
+- A folder that is not ready shows the setup flow before connecting. The flow is local to Desktop and `dotcraft setup` and does not depend on AppServer provider RPCs.
+- Setup covers interface language, model access, and model. Completed steps can be revisited; the last step saves the personal defaults, prepares the folder, and opens it. Project instructions are brought in through Agent Import ([Agent import](../features/agent-import.md)), not setup.
 - Model access lists saved explicit personal providers, preselecting the personal default, and offers new connections: Sign in with ChatGPT, OpenAI API key, Anthropic API key, or another OpenAI-compatible service. Sign in with ChatGPT completes OAuth before the model step and creates a `chatgptOAuth` provider. Another service requires a name and http(s) endpoint and defaults its API format to `openai-responses`.
 - Model discovery uses the DotCraft backend model catalog, not Desktop-owned constants or provider-specific parsing. Unsaved provider drafts are passed to the backend without exposing credentials in process arguments or logs. A refreshed catalog keeps the selected model when still listed. Listing is advisory: manual model entry stays available when it fails.
-- Desktop setup requires a provider and model before creating the workspace; CLI setup may allow skipping the provider.
-- Provider credentials and endpoints are always saved to personal provider config. A future-default choice controls scope: when enabled, setup updates the personal provider and model defaults and removes equivalent workspace overrides; when disabled, the selected provider and complete model preference are written as explicit workspace overrides even if they equal current personal defaults.
+- Desktop setup requires a provider and model before finishing; CLI setup may allow skipping the provider.
+- Desktop setup saves provider credentials and endpoints to personal provider config, sets the personal provider and model defaults, and removes equivalent workspace overrides. A different model for one folder is chosen later in that folder's composer, which saves it to the workspace.
 - Settings provider terminology is `OpenAI-Responses` (`openai-responses`), `OpenAI-Legacy` (`openai-chat-completions`), and `Anthropic`.
-- Setup may offer the nearest ancestor `CLAUDE.md` (searching no higher than the Git root) as a project-instruction source, only when no root `AGENTS.md` or `AGENTS.override.md` exists. It copies it to the workspace root as `AGENTS.md` without changing the source or overwriting an existing destination.
 
 ### 5.2 Start a New Conversation
 

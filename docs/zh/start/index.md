@@ -1,6 +1,6 @@
 # 快速开始
 
-安装 DotCraft Desktop、打开项目、走完初始化向导，然后发起第一次对话。四步做完，DotCraft 就能在你的项目里开始工作。
+安装 DotCraft Desktop、打开项目、连接模型，然后发起第一次对话。四步做完，DotCraft 就能在你的项目里开始工作。
 
 ![安装 DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/setup.webp)
 
@@ -12,15 +12,15 @@ Releases 页面也提供 Android [手机 App](./mobile)。走完本指南后配�
 
 ## 2. 打开项目
 
-选择 **打开工作区**，选中项目所在的文件夹。DotCraft 会打开工作区初始化向导。
+选择 **打开工作区**，选中项目所在的文件夹。第一次使用 DotCraft 时，会先请你设置模型，再打开项目。之后打开任何文件夹都会直接进入对话。
 
-如果文件夹附近已有 Claude Code 的项目说明，向导会多出一步，可以直接导入。不需要就选择 **不带说明开始**。
+想沿用 Claude Code 或其他 Agent 的项目说明，可以在项目打开后[导入](../guide/session-import)。
 
 ## 3. 配置模型
 
-在 **模型接入** 一步，选择已经保存过的提供商，或者连接新的：**使用 ChatGPT 登录**、OpenAI 或 Anthropic 的 API 密钥，或者其他兼容 OpenAI 的服务。然后选择模型。之后想换模型，可以回到设置里改，也可以在对话里让 `$dotcraft-guide` 替你切换。
+选择 **开始设置**，选好界面语言。在 **模型接入** 一步，选择已经保存过的提供商，或者连接新的：**使用 ChatGPT 登录**、OpenAI 或 Anthropic 的 API 密钥，或者其他兼容 OpenAI 的服务。然后选择默认模型，每个项目都从这个模型开始。想让某个项目用别的模型，在这个项目的对话输入框里切换，也可以在对话里让 `$dotcraft-guide` 替你切换。
 
-左侧的大纲会列出你目前的选择，点任意已完成的步骤就能回去修改。确认无误后，选择 **创建工作区**。
+左侧的大纲会列出你目前的选择，点任意已完成的步骤就能回去修改。确认无误后，选择 **开始使用 DotCraft**。
 
 ## 4. 发起第一次对话
 

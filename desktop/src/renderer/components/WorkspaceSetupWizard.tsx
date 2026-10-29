@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type Ref } from 'react'
-import { AlertCircle, Check, FileText, TriangleAlert } from 'lucide-react'
+import { AlertCircle, Check } from 'lucide-react'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { cloneModelPreference, createManualModelPreference, type ModelPreference } from '../../shared/modelPreference'
 import type {
-  WorkspaceSetupBootstrapImportSourceId,
   WorkspaceSetupModelListRequest,
   WorkspaceSetupRequest,
-  WorkspaceSetupRunResult,
   WorkspaceStatusPayload
 } from '../../preload/api.d'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import { parseModelCatalogItems, type ModelCatalogItem } from '../stores/modelCatalogStore'
 import { createCatalogDefaultPreference, normalizePreferenceForModel } from './conversation/PreferenceModelPicker'
-import { ActionTooltip } from './ui/ActionTooltip'
 import { Button } from './ui/Button'
 import { RunningShimmer } from './ui/RunningShimmer'
-import { BootstrapImportSourceIcon } from './setup/BootstrapImportSourceIcon'
 import {
   connectionValid,
   finalDraft,
   initialConnections,
   SetupAccessSection,
-  SetupChoiceRow,
   type SetupAccessChoice,
   type SetupConnection,
   type SetupConnectionKind,
@@ -29,17 +24,15 @@ import {
   type SetupSignInState
 } from './setup/SetupAccessSection'
 import { SetupModelSection, type SetupModelCatalog } from './setup/SetupModelSection'
-import { SetupWorkspaceSection } from './setup/SetupWorkspaceSection'
+import { SetupLanguageSection } from './setup/SetupLanguageSection'
 import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 
 interface WorkspaceSetupWizardProps {
-  workspacePath: string
   workspaceStatus: WorkspaceStatusPayload
   hideLogo?: boolean
   deferContent?: boolean
   logoAnchorRef?: Ref<HTMLDivElement>
-  onRunSetup?: (request: WorkspaceSetupRequest, context: WorkspaceSetupSubmitContext) => Promise<void | WorkspaceSetupRunResult>
-  onChooseDifferentWorkspace: () => void
+  onRunSetup?: (request: WorkspaceSetupRequest, context: WorkspaceSetupSubmitContext) => Promise<void>
   onCancel: () => void
 }
 
@@ -48,24 +41,19 @@ export interface WorkspaceSetupSubmitContext {
   logoSrc: string
 }
 
-type SectionId = 'workspace' | 'instructions' | 'access' | 'model'
-type SubmitState = { phase: 'idle' } | { phase: 'submitting' } | { phase: 'error'; message: string } | { phase: 'warning' }
+type SectionId = 'language' | 'access' | 'model'
+type SubmitState = { phase: 'idle' } | { phase: 'submitting' } | { phase: 'error'; message: string }
+
+const sections: SectionId[] = ['language', 'access', 'model']
 
 const setupLogoUrl = new URL('../../../resources/dotcraft.svg', import.meta.url).toString()
 
-function folderName(path: string): string {
-  const parts = path.split(/[\\/]+/).filter(Boolean)
-  return parts[parts.length - 1] ?? path
-}
-
 export function WorkspaceSetupWizard({
-  workspacePath,
   workspaceStatus,
   hideLogo = false,
   deferContent = false,
   logoAnchorRef,
   onRunSetup,
-  onChooseDifferentWorkspace,
   onCancel
 }: WorkspaceSetupWizardProps): JSX.Element {
   const t = useT()
@@ -79,15 +67,8 @@ export function WorkspaceSetupWizard({
   }, [logoAnchorRef])
   const providers = workspaceStatus.providers ?? []
   const defaults = workspaceStatus.userConfigDefaults
-  const importSources = workspaceStatus.bootstrapImportSources ?? []
-  const sections = useMemo<SectionId[]>(
-    () => importSources.length > 0 ? ['workspace', 'instructions', 'access', 'model'] : ['workspace', 'access', 'model'],
-    [importSources.length]
-  )
-
-  const [section, setSection] = useState<SectionId>('workspace')
-  const [visited, setVisited] = useState<ReadonlySet<SectionId>>(() => new Set(['workspace']))
-  const [importSourceId, setImportSourceId] = useState<WorkspaceSetupBootstrapImportSourceId | null>(importSources[0]?.id ?? null)
+  const [section, setSection] = useState<SectionId>('language')
+  const [visited, setVisited] = useState<ReadonlySet<SectionId>>(() => new Set(['language']))
   const defaultSaved = providers.find((provider) => provider.id === defaults?.providerId?.trim()) ?? providers[0]
   const [access, setAccess] = useState<SetupAccessChoice>(defaultSaved ? `saved:${defaultSaved.id}` : 'chatgpt')
   const [showMore, setShowMore] = useState(providers.length === 0)
@@ -99,7 +80,6 @@ export function WorkspaceSetupWizard({
   const [preference, setPreference] = useState<ModelPreference>(() =>
     defaults?.preference ? cloneModelPreference(defaults.preference) : createManualModelPreference(defaults?.model?.trim() || '')
   )
-  const [defaultOverride, setDefaultOverride] = useState<boolean | null>(null)
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' })
   const requestGeneration = useRef(0)
 
@@ -112,13 +92,11 @@ export function WorkspaceSetupWizard({
     return null
   }, [accessValid, connections, newKind, providers, savedProvider])
   const listKey = listRequest ? `${JSON.stringify(listRequest)}#${catalogNonce}` : ''
-  const setAsUserDefault = defaultOverride ?? savedProvider == null
   const modelReady = catalog?.key === listKey && catalog.status !== 'loading'
   const modelValid = preference.model.trim().length > 0 && modelReady
 
   const validity: Record<SectionId, boolean> = {
-    workspace: true,
-    instructions: true,
+    language: true,
     access: accessValid,
     model: accessValid && modelValid
   }
@@ -155,7 +133,7 @@ export function WorkspaceSetupWizard({
   const goTo = useCallback((id: SectionId) => {
     setSection(id)
     setVisited((current) => new Set([...current, ...sections.slice(0, sections.indexOf(id) + 1)]))
-  }, [sections])
+  }, [])
 
   function updateConnection(kind: SetupConnectionKind, partial: SetupConnectionPatch): void {
     setConnections((current) => ({
@@ -207,9 +185,7 @@ export function WorkspaceSetupWizard({
   function buildRequest(): WorkspaceSetupRequest {
     const base = {
       model: preference.model.trim(),
-      preference: cloneModelPreference(preference),
-      setAsUserDefault,
-      ...(importSourceId ? { bootstrapImportSourceId: importSourceId } : {})
+      preference: cloneModelPreference(preference)
     }
     if (savedProvider) return { ...base, providerMode: 'existing', providerId: savedProvider.id }
     const kind = newKind ?? 'chatgpt'
@@ -221,11 +197,11 @@ export function WorkspaceSetupWizard({
     const runSetup = onRunSetup ?? ((request: WorkspaceSetupRequest) => window.api.workspace.runSetup(request))
     setSubmit({ phase: 'submitting' })
     try {
-      const result = await runSetup(buildRequest(), {
+      await runSetup(buildRequest(), {
         logoRect: elementToLaunchLogoRect(logoNode.current) ?? centeredLaunchLogoRect(),
         logoSrc: setupLogoUrl
       })
-      setSubmit(result && typeof result === 'object' && result.bootstrapImport?.warning ? { phase: 'warning' } : { phase: 'idle' })
+      setSubmit({ phase: 'idle' })
     } catch (error) {
       setSubmit({ phase: 'error', message: error instanceof Error ? error.message : String(error) })
     }
@@ -243,7 +219,7 @@ export function WorkspaceSetupWizard({
   const needsChatGptSignIn = section === 'access' && newKind === 'chatgpt' && signIn.phase !== 'signedIn'
   const primary = isLast
     ? {
-        label: submit.phase === 'submitting' ? t('setupWizard.action.creating') : t('setupWizard.action.create'),
+        label: submit.phase === 'submitting' ? t('setupWizard.action.finishing') : t('setupWizard.action.finish'),
         disabled: !validity.model,
         loading: submit.phase === 'submitting',
         run: () => { void create() }
@@ -268,8 +244,7 @@ export function WorkspaceSetupWizard({
     : null
   const modelValue = preference.model.trim() ? [preference.model.trim(), reasoningLabel].filter(Boolean).join(' · ') : null
   const outlineValues: Record<SectionId, string | null> = {
-    workspace: languageName,
-    instructions: importSourceId ? t('setupWizard.value.import') : t('setupWizard.value.noImport'),
+    language: languageName,
     access: accessValue,
     model: accessValid ? modelValue : null
   }
@@ -282,9 +257,7 @@ export function WorkspaceSetupWizard({
             <img src={setupLogoUrl} alt="" width={48} height={48} draggable={false} />
           </div>
           <RunningShimmer as="div" className="workspace-setup__kicker">{t('setupWizard.kicker')}</RunningShimmer>
-          <ActionTooltip label={workspacePath} placement="bottom" wrapperStyle={{ display: 'block', minWidth: 0 }}>
-            <div className="workspace-setup__folder">{folderName(workspacePath)}</div>
-          </ActionTooltip>
+          <div className="workspace-setup__folder">{t('setupWizard.subtitle')}</div>
         </div>
         <nav className="workspace-setup__outline" aria-label={t('setupWizard.outlineLabel')}>
           <ol>
@@ -330,34 +303,8 @@ export function WorkspaceSetupWizard({
 
         <div className="workspace-setup__scroll">
           <div className="workspace-setup__column workspace-setup__content" key={section}>
-            {section === 'workspace' && (
-              <SetupWorkspaceSection
-                path={workspacePath}
-                locale={locale}
-                onChangeFolder={onChooseDifferentWorkspace}
-                onLocale={(next) => { void changeLocale(next) }}
-              />
-            )}
-            {section === 'instructions' && (
-              <div className="workspace-setup__group" role="radiogroup" aria-label={t('setupWizard.outline.instructions')}>
-                {importSources.map((source) => (
-                  <SetupChoiceRow
-                    key={source.id}
-                    selected={importSourceId === source.id}
-                    mark={<BootstrapImportSourceIcon source={source.id} size={18} />}
-                    title={t('setupWizard.instructions.import')}
-                    hint={t('setupWizard.instructions.importHint', { file: source.relativePath })}
-                    onSelect={() => setImportSourceId(source.id)}
-                  />
-                ))}
-                <SetupChoiceRow
-                  selected={importSourceId == null}
-                  mark={<span className="workspace-setup__mark"><FileText size={16} strokeWidth={1.8} /></span>}
-                  title={t('setupWizard.instructions.skip')}
-                  hint={t('setupWizard.instructions.skipHint')}
-                  onSelect={() => setImportSourceId(null)}
-                />
-              </div>
+            {section === 'language' && (
+              <SetupLanguageSection locale={locale} onLocale={(next) => { void changeLocale(next) }} />
             )}
             {section === 'access' && (
               <SetupAccessSection
@@ -377,13 +324,11 @@ export function WorkspaceSetupWizard({
                 providerName={savedProvider?.displayName ?? accessValue ?? ''}
                 catalog={catalog?.key === listKey ? catalog : { key: listKey, status: 'loading', models: [] }}
                 preference={preference}
-                setAsUserDefault={setAsUserDefault}
                 savedNeedsSignIn={savedProvider?.authMethod === 'chatgptOAuth'}
                 savedSignIn={savedSignIn}
                 onSignIn={() => { void signInSavedProvider() }}
                 onRetry={() => setCatalogNonce((value) => value + 1)}
                 onPreference={setPreference}
-                onDefault={setDefaultOverride}
               />
             )}
           </div>
@@ -397,15 +342,6 @@ export function WorkspaceSetupWizard({
                 <div>
                   <div className="workspace-setup__notice-title">{t('setupWizard.error.title')}</div>
                   <div className="workspace-setup__notice-body">{submit.message}</div>
-                </div>
-              </div>
-            )}
-            {submit.phase === 'warning' && (
-              <div className="workspace-setup__notice" data-level="warning" role="status">
-                <TriangleAlert size={18} strokeWidth={1.9} aria-hidden="true" />
-                <div>
-                  <div className="workspace-setup__notice-title">{t('setupWizard.warning.title')}</div>
-                  <div className="workspace-setup__notice-body">{t('setupWizard.warning.body')}</div>
                 </div>
               </div>
             )}

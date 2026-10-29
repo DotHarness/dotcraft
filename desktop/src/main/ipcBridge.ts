@@ -99,7 +99,6 @@ import type {
   WorkspaceSetupModelListResult,
   WorkspaceSetupSignInResult
 } from '../shared/workspaceSetup'
-import type { WorkspaceSetupResult } from './workspaceSetup'
 import type { RemoteStack } from '../shared/dockerDeployments'
 import type { SshMachine } from '../shared/sshMachines'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
@@ -764,7 +763,7 @@ export interface IpcHandlerCallbacks {
   onSwitchWorkspace: (newPath: string) => Promise<void>
   onOpenDesktopLink: (url: string) => Promise<void>
   onClearWorkspaceSelection: () => Promise<void>
-  onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<WorkspaceSetupResult>
+  onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<void>
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
@@ -1552,7 +1551,7 @@ export function registerIpcHandlers(
   })
 
   handleSafe('workspace:run-setup', async (_event, request: WorkspaceSetupRequest) => {
-    return callbacks?.onRunWorkspaceSetup(request)
+    await callbacks?.onRunWorkspaceSetup(request)
   })
 
   handleSafe(

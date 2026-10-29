@@ -5,7 +5,6 @@ import {
 
 export type InitialWorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type InitialWorkspaceProviderProtocol = DesktopProviderProtocol
-export type InitialWorkspaceBootstrapImportSourceId = 'claude'
 
 export interface InitialWorkspaceProviderSummary {
   id: string
@@ -27,7 +26,6 @@ export interface InitialWorkspaceStatusPayload {
   hasUserConfig: boolean
   userConfigDefaults?: InitialWorkspaceUserConfigDefaults
   providers: InitialWorkspaceProviderSummary[]
-  bootstrapImportSources?: InitialWorkspaceBootstrapImportSource[]
   remote?: InitialRemoteWorkspaceStatusPayload
 }
 
@@ -45,13 +43,6 @@ export interface InitialRemoteWorkspaceStatusPayload {
   composeDir?: string
   projectName?: string
   remoteProjectId?: string
-}
-
-export interface InitialWorkspaceBootstrapImportSource {
-  id: InitialWorkspaceBootstrapImportSourceId
-  fileName: 'CLAUDE.md'
-  path: string
-  relativePath: string
 }
 
 export const INITIAL_WORKSPACE_STATUS_ARG_PREFIX = '--dotcraft-initial-workspace-status='
@@ -98,15 +89,6 @@ function normalizeInitialWorkspaceStatus(value: unknown): InitialWorkspaceStatus
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : '',
     hasUserConfig: raw.hasUserConfig === true,
     providers
-  }
-
-  if (Array.isArray(raw.bootstrapImportSources)) {
-    const bootstrapImportSources = raw.bootstrapImportSources
-      .map(normalizeBootstrapImportSource)
-      .filter((source): source is InitialWorkspaceBootstrapImportSource => source != null)
-    if (bootstrapImportSources.length > 0) {
-      normalized.bootstrapImportSources = bootstrapImportSources
-    }
   }
 
   const userConfigDefaults = normalizeUserConfigDefaults(raw.userConfigDefaults)
@@ -196,27 +178,6 @@ function normalizeProviderSummary(value: unknown): InitialWorkspaceProviderSumma
   return provider
 }
 
-function normalizeBootstrapImportSource(value: unknown): InitialWorkspaceBootstrapImportSource | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-
-  const raw = value as Record<string, unknown>
-  if (
-    !isBootstrapImportSourceId(raw.id) ||
-    raw.fileName !== 'CLAUDE.md' ||
-    typeof raw.path !== 'string' ||
-    typeof raw.relativePath !== 'string'
-  ) {
-    return null
-  }
-
-  return {
-    id: raw.id,
-    fileName: raw.fileName,
-    path: raw.path,
-    relativePath: raw.relativePath
-  }
-}
-
 function normalizeUserConfigDefaults(value: unknown): InitialWorkspaceUserConfigDefaults | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
@@ -234,8 +195,4 @@ function normalizeUserConfigDefaults(value: unknown): InitialWorkspaceUserConfig
 
 function isWorkspaceSetupState(value: unknown): value is InitialWorkspaceSetupState {
   return value === 'no-workspace' || value === 'needs-setup' || value === 'ready'
-}
-
-function isBootstrapImportSourceId(value: unknown): value is InitialWorkspaceBootstrapImportSourceId {
-  return value === 'claude'
 }

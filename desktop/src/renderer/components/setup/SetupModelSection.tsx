@@ -4,7 +4,6 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { PreferenceModelPicker } from '../conversation/PreferenceModelPicker'
 import { Button } from '../ui/Button'
-import { PillSwitch } from '../ui/PillSwitch'
 import { ProviderMark } from '../ui/ProviderMark'
 import type { SetupSignInState } from './SetupAccessSection'
 
@@ -18,24 +17,20 @@ export function SetupModelSection({
   providerName,
   catalog,
   preference,
-  setAsUserDefault,
   savedNeedsSignIn,
   savedSignIn,
   onSignIn,
   onRetry,
-  onPreference,
-  onDefault
+  onPreference
 }: {
   providerName: string
   catalog: SetupModelCatalog
   preference: ModelPreference
-  setAsUserDefault: boolean
   savedNeedsSignIn: boolean
   savedSignIn: SetupSignInState
   onSignIn(): void
   onRetry(): void
   onPreference(next: ModelPreference): void
-  onDefault(next: boolean): void
 }): JSX.Element {
   const t = useT()
   const manual = catalog.status !== 'loading' && catalog.status !== 'ready'
@@ -84,13 +79,6 @@ export function SetupModelSection({
               )}
             </div>
           )}
-        </div>
-        <div className="workspace-setup__row">
-          <div className="workspace-setup__row-text">
-            <div className="workspace-setup__row-title" id="workspace-setup-default">{t('setupWizard.model.default')}</div>
-            <div className="workspace-setup__row-hint">{t('setupWizard.model.defaultHint')}</div>
-          </div>
-          <PillSwitch checked={setAsUserDefault} onChange={onDefault} aria-labelledby="workspace-setup-default" />
         </div>
       </div>
     </div>

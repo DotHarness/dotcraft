@@ -1,6 +1,6 @@
 # Getting Started
 
-Install DotCraft Desktop, open your project, finish the setup wizard, and send your first message. Four steps and DotCraft is working inside your project.
+Install DotCraft Desktop, open your project, connect a model, and send your first message. Four steps and DotCraft is working inside your project.
 
 ![Install DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/setup.webp)
 
@@ -12,15 +12,15 @@ Releases also carries the Android [phone app](./mobile). Pair it after you finis
 
 ## 2. Open your project
 
-Select **Open Workspace** and choose the folder that holds your project. DotCraft opens the workspace setup wizard.
+Select **Open Workspace** and choose the folder that holds your project. The first time you use DotCraft, it asks you to set up a model before the project opens. After that, every folder you open goes straight to its conversation.
 
-If the folder already has Claude Code project instructions nearby, the wizard adds a step that imports them. Choose **Start without instructions** if you'd rather start clean.
+To keep project instructions from Claude Code or another agent, [import them](../guide/session-import) once the project is open.
 
 ## 3. Configure a model
 
-Under **Model access**, pick a provider you've already saved, or connect a new one: **Sign in with ChatGPT**, an OpenAI or Anthropic API key, or another OpenAI-compatible service. Then pick a model. To change models later, go back to Settings or ask `$dotcraft-guide` in a conversation to switch for you.
+Select **Start setup** and choose your interface language. Under **Model access**, pick a provider you've already saved, or connect a new one: **Sign in with ChatGPT**, an OpenAI or Anthropic API key, or another OpenAI-compatible service. Then pick a default model; every project starts with it. To use a different model in one project, switch it in that project's conversation box, or ask `$dotcraft-guide` in a conversation to switch for you.
 
-The outline on the left shows what you've chosen so far, and you can select any finished step to change it. When everything looks right, select **Create workspace**.
+The outline on the left shows what you've chosen so far, and you can select any finished step to change it. When everything looks right, select **Start using DotCraft**.
 
 ## 4. Start your first conversation
 

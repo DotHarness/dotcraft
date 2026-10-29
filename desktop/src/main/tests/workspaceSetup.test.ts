@@ -1,11 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import {
-  applyWorkspaceSetupBootstrapImport,
   createUniqueSetupProviderId,
-  detectWorkspaceSetupBootstrapImportSources,
   getWorkspaceStatus,
   listSetupModels,
   shouldRouteWorkspaceThroughSetupBeforeAppServerStart
@@ -95,6 +93,20 @@ describe('getWorkspaceStatus', () => {
     })
   })
 
+  it('treats a folder without workspace config as ready once personal defaults resolve', () => {
+    const workspace = createTempWorkspace()
+    const userConfigPath = join(createTempWorkspace(), '.craft', 'config.json')
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({ status: 'needs-setup' })
+
+    writeJson(userConfigPath, {
+      ProviderId: 'openai',
+      ProviderPreferences: { openai: preference('gpt-4.1') },
+      Providers: { openai: { DisplayName: 'OpenAI', Protocol: 'openai-responses', ApiKey: 'sk-test' } }
+    })
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({ status: 'ready' })
+    expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(false)
+  })
+
   it('is ready only when the workspace selects a provider configured in user config', () => {
     const workspace = createTempWorkspace()
     const userConfigPath = join(createTempWorkspace(), '.craft', 'config.json')
@@ -160,7 +172,7 @@ describe('getWorkspaceStatus', () => {
     )
 
     expect(getWorkspaceStatus(workspace, { userConfigPath })).toEqual({
-      status: 'needs-setup',
+      status: 'ready',
       workspacePath: workspace,
       hasUserConfig: true,
       userConfigDefaults: {
@@ -225,105 +237,6 @@ describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
       }
     })
     expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(false)
-  })
-})
-
-describe('workspace setup bootstrap import detection', () => {
-  it('detects the nearest CLAUDE.md source when the workspace has no root AGENTS.md', () => {
-    const workspace = createTempWorkspace()
-    const child = join(workspace, 'packages', 'app')
-    mkdirSync(child, { recursive: true })
-    mkdirSync(join(workspace, '.git'))
-    writeFileSync(join(workspace, 'CLAUDE.md'), 'claude', 'utf8')
-
-    expect(detectWorkspaceSetupBootstrapImportSources(child)).toEqual([
-      {
-        id: 'claude',
-        fileName: 'CLAUDE.md',
-        path: join(workspace, 'CLAUDE.md'),
-        relativePath: '../../CLAUDE.md'
-      }
-    ])
-  })
-
-  it('includes setup import candidates only while the workspace needs setup', () => {
-    const workspace = createTempWorkspace()
-    const userHome = createTempWorkspace()
-    const userConfigPath = join(userHome, '.craft', 'config.json')
-    writeFileSync(join(workspace, 'CLAUDE.md'), 'claude', 'utf8')
-    writeJson(userConfigPath, {
-      Providers: {
-        openai: {
-          DisplayName: 'OpenAI',
-          Protocol: 'openai-responses',
-          ApiKey: 'sk-test'
-        }
-      }
-    })
-
-    expect(getWorkspaceStatus(workspace, { userConfigPath }))
-      .toMatchObject({
-        status: 'needs-setup',
-        bootstrapImportSources: [
-          expect.objectContaining({
-            id: 'claude',
-            fileName: 'CLAUDE.md'
-          })
-        ]
-      })
-
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(
-      join(workspace, '.craft', 'config.json'),
-      JSON.stringify({ ProviderId: 'openai', ProviderPreferences: { openai: preference('gpt-4.1') } }),
-      'utf8'
-    )
-    expect(getWorkspaceStatus(workspace, { userConfigPath }))
-      .not.toHaveProperty('bootstrapImportSources')
-  })
-
-  it('copies the selected source to root AGENTS.md and records metadata', () => {
-    const workspace = createTempWorkspace()
-    writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
-
-    expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toEqual({
-      sourceId: 'claude',
-      status: 'success'
-    })
-    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toBe('# Claude rules\n')
-    expect(existsSync(join(workspace, '.craft', 'imports', 'bootstrap-import.json'))).toBe(true)
-  })
-
-  it('does not search above the nearest repository root or above an unversioned workspace', () => {
-    const parent = createTempWorkspace()
-    writeFileSync(join(parent, 'CLAUDE.md'), 'outside', 'utf8')
-    const repository = join(parent, 'repository')
-    const child = join(repository, 'packages', 'app')
-    mkdirSync(join(repository, '.git'), { recursive: true })
-    mkdirSync(child, { recursive: true })
-
-    expect(detectWorkspaceSetupBootstrapImportSources(child)).toEqual([])
-
-    const worktree = join(parent, 'worktree')
-    const worktreeChild = join(worktree, 'packages', 'app')
-    mkdirSync(worktreeChild, { recursive: true })
-    writeFileSync(join(worktree, '.git'), 'gitdir: ../repository/.git/worktrees/example', 'utf8')
-    expect(detectWorkspaceSetupBootstrapImportSources(worktreeChild)).toEqual([])
-
-    const unversioned = join(parent, 'unversioned')
-    mkdirSync(unversioned)
-    expect(detectWorkspaceSetupBootstrapImportSources(unversioned)).toEqual([])
-  })
-
-  it.each(['AGENTS.md', 'AGENTS.override.md'])('does not offer or copy beside an existing root %s', (existing) => {
-    const workspace = createTempWorkspace()
-    writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
-    writeFileSync(join(workspace, existing), '# Existing rules\n', 'utf8')
-
-    expect(detectWorkspaceSetupBootstrapImportSources(workspace)).toEqual([])
-    expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toMatchObject({ status: 'failed' })
-    expect(readFileSync(join(workspace, existing), 'utf8')).toBe('# Existing rules\n')
-    if (existing !== 'AGENTS.md') expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false)
   })
 })
 

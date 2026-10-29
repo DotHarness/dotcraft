@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'child_process'
-import { constants, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { homedir } from 'os'
-import { dirname, join, relative, resolve } from 'path'
+import { join } from 'path'
 import { resolveBinaryLocation } from './AppServerManager'
 import { parseJsonConfig } from '../shared/jsonConfig'
 import type { AppSettings } from './settings'
@@ -12,16 +12,12 @@ import {
   type ModelPreference
 } from '../shared/modelPreference'
 import type {
-  WorkspaceSetupBootstrapImportResult,
-  WorkspaceSetupBootstrapImportSource,
-  WorkspaceSetupBootstrapImportSourceId,
   WorkspaceSetupModelCatalogItem,
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult,
   WorkspaceSetupProviderDraft,
   WorkspaceSetupProviderSummary,
   WorkspaceSetupRequest,
-  WorkspaceSetupRunResult,
   WorkspaceSetupSignInResult,
   WorkspaceSetupState,
   WorkspaceStatusPayload
@@ -426,71 +422,6 @@ export function createUniqueSetupProviderId(
   return `${base}-${Date.now()}`
 }
 
-function isRegularFile(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
-}
-
-function findNearestSetupImportFile(workspacePath: string, fileName: 'CLAUDE.md'): string | null {
-  const workspaceRoot = resolve(workspacePath)
-  let repositoryRoot: string | null = null
-  let current = workspaceRoot
-
-  while (true) {
-    if (existsSync(join(current, '.git'))) {
-      repositoryRoot = current
-      break
-    }
-    const parent = dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-
-  current = workspaceRoot
-  const searchRoot = repositoryRoot ?? workspaceRoot
-
-  while (true) {
-    const candidate = join(current, fileName)
-    if (isRegularFile(candidate)) {
-      return candidate
-    }
-
-    if (current === searchRoot) return null
-    current = dirname(current)
-  }
-}
-
-function sourceRelativePath(workspacePath: string, sourcePath: string): string {
-  const rel = relative(resolve(workspacePath), sourcePath)
-  return (rel || sourcePath).replace(/\\/g, '/')
-}
-
-export function detectWorkspaceSetupBootstrapImportSources(
-  workspacePath: string
-): WorkspaceSetupBootstrapImportSource[] {
-  const trimmed = workspacePath.trim()
-  if (!trimmed) return []
-
-  if (existsSync(join(trimmed, 'AGENTS.md')) || existsSync(join(trimmed, 'AGENTS.override.md'))) return []
-
-  const claudePath = findNearestSetupImportFile(trimmed, 'CLAUDE.md')
-  const sources: WorkspaceSetupBootstrapImportSource[] = []
-
-  if (claudePath) {
-    sources.push({
-      id: 'claude',
-      fileName: 'CLAUDE.md',
-      path: claudePath,
-      relativePath: sourceRelativePath(trimmed, claudePath)
-    })
-  }
-
-  return sources
-}
-
 export function getWorkspaceStatus(
   workspacePath: string | null | undefined,
   options?: { userConfigPath?: string }
@@ -515,21 +446,15 @@ export function getWorkspaceStatus(
   const effectiveProviderId = resolveEffectiveProviderId(workspaceConfig, userConfig)
   const effectivePreference = resolveEffectiveModel(workspaceConfig, userConfig)
   const status: WorkspaceSetupState =
-    workspaceConfigExists &&
-    hasConfiguredProvider(effectiveProviderId, providers) &&
-    Boolean(effectivePreference?.model)
+    hasConfiguredProvider(effectiveProviderId, providers) && Boolean(effectivePreference?.model)
       ? 'ready'
       : 'needs-setup'
-  const bootstrapImportSources = status === 'needs-setup'
-    ? detectWorkspaceSetupBootstrapImportSources(trimmed)
-    : []
 
   return {
     status,
     workspacePath: trimmed,
     ...userConfigStatus,
-    providers,
-    ...(bootstrapImportSources.length > 0 ? { bootstrapImportSources } : {})
+    providers
   }
 }
 
@@ -585,89 +510,26 @@ function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): voi
   }
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-export function applyWorkspaceSetupBootstrapImport(
-  workspacePath: string,
-  sourceId: WorkspaceSetupBootstrapImportSourceId | null | undefined
-): WorkspaceSetupBootstrapImportResult | undefined {
-  if (!sourceId) return undefined
-
-  const source = detectWorkspaceSetupBootstrapImportSources(workspacePath)
-    .find((candidate) => candidate.id === sourceId)
-  if (!source) {
-    return {
-      sourceId,
-      status: 'failed',
-      warning: 'The selected bootstrap import source could not be found.'
-    }
-  }
-
-  const craftPath = join(workspacePath, '.craft')
-  const destinationPath = join(workspacePath, 'AGENTS.md')
-  const overridePath = join(workspacePath, 'AGENTS.override.md')
-
-  try {
-    if (existsSync(overridePath)) {
-      throw new Error('Workspace root instructions already exist.')
-    }
-    copyFileSync(source.path, destinationPath, constants.COPYFILE_EXCL)
-  } catch (error) {
-    return {
-      sourceId,
-      status: 'failed',
-      warning: `DotCraft setup completed, but bootstrap import failed: ${errorMessage(error)}`
-    }
-  }
-
-  try {
-    const importsPath = join(craftPath, 'imports')
-    mkdirSync(importsPath, { recursive: true })
-    writeFileSync(
-      join(importsPath, 'bootstrap-import.json'),
-      `${JSON.stringify({
-        importedAt: new Date().toISOString(),
-        source: {
-          id: source.id,
-          fileName: source.fileName,
-          path: source.path,
-          relativePath: source.relativePath
-        },
-        destination: 'AGENTS.md',
-        status: 'success'
-      }, null, 2)}\n`,
-      'utf8'
-    )
-  } catch (error) {
-    return {
-      sourceId,
-      status: 'success',
-      warning: `Bootstrap import completed, but DotCraft could not write import metadata: ${errorMessage(error)}`
-    }
-  }
-
-  return {
-    sourceId,
-    status: 'success'
-  }
-}
-
 export function runWorkspaceSetup(
   workspacePath: string,
   request: WorkspaceSetupRequest,
   settings: AppSettings
-): Promise<WorkspaceSetupResult> {
-  const binaryPath = resolveDesktopBinary(settings)
+): Promise<void> {
   const args = ['setup']
-
   appendProviderArgs(args, request)
-  if (request.setAsUserDefault) {
-    args.push('--set-user-default')
-  }
+  if (request.providerMode !== 'skip') args.push('--set-user-default')
+  return runSetupCommand(workspacePath, args, settings)
+}
 
-  return new Promise<WorkspaceSetupResult>((resolve, reject) => {
+/** Creates `.craft/` for a folder that is ready through personal defaults; existing config is left alone. */
+export async function initializeWorkspace(workspacePath: string, settings: AppSettings): Promise<void> {
+  if (existsSync(join(workspacePath, '.craft', 'config.json'))) return
+  await runSetupCommand(workspacePath, ['setup', '--skip-provider'], settings)
+}
+
+function runSetupCommand(workspacePath: string, args: string[], settings: AppSettings): Promise<void> {
+  const binaryPath = resolveDesktopBinary(settings)
+  return new Promise<void>((resolve, reject) => {
     execFile(
       binaryPath,
       args,
@@ -677,29 +539,11 @@ export function runWorkspaceSetup(
       },
       (error: Error | null, stdout: string, stderr: string) => {
         if (error) {
-          const detail = stderr?.trim() || stdout?.trim() || error.message
-          reject(new Error(detail))
+          reject(new Error(stderr?.trim() || stdout?.trim() || error.message))
           return
         }
-
-        const bootstrapImport = applyWorkspaceSetupBootstrapImport(
-          workspacePath,
-          request.bootstrapImportSourceId
-        )
-
-        resolve({
-          stdout: stdout.trim(),
-          stderr: stderr.trim(),
-          exitCode: 0,
-          ...(bootstrapImport ? { bootstrapImport } : {})
-        })
+        resolve()
       }
     )
   })
-}
-
-export interface WorkspaceSetupResult extends WorkspaceSetupRunResult {
-  stdout: string
-  stderr: string
-  exitCode: number
 }

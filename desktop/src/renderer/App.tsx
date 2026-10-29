@@ -1115,11 +1115,7 @@ export function App(): JSX.Element {
     })
 
     try {
-      const setupResult = await window.api.workspace.runSetup(request)
-      const importWarning = setupResult?.bootstrapImport?.warning
-      if (importWarning) {
-        addToast(translate(localeRef.current, 'setupWizard.import.warningToast'), 'warning')
-      }
+      await window.api.workspace.runSetup(request)
     } catch (err) {
       setWorkspaceLaunchTransition((current) =>
         current?.phase === 'setup-complete-to-center' || current?.phase === 'preparing'
@@ -3498,15 +3494,11 @@ export function App(): JSX.Element {
       <>
         <ToastContainer />
         <WorkspaceSetupWizard
-          workspacePath={workspacePath}
           workspaceStatus={setupFlowWorkspaceStatus}
           hideLogo={hideSetupWizardLogo}
           deferContent={deferSetupWizardContent}
           logoAnchorRef={setWizardLogoAnchorNode}
           onRunSetup={handleRunWorkspaceSetup}
-          onChooseDifferentWorkspace={() => {
-            void window.api.workspace.clearSelection()
-          }}
           onCancel={() => {
             setShowSetupWizard(false)
           }}
