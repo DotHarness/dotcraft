@@ -1,6 +1,5 @@
 import type { ThreadRuntimeSnapshot } from '../types/thread'
 import type { ThreadStore } from './threadStore'
-import { isSubAgentThread } from '../utils/subAgentThreads'
 import { normalizeThreadRuntime } from '../utils/threadRuntime'
 
 export interface ApplyRuntimeSnapshotOptions {
@@ -13,7 +12,7 @@ type RuntimeState = Pick<ThreadStore,
   | 'runtimeSnapshots' | 'runningTurnThreadIds'
   | 'parkedApprovals' | 'parkedUserInputs'
   | 'pendingApprovalThreadIds' | 'pendingUserInputThreadIds'
-  | 'pendingPlanConfirmationThreadIds' | 'unreadCompletedThreadIds'
+  | 'pendingPlanConfirmationThreadIds'
 >
 
 export function applyThreadRuntimeSnapshot(
@@ -24,7 +23,6 @@ export function applyThreadRuntimeSnapshot(
 ): Partial<RuntimeState> {
   if (state.hiddenThreadIds.has(threadId)) return state
   const runtime = normalizeThreadRuntime(incoming)
-  const previous = state.runtimeSnapshots.get(threadId)
   const runtimeSnapshots = new Map(state.runtimeSnapshots)
   runtimeSnapshots.set(threadId, runtime)
 
@@ -58,15 +56,6 @@ export function applyThreadRuntimeSnapshot(
     pendingPlanConfirmationThreadIds.delete(threadId)
   }
 
-  const unreadCompletedThreadIds = new Set(state.unreadCompletedThreadIds)
-  if (options.isActive || runtime.running) {
-    unreadCompletedThreadIds.delete(threadId)
-  } else if (previous?.running === true) {
-    const thread = state.threadList.find((entry) => entry.id === threadId)
-    if (thread && isSubAgentThread(thread)) unreadCompletedThreadIds.delete(threadId)
-    else unreadCompletedThreadIds.add(threadId)
-  }
-
   return {
     threadList: state.threadList.map((thread) => thread.id === threadId ? { ...thread, runtime } : thread),
     activeThread: state.activeThread?.id === threadId ? { ...state.activeThread, runtime } : state.activeThread,
@@ -76,7 +65,6 @@ export function applyThreadRuntimeSnapshot(
     parkedUserInputs,
     pendingApprovalThreadIds,
     pendingUserInputThreadIds,
-    pendingPlanConfirmationThreadIds,
-    unreadCompletedThreadIds
+    pendingPlanConfirmationThreadIds
   }
 }

@@ -3,6 +3,7 @@ import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
   beginWorkspaceThreadListRequest,
+  noteWorkspaceReadStateChange,
   refreshWorkspaceThreadListCache,
   type WorkspaceThreadListRefreshState
 } from '../workspaceThreadCache'
@@ -322,5 +323,44 @@ describe('workspace thread list refresh retries', () => {
 
     expect(load).toHaveBeenCalledTimes(1)
     expect(ids(entry.threads)).toEqual(['foreground'])
+  })
+
+  it('keeps read receipts from the list and follows receipt changes', async () => {
+    const entry: WorkspaceThreadListRefreshState = { threads: [] }
+    const unread = { firstUnread: { type: 'turn', turnId: 'turn_001' }, revision: 'r1' }
+    await refreshWorkspaceThreadListCache(entry, async () => ({
+      data: [thread('finished'), thread('ineligible')],
+      readStates: { finished: unread }
+    }))
+    expect(entry.threads).toEqual([
+      expect.objectContaining({ id: 'finished', readState: unread }),
+      expect.not.objectContaining({ readState: expect.anything() })
+    ])
+
+    const read = { firstUnread: null, revision: 'r2' }
+    const result = applyWorkspaceThreadNotificationToCache(entry.threads, 'thread/readState/changed', {
+      threadId: 'finished',
+      readState: read
+    })
+    expect(result.changed).toBe(true)
+    expect(result.threads[0]).toMatchObject({ id: 'finished', readState: read })
+  })
+
+  it('keeps a receipt that changed while the list request was in flight', async () => {
+    const listed = { firstUnread: { type: 'turn', turnId: 'turn_001' }, revision: 'r1' }
+    const notified = { firstUnread: null, revision: 'r2' }
+    const entry: WorkspaceThreadListRefreshState = { threads: [thread('finished', { readState: listed })] }
+    let resolve!: (value: { data: unknown[]; readStates: Record<string, unknown> }) => void
+    const refresh = refreshWorkspaceThreadListCache(entry, () => new Promise((res) => { resolve = res }))
+
+    entry.threads = applyWorkspaceThreadNotificationToCache(entry.threads, 'thread/readState/changed', {
+      threadId: 'finished',
+      readState: notified
+    }).threads
+    noteWorkspaceReadStateChange(entry, 'finished')
+    resolve({ data: [thread('finished')], readStates: { finished: listed } })
+    await refresh
+
+    expect(entry.threads[0]).toMatchObject({ id: 'finished', readState: notified })
   })
 })

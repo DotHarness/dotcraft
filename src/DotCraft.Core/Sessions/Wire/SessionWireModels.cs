@@ -289,6 +289,8 @@ public sealed record SessionWireThread
     /// no persisted context usage state yet.
     /// </summary>
     public ContextUsageSnapshot? ContextUsage { get; init; }
+
+    public ThreadReadState? ReadState { get; init; }
 }
 
 /// <summary>

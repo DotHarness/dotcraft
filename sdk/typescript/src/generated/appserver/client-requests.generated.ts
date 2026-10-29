@@ -185,6 +185,7 @@ export interface ClientRequestMethods {
   "thread/maintenance/interrupt": { params: Models.ThreadMaintenanceInterruptParams; result: Models.RpcEmpty };
   "thread/mode/set": { params: Models.ThreadModeSetParams; result: Models.RpcEmpty };
   "thread/read": { params: Models.ThreadReadParams; result: Models.ThreadReadResult };
+  "thread/readState/update": { params: Models.ThreadReadStateUpdateParams; result: Models.ThreadReadStateUpdateResult };
   "thread/recovery/export": { params: Models.ThreadRecoveryExportParams; result: Models.ThreadRecoveryExportResult };
   "thread/recovery/restore": { params: Models.ThreadRecoveryRestoreParams; result: Models.ThreadRecoveryRestoreResult };
   "thread/rename": { params: Models.ThreadRenameParams; result: Models.RpcEmpty };

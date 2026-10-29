@@ -283,6 +283,7 @@ public sealed partial class ThreadStore
                     new Dictionary<string, long>(StringComparer.Ordinal)),
                 []);
             _persistedBaselines.TryRemove(package.Thread.Id, out _);
+            ReadStates.Delete(package.Thread.Id);
             await TryProjectHistoryAsync(package.Thread.Id, result, ct);
             new ResponsesContextWindowStore(StateDatabase).Reconcile(
                 package.Thread.Id,

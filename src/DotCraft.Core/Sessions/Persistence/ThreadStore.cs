@@ -73,6 +73,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _attachmentStore);
         VisualizationWidgetStates = new VisualizationWidgetStateStore(StateDatabase);
         GenerativeUiStates = new GenerativeUiStateStore(StateDatabase);
+        ReadStates = new ThreadReadStateStore(StateDatabase);
     }
 
     internal WorkspaceStateDatabase StateDatabase { get; }
@@ -80,6 +81,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public VisualizationWidgetStateStore VisualizationWidgetStates { get; }
 
     public GenerativeUiStateStore GenerativeUiStates { get; }
+
+    internal ThreadReadStateStore ReadStates { get; }
 
     internal string DataPath => _botPath;
 

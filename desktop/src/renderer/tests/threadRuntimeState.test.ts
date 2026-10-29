@@ -74,11 +74,10 @@ describe('thread runtime synchronization', () => {
     expect(store().pendingApprovalThreadIds.has('background')).toBe(false)
     expect(store().pendingUserInputThreadIds.has('background')).toBe(false)
     expect(store().pendingPlanConfirmationThreadIds.has('background')).toBe(true)
-    expect(store().unreadCompletedThreadIds.has('background')).toBe(true)
     expect(store().threadList[0].runtime).toMatchObject({ activeTurnId: null, waitingOnPlanConfirmation: true })
   })
 
-  it('updates child runtime without making completed children unread or inserting unknown rows', () => {
+  it('updates child runtime without inserting unknown rows', () => {
     store().setThreadList([{
       ...thread('child'), originChannel: 'subagent',
       source: { kind: 'subagent', subAgent: { parentThreadId: 'parent', depth: 1 } }
@@ -87,7 +86,6 @@ describe('thread runtime synchronization', () => {
     store().applyRuntimeSnapshot('unknown', running, options)
     expect(store().threadList.map(entry => entry.id)).toEqual(['child'])
     expect(store().threadList[0].runtime?.running).toBe(false)
-    expect(store().unreadCompletedThreadIds.has('child')).toBe(false)
   })
 
   it('uses an explicit server runtime instead of stale history when reading a thread', () => {

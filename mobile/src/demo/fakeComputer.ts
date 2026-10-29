@@ -55,6 +55,12 @@ export interface FakeThread {
   planned?: boolean
   context?: number
   cwd?: string
+  readState?: FakeReadState
+}
+
+export interface FakeReadState {
+  firstUnread: { type: 'threadStart' } | { type: 'turn'; turnId: string } | null
+  revision: string
 }
 
 export interface FakeModel {
@@ -125,7 +131,7 @@ interface Connection {
   held: Map<string | number, { threadId: string; requestId: string }>
 }
 
-type Outcome = { result?: unknown; error?: { code: number; message: string }; after?: () => void }
+type Outcome = { result?: unknown; error?: { code: number; message: string; data?: unknown }; after?: () => void }
 
 const CONTEXT_WINDOW = 400_000
 
@@ -336,6 +342,11 @@ export class FakeComputer {
     return [...this.connections.values()].filter((connection) => connection.project === project && connection.initialized)
   }
 
+  setReadState(thread: FakeThread, next: Pick<FakeReadState, 'firstUnread'>): void {
+    thread.readState = { firstUnread: next.firstUnread, revision: this.nextId('revision') }
+    this.broadcast(this.thread(thread.id).project, 'thread/readState/changed', { threadId: thread.id, readState: thread.readState })
+  }
+
   private broadcast(project: FakeProject, method: string, params: Record<string, unknown>): void {
     for (const connection of this.projectConnections(project)) this.write(connection, { jsonrpc: '2.0', method, params })
   }
@@ -418,8 +429,11 @@ export class FakeComputer {
         }
       case 'config/read':
         return { result: { config: { Permissions: { DefaultApprovalPolicy: project.approvalDefault ?? 'default' } }, origins: {} } }
-      case 'thread/list':
-        return { result: { data: project.threads.filter((thread) => !thread.archived).map((thread) => this.summary(thread)) } }
+      case 'thread/list': {
+        const threads = project.threads.filter((thread) => !thread.archived)
+        const readStates = Object.fromEntries(threads.flatMap((thread) => (thread.readState ? [[thread.id, thread.readState]] : [])))
+        return { result: { data: threads.map((thread) => this.summary(thread)), readStates } }
+      }
       case 'agent/profiles/list':
         return { result: { profiles: this.profiles } }
       case 'provider/list':
@@ -488,6 +502,14 @@ export class FakeComputer {
       case 'thread/unsubscribe':
         connection.subscribed.delete(thread.id)
         return { result: {} }
+      case 'thread/readState/update': {
+        const current = thread.readState ?? { firstUnread: null, revision: '0' }
+        if (params.expectedRevision !== current.revision) {
+          return { error: { code: -32600, message: 'read state changed', data: { code: 'readStateConflict', readState: current } } }
+        }
+        this.setReadState(thread, { firstUnread: (params.operation as { type: string }).type === 'unread' ? { type: 'threadStart' } : null })
+        return { result: { readState: thread.readState } }
+      }
       case 'thread/rename':
         thread.displayName = params.displayName as string
         return { result: {}, after: () => this.broadcast(project, 'thread/renamed', { threadId: thread.id, displayName: thread.displayName }) }

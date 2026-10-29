@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.9.9 |
 | **Status** | Living |
 | **Date** | 2026-10-29 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -132,12 +132,13 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Secondary connections load thread summaries and consume only thread-list and runtime notifications; they do not receive turn, item, job, configuration, MCP, or server-request streams.
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
-- A secondary row whose thread stops running is marked unread and shows the unread dot, as foreground rows do, until the thread runs again or is opened. Promoting the project keeps its unread marks.
+- Foreground and secondary rows show the unread dot from the thread's server read receipt ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from `thread/list` and updated by `thread/readState/changed`. Desktop marks a thread read only while it is open in a focused window. Promoting a project keeps its receipts.
 - Remote projects are never background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting an unsaved remote project removes it from the rail; a saved SSH remote project stays listed without thread rows.
 
 **Actions**
 
 - Clicking a background thread promotes its owning workspace, then opens the thread on the foreground connection.
+- A foreground project's eligible thread row context menu offers **Mark as unread** while the thread is read and **Mark as read** while it is unread, after Rename.
 - The global New Chat action starts in the current foreground project. A project-level New Chat first promotes or starts that project; new thread creation always uses the foreground AppServer. The welcome composer keeps a separate draft per project identity and reloads capabilities, skills, plugins, and model state after promotion.
 - Project actions depend on project kind: open, pin, edit, open folder in the system file explorer, **Archive chats**, and **Remove project** (unavailable for the foreground project). Remote projects have no edit or file explorer action, and an open remote project offers disconnect instead of removal. Workspace restart and stop live in the tray, not in project actions.
 - **Archive chats** archives every loaded, unpinned chat in the project after a confirmation stating the count and warning when work is running.
@@ -158,6 +159,7 @@ This section defines how protocol messages affect user-visible behavior, as UX o
 | `thread/archived`, `thread/unarchived` | Thread availability updates immediately; invalid actions are disabled. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
 | `thread/status/changed` | Activity indicators update in the owning workspace's navigation, including secondary workspaces. Summaries use the current Turn identity and start time for elapsed-time display when available. |
+| `thread/readState/changed` | The thread's unread dot updates in the owning workspace's navigation, including secondary workspaces. |
 
 A client that displays multiple workspaces routes each notification with the workspace identity of the connection that received it. For secondary connections, only thread-list and runtime notifications update background project groups; notifications affecting conversation content, configuration, tools, MCP, jobs, approvals, user-input requests, or other interactive surfaces are foreground-only.
 
@@ -275,6 +277,10 @@ When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` dur
 
 Selecting a thread starts one coordinated subscription and paged-hydration operation (5.3.1). If the thread is not turn-capable, the user sees why and which actions remain allowed.
 
+The conversation never blanks while it restores. A thread present in the thread list opens at once with its header and composer, using the list summary until the header read lands; only the transcript area waits, with an indicator revealed after 400ms. Submitting before the thread is ready keeps the message in the composer and says the conversation is still loading.
+
+Leaving a thread keeps it **warm**: its subscription stays open and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 threads are warm per foreground connection. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
+
 ### 5.3.1 Desktop Thread Restore Pipeline
 
 Selecting a thread opens a new restore generation and clears the previous one. These invariants hold for every restore; page count, direction, and size are client choices.
@@ -286,10 +292,10 @@ Selecting a thread opens a new restore generation and clears the previous one. T
 5. Results belonging to an older restore generation (reads, subscription operations, interactive request results) are ignored.
 6. Subscription updates overwrite loaded entities by stable id; an unloaded Item is appended at the head without duplicating a concurrent page result.
 7. History is read on demand, not drained. Loaded history is one or more segments of whole Turns; the newest ends at the live head. A gap before or between segments reserves space and loads a page from its nearer side as it approaches the viewport. Jumping to an unloaded Turn loads a segment around it. Adjacent segments merge, and inserting a page above the viewport preserves the visible scroll anchor. Listing Turn metadata for navigation is not a history read.
-8. Switching threads releases loaded segments. Live-only output buffers are bounded independently of persisted history.
+8. Switching threads keeps the left thread's loaded segments with its warm state; releasing a warm thread drops them. Live-only output buffers are bounded per thread independently of persisted history.
 9. A subscription target is (foreground workspace identity, connection epoch, `threadId`). Desktop subscribes only after the thread is present in that workspace's authoritative thread list.
 10. Subscription operations for the same target are serialized; a delayed `thread/unsubscribe` never cancels a newer `thread/subscribe` for that target. Different targets, including the same `threadId` in two workspaces, never block one another.
-11. Switching threads or workspaces, disconnecting, or closing the window clears the active generation so late async work cannot subscribe through another workspace connection or restore UI into the wrong thread. An unsubscribe queued for an older connection is never sent through the new one.
+11. Switching threads or workspaces, disconnecting, or closing the window clears the active generation so late async work cannot subscribe through another workspace connection or restore UI into the wrong thread. Switching workspaces, disconnecting, or closing the window also releases every warm thread of that connection. An unsubscribe queued for an older connection is never sent through the new one.
 
 `thread/read` is the current header, the Turn/Item list methods are persisted display history, and `thread/subscribe` is the live channel. A conversation still in the creating state of [5.2](#52-start-a-new-conversation) enters this pipeline only once its thread id exists.
 
@@ -298,7 +304,7 @@ Selecting a thread opens a new restore generation and clears the previous one. T
 Pending approval and user-input requests belong to the active turn and survive ordinary navigation.
 
 - Switching away is not a decline, cancel, empty answer, or dismissal.
-- A request that arrives while its thread is not the active fully-restored thread, or while conversation updates are paused or unreconciled, is parked on its thread. Parked requests activate only after the current generation's header and head-page hydration complete.
+- A request that arrives while its thread is not the active fully-restored thread, or while conversation updates are paused or unreconciled, is parked on its thread. Parked requests activate when the thread is reopened warm, or otherwise after the current generation's header and head-page hydration complete.
 - Requests are matched by logical identity `method + threadId + turnId + requestId`; a fresh JSON-RPC envelope id does not make a new request. A replay restores the actionable composer once, without duplicate cards, queue entries, or decisions.
 - Multiple pending approvals for one turn form a queue; the next becomes actionable only after the prior is submitted or resolved.
 - Local submission state belongs to one logical request and never leaks to another.
@@ -314,7 +320,7 @@ Desktop receives thread truth through durable header/history reads and realtime 
 - An active thread with a parked request keeps retrying head-page reconciliation on foreground, reconnect, and metadata refresh; a failed read keeps the request parked and never synthesizes a response.
 - If completion notifications are missed after a response, the next reconcile restores completed tools, final output, and terminal state without the user switching away.
 - Subagent token counts sum the child's turn `tokenUsage` and rise with `thread/tokenUsage/updated`; they never decrease. Subagent elapsed time derives from `runtime.activeTurnStartedAt` and shows unknown when unavailable.
-- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
+- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
 - Reconciliation is scoped to the active foreground thread and workspace.
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface
@@ -850,7 +856,7 @@ When `capabilities.extensions.agentImport` is present, Settings shows an Import 
 - Confirming submits the selected item identities, fingerprints, and categories, plus the categories offered, to `import/run`. `import/progress` updates progress; completion refreshes candidates, settings, and history. `import_busy` shows the running pass instead.
 - Keep-in-sync applies immediately and can be paused without losing imported content or selections; a workspace opt-out disables it. After the first import the synced categories can be customized (at least one required, optionally including future categories), affecting future syncs only.
 - History shows one entry per pass with per-item status, a localized reason, and a link to imported content. Outstanding setup (hook trust, missing MCP environment variables, plugin review) is listed with a direct action. A sync pass that changed nothing stays silent.
-- Imported threads arrive through `thread/started`, are marked unread, and show their source app.
+- Imported threads arrive through `thread/started` and show their source app; imported history never makes them unread.
 
 #### 6.7.2 Computer Use
 

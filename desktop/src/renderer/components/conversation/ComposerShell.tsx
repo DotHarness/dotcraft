@@ -191,7 +191,7 @@ export function ComposerShell({
       ref={petRoot}
       style={{
         position: 'relative',
-        padding: '0 0 14px',
+        padding: belowFooter ? 0 : '0 0 14px',
         display: 'flex',
         flexDirection: 'column',
         gap: 0,

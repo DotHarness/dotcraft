@@ -122,6 +122,10 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<ThreadUnarchivedNotification> ThreadUnarchived =
         new("thread/unarchived", RpcDirection.ServerToClient, "1", Spec, scope: "thread", capability: "threadManagement", notificationOptOut: true);
 
+    /// <summary>thread/rolledBack notification.</summary>
+    public static readonly RpcNotification<ThreadRolledBackNotification> ThreadRolledBack =
+        new("thread/rolledBack", RpcDirection.ServerToClient, "1", Spec, scope: "thread", capability: "threadManagement", notificationOptOut: true);
+
     /// <summary>turn/started notification.</summary>
     public static readonly RpcNotification<TurnNotification> TurnStarted =
         new("turn/started", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

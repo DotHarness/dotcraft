@@ -37,6 +37,7 @@ export const MESSAGES_ES: Catalog = {
   'state.needsAnswer': 'Necesita respuesta',
   'state.done': 'Terminado',
   'state.failed': 'Con error',
+  'state.unread': 'No leído',
 
   'chat.untitled': 'Nuevo chat',
   'chat.catchingUp': 'Poniéndose al día…',

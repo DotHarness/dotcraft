@@ -63,7 +63,8 @@ public static class AppServerContractMapper
         OriginPresentation = value.OriginPresentation is null ? null : ThreadContractMapper.ToContract(value.OriginPresentation),
         Turns = value.Turns?.Select(ToContract).ToArray(),
         Plan = value.Plan is null ? null : ThreadContractMapper.ToContract(value.Plan),
-        ContextUsage = value.ContextUsage is null ? null : ThreadContractMapper.ToContract(value.ContextUsage)
+        ContextUsage = value.ContextUsage is null ? null : ThreadContractMapper.ToContract(value.ContextUsage),
+        ReadState = value.ReadState is null ? null : ToContract(value.ReadState)
     };
 
     /// <summary>Projects the complete public Session Wire turn shape into Contracts.</summary>
@@ -122,6 +123,17 @@ public static class AppServerContractMapper
 
     public static Contract.ThreadGoal ToContract(ThreadGoalSnapshot value) =>
         ThreadContractMapper.ToContract(value);
+
+    public static Contract.ThreadReadState ToContract(ThreadReadState value) => new()
+    {
+        FirstUnread = value.FirstUnread switch
+        {
+            null => null,
+            { TurnId: { } turnId } => new Contract.ThreadFirstUnreadTurn { TurnId = turnId },
+            _ => new Contract.ThreadFirstUnreadThreadStart()
+        },
+        Revision = value.Revision
+    };
 
     private static string WireString<T>(T value) where T : struct, Enum =>
         JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()

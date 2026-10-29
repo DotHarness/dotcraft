@@ -69,6 +69,8 @@ export function ConversationPanel({
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const activeThreadLoadError = useThreadStore((s) => s.activeThreadLoadError)
+  const openingSummary = useThreadStore((s) =>
+    s.activeThreadId && !s.activeThread ? s.threadList.find((entry) => entry.id === s.activeThreadId) : undefined)
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const threadMode = useConversationStore((s) => s.threadMode)
@@ -111,8 +113,17 @@ export function ConversationPanel({
         turns: []
       }
     : null
+  const openingThread: Thread | null = !activeThread && !creating && !isAgentBuilder && openingSummary
+    ? {
+        ...openingSummary,
+        workspacePath: openingSummary.workspacePath || protocolWorkspacePath,
+        userId: openingSummary.userId ?? 'local',
+        metadata: openingSummary.metadata ?? {},
+        turns: []
+      }
+    : null
   const modelControls = useComposerModelControls({
-    activeThread: activeThread ?? creatingThread,
+    activeThread: activeThread ?? creatingThread ?? openingThread,
     activeThreadId
   })
   const mascotEffectState = resolveComposerMascotEffectState({
@@ -158,10 +169,13 @@ export function ConversationPanel({
     setPendingThreadCreation(null)
   }, [activeThread, pendingThreadCreation, setPendingThreadCreation])
 
-  const thread = activeThread ?? creatingThread
+  const thread = activeThread ?? creatingThread ?? openingThread
   const worktreeCreation = useWorktreeCreationStore((s) => (thread && !isAgentBuilder ? s.creations[thread.id] : undefined))
   const waitForWorktree = useCallback((): void => {
     throw new Error(t('worktreeCreation.composerBlocked'))
+  }, [t])
+  const waitForThread = useCallback((): void => {
+    throw new Error(t('conversation.loadingThread'))
   }, [t])
 
   if (!creating && activeThreadId && activeThreadLoadError?.threadId === activeThreadId) {
@@ -173,15 +187,17 @@ export function ConversationPanel({
     )
   }
 
+  const loadingIndicator = (
+    <div style={centeredStyle} role="status" aria-label={t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}>
+      <span className="dc-delayed-reveal" style={openingIndicatorStyle}>
+        <Spinner size={20} />
+      </span>
+    </div>
+  )
+
   // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
-  if (!creating && (activeThreadId || openingProjectThread) && !activeThread) {
-    return (
-      <div style={centeredStyle} role="status" aria-label={t(isAgentBuilder ? 'conversation.startingBuilder' : 'conversation.loadingThread')}>
-        <span className="dc-delayed-reveal" style={openingIndicatorStyle}>
-          <Spinner size={20} />
-        </span>
-      </div>
-    )
+  if (!creating && !openingThread && (activeThreadId || openingProjectThread) && !activeThread) {
+    return loadingIndicator
   }
 
   if (!thread) {
@@ -294,6 +310,8 @@ export function ConversationPanel({
           inputParts={pendingWelcomeTurn.inputParts}
           sentAsGoal={pendingWelcomeTurn.sentAsGoal}
         />
+      ) : openingThread ? (
+        loadingIndicator
       ) : hasContent ? (
         <MessageStream />
       ) : isAgentBuilder ? (
@@ -338,7 +356,7 @@ export function ConversationPanel({
       ) : (
         <InputComposer
           threadId={thread.id}
-          submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : undefined}
+          submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : openingThread ? waitForThread : undefined}
           placeholder={worktreeCreation ? t('worktreeCreation.composerPlaceholder') : undefined}
           workspacePath={threadStateWorkspacePath}
           fileWorkspacePath={activeEffectiveWorkspacePath}

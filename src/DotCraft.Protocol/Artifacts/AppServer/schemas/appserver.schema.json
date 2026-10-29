@@ -13870,6 +13870,16 @@
             "$ref": "#/$defs/QueuedTurnInput"
           }
         },
+        "readState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadReadState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "runtime": {
           "$ref": "#/$defs/ThreadRuntimeState"
         },
@@ -17332,6 +17342,56 @@
         "threadId"
       ]
     },
+    "ThreadFirstUnread": {
+      "title": "ThreadFirstUnread",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ThreadFirstUnreadThreadStart"
+        },
+        {
+          "$ref": "#/$defs/ThreadFirstUnreadTurn"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "type",
+        "mapping": {
+          "threadStart": "#/$defs/ThreadFirstUnreadThreadStart",
+          "turn": "#/$defs/ThreadFirstUnreadTurn"
+        }
+      }
+    },
+    "ThreadFirstUnreadThreadStart": {
+      "title": "ThreadFirstUnreadThreadStart",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "threadStart"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "type"
+      ]
+    },
+    "ThreadFirstUnreadTurn": {
+      "title": "ThreadFirstUnreadTurn",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "turn"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "turnId",
+        "type"
+      ]
+    },
     "ThreadForkParams": {
       "title": "ThreadForkParams",
       "type": "object",
@@ -17949,6 +18009,19 @@
             }
           ]
         },
+        "readStates": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/ThreadReadState"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "totalMatched": {
           "anyOf": [
             {
@@ -18335,6 +18408,94 @@
         "thread"
       ]
     },
+    "ThreadReadState": {
+      "title": "ThreadReadState",
+      "type": "object",
+      "properties": {
+        "firstUnread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadFirstUnread"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "firstUnread",
+        "revision"
+      ]
+    },
+    "ThreadReadStateChangedNotification": {
+      "title": "ThreadReadStateChangedNotification",
+      "type": "object",
+      "properties": {
+        "readState": {
+          "$ref": "#/$defs/ThreadReadState"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "readState",
+        "threadId"
+      ]
+    },
+    "ThreadReadStateOperation": {
+      "title": "ThreadReadStateOperation",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "type"
+      ]
+    },
+    "ThreadReadStateUpdateParams": {
+      "title": "ThreadReadStateUpdateParams",
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/ThreadReadStateOperation"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "expectedRevision",
+        "operation",
+        "threadId"
+      ]
+    },
+    "ThreadReadStateUpdateResult": {
+      "title": "ThreadReadStateUpdateResult",
+      "type": "object",
+      "properties": {
+        "readState": {
+          "$ref": "#/$defs/ThreadReadState"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "readState"
+      ]
+    },
     "ThreadRecoveryExportParams": {
       "title": "ThreadRecoveryExportParams",
       "type": "object",
@@ -18560,6 +18721,19 @@
         }
       },
       "additionalProperties": true
+    },
+    "ThreadRolledBackNotification": {
+      "title": "ThreadRolledBackNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
     },
     "ThreadRuntimeState": {
       "title": "ThreadRuntimeState",

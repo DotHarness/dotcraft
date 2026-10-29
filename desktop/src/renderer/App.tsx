@@ -5,10 +5,12 @@ import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
 import { initConnectionStore, useConnectionStore } from './stores/connectionStore'
-import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
+import { readStateMark, useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
 import {
+  getThreadConversation,
   selectLatestCreatePlanTurnId,
   useConversationStore,
+  type ConversationStore,
   type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
@@ -23,6 +25,7 @@ import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
+import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
 import { normalizeThreadRuntime, runtimeSnapshotFromThread } from './utils/threadRuntime'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
@@ -93,7 +96,7 @@ import {
   type McpElicitationResponse
 } from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
-import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
+import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
@@ -107,14 +110,17 @@ import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseO
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
-import { isSessionImportThread } from './utils/sessionImport'
+import { withReadStates } from './utils/threadReadState'
+import { reloadThreadAfterRollback } from './utils/threadRollback'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
 import { FindOverlay } from './find/FindOverlay'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
-import { applyThreadHistoryHead, beginThreadHistory } from './stores/threadHistoryStore'
+import { applyThreadHistoryHead } from './stores/threadHistoryStore'
+import { openThreadState, releaseThreadState } from './stores/threadState'
+import { createWarmThreads, WARM_THREAD_SWEEP_MS } from './stores/warmThreads'
 import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import { collectWebCitationSources, formatWebCitations } from './utils/webCitations'
@@ -123,6 +129,7 @@ import {
   isSameThreadSubscriptionTarget,
   isThreadSubscriptionConnectionCurrent,
   resolveActiveThreadSubscriptionTarget,
+  resolveThreadSubscriptionTarget,
   threadSubscriptionTargetKey,
   type ThreadSubscriptionTarget,
   runQueuedThreadUnsubscribe
@@ -926,11 +933,12 @@ export function App(): JSX.Element {
       const settings = await window.api.settings.get()
       if (!isCurrentRequest()) return
       const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
+      const requestedAtMark = readStateMark()
       const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
-      const res = result as unknown as { data: ThreadSummary[] }
+      const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(res.data ?? [], projectKey)
+      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates, requestedAtMark), projectKey)
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
       }
@@ -1693,26 +1701,19 @@ export function App(): JSX.Element {
         const conv = useConversationStore.getState()
         const { addThread: doAddThread, updateThreadStatus: doUpdateStatus } =
           useThreadStore.getState()
-        const shouldUpdateActiveConversation = (threadId: string | null | undefined): boolean => {
-          if (!threadId) return true
-          return useThreadStore.getState().activeThreadId === threadId
-        }
+        const isActiveConversation = (threadId: string | null | undefined): boolean =>
+          !threadId || useThreadStore.getState().activeThreadId === threadId
+        const conversationFor = (threadId: string | null | undefined): ConversationStore | null =>
+          threadId ? getThreadConversation(threadId)?.getState() ?? null : conv
 
-        if (
-          method.startsWith('item/') &&
-          typeof p.turnId === 'string' &&
-          shouldUpdateActiveConversation(typeof p.threadId === 'string' ? p.threadId : undefined)
-        ) {
-          conv.clearStreamRetry(p.turnId)
+        if (method.startsWith('item/') && typeof p.turnId === 'string') {
+          conversationFor(typeof p.threadId === 'string' ? p.threadId : undefined)?.clearStreamRetry(p.turnId)
         }
 
         switch (method as string) {
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
             doAddThread(pp.thread)
-            if (isSessionImportThread(pp.thread)) {
-              useThreadStore.getState().markUnreadCompleted(pp.thread.id)
-            }
             if (pp.thread && isSubAgentThread(pp.thread)) {
               const parentThreadId = getSubAgentParentThreadId(pp.thread)
               if (parentThreadId) {
@@ -1729,6 +1730,7 @@ export function App(): JSX.Element {
               if (useThreadStore.getState().activeThreadId === pp.thread.id) {
                 useThreadStore.getState().setActiveThread(pp.thread)
               }
+              warmThreadsRef.current.updateThread(pp.thread)
             }
             break
           }
@@ -1751,6 +1753,19 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'thread/rolledBack': {
+            const threadId = (p as { threadId?: string }).threadId
+            if (!threadId) break
+            if (useThreadStore.getState().activeThreadId === threadId) {
+              void reloadThreadAfterRollback(threadId).catch((err: unknown) => {
+                console.error('Failed to reload a rolled back thread:', err)
+              })
+            } else {
+              releaseWarmThreadRef.current(threadId)
+            }
+            break
+          }
+
           case 'thread/archived': {
             useThreadStore.getState().removeThreadTree((p as { threadId: string }).threadId)
             break
@@ -1763,8 +1778,14 @@ export function App(): JSX.Element {
 
           case 'thread/queue/updated': {
             const pp = p as { threadId?: string; queuedInputs?: unknown[] }
-            if (shouldUpdateActiveConversation(pp.threadId)) {
-              useConversationStore.getState().setQueuedInputs((pp.queuedInputs ?? []) as QueuedTurnInput[])
+            conversationFor(pp.threadId)?.setQueuedInputs((pp.queuedInputs ?? []) as QueuedTurnInput[])
+            break
+          }
+
+          case 'thread/readState/changed': {
+            const pp = p as { threadId?: string; readState?: ThreadReadState }
+            if (pp.threadId && pp.readState) {
+              useThreadStore.getState().setThreadReadState(pp.threadId, pp.readState)
             }
             break
           }
@@ -1862,11 +1883,9 @@ export function App(): JSX.Element {
           case 'turn/started': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            if (
-              shouldUpdateActiveConversation(startedThreadId)
-              && !shouldDeferActiveConversationUpdate(startedThreadId)
-            ) {
-              conv.onTurnStarted(rawTurn)
+            const conversation = conversationFor(startedThreadId)
+            if (conversation && !shouldDeferActiveConversationUpdate(startedThreadId)) {
+              conversation.onTurnStarted(rawTurn)
             }
 
             break
@@ -1875,11 +1894,9 @@ export function App(): JSX.Element {
           case 'turn/completed': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const completedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            if (
-              shouldUpdateActiveConversation(completedThreadId)
-              && !shouldDeferActiveConversationUpdate(completedThreadId)
-            ) {
-              conv.onTurnCompleted(rawTurn)
+            const conversation = conversationFor(completedThreadId)
+            if (conversation && !shouldDeferActiveConversationUpdate(completedThreadId)) {
+              conversation.onTurnCompleted(rawTurn)
             }
             // Fallback: poll thread/read if sidebar still has no displayName (e.g. missed thread/renamed).
             // Primary updates come from thread/renamed broadcast and thread/read on selection.
@@ -1910,9 +1927,7 @@ export function App(): JSX.Element {
             if (failedThreadId) {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: failedThreadId }).catch(() => {})
             }
-            if (shouldUpdateActiveConversation(failedThreadId)) {
-              conv.onTurnFailed(rawTurn, error)
-            }
+            conversationFor(failedThreadId)?.onTurnFailed(rawTurn, error)
 
             break
           }
@@ -1924,18 +1939,14 @@ export function App(): JSX.Element {
             if (cancelledThreadId) {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: cancelledThreadId }).catch(() => {})
             }
-            if (shouldUpdateActiveConversation(cancelledThreadId)) {
-              conv.onTurnCancelled(rawTurn, reason)
-            }
+            conversationFor(cancelledThreadId)?.onTurnCancelled(rawTurn, reason)
 
             break
           }
 
           case 'item/started': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid)) {
-              conv.onItemStarted(p)
-            }
+            conversationFor(tid)?.onItemStarted(p)
 
             break
           }
@@ -1943,8 +1954,9 @@ export function App(): JSX.Element {
           case 'item/agentMessage/delta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onAgentMessageDelta(delta)
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onAgentMessageDelta(delta)
             }
 
             break
@@ -1953,8 +1965,9 @@ export function App(): JSX.Element {
           case 'item/reasoning/delta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onReasoningDelta(delta)
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onReasoningDelta(delta)
             }
 
             break
@@ -1962,8 +1975,9 @@ export function App(): JSX.Element {
 
           case 'item/commandExecution/terminalInteraction': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onTerminalInteraction({
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onTerminalInteraction({
                 turnId: p.turnId as string | undefined,
                 itemId: p.itemId as string | undefined,
                 stdin: p.stdin as string | undefined
@@ -1981,8 +1995,9 @@ export function App(): JSX.Element {
               itemId: (p.itemId as string | undefined),
               delta: (p.delta as string | undefined)
             }
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onCommandExecutionDelta(params)
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onCommandExecutionDelta(params)
             }
 
             break
@@ -2000,8 +2015,9 @@ export function App(): JSX.Element {
               terminal,
               delta: (p.delta as string | undefined)
             }
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onTerminalEvent(params)
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onTerminalEvent(params)
             }
 
             break
@@ -2009,8 +2025,9 @@ export function App(): JSX.Element {
 
           case 'item/toolCall/argumentsDelta': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onToolCallArgumentsDelta({
+            const conversation = conversationFor(tid)
+            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onToolCallArgumentsDelta({
                 threadId: (p.threadId as string | undefined),
                 turnId: (p.turnId as string | undefined),
                 itemId: (p.itemId as string | undefined),
@@ -2025,8 +2042,9 @@ export function App(): JSX.Element {
           case 'item/toolExecution/progress': {
             const tid = (p.threadId as string | undefined) ?? ''
             const progress = normalizeRemoteFileTransferProgress(p.progress)
-            if (progress && shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onToolExecutionProgress({
+            const conversation = conversationFor(tid)
+            if (progress && conversation && !shouldDeferActiveConversationUpdate(tid)) {
+              conversation.onToolExecutionProgress({
                 turnId: p.turnId as string | undefined,
                 itemId: p.itemId as string | undefined,
                 callId: p.callId as string | undefined,
@@ -2038,23 +2056,24 @@ export function App(): JSX.Element {
 
           case 'item/completed': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
-              conv.onItemCompleted(p)
-              const rawItem = p.item as Record<string, unknown> | undefined
-              const completedMessage = typeof rawItem?.id === 'string'
-                ? useConversationStore.getState().turns
-                  .flatMap((turn) => turn.items)
-                  .find((item) => item.id === rawItem.id && item.type === 'agentMessage')
-                : undefined
-              if (completedMessage?.text) reloadVisualizationsReferencedBy(tid, completedMessage.id, completedMessage.text)
-              const payload = rawItem?.payload as Record<string, unknown> | undefined
-              const callId = typeof payload?.callId === 'string' ? payload.callId : undefined
-              if (callId) {
-                const toolCall = useConversationStore.getState().turns
-                  .flatMap((turn) => turn.items)
-                  .find((item) => item.type === 'toolCall' && item.toolCallId === callId)
-                if (toolCall) autoOpenWorkflowLaunch(tid, toolCall.toolName ?? '', toolCall.result, toolCall.success)
-              }
+            const conversation = conversationFor(tid)
+            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
+            conversation.onItemCompleted(p)
+            if (!isActiveConversation(tid)) break
+            const rawItem = p.item as Record<string, unknown> | undefined
+            const completedMessage = typeof rawItem?.id === 'string'
+              ? useConversationStore.getState().turns
+                .flatMap((turn) => turn.items)
+                .find((item) => item.id === rawItem.id && item.type === 'agentMessage')
+              : undefined
+            if (completedMessage?.text) reloadVisualizationsReferencedBy(tid, completedMessage.id, completedMessage.text)
+            const payload = rawItem?.payload as Record<string, unknown> | undefined
+            const callId = typeof payload?.callId === 'string' ? payload.callId : undefined
+            if (callId) {
+              const toolCall = useConversationStore.getState().turns
+                .flatMap((turn) => turn.items)
+                .find((item) => item.type === 'toolCall' && item.toolCallId === callId)
+              if (toolCall) autoOpenWorkflowLaunch(tid, toolCall.toolName ?? '', toolCall.result, toolCall.success)
             }
 
             break
@@ -2066,14 +2085,14 @@ export function App(): JSX.Element {
             const petFind = usePetStore.getState().advance(0, input + output)
             if (petFind) showFindToast(petFind)
             const tid = (p.threadId as string | undefined) ?? ''
-            if (!shouldUpdateActiveConversation(tid)) break
-            if (shouldDeferActiveConversationUpdate(tid)) break
+            const conversation = conversationFor(tid)
+            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
             const totalInput = typeof p.totalInputTokens === 'number' ? (p.totalInputTokens as number) : null
             const totalOutput = typeof p.totalOutputTokens === 'number' ? (p.totalOutputTokens as number) : null
             const contextUsage = typeof p.contextUsage === 'object' && p.contextUsage !== null
               ? p.contextUsage as ContextUsageSnapshotWire
               : null
-            conv.onUsageDelta(input, output, totalInput, totalOutput, contextUsage)
+            conversation.onUsageDelta(input, output, totalInput, totalOutput, contextUsage)
             break
           }
 
@@ -2132,8 +2151,9 @@ export function App(): JSX.Element {
             if (kind === 'guidanceBlocked' && serverMessage) {
               addToast(serverMessage, 'warning')
             }
-            if (!shouldUpdateActiveConversation(tid)) break
-            conv.onSystemEvent(kind, {
+            const conversation = conversationFor(tid)
+            if (!conversation) break
+            conversation.onSystemEvent(kind, {
               turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
               message: serverMessage,
               messageKey: typeof p.messageKey === 'string' ? (p.messageKey as string) : null,
@@ -2151,15 +2171,15 @@ export function App(): JSX.Element {
 
           case 'plan/updated': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (!tid || !shouldUpdateActiveConversation(tid)) break
-            conv.onPlanUpdated(p as Record<string, unknown>)
+            if (tid) conversationFor(tid)?.onPlanUpdated(p as Record<string, unknown>)
             break
           }
 
           case 'turn/diff/updated': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (!tid || !shouldUpdateActiveConversation(tid) || shouldDeferActiveConversationUpdate(tid)) break
-            conv.onTurnDiffUpdated({
+            const conversation = tid ? conversationFor(tid) : null
+            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
+            conversation.onTurnDiffUpdated({
               turnId: (p.turnId as string | undefined) ?? '',
               diff: typeof p.diff === 'string' ? p.diff : ''
             })
@@ -2168,17 +2188,14 @@ export function App(): JSX.Element {
 
           case 'item/approval/resolved': {
             const resolved = extractApprovalResolvedParams(p)
-            if (shouldUpdateActiveConversation(resolved.threadId)) {
-              conv.onApprovalResolved(resolved)
-            }
+            conversationFor(resolved.threadId)?.onApprovalResolved(resolved)
             break
           }
 
           case 'item/tool/requestUserInput/resolved': {
             const threadId = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(threadId)) {
-              conv.onUserInputResolved()
-            } else if (threadId) {
+            conversationFor(threadId)?.onUserInputResolved()
+            if (!isActiveConversation(threadId)) {
               useThreadStore.getState().clearParkedUserInput(threadId)
             }
             break
@@ -2331,6 +2348,7 @@ export function App(): JSX.Element {
         const activeThreadId = useThreadStore.getState().activeThreadId
         if (threadId && (
           threadId !== activeThreadId
+          || !getThreadConversation(threadId)
           || isThreadRestoreGated(threadId)
           || isConversationRenderPaused()
           || hasDeferredActiveConversation()
@@ -2356,6 +2374,7 @@ export function App(): JSX.Element {
         const activeThreadId = useThreadStore.getState().activeThreadId
         if (threadId && (
           threadId !== activeThreadId
+          || !getThreadConversation(threadId)
           || isThreadRestoreGated(threadId)
           || isConversationRenderPaused()
           || hasDeferredActiveConversation()
@@ -2618,21 +2637,23 @@ export function App(): JSX.Element {
   const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
   const activeBrowserTabSentRef = useRef<string | null>(null)
   /**
-   * Tracks the thread we currently hold a server-side subscription for. The
-   * intent/ready/in-flight refs below guard duplicate subscribes and stale
-   * completions across React StrictMode and rapid thread switches.
+   * Server-side thread subscriptions by thread id. The intent/ready/in-flight
+   * maps guard duplicate subscribes and stale completions across React
+   * StrictMode and rapid thread switches.
    */
-  const subscribedThreadIdRef = useRef<string | null>(null)
-  const subscribedThreadTargetRef = useRef<ThreadSubscriptionTarget | null>(null)
   const threadSubscriptionOperationsRef = useRef(createThreadSubscriptionOperationQueue())
-  const threadSubscriptionIntentRef = useRef<ThreadSubscriptionTarget | null>(null)
-  const threadSubscriptionReadyRef = useRef<ThreadSubscriptionTarget | null>(null)
-  const threadSubscriptionInFlightRef = useRef<{
+  const threadSubscriptionIntentRef = useRef(new Map<string, ThreadSubscriptionTarget>())
+  const threadSubscriptionReadyRef = useRef(new Map<string, ThreadSubscriptionTarget>())
+  const threadSubscriptionInFlightRef = useRef(new Map<string, {
     target: ThreadSubscriptionTarget
     replayRecent: boolean
     promise: Promise<boolean>
-  } | null>(null)
-  const { activeThreadId, threadList, threadListProjectKey } = useThreadStore()
+  }>())
+  const warmThreadsRef = useRef(createWarmThreads())
+  const releaseWarmThreadRef = useRef<(threadId: string) => void>(() => {})
+  const activeThreadHeaderRef = useRef<Thread | null>(null)
+  const { activeThreadId, activeThread, threadList, threadListProjectKey } = useThreadStore()
+  if (activeThread && activeThread.id === activeThreadId) activeThreadHeaderRef.current = activeThread
   const activeThreadSubscriptionScope =
     status === 'connected'
       ? `${foregroundThreadListIdentityKey}\u0000${connectionEpoch}`
@@ -2652,12 +2673,11 @@ export function App(): JSX.Element {
     ? threadSubscriptionTargetKey(activeThreadSubscriptionTarget)
     : null
 
-  const getCurrentThreadSubscriptionTarget = useCallback((threadId?: string): ThreadSubscriptionTarget | null => {
+  const getThreadSubscriptionTarget = useCallback((threadId: string): ThreadSubscriptionTarget | null => {
     const connection = useConnectionStore.getState()
     const threads = useThreadStore.getState()
-    return resolveActiveThreadSubscriptionTarget({
+    return resolveThreadSubscriptionTarget({
       connected: connection.status === 'connected',
-      activeThreadId: threads.activeThreadId,
       workspaceIdentity: foregroundThreadListIdentityKeyRef.current,
       workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKeyRef.current),
       connectionEpoch: connection.connectionEpoch,
@@ -2665,6 +2685,10 @@ export function App(): JSX.Element {
       threadIds: threads.threadList.map((thread) => thread.id)
     }, threadId)
   }, [])
+
+  const getCurrentThreadSubscriptionTarget = useCallback((threadId: string): ThreadSubscriptionTarget | null => {
+    return useThreadStore.getState().activeThreadId === threadId ? getThreadSubscriptionTarget(threadId) : null
+  }, [getThreadSubscriptionTarget])
 
   const isSubscriptionConnectionCurrent = useCallback((target: ThreadSubscriptionTarget): boolean => {
     const connection = useConnectionStore.getState()
@@ -2676,18 +2700,13 @@ export function App(): JSX.Element {
   }, [])
 
   const clearThreadSubscriptionState = useCallback((threadId?: string): void => {
-    if (!threadId || subscribedThreadIdRef.current === threadId) {
-      subscribedThreadIdRef.current = null
-      subscribedThreadTargetRef.current = null
-    }
-    if (!threadId || threadSubscriptionIntentRef.current?.threadId === threadId) {
-      threadSubscriptionIntentRef.current = null
-    }
-    if (!threadId || threadSubscriptionReadyRef.current?.threadId === threadId) {
-      threadSubscriptionReadyRef.current = null
-    }
-    if (!threadId || threadSubscriptionInFlightRef.current?.target.threadId === threadId) {
-      threadSubscriptionInFlightRef.current = null
+    for (const subscriptions of [
+      threadSubscriptionIntentRef.current,
+      threadSubscriptionReadyRef.current,
+      threadSubscriptionInFlightRef.current
+    ]) {
+      if (threadId) subscriptions.delete(threadId)
+      else subscriptions.clear()
     }
   }, [])
 
@@ -2700,12 +2719,12 @@ export function App(): JSX.Element {
 
     const forceReplay = options.forceReplay === true
     const replayRecent = options.replayRecent === true
-    const ready = threadSubscriptionReadyRef.current
+    const ready = threadSubscriptionReadyRef.current.get(threadId)
     if (!forceReplay && !replayRecent && isSameThreadSubscriptionTarget(ready, target)) {
       return Promise.resolve(true)
     }
 
-    const inFlight = threadSubscriptionInFlightRef.current
+    const inFlight = threadSubscriptionInFlightRef.current.get(threadId)
     const needsReplaySubscribe = replayRecent || forceReplay
     if (
       inFlight != null &&
@@ -2716,11 +2735,9 @@ export function App(): JSX.Element {
     }
 
     const keepReadyOnFailure = (forceReplay || replayRecent) && isSameThreadSubscriptionTarget(ready, target)
-    threadSubscriptionIntentRef.current = target
+    threadSubscriptionIntentRef.current.set(threadId, target)
     if (!forceReplay && !replayRecent) {
-      threadSubscriptionReadyRef.current = null
-      subscribedThreadIdRef.current = null
-      subscribedThreadTargetRef.current = null
+      threadSubscriptionReadyRef.current.delete(threadId)
     }
 
     const requestParams: { threadId: string; replayRecent?: boolean } = { threadId }
@@ -2738,7 +2755,7 @@ export function App(): JSX.Element {
         sent = true
       })
       .then(() => {
-        const intent = threadSubscriptionIntentRef.current
+        const intent = threadSubscriptionIntentRef.current.get(threadId)
         if (
           !sent ||
           !isSameThreadSubscriptionTarget(intent, target) ||
@@ -2746,40 +2763,34 @@ export function App(): JSX.Element {
         ) {
           return false
         }
-        subscribedThreadIdRef.current = threadId
-        subscribedThreadTargetRef.current = target
-        threadSubscriptionReadyRef.current = target
+        threadSubscriptionReadyRef.current.set(threadId, target)
         return true
       })
       .catch((err: unknown) => {
-        const intent = threadSubscriptionIntentRef.current
+        const intent = threadSubscriptionIntentRef.current.get(threadId)
         if (isSameThreadSubscriptionTarget(intent, target) && !keepReadyOnFailure) {
-          subscribedThreadIdRef.current = null
-          subscribedThreadTargetRef.current = null
-          threadSubscriptionReadyRef.current = null
+          threadSubscriptionReadyRef.current.delete(threadId)
         }
         throw err
       })
       .finally(() => {
-        const inFlight = threadSubscriptionInFlightRef.current
+        const inFlight = threadSubscriptionInFlightRef.current.get(threadId)
         if (isSameThreadSubscriptionTarget(inFlight?.target, target) && inFlight?.promise === promise) {
-          threadSubscriptionInFlightRef.current = null
+          threadSubscriptionInFlightRef.current.delete(threadId)
         }
       })
 
-    threadSubscriptionInFlightRef.current = { target, replayRecent, promise }
+    threadSubscriptionInFlightRef.current.set(threadId, { target, replayRecent, promise })
     return promise
   }, [getCurrentThreadSubscriptionTarget])
 
   ensureThreadSubscribedRef.current = ensureThreadSubscribed
 
   const queueThreadUnsubscribe = useCallback((threadId: string): Promise<void> => {
-    const target = [
-      threadSubscriptionInFlightRef.current?.target,
-      threadSubscriptionIntentRef.current,
-      threadSubscriptionReadyRef.current,
-      subscribedThreadTargetRef.current
-    ].find((candidate) => candidate?.threadId === threadId) ?? null
+    const target = threadSubscriptionInFlightRef.current.get(threadId)?.target
+      ?? threadSubscriptionIntentRef.current.get(threadId)
+      ?? threadSubscriptionReadyRef.current.get(threadId)
+      ?? null
     clearThreadSubscriptionState(threadId)
     if (!target) return Promise.resolve()
 
@@ -2794,6 +2805,39 @@ export function App(): JSX.Element {
       })
     })
   }, [clearThreadSubscriptionState, isSubscriptionConnectionCurrent])
+
+  const releaseThread = useCallback((threadId: string): void => {
+    releaseThreadState(threadId)
+    void queueThreadUnsubscribe(threadId).catch(() => {})
+  }, [queueThreadUnsubscribe])
+  releaseWarmThreadRef.current = (threadId: string): void => {
+    if (warmThreadsRef.current.take(threadId)) releaseThread(threadId)
+  }
+
+  useEffect(() => {
+    for (const [threadId, warm] of warmThreadsRef.current.entries()) {
+      if (isSameThreadSubscriptionTarget(warm.target, getThreadSubscriptionTarget(threadId))) continue
+      warmThreadsRef.current.remove(threadId)
+      releaseThread(threadId)
+    }
+  }, [
+    activeThreadSubscriptionScope,
+    foregroundThreadListKey,
+    getThreadSubscriptionTarget,
+    releaseThread,
+    threadList,
+    threadListProjectKey
+  ])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      for (const threadId of warmThreadsRef.current.expired(Date.now())) {
+        warmThreadsRef.current.remove(threadId)
+        releaseThread(threadId)
+      }
+    }, WARM_THREAD_SWEEP_MS)
+    return () => window.clearInterval(timer)
+  }, [releaseThread])
 
   useEffect(() => {
     const unsubscribeOpen = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
@@ -3009,19 +3053,52 @@ export function App(): JSX.Element {
       })
     }
 
-    useConversationStore.getState().reset()
-    beginThreadHistory(curr)
+    const leftThreadId = prev && prev !== curr ? prev : null
+    const warm = curr && curr !== prev ? warmThreadsRef.current.take(curr) : undefined
+    const reopened = warm && curr && isSameThreadSubscriptionTarget(warm.target, getThreadSubscriptionTarget(curr))
+      ? warm
+      : undefined
+    if (warm && !reopened && curr) releaseThread(curr)
+    const leftHeader = activeThreadHeaderRef.current
+    const leftTarget = leftThreadId ? getThreadSubscriptionTarget(leftThreadId) : null
+    const leftWarm = leftThreadId && leftTarget && leftHeader?.id === leftThreadId
+      && !isHiddenThread(leftHeader)
+      && !isThreadRestoreGated(leftThreadId)
+      && isSameThreadSubscriptionTarget(threadSubscriptionReadyRef.current.get(leftThreadId), leftTarget)
+      ? { thread: leftHeader, target: leftTarget, viewedAt: Date.now() }
+      : null
+
+    openThreadState(curr)
     clearDeferredActiveConversation()
 
-    // Unsubscribe from previous thread when genuinely switching (not StrictMode remount)
-    if (prev && prev !== curr) {
-      queueThreadUnsubscribe(prev)
-        .catch(() => {
-          // Best-effort
-        })
+    // Keep or release the previous thread only when genuinely switching (not StrictMode remount)
+    if (leftWarm) {
+      for (const evicted of warmThreadsRef.current.keep(leftWarm)) releaseThread(evicted)
+    } else if (leftThreadId) {
+      releaseThread(leftThreadId)
     }
 
-    if (curr) {
+    if (curr && reopened) {
+      clearThreadRestoreGate()
+      const threadStore = useThreadStore.getState()
+      const summary = threadStore.threadList.find((thread) => thread.id === curr)
+      threadStore.setActiveThread({
+        ...reopened.thread,
+        ...(summary && {
+          displayName: summary.displayName,
+          status: summary.status,
+          lastActiveAt: summary.lastActiveAt,
+          runtime: summary.runtime,
+          readState: summary.readState
+        }),
+        goal: threadStore.goalSnapshots.get(curr) ?? null
+      })
+      activateParkedInteractiveRequests(curr)
+      const runtime = useThreadStore.getState().runtimeSnapshots.get(curr)
+      if (runtime && conversationNeedsFullSnapshotReconcile({ conversation: useConversationStore.getState(), runtime })) {
+        requestActiveConversationReconcile(curr, 'warm-reopen')
+      }
+    } else if (curr) {
       const requestedId = curr
       const restoreGateToken = beginThreadRestoreGate(requestedId)
       performance.mark(`app:thread-switch-start:${requestedId}`)
@@ -3119,32 +3196,27 @@ export function App(): JSX.Element {
         })
     } else {
       clearThreadRestoreGate()
-      if (subscribedThreadIdRef.current) {
-        const subscribedThreadId = subscribedThreadIdRef.current
-        void queueThreadUnsubscribe(subscribedThreadId)
-          .catch(() => {})
-      } else {
-        clearThreadSubscriptionState()
-      }
       useThreadStore.getState().setActiveThread(null)
     }
 
     prevThreadIdRef.current = curr
-    // No cleanup return here: a cleanup that resets subscribedThreadIdRef defeats
-    // the StrictMode guard above. Thread-switch unsubscription is handled by the
-    // prev !== curr block.
+    // No cleanup return here: a cleanup that resets the subscription maps defeats
+    // the StrictMode guard above. Leaving a thread is handled by the leftWarm/leftThreadId branch above.
   }, [
     activeThreadId,
     activateParkedInteractiveRequests,
     beginThreadRestoreGate,
     clearThreadRestoreGate,
-    clearThreadSubscriptionState,
     clearDeferredActiveConversation,
     ensureThreadSubscribed,
-    queueThreadUnsubscribe
+    getThreadSubscriptionTarget,
+    isThreadRestoreGated,
+    releaseThread,
+    requestActiveConversationReconcile
   ])
 
   useActiveThreadModeSync(activeProjectKey)
+  useActiveThreadReadReceipt()
 
   useEffect(() => {
     if (status !== 'connected') {
@@ -3159,6 +3231,8 @@ export function App(): JSX.Element {
       return
     }
     if (!activeThreadId || !activeThreadSubscriptionKey) return
+    const ready = threadSubscriptionReadyRef.current.get(activeThreadId)
+    if (ready && threadSubscriptionTargetKey(ready) === activeThreadSubscriptionKey) return
 
     ensureThreadSubscribed(activeThreadId, { replayRecent: true })
       .catch((err: unknown) => console.error('thread/subscribe failed:', err))

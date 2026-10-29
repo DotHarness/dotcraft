@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.9.9 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-10-29 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -481,7 +481,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 - `Running` → `Failed`: an unrecoverable error (agent exception, timeout, output-limit truncation). Session Core creates an `Error` Item, sets `Turn.Error`, and persists partial state. Completed model messages and any compaction replacement are appended first, so the next Turn sees the failed Turn's completed user, assistant, and paired tool history without expanding history a surviving compaction checkpoint replaced.
 - `Running`, `WaitingApproval`, or `WaitingInput` → `Cancelled`: the adapter requests cancellation. Session Core resolves pending approval and user-input requests (Section 10.2), cancels execution, completes any streaming agent or reasoning Items with their accumulated text, and persists partial domain and model history. Cancellation never restores tool results or summaries that compaction had removed from model-visible history.
 
-`Completed`, `Failed`, and `Cancelled` are terminal; a terminal Turn never transitions.
+`Completed`, `Failed`, and `Cancelled` are terminal; a terminal Turn never transitions. When a Turn of a read-receipt-eligible thread reaches a terminal state, Session Core applies the [Thread Read State](../features/thread-read-state.md#41-new-results) new-result rules and commits the receipt before publishing the terminal Turn notification.
 
 On the first load of a persisted Thread into a new process, a Turn still `Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted. Before the load returns, Session Core sets it to `Cancelled`, sets `CompletedAt`, and commits the terminal Turn with its completed model-visible history. Existing Items, usage, and error data are preserved; no error, response, approval, or user-input Item is synthesized. The commit must succeed before the Thread is registered or `turn/cancelled` is published; a commit failure fails the load and nothing is cached. Session Core then publishes exactly one `turn/cancelled` with reason `"interrupted"`, and the Turn's unresolved requests are no longer replayed. This reconciliation happens only at the cold-load boundary; a Thread already registered in the process is never reconciled by load, resume, or read. Until then, reads of an unloaded Thread report such a Turn as `Cancelled` and its runtime as idle without persisting the change; observing a Thread's events never loads it.
 
@@ -852,14 +852,14 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 | Category | Data | Recovery contract |
 |---|---|---|
 | Rollout session authority | Thread baseline and source, Turns, Items, queued inputs, model history, compaction | Replayed from the thread rollout |
-| SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox, visualization widget state | Not rebuilt by rollout read-repair |
+| SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox, visualization widget state, thread read receipts | Not rebuilt by rollout read-repair |
 | SQLite runtime continuity state | Context windows | May degrade to a new transient window when unavailable |
 | SQLite disposable cache and sidecar | Context usage | May be discarded and recomputed |
 | SQLite rebuildable projection | Threads, confirmed rollout offset, attachment references, thread read snapshots, Turns, Items | Rebuilt from readable rollout records |
 | Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention |
 | Independent file assets | Attachment file bytes | Rollout preserves references only |
 
-Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
+Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, mailbox state, and read receipts do not.
 
 Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; one projection pass publishes history, the metadata row, attachment references, and their offsets in one transaction. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
 

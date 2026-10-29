@@ -7,7 +7,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useConversationStore } from '../../stores/conversationStore'
 import { runningTurnFiles } from '../../stores/turnDiffs'
 import { useThreadStore } from '../../stores/threadStore'
-import { restartThreadHistory, useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
+import { useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
@@ -21,13 +21,12 @@ import { StreamRetryNotice } from './StreamRetryNotice'
 import { ChannelBindingCodeCard } from './ChannelBindingCodeCard'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
-import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
-import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
+import type { ContextUsageSnapshotWire } from '../../types/thread'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
-import { readThreadHistoryHead } from '../../utils/threadHistory'
+import { reloadThreadAfterRollback } from '../../utils/threadRollback'
 import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
@@ -47,8 +46,6 @@ export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
 const NO_HISTORY_GAPS: HistoryGap[] = []
 
-const requestAppServer = (method: Parameters<typeof window.api.appServer.sendRequest>[0], params: any): Promise<any> =>
-  window.api.appServer.sendRequest(method, params)
 
 interface InlineEditState {
   threadId: string
@@ -198,15 +195,7 @@ function MessageStreamContent(): JSX.Element {
         }) as RollbackThreadResult
         rollbackPending = false
         if (rollbackResult.thread) {
-          const refreshed = await readThreadHistoryHead(requestAppServer, current.threadId)
-          useConversationStore.getState().setTurns(
-            (refreshed.thread.turns ?? []).map((turn) =>
-              wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
-            )
-          )
-          useConversationStore.getState().setContextUsage(refreshed.thread.contextUsage ?? null)
-          useThreadStore.getState().setActiveThread(refreshed.thread as Thread)
-          restartThreadHistory(current.threadId, refreshed.thread.turns ?? [], refreshed.turnCursor)
+          await reloadThreadAfterRollback(current.threadId)
         }
       }
 

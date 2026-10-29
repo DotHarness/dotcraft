@@ -12,7 +12,7 @@ vi.hoisted(() => {
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { App } from '../App'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useConversationStore } from '../stores/conversationStore'
+import { createThreadConversation, getThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -21,7 +21,7 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { WorkspaceStatusPayload } from '../../preload/api'
 import type { WorkspaceProjectsPayload } from '../../shared/workspaceProjects'
 import { WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
-import type { Thread, ThreadSummary } from '../types/thread'
+import type { Thread, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/layout/CustomMenuBar', () => ({
@@ -381,6 +381,9 @@ function installApi(
         setUserInputConversationPresented: vi.fn().mockResolvedValue(undefined),
         recordUserInputConversationActivity: vi.fn().mockResolvedValue(undefined),
         snoozeUserInputAutoResolution: vi.fn().mockResolvedValue(undefined)
+      },
+      skillMarket: {
+        cleanupDotCraftInstall: vi.fn().mockResolvedValue(undefined)
       },
       workspace: {
         getStatus: workspaceGetStatus,
@@ -1189,7 +1192,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     useConnectionStore.getState().setStatus({ status: 'connected' })
     useThreadStore.getState().setActiveThreadId(threadId)
-    const agentDeltaSpy = vi.spyOn(useConversationStore.getState(), 'onAgentMessageDelta')
 
     renderApp()
 
@@ -1201,7 +1203,7 @@ describe('App initial workspace status bootstrap', () => {
     })
     await flushPromises()
     appServerSendRequest.mockClear()
-    agentDeltaSpy.mockClear()
+    const agentDeltaSpy = vi.spyOn(useConversationStore.getState(), 'onAgentMessageDelta')
 
     await act(async () => {
       visibilityHandler?.({ minimized: true, visible: false, focused: false })
@@ -1819,6 +1821,346 @@ describe('App initial workspace status bootstrap', () => {
       expect(pending?.bridgeId).toBe('bridge-input-switch')
       expect(pending?.turnId).toBe('turn-input-original')
       expect(pending?.isBlocking).toBe(true)
+    })
+  })
+  it('applies an event for a non-active thread with live state only to that thread', async () => {
+    const activeThreadId = 'thread-active'
+    const backgroundThreadId = 'thread-background'
+    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (method: string, params?: { threadId?: string }) => {
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? activeThreadId, readyWorkspaceStatus.workspacePath) }
+      }
+      if (method === 'thread/list') {
+        return { data: [makeThreadSummary(activeThreadId, readyWorkspaceStatus.workspacePath)] }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onNotification,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(activeThreadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThread?.id).toBe(activeThreadId)
+    })
+    await flushPromises()
+    const background = createThreadConversation(backgroundThreadId)
+
+    await act(async () => {
+      for (const threadId of [backgroundThreadId, 'thread-without-state']) {
+        notificationHandler?.({
+          method: 'turn/started',
+          params: { turn: { id: `turn-${threadId}`, threadId, status: 'running', items: [] } }
+        })
+        notificationHandler?.({
+          method: 'thread/queue/updated',
+          params: { threadId, queuedInputs: [{ id: `queued-${threadId}` }] }
+        })
+      }
+    })
+
+    expect(background.getState().turns.map((turn) => turn.id)).toEqual([`turn-${backgroundThreadId}`])
+    expect(background.getState().turnStatus).toBe('running')
+    expect(background.getState().queuedInputs).toHaveLength(1)
+    expect(useConversationStore.getState().turns).toHaveLength(0)
+    expect(useConversationStore.getState().turnStatus).toBe('idle')
+    expect(useConversationStore.getState().queuedInputs).toHaveLength(0)
+    expect(getThreadConversation('thread-without-state')).toBeUndefined()
+  })
+})
+
+async function renderWarmThreadsApp(
+  threadIds: string[],
+  workspace: {
+    onWorkspaceStatusChange?: ReturnType<typeof vi.fn>
+    onProjectsChange?: ReturnType<typeof vi.fn>
+    workspaceGetProjects?: ReturnType<typeof vi.fn>
+  } = {}
+) {
+  let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+  let serverRequestHandler: ((payload: { bridgeId: string; method: string; params?: unknown }) => void) | undefined
+  const onNotification = vi.fn((handler: typeof notificationHandler) => {
+    notificationHandler = handler
+    return vi.fn()
+  })
+  const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+    serverRequestHandler = handler
+    return vi.fn()
+  })
+  const legacyRequest = vi.fn(async (method: string, params?: { threadId?: string }) => {
+    if (method === 'thread/read') {
+      return { thread: makeThread(params?.threadId ?? threadIds[0], readyWorkspaceStatus.workspacePath) }
+    }
+    if (method === 'thread/list') {
+      return { data: threadIds.map((threadId) => makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)) }
+    }
+    return {}
+  })
+  const { appServerSendRequest } = installApi(readyWorkspaceStatus, {
+    appServerSendRequest: legacyRequest,
+    onNotification,
+    onServerRequest,
+    settingsGet: vi.fn().mockResolvedValue({}),
+    modulesList: vi.fn().mockResolvedValue([]),
+    modulesRunning: vi.fn().mockResolvedValue({}),
+    ...workspace
+  })
+  useConnectionStore.getState().setStatus({ status: 'connected' })
+  renderApp()
+  await waitFor(() => {
+    expect(useThreadStore.getState().threadList).toHaveLength(threadIds.length)
+  })
+
+  const callsTo = (method: string, threadId?: string) => appServerSendRequest.mock.calls.filter((call) =>
+    call[0] === method && (threadId == null || (call[1] as { threadId?: string } | undefined)?.threadId === threadId))
+
+  return {
+    appServerSendRequest,
+    callsTo,
+    notify: (method: string, params: unknown) => notificationHandler?.({ method, params }),
+    request: (bridgeId: string, method: string, params: unknown) => serverRequestHandler?.({ bridgeId, method, params }),
+    async open(threadId: string) {
+      await act(async () => {
+        useThreadStore.getState().setActiveThreadId(threadId)
+      })
+      await waitFor(() => {
+        expect(useThreadStore.getState().activeThread?.id).toBe(threadId)
+      })
+      await flushPromises()
+      await flushPromises()
+    }
+  }
+}
+
+function startedTurn(threadId: string, turnId: string) {
+  return { turn: { id: turnId, threadId, status: 'running', items: [] } }
+}
+
+function completedTurn(threadId: string, turnId: string) {
+  return { turn: { id: turnId, threadId, status: 'completed', items: [] } }
+}
+
+function runtimeChanged(threadId: string, runtime: Partial<ThreadRuntimeSnapshot>) {
+  return {
+    threadId,
+    runtime: {
+      running: false,
+      waitingOnApproval: false,
+      waitingOnInput: false,
+      waitingOnPlanConfirmation: false,
+      ...runtime
+    }
+  }
+}
+
+describe('warm threads', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useConnectionStore.getState().reset()
+    useGitStore.getState().reset()
+    useThreadStore.getState().reset()
+    useConversationStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
+    useUIStore.setState({ activeMainView: 'conversation', pendingProjectThreadOpen: null })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reopens a warm thread from its live state without reading or resubscribing', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await act(async () => {
+      app.notify('turn/started', startedTurn('thread-a', 'turn-a'))
+      app.notify('turn/completed', completedTurn('thread-a', 'turn-a'))
+    })
+    await app.open('thread-b')
+
+    expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(0)
+    app.appServerSendRequest.mockClear()
+    act(() => {
+      useThreadStore.getState().setActiveThreadId('thread-a')
+    })
+
+    expect(useThreadStore.getState().activeThread?.id).toBe('thread-a')
+    expect(useConversationStore.getState().turns.map((turn) => turn.id)).toEqual(['turn-a'])
+    await flushPromises()
+    for (const method of ['thread/read', 'thread/turns/list', 'thread/items/list', 'thread/subscribe']) {
+      expect(app.callsTo(method)).toHaveLength(0)
+    }
+    expect(getThreadConversation('thread-b')).toBeDefined()
+  })
+
+  it('shows a turn that finished while the thread was warm', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await act(async () => { app.notify('turn/started', startedTurn('thread-a', 'turn-a')) })
+    await app.open('thread-b')
+
+    await act(async () => { app.notify('turn/completed', completedTurn('thread-a', 'turn-a')) })
+    app.appServerSendRequest.mockClear()
+    await app.open('thread-a')
+
+    expect(useConversationStore.getState().turnStatus).toBe('idle')
+    expect(useConversationStore.getState().turns.map((turn) => [turn.id, turn.status])).toEqual([['turn-a', 'completed']])
+    expect(app.callsTo('thread/read', 'thread-a')).toHaveLength(0)
+  })
+
+  it('reconciles a reopened warm thread once when it missed its completion', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await act(async () => { app.notify('turn/started', startedTurn('thread-a', 'turn-a')) })
+    await app.open('thread-b')
+    await act(async () => { app.notify('thread/status/changed', runtimeChanged('thread-a', {})) })
+
+    app.appServerSendRequest.mockClear()
+    await app.open('thread-a')
+
+    await waitFor(() => {
+      expect(app.callsTo('thread/read', 'thread-a')).toHaveLength(1)
+    })
+    expect(app.callsTo('thread/subscribe')).toHaveLength(0)
+  })
+
+  it('makes an approval requested while warm actionable on reopen', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await act(async () => { app.notify('turn/started', startedTurn('thread-a', 'turn-a')) })
+    await app.open('thread-b')
+
+    await act(async () => {
+      app.request('bridge-warm', 'item/approval/request', {
+        threadId: 'thread-a',
+        turnId: 'turn-a',
+        requestId: 'request-warm',
+        itemId: 'item-warm',
+        approvalType: 'shell',
+        operation: 'npm test',
+        target: readyWorkspaceStatus.workspacePath,
+        reason: 'Run tests'
+      })
+      app.notify('thread/status/changed', runtimeChanged('thread-a', { running: true, waitingOnApproval: true }))
+    })
+    expect(getThreadConversation('thread-a')?.getState().pendingApproval).toBeNull()
+
+    app.appServerSendRequest.mockClear()
+    await app.open('thread-a')
+
+    expect(useConversationStore.getState().pendingApproval?.requestId).toBe('request-warm')
+    expect(useConversationStore.getState().turnStatus).toBe('waitingApproval')
+    expect(app.callsTo('thread/read')).toHaveLength(0)
+  })
+
+  it('releases the least recently viewed thread when an eleventh is left warm', async () => {
+    const threadIds = Array.from({ length: 12 }, (_, index) => `thread-${index}`)
+    const app = await renderWarmThreadsApp(threadIds)
+    for (const threadId of threadIds.slice(0, 11)) await app.open(threadId)
+    expect(app.callsTo('thread/unsubscribe')).toHaveLength(0)
+
+    await app.open('thread-11')
+
+    await waitFor(() => {
+      expect(app.callsTo('thread/unsubscribe').map((call) => call[1])).toEqual([{ threadId: 'thread-0' }])
+    })
+    expect(getThreadConversation('thread-0')).toBeUndefined()
+    for (const threadId of threadIds.slice(1)) expect(getThreadConversation(threadId)).toBeDefined()
+  })
+
+  it('releases a warm thread that has not been viewed for three hours', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setInterval', 'clearInterval', 'Date'] })
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await app.open('thread-b')
+
+    await act(async () => { vi.advanceTimersByTime(2 * 60 * 60 * 1000) })
+    expect(getThreadConversation('thread-a')).toBeDefined()
+
+    await act(async () => { vi.advanceTimersByTime(61 * 60 * 1000) })
+    await waitFor(() => {
+      expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(1)
+    })
+    expect(getThreadConversation('thread-a')).toBeUndefined()
+    expect(getThreadConversation('thread-b')).toBeDefined()
+  })
+
+  it('releases every warm thread when the connection is refreshed', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b', 'thread-c'])
+    await app.open('thread-a')
+    await app.open('thread-b')
+    await app.open('thread-c')
+    app.appServerSendRequest.mockClear()
+
+    act(() => {
+      useConnectionStore.getState().setStatus({ status: 'connected' })
+    })
+
+    await waitFor(() => {
+      expect(app.callsTo('thread/subscribe', 'thread-c')).toHaveLength(1)
+    })
+    expect(getThreadConversation('thread-a')).toBeUndefined()
+    expect(getThreadConversation('thread-b')).toBeUndefined()
+    expect(getThreadConversation('thread-c')).toBeDefined()
+    expect(app.callsTo('thread/unsubscribe')).toHaveLength(0)
+  })
+
+  it('releases every warm thread when the foreground workspace switches', async () => {
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    const onWorkspaceStatusChange = vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+      emitStatus = callback
+      return vi.fn()
+    })
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'], {
+      onWorkspaceStatusChange,
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    await app.open('thread-a')
+    await app.open('thread-b')
+
+    act(() => {
+      emitStatus?.({ ...readyWorkspaceStatus, workspacePath: 'C:\\sample\\workspace-b' })
+    })
+
+    await waitFor(() => {
+      expect(getThreadConversation('thread-a')).toBeUndefined()
+      expect(getThreadConversation('thread-b')).toBeUndefined()
+    })
+  })
+
+  it('releases a warm thread when it is archived', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await app.open('thread-b')
+
+    await act(async () => { app.notify('thread/archived', { threadId: 'thread-a' }) })
+
+    expect(getThreadConversation('thread-a')).toBeUndefined()
+    await waitFor(() => {
+      expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(1)
+    })
+  })
+
+  it('releases a warm thread that another client rolled back', async () => {
+    const app = await renderWarmThreadsApp(['thread-a', 'thread-b'])
+    await app.open('thread-a')
+    await app.open('thread-b')
+
+    await act(async () => { app.notify('thread/rolledBack', { threadId: 'thread-a' }) })
+
+    expect(getThreadConversation('thread-a')).toBeUndefined()
+    await waitFor(() => {
+      expect(app.callsTo('thread/unsubscribe', 'thread-a')).toHaveLength(1)
     })
   })
 })

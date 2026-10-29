@@ -20,6 +20,19 @@
         }
       ]
     },
+    "readStates": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "./ThreadReadState.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "totalMatched": {
       "anyOf": [
         {

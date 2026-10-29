@@ -245,6 +245,7 @@ public sealed class AppServerHost(
         runtime.ThreadRuntimeSignal += OnThreadRuntimeSignal;
         runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
+        runtime.ThreadReadStateChanged += BroadcastThreadReadStateChanged;
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
         runtime.SubAgentBoardChanged += BroadcastSubAgentBoardChanged;
         runtime.ThreadTokenUsageUpdated += BroadcastThreadTokenUsageUpdated;
@@ -284,6 +285,7 @@ public sealed class AppServerHost(
         runtime.ThreadRuntimeSignal -= OnThreadRuntimeSignal;
         runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
+        runtime.ThreadReadStateChanged -= BroadcastThreadReadStateChanged;
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
         runtime.SubAgentBoardChanged -= BroadcastSubAgentBoardChanged;
         runtime.ThreadTokenUsageUpdated -= BroadcastThreadTokenUsageUpdated;
@@ -1352,6 +1354,29 @@ public sealed class AppServerHost(
                     _activeTransports.TryRemove(transport, out _);
                 }
             });
+        }
+    }
+
+    private void BroadcastThreadReadStateChanged(string threadId, ThreadReadState readState)
+    {
+        var parameters = new Contract.ThreadReadStateChangedNotification
+        {
+            ThreadId = threadId,
+            ReadState = AppServerContractMapper.ToContract(readState)
+        };
+
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadReadStateChanged.Name))
+                continue;
+
+            // Started synchronously so the write is queued ahead of the Turn's terminal notification.
+            _ = transport.NotifyContractAsync(Contract.AppServerRpc.ThreadReadStateChanged, parameters, CancellationToken.None)
+                .ContinueWith(
+                    task => _activeTransports.TryRemove(transport, out _),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
         }
     }
 

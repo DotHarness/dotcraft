@@ -38,6 +38,21 @@ public sealed class AppServerErrorData
     public string? Detail { get; init; }
 }
 
+public sealed class ThreadReadStateConflictErrorData
+{
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = string.Empty;
+
+    [JsonPropertyName("messageKey")]
+    public string MessageKey { get; init; } = string.Empty;
+
+    [JsonPropertyName("fallbackText")]
+    public string FallbackText { get; init; } = string.Empty;
+
+    [JsonPropertyName("readState")]
+    public required Protocol.AppServer.ThreadReadState ReadState { get; init; }
+}
+
 public sealed class ConfigWriteErrorData
 {
     [JsonPropertyName("configWriteErrorCode")]
@@ -223,6 +238,21 @@ public static class AppServerErrors
 
     public static AppServerException CommandExec(string code, string fallbackText) =>
         Create(CommandExecErrorCode, code, $"errors.commandExec.{char.ToLowerInvariant(code[0])}{code[1..]}", fallbackText);
+
+    public static AppServerException ThreadReadStateUnavailable(string threadId) =>
+        Create(InvalidRequestCode, "readStateUnavailable", "errors.readStateUnavailable", $"Thread has no read receipt: {threadId}", new ThreadErrorParams(threadId));
+
+    public static AppServerException ThreadReadStateConflict(Protocol.AppServer.ThreadReadState current)
+    {
+        const string fallbackText = "The thread's read receipt changed.";
+        return new(InvalidRequestCode, fallbackText, new ThreadReadStateConflictErrorData
+        {
+            Code = "readStateConflict",
+            MessageKey = "errors.readStateConflict",
+            FallbackText = fallbackText,
+            ReadState = current
+        });
+    }
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

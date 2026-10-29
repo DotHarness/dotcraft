@@ -78,10 +78,11 @@ function StatusIndicator({ tone }: { tone: 'success' | 'neutral' | 'pending' }) 
   )
 }
 
-export function StateMark({ state, live }: { state: ChatState; live: boolean }) {
+export function StateMark({ state, live, unread }: { state: ChatState; live: boolean; unread: boolean }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   let glyph: ReactNode
+  let label = t(STATE_LABEL[state])
   if (state === 'needs-approval' || state === 'needs-answer') {
     glyph = (
       <Svg width={18} height={18} viewBox="0 0 18 18">
@@ -100,11 +101,18 @@ export function StateMark({ state, live }: { state: ChatState; live: boolean }) 
     )
   } else if (state === 'running' && live) {
     glyph = <Spinner size={16} />
+  } else if (unread) {
+    glyph = (
+      <Svg width={18} height={18} viewBox="0 0 18 18">
+        <Circle cx={9} cy={9} r={4} fill={colors.success} />
+      </Svg>
+    )
+    label = t('state.unread')
   } else {
     return null
   }
   return (
-    <View style={styles.mark} accessible accessibilityRole="image" accessibilityLabel={t(STATE_LABEL[state])}>
+    <View style={styles.mark} accessible accessibilityRole="image" accessibilityLabel={label}>
       {glyph}
     </View>
   )

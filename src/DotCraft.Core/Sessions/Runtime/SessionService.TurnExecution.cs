@@ -758,7 +758,7 @@ public sealed partial class SessionService
 
                 FlushTurnDiff(turnRuntime, eventChannel);
                 await RestoreUndrainedGuidanceAsync(
-                    () => FailTurn(turn, eventChannel, errorMsg, classifiedProviderFailure));
+                    () => FailTurn(thread, turn, eventChannel, errorMsg, classifiedProviderFailure));
                 await AccountGoalUsageAsync(
                     turnKey,
                     new TokenUsageInfo
@@ -1939,6 +1939,7 @@ public sealed partial class SessionService
                 RecordTurnDurationTrace(threadId, turn);
                 await PersistCurrentTurnCommitAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
+                await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCompleted(turn);
 
                 ThreadRuntimeSignalForBroadcast?.Invoke(
@@ -1982,6 +1983,7 @@ public sealed partial class SessionService
                 });
                 await PersistCancelledTurnAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
+                await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -1997,6 +1999,7 @@ public sealed partial class SessionService
                 });
                 await PersistCancelledTurnAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
+                await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -2018,6 +2021,7 @@ public sealed partial class SessionService
                 });
                 await PersistCancelledTurnAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
+                await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             }
@@ -2050,7 +2054,7 @@ public sealed partial class SessionService
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
                 FlushTurnDiff(turnRuntime, eventChannel);
-                FailTurn(turn, eventChannel, ex.Message);
+                FailTurn(thread, turn, eventChannel, ex.Message);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }
             catch (Exception ex)

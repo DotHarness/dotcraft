@@ -37,11 +37,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  padding-block: 10px;
   container: composer-footer / inline-size;
-}
-
-.topSpacing {
-  margin-top: 6px;
 }
 
 .workspace {

@@ -27,6 +27,13 @@ export interface ThreadGoal {
   updatedAt: number
 }
 
+export type ThreadUnreadPosition = { type: 'threadStart' } | { type: 'turn'; turnId: string }
+
+export interface ThreadReadState {
+  firstUnread: ThreadUnreadPosition | null
+  revision: string
+}
+
 export interface ThreadRuntimeSnapshot {
   running: boolean
   activeTurnId?: string | null
@@ -142,6 +149,7 @@ export interface ThreadSummary {
   metadata?: Record<string, unknown>
   runtime?: ThreadRuntimeSnapshot
   goal?: ThreadGoal | null
+  readState?: ThreadReadState
   appBindings?: ThreadAppBindingSummaryWire[]
   originApp?: ThreadOriginApp | null
   originPresentation?: ThreadOriginPresentation | null

@@ -4,6 +4,7 @@ using DotCraft.Memory;
 using DotCraft.Skills;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using Contract = DotCraft.Protocol.AppServer;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.AppServer;
@@ -45,7 +46,19 @@ internal sealed class AppServerThreadWireProjector(
             Runtime = snapshot.PersistedRuntime.ToWireRuntimeState()
         };
         wire = await WithPlanAsync(WithContextUsage(wire, thread.Id), thread.Id, ct);
+        wire = wire with { ReadState = await sessionService.GetThreadReadStateAsync(thread, ct) };
         return await EnrichAsync(wire, thread, ct);
+    }
+
+    public async Task<IReadOnlyDictionary<string, Contract.ThreadReadState>?> GetReadStatesAsync(
+        IReadOnlyList<ThreadSummary> page,
+        CancellationToken ct)
+    {
+        var states = await sessionService.GetThreadReadStatesAsync(page, ct);
+        return states?.ToDictionary(
+            static entry => entry.Key,
+            static entry => AppServerContractMapper.ToContract(entry.Value),
+            StringComparer.Ordinal);
     }
 
     public async Task<SessionWireThread> EnrichAsync(

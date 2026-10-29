@@ -35,6 +35,7 @@ export const MESSAGES_EN = {
   'state.needsAnswer': 'Needs answer',
   'state.done': 'Done',
   'state.failed': 'Failed',
+  'state.unread': 'Unread',
 
   'chat.untitled': 'New chat',
   'chat.catchingUp': 'Catching up…',

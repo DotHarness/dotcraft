@@ -17483,6 +17483,13 @@
           "const": null
         },
         {
+          "name": "readState",
+          "type": "core.ThreadReadState",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "runtime",
           "type": "core.ThreadRuntimeState",
           "required": true,
@@ -21615,6 +21622,68 @@
       "variants": []
     },
     {
+      "id": "core.ThreadFirstUnread",
+      "name": "ThreadFirstUnread",
+      "module": "core",
+      "kind": "union",
+      "schema": "schemas/core/ThreadFirstUnread.schema.json",
+      "additionalProperties": true,
+      "fields": [],
+      "variants": [
+        {
+          "discriminator": "threadStart",
+          "type": "core.ThreadFirstUnreadThreadStart"
+        },
+        {
+          "discriminator": "turn",
+          "type": "core.ThreadFirstUnreadTurn"
+        }
+      ]
+    },
+    {
+      "id": "core.ThreadFirstUnreadThreadStart",
+      "name": "ThreadFirstUnreadThreadStart",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadFirstUnreadThreadStart.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": "threadStart"
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadFirstUnreadTurn",
+      "name": "ThreadFirstUnreadTurn",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadFirstUnreadTurn.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": "turn"
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadForkParams",
       "name": "ThreadForkParams",
       "module": "core",
@@ -22256,6 +22325,13 @@
           "const": null
         },
         {
+          "name": "readStates",
+          "type": "map<core.ThreadReadState>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "totalMatched",
           "type": "integer",
           "required": false,
@@ -22671,6 +22747,124 @@
       "variants": []
     },
     {
+      "id": "core.ThreadReadState",
+      "name": "ThreadReadState",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadReadState.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "firstUnread",
+          "type": "core.ThreadFirstUnread",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadReadStateChangedNotification",
+      "name": "ThreadReadStateChangedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadReadStateChangedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "readState",
+          "type": "core.ThreadReadState",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadReadStateOperation",
+      "name": "ThreadReadStateOperation",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadReadStateOperation.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadReadStateUpdateParams",
+      "name": "ThreadReadStateUpdateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadReadStateUpdateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "expectedRevision",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operation",
+          "type": "core.ThreadReadStateOperation",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadReadStateUpdateResult",
+      "name": "ThreadReadStateUpdateResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadReadStateUpdateResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "readState",
+          "type": "core.ThreadReadState",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadRecoveryExportParams",
       "name": "ThreadRecoveryExportParams",
       "module": "core",
@@ -22951,6 +23145,24 @@
           "name": "thread",
           "type": "core.SessionThread",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadRolledBackNotification",
+      "name": "ThreadRolledBackNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRolledBackNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -33373,6 +33585,45 @@
       "stability": "stable"
     },
     {
+      "name": "thread/readState/changed",
+      "descriptorMember": "ThreadReadStateChanged",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadReadStateChangedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/readState/update",
+      "descriptorMember": "ThreadReadStateUpdate",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadReadStateUpdateParams",
+      "resultType": "core.ThreadReadStateUpdateResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotFound",
+        "readStateConflict",
+        "readStateUnavailable"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "thread/recovery/export",
       "descriptorMember": "ThreadRecoveryExport",
       "kind": "request",
@@ -33512,6 +33763,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/rolledBack",
+      "descriptorMember": "ThreadRolledBack",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadRolledBackNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

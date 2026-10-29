@@ -27,6 +27,7 @@ internal sealed partial class ThreadRequestHandler(
     string? hostWorkspacePath,
     AgentProfileThreadConfigResolver profileResolver,
     SessionStreamDebugLogger? streamDebugLogger,
+    AppServerThreadSubscribers? subscribers,
     ILogger<ThreadRequestHandler>? logger) : IAppServerDomainHandler
 {
     private const int ThreadListDefaultPageLimit = 50;
@@ -62,6 +63,7 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadUnarchive, HandleThreadUnarchiveAsync);
         table.Map(Contract.AppServerRpc.ThreadDelete, HandleThreadDeleteAsync);
         table.Map(Contract.AppServerRpc.ThreadRename, HandleThreadRenameAsync);
+        table.Map(Contract.AppServerRpc.ThreadReadStateUpdate, HandleThreadReadStateUpdateAsync);
         table.Map(Contract.AppServerRpc.ThreadModeSet, HandleThreadModeSetAsync);
         table.Map(Contract.AppServerRpc.ThreadConfigUpdate, HandleThreadConfigUpdateAsync);
     }
@@ -332,7 +334,8 @@ internal sealed partial class ThreadRequestHandler(
         {
             Data = data,
             NextCursor = nextCursor,
-            TotalMatched = isPaged || !string.IsNullOrWhiteSpace(p.Query) ? totalMatched : null
+            TotalMatched = isPaged || !string.IsNullOrWhiteSpace(p.Query) ? totalMatched : null,
+            ReadStates = await threadProjector.GetReadStatesAsync(page, ct)
         };
         return AppServerTypedResult<Contract.ThreadListResult>.FromResult(result);
     }
@@ -565,6 +568,12 @@ internal sealed partial class ThreadRequestHandler(
 
         var thread = await sessionService.RollbackThreadAsync(threadId, numTurns, ct);
         connection.RevokeMcpAppThreadEligibility(threadId);
+        subscribers?.NotifyOthers(
+            Contract.AppServerRpc.ThreadRolledBack,
+            threadId,
+            connection,
+            static _ => true,
+            new Contract.ThreadRolledBackNotification { ThreadId = threadId });
         return AppServerTypedResult<Contract.ThreadRollbackResponse>.FromResult(new()
         {
             Thread = Protocol.Optional<Contract.SessionThread>.FromValue(

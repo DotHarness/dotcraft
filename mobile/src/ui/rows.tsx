@@ -79,7 +79,7 @@ export function ChatRow({
       onPress={onPress}
       title={chatTitle(chat, t('chat.untitled'))}
       meta={projectName ? `${projectName} · ${status}` : status}
-      trail={<StateMark state={state} live={live} />}
+      trail={<StateMark state={state} live={live} unread={chat.readState?.firstUnread != null} />}
     />
   )
 }

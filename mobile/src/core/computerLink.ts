@@ -23,6 +23,7 @@ export interface ComputerLinkHost {
   random?: () => number
   appVersion: string
   awake(): boolean
+  foreground(): boolean
   revoked(computerId: string): void
 }
 
@@ -33,6 +34,10 @@ export class ComputerLink {
   private readonly connections = new Map<string, ProjectConnection>()
   private readonly opening = new Map<string, Promise<void>>()
   private readonly views = new Map<string, number>()
+  private focusedChat: string | null = null
+  private justFocused = false
+  private readonly readSent = new Map<string, string>()
+  private readonly failedReads = new Set<string>()
   private events: SocketHandle | null = null
   private generation = 0
   private attempt: Promise<void> = Promise.resolve()
@@ -49,6 +54,13 @@ export class ComputerLink {
       dispatch: (action) => root.dispatch({ type: 'computer', computerId: id, action }),
     }
     this.reconnector = new Reconnector(() => void this.connect(true), host.timers, host.random)
+    const unsubscribe = this.store.subscribe(() => {
+      if (!this.store.getState()) {
+        unsubscribe()
+        return
+      }
+      this.readVisibleChats()
+    })
   }
 
   private get state(): ComputerState {
@@ -355,6 +367,37 @@ export class ComputerLink {
     this.views.delete(key)
     const { projectId, threadId } = this.split(key)
     void this.connections.get(projectId)?.unsubscribe(threadId)
+  }
+
+  focusChat(key: string): void {
+    this.focusedChat = key
+    this.justFocused = true
+    this.readVisibleChats(true)
+  }
+
+  blurChat(key: string): void {
+    if (this.focusedChat !== key) return
+    this.focusedChat = null
+    this.justFocused = false
+  }
+
+  readVisibleChats(retryFailed = false): void {
+    const key = this.focusedChat
+    if (!key || !this.host.foreground()) return
+    if (retryFailed && this.failedReads.delete(key)) this.readSent.delete(key)
+    const readState = this.state.chats[key]?.readState
+    const { projectId, threadId } = this.split(key)
+    const connection = this.connections.get(projectId)
+    if (!readState || !connection?.ready) return
+    const justFocused = this.justFocused
+    this.justFocused = false
+    const position = readState.firstUnread
+    if (!position || (position.type === 'threadStart' && !justFocused)) return
+    if (this.readSent.get(key) === readState.revision) return
+    this.readSent.set(key, readState.revision)
+    void connection.markRead(threadId, readState).catch(() => {
+      if (this.readSent.get(key) === readState.revision) this.failedReads.add(key)
+    })
   }
 
   async send(key: string, draft: MessageDraft): Promise<void> {
