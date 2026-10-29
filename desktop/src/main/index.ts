@@ -2918,11 +2918,6 @@ function buildCallbacks(): IpcHandlerCallbacks {
         await localProjects.remove(params.previousPath)
       }
     },
-    clearProjects: async () => {
-      for (const project of localProjects.list()) {
-        if (!isWorkspaceForeground(project.path)) await removeLocalProject(project.path)
-      }
-    },
     restartWorkspace: async (workspacePath: string) => {
       const hubClient = createHubClient(sharedSettings)
       await hubClient.restartAppServer(workspacePath, resolveDotCraftRuntimeTools())

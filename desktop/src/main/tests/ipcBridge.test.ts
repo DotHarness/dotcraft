@@ -1442,13 +1442,13 @@ describe('task completion notifications', () => {
 describe('unregisterIpcHandlers', () => {
   it('removes each workspace project handler exactly once', () => {
     vi.clearAllMocks()
-    registerHandlersForTest('/workspace', () => null, createIpcCallbacks({ clearProjects: vi.fn() }))
+    registerHandlersForTest('/workspace', () => null, createIpcCallbacks())
     vi.mocked(ipcMain.removeHandler).mockClear()
 
     unregisterIpcHandlers()
 
     const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
-    for (const channel of ['workspace:get-projects', 'workspace:remove-project', 'workspace:disconnect-remote', 'workspace:clear-projects']) {
+    for (const channel of ['workspace:get-projects', 'workspace:remove-project', 'workspace:disconnect-remote']) {
       expect(removedChannels.filter((candidate) => candidate === channel)).toHaveLength(1)
     }
   })

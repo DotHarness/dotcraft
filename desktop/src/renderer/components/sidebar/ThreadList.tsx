@@ -34,7 +34,7 @@ import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '..
 import { archiveProjectThreads } from '../../utils/archiveProjectThreads'
 import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
-import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { addToast } from '../../stores/toastStore'
 import { ThreadEntry } from './ThreadEntry'
 import { useAddProjectFlow } from '../projects/AddProject'
@@ -84,16 +84,12 @@ const PROJECT_THREAD_PREVIEW_COUNT = 5
 
 interface ThreadListProps {
   workspacePath?: string
-  localWorkspacePath?: string
-  localActionsDisabled?: boolean
   foregroundOpening?: boolean
   openingWorkspacePath?: string
 }
 
 export function ThreadList({
   workspacePath,
-  localWorkspacePath,
-  localActionsDisabled = false,
   foregroundOpening = false,
   openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
@@ -142,9 +138,6 @@ export function ThreadList({
 
   const showChats = chat != null
   const hasProjectRows = projects.length > 0
-  const chatIsCurrentWorkspace =
-    chat != null &&
-    sameWorkspaceProjectKey(chat.path, workspacePath || foregroundWorkspacePath || foregroundProjectId)
   const showProjects = hasProjectRows || showChats
   const showGroupedLayout = showProjects || showChats
 
@@ -549,9 +542,6 @@ export function ThreadList({
         )}
         {showProjects && (
           <ProjectsSectionHeader
-            workspacePath={hasProjectRows || !chatIsCurrentWorkspace ? (workspacePath || foregroundWorkspacePath) : ''}
-            localWorkspacePath={localWorkspacePath}
-            localActionsDisabled={localActionsDisabled}
             collapsed={projectsSectionCollapsed}
             onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
             sortMode={projectsSort}

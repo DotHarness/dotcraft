@@ -3,6 +3,7 @@ export type ShortcutSpec = readonly ShortcutToken[]
 
 export const ACTION_SHORTCUTS = {
   newThread: ['Mod', 'N'],
+  addProject: ['Mod', 'Shift', 'O'],
   search: ['Mod', 'K'],
   toggleSidebar: ['Mod', 'B'],
   toggleDetailPanel: ['Mod', 'Shift', 'B'],

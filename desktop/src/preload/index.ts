@@ -1062,10 +1062,6 @@ const api = {
       }
     },
 
-    clearProjects(): Promise<void> {
-      return ipcRenderer.invoke('workspace:clear-projects')
-    },
-
     getStatus(): Promise<WorkspaceStatusPayload> {
       return ipcRenderer.invoke('workspace:get-status')
     },

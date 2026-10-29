@@ -5,13 +5,10 @@ import { useT } from '../../contexts/LocaleContext'
 import { useAddProjectFlow } from '../projects/AddProject'
 import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
-import { SidebarSectionHeader, sortModeMenuItems } from './SidebarSectionParts'
-import { WorkspaceOptionsMenu } from './WorkspaceHeader'
+import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import { SectionOptionsMenu, SidebarSectionHeader, sortModeMenuItems } from './SidebarSectionParts'
 
 export function ProjectsSectionHeader({
-  workspacePath,
-  localWorkspacePath,
-  localActionsDisabled,
   collapsed,
   onToggle,
   sortMode,
@@ -21,9 +18,6 @@ export function ProjectsSectionHeader({
   allProjectsCollapsed,
   onAllProjectsCollapsedChange
 }: {
-  workspacePath: string
-  localWorkspacePath?: string
-  localActionsDisabled: boolean
   collapsed: boolean
   onToggle: () => void
   sortMode: SidebarThreadSortMode
@@ -51,7 +45,7 @@ export function ProjectsSectionHeader({
         ]
       : [])
   ]
-  const leadingItems: ContextMenuEntry[] = [
+  const menuItems: ContextMenuEntry[] = [
     ...(sortSubmenu.length > 0
       ? [{
           label: t('threadList.sortBy'),
@@ -70,7 +64,6 @@ export function ProjectsSectionHeader({
         }]
       : [])
   ]
-  const showMenu = workspacePath.trim().length > 0 || leadingItems.length > 0
 
   return (
     <>
@@ -82,12 +75,10 @@ export function ProjectsSectionHeader({
         actionsOpen={menuOpen}
         actions={
           <>
-            {showMenu && (
-              <WorkspaceOptionsMenu
-                workspacePath={workspacePath}
-                localWorkspacePath={localWorkspacePath}
-                localActionsDisabled={localActionsDisabled}
-                leadingItems={leadingItems}
+            {menuItems.length > 0 && (
+              <SectionOptionsMenu
+                label={t('projectsRail.optionsAria')}
+                items={menuItems}
                 onOpenChange={setMenuOpen}
               />
             )}
@@ -95,6 +86,7 @@ export function ProjectsSectionHeader({
               icon={<FolderPlus size={15} aria-hidden />}
               label={t('projectsRail.addProject')}
               tooltipLabel={t('projectsRail.addProject')}
+              shortcut={ACTION_SHORTCUTS.addProject}
               size={24}
               radius={6}
               className="dc-thread-list-icon-button"

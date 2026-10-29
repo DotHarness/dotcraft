@@ -37,16 +37,12 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 interface SidebarProps {
   workspaceName: string
   workspacePath: string
-  localWorkspacePath?: string
-  remoteWorkspace?: boolean
   workspaceOpening?: boolean
 }
 
 export function Sidebar({
   workspaceName,
   workspacePath,
-  localWorkspacePath,
-  remoteWorkspace = false,
   workspaceOpening = false
 }: SidebarProps): JSX.Element {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -97,8 +93,6 @@ export function Sidebar({
 
       <ThreadList
         workspacePath={workspacePath}
-        localWorkspacePath={localWorkspacePath ?? workspacePath}
-        localActionsDisabled={remoteWorkspace}
         foregroundOpening={workspaceOpening}
         openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
       />

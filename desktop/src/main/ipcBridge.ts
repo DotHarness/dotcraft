@@ -800,7 +800,6 @@ export interface IpcHandlerCallbacks {
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
   getConnectionKey?: (client: DesktopAppServerClient) => string | null
   getConnectionClient?: (key: string) => DesktopAppServerClient | null
-  clearProjects?: () => Promise<void>
   getConnectionStatus: () => ConnectionStatusPayload
   getWorkspaceStatus: () => WorkspaceStatusPayload
   onAppServerRequestStarted?: (
@@ -1540,10 +1539,6 @@ export function registerIpcHandlers(
 
   handleSafe('workspace:disconnect-remote', async () => {
     await callbacks?.onDisconnectRemoteProject?.()
-  })
-
-  handleSafe('workspace:clear-projects', async () => {
-    await callbacks?.clearProjects?.()
   })
 
   handleSafe('workspace:get-status', () => {
@@ -2421,7 +2416,6 @@ export function unregisterIpcHandlers(options: { preserveDesktopPluginModules?: 
   ipcMain.removeHandler('workspace:stop')
   ipcMain.removeHandler('workspace:archive-thread')
   ipcMain.removeHandler('workspace:disconnect-remote')
-  ipcMain.removeHandler('workspace:clear-projects')
   ipcMain.removeHandler('workspace:get-status')
   ipcMain.removeHandler('workspace:run-setup')
   ipcMain.removeHandler('workspace:list-setup-models')

@@ -27,6 +27,7 @@ import { normalizeThreadRuntime, runtimeSnapshotFromThread } from './utils/threa
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
+import { useAddProjectFlow } from './components/projects/AddProject'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
 import type { AutomationDefinition, AutomationRun } from './stores/automationsStore'
@@ -728,6 +729,9 @@ export function App(): JSX.Element {
   const whatsNewMediaStatesRef = useRef<Record<string, WhatsNewMediaState>>({})
   const whatsNewDialogOpenRef = useRef(false)
   const showMainWorkspaceUiRef = useRef(false)
+  const addProject = useAddProjectFlow()
+  const beginAddProjectRef = useRef(addProject.beginCreate)
+  beginAddProjectRef.current = addProject.beginCreate
   const threadListReloadGenerationRef = useRef(0)
   const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
   const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => Promise<boolean>) | null>(null)
@@ -2506,9 +2510,9 @@ export function App(): JSX.Element {
       }
 
       if (ctrl && e.shiftKey && e.key === 'O') {
+        if (!showMainWorkspaceUiRef.current) return
         e.preventDefault()
-        window.api.workspace.clearSelection()
-          .catch((err: unknown) => console.error('Ctrl+Shift+O workspace switch failed:', err))
+        beginAddProjectRef.current()
         return
       }
 
@@ -3511,6 +3515,7 @@ export function App(): JSX.Element {
         <ConfirmDialogHost />
         <ToastContainer />
         <SkillDetailHost />
+        {addProject.dialog}
         {quickOpenVisible && (
           <QuickOpenDialog
             onClose={() => setQuickOpenVisible(false)}
@@ -3601,8 +3606,6 @@ export function App(): JSX.Element {
                   <Sidebar
                     workspaceName={displayWorkspaceName}
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
-                    localWorkspacePath={workspacePath}
-                    remoteWorkspace={remoteWorkspaceActive}
                     workspaceOpening={workspaceOpening}
                   />
                 )
