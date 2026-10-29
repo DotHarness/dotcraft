@@ -40,7 +40,6 @@ export const MESSAGES_DE: Catalog = {
 
   'chat.untitled': 'Neuer Chat',
   'chat.catchingUp': 'Abgleich…',
-  'chat.addedToTurn': 'Zu diesem Durchgang hinzugefügt',
   'chat.sentFromWorkflow': 'Vom Workflow gesendet',
   'wake.command': 'Durch Hintergrundbefehl gestartet: {{label}}',
   'wake.command.generic': 'Durch einen Hintergrundbefehl gestartet',

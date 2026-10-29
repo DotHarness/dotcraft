@@ -40,7 +40,6 @@ export const MESSAGES_ES: Catalog = {
 
   'chat.untitled': 'Nuevo chat',
   'chat.catchingUp': 'Poniéndose al día…',
-  'chat.addedToTurn': 'Añadido a este turno',
   'chat.sentFromWorkflow': 'Enviado desde un flujo de trabajo',
   'wake.command': 'Iniciado por un comando en segundo plano: {{label}}',
   'wake.command.generic': 'Iniciado por un comando en segundo plano',

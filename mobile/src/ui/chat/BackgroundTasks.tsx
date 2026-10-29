@@ -72,15 +72,16 @@ function TaskDetail({ task }: { task: BackgroundTask }) {
   ) : null
 }
 
-function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; onStop: (task: BackgroundTask) => Promise<void> }) {
+function TaskCard({ task, onStop }: { task: BackgroundTask; onStop: (task: BackgroundTask) => Promise<void> }) {
   const { t, duration } = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [failed, setFailed] = useState(false)
   const running = task.status === 'running'
+  const now = useNow(running)
   const span = elapsed(task, now)
-  const time = span !== null ? duration(span) : null
+  const time = span !== null ? duration(span, { live: running }) : null
   const meta = [
     t(KIND[task.kind].label),
     ...(task.status === 'stopped' ? [t('tasks.stopped')] : task.status === 'failed' ? [t('state.failed')] : []),
@@ -174,14 +175,12 @@ function Section({
   count,
   initiallyOpen,
   tasks,
-  now,
   onStop,
 }: {
   title: string
   count?: number
   initiallyOpen: boolean
   tasks: BackgroundTask[]
-  now: number
   onStop: (task: BackgroundTask) => Promise<void>
 }) {
   const { colors } = useTheme()
@@ -204,7 +203,7 @@ function Section({
           <Icon name="chevronDown" size={16} color={colors.textSecondary} />
         </View>
       </Pressable>
-      {open ? tasks.map((task) => <TaskCard key={`${task.kind}:${task.id}`} task={task} now={now} onStop={onStop} />) : null}
+      {open ? tasks.map((task) => <TaskCard key={`${task.kind}:${task.id}`} task={task} onStop={onStop} />) : null}
     </View>
   )
 }
@@ -223,12 +222,11 @@ export function TasksSheet({
   onStop: (task: BackgroundTask) => Promise<void>
 }) {
   const { t } = useI18n()
-  const now = useNow(visible && running.length > 0)
   return (
     <SheetLayer visible={visible} onClose={onClose}>
       <SheetHeader title={t('tasks.title')} />
-      <Section title={t('tasks.runningSection')} initiallyOpen tasks={running} now={now} onStop={onStop} />
-      <Section title={t('tasks.completedSection')} count={completed.length} initiallyOpen={false} tasks={completed} now={now} onStop={onStop} />
+      <Section title={t('tasks.runningSection')} initiallyOpen tasks={running} onStop={onStop} />
+      <Section title={t('tasks.completedSection')} count={completed.length} initiallyOpen={false} tasks={completed} onStop={onStop} />
     </SheetLayer>
   )
 }

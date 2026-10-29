@@ -285,7 +285,7 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
   const elapsed = (working ? now : Date.parse(entry.endedAt ?? '')) - Date.parse(entry.startedAt ?? '')
   const timed = Number.isFinite(elapsed) && elapsed >= (working ? 1000 : 0)
   const [plain, withDuration] = ACTIVITY_TEXT[entry.status]
-  const label = timed ? t(withDuration, { duration: duration(elapsed) }) : t(plain)
+  const label = timed ? t(withDuration, { duration: duration(elapsed, { live: working }) }) : t(plain)
   const expandable = entry.children.length > 0
   const origin = entry.origin ? wakeText(entry.origin, t) : null
   return (
@@ -516,16 +516,7 @@ export const TranscriptLine = memo(function TranscriptLine({
     case 'user':
       return (
         <View style={styles.user}>
-          {entry.origin ? (
-            <OriginLine origin={entry.origin} />
-          ) : entry.added ? (
-            <View style={styles.origin}>
-              <Icon name="cornerDownRight" size={13} color={colors.textDimmed} />
-              <Txt variant="caption" tone="dimmed">
-                {t('chat.addedToTurn')}
-              </Txt>
-            </View>
-          ) : null}
+          {entry.origin ? <OriginLine origin={entry.origin} /> : null}
           {entry.images.length > 0 ? (
             <View style={styles.photos}>
               {entry.images.map((source, index) => (
@@ -614,7 +605,6 @@ const styles = StyleSheet.create({
   line: { lineHeight: 22 },
   user: { alignItems: 'flex-end', gap: 4 },
   assistant: { gap: 12 },
-  origin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   photos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6, maxWidth: '84%' },
   photo: { width: 112, maxHeight: 160 },
   bubble: { maxWidth: '84%', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 20 },

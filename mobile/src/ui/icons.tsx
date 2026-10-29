@@ -130,10 +130,6 @@ const ICONS = {
     ['path', { d: 'M12 5v14' }],
     ['path', { d: 'm19 12-7 7-7-7' }],
   ],
-  cornerDownRight: [
-    ['path', { d: 'm15 10 5 5-5 5' }],
-    ['path', { d: 'M4 4v7a4 4 0 0 0 4 4h12' }],
-  ],
   triangleAlert: [
     ['path', { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3' }],
     ['path', { d: 'M12 9v4' }],

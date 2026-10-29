@@ -52,7 +52,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     : status === 'working' ? 'conversation.working' : 'conversation.worked'
   const hasDuration = elapsed != null && (status !== 'working' || elapsed >= 1000)
   const label = translate(locale, hasDuration ? `${key}${status === 'stopped' ? 'After' : 'For'}` : key,
-    { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
+    { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale, status === 'working') })
   const origin = taskWake ? taskWakeLabel(locale, taskWake) : null
   const accessibleName = origin ? `${label} · ${origin}` : undefined
   const labelContent = origin
@@ -178,14 +178,23 @@ function anchorScroll(element: HTMLElement): void {
   frame = requestAnimationFrame(step)
 }
 
-function formatActivityDuration(elapsed: number, locale: string): string {
+function formatActivityDuration(elapsed: number, locale: string, live: boolean): string {
   const seconds = Math.floor(elapsed / 1000)
   const units: Array<[string, number]> = [
     ['hour', Math.floor(seconds / 3600)],
     ['minute', Math.floor(seconds % 3600 / 60)],
     ['second', seconds % 60]
   ]
-  return units.filter(([unit, value]) => value > 0 || (unit === 'second' && seconds === 0))
-    .map(([unit, value]) => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value))
+  const lead = units.findIndex(([, value]) => value > 0)
+  const shown = live
+    ? units.slice(lead === -1 ? 2 : lead)
+    : units.filter(([unit, value]) => value > 0 || (unit === 'second' && seconds === 0))
+  return shown
+    .map(([unit, value], index) => new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit,
+      unitDisplay: 'narrow',
+      minimumIntegerDigits: live && index > 0 ? 2 : 1
+    }).format(value))
     .join(' ')
 }

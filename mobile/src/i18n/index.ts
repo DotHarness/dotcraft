@@ -38,7 +38,7 @@ export interface I18n {
   date: (iso: string) => string
   dateTime: (iso: string) => string
   formatCurrency: (amount: string, currency: string) => string
-  duration: (ms: number) => string
+  duration: (ms: number, options?: { live?: boolean }) => string
   /** Joins activity phrases, lowercasing all but the first where the language allows it. */
   phrases: (parts: string[]) => string
 }
@@ -79,20 +79,24 @@ function createI18n(locale: AppLocale): I18n {
         .map((part, index) => (index === 0 || locale === 'de' ? part : part.charAt(0).toLocaleLowerCase(locale) + part.slice(1)))
         .join(t('toolGroup.separator'))
     },
-    duration(ms) {
+    duration(ms, { live = false } = {}) {
       const total = Math.max(0, Math.round(ms / 1000))
       const parts: [number, 'hour' | 'minute' | 'second', string][] = [
         [Math.floor(total / 3600), 'hour', 'h'],
         [Math.floor((total % 3600) / 60), 'minute', 'm'],
         [total % 60, 'second', 's'],
       ]
-      const shown = parts.filter(([value], index) => value > 0 || (index === 2 && total === 0))
+      const lead = parts.findIndex(([value]) => value > 0)
+      const shown = live
+        ? parts.slice(lead === -1 ? 2 : lead)
+        : parts.filter(([value], index) => value > 0 || (index === 2 && total === 0))
       return shown
-        .map(([value, unit, short]) => {
+        .map(([value, unit, short], index) => {
+          const digits = live && index > 0 ? 2 : 1
           try {
-            return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value)
+            return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow', minimumIntegerDigits: digits }).format(value)
           } catch {
-            return `${value}${short}`
+            return `${String(value).padStart(digits, '0')}${short}`
           }
         })
         .join(' ')

@@ -40,7 +40,6 @@ export const MESSAGES_JA: Catalog = {
 
   'chat.untitled': '新しいチャット',
   'chat.catchingUp': '同期しています…',
-  'chat.addedToTurn': 'このターンに追加',
   'chat.sentFromWorkflow': 'ワークフローから送信',
   'wake.command': 'バックグラウンドコマンドから開始: {{label}}',
   'wake.command.generic': 'バックグラウンドコマンドから開始',

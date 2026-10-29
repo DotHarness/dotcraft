@@ -40,7 +40,6 @@ export const MESSAGES_ZH_HANS: Catalog = {
 
   'chat.untitled': '新聊天',
   'chat.catchingUp': '正在同步…',
-  'chat.addedToTurn': '已添加到本轮',
   'chat.sentFromWorkflow': '工作流发送',
   'wake.command': '由后台命令触发：{{label}}',
   'wake.command.generic': '由后台命令触发',

@@ -40,7 +40,6 @@ export const MESSAGES_KO: Catalog = {
 
   'chat.untitled': '새 채팅',
   'chat.catchingUp': '동기화하는 중…',
-  'chat.addedToTurn': '이 턴에 추가됨',
   'chat.sentFromWorkflow': '워크플로에서 보냄',
   'wake.command': '백그라운드 명령으로 시작됨: {{label}}',
   'wake.command.generic': '백그라운드 명령으로 시작됨',

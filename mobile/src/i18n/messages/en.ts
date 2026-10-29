@@ -38,7 +38,6 @@ export const MESSAGES_EN = {
 
   'chat.untitled': 'New chat',
   'chat.catchingUp': 'Catching up…',
-  'chat.addedToTurn': 'Added to this turn',
   'chat.sentFromWorkflow': 'Sent from workflow',
   'wake.command': 'Started by background command: {{label}}',
   'wake.command.generic': 'Started by a background command',
