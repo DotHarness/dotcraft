@@ -482,22 +482,27 @@
       "contextWindow": 128000
     },
     "gpt-5": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5-codex": {
       "contextWindow": 400000
     },
     "gpt-5-mini": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5-nano": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5-pro": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.1": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.1-chat-latest": {
       "contextWindow": 128000
@@ -512,7 +517,8 @@
       "contextWindow": 400000
     },
     "gpt-5.2": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.2-chat-latest": {
       "contextWindow": 128000
@@ -521,19 +527,23 @@
       "contextWindow": 400000
     },
     "gpt-5.2-pro": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.3-chat-latest": {
       "contextWindow": 128000
     },
     "gpt-5.3-codex": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.3-codex-spark": {
-      "contextWindow": 128000
+      "contextWindow": 128000,
+      "maxInputTokens": 100000
     },
     "gpt-5.4": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -542,16 +552,20 @@
     },
     "gpt-5.4-mini": {
       "fast": null,
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.4-nano": {
-      "contextWindow": 400000
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
     },
     "gpt-5.4-pro": {
-      "contextWindow": 1050000
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000
     },
     "gpt-5.5": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -562,10 +576,12 @@
       "contextWindow": 400000
     },
     "gpt-5.5-pro": {
-      "contextWindow": 1050000
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000
     },
     "gpt-5.6-luna": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -574,6 +590,7 @@
     },
     "gpt-5.6-sol": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -582,6 +599,7 @@
     },
     "gpt-5.6-terra": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -590,6 +608,7 @@
     },
     "gpt-6.1-sol": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -598,6 +617,7 @@
     },
     "gpt-6-astra": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -609,6 +629,7 @@
     },
     "gpt-6-luna": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -617,6 +638,7 @@
     },
     "gpt-6-sol": {
       "contextWindow": 1050000,
+      "maxInputTokens": 922000,
       "fast": {
         "protocols": [
           "openai-responses"
@@ -636,7 +658,8 @@
       "contextWindow": 131072
     },
     "gpt-realtime-2.1": {
-      "contextWindow": 128000
+      "contextWindow": 128000,
+      "maxInputTokens": 96000
     },
     "granite-4-h-micro": {
       "contextWindow": 131072
@@ -1293,7 +1316,8 @@
       "contextWindow": 1000000
     },
     "qwen3.7-flash": {
-      "contextWindow": 1000000
+      "contextWindow": 1000000,
+      "maxInputTokens": 991808
     },
     "qwen3.7-max": {
       "contextWindow": 1000000

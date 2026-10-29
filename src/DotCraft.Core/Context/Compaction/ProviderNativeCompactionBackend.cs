@@ -5,7 +5,8 @@ namespace DotCraft.Context.Compaction;
 internal sealed class ProviderNativeCompactionBackend(
     string id,
     IProviderNativeCompactor compactor,
-    Func<long, CompactionThreshold> evaluateThreshold) : ICompactionBackend
+    Func<long, CompactionThreshold> evaluateThreshold,
+    int? requestTokenLimit = null) : ICompactionBackend
 {
     public string Id { get; } = string.IsNullOrWhiteSpace(id)
         ? throw new ArgumentException("A compaction backend id is required.", nameof(id))
@@ -41,7 +42,7 @@ internal sealed class ProviderNativeCompactionBackend(
         }
 
         var replacement = await compactor.CompactAsync(
-                input,
+                input with { RequestTokenLimit = requestTokenLimit },
                 request.NeutralHistory,
                 request.Options,
                 cancellationToken)

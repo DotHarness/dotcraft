@@ -16,6 +16,12 @@ internal interface IChatGptResponsesCompactTransport
         CancellationToken cancellationToken);
 }
 
+internal sealed class ChatGptResponsesCompactProviderException(string? code, string? message)
+    : InvalidOperationException($"{code ?? "provider_compaction_failed"}: {message ?? "The provider reported an error."}")
+{
+    public string Code { get; } = code ?? "provider_compaction_failed";
+}
+
 internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient responsesClient)
     : IChatGptResponsesCompactTransport
 {
@@ -56,6 +62,11 @@ internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient respon
         {
             status = "cancelled";
             failureReason = "cancelled";
+            throw;
+        }
+        catch (ChatGptResponsesCompactProviderException ex)
+        {
+            failureReason = ex.Code;
             throw;
         }
         catch (InvalidDataException)
@@ -123,9 +134,14 @@ internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient respon
                         OpenAIResponsesCompactor.ValidateOutput(result);
                         return result;
                     case "response.failed":
-                    case "response.incomplete":
                     case "error":
                     case "response.error":
+                        if (TryReadError(update.Response?.Error, out var code, out var message)
+                            || TryReadError(update.Error, out code, out message)
+                            || TryReadError(JsonSerializer.Deserialize<JsonElement>(data), out code, out message))
+                            throw new ChatGptResponsesCompactProviderException(code, message);
+                        throw Invalid($"Stream ended with {update.Type}.");
+                    case "response.incomplete":
                         throw Invalid($"Stream ended with {update.Type}.");
                     case null:
                         throw Invalid("Stream event type is required.");
@@ -142,12 +158,29 @@ internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient respon
     private static InvalidDataException Invalid(string message) =>
         new($"provider_compaction_invalid_response: {message}");
 
+    private static bool TryReadError(JsonElement? element, out string? code, out string? message)
+    {
+        code = null;
+        message = null;
+        if (element is not { ValueKind: JsonValueKind.Object } error)
+            return false;
+        code = ReadString(error, "code");
+        message = ReadString(error, "message");
+        return code != null || message != null;
+    }
+
+    private static string? ReadString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
     private sealed record CompactStreamEvent(
         string? Type,
         JsonElement? Item,
-        CompactCompletion? Response);
+        CompactCompletion? Response,
+        JsonElement? Error);
 
-    private sealed record CompactCompletion(string? Id, string? Status, CompactUsage? Usage);
+    private sealed record CompactCompletion(string? Id, string? Status, CompactUsage? Usage, JsonElement? Error);
 
     private sealed record CompactUsage(
         [property: JsonPropertyName("input_tokens")] long? InputTokens,

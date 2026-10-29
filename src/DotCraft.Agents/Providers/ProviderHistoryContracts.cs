@@ -113,7 +113,8 @@ public enum ProviderCompactionPhase
 public sealed record ProviderNativeCompactionInput(
     IReadOnlyList<ProviderHistoryItem> Items,
     int CoveredMessageCount,
-    string? CoveredThroughTurnId);
+    string? CoveredThroughTurnId,
+    int? RequestTokenLimit = null);
 
 /// <summary>Opaque provider-native history produced by a compaction backend.</summary>
 public sealed record ProviderNativeCompactionReplacement(

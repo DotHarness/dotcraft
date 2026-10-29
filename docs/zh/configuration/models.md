@@ -157,6 +157,10 @@ DotCraft 内置一份模型能力目录，用于配置上下文窗口和 Fast Mo
     "my-256k-model": {
       "contextWindow": 256000
     },
+    "my-reserved-output-model": {
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
+    },
     "custom-fast-model": {
       "contextWindow": 1048576,
       "fast": {
@@ -183,3 +187,7 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 
 模型上下文容量直接来自合并后的目录。未知模型使用 `defaultContextWindow`，未配置时回退到
 256,000 token。压缩流程先应用可选的客户端预算，再计算摘要预留和安全缓冲。
+
+部分模型的上下文窗口中有一部分预留给输出，因此可接受的输入少于窗口大小。`maxInputTokens`
+声明这一输入上限，自动压缩会在它之下触发，而不是在完整窗口之下触发。内置值取自 models.dev
+中该模型所属 provider 自己的条目。

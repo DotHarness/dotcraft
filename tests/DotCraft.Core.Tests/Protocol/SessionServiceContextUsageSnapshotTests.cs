@@ -103,7 +103,7 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
     }
 
     [Theory]
-    [InlineData(-1, 1_030_000, 1_017_000)]
+    [InlineData(-1, 902_000, 889_000)]
     [InlineData(256_000, 236_000, 223_000)]
     public async Task TryGetContextUsageSnapshot_UsesClientBudget(int budget, int expectedWindow, int expectedThreshold)
     {

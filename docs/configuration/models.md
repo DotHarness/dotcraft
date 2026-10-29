@@ -157,6 +157,10 @@ DotCraft ships a built-in catalog for model context windows and Fast Mode suppor
     "my-256k-model": {
       "contextWindow": 256000
     },
+    "my-reserved-output-model": {
+      "contextWindow": 400000,
+      "maxInputTokens": 272000
+    },
     "custom-fast-model": {
       "contextWindow": 1048576,
       "fast": {
@@ -187,3 +191,7 @@ a different window from its family.
 Model context capacity comes directly from the merged catalog. Unknown models use
 `defaultContextWindow`, falling back to 256,000 tokens. Summary reserves and safety buffers
 are applied by compaction after the optional client budget.
+
+Some models accept less input than their context window because part of the window is reserved
+for output. `maxInputTokens` declares that input limit, and automatic compaction triggers below it
+instead of below the full window. Built-in values come from the model's own provider on models.dev.
