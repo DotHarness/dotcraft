@@ -282,7 +282,11 @@ function hydrated(persisted: PersistedState | null): Pick<MobileState, 'computer
   if (!persisted) return { computers: {}, order: [], selected: null }
   const order = persisted.order.filter((id) => persisted.computers[id])
   const computers: Record<string, ComputerState> = {}
-  for (const id of order) computers[id] = { ...freshComputer(persisted.computers[id].computer), ...persisted.computers[id] }
+  for (const id of order) {
+    const saved = persisted.computers[id]
+    const details = Object.fromEntries(Object.entries(saved.details).map(([key, detail]) => [key, { ...detail, loading: true }]))
+    computers[id] = { ...freshComputer(saved.computer), ...saved, details }
+  }
   const selected = persisted.selected && computers[persisted.selected] ? persisted.selected : (order[0] ?? null)
   return { computers, order, selected }
 }

@@ -15,6 +15,7 @@ import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
 import { TasksPill } from './BackgroundTasks'
 import { ChangesOpenerContext } from './Changes'
+import { CatchingUpRows } from './CatchingUpRows'
 import { BAR_HEIGHT } from './ChatBar'
 import { FileViewerContext } from './Chips'
 import type { DecisionActions } from './DecisionBodies'
@@ -214,6 +215,7 @@ export const ChatTranscript = memo(function ChatTranscript({
             </ChangesOpenerContext.Provider>
           </ImageReaderContext.Provider>
         </FileViewerContext.Provider>
+        {slice.loading && online && slice.project?.running && shownLines.length > 0 ? <CatchingUpRows /> : null}
         <LiveSignals signals={liveSignals} />
         {decision ? (
           <View style={styles.decision}>

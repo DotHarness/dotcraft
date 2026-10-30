@@ -336,7 +336,8 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
   computer offline until one succeeds.
 - **Catching up.** After any reconnect the app follows the AppServer recovery rules: read the thread
   header, reload history head pages, and subscribe again. Subscribing replays pending approvals and
-  questions, so nothing waiting is lost.
+  questions, so nothing waiting is lost. A chat showing saved history, restored at launch or reread
+  after a reconnect, keeps it on screen with pulsing placeholder lines beneath until the reread lands.
 - **Refresh.** Pulling down Home, a project, or a chat refreshes its computer until the refresh
   settles. Online, the phone reloads the project list, connects newly started projects, relists
   chats, rereads the workspace approval default, and on a chat rereads its header and history head
@@ -560,7 +561,7 @@ Desktop. It marks moments, not every screen:
 |---|---|
 | Home | Reflects the selected computer: idle when online, looking around while connecting, asleep when offline or phone access is off, and holding up its question sign while any chat needs the user. |
 | Pair | Greets on the scan screen, waits while reaching the computer, and celebrates when pairing completes. |
-| Transitions | Opening a chat while history loads, a project starting, and reconnecting show the mascot working with one line saying what is happening, in place of skeleton rows. |
+| Transitions | Opening a chat with no saved history while history loads, a project starting, and reconnecting show the mascot working with one line saying what is happening, in place of skeleton rows. |
 | Chat | A new chat's empty transcript greets with the mascot; a chat running an Agent Profile shows that profile's avatar instead. |
 | Empty and error states | Empty lists, the revoked notice, and the identity-changed notice pair one sentence with a matching expression. |
 

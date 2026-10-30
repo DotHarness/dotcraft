@@ -201,6 +201,7 @@ describe('offline snapshots', () => {
     expect(history.turns.map((turn) => turn.id)).toEqual(['turn'])
     expect(history.items[0].payload).toEqual({ result: 'output 0', contentItems: [{ type: 'text', text: 'kept' }] })
     expect(history.echoes).toEqual([])
+    expect(restored.computers.pc.details['p:t'].loading).toBe(true)
   })
 
   it('reuses unchanged detail snapshots and their trimmed history when only metadata changes', () => {
