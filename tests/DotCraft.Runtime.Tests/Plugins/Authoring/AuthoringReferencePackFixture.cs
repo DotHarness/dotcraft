@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using DotCraft.Agents;
 using DotCraft.Generators;
 using DotCraft.Plugins;
@@ -23,7 +24,7 @@ public sealed class AuthoringReferencePackFixture : IDisposable
         Directory.CreateDirectory(ReferencesRoot);
 
         HostAssemblyPath = Path.Combine(Root, "DotCraft.Core.dll");
-        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath));
+        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath, FrozenSet<string>.Empty));
         _inspector = new(() => new DotNetPluginApiInspector(Load()));
         CopyWithDocumentation(typeof(IDotCraftPlugin).Assembly.Location, Root);
         CopyWithDocumentation(typeof(ChatClientAgent).Assembly.Location, Root);

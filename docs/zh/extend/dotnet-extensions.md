@@ -88,7 +88,7 @@ acme.review-core/
 
 在 DotCraft checkout 之外建立独立项目时，引用已发布的 `DotCraft.Harness` 包即可获得这些 API 与工具 analyzer。使用 checkout 项目引用构建时，还需引用 `DotCraft.Generators.csproj`，并设置 `OutputItemType="Analyzer"`、`ReferenceOutputAssembly="false"`。单独引用 Core 不会运行生成器。请面向同一宿主版本构建，bundle 中只保留插件及其私有依赖闭包。
 
-加载上下文按**简单名称**把每个 DotCraft 程序集及其包闭包解析到宿主中已加载的副本，忽略 bundle 自带的版本。类型标识的单一性正来自于此：中间件贡献改写的 `ChatMessage`，与内核派发时使用的是同一个类型——哪怕 bundle 自带了 `Microsoft.Extensions.AI.Abstractions.dll`。随包分发这些程序集只会让 bundle 变大。其余内容都从 bundle 的 `.deps.json` 与相邻探测解析，并限制在 bundle 目录内。
+加载上下文按**简单名称**把每个 DotCraft 程序集及其包闭包解析到宿主中已加载的副本，忽略 bundle 自带的版本。类型标识的单一性正来自于此：中间件贡献改写的 `ChatMessage`，与内核派发时使用的是同一个类型——哪怕 bundle 自带了 `Microsoft.Extensions.AI.Abstractions.dll`。随包分发这些程序集只会让 bundle 变大。其余内容都从 bundle 的 `.deps.json` 与相邻探测解析，并限制在 bundle 目录内。嵌入 DotCraft 的应用可以把自己的契约程序集加入共享集合，见[与插件共享应用契约](./harness/hosting-lifecycle#与插件共享应用契约)。
 
 ### 绑定到宿主版本
 

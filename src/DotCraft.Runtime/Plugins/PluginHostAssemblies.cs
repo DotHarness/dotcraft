@@ -6,7 +6,6 @@ namespace DotCraft.Runtime;
 /// <summary>Which assemblies a plugin load context shares with the Host instead of loading from the bundle (spec §3).</summary>
 internal static class PluginHostAssemblies
 {
-    /// <summary>The simple-name prefix every DotCraft product assembly carries.</summary>
     private const string ProductAssemblyPrefix = "DotCraft";
 
     private static readonly FrozenSet<string> SharedPackages = new[]
@@ -34,7 +33,6 @@ internal static class PluginHostAssemblies
 
     private static readonly FrozenSet<string> FrameworkAssemblies = BuildFrameworkAssemblies();
 
-    /// <summary>Gets the non-framework package assemblies shared with plugin load contexts by simple name.</summary>
     public static IReadOnlySet<string> SharedPackageAssemblies => SharedPackages;
 
     /// <summary>Determines whether an assembly simple name resolves to the Host's instance rather than the bundle copy.</summary>
@@ -42,6 +40,36 @@ internal static class PluginHostAssemblies
         !string.IsNullOrEmpty(simpleName)
         && (simpleName.StartsWith(ProductAssemblyPrefix, StringComparison.OrdinalIgnoreCase)
             || SharedPackages.Contains(simpleName));
+
+    internal static FrozenSet<string> ValidateHostShared(IEnumerable<string> simpleNames)
+    {
+        var names = simpleNames.ToArray();
+        foreach (var name in names)
+        {
+            if (!IsSimpleName(name) || IsShared(name) || IsFrameworkAssembly(name))
+            {
+                throw new ArgumentException(
+                    $"'{name}' is not an assembly simple name the Host can additionally share with plugins.",
+                    nameof(simpleNames));
+            }
+        }
+
+        return names.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSimpleName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            return false;
+        try
+        {
+            return new AssemblyName(name).Name == name;
+        }
+        catch (FileLoadException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Determines whether an assembly simple name belongs to the shared framework the Host runs on. Read from

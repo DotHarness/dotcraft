@@ -1,13 +1,14 @@
+using System.Collections.Frozen;
+
 namespace DotCraft.Runtime;
 
-/// <summary>Controls bounded in-process plugin lifecycle operations.</summary>
 internal sealed record DotNetPluginRuntimeOptions
 {
     /// <summary>Gets the construction and activation deadline.</summary>
     public TimeSpan ActivationTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Gets how long an ordinary mutation waits for cleanup before leaving it pending.</summary>
-    /// <remarks>Shutdown still waits for functional teardown; only the outer process can impose a safe hard deadline.</remarks>
+    /// <remarks>Shutdown still waits for functional teardown, and only the outer process can impose a safe hard deadline.</remarks>
     public TimeSpan CleanupTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Gets how long shutdown waits for the generations it has just unloaded to be collected.</summary>
@@ -18,4 +19,6 @@ internal sealed record DotNetPluginRuntimeOptions
 
     /// <summary>Gets how many uncollected generations of one plugin make a process restart worth recommending.</summary>
     public int LeakedGenerationRestartThreshold { get; init; } = 3;
+
+    public IReadOnlySet<string> HostSharedAssemblies { get; init; } = FrozenSet<string>.Empty;
 }

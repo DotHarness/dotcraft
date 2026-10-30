@@ -37,7 +37,6 @@ internal sealed partial class DotNetPluginRuntimeManager :
     private bool _disposed;
     private readonly bool _executionOnly;
 
-    /// <summary>Creates a runtime manager for one configured workspace.</summary>
     internal DotNetPluginRuntimeManager(
         PluginDiscoveryService discovery,
         AppConfig config,
@@ -77,6 +76,8 @@ internal sealed partial class DotNetPluginRuntimeManager :
 
     /// <summary>Gets the aggregate Tool source that projects every active plugin's Tools.</summary>
     public DotNetPluginToolSource ToolSource { get; }
+
+    internal IReadOnlySet<string> HostSharedAssemblies => _options.HostSharedAssemblies;
 
     /// <summary>Gets the latest Host-owned immutable runtime projection.</summary>
     public PluginRuntimeSnapshot Snapshot => Volatile.Read(ref _snapshot);

@@ -14,17 +14,20 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     private readonly string _entryDirectory;
     private readonly AssemblyDependencyResolver _resolver;
     private readonly IReadOnlyDictionary<string, Assembly> _providerApiAssemblies;
+    private readonly IReadOnlySet<string> _hostSharedAssemblies;
 
     public PluginLoadContext(
         string pluginId,
         string root,
         string entryAssemblyPath,
-        IReadOnlyDictionary<string, Assembly> providerApiAssemblies)
+        IReadOnlyDictionary<string, Assembly> providerApiAssemblies,
+        IReadOnlySet<string> hostSharedAssemblies)
         : base($"dotcraft-plugin:{pluginId}:{Guid.NewGuid():N}", isCollectible: true)
     {
         _root = Path.GetFullPath(root);
         _entryDirectory = Path.GetDirectoryName(entryAssemblyPath)!;
         _providerApiAssemblies = providerApiAssemblies;
+        _hostSharedAssemblies = hostSharedAssemblies;
         ValidateDependencyManifest(Path.ChangeExtension(entryAssemblyPath, ".deps.json"));
         _resolver = new AssemblyDependencyResolver(entryAssemblyPath);
     }
@@ -35,7 +38,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         if (simpleName == null)
             return null;
 
-        if (PluginHostAssemblies.IsShared(simpleName))
+        if (PluginHostAssemblies.IsShared(simpleName) || _hostSharedAssemblies.Contains(simpleName))
         {
             var shared = PluginHostAssemblies.TryResolveShared(simpleName);
             if (shared != null)

@@ -5,13 +5,11 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Describes one public symbol available to managed plugins.</summary>
 internal sealed record DotNetPluginApiSymbol(
     string AssemblyName,
     string Signature,
     string? Summary);
 
-/// <summary>Queries the public API represented by the current Host reference pack.</summary>
 internal sealed class DotNetPluginApiInspector
 {
     private const int ResultLimit = 25;
@@ -60,18 +58,19 @@ internal sealed class DotNetPluginApiInspector
             | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
             | SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
+    private readonly DotNetPluginReferenceSet _references;
     private readonly CSharpCompilation _compilation;
 
     public DotNetPluginApiInspector(DotNetPluginReferenceSet references)
     {
         ArgumentNullException.ThrowIfNull(references);
+        _references = references;
         _compilation = CSharpCompilation.Create(
             "DotCraft.PluginAuthoring.ApiInspection",
             references: references.References,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
-    /// <summary>Finds public types and members whose fully-qualified or simple name matches a query.</summary>
     public IReadOnlyList<DotNetPluginApiSymbol> Inspect(string query)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
@@ -102,7 +101,7 @@ internal sealed class DotNetPluginApiInspector
     private IEnumerable<ISymbol> EnumeratePublicSymbols()
     {
         foreach (var assembly in _compilation.SourceModule.ReferencedAssemblySymbols
-                     .Where(static assembly => DotNetPluginReferenceSet.IsPluginApiAssembly(assembly.Identity.Name))
+                     .Where(assembly => _references.IsPluginApiAssembly(assembly.Identity.Name))
                      .OrderBy(static assembly => assembly.Identity.Name, StringComparer.Ordinal))
         {
             foreach (var type in EnumeratePublicTypes(assembly.GlobalNamespace))

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Text.Json;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
@@ -66,7 +67,7 @@ internal sealed class PluginGenerationHarness : IDisposable
             DataRoot(pluginId),
             WorkspaceRoot,
             settings ?? JsonSerializer.Deserialize<JsonElement>("{}"u8),
-            new PluginGenerationHost(Services, Registry, CallGates),
+            new PluginGenerationHost(Services, Registry, CallGates, FrozenSet<string>.Empty),
             new Dictionary<string, PluginGeneration>(StringComparer.Ordinal),
             new PluginActivationCommitGate(),
             static (_, _) => null,
