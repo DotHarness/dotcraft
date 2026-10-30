@@ -1465,7 +1465,7 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
     }
 
     [Fact]
-    public async Task SubmitInputAsync_NodeReplImageReachesModel_AndIsNormalizedAfterRestore()
+    public async Task SubmitInputAsync_NodeReplImageReachesModel_AndIsResentAfterRestore()
     {
         var imageBytes = Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
@@ -1518,22 +1518,23 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
 
         await DrainAsync(followUpService.SubmitInputAsync(
             thread.Id,
-            [new TextContent("continue without the old screenshot")]));
+            [new TextContent("continue")]));
 
-        var providerResult = Assert.Single(followUpChatClient.LastMessages
-            .SelectMany(message => message.Contents)
-            .OfType<FunctionResultContent>());
+        var followUpMessages = followUpChatClient.LastMessages.ToList();
+        var toolMessageIndex = followUpMessages.FindIndex(message => message.Role == ChatRole.Tool);
+        var providerResult = Assert.Single(followUpMessages[toolMessageIndex].Contents.OfType<FunctionResultContent>());
         Assert.IsType<string>(providerResult.Result);
-        Assert.DoesNotContain(
-            followUpChatClient.LastMessages.SelectMany(message => message.Contents),
-            content => content is DataContent);
+        var resentImage = Assert.Single(followUpMessages[toolMessageIndex + 1].Contents.OfType<DataContent>());
+        Assert.Equal(imageBytes, resentImage.Data.ToArray());
 
         var snapshot = Assert.IsType<PromptRequestSnapshot>(
             followUpService.TryGetLastPromptRequestSnapshot(thread.Id));
         var snapshotResult = Assert.Single(snapshot.Messages
             .SelectMany(message => message.Contents)
             .OfType<FunctionResultContent>());
-        Assert.IsType<string>(snapshotResult.Result);
+        Assert.Contains(
+            Assert.IsAssignableFrom<IEnumerable<AIContent>>(snapshotResult.Result),
+            content => content is DataContent);
         Assert.Equal(
             MessageTokenEstimator.ComputePrefixFingerprint(snapshot.Messages, snapshot.Messages.Count),
             snapshot.MessageFingerprint);

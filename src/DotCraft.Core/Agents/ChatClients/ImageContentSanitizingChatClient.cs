@@ -6,12 +6,11 @@ using DotCraft.Sessions;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Replaces non-text content (images, binary data) in tool-result messages with
-/// text descriptions before forwarding to the LLM API.
-/// Many OpenAI protocol endpoints reject non-text content in tool-role messages (HTTP 400).
-/// Image bytes from the current tool round are re-attached as a synthetic user message so vision models can see them.
+/// Keeps prepared tool-result images inside the result, or for text-only tool results describes them and attaches them in one user message after each run of tool messages.
+/// The projection depends only on the history, so a later request never changes what an earlier one sent.
 /// </summary>
-public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : DelegatingChatClient(innerClient)
+public sealed class ImageContentSanitizingChatClient(IChatClient innerClient, bool toolResultsAcceptImages = false)
+    : DelegatingChatClient(innerClient)
 {
     public override Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> chatMessages,
@@ -29,114 +28,120 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         return base.GetStreamingResponseAsync(SanitizeMessages(chatMessages), options, cancellationToken);
     }
 
-    private static List<ChatMessage> SanitizeMessages(IEnumerable<ChatMessage> messages)
+    private List<ChatMessage> SanitizeMessages(IEnumerable<ChatMessage> messages)
     {
-        var list = messages is IList<ChatMessage> il
-            ? new List<ChatMessage>(il)
-            : new List<ChatMessage>(messages);
-
-        // Tool messages strictly after the last non-tool message belong to the current invocation round.
-        var lastNonToolIndex = FindLastNonToolIndex(list);
-
-        var promotedImages = new List<DataContent>();
-        var result = new List<ChatMessage>(list.Count + 1);
-
-        for (var i = 0; i < list.Count; i++)
+        var result = new List<ChatMessage>();
+        List<AIContent>? runImages = null;
+        foreach (var message in messages)
         {
-            var msg = list[i];
-            var isCurrentRoundTool = msg.Role == ChatRole.Tool && i > lastNonToolIndex;
+            if (message.Role != ChatRole.Tool)
+                FlushRunImages(result, ref runImages);
 
-            var needsSanitization = false;
-            foreach (var content in msg.Contents)
-            {
-                if (content is FunctionResultContent frc && HasNonTextContent(frc.Result))
-                {
-                    needsSanitization = true;
-                    break;
-                }
-            }
-
-            if (!needsSanitization)
-            {
-                result.Add(msg);
-                continue;
-            }
-
-            var newContents = new List<AIContent>(msg.Contents.Count);
-            foreach (var content in msg.Contents)
-            {
-                if (content is FunctionResultContent frc && HasNonTextContent(frc.Result))
-                {
-                    if (isCurrentRoundTool && TryGetResultContentItems(frc.Result, out var items))
-                    {
-                        var placeholderTexts = new List<string>();
-                        foreach (var item in items)
-                        {
-                            if (item is DataContent dc &&
-                                ModelImageInputPreparer.IsImageMediaType(dc.MediaType))
-                            {
-                                var prepared = ModelImageInputPreparer.Prepare(dc);
-                                if (prepared.Content != null)
-                                    promotedImages.Add(prepared.Content);
-                                else if (!string.IsNullOrWhiteSpace(prepared.PlaceholderText))
-                                    placeholderTexts.Add(prepared.PlaceholderText);
-                            }
-                        }
-
-                        newContents.Add(new FunctionResultContent(
-                            frc.CallId,
-                            AppendPlaceholders(DescribeResult(frc.Result), placeholderTexts)));
-                        continue;
-                    }
-
-                    newContents.Add(new FunctionResultContent(frc.CallId, DescribeResult(frc.Result)));
-                }
-                else
-                {
-                    newContents.Add(content);
-                }
-            }
-
-            result.Add(new ChatMessage(msg.Role, (IList<AIContent>)newContents));
+            result.Add(toolResultsAcceptImages
+                ? PrepareToolImages(message)
+                : DescribeToolImages(message, ref runImages));
         }
 
-        if (promotedImages.Count > 0)
-        {
-            var parts = new List<AIContent>(promotedImages.Count + 1)
-            {
-                new TextContent(ModelImageInputPreparer.ToolResultImagesMarker)
-            };
-            parts.AddRange(promotedImages);
-            result.Add(new ChatMessage(ChatRole.User, (IList<AIContent>)parts));
-        }
-
+        FlushRunImages(result, ref runImages);
         return result;
     }
 
-    private static string AppendPlaceholders(string text, IReadOnlyList<string> placeholderTexts)
+    private static ChatMessage PrepareToolImages(ChatMessage message)
     {
-        if (placeholderTexts.Count == 0)
-            return text;
-
-        var parts = new List<string> { text };
-        foreach (var placeholder in placeholderTexts.Distinct(StringComparer.Ordinal))
-            parts.Add(placeholder);
-        return string.Join("\n", parts);
-    }
-
-    internal static bool HasNonTextContent(object? result)
-    {
-        if (TryGetResultContentItems(result, out var items))
+        List<AIContent>? contents = null;
+        for (var i = 0; i < message.Contents.Count; i++)
         {
+            if (message.Contents[i] is not FunctionResultContent frc
+                || !TryGetResultContentItems(frc.Result, out var items)
+                || items.All(IsTextContent))
+            {
+                continue;
+            }
+
+            var prepared = new List<AIContent>(items.Count);
             foreach (var item in items)
             {
-                if (item is not TextContent and not DeferredToolReferenceContent)
-                    return true;
+                if (IsTextContent(item))
+                {
+                    prepared.Add(item);
+                }
+                else if (item is DataContent dc && ModelImageInputPreparer.IsImageMediaType(dc.MediaType))
+                {
+                    var image = ModelImageInputPreparer.Prepare(dc);
+                    prepared.Add((AIContent?)image.Content ?? new TextContent(image.PlaceholderText));
+                }
+                else
+                {
+                    prepared.Add(new TextContent(DescribeContent(item)));
+                }
             }
+
+            contents ??= new List<AIContent>(message.Contents);
+            contents[i] = new FunctionResultContent(frc.CallId, prepared);
         }
 
-        return false;
+        return contents is null ? message : WithContents(message, contents);
     }
+
+    private static ChatMessage DescribeToolImages(ChatMessage message, ref List<AIContent>? runImages)
+    {
+        List<AIContent>? contents = null;
+        for (var i = 0; i < message.Contents.Count; i++)
+        {
+            if (message.Contents[i] is not FunctionResultContent frc || !HasNonTextContent(frc.Result))
+                continue;
+
+            var placeholderTexts = new List<string>();
+            if (TryGetResultContentItems(frc.Result, out var items))
+            {
+                foreach (var item in items)
+                {
+                    if (item is not DataContent dc || !ModelImageInputPreparer.IsImageMediaType(dc.MediaType))
+                        continue;
+
+                    var prepared = ModelImageInputPreparer.Prepare(dc);
+                    if (prepared.Content != null)
+                        (runImages ??= []).Add(prepared.Content);
+                    else
+                        placeholderTexts.Add(prepared.PlaceholderText!);
+                }
+            }
+
+            contents ??= new List<AIContent>(message.Contents);
+            contents[i] = new FunctionResultContent(
+                frc.CallId,
+                AppendPlaceholders(DescribeResult(frc.Result), placeholderTexts));
+        }
+
+        return contents is null ? message : WithContents(message, contents);
+    }
+
+    private static void FlushRunImages(List<ChatMessage> result, ref List<AIContent>? runImages)
+    {
+        if (runImages is null)
+            return;
+
+        result.Add(new ChatMessage(
+            ChatRole.User,
+            [new TextContent(ModelImageInputPreparer.ToolResultImagesMarker), .. runImages]));
+        runImages = null;
+    }
+
+    private static ChatMessage WithContents(ChatMessage message, IList<AIContent> contents) =>
+        new(message.Role, contents)
+        {
+            AuthorName = message.AuthorName,
+            MessageId = message.MessageId,
+            AdditionalProperties = message.AdditionalProperties
+        };
+
+    private static string AppendPlaceholders(string text, IReadOnlyList<string> placeholderTexts) =>
+        string.Join("\n", [text, .. placeholderTexts.Distinct(StringComparer.Ordinal)]);
+
+    private static bool IsTextContent(AIContent item) => item is TextContent or DeferredToolReferenceContent;
+
+    internal static bool HasNonTextContent(object? result) =>
+        TryGetResultContentItems(result, out var items) && !items.All(IsTextContent);
 
     public static string DescribeResult(object? result)
     {
@@ -149,59 +154,29 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         var parts = new List<string>();
         foreach (var item in items)
         {
-            switch (item)
-            {
-                case TextContent tc:
-                    if (!string.IsNullOrEmpty(tc.Text))
-                        parts.Add(tc.Text);
-                    break;
-                case DataContent dc:
-                {
-                    var mediaType = dc.MediaType;
-                    var size = dc.Data.Length;
-                    parts.Add(mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-                        ? $"[Image ({mediaType}), {size:N0} bytes]"
-                        : $"[Binary data ({mediaType}), {size:N0} bytes]");
-                    break;
-                }
-                default:
-                    var text = item.ToString();
-                    if (!string.IsNullOrEmpty(text))
-                        parts.Add(text);
-                    break;
-            }
+            if (DescribeContent(item) is { Length: > 0 } text)
+                parts.Add(text);
         }
 
         return parts.Count > 0 ? string.Join("\n", parts) : "(no output)";
     }
 
+    private static string DescribeContent(AIContent item) =>
+        item switch
+        {
+            TextContent tc => tc.Text,
+            DataContent dc => dc.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                ? $"[Image ({dc.MediaType}), {dc.Data.Length:N0} bytes]"
+                : $"[Binary data ({dc.MediaType}), {dc.Data.Length:N0} bytes]",
+            _ => item.ToString() ?? string.Empty
+        };
+
     internal static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
         IReadOnlyList<ChatMessage> messages)
-        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: false);
-
-    internal static IReadOnlyList<ChatMessage> ReplaceHistoricalToolImagesWithDescriptions(
-        IReadOnlyList<ChatMessage> messages)
-        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: true);
-
-    private static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
-        IReadOnlyList<ChatMessage> messages,
-        bool preserveCurrentRoundImages)
     {
-        var lastNonToolIndex = preserveCurrentRoundImages
-            ? FindLastNonToolIndex(messages)
-            : int.MaxValue;
         var result = new List<ChatMessage>(messages.Count);
-        for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
+        foreach (var message in messages)
         {
-            var message = messages[messageIndex];
-            if (preserveCurrentRoundImages
-                && message.Role == ChatRole.Tool
-                && messageIndex > lastNonToolIndex)
-            {
-                result.Add(message);
-                continue;
-            }
-
             List<AIContent>? contents = null;
             for (var i = 0; i < message.Contents.Count; i++)
             {
@@ -212,32 +187,10 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
                 contents[i] = new FunctionResultContent(frc.CallId, DescribeResult(frc.Result));
             }
 
-            if (contents is null)
-            {
-                result.Add(message);
-                continue;
-            }
-
-            result.Add(new ChatMessage(message.Role, contents)
-            {
-                AuthorName = message.AuthorName,
-                MessageId = message.MessageId
-            });
+            result.Add(contents is null ? message : WithContents(message, contents));
         }
 
         return result;
-    }
-
-    private static int FindLastNonToolIndex(IReadOnlyList<ChatMessage> messages)
-    {
-        var lastNonToolIndex = -1;
-        for (var i = 0; i < messages.Count; i++)
-        {
-            if (messages[i].Role != ChatRole.Tool)
-                lastNonToolIndex = i;
-        }
-
-        return lastNonToolIndex;
     }
 
     internal static bool TryGetResultContentItems(
@@ -263,13 +216,8 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
                 items = json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default) ?? [];
                 return true;
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or NotSupportedException)
             {
-                // Preserve the provider-compatible scalar fallback below.
-            }
-            catch (NotSupportedException)
-            {
-                // Preserve the provider-compatible scalar fallback below.
             }
         }
 

@@ -19,4 +19,7 @@ internal sealed class ChatPipelineHostInputs
 
     /// <summary>Gets the factory for the tool-call orchestration client, whose configuration stays owned by the call site.</summary>
     internal Func<IChatClient, IChatClient>? CreateFunctionInvokingClient { get; init; }
+
+    /// <summary>Gets whether the provider protocol accepts images inside tool results; otherwise tool results carry only text.</summary>
+    internal bool ToolResultsAcceptImages { get; init; }
 }

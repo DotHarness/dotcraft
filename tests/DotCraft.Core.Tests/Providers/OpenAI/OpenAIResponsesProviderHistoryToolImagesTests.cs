@@ -9,33 +9,27 @@ namespace DotCraft.Tests.Providers.OpenAI;
 public sealed class OpenAIResponsesProviderHistoryToolImagesTests
 {
     [Fact]
-    public async Task PrepareInputAsync_SendsOnlyTheCurrentToolRoundImages()
+    public async Task PrepareInputAsync_KeepsToolImagesInTheirOutputsAcrossRequests()
     {
         var context = CreateContext();
         List<ChatMessage> messages =
         [
             new(ChatRole.User, "look at the screen"),
             Call("call-1"),
-            Result("call-1"),
-            ToolImages()
+            Result("call-1")
         ];
 
         var first = await context.PrepareInputAsync(messages, null, CancellationToken.None);
-        Assert.Single(Images(first.Input));
+        var output = Assert.IsType<JsonArray>(first.Input.OfType<JsonObject>().Single(IsCallOutput)["output"]);
+        Assert.Equal(["input_text", "input_image"], output.Select(part => (string?)part!["type"]));
 
-        messages.RemoveAt(messages.Count - 1);
-        messages.AddRange([Call("call-2"), Result("call-2"), ToolImages()]);
+        messages.AddRange([Call("call-2"), Result("call-2"), new ChatMessage(ChatRole.User, "thanks")]);
         var second = await context.PrepareInputAsync(messages, null, CancellationToken.None);
-        Assert.Single(Images(second.Input));
-        Assert.Contains(Texts(second.Input), text => text.StartsWith("[Image (image/png), ", StringComparison.Ordinal));
 
-        var retry = await context.PrepareInputAsync(messages, null, CancellationToken.None);
-        Assert.Single(Images(retry.Input));
-
-        messages.RemoveAt(messages.Count - 1);
-        messages.Add(new ChatMessage(ChatRole.User, "thanks"));
-        var next = await context.PrepareInputAsync(messages, null, CancellationToken.None);
-        Assert.Empty(Images(next.Input));
+        Assert.Equal(
+            first.Input.Select(item => item!.ToJsonString()),
+            second.Input.Take(first.Input.Count).Select(item => item!.ToJsonString()));
+        Assert.Equal(2, second.Input.OfType<JsonObject>().Count(IsCallOutput));
     }
 
     [Fact]
@@ -78,14 +72,16 @@ public sealed class OpenAIResponsesProviderHistoryToolImagesTests
         new(ChatRole.Assistant, (IList<AIContent>)[new FunctionCallContent(callId, "Screenshot")]);
 
     private static ChatMessage Result(string callId) =>
-        new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent(callId, "[Image (image/png), 70 bytes]")]);
-
-    private static ChatMessage ToolImages() =>
-        new(ChatRole.User, (IList<AIContent>)
+        new(ChatRole.Tool, (IList<AIContent>)
         [
-            new TextContent(ModelImageInputPreparer.ToolResultImagesMarker),
-            new DataContent(ImageFixture.Red("image/png"), "image/png")
+            new FunctionResultContent(callId, (IList<AIContent>)
+            [
+                new TextContent("screenshot"),
+                new DataContent(ImageFixture.Red("image/png"), "image/png")
+            ])
         ]);
+
+    private static bool IsCallOutput(JsonObject item) => (string?)item["type"] == "function_call_output";
 
     private static IEnumerable<JsonObject> Parts(JsonArray input) =>
         input.OfType<JsonObject>()
@@ -95,7 +91,4 @@ public sealed class OpenAIResponsesProviderHistoryToolImagesTests
 
     private static List<JsonObject> Images(JsonArray input) =>
         Parts(input).Where(part => (string?)part["type"] == "input_image").ToList();
-
-    private static List<string> Texts(JsonArray input) =>
-        Parts(input).Where(part => (string?)part["type"] == "input_text").Select(part => (string)part["text"]!).ToList();
 }
