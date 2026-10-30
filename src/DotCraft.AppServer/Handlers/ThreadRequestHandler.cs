@@ -414,8 +414,7 @@ internal sealed partial class ThreadRequestHandler(
         {
             throw AppServerErrors.Unsupported(ex.Message);
         }
-        var snapshot = await sessionService.ReadThreadSnapshotAsync(p.ThreadId, ct);
-        var projected = threadProjector.ProjectHistoryItems(snapshot.Thread, page.Data);
+        var projected = threadProjector.ProjectHistoryItems(page.Data);
         return AppServerTypedResult<Contract.ThreadItemsListResult>.FromResult(new()
         {
             Data = projected.Select(entry => new Contract.ThreadItemListEntry

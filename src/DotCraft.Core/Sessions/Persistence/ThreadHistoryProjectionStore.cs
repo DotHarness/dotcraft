@@ -33,17 +33,19 @@ internal sealed partial class ThreadHistoryProjectionStore(
     public async Task<ThreadHistorySnapshot> ReadSnapshotAsync(
         string threadId,
         string rolloutPath,
+        bool repair,
         CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
-        await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
+        if (repair)
+            await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
         try
         {
             var result = ReadSnapshot(threadId);
             QueryRows.Record(1, new KeyValuePair<string, object?>("scope", "snapshot"));
             return result;
         }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        catch (Exception ex) when (repair && ex is JsonException or InvalidOperationException)
         {
             await RebuildCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
             return ReadSnapshot(threadId);
@@ -61,17 +63,19 @@ internal sealed partial class ThreadHistoryProjectionStore(
         ThreadHistoryCursor? cursor,
         int limit,
         ThreadHistorySortDirection direction,
+        bool repair,
         CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
-        await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
+        if (repair)
+            await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
         try
         {
             var page = QueryTurns(threadId, cursor, limit, direction);
             QueryRows.Record(page.Data.Count, new KeyValuePair<string, object?>("scope", "turns"));
             return page;
         }
-        catch (JsonException)
+        catch (JsonException) when (repair)
         {
             await RebuildCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
             return QueryTurns(threadId, cursor, limit, direction);
@@ -90,17 +94,19 @@ internal sealed partial class ThreadHistoryProjectionStore(
         ThreadHistoryCursor? cursor,
         int limit,
         ThreadHistorySortDirection direction,
+        bool repair,
         CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
-        await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
+        if (repair)
+            await EnsureCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
         try
         {
             var page = QueryItems(threadId, turnId, cursor, limit, direction);
             QueryRows.Record(page.Data.Count, new KeyValuePair<string, object?>("scope", turnId is null ? "items" : "turn_items"));
             return page;
         }
-        catch (JsonException)
+        catch (JsonException) when (repair)
         {
             await RebuildCurrentAsync(threadId, rolloutPath, ct).ConfigureAwait(false);
             return QueryItems(threadId, turnId, cursor, limit, direction);
@@ -110,6 +116,34 @@ internal sealed partial class ThreadHistoryProjectionStore(
             QueryDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("scope", turnId is null ? "items" : "turn_items"));
         }
+    }
+
+    /// <summary>
+    /// Whether the committed projection already covers the rollout exactly, so it can be read without repair.
+    /// </summary>
+    public bool IsCurrent(string threadId, string rolloutPath)
+    {
+        var normalizedPath = Path.GetFullPath(rolloutPath);
+        var file = new FileInfo(normalizedPath);
+        if (!file.Exists)
+            return false;
+        var length = file.Length;
+        using var connection = stateDatabase.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.rollout_path, s.projected_rollout_offset, t.rollout_path, t.projected_rollout_offset, t.attachment_index_version
+            FROM thread_history_projection_state s
+            JOIN threads t ON t.thread_id = s.thread_id
+            WHERE s.thread_id = $thread_id
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            && reader.GetInt64(1) == length
+            && reader.GetInt64(3) == length
+            && reader.GetInt32(4) == ThreadAttachmentStore.IndexVersion
+            && string.Equals(StoredRolloutPath.Resolve(connection, reader.GetString(0)), normalizedPath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(StoredRolloutPath.Resolve(connection, reader.GetString(2)), normalizedPath, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task EnsureCurrentAsync(string threadId, string rolloutPath, CancellationToken ct)

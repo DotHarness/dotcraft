@@ -127,6 +127,34 @@ public sealed class ThreadHistoryProjectionTests : IDisposable
     }
 
     [Fact]
+    public async Task CurrentHistoryReads_DoNotWaitOnAnOpenWrite()
+    {
+        var thread = CreateThread(turnCount: 2, itemsPerTurn: 2);
+        await _store.SaveThreadAsync(thread);
+        await _store.ListThreadTurnsAsync(thread.Id, null, 10, ThreadHistorySortDirection.Ascending);
+
+        using var gate = await ThreadRolloutWriteGate.AcquireAsync(_root, thread.Id);
+        using var connection = new WorkspaceStateDatabase(_root).OpenConnection();
+        using var write = connection.BeginTransaction();
+        using (var touch = connection.CreateCommand())
+        {
+            touch.Transaction = write;
+            touch.CommandText = "UPDATE thread_items SET user_text = user_text WHERE thread_id = $thread_id";
+            touch.Parameters.AddWithValue("$thread_id", thread.Id);
+            touch.ExecuteNonQuery();
+        }
+
+        var reads = Task.WhenAll(
+            _store.ReadThreadSnapshotAsync(thread.Id),
+            _store.ListThreadTurnsAsync(thread.Id, null, 10, ThreadHistorySortDirection.Descending),
+            _store.ListThreadItemsAsync(thread.Id, "turn_002", null, 10, ThreadHistorySortDirection.Ascending));
+
+        Assert.Same(reads, await Task.WhenAny(reads, Task.Delay(TimeSpan.FromSeconds(5))));
+        var items = await _store.ListThreadItemsAsync(thread.Id, "turn_002", null, 10, ThreadHistorySortDirection.Ascending);
+        Assert.Equal(2, items.Data.Count);
+    }
+
+    [Fact]
     public async Task ProviderHistoryPayload_IsSkippedWithoutEnteringProjection()
     {
         var thread = CreateThread(turnCount: 1, itemsPerTurn: 1);

@@ -893,6 +893,8 @@ Persistent forks project their own rollout and share no rows with the source. Ar
 
 Projection state is created and repaired on demand, not by a startup scan. A missing state row triggers a streaming rebuild; a valid checkpoint behind the file length scans only the complete suffix; a changed path, shortened file, invalid record boundary, or invalid projected JSON clears and rebuilds that thread. Repair runs under the per-thread gate, publishes one transaction, and retries the query.
 
+A read whose projection checkpoint and path match the rollout's current length and path is served from the committed projection without the gate or a write transaction, so reads and appends of one thread never wait on one another; it observes the projection either before or after a concurrent commit. Any other read, or one whose stored JSON fails to decode, takes the gate and repairs first. `state.db` runs in WAL mode with a private cache per connection, so a reader sees the last committed state instead of waiting on another connection's open write. Each history query logs at Debug its scope, row count, duration, and the time spent waiting for the gate; one taking longer than one second logs a Warning.
+
 There is no full-rollout fallback. A malformed record after the canonical header is skipped with a warning, as in replay. Canonical identity errors, unrecoverable projection errors, and failed query or repair return the stable error `ThreadHistoryUnavailable`. Deleting `state.db` or the history tables is supported because the next successful read rebuilds the projection.
 
 Read-only query operations:
