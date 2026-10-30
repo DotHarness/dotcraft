@@ -5,32 +5,34 @@ using Microsoft.CodeAnalysis;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Provides the Host-matched metadata references used to author managed plugins.</summary>
 internal sealed class DotNetPluginReferenceSet
 {
     private const string CoreAssemblyName = "DotCraft.Core";
     private const string AgentsAssemblyName = "DotCraft.Agents";
 
-    private DotNetPluginReferenceSet(IReadOnlyList<MetadataReference> references)
+    private readonly IReadOnlySet<string> _hostSharedAssemblies;
+
+    private DotNetPluginReferenceSet(
+        IReadOnlyList<MetadataReference> references,
+        IReadOnlySet<string> hostSharedAssemblies)
     {
         References = references;
+        _hostSharedAssemblies = hostSharedAssemblies;
     }
 
-    /// <summary>Gets the references exposed to the plugin authoring compiler.</summary>
     public IReadOnlyList<MetadataReference> References { get; }
 
     /// <summary>Loads the reference pack shipped beside the current extracted Host.</summary>
-    public static DotNetPluginReferenceSet LoadCurrentHost()
+    public static DotNetPluginReferenceSet LoadCurrentHost(IReadOnlySet<string> hostSharedAssemblies)
     {
         var hostApiAssemblyPath = typeof(IDotCraftPlugin).Assembly.Location;
         if (string.IsNullOrWhiteSpace(hostApiAssemblyPath))
             throw new InvalidOperationException("The current Host assembly has no extracted location.");
 
-        return Load(hostApiAssemblyPath);
+        return Load(hostApiAssemblyPath, hostSharedAssemblies);
     }
 
-    /// <summary>Loads the reference pack beside a Host API assembly.</summary>
-    internal static DotNetPluginReferenceSet Load(string hostApiAssemblyPath)
+    internal static DotNetPluginReferenceSet Load(string hostApiAssemblyPath, IReadOnlySet<string> hostSharedAssemblies)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hostApiAssemblyPath);
 
@@ -49,20 +51,30 @@ internal sealed class DotNetPluginReferenceSet
             .Where(static path => IsBclReference(Path.GetFileNameWithoutExtension(path)))
             .Concat(Directory.EnumerateFiles(hostRoot, "*.dll", SearchOption.TopDirectoryOnly)
                 .Where(IsHostContractReference))
+            .Concat(hostSharedAssemblies.Select(ResolveHostSharedAssembly))
             .OrderBy(static path => Path.GetFileNameWithoutExtension(path), StringComparer.Ordinal)
             .Select(CreateReference)
             .ToArray();
 
-        return new DotNetPluginReferenceSet(Array.AsReadOnly(references));
+        return new DotNetPluginReferenceSet(Array.AsReadOnly(references), hostSharedAssemblies);
     }
 
-    private static bool IsHostContractReference(string path)
+    internal bool IsPluginApiAssembly(string assemblyName) =>
+        IsHostPluginApiAssembly(assemblyName) || _hostSharedAssemblies.Contains(assemblyName);
+
+    private static bool IsHostContractReference(string path) =>
+        IsHostPluginApiAssembly(Path.GetFileNameWithoutExtension(path));
+
+    private static string ResolveHostSharedAssembly(string assemblyName)
     {
-        var name = Path.GetFileNameWithoutExtension(path);
-        return IsPluginApiAssembly(name);
+        var location = PluginHostAssemblies.TryResolveShared(assemblyName)?.Location;
+        if (string.IsNullOrEmpty(location))
+            throw new FileNotFoundException(
+                $"The DotCraft authoring reference pack is missing {assemblyName}.dll.");
+        return location;
     }
 
-    internal static bool IsPluginApiAssembly(string assemblyName) =>
+    private static bool IsHostPluginApiAssembly(string assemblyName) =>
         string.Equals(assemblyName, CoreAssemblyName, StringComparison.OrdinalIgnoreCase)
         || string.Equals(assemblyName, AgentsAssemblyName, StringComparison.OrdinalIgnoreCase)
         || PluginHostAssemblies.SharedPackageAssemblies.Contains(assemblyName);

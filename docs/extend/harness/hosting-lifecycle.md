@@ -82,6 +82,20 @@ Call these methods from the startup and exit hooks the UI framework provides.
 
 Create separate Hosts when an application needs independently configured Runtime instances. Each instance must own its workspace and data paths explicitly.
 
+## Share application contracts with plugins
+
+A plugin can resolve the application's own services from `context.Services` only when both sides use the same contract types. List the application's contract assemblies by simple name in `PluginSharedAssemblies`:
+
+```csharp
+builder.Services.AddDotCraftHarness(appConfig, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.PluginSharedAssemblies = ["Contoso.Extensions"];
+});
+```
+
+Plugin load contexts then resolve these assemblies to the instances the application loaded and ignore any copies a bundle ships. Plugin projects built through `DotNetPlugin.Build` can reference them too. Each name must be an assembly simple name that DotCraft does not already share. Otherwise `AddDotCraftHarness` throws. Workspace and plugin configuration cannot change this list.
+
 ## Handle startup failure
 
 Treat Host startup as an application initialization step. Surface missing dependencies and configuration failures before accepting user work.

@@ -2,13 +2,10 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Defines the workspace and configuration owned by one DotCraft runtime.</summary>
 public sealed class DotCraftRuntimeOptions
 {
-    /// <summary>Gets or sets the effective runtime configuration.</summary>
     public required AppConfig Config { get; init; }
 
-    /// <summary>Gets or sets the application workspace.</summary>
     public required string WorkspacePath { get; init; }
 
     /// <summary>
@@ -22,4 +19,7 @@ public sealed class DotCraftRuntimeOptions
     /// value disables implicit user-level discovery and persistence.
     /// </summary>
     public string? UserDataPath { get; init; }
+
+    /// <summary>Gets or sets extra assembly simple names that plugins resolve to the Host's instances.</summary>
+    public IReadOnlyList<string> PluginSharedAssemblies { get; init; } = [];
 }

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using DotCraft.Runtime;
 using Microsoft.CodeAnalysis;
 using Xunit;
@@ -10,7 +11,7 @@ public sealed class DotNetPluginReferenceSetTests(
     [Fact]
     public void LoadCurrentHost_UsesThePreservedCompilationContext()
     {
-        var names = DotNetPluginReferenceSet.LoadCurrentHost().References
+        var names = DotNetPluginReferenceSet.LoadCurrentHost(FrozenSet<string>.Empty).References
             .Cast<PortableExecutableReference>()
             .Select(static reference => Path.GetFileNameWithoutExtension(reference.FilePath))
             .ToArray();
@@ -45,6 +46,21 @@ public sealed class DotNetPluginReferenceSetTests(
     }
 
     [Fact]
+    public void Load_ReferencesHostDeclaredSharedAssemblies()
+    {
+        var hostContract = typeof(Assert).Assembly;
+        var declared = new[] { hostContract.GetName().Name! }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+        var references = DotNetPluginReferenceSet.Load(fixture.HostAssemblyPath, declared);
+
+        Assert.Contains(
+            references.References.Cast<PortableExecutableReference>(),
+            reference => reference.FilePath == hostContract.Location);
+        Assert.True(references.IsPluginApiAssembly(hostContract.GetName().Name!));
+        Assert.False(fixture.Load().IsPluginApiAssembly(hostContract.GetName().Name!));
+    }
+
+    [Fact]
     public void Load_RequiresSiblingReferenceDirectory()
     {
         var root = Path.Combine(fixture.Root, "missing-pack");
@@ -52,7 +68,7 @@ public sealed class DotNetPluginReferenceSetTests(
         var hostPath = Path.Combine(root, "DotCraft.Core.dll");
 
         var error = Assert.Throws<DirectoryNotFoundException>(
-            () => DotNetPluginReferenceSet.Load(hostPath));
+            () => DotNetPluginReferenceSet.Load(hostPath, FrozenSet<string>.Empty));
 
         Assert.DoesNotContain(root, error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -80,7 +96,7 @@ public sealed class DotNetPluginReferenceSetTests(
         File.Delete(Path.Combine(root, missingFile));
 
         var error = Assert.Throws<FileNotFoundException>(
-            () => DotNetPluginReferenceSet.Load(Path.Combine(root, "DotCraft.Core.dll")));
+            () => DotNetPluginReferenceSet.Load(Path.Combine(root, "DotCraft.Core.dll"), FrozenSet<string>.Empty));
 
         Assert.Contains(missingFile, error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(root, error.Message, StringComparison.OrdinalIgnoreCase);

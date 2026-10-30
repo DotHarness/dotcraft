@@ -21,4 +21,6 @@ public sealed class DotCraftHarnessOptions
     /// <c>Tools.CodeMode.Mode</c> then decides how Turns use it.
     /// </summary>
     public string? CodeModeWorkerHost { get; set; }
+
+    public IReadOnlyList<string> PluginSharedAssemblies { get; set; } = [];
 }

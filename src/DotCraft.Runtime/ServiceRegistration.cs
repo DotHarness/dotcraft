@@ -30,9 +30,6 @@ namespace DotCraft.Runtime;
 
 public static class ServiceRegistration
 {
-    /// <summary>
-    /// Registers all core DotCraft services into the DI container.
-    /// </summary>
     public static IServiceCollection AddDotCraftRuntime(
         this IServiceCollection services,
         DotCraftRuntimeOptions options) =>
@@ -199,7 +196,10 @@ public static class ServiceRegistration
 
         // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the
         // kernel down. Keeping one owner also covers custom hosts that do not run IHostedService.
-        services.TryAddSingleton<DotNetPluginRuntimeOptions>();
+        services.TryAddSingleton(new DotNetPluginRuntimeOptions
+        {
+            HostSharedAssemblies = PluginHostAssemblies.ValidateHostShared(options.PluginSharedAssemblies)
+        });
         services.AddSingleton(sp => new DotNetPluginRuntimeManager(
             sp.GetRequiredService<PluginDiscoveryService>(),
             sp.GetRequiredService<AppConfig>(),
@@ -220,12 +220,6 @@ public static class ServiceRegistration
         return services;
     }
 
-    /// <summary>
-    /// Validates module configurations and prints diagnostics.
-    /// </summary>
-    /// <param name="config">The application configuration.</param>
-    /// <param name="moduleRegistry">The module registry whose modules provide their own validators.</param>
-    /// <returns>True if all configurations are valid.</returns>
     public static bool ValidateConfigurations(
         AppConfig config,
         ModuleRegistry moduleRegistry,
@@ -252,14 +246,8 @@ public static class ServiceRegistration
     }
 }
 
-/// <summary>
-/// Extension methods for IServiceProvider.
-/// </summary>
 internal static class ServiceProviderExtensions
 {
-    /// <summary>
-    /// Initializes async services.
-    /// </summary>
     internal static async Task InitializeServicesAsync(this IServiceProvider provider)
     {
         var config = provider.GetRequiredService<AppConfig>();

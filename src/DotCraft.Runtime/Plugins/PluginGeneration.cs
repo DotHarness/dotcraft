@@ -11,6 +11,7 @@ internal sealed record PluginGenerationHost(
     IServiceProvider Services,
     IContributionRegistry Contributions,
     PluginCallGateRegistry CallGates,
+    IReadOnlySet<string> HostSharedAssemblies,
     bool ToolsOnly = false);
 
 /// <summary>What a torn-down generation leaves behind for the reclaim poller.</summary>
@@ -141,7 +142,8 @@ internal sealed class PluginGeneration
                 snapshot.Manifest.Id,
                 shadowRoot,
                 entryPath,
-                providerApis.Assemblies);
+                providerApis.Assemblies,
+                host.HostSharedAssemblies);
             var exportedApis = LoadExportedApis(snapshot, shadowRoot, loadContext);
             var reachableApis = AddOwnedApis(providerApis, snapshot.Manifest.Id, exportedApis);
             var assembly = loadContext.LoadFromAssemblyPath(entryPath);
@@ -177,7 +179,7 @@ internal sealed class PluginGeneration
             await entry.ActivateAsync(context, cancellationToken).ConfigureAwait(false);
             exports.ValidateOwnership(entry, lifetime);
 
-            // Activation returns the complete generation composition; all registrars seal before publication.
+            // Activation returns the complete generation composition, so all registrars seal before publication.
             lifetime.Seal();
             exports.Seal();
             dependencies.Seal();

@@ -100,7 +100,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             dataRoot,
             node.WorkspaceRoot,
             settings,
-            new PluginGenerationHost(_services, _contributions, CallGates, _executionOnly),
+            new PluginGenerationHost(_services, _contributions, CallGates, _options.HostSharedAssemblies, _executionOnly),
             GetDirectProviderGenerations(node),
             commitGate,
             TrustCommitBlocker,
@@ -126,7 +126,7 @@ internal sealed partial class DotNetPluginRuntimeManager
         catch (TimeoutException)
         {
             // Commit and timeout are one linearized race. If commit already won, the activation is
-            // accepted; otherwise the callback can finish only into rollback.
+            // accepted, otherwise the callback can finish only into rollback.
             if (!commitGate.TryCancel())
             {
                 attempt = await activation.ConfigureAwait(false);

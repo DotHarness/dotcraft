@@ -85,6 +85,12 @@ contracts while keeping plugin-private dependencies collectible.
 The host supplies `DotCraft.Imaging` as a shared assembly; the capability is defined in
 [Image processing](image-processing.md).
 
+An application that embeds DotCraft may declare additional shared assemblies by simple name through
+its Runtime host options (`PluginSharedAssemblies`), so plugins can consume the application's own
+typed service contracts. The declaration is a Host ABI decision; workspace and plugin configuration
+cannot set it. Declared names only add to the built-in set: a name must be a plain assembly simple
+name that is not already shared, and invalid names fail host composition. A declared assembly resolves to the Host's instance like any other shared assembly.
+
 The public host surface is a version-bound ABI, not an append-only compatibility promise:
 
 - `dotnet.minHostVersion` is a hard admission floor.
@@ -394,6 +400,8 @@ generation error fails preparation before emit.
 
 The host carries its matching generator, compiler runtime, and compilation reference pack, so
 authoring works in single-file deployments without SDK lookup, restore, or network access.
+Host-declared shared assemblies (§3) are added as references from the files the Host loaded them
+from, and `Inspect` searches them with the public plugin API.
 
 The stable `DotNetPlugin` tool namespace follows the Host's configured tool-loading strategy and
 exposes two operations:

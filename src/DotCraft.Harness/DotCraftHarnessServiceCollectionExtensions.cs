@@ -9,16 +9,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotCraft.Harness;
 
-/// <summary>Registers the in-process DotCraft Agent Harness.</summary>
 public static class DotCraftHarnessServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds the DotCraft Runtime, built-in model providers, and built-in configuration schema.
-    /// </summary>
-    /// <param name="services">The host service collection.</param>
-    /// <param name="appConfig">The effective configuration prepared by the host.</param>
-    /// <param name="configure">Configures workspace and user-data ownership.</param>
-    /// <returns>The same service collection.</returns>
+    /// <summary>Adds the DotCraft Runtime, built-in model providers, and built-in configuration schema.</summary>
     public static IServiceCollection AddDotCraftHarness(
         this IServiceCollection services,
         AppConfig appConfig,
@@ -83,6 +76,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
             Config = appConfig,
             WorkspacePath = options.WorkspacePath,
             DataPath = options.DataPath,
-            UserDataPath = options.UserDataPath
+            UserDataPath = options.UserDataPath,
+            PluginSharedAssemblies = options.PluginSharedAssemblies
         };
 }

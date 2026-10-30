@@ -34,8 +34,7 @@ internal sealed class DotNetPluginAuthoringToolSource : IToolSource
 
     private readonly AppConfig _config;
     private readonly DotNetPluginRuntimeManager _runtime;
-    private readonly Lazy<DotNetPluginReferenceSet> _references =
-        new(DotNetPluginReferenceSet.LoadCurrentHost, LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lazy<DotNetPluginReferenceSet> _references;
     private readonly Lazy<DotNetPluginApiInspector> _inspector;
 
     public DotNetPluginAuthoringToolSource(
@@ -44,6 +43,9 @@ internal sealed class DotNetPluginAuthoringToolSource : IToolSource
     {
         _config = config;
         _runtime = runtime;
+        _references = new Lazy<DotNetPluginReferenceSet>(
+            () => DotNetPluginReferenceSet.LoadCurrentHost(runtime.HostSharedAssemblies),
+            LazyThreadSafetyMode.ExecutionAndPublication);
         _inspector = new Lazy<DotNetPluginApiInspector>(
             () => new DotNetPluginApiInspector(_references.Value),
             LazyThreadSafetyMode.ExecutionAndPublication);

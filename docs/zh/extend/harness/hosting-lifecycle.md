@@ -82,6 +82,20 @@ public sealed class AgentHost : IDisposable
 
 如果应用需要多套独立配置的 Runtime，请创建不同的 Host。每个实例都必须明确持有自己的 workspace 与数据路径。
 
+## 与插件共享应用契约
+
+插件只有在双方使用同一套契约类型时，才能从 `context.Services` 解析应用自己的服务。在 `PluginSharedAssemblies` 中按简单名称列出应用的契约程序集：
+
+```csharp
+builder.Services.AddDotCraftHarness(appConfig, options =>
+{
+    options.WorkspacePath = workspacePath;
+    options.PluginSharedAssemblies = ["Contoso.Extensions"];
+});
+```
+
+此后插件加载上下文会把这些程序集解析到应用已加载的实例，并忽略 bundle 自带的副本。通过 `DotNetPlugin.Build` 构建的插件项目也可以引用它们。每个名称都必须是程序集简单名称，且不是 DotCraft 已共享的程序集，否则 `AddDotCraftHarness` 会抛出异常。workspace 配置与插件配置都不能修改这份列表。
+
 ## 处理启动失败
 
 把 Host 启动视为应用的初始化步骤。在开始接收用户任务前，先暴露依赖缺失与配置错误。
