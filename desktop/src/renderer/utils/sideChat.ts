@@ -73,6 +73,7 @@ export function showSideChatOfThread(threadId: string): void {
 export function showMainThreadOf(chat: SideChat): void {
   useThreadStore.getState().setActiveThreadId(chat.parentThreadId)
   useUIStore.getState().setActiveMainView('conversation')
+  useUIStore.getState().setDetailPanelFullView(false)
 }
 
 function currentSideChat(parentThreadId: string): SideChat | null {

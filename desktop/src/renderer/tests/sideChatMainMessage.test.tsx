@@ -25,6 +25,25 @@ const chat: SideChat = {
   pendingUserInput: null
 }
 
+function renderMainMessageRow(): void {
+  const item = {
+    id: 'tool-1',
+    type: 'toolCall',
+    status: 'completed',
+    toolCallId: 'call-1',
+    toolName: 'SendMessage',
+    arguments: { target: 'main', message: 'Use port 8080' },
+    result: '{"status":"started"}',
+    success: true,
+    createdAt: '2026-10-30T10:00:00.000Z'
+  } as ConversationItem
+  render(
+    <LocaleProvider>
+      <SideChatMainMessageRow item={item} chat={chat} args={item.arguments} running={false} success locale="en" />
+    </LocaleProvider>
+  )
+}
+
 beforeEach(() => {
   installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) } })
   useThreadStore.getState().reset()
@@ -48,23 +67,23 @@ describe('side chat messages to the main thread', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
+  it('leaves side chat full view when showing the main thread it is already beside', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-main' })
+    useUIStore.setState({
+      activeMainView: 'conversation',
+      detailPanelVisible: true,
+      activeDetailTab: { kind: 'viewer', id: chat.tabId },
+      detailPanelFullView: true
+    })
+    renderMainMessageRow()
+
+    fireEvent.click(screen.getByRole('button', { name: translate('en', 'sideChat.toolMain.openAria') }))
+
+    expect(useUIStore.getState().detailPanelFullView).toBe(false)
+  })
+
   it('shows the main thread from the side chat tool row', () => {
-    const item = {
-      id: 'tool-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolCallId: 'call-1',
-      toolName: 'SendMessage',
-      arguments: { target: 'main', message: 'Use port 8080' },
-      result: '{"status":"started"}',
-      success: true,
-      createdAt: '2026-10-30T10:00:00.000Z'
-    } as ConversationItem
-    render(
-      <LocaleProvider>
-        <SideChatMainMessageRow item={item} chat={chat} args={item.arguments} running={false} success locale="en" />
-      </LocaleProvider>
-    )
+    renderMainMessageRow()
 
     fireEvent.click(screen.getByRole('button', { name: translate('en', 'sideChat.toolMain.openAria') }))
 
