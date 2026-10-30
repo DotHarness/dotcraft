@@ -134,7 +134,7 @@ async function fetchGitHubUser(
   }
 }
 
-async function downloadAvatar(
+export async function downloadAvatar(
   url: string,
   fetchImpl: FetchImpl
 ): Promise<{ bytes: Buffer; mediaType: string } | null> {
@@ -160,7 +160,7 @@ async function downloadAvatar(
   }
 }
 
-function toDataUrl(bytes: Buffer, mediaType: string): string {
+export function toDataUrl(bytes: Buffer, mediaType: string): string {
   return `data:${mediaType};base64,${bytes.toString('base64')}`
 }
 

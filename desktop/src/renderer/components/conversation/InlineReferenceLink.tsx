@@ -5,14 +5,14 @@ import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
 import { referenceLocation } from '../../utils/referencePaths'
 import type { OpenTargetLocation } from '../../../shared/openTargets'
-import { parseGithubRefUrl } from '../../../shared/githubReferences'
+import { parseForgeRefUrl } from '../../../shared/forgeReferences'
 import { isPreviewableUrl } from '../../../shared/linkPreviews'
 import { resolveConversationLink, type LinkNavigationHint } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { extractText } from './markdownText'
-import { GithubReferenceChip } from './githubReferences/GithubReferenceChip'
+import { ForgeReferenceChip } from './forgeReferences/ForgeReferenceChip'
 import { WebLinkPreviewAnchor } from './linkPreviews/WebLinkPreview'
 
 type InlineReferenceKind = 'file' | 'browser' | 'external'
@@ -40,8 +40,8 @@ export function InlineReferenceLink({
     () => getInlineReferencePresentation(href, workspacePath, extractText(children), t),
     [children, href, t, workspacePath]
   )
-  const githubTarget = useMemo(() => (linkMode === 'conversation' ? parseGithubRefUrl(href) : null), [href, linkMode])
-  const previewed = linkMode === 'conversation' && !githubTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
+  const forgeTarget = useMemo(() => (linkMode === 'conversation' ? parseForgeRefUrl(href) : null), [href, linkMode])
+  const previewed = linkMode === 'conversation' && !forgeTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
 
   async function openLink(target: string, event: MouseEvent<HTMLElement>): Promise<void> {
     if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
@@ -106,9 +106,9 @@ export function InlineReferenceLink({
     </>
   )
 
-  const anchor = githubTarget ? (
-    <GithubReferenceChip
-      target={githubTarget}
+  const anchor = forgeTarget ? (
+    <ForgeReferenceChip
+      target={forgeTarget}
       href={href ?? ''}
       text={extractText(children)}
       linkProps={linkProps}
@@ -132,7 +132,7 @@ export function InlineReferenceLink({
 
   return (
     <>
-      {presentation.title && !githubTarget && !previewed ? (
+      {presentation.title && !forgeTarget && !previewed ? (
         <ActionTooltip
           label={presentation.title}
           wrapperClassName={linkMode === 'conversation' ? 'dc-conversation-reference-tooltip' : undefined}

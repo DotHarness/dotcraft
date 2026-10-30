@@ -1,38 +1,33 @@
 import { execFile } from 'child_process'
 import { net } from 'electron'
-import { runGitCommand } from './gitCommand'
 import {
-  isGithubRefNumber,
-  isGithubRepoName,
-  type GithubBranchPullResult,
-  type GithubChecks,
-  type GithubIssueState,
-  type GithubIssueSummary,
-  type GithubPullState,
-  type GithubPullSummary,
-  type GithubRefError,
-  type GithubRefFailure,
-  type GithubRefResult,
-  type GithubRefTarget,
-  type GithubRepo
-} from '../shared/githubReferences'
+  GITHUB_HOST,
+  isForgeRefNumber,
+  type ForgeBranchPullResult,
+  type ForgeChecks,
+  type ForgeIssueState,
+  type ForgeIssueSummary,
+  type ForgePullState,
+  type ForgePullSummary,
+  type ForgeRefError,
+  type ForgeRefFailure,
+  type ForgeRefResult,
+  type ForgeRefTarget,
+  type ForgeRepo
+} from '../shared/forgeReferences'
+import type { ForgeReader } from './forgeReader'
 
 type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>
 
-export interface GithubReferenceDeps {
+export interface GithubForgeDeps {
   fetch?: FetchImpl
   runGh?: (args: string[]) => Promise<string>
-  readOrigin?: (workspacePath: string) => Promise<string | null>
   now?: () => number
 }
 
 const GRAPHQL_URL = 'https://api.github.com/graphql'
 const REQUEST_TIMEOUT_MS = 10_000
-const SUCCESS_TTL_MS = 60_000
-const BRANCH_SUCCESS_TTL_MS = 20_000
-const FAILURE_TTL_MS = 5_000
 const TOKEN_TTL_MS = 5 * 60_000
-const MAX_BRANCH_LENGTH = 255
 
 const PULL_FIELDS = `
   number title state isDraft createdAt url author { login }
@@ -95,7 +90,7 @@ interface PullNode {
   }
 }
 
-type GraphqlOutcome<T> = { ok: true; data: T } | { ok: false; failure: GithubRefFailure }
+type GraphqlOutcome<T> = { ok: true; data: T } | { ok: false; failure: ForgeRefFailure }
 
 class GhTokenError extends Error {
   constructor(readonly reason: 'notInstalled' | 'auth') {
@@ -103,17 +98,7 @@ class GhTokenError extends Error {
   }
 }
 
-export function parseGithubRemoteUrl(remote: string): GithubRepo | null {
-  const trimmed = remote.trim()
-  const match =
-    /^(?:https?|git|ssh):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(trimmed) ??
-    /^(?:[^@/]+@)?github\.com:([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(trimmed)
-  if (!match) return null
-  const [, owner, repo] = match
-  return isGithubRepoName(owner) && isGithubRepoName(repo) ? { owner, repo } : null
-}
-
-function pullStateFrom(node: PullNode): GithubPullState {
+function pullStateFrom(node: PullNode): ForgePullState {
   if (node.state === 'MERGED') return 'merged'
   if (node.state === 'CLOSED') return 'closed'
   if (node.isDraft === true) return 'draft'
@@ -123,12 +108,12 @@ function pullStateFrom(node: PullNode): GithubPullState {
   return 'open'
 }
 
-function issueStateFrom(node: PullNode): GithubIssueState {
+function issueStateFrom(node: PullNode): ForgeIssueState {
   if (node.state === 'OPEN') return 'open'
   return node.stateReason === 'NOT_PLANNED' ? 'notPlanned' : 'completed'
 }
 
-function checksFrom(counts: CountByState[]): GithubChecks {
+function checksFrom(counts: CountByState[]): ForgeChecks {
   let total = 0
   let passed = 0
   let failed = 0
@@ -142,11 +127,7 @@ function checksFrom(counts: CountByState[]): GithubChecks {
     else if (PASSED_CHECK_STATES.has(state)) passed += count
   }
   const state = failed > 0 ? 'failing' : pending > 0 ? 'pending' : total > 0 ? 'passing' : 'none'
-  return { state, passed, failed, total }
-}
-
-function hasControlCharacter(value: string): boolean {
-  return Array.from(value).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+  return { state, counts: { passed, failed, total } }
 }
 
 function text(value: unknown): string {
@@ -157,8 +138,8 @@ function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
 
-function toPullSummary(node: PullNode, repo: GithubRepo): GithubPullSummary | null {
-  if (!isGithubRefNumber(node.number)) return null
+function toPullSummary(node: PullNode, repo: ForgeRepo): ForgePullSummary | null {
+  if (!isForgeRefNumber(node.number)) return null
   const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts
   return {
     kind: 'pull',
@@ -166,6 +147,7 @@ function toPullSummary(node: PullNode, repo: GithubRepo): GithubPullSummary | nu
     number: node.number,
     title: text(node.title),
     author: text(node.author?.login) || 'ghost',
+    authorAvatarUrl: null,
     createdAt: text(node.createdAt),
     state: pullStateFrom(node),
     additions: count(node.additions),
@@ -175,26 +157,32 @@ function toPullSummary(node: PullNode, repo: GithubRepo): GithubPullSummary | nu
   }
 }
 
-function toIssueSummary(node: PullNode, repo: GithubRepo): GithubIssueSummary | null {
-  if (!isGithubRefNumber(node.number)) return null
+function toIssueSummary(node: PullNode, repo: ForgeRepo): ForgeIssueSummary | null {
+  if (!isForgeRefNumber(node.number)) return null
   return {
     kind: 'issue',
     ...repo,
     number: node.number,
     title: text(node.title),
     author: text(node.author?.login) || 'ghost',
+    authorAvatarUrl: null,
     createdAt: text(node.createdAt),
     state: issueStateFrom(node)
   }
 }
 
-function failure(error: GithubRefError, resetsAt?: number): GithubRefFailure {
+function failure(error: ForgeRefError, resetsAt?: number): ForgeRefFailure {
   return resetsAt === undefined ? { status: 'error', error } : { status: 'error', error, resetsAt }
 }
 
 function resetsAtFrom(headers: Headers): number | undefined {
   const reset = Number(headers.get('x-ratelimit-reset'))
   return Number.isFinite(reset) && reset > 0 ? reset * 1000 : undefined
+}
+
+function ownerAndName(repo: ForgeRepo): { owner: string; name: string } {
+  const [owner, name] = repo.path.split('/')
+  return { owner, name }
 }
 
 function defaultRunGh(args: string[]): Promise<string> {
@@ -206,34 +194,17 @@ function defaultRunGh(args: string[]): Promise<string> {
   })
 }
 
-async function defaultReadOrigin(workspacePath: string): Promise<string | null> {
-  try {
-    return (await runGitCommand(workspacePath, ['remote', 'get-url', 'origin'])).stdout.trim() || null
-  } catch {
-    return null
-  }
-}
-
-interface CacheEntry<T> {
-  value: T
-  expiresAt: number
-}
-
-export function createGithubReferenceService(deps: GithubReferenceDeps = {}) {
+export function createGithubForge(deps: GithubForgeDeps = {}): ForgeReader {
   const fetchImpl = deps.fetch ?? ((url, init) => net.fetch(url, init))
   const runGh = deps.runGh ?? defaultRunGh
-  const readOrigin = deps.readOrigin ?? defaultReadOrigin
   const now = deps.now ?? Date.now
 
   let token: { value: string; expiresAt: number } | null = null
   let tokenRequest: Promise<string> | null = null
-  const results = new Map<string, CacheEntry<GithubRefResult | GithubBranchPullResult>>()
-  const origins = new Map<string, CacheEntry<GithubRepo | null>>()
-  const inFlight = new Map<string, Promise<unknown>>()
 
   function readToken(): Promise<string> {
     if (token && token.expiresAt > now()) return Promise.resolve(token.value)
-    tokenRequest ??= runGh(['auth', 'token', '--hostname', 'github.com'])
+    tokenRequest ??= runGh(['auth', 'token', '--hostname', GITHUB_HOST])
       .then(
         (stdout) => {
           const value = stdout.trim()
@@ -293,102 +264,36 @@ export function createGithubReferenceService(deps: GithubReferenceDeps = {}) {
     }
   }
 
-  function cached<T extends GithubRefResult | GithubBranchPullResult>(
-    key: string,
-    successTtlMs: number,
-    load: () => Promise<T>
-  ): Promise<T> {
-    const entry = results.get(key)
-    if (entry && entry.expiresAt > now()) return Promise.resolve(entry.value as T)
-    const pending = inFlight.get(key)
-    if (pending) return pending as Promise<T>
-    const request = load()
-      .then((value) => {
-        results.set(key, { value, expiresAt: now() + (value.status === 'error' ? FAILURE_TTL_MS : successTtlMs) })
-        return value
-      })
-      .finally(() => inFlight.delete(key))
-    inFlight.set(key, request)
-    return request
-  }
-
-  async function getWorkspaceGithubRepo(workspacePath: string): Promise<GithubRepo | null> {
-    if (typeof workspacePath !== 'string' || !workspacePath.trim()) return null
-    const key = workspacePath.trim()
-    const entry = origins.get(key)
-    if (entry && entry.expiresAt > now()) return entry.value
-    const remote = await readOrigin(key)
-    const repo = remote ? parseGithubRemoteUrl(remote) : null
-    origins.set(key, { value: repo, expiresAt: now() + SUCCESS_TTL_MS })
-    return repo
-  }
-
-  function getReferenceSummary(target: unknown): Promise<GithubRefResult> {
-    const candidate = (target ?? {}) as Partial<GithubRefTarget>
-    if (
-      !isGithubRepoName(candidate.owner) ||
-      !isGithubRepoName(candidate.repo) ||
-      (candidate.kind !== 'pull' && candidate.kind !== 'issue') ||
-      !isGithubRefNumber(candidate.number)
-    ) {
-      return Promise.resolve(failure('unavailable'))
-    }
-    const repo = { owner: candidate.owner, repo: candidate.repo }
-    const number = candidate.number
-    const key = `ref:${repo.owner}/${repo.repo}#${number}`.toLowerCase()
-    return cached(key, SUCCESS_TTL_MS, async (): Promise<GithubRefResult> => {
-      const outcome = await graphql<{ repository?: { issueOrPullRequest?: PullNode | null } | null }>(SUMMARY_QUERY, {
-        owner: repo.owner,
-        name: repo.repo,
-        number
-      })
-      if (!outcome.ok) return outcome.failure
-      const node = outcome.data.repository?.issueOrPullRequest
-      const ref = node?.__typename === 'PullRequest'
-        ? toPullSummary(node, repo)
-        : node?.__typename === 'Issue'
-          ? toIssueSummary(node, repo)
-          : null
-      return ref ? { status: 'ready', ref } : failure('unavailable')
+  async function readRef(target: ForgeRefTarget): Promise<ForgeRefResult> {
+    const repo: ForgeRepo = { provider: 'github', host: GITHUB_HOST, path: target.path }
+    const outcome = await graphql<{ repository?: { issueOrPullRequest?: PullNode | null } | null }>(SUMMARY_QUERY, {
+      ...ownerAndName(repo),
+      number: target.number
     })
+    if (!outcome.ok) return outcome.failure
+    const node = outcome.data.repository?.issueOrPullRequest
+    const ref = node?.__typename === 'PullRequest'
+      ? toPullSummary(node, repo)
+      : node?.__typename === 'Issue'
+        ? toIssueSummary(node, repo)
+        : null
+    return ref ? { status: 'ready', ref } : failure('unavailable')
   }
 
-  function validBranch(branch: unknown): string | null {
-    const branchName = typeof branch === 'string' ? branch.trim() : ''
-    return !branchName || branchName.length > MAX_BRANCH_LENGTH || hasControlCharacter(branchName) ? null : branchName
+  async function readBranchPull(repo: ForgeRepo, branch: string): Promise<ForgeBranchPullResult> {
+    const { owner, name } = ownerAndName(repo)
+    const outcome = await graphql<{ repository?: { pullRequests?: { nodes?: Array<PullNode | null> } } | null }>(
+      BRANCH_QUERY,
+      { owner, name, branch }
+    )
+    if (!outcome.ok) return outcome.failure
+    const nodes = (outcome.data.repository?.pullRequests?.nodes ?? []).filter(
+      (node): node is PullNode => text(node?.headRepositoryOwner?.login).toLowerCase() === owner.toLowerCase()
+    )
+    const chosen = nodes.find((node) => node.state === 'OPEN') ?? nodes[0]
+    const ref = chosen ? toPullSummary(chosen, repo) : null
+    return ref ? { status: 'ready', ref } : { status: 'none' }
   }
 
-  function repoBranchPullRequest(repo: GithubRepo, branchName: string): Promise<GithubBranchPullResult> {
-    const key = `branch:${repo.owner}/${repo.repo}:`.toLowerCase() + branchName
-    return cached(key, BRANCH_SUCCESS_TTL_MS, async (): Promise<GithubBranchPullResult> => {
-      const outcome = await graphql<{ repository?: { pullRequests?: { nodes?: Array<PullNode | null> } } | null }>(
-        BRANCH_QUERY,
-        { owner: repo.owner, name: repo.repo, branch: branchName }
-      )
-      if (!outcome.ok) return outcome.failure
-      const nodes = (outcome.data.repository?.pullRequests?.nodes ?? []).filter(
-        (node): node is PullNode => text(node?.headRepositoryOwner?.login).toLowerCase() === repo.owner.toLowerCase()
-      )
-      const chosen = nodes.find((node) => node.state === 'OPEN') ?? nodes[0]
-      const ref = chosen ? toPullSummary(chosen, repo) : null
-      return ref ? { status: 'ready', ref } : { status: 'none' }
-    })
-  }
-
-  async function getBranchPullRequest(workspacePath: string, branch: unknown): Promise<GithubBranchPullResult> {
-    const branchName = validBranch(branch)
-    if (!branchName) return { status: 'none' }
-    const repo = await getWorkspaceGithubRepo(workspacePath)
-    return repo ? repoBranchPullRequest(repo, branchName) : { status: 'none' }
-  }
-
-  function getOriginBranchPullRequest(originUrl: unknown, branch: unknown): Promise<GithubBranchPullResult> {
-    const branchName = validBranch(branch)
-    const repo = typeof originUrl === 'string' ? parseGithubRemoteUrl(originUrl) : null
-    return branchName && repo ? repoBranchPullRequest(repo, branchName) : Promise.resolve({ status: 'none' })
-  }
-
-  return { getReferenceSummary, getBranchPullRequest, getOriginBranchPullRequest, getWorkspaceGithubRepo }
+  return { readRef, readBranchPull }
 }
-
-export const githubReferences = createGithubReferenceService()

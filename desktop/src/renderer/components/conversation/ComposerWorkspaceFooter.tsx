@@ -7,7 +7,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
-import { useGithubRefStore } from '../../stores/githubRefStore'
+import { useForgeRefStore } from '../../stores/forgeRefStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
@@ -37,7 +37,7 @@ import {
   branchNameError,
   normalizeBranchName
 } from './ComposerWorkspaceFooterDialogs'
-import { BranchPullRequestPill } from './githubReferences/BranchPullRequestPill'
+import { BranchPullRequestPill } from './forgeReferences/BranchPullRequestPill'
 import css from './ComposerWorkspaceFooter.module.css'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
@@ -211,7 +211,7 @@ export function ComposerWorkspaceFooter({
   }, [branchActionPath, ensureSourceControl, sourceControlEnabled])
 
   useEffect(() => {
-    if (welcomePullBranch) void useGithubRefStore.getState().ensureBranchPull(branchActionPath, welcomePullBranch)
+    if (welcomePullBranch) void useForgeRefStore.getState().ensureBranchPull(branchActionPath, welcomePullBranch)
   }, [branchActionPath, welcomePullBranch])
 
   useEffect(() => {

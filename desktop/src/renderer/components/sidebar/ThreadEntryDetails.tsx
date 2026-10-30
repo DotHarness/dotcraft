@@ -4,8 +4,8 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
-import { useBranchPullRequest, useGithubRefStore, useOriginBranchPullRequest } from '../../stores/githubRefStore'
-import type { GithubPullSummary } from '../../../shared/githubReferences'
+import { useBranchPullRequest, useForgeRefStore, useOriginBranchPullRequest } from '../../stores/forgeRefStore'
+import type { ForgePullSummary } from '../../../shared/forgeReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { Skeleton } from '../ui/Skeleton'
@@ -90,7 +90,7 @@ export function useThreadEntryDetails({
   relativeTime: string
   origin?: ReactNode
   onScreen?: boolean
-}): { content: JSX.Element; onOpen: () => void; pull: GithubPullSummary | null; rowPull: GithubPullSummary | null } {
+}): { content: JSX.Element; onOpen: () => void; pull: ForgePullSummary | null; rowPull: ForgePullSummary | null } {
   const recordedBranch = thread.gitInfo?.branch?.trim() || null
   const recordedOrigin = thread.gitInfo?.originUrl?.trim() || null
   const recorded = Boolean(recordedBranch && recordedOrigin)
@@ -119,9 +119,9 @@ export function useThreadEntryDetails({
     setOpened(true)
     if (canInspectGit) void useGitHeadStore.getState().ensure(gitPath)
     if (recordedOrigin) {
-      if (recordedBranch) void useGithubRefStore.getState().ensureOriginPull(recordedOrigin, recordedBranch)
+      if (recordedBranch) void useForgeRefStore.getState().ensureOriginPull(recordedOrigin, recordedBranch)
     } else if (localGit && pullBranch) {
-      void useGithubRefStore.getState().ensureBranchPull(gitPath, pullBranch)
+      void useForgeRefStore.getState().ensureBranchPull(gitPath, pullBranch)
     }
   }, [canInspectGit, gitPath, localGit, pullBranch, recordedBranch, recordedOrigin])
   const branchLabel = recordedBranch || worktreeBranch || (

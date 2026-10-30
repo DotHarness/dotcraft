@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGithubReferenceService, parseGithubRemoteUrl } from '../githubReferences'
+import { createForgeReferenceService, parseForgeRemoteUrl } from '../forgeReferences'
+import { createGithubForge } from '../githubForge'
+import type { GitlabForge } from '../gitlabForge'
 
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 
-const target = { owner: 'OctoOrg', repo: 'sample-app', kind: 'pull' as const, number: 42 }
+const target = { provider: 'github' as const, host: 'github.com', path: 'OctoOrg/sample-app', kind: 'pull' as const, number: 42 }
 
 function pullNode(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -70,9 +72,16 @@ function setup(options: {
   })
   const runGh = vi.fn(options.runGh ?? (async () => 'gho_token\n'))
   const readOrigin = vi.fn(async () => (options.origin === undefined ? 'git@github.com:OctoOrg/sample-app.git' : options.origin))
-  const service = createGithubReferenceService({ fetch, runGh, readOrigin, now: () => clock })
+  const gitlab: GitlabForge = {
+    readRef: vi.fn(async () => ({ status: 'error' as const, error: 'unavailable' as const })),
+    readBranchPull: vi.fn(async () => ({ status: 'none' as const })),
+    readAvatar: vi.fn(async () => null)
+  }
+  const now = (): number => clock
+  const service = createForgeReferenceService({ github: createGithubForge({ fetch, runGh, now }), gitlab, readOrigin, now })
   return {
     service,
+    gitlab,
     fetch,
     runGh,
     readOrigin,
@@ -88,7 +97,7 @@ async function pullState(overrides: Record<string, unknown>): Promise<unknown> {
   return result.status === 'ready' ? result.ref.state : result
 }
 
-describe('github reference summaries', () => {
+describe('GitHub reference summaries', () => {
   it('derives pull request states', async () => {
     expect(await pullState({ state: 'MERGED', isDraft: true })).toBe('merged')
     expect(await pullState({ state: 'CLOSED' })).toBe('closed')
@@ -123,15 +132,15 @@ describe('github reference summaries', () => {
       return result.status === 'ready' && result.ref.kind === 'pull' ? result.ref.checks : null
     }
     expect(await checks([['SUCCESS', 10], ['SKIPPED', 2], ['NEUTRAL', 1], ['CANCELLED', 1]]))
-      .toEqual({ state: 'failing', passed: 13, failed: 1, total: 14 })
+      .toEqual({ state: 'failing', counts: { passed: 13, failed: 1, total: 14 } })
     expect(await checks([['SUCCESS', 5], ['IN_PROGRESS', 2]], [['EXPECTED', 1]]))
-      .toEqual({ state: 'pending', passed: 5, failed: 0, total: 8 })
+      .toEqual({ state: 'pending', counts: { passed: 5, failed: 0, total: 8 } })
     expect(await checks([['SUCCESS', 4]], [['SUCCESS', 2]]))
-      .toEqual({ state: 'passing', passed: 6, failed: 0, total: 6 })
+      .toEqual({ state: 'passing', counts: { passed: 6, failed: 0, total: 6 } })
     expect(await checks([['STALE', 1]]))
-      .toEqual({ state: 'failing', passed: 0, failed: 1, total: 1 })
+      .toEqual({ state: 'failing', counts: { passed: 0, failed: 1, total: 1 } })
     expect(await checks([]))
-      .toEqual({ state: 'none', passed: 0, failed: 0, total: 0 })
+      .toEqual({ state: 'none', counts: { passed: 0, failed: 0, total: 0 } })
   })
 
   it('reports a missing CLI and a signed-out CLI', async () => {
@@ -181,7 +190,8 @@ describe('github reference summaries', () => {
     expect(await offline.service.getReferenceSummary(target)).toEqual({ status: 'error', error: 'unavailable' })
 
     const env = setup()
-    expect(await env.service.getReferenceSummary({ ...target, owner: '..' })).toEqual({ status: 'error', error: 'unavailable' })
+    expect(await env.service.getReferenceSummary({ ...target, path: '../sample-app' })).toEqual({ status: 'error', error: 'unavailable' })
+    expect(await env.service.getReferenceSummary({ ...target, host: 'github.example.com' })).toEqual({ status: 'error', error: 'unavailable' })
     expect(await env.service.getReferenceSummary({ ...target, number: 0 })).toEqual({ status: 'error', error: 'unavailable' })
     expect(await env.service.getReferenceSummary({ ...target, kind: 'commit' })).toEqual({ status: 'error', error: 'unavailable' })
     expect(env.runGh).not.toHaveBeenCalled()
@@ -194,7 +204,7 @@ describe('github reference summaries', () => {
     })
     const [first, second] = await Promise.all([
       env.service.getReferenceSummary(target),
-      env.service.getReferenceSummary({ ...target, owner: 'octoorg' })
+      env.service.getReferenceSummary({ ...target, path: 'octoorg/sample-app' })
     ])
     expect(first).toEqual(second)
     expect(env.fetch).toHaveBeenCalledTimes(1)
@@ -214,7 +224,7 @@ describe('github reference summaries', () => {
   })
 })
 
-describe('github branch pull requests', () => {
+describe('GitHub branch pull requests', () => {
   function branchResponse(nodes: Array<Record<string, unknown>>): Response {
     return json({ data: { repository: { pullRequests: { nodes } } } })
   }
@@ -227,7 +237,7 @@ describe('github branch pull requests', () => {
       ])]
     })
     expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'feat/settings-page'))
-      .toMatchObject({ status: 'ready', ref: { number: 42, state: 'open', owner: 'OctoOrg', repo: 'sample-app' } })
+      .toMatchObject({ status: 'ready', ref: { number: 42, state: 'open', provider: 'github', path: 'OctoOrg/sample-app' } })
     const body = JSON.parse(String(env.fetch.mock.calls[0][1]?.body))
     expect(body.variables).toEqual({ owner: 'OctoOrg', name: 'sample-app', branch: 'feat/settings-page' })
 
@@ -245,9 +255,10 @@ describe('github branch pull requests', () => {
     expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
   })
 
-  it('looks nothing up without a GitHub origin or a branch and shares one cached lookup per origin and branch', async () => {
+  it('looks nothing up on GitHub without a GitHub origin or a branch and shares one cached lookup per origin and branch', async () => {
     const elsewhere = setup({ origin: 'https://gitlab.com/OctoOrg/sample-app.git' })
     expect(await elsewhere.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
+    expect(elsewhere.gitlab.readBranchPull).toHaveBeenCalledWith({ provider: 'gitlab', host: 'gitlab.com', path: 'OctoOrg/sample-app' }, 'main')
     const noOrigin = setup({ origin: null })
     expect(await noOrigin.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
     const noBranch = setup()
@@ -263,24 +274,35 @@ describe('github branch pull requests', () => {
   it('looks a branch up in the repository named by the origin, without a checkout', async () => {
     const env = setup({ origin: null, responses: [branchResponse([pullNode({ number: 42, state: 'OPEN' })])] })
     expect(await env.service.getOriginBranchPullRequest('github.com:OctoOrg/sample-app.git', 'feat/settings-page'))
-      .toMatchObject({ status: 'ready', ref: { number: 42, owner: 'OctoOrg', repo: 'sample-app' } })
+      .toMatchObject({ status: 'ready', ref: { number: 42, provider: 'github', path: 'OctoOrg/sample-app' } })
     const body = JSON.parse(String(env.fetch.mock.calls[0][1]?.body))
     expect(body.variables).toEqual({ owner: 'OctoOrg', name: 'sample-app', branch: 'feat/settings-page' })
   })
 })
 
-describe('parseGithubRemoteUrl', () => {
-  it('reads https and ssh GitHub remotes and rejects other hosts and malformed paths', () => {
-    const expected = { owner: 'OctoOrg', repo: 'sample-app' }
-    expect(parseGithubRemoteUrl('https://github.com/OctoOrg/sample-app.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('https://user:token@github.com/OctoOrg/sample-app')).toEqual(expected)
-    expect(parseGithubRemoteUrl('git@github.com:OctoOrg/sample-app.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('ssh://git@github.com/OctoOrg/sample-app.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('ssh://git@github.com:22/OctoOrg/sample-app/')).toEqual(expected)
-    expect(parseGithubRemoteUrl('https://gitlab.com/OctoOrg/sample-app.git')).toBeNull()
-    expect(parseGithubRemoteUrl('https://github.com.evil.example/OctoOrg/sample-app')).toBeNull()
-    expect(parseGithubRemoteUrl('https://github.com/OctoOrg')).toBeNull()
-    expect(parseGithubRemoteUrl('git@github.com:OctoOrg/../x.git')).toBeNull()
-    expect(parseGithubRemoteUrl('')).toBeNull()
+describe('parseForgeRemoteUrl', () => {
+  it('reads https and ssh GitHub remotes', () => {
+    const expected = { provider: 'github', host: 'github.com', path: 'OctoOrg/sample-app' }
+    expect(parseForgeRemoteUrl('https://github.com/OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseForgeRemoteUrl('https://user:token@github.com/OctoOrg/sample-app')).toEqual(expected)
+    expect(parseForgeRemoteUrl('git@github.com:OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseForgeRemoteUrl('ssh://git@github.com/OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseForgeRemoteUrl('ssh://git@github.com:22/OctoOrg/sample-app/')).toEqual(expected)
+  })
+
+  it('treats any other host as a GitLab candidate, keeping nested groups', () => {
+    const expected = { provider: 'gitlab', host: 'gitlab.example.net', path: 'tools/perf/insight-dashboard' }
+    expect(parseForgeRemoteUrl('git@gitlab.example.net:tools/perf/insight-dashboard.git')).toEqual(expected)
+    expect(parseForgeRemoteUrl('https://GitLab.example.net/tools/perf/insight-dashboard.git')).toEqual(expected)
+    expect(parseForgeRemoteUrl('ssh://git@gitlab.example.net:2222/tools/perf/insight-dashboard.git')).toEqual(expected)
+  })
+
+  it('rejects malformed remotes and local paths', () => {
+    expect(parseForgeRemoteUrl('https://github.com/OctoOrg')).toBeNull()
+    expect(parseForgeRemoteUrl('https://github.com/OctoOrg/sample-app/extra')).toBeNull()
+    expect(parseForgeRemoteUrl('git@github.com:OctoOrg/../x.git')).toBeNull()
+    expect(parseForgeRemoteUrl('https://gitlab.example.net/dashboard.git')).toBeNull()
+    expect(parseForgeRemoteUrl('C:/work/sample-app')).toBeNull()
+    expect(parseForgeRemoteUrl('')).toBeNull()
   })
 })

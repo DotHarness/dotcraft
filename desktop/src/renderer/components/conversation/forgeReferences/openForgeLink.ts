@@ -3,7 +3,7 @@ import { useConversationStore } from '../../../stores/conversationStore'
 import { useThreadStore } from '../../../stores/threadStore'
 import { openConversationLink } from '../../../utils/conversationDeepLink'
 
-export async function openGithubLink(
+export async function openForgeLink(
   url: string,
   event: MouseEvent<HTMLElement>,
   t: (key: string) => string

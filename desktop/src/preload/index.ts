@@ -1,5 +1,5 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
-import type { GithubBranchPullResult, GithubRefResult, GithubRefTarget, GithubRepo } from '../shared/githubReferences'
+import type { ForgeBranchPullResult, ForgeRefResult, ForgeRefTarget, ForgeRepo } from '../shared/forgeReferences'
 import type { LinkPreviewResult } from '../shared/linkPreviews'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
 import type { PastedTextContext } from '../shared/composerContext'
@@ -921,18 +921,21 @@ const api = {
     }
   },
 
-  github: {
-    getReferenceSummary(target: GithubRefTarget): Promise<GithubRefResult> {
-      return ipcRenderer.invoke('github:getReferenceSummary', target)
+  forge: {
+    getReferenceSummary(target: ForgeRefTarget): Promise<ForgeRefResult> {
+      return ipcRenderer.invoke('forge:getReferenceSummary', target)
     },
-    getBranchPullRequest(workspacePath: string, branch: string): Promise<GithubBranchPullResult> {
-      return ipcRenderer.invoke('github:getBranchPullRequest', workspacePath, branch)
+    getBranchPullRequest(workspacePath: string, branch: string): Promise<ForgeBranchPullResult> {
+      return ipcRenderer.invoke('forge:getBranchPullRequest', workspacePath, branch)
     },
-    getOriginBranchPullRequest(originUrl: string, branch: string): Promise<GithubBranchPullResult> {
-      return ipcRenderer.invoke('github:getOriginBranchPullRequest', originUrl, branch)
+    getOriginBranchPullRequest(originUrl: string, branch: string): Promise<ForgeBranchPullResult> {
+      return ipcRenderer.invoke('forge:getOriginBranchPullRequest', originUrl, branch)
     },
-    getWorkspaceRepo(workspacePath: string): Promise<GithubRepo | null> {
-      return ipcRenderer.invoke('github:getWorkspaceRepo', workspacePath)
+    getWorkspaceRepo(workspacePath: string): Promise<ForgeRepo | null> {
+      return ipcRenderer.invoke('forge:getWorkspaceRepo', workspacePath)
+    },
+    getAuthorAvatar(host: string, url: string): Promise<string | null> {
+      return ipcRenderer.invoke('forge:getAuthorAvatar', host, url)
     }
   },
 

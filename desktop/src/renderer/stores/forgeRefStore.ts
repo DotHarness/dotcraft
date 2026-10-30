@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import type {
-  GithubBranchPullResult,
-  GithubPullSummary,
-  GithubRefResult,
-  GithubRefTarget,
-  GithubRepo
-} from '../../shared/githubReferences'
+  ForgeBranchPullResult,
+  ForgePullSummary,
+  ForgeRefResult,
+  ForgeRefTarget,
+  ForgeRepo
+} from '../../shared/forgeReferences'
 import { normalizeGitPathKey } from './gitStore'
 
 const RESULT_TTL_MS = 60_000
@@ -14,7 +14,7 @@ const FAILURE_TTL_MS = 5_000
 const REPO_TTL_MS = 5 * 60_000
 const ORIGIN_PULL_REFRESH_MS = 30_000
 
-interface GithubRefEntry<T> {
+interface ForgeRefEntry<T> {
   status: 'loading' | 'resolved'
   result: T | null
   updatedAt: number | null
@@ -22,24 +22,24 @@ interface GithubRefEntry<T> {
 
 type Slice = 'refs' | 'branchPulls' | 'originPulls' | 'repos'
 
-interface GithubRefStore {
-  refs: Record<string, GithubRefEntry<GithubRefResult>>
-  branchPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
-  originPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
-  repos: Record<string, GithubRefEntry<GithubRepo | null>>
-  ensureRef(target: GithubRefTarget): Promise<void>
+interface ForgeRefStore {
+  refs: Record<string, ForgeRefEntry<ForgeRefResult>>
+  branchPulls: Record<string, ForgeRefEntry<ForgeBranchPullResult>>
+  originPulls: Record<string, ForgeRefEntry<ForgeBranchPullResult>>
+  repos: Record<string, ForgeRefEntry<ForgeRepo | null>>
+  ensureRef(target: ForgeRefTarget): Promise<void>
   ensureBranchPull(path: string, branch: string, options?: { force?: boolean }): Promise<void>
   ensureOriginPull(originUrl: string, branch: string): Promise<void>
   ensureRepo(path: string): Promise<void>
 }
 
-export type GithubRefLoad = { status: 'loading' } | GithubRefResult
+export type ForgeRefLoad = { status: 'loading' } | ForgeRefResult
 
 const UNAVAILABLE = { status: 'error', error: 'unavailable' } as const
 const inFlight = new Map<string, Promise<void>>()
 
-function githubRefKey(target: GithubRefTarget): string {
-  return `${target.owner}/${target.repo}#${target.number}`.toLowerCase()
+function forgeRefKey(target: ForgeRefTarget): string {
+  return `${target.provider}|${target.host}/${target.path}${target.kind === 'pull' ? '!' : '#'}${target.number}`.toLowerCase()
 }
 
 function branchPullKey(path: string, branch: string): string {
@@ -59,7 +59,7 @@ function ttlFor(result: unknown): number {
   return (result as { status?: string } | null)?.status === 'error' ? FAILURE_TTL_MS : RESULT_TTL_MS
 }
 
-export const useGithubRefStore = create<GithubRefStore>((set, get) => {
+export const useForgeRefStore = create<ForgeRefStore>((set, get) => {
   async function ensure<T>(
     slice: Slice,
     key: string,
@@ -69,7 +69,7 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
     force = false
   ): Promise<void> {
     if (!key) return
-    const entries = get()[slice] as Record<string, GithubRefEntry<T>>
+    const entries = get()[slice] as Record<string, ForgeRefEntry<T>>
     const cached = entries[key]
     if (!force && cached?.status === 'resolved' && cached.updatedAt != null && Date.now() - cached.updatedAt < ttlMs(cached.result)) {
       return
@@ -78,8 +78,8 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
     const pending = inFlight.get(inFlightKey)
     if (pending) return pending
 
-    const write = (entry: GithubRefEntry<T>): void => {
-      set((state) => ({ [slice]: { ...state[slice], [key]: entry } }) as Partial<GithubRefStore>)
+    const write = (entry: ForgeRefEntry<T>): void => {
+      set((state) => ({ [slice]: { ...state[slice], [key]: entry } }) as Partial<ForgeRefStore>)
     }
     write({ status: 'loading', result: cached?.result ?? null, updatedAt: cached?.updatedAt ?? null })
 
@@ -101,62 +101,62 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
     repos: {},
 
     ensureRef(target) {
-      return ensure<GithubRefResult>('refs', githubRefKey(target), ttlFor, () => window.api.github.getReferenceSummary(target), UNAVAILABLE)
+      return ensure<ForgeRefResult>('refs', forgeRefKey(target), ttlFor, () => window.api.forge.getReferenceSummary(target), UNAVAILABLE)
     },
 
     ensureBranchPull(path, branch, options) {
-      return ensure<GithubBranchPullResult>(
+      return ensure<ForgeBranchPullResult>(
         'branchPulls',
         branchPullKey(path, branch),
         ttlFor,
-        () => window.api.github.getBranchPullRequest(path.trim(), branch.trim()),
+        () => window.api.forge.getBranchPullRequest(path.trim(), branch.trim()),
         UNAVAILABLE,
         options?.force === true
       )
     },
 
     ensureOriginPull(originUrl, branch) {
-      return ensure<GithubBranchPullResult>(
+      return ensure<ForgeBranchPullResult>(
         'originPulls',
         originPullKey(originUrl, branch),
         ttlFor,
-        () => window.api.github.getOriginBranchPullRequest(originUrl.trim(), branch.trim()),
+        () => window.api.forge.getOriginBranchPullRequest(originUrl.trim(), branch.trim()),
         UNAVAILABLE
       )
     },
 
     ensureRepo(path) {
       const trimmed = path.trim()
-      return ensure<GithubRepo | null>('repos', normalizeGitPathKey(trimmed), () => REPO_TTL_MS, () => window.api.github.getWorkspaceRepo(trimmed), null)
+      return ensure<ForgeRepo | null>('repos', normalizeGitPathKey(trimmed), () => REPO_TTL_MS, () => window.api.forge.getWorkspaceRepo(trimmed), null)
     }
   }
 })
 
-export function useGithubRefLoad(target: GithubRefTarget): GithubRefLoad {
-  const key = githubRefKey(target)
-  const entry = useGithubRefStore((state) => state.refs[key])
-  const { owner, repo, kind, number } = target
+export function useForgeRefLoad(target: ForgeRefTarget): ForgeRefLoad {
+  const key = forgeRefKey(target)
+  const entry = useForgeRefStore((state) => state.refs[key])
+  const { provider, host, path, kind, number } = target
   useEffect(() => {
-    void useGithubRefStore.getState().ensureRef({ owner, repo, kind, number })
-  }, [kind, number, owner, repo])
+    void useForgeRefStore.getState().ensureRef({ provider, host, path, kind, number })
+  }, [host, kind, number, path, provider])
   return entry?.result ?? { status: 'loading' }
 }
 
-export function useWorkspaceGithubRepo(path: string | null | undefined): GithubRepo | null {
+export function useWorkspaceForgeRepo(path: string | null | undefined): ForgeRepo | null {
   const trimmed = path?.trim() ?? ''
   const key = trimmed ? normalizeGitPathKey(trimmed) : ''
-  const repo = useGithubRefStore((state) => (key ? state.repos[key]?.result ?? null : null))
+  const repo = useForgeRefStore((state) => (key ? state.repos[key]?.result ?? null : null))
   useEffect(() => {
-    if (trimmed) void useGithubRefStore.getState().ensureRepo(trimmed)
+    if (trimmed) void useForgeRefStore.getState().ensureRepo(trimmed)
   }, [trimmed])
   return repo
 }
 
-export function useBranchPullRequest(path: string | null | undefined, branch: string | null | undefined, enabled: boolean): GithubPullSummary | null {
+export function useBranchPullRequest(path: string | null | undefined, branch: string | null | undefined, enabled: boolean): ForgePullSummary | null {
   const key = enabled && path && branch ? branchPullKey(path, branch) : ''
-  const result = useGithubRefStore((state) => (key ? state.branchPulls[key]?.result ?? null : null))
+  const result = useForgeRefStore((state) => (key ? state.branchPulls[key]?.result ?? null : null))
   useEffect(() => {
-    if (key && path && branch) void useGithubRefStore.getState().ensureBranchPull(path, branch)
+    if (key && path && branch) void useForgeRefStore.getState().ensureBranchPull(path, branch)
   }, [branch, key, path])
   return result?.status === 'ready' ? result.ref : null
 }
@@ -165,15 +165,15 @@ export function useOriginBranchPullRequest(
   originUrl: string | null | undefined,
   branch: string | null | undefined,
   enabled: boolean
-): GithubPullSummary | null {
+): ForgePullSummary | null {
   const key = enabled && originUrl && branch ? originPullKey(originUrl, branch) : ''
-  const result = useGithubRefStore((state) => (key ? state.originPulls[key]?.result ?? null : null))
+  const result = useForgeRefStore((state) => (key ? state.originPulls[key]?.result ?? null : null))
   const pull = result?.status === 'ready' ? result.ref : null
   const pullOpen = pull != null && pull.state !== 'merged' && pull.state !== 'closed'
   useEffect(() => {
     if (!key || !originUrl || !branch) return
     const refresh = (): void => {
-      void useGithubRefStore.getState().ensureOriginPull(originUrl, branch)
+      void useForgeRefStore.getState().ensureOriginPull(originUrl, branch)
     }
     refresh()
     window.addEventListener('focus', refresh)

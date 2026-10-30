@@ -1,13 +1,15 @@
 import type { MouseEvent, ReactPortal } from 'react'
-import type { GithubRefLoad } from '../../../stores/githubRefStore'
+import type { ForgeRefLoad } from '../../../stores/forgeRefStore'
+import type { ForgeRepo } from '../../../../shared/forgeReferences'
 import {
   useReferenceHoverCard,
   type ReferenceCardSide,
   type ReferenceHoverCardAnchorProps
 } from '../referenceHoverCard'
-import { GithubRefCardBody } from './GithubRefCard'
+import { ForgeRefCardBody } from './ForgeRefCard'
 
-export function useGithubRefHoverCard<A extends HTMLElement>({
+export function useForgeRefHoverCard<A extends HTMLElement>({
+  repo,
   load,
   label,
   preferredSide = 'below',
@@ -15,7 +17,8 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
   onOpen,
   overComposer = false
 }: {
-  load: GithubRefLoad
+  repo: ForgeRepo | null
+  load: ForgeRefLoad
   label: string
   preferredSide?: ReferenceCardSide
   onOpenLink: (url: string, event: MouseEvent<HTMLElement>) => void
@@ -30,6 +33,6 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
     preferredSide,
     onOpen,
     overComposer,
-    children: <GithubRefCardBody load={load} onOpenLink={onOpenLink} />
+    children: <ForgeRefCardBody repo={repo} load={load} onOpenLink={onOpenLink} />
   })
 }

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, type JSX, type MouseEvent } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
-import { useBranchPullRequest, useGithubRefStore, type GithubRefLoad } from '../../../stores/githubRefStore'
-import { githubRefUrl } from '../../../../shared/githubReferences'
-import { GithubRefGlyph, pullRequestLabel } from './githubRefState'
-import { openGithubLink } from './openGithubLink'
-import { useGithubRefHoverCard } from './useGithubRefHoverCard'
+import { useBranchPullRequest, useForgeRefStore, type ForgeRefLoad } from '../../../stores/forgeRefStore'
+import { forgeRefNumberLabel, forgeRefUrl } from '../../../../shared/forgeReferences'
+import { ForgeRefGlyph, pullRequestLabel } from './forgeRefState'
+import { openForgeLink } from './openForgeLink'
+import { useForgeRefHoverCard } from './useForgeRefHoverCard'
 
 const OPEN_PULL_REFRESH_MS = 30_000
 
@@ -15,13 +15,14 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
   const pullOpen = pull != null && pull.state !== 'merged' && pull.state !== 'closed'
   const label = pull ? pullRequestLabel(pull, t) : ''
   const openLink = (url: string, event: MouseEvent<HTMLElement>): void => {
-    void openGithubLink(url, event, t)
+    void openForgeLink(url, event, t)
   }
-  const load = useMemo<GithubRefLoad>(() => (pull ? { status: 'ready', ref: pull } : { status: 'loading' }), [pull])
+  const load = useMemo<ForgeRefLoad>(() => (pull ? { status: 'ready', ref: pull } : { status: 'loading' }), [pull])
   const revalidate = useCallback(() => {
-    if (branch) void useGithubRefStore.getState().ensureBranchPull(gitPath, branch)
+    if (branch) void useForgeRefStore.getState().ensureBranchPull(gitPath, branch)
   }, [branch, gitPath])
-  const { anchorProps, card } = useGithubRefHoverCard<HTMLButtonElement>({
+  const { anchorProps, card } = useForgeRefHoverCard<HTMLButtonElement>({
+    repo: pull,
     load,
     label,
     preferredSide: 'above',
@@ -33,7 +34,7 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
   useEffect(() => {
     if (!enabled || !branch) return
     const refresh = (): void => {
-      void useGithubRefStore.getState().ensureBranchPull(gitPath, branch, { force: true })
+      void useForgeRefStore.getState().ensureBranchPull(gitPath, branch, { force: true })
     }
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
@@ -42,7 +43,7 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
   useEffect(() => {
     if (!enabled || !branch || !pullOpen) return
     const timer = window.setInterval(() => {
-      if (document.hasFocus()) void useGithubRefStore.getState().ensureBranchPull(gitPath, branch, { force: true })
+      if (document.hasFocus()) void useForgeRefStore.getState().ensureBranchPull(gitPath, branch, { force: true })
     }, OPEN_PULL_REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [branch, enabled, gitPath, pullOpen])
@@ -56,10 +57,10 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
         className="dc-composer-pill dc-gh-branch-pill"
         aria-label={label}
         {...anchorProps}
-        onClick={(event) => openLink(githubRefUrl(pull), event)}
+        onClick={(event) => openLink(forgeRefUrl(pull), event)}
       >
-        <GithubRefGlyph refData={pull} size={17} />
-        <span>#{pull.number}</span>
+        <ForgeRefGlyph refData={pull} size={17} />
+        <span>{forgeRefNumberLabel(pull)}</span>
       </button>
       {card}
     </>

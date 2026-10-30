@@ -1371,15 +1371,17 @@ no tint. Both sit near the text lightness and clear 4.5:1 on their surface.
 A click leaves nothing behind. Keyboard focus is the only state that draws a ring,
 through the shared focus-visible outline; a mouse click never paints one.
 
-### GitHub references
+### Forge references
 
-A link to a GitHub pull request or issue is a reference like any other link, with
-two differences. The icon names the item's state (open, draft, approved, changes
-requested, merge conflicts, merged, or closed for a pull request; open, closed, or
-not planned for an issue) and is the one part drawn in that state's colour. The
-label is `#N · title` for the workspace's own repository and `owner/repo#N ·
-title` otherwise, with the title cut at a word boundary near 32 characters at
-regular weight. Author-written link text is kept and gains only the state icon.
+A link to a GitHub pull request or issue, or a GitLab merge request or issue, is a
+reference like any other link, with two differences. GitHub and GitLab share one
+vocabulary; only the number sigil differs, `!N` for a merge request and `#N`
+otherwise. The icon names the item's state (open, draft, approved, changes
+requested, merge conflicts, merged, or closed for a pull or merge request; open,
+closed, or not planned for an issue) and is the one part drawn in that state's
+colour. The label is `#N · title` (`!N · title`) for the workspace's own repository
+and `path#N · title` (`path!N · title`) otherwise, with the title cut at a word
+boundary near 32 characters at regular weight. Author-written link text is kept and gains only the state icon.
 Until the state is known the chip shows a neutral icon and the number.
 
 State colours reuse the status reading tokens: open and approved
@@ -1391,26 +1393,28 @@ Resting on the chip opens a hover card below it (mirroring above when needed),
 with the details card's open delay and close grace: an ordinary borderless 360px
 elevated overlay the pointer can enter. Its header carries a state badge (icon and
 label on a 16% mix of the state colour; draft and not planned on `--bg-tertiary`),
-`owner/repo #N`, and the item's compact age. The title follows at body size,
+`path #N` (`path !N`), and the item's compact age. The title follows at body size,
 semibold, clamped to two lines; the footer names the author with a 16px avatar and,
-for a pull request, diff stats and file count. Loading draws the card's shape in
-skeletons; any failure (missing or signed-out CLI, rate limit) collapses the card to
-one muted line saying what to do.
+for a pull or merge request, the diff stats the forge provides and file count.
+Loading draws the card's shape in skeletons; any failure (missing or signed-out
+CLI, unknown host, rate limit) collapses the card to one muted line saying what to
+do.
 
-A branch's pull request uses the same vocabulary away from prose: a pill of the
-state glyph and `#N` after the composer's branch control, the glyph alone in a
-sidebar thread row's status slot, and a `#N · title` action row in the thread's
-details card. Checks ride on the glyph as a dot cut into its lower trailing corner
-(`--success-text` passed, `--error-text` failing, `--warning-text` running, none
-when there are no checks or the pull request is merged or closed), kept inside the
-glyph's own box. The card adds one line naming the checks' state with
-`passed/total` dimmed at the trailing edge, led by the shared spinner while checks
+A branch's pull or merge request uses the same vocabulary away from prose: a pill of
+the state glyph and `#N` (`!N`) after the composer's branch control, the glyph alone
+in a sidebar thread row's status slot, and a `#N · title` (`!N · title`) action row
+in the thread's details card. Checks ride on the glyph as a dot cut into its lower
+trailing corner (`--success-text` passed, `--error-text` failing, `--warning-text`
+running, none when there are no checks or the request is merged or closed), kept
+inside the glyph's own box. The card adds one line naming the checks' state, with
+`passed/total` dimmed at the trailing edge when the forge reports per-check counts
+(a GitLab pipeline reports only its status), led by the shared spinner while checks
 run.
 
 ### Link previews
 
 A web link in prose keeps its ordinary reference chip. Resting on it opens the same
-card as a GitHub reference (same delays, placement, surface, and 360px width,
+card as a forge reference (same delays, placement, surface, and 360px width,
 never wider than the window less 8px a side), so a reader learns where the link goes
 without leaving the conversation. The card replaces the link's URL tooltip.
 

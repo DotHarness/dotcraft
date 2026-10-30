@@ -2,24 +2,24 @@ import { useCallback, type AnchorHTMLAttributes, type JSX, type MouseEvent } fro
 import { CircleDot, GitPullRequest } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useConversationStore } from '../../../stores/conversationStore'
-import { useGithubRefLoad, useGithubRefStore, useWorkspaceGithubRepo } from '../../../stores/githubRefStore'
+import { useForgeRefLoad, useForgeRefStore, useWorkspaceForgeRepo } from '../../../stores/forgeRefStore'
 import {
-  githubRefShortLabel,
-  truncateGithubRefTitle,
-  usesGithubRefLabel,
-  type GithubRefTarget
-} from '../../../../shared/githubReferences'
-import { githubRefState } from './githubRefState'
-import { useGithubRefHoverCard } from './useGithubRefHoverCard'
+  forgeRefShortLabel,
+  truncateForgeRefTitle,
+  usesForgeRefLabel,
+  type ForgeRefTarget
+} from '../../../../shared/forgeReferences'
+import { forgeRefState } from './forgeRefState'
+import { useForgeRefHoverCard } from './useForgeRefHoverCard'
 
-export function GithubReferenceChip({
+export function ForgeReferenceChip({
   target,
   href,
   text,
   linkProps,
   onOpenLink
 }: {
-  target: GithubRefTarget
+  target: ForgeRefTarget
   href: string
   text: string
   linkProps: AnchorHTMLAttributes<HTMLAnchorElement>
@@ -27,19 +27,25 @@ export function GithubReferenceChip({
 }): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
-  const workspaceRepo = useWorkspaceGithubRepo(workspacePath)
-  const load = useGithubRefLoad(target)
+  const workspaceRepo = useWorkspaceForgeRepo(workspacePath)
+  const load = useForgeRefLoad(target)
   const known = load.status === 'ready' ? load.ref : null
-  const state = known ? githubRefState(known) : null
+  const state = known ? forgeRefState(known) : null
   const Icon = state?.Icon ?? (target.kind === 'issue' ? CircleDot : GitPullRequest)
-  const labelled = usesGithubRefLabel(text, href, target)
-  const shortLabel = githubRefShortLabel(target, workspaceRepo)
+  const labelled = usesForgeRefLabel(text, href, target)
+  const shortLabel = forgeRefShortLabel(target, workspaceRepo)
   const ariaLabel = [state ? t(state.labelKey) : null, shortLabel, known?.title].filter(Boolean).join(' · ')
-  const { owner, repo, kind, number } = target
+  const { provider, host, path, kind, number } = target
   const revalidate = useCallback(() => {
-    void useGithubRefStore.getState().ensureRef({ owner, repo, kind, number })
-  }, [kind, number, owner, repo])
-  const { anchorProps, card } = useGithubRefHoverCard<HTMLAnchorElement>({ load, label: ariaLabel, onOpenLink, onOpen: revalidate })
+    void useForgeRefStore.getState().ensureRef({ provider, host, path, kind, number })
+  }, [host, kind, number, path, provider])
+  const { anchorProps, card } = useForgeRefHoverCard<HTMLAnchorElement>({
+    repo: target,
+    load,
+    label: ariaLabel,
+    onOpenLink,
+    onOpen: revalidate
+  })
 
   return (
     <>
@@ -53,7 +59,7 @@ export function GithubReferenceChip({
         <Icon size={12} strokeWidth={2.1} aria-hidden className="dc-gh-ref__icon" />
         <span>
           {labelled ? shortLabel : text}
-          {labelled && known?.title ? <span className="dc-gh-ref__title"> · {truncateGithubRefTitle(known.title)}</span> : null}
+          {labelled && known?.title ? <span className="dc-gh-ref__title"> · {truncateForgeRefTitle(known.title)}</span> : null}
         </span>
       </a>
       {card}
