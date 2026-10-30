@@ -57,6 +57,9 @@ import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay
 import { normalizeNodeReplTitle } from '../../utils/nodeReplToolDisplay'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
+import { SideChatMainMessageRow, isSideChatMainMessage } from './SideChatMainMessageRow'
+import { useSideChatStore } from '../../stores/sideChatStore'
+import { findSideChat } from '../../utils/sideChat'
 import { BoardToolCard } from './BoardToolCard'
 import { TaskStopToolRow } from './TaskStopToolRow'
 import { getTaskStopDisplay } from '../../utils/taskStopDisplay'
@@ -400,6 +403,13 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   if (rendererFamily === 'channel') {
     return <ChannelMessageToolRow item={item} display={getChannelMessageDisplay(item, isRunning, locale)} running={isRunning} locale={locale} />
+  }
+
+  const sideChat = rendererFamily === 'subagent' && isSideChatMainMessage(rendererOperation, args)
+    ? findSideChat(useSideChatStore.getState().chats, threadId)
+    : null
+  if (sideChat) {
+    return <SideChatMainMessageRow item={item} chat={sideChat} args={args} running={isRunning} success={success} locale={locale} />
   }
 
   const subAgentDisplay = !isRunning && rendererFamily === 'subagent'

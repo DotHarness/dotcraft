@@ -43,51 +43,25 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
 
     private async Task<(string QueuedId, bool Wake)> EnqueueTaskNotificationAsync(BackgroundTaskEnding ending, CancellationToken ct)
     {
-        var thread = await GetOrLoadThreadAsync(ending.OwnerThreadId, ct).ConfigureAwait(false);
         var displayText = BuildTaskNotificationDisplayText(ending);
-        QueuedTurnInput queued;
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        SessionTurn? activeTurn;
-        using (await AcquireThreadQueueLockAsync(ending.OwnerThreadId, ct).ConfigureAwait(false))
-        {
-            if (_runtimeRegistry.TryGetThread(ending.OwnerThreadId, out var cachedThread))
-                thread = cachedThread;
-
-            activeTurn = thread.Status == ThreadStatus.Active
-                ? thread.Turns.LastOrDefault(static turn =>
-                    turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                : null;
-            queued = new QueuedTurnInput
+        var (queued, thread, steered) = await EnqueueTriggeredInputAsync(
+            ending.OwnerThreadId,
+            new QueuedTurnInput
             {
                 Id = SessionIdGenerator.NewQueuedInputId(),
-                ThreadId = thread.Id,
+                ThreadId = ending.OwnerThreadId,
                 NativeInputParts = [new SessionInputPart { Type = "text", Text = displayText }],
                 MaterializedInputParts = [new SessionInputPart { Type = "text", Text = BuildTaskNotificationModelText(ending) }],
                 DisplayText = displayText,
-                Status = activeTurn == null ? "queued" : "guidancePending",
                 CreatedAt = DateTimeOffset.UtcNow,
-                ReadyAfterTurnId = activeTurn?.Id,
                 TriggerKind = TaskNotificationTriggerKind(ending.Kind),
                 TriggerLabel = ending.Label,
                 TriggerRefId = ending.TaskId,
                 TriggerStatus = ending.KindStatus
-            };
-            var queue = thread.QueuedInputs.ToList();
-            queue.Add(queued);
-            thread.QueuedInputs = queue;
-            await PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(thread.Id, queued)], ct).ConfigureAwait(false);
-            queueSnapshot = queue.ToList();
-        }
-
-        PublishQueueUpdated(thread.Id, queueSnapshot);
-        if (activeTurn != null)
-        {
-            var source = thread.Source.SubAgent;
-            _subAgentCommunicationRuntime.PublishSteer(
-                string.IsNullOrWhiteSpace(source?.RootThreadId) ? thread.Id : source.RootThreadId,
-                string.IsNullOrWhiteSpace(source?.AgentPath) ? AgentPath.Root : source.AgentPath);
+            },
+            ct).ConfigureAwait(false);
+        if (steered)
             return (queued.Id, false);
-        }
 
         if (!ending.MayWake || thread.Status != ThreadStatus.Active)
             return (queued.Id, false);

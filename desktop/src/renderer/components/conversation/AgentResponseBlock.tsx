@@ -30,6 +30,9 @@ import { getToolRowIcon, isToolExecutionFailure, type ToolRowIcon } from '../../
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useSideChatStore } from '../../stores/sideChatStore'
+import { findSideChat } from '../../utils/sideChat'
+import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
@@ -98,9 +101,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
   const citationSources = useWebCitationSources(turn, streamingMessage)
 
+  const inSideChat = useSideChatStore((state) => findSideChat(state.chats, turn.threadId) != null)
   const renderableItems = hydrateToolCallItems(turn.items)
     .filter((item) => !shouldHideCoordinationTool(item, isRunning))
-    .filter(isDefaultRenderableItem)
+    .filter((item) => isDefaultRenderableItem(item) || (inSideChat && isSideChatMainMessageItem(item)))
 
   const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
     && turn.providerError === 'serverOverloaded'
@@ -719,6 +723,12 @@ function findFirstThreadTaskIndexBefore(items: ConversationItem[], beforeIndex: 
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
   return item.type === 'userMessage' && item.deliveryMode === 'guidance' && !isMidTurnSubAgentEnding(item)
+}
+
+/** A side chat shows its message to the main thread, which other threads hide like any successful SendMessage. */
+function isSideChatMainMessageItem(item: ConversationItem): boolean {
+  const plan = resolveCoreFallbackPlan(item)
+  return plan?.family === 'subagent' && isSideChatMainMessage(plan.options.operation, item.arguments)
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {

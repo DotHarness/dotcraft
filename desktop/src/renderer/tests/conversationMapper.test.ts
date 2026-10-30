@@ -90,7 +90,7 @@ describe('wireItemToConversationItem', () => {
   })
 
   it('keeps known trigger provenance and drops unknown trigger kinds', () => {
-    const triggerKinds = ['terminal', 'subagent', 'goal', 'workflow', 'subagentFollowupTask', 'subagentMailbox', 'subagentInput']
+    const triggerKinds = ['terminal', 'subagent', 'goal', 'workflow', 'sideChat', 'subagentFollowupTask', 'subagentMailbox', 'subagentInput']
     for (const triggerKind of triggerKinds) {
       const item = wireItemToConversationItem({
         id: `i-${triggerKind}`,

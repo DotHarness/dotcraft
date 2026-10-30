@@ -562,7 +562,7 @@ A side chat answers a quick question beside a thread without interrupting it. It
 - A side chat uses the AppServer connection it was opened on for every request, so it is deleted on its own server even after a workspace switch.
 - Side chats are not restored after restart. When the connection is lost, open side chats become read-only and offer a new one.
 - Archiving or deleting the parent deletes its side chats on the server; Desktop closes their tabs on `thread/deleted`.
-- Nothing from a side chat enters the main thread automatically.
+- Nothing from a side chat enters the main thread automatically. Only a message its agent sends with `SendMessage` (target `main`) does; the side chat shows that call as a message sent to the main thread, and selecting it shows the main thread.
 
 ### 5.12 Manage Thread Goal
 
@@ -575,6 +575,7 @@ Desktop goal behavior is defined by [Goal Design, Client UX Contract](../feature
 **Non-typed user messages**
 
 - User messages with `triggerKind = "goal"` render a visible goal source marker.
+- Messages with `triggerKind = "sideChat"` render as user bubbles with a source marker saying a side chat sent them; selecting it shows that side chat when its tab is still open (`triggerRefId` is the side chat thread id).
 - Messages with `triggerKind = "subagentFollowupTask"` or `"subagentInput"` render a source marker indicating they came from another thread; `triggerRefId` is an agent path, not a thread id. Messages with `deliveryMode = "subagentMailbox"` or `triggerKind = "subagentMailbox"` are internal model-facing notifications and never render as user bubbles.
 - Background task notifications (`triggerKind = "terminal"` or `"subagent"`, and `"workflow"` with `triggerStatus`) are model-facing: they appear as neither a user bubble, turn navigation entry, queued-input entry, nor composer history, and reordering the queue keeps them in place. A turn started by one marks its activity boundary with the task kind (for a subagent, its avatar) and how it ended (from `triggerStatus`), with an accessible control that opens the task named by `triggerRefId`: a subagent in the Subagents panel, a workflow in its run tab, and a background command by revealing the call that started it. A subagent notification drained into a running turn shows a row at its place naming the ended subagent (see `specs/features/subagents.md`); a background command or workflow notification drained into a running turn shows nothing, because the task's own call already shows how it ended.
 - Dynamic Workflow continuation messages (`triggerKind = "workflow"` without `triggerStatus`) render an origin marker labeled by `triggerLabel` that opens the run named by `triggerRefId`.

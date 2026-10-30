@@ -56,6 +56,26 @@ function showSideChat(chat: SideChat): void {
   useSideChatStore.getState().requestFocus(chat.key)
 }
 
+/** Finds the open side chat whose thread (or local key, before the fork exists) is `threadId`. */
+export function findSideChat(chats: Map<string, SideChat>, threadId: string | null | undefined): SideChat | null {
+  if (!threadId) return null
+  for (const chat of chats.values()) {
+    if (chat.status !== 'expired' && (chat.threadId === threadId || chat.key === threadId)) return chat
+  }
+  return null
+}
+
+export function showSideChatOfThread(threadId: string): void {
+  const chat = findSideChat(useSideChatStore.getState().chats, threadId)
+  if (chat) showSideChat(chat)
+}
+
+export function showMainThreadOf(chat: SideChat): void {
+  useThreadStore.getState().setActiveThreadId(chat.parentThreadId)
+  useUIStore.getState().setActiveMainView('conversation')
+  useUIStore.getState().setDetailPanelFullView(false)
+}
+
 function currentSideChat(parentThreadId: string): SideChat | null {
   const chats = sideChatsOf(useSideChatStore.getState().chats, parentThreadId)
     .filter((chat) => chat.status !== 'expired')
