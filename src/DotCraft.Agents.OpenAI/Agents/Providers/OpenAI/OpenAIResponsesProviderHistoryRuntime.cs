@@ -84,7 +84,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             }
 
             _coveredSamplingMessageCount = samplingMessages.Count;
-            var input = BuildInputArray(keepLatestToolResultImages: EndsWithToolResultImages(samplingMessages));
+            var input = BuildInputArray();
             return new CanonicalResponsesInput(
                 input,
                 OpenAIResponsesItemIdentityDiagnostics.FromInput(input));
@@ -112,7 +112,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                     "responses_provider_history_corrupt: MEAI sampling history is shorter than its canonical coverage.");
             }
 
-            var input = BuildInputArray(keepLatestToolResultImages: false);
+            var input = BuildInputArray();
             var coveredMessageCount = _coveredSamplingMessageCount;
             var coveredThroughTurnId = _coveredThroughTurnId;
             if (phase is not ProviderCompactionPhase.PreTurn)
@@ -523,14 +523,13 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         return correlations;
     }
 
-    private JsonArray BuildInputArray(bool keepLatestToolResultImages)
+    private JsonArray BuildInputArray()
     {
         var input = new JsonArray();
         foreach (var entry in _entries)
         {
             input.Add(JsonNode.Parse(entry.Entry.Item.GetRawText()));
         }
-        OmitEarlierToolResultImages(input, keepLatestToolResultImages);
         NormalizeCallOutputs(input);
         return input;
     }

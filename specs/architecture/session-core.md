@@ -320,7 +320,8 @@ Fields: `callId`, the complete immutable invocation identity, provenance, and pr
 - Clients never join against the current registry to recover provenance or presentation; the result carries it.
 - Standard projection appends exactly one terminal `ToolResult` per call. `McpToolCall` and `DynamicToolCall` instead reach exactly one terminal state on their own item. All projections share one atomic terminal guard across completion, rejection, cancellation, timeout, and failure.
 - A provider callback naming an invalid, unknown, or unavailable function produces a recoverable tool failure with `success = false` and `errorCode = "tool_not_found"`, returned to the model rather than failing the Turn.
-- For non-text tool output, `result` remains the text fallback and clients may use `contentItems`. History reconstruction may restore a validated image as structured model media but never serializes its data URL or base64 as text. Provider-specific projection may replace historical tool media with the text fallback. `structuredContent` and `_meta` never enter provider history.
+- For non-text tool output, `result` remains the text fallback and clients may use `contentItems`. History reconstruction may restore a validated image as structured model media but never serializes its data URL or base64 as text. `structuredContent` and `_meta` never enter provider history.
+- Tool media projection depends only on the history, so appending to the history never changes what an earlier request sent: prompt cache prefixes and provider reasoning signatures stay valid. Anthropic and OpenAI Responses receive images inside the tool result. OpenAI Chat Completions, whose tool messages carry only text, receives the text fallback in each tool message and the images of that call's tool messages in one user message immediately after them, in every request.
 
 `WriteFile` and `EditFile` attach their write outcome and exact file change as `structuredContent`:
 
@@ -547,7 +548,7 @@ History reconstruction rules:
 
 - Provider reasoning metadata is preserved on assistant messages that contain tool calls. A sampling segment that produced reasoning, visible text, and tool calls before their results is reconstructed as one assistant message containing all three, as required by providers whose thinking mode round-trips reasoning on tool-call messages.
 - Tool history reconstruction is source-neutral. A valid `ToolCall`/`ToolResult` pair or terminal `McpToolCall`/`DynamicToolCall` expands into the provider's function-call/result sequence with the original `callId`. Namespace-capable providers receive the persisted `(namespace, toolName)`; flat-only providers receive the persisted `providerFlatName`. Reconstruction never consults the current tool inventory, parses or regenerates a flat alias, or substitutes MCP server/source names. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; pairings are never guessed. Only normalized model content participates.
-- Validated tool-result images stay structured media until compaction. Summary-producing compaction replaces them with their bounded textual description in the replacement history. Images on a user message remain only if that message is in the preserved tail.
+- Validated tool-result images stay structured media until compaction, and every request until then carries them. Summary-producing compaction replaces them with their bounded textual description in the replacement history. Images on a user message remain only if that message is in the preserved tail.
 
 ## 6. Event Model
 

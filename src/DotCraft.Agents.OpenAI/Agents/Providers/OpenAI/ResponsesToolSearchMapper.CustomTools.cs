@@ -121,7 +121,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             ["type"] = "custom_tool_call_output",
             ["call_id"] = result.CallId,
-            ["output"] = SerializeResult(result.Result)
+            ["output"] = SerializeOutput(result.Result)
         };
 
     private static bool TryCreateSyntheticCustomToolCall(

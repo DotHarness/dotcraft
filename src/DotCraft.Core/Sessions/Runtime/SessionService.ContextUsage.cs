@@ -386,11 +386,8 @@ public sealed partial class SessionService
             requestSnapshot?.EstimateRequestOverheadTokens() ?? 0);
     }
 
-    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history)
-    {
-        var repairedHistory = ModelRequestHistorySanitizer.Sanitize(history);
-        return ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(repairedHistory);
-    }
+    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>
+        ModelRequestHistorySanitizer.Sanitize(history);
 
     private PreparedContextTokenEstimate PrepareContextTokenEstimate(
         string threadId,

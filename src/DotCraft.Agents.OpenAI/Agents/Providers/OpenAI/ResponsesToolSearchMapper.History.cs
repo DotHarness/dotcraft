@@ -17,7 +17,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             ["type"] = "function_call_output",
             ["call_id"] = result.CallId,
-            ["output"] = SerializeResult(result.Result)
+            ["output"] = SerializeOutput(result.Result)
         };
 
     private static bool TryCreateReasoningItem(
@@ -204,6 +204,36 @@ internal static partial class ResponsesToolSearchMapper
             return node.ToJsonString(JsonOptions);
         return JsonSerializer.Serialize(arguments, JsonOptions);
     }
+
+    private static JsonNode SerializeOutput(object? result)
+    {
+        if (result is not IEnumerable<AIContent> contents || !contents.Any(IsToolOutputImage))
+            return JsonValue.Create(SerializeResult(result));
+
+        var parts = new JsonArray();
+        foreach (var content in contents)
+        {
+            switch (content)
+            {
+                case DataContent data when IsToolOutputImage(data):
+                    parts.Add(CreateContentPartOrPlaceholder(ChatRole.User, data));
+                    break;
+                case TextContent { Text.Length: 0 }:
+                    break;
+                case TextContent text:
+                    parts.Add(CreateTextContentPart(ChatRole.User, text.Text));
+                    break;
+                default:
+                    parts.Add(CreateTextContentPart(ChatRole.User, DescribeUnsupportedContent(content)));
+                    break;
+            }
+        }
+
+        return parts;
+    }
+
+    private static bool IsToolOutputImage(AIContent content) =>
+        content is DataContent data && ModelImageInputPreparer.IsImageMediaType(data.MediaType);
 
     private static string SerializeResult(object? result)
     {

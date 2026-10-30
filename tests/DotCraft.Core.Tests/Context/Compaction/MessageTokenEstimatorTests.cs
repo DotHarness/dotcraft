@@ -37,45 +37,6 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
-    public void Estimate_HistoricalToolImagesUseDescriptionCostButTheCurrentRoundKeepsTheImageCost()
-    {
-        var contents = new List<AIContent>
-        {
-            new TextContent("Screenshot captured"),
-            new DataContent(new byte[1_000_000], "image/png")
-        };
-        foreach (var result in new object[]
-                 {
-                     contents,
-                     contents.ToArray(),
-                     JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default)
-                 })
-        {
-            var history = new List<ChatMessage>
-            {
-                new(ChatRole.Tool, [new FunctionResultContent("call-image", result)]),
-                new(ChatRole.User, "continue")
-            };
-
-            var described = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(history);
-
-            Assert.True(MessageTokenEstimator.Estimate(described) + 1_000 < MessageTokenEstimator.Estimate(history));
-        }
-
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "capture"),
-            new(ChatRole.Assistant, [new FunctionCallContent("call-image", "capture", new Dictionary<string, object?>())]),
-            new(ChatRole.Tool, [new FunctionResultContent("call-image", (IList<AIContent>)contents)])
-        };
-
-        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
-
-        Assert.Equal(MessageTokenEstimator.Estimate(messages), MessageTokenEstimator.Estimate(sanitized));
-        Assert.True(MessageTokenEstimator.Estimate(sanitized) >= 2_000);
-    }
-
-    [Fact]
     public void EstimateContent_JsonFunctionResult_IgnoresImageBase64ButCountsOtherData()
     {
         static int Estimate(int bytes, string mediaType)
