@@ -94,7 +94,7 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-Plugin load contexts then resolve these assemblies to the instances the application loaded and ignore any copies a bundle ships. Plugin projects built through `DotNetPlugin.Build` can reference them too. Each name must be an assembly simple name that DotCraft does not already share and that is not part of the .NET runtime. Otherwise `AddDotCraftHarness` throws. Workspace and plugin configuration cannot change this list.
+Plugin load contexts then resolve these assemblies to the instances the application loaded and ignore any copies a bundle ships. Plugin projects built through `DotNetPlugin.Build` can reference them too. Each name must be an assembly simple name that DotCraft does not already share. Otherwise `AddDotCraftHarness` throws. Workspace and plugin configuration cannot change this list.
 
 ## Handle startup failure
 

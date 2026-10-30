@@ -89,8 +89,7 @@ An application that embeds DotCraft may declare additional shared assemblies by 
 its Runtime host options (`PluginSharedAssemblies`), so plugins can consume the application's own
 typed service contracts. The declaration is a Host ABI decision; workspace and plugin configuration
 cannot set it. Declared names only add to the built-in set: a name must be a plain assembly simple
-name that is neither a framework assembly nor already shared, and invalid names fail host
-composition. A declared assembly resolves to the Host's instance like any other shared assembly.
+name that is not already shared, and invalid names fail host composition. A declared assembly resolves to the Host's instance like any other shared assembly.
 
 The public host surface is a version-bound ABI, not an append-only compatibility promise:
 

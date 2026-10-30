@@ -46,7 +46,7 @@ internal static class PluginHostAssemblies
         var names = simpleNames.ToArray();
         foreach (var name in names)
         {
-            if (!IsSimpleName(name) || IsShared(name) || IsFrameworkAssembly(name))
+            if (!IsSimpleName(name) || IsShared(name))
             {
                 throw new ArgumentException(
                     $"'{name}' is not an assembly simple name the Host can additionally share with plugins.",

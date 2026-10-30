@@ -94,7 +94,7 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 });
 ```
 
-此后插件加载上下文会把这些程序集解析到应用已加载的实例，并忽略 bundle 自带的副本。通过 `DotNetPlugin.Build` 构建的插件项目也可以引用它们。每个名称都必须是程序集简单名称，且既不是 DotCraft 已共享的程序集，也不属于 .NET 运行时，否则 `AddDotCraftHarness` 会抛出异常。workspace 配置与插件配置都不能修改这份列表。
+此后插件加载上下文会把这些程序集解析到应用已加载的实例，并忽略 bundle 自带的副本。通过 `DotNetPlugin.Build` 构建的插件项目也可以引用它们。每个名称都必须是程序集简单名称，且不是 DotCraft 已共享的程序集，否则 `AddDotCraftHarness` 会抛出异常。workspace 配置与插件配置都不能修改这份列表。
 
 ## 处理启动失败
 
