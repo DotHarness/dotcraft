@@ -21,6 +21,15 @@ public static partial class SubAgentSessionControl
         CancellationToken ct)
     {
         var normalizedMessage = NormalizeRequired(message, nameof(message));
+        if (CacheSharingFork.PurposeOf(context.ParentThread) == ThreadForkPurpose.SideChat)
+        {
+            if (!string.Equals(NormalizeRequired(target, nameof(target)), SessionService.SideChatMainTarget, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"In a side chat, SendMessage can only reach the main thread; use target \"{SessionService.SideChatMainTarget}\".");
+            if (context.SessionService is not SessionService sessionService)
+                throw new InvalidOperationException("SendMessage to the main thread is unavailable in this host.");
+            return await sessionService.DeliverSideChatMessageAsync(context.ParentThread, normalizedMessage, ct);
+        }
+
         var callerPath = GetCurrentAgentPath(context.ParentThread);
         var targetPath = callerPath.Resolve(NormalizeRequired(target, nameof(target)));
         if (targetPath == callerPath)

@@ -2,11 +2,13 @@ import { Bot, MessagesSquare, Target, Workflow } from 'lucide-react'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useAutomationsStore } from '../../stores/automationsStore'
+import { useSideChatStore } from '../../stores/sideChatStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import type { AppLocale } from '../../../shared/locales/types'
 import type { ConversationItem } from '../../types/conversation'
+import { findSideChat, showSideChatOfThread } from '../../utils/sideChat'
 import { ActionTooltip } from '../ui/ActionTooltip'
 
 type TriggerKind = NonNullable<ConversationItem['triggerKind']>
@@ -20,12 +22,14 @@ function badgeTextFor(locale: AppLocale, kind: TriggerKind): string {
   if (kind === 'app') return translate(locale, 'app.triggeredBy.badge')
   if (kind === 'thread') return translate(locale, 'thread.triggeredBy.badge')
   if (kind === 'workflow') return translate(locale, 'workflow.triggeredBy.badge')
+  if (kind === 'sideChat') return translate(locale, 'sideChat.triggeredBy.badge')
   if (isSubAgentKind(kind)) return translate(locale, 'subAgent.triggeredBy.badge')
   return translate(locale, 'automation.triggeredBy.badge')
 }
 
 function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): string {
   if (kind === 'goal') return label || translate(locale, 'goal.triggeredBy.generic')
+  if (kind === 'sideChat') return translate(locale, 'sideChat.triggeredBy.generic')
   if (kind === 'app') {
     return label
       ? translate(locale, 'app.triggeredBy.detail', { label })
@@ -64,7 +68,7 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
 export function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
   if (kind === 'goal') return <Target size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'workflow') return <Workflow size={13} strokeWidth={1.8} aria-hidden />
-  if (kind === 'thread' || isSubAgentKind(kind)) {
+  if (kind === 'thread' || kind === 'sideChat' || isSubAgentKind(kind)) {
     return <MessagesSquare size={13} strokeWidth={1.8} aria-hidden />
   }
   return <Bot size={13} strokeWidth={1.8} aria-hidden />
@@ -93,10 +97,15 @@ export function MessageOriginLine({
   const hint = label ? detailText : null
 
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
-  const canNavigate = (kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
+  const sideChatOpen = useSideChatStore((state) => kind === 'sideChat' && findSideChat(state.chats, refId) != null)
+  const canNavigate = ((kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId) || sideChatOpen
 
   const onClick = canNavigate
     ? () => {
+        if (kind === 'sideChat') {
+          if (refId) showSideChatOfThread(refId)
+          return
+        }
         if (kind === 'thread') {
           if (refId) {
             useThreadStore.getState().setActiveThreadId(refId)

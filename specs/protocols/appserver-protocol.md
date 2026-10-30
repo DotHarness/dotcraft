@@ -365,7 +365,7 @@ Semantics:
 - Keeps the source's configuration, approval policy, tool-planning role, and provider cache routing identity so it reuses the cached prompt prefix.
 - Hidden like other internal ephemeral threads: not listed or searched; workspace notifications reach only its subscribers.
 - Before each Turn the server ensures the model-visible history contains a side-chat boundary (not a client-visible Item) that marks copied history as reference-only and asks for read-only help unless the user explicitly requests a change.
-- `SpawnAgent` fails with a tool error.
+- `SpawnAgent` fails with a tool error. `SendMessage` reaches only target `main`, which delivers the message to the source as input with `triggerKind = "sideChat"` and `triggerRefId` = the side chat id; the source never addresses a side chat.
 - Lives until `thread/delete`, until its source is archived or deleted, or until process exit. Clients delete side chats they no longer show.
 
 ### 4.3 `thread/list`
@@ -662,7 +662,7 @@ The user message's display text is built from text, file, command, and skill par
 
 Queued inputs carry `nativeInputParts`, `materializedInputParts`, `displayText`, optional `sender`, `status` (`queued` or `guidancePending`), `createdAt`, and `readyAfterTurnId` (the active turn when queued). Trigger fields mark input synthesized by a server or app mechanism:
 
-- `triggerKind`: for example `goal`, `automation`, `app`, `team`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, or `workflow` (a model-facing notice that a background task ended; `triggerRefId` is the task id; clients do not present it as user input).
+- `triggerKind`: for example `goal`, `automation`, `app`, `team`, `sideChat` (a message a side chat sent its source; `triggerRefId` is the side chat id), `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, or `workflow` (a model-facing notice that a background task ended; `triggerRefId` is the task id; clients do not present it as user input).
 - `triggerLabel`, `triggerRefId`: display label and stable source id for click-through or audit.
 - `triggerStatus` (task notifications only): the terminal's final status or `waitingForInput` for a stall; the child Turn status for `subagent`; the run status for `workflow`.
 
@@ -805,7 +805,7 @@ Canonical payload schemas are in [Session Core, Section 4.2](../architecture/ses
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids. |
+| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids. |
 | `agentMessage` | Text streams through `item/agentMessage/delta`. `deliveryMode = "async"` marks a model-initiated message during a running Turn: delivered immediately, does not complete the Turn, excluded from final-text aggregation, not restored into model-visible history. |
 | `reasoningContent` | Text streams through `item/reasoning/delta`. |
 | `toolCall` | Optional canonical `namespace`, local `toolName`, required `providerFlatName`, `arguments`, `callId`, plus optional definition and source provenance. Argument construction may stream through `item/toolCall/argumentsDelta`. |

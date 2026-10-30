@@ -225,6 +225,7 @@ export interface ConversationItem {
     | 'app'
     | 'thread'
     | 'workflow'
+    | 'sideChat'
     | 'subagentFollowupTask'
     | 'subagentMailbox'
     | 'subagentInput'
@@ -776,6 +777,7 @@ function normalizeTriggerKind(
 ): Exclude<ConversationItem['triggerKind'], 'thread'> | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
+  if (normalized === 'sidechat') return 'sideChat'
   if (normalized === 'subagentfollowuptask') return 'subagentFollowupTask'
   if (normalized === 'subagentmailbox') return 'subagentMailbox'
   if (normalized === 'subagentinput') return 'subagentInput'

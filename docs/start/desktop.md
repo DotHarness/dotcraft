@@ -26,7 +26,7 @@ A side chat answers a quick question without interrupting the thread. Open one w
 
 Select text in a reply and choose **Ask in side chat** to quote it there. A queued message can go to a side chat with **Send in side chat** instead of waiting for the current task. **Ctrl+/** moves between the main composer and the side chat.
 
-A side chat is for questions: it reads and answers, and changes files only when you ask it to. Approvals it needs appear in its own tab. Side chats are temporary: closing the tab deletes one, and nothing from it enters the main thread.
+A side chat is for questions: it reads and answers, and changes files only when you ask it to. Approvals it needs appear in its own tab. Side chats are temporary: closing the tab deletes one. Nothing from a side chat reaches the main thread unless you ask it to pass something on; that message then appears in the main thread marked **Sent from a side chat**.
 
 ## Keep several projects in one window
 

@@ -120,6 +120,9 @@ an ancestor, a sibling, or a descendant. Every message can wake its recipient:
 Pending mailbox messages for the recipient are delivered with it. A target whose spawn edge was
 closed by a client, and an external SubAgent whose edge does not accept new tasks, are errors.
 
+In a side chat the only target is `main`, its source thread
+([Session Core](session-core.md), side chat forks).
+
 ### 4.3 `SpawnAgent`, `ListAgents`, `Workflow`, `Exec`
 
 Their results name the task id and tell the model that a notification arrives when the task ends.

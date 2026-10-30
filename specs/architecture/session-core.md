@@ -117,6 +117,7 @@ Side chat forks:
 - It inherits the source's tool-planning role and cache routing root, so tool surface and base instructions match.
 - Before each Turn, Session Core appends a side-chat boundary context item when the history has none. It follows the copied history, is restored after compaction, and is not a visible Item.
 - A side chat cannot own persistent child threads, so spawning a child agent fails.
+- Nothing from a side chat reaches its source on its own. `SendMessage` with target `main` delivers one message to the source as synthesized input with `triggerKind = "sideChat"` and `triggerRefId` = the side chat id: an idle source starts a Turn with it, and an active source receives it as current-Turn guidance at its next sampling boundary. The model-visible text marks it as relayed by the side chat, not typed by the user, so it never approves a pending request. Any other target fails, as does a source that is gone or not active. Delivery is one-way: the source cannot address a side chat.
 - Archiving or deleting the source deletes its side chats.
 
 #### 4.1.1.2 Worktrees

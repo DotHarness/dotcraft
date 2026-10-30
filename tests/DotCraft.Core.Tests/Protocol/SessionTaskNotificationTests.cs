@@ -11,7 +11,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionTaskNotificationTests : IAsyncLifetime
+public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
 {
     private const string EnvelopeTag = "<task_notification>";
 
