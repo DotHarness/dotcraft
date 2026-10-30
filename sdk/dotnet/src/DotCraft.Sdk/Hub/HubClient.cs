@@ -159,8 +159,7 @@ public sealed class HubClient
     public async Task<HubLockInfo> EnsureHubAsync(CancellationToken cancellationToken = default)
     {
         var shutdownDeadline = DateTimeOffset.UtcNow + _options.ShutdownTimeout;
-        int? retiringPid = null;
-        JsonElement? mismatch = null;
+        (int Pid, JsonElement Mismatch)? stopping = null;
         DateTimeOffset? startupDeadline = null;
 
         while (true)
@@ -168,16 +167,14 @@ public sealed class HubClient
             cancellationToken.ThrowIfCancellationRequested();
             var lockInfo = ReadHubLock(GetLockPath());
             var owner = lockInfo is not null && IsProcessAlive(lockInfo.Pid) ? lockInfo : null;
-            if (owner is not null && owner.Pid == retiringPid)
+            if (owner is not null && owner.Pid == stopping?.Pid)
             {
-                if (mismatch is null && await ProbeHubAsync(owner, cancellationToken) is { } recovered)
-                {
-                    return recovered;
-                }
-
                 if (DateTimeOffset.UtcNow >= shutdownDeadline)
                 {
-                    throw RetiringHubException(owner.Pid, mismatch);
+                    throw new HubClientException(
+                        "hubMismatchShutdownTimeout",
+                        "Hub uses a different executable and did not stop after shutdown.",
+                        stopping.Value.Mismatch);
                 }
             }
             else if (owner is not null)
@@ -205,12 +202,14 @@ public sealed class HubClient
                     }
 
                     await RequestMismatchedHubShutdownAsync(live, liveMismatch, cancellationToken);
-                    mismatch = liveMismatch;
-                    retiringPid = live.Pid;
+                    stopping = (live.Pid, liveMismatch);
                 }
-                else if (startupDeadline is null)
+                else if (startupDeadline is null && DateTimeOffset.UtcNow >= shutdownDeadline)
                 {
-                    retiringPid = owner.Pid;
+                    throw new HubClientException(
+                        "hubUnavailable",
+                        "The previous DotCraft Hub is still shutting down.",
+                        JsonSerializer.SerializeToElement(new { pid = owner.Pid }, DotCraftJson.Options));
                 }
             }
             else if (startupDeadline is null)
@@ -608,17 +607,6 @@ public sealed class HubClient
                 ex);
         }
     }
-
-    private static HubClientException RetiringHubException(int pid, JsonElement? mismatch) =>
-        mismatch is { } details
-            ? new HubClientException(
-                "hubMismatchShutdownTimeout",
-                "Hub uses a different executable and did not stop after shutdown.",
-                details)
-            : new HubClientException(
-                "hubUnavailable",
-                "The previous DotCraft Hub is still shutting down.",
-                JsonSerializer.SerializeToElement(new { pid }, DotCraftJson.Options));
 
     private static string? ReadString(JsonElement element, string propertyName)
     {

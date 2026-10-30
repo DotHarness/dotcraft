@@ -284,6 +284,31 @@ public sealed class HubClientTests
     }
 
     [Fact]
+    public async Task EnsureHubAsync_AppliesBinaryPolicyToAHubThatAnswersAfterAFailedProbe()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        await File.WriteAllTextAsync(lockPath, $$"""
+            { "pid": {{Environment.ProcessId}}, "apiBaseUrl": "http://127.0.0.1:49131", "token": "hub-token", "binaryPath": "old-dotcraft" }
+            """);
+        var probes = 0;
+        var handler = new CaptureHandler(_ => Interlocked.Increment(ref probes) == 1
+            ? throw new HttpRequestException("Connection refused.")
+            : Json(HttpStatusCode.OK, """{"binaryPath":"old-dotcraft"}"""));
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            StartHubIfMissing = false,
+            ExpectedExecutable = "new-dotcraft",
+            BinaryMatchPolicy = HubBinaryMatchPolicy.ErrorIfMismatch,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var error = await Assert.ThrowsAsync<HubClientException>(() => hub.EnsureHubAsync());
+        Assert.Equal("hubBinaryMismatch", error.Code);
+    }
+
+    [Fact]
     public async Task EnsureHubAsync_ReportsAPreviousHubThatNeverStops()
     {
         using var temp = new TemporaryDirectory();

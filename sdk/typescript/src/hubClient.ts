@@ -201,8 +201,6 @@ const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
 const PROBE_TIMEOUT_MS = 2_000;
 const POLL_MS = 200;
 
-const pendingHubBootstraps = new Map<string, Promise<HubLockInfo>>();
-
 export function hubLockPath(homeDir = homedir()): string {
   return join(homeDir, ".craft", "hub", "hub.lock");
 }
@@ -566,29 +564,22 @@ export class HubClient {
   }
 
   async ensureHub(): Promise<HubLockInfo> {
-    // Desktop creates a client per call, so concurrent bootstraps share one attempt per Hub lock.
     const lockPath = hubLockPath(this.options.homeDir);
-    const pending = pendingHubBootstraps.get(lockPath);
-    if (pending) return await pending;
-
-    const bootstrap = this.discoverOrStartHub(lockPath).finally(() => pendingHubBootstraps.delete(lockPath));
-    pendingHubBootstraps.set(lockPath, bootstrap);
-    return await bootstrap;
-  }
-
-  private async discoverOrStartHub(lockPath: string): Promise<HubLockInfo> {
     const shutdownDeadline = Date.now() + (this.options.hubShutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS);
-    let retiringPid: number | null = null;
-    let mismatch: { expectedExecutable: string; actualExecutable: string | null } | null = null;
+    let stopping: { pid: number; mismatch: { expectedExecutable: string; actualExecutable: string | null } } | null = null;
     let startupDeadline: number | null = null;
 
     for (;;) {
       const lock = readHubLockFromPath(lockPath);
       const owner = lock && isProcessAlive(lock.pid) ? lock : null;
-      if (owner && owner.pid === retiringPid) {
-        const recovered = mismatch ? null : await this.probeHub(owner);
-        if (recovered) return recovered;
-        if (Date.now() >= shutdownDeadline) throw this.retiringHubError(owner.pid, mismatch);
+      if (owner && owner.pid === stopping?.pid) {
+        if (Date.now() >= shutdownDeadline) {
+          throw new HubClientError(
+            "hubMismatchShutdownTimeout",
+            "Hub uses a different executable and did not stop after shutdown.",
+            stopping.mismatch,
+          );
+        }
       } else if (owner) {
         const live = await this.probeHub(owner);
         if (live && startupDeadline !== null) return live;
@@ -599,10 +590,9 @@ export class HubClient {
             throw new HubClientError("hubBinaryMismatch", "Hub is running from a different executable.", liveMismatch);
           }
           await this.requestMismatchedHubShutdown(live, liveMismatch);
-          mismatch = liveMismatch;
-          retiringPid = live.pid;
-        } else if (startupDeadline === null) {
-          retiringPid = owner.pid;
+          stopping = { pid: live.pid, mismatch: liveMismatch };
+        } else if (startupDeadline === null && Date.now() >= shutdownDeadline) {
+          throw new HubClientError("hubUnavailable", "The previous DotCraft Hub is still shutting down.", { pid: owner.pid });
         }
       } else if (startupDeadline === null) {
         this.startHub();
@@ -724,19 +714,6 @@ export class HubClient {
         error,
       );
     }
-  }
-
-  private retiringHubError(
-    pid: number,
-    mismatch: { expectedExecutable: string; actualExecutable: string | null } | null,
-  ): HubClientError {
-    return mismatch
-      ? new HubClientError(
-          "hubMismatchShutdownTimeout",
-          "Hub uses a different executable and did not stop after shutdown.",
-          mismatch,
-        )
-      : new HubClientError("hubUnavailable", "The previous DotCraft Hub is still shutting down.", { pid });
   }
 }
 

@@ -314,18 +314,15 @@ test("ensureHub starts a replacement only after a Hub that stopped answering exi
     }) as typeof fetch;
 
     const options = { homeDir: dir, executable: process.execPath, hubStartupTimeoutMs: 5_000 };
-    const first = new HubClient(options).ensureHub();
-    const second = new HubClient(options).ensureHub();
+    const ensured = new HubClient(options).ensureHub();
     let settled = false;
-    void first.then(() => { settled = true; }, () => { settled = true; });
+    void ensured.then(() => { settled = true; }, () => { settled = true; });
 
     await new Promise((resolve) => setTimeout(resolve, 600));
     assert.equal(settled, false);
     await stopProcess(previous);
 
-    const hub = await first;
-    assert.equal(hub.apiBaseUrl, "http://127.0.0.1:49141");
-    assert.equal(await second, hub);
+    assert.equal((await ensured).apiBaseUrl, "http://127.0.0.1:49141");
   } finally {
     globalThis.fetch = originalFetch;
     process.chdir(originalCwd);
@@ -358,6 +355,31 @@ test("ensureHub reports a previous Hub that never finishes shutting down", async
   } finally {
     globalThis.fetch = originalFetch;
     await stopProcess(previous);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureHub applies the binary policy to a Hub that answers again after a failed probe", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-recovered-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeHubLock(dir, { pid: process.pid, apiBaseUrl: "http://127.0.0.1:49145", binaryPath: "/old/dotcraft" });
+    let probes = 0;
+    globalThis.fetch = (async () => {
+      if (probes++ === 0) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ binaryPath: "/old/dotcraft" }), { status: 200 });
+    }) as typeof fetch;
+
+    await assert.rejects(
+      new HubClient({
+        homeDir: dir,
+        expectedExecutable: "/new/dotcraft",
+        binaryMatchPolicy: "errorIfMismatch",
+      }).ensureHub(),
+      (error: unknown) => error instanceof HubClientError && error.code === "hubBinaryMismatch",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
     await rm(dir, { recursive: true, force: true });
   }
 });
