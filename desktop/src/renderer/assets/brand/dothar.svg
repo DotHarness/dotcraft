@@ -1,16 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Dothar dot T logo">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="DotHarness logo">
   <rect width="512" height="512" fill="#050505"/>
-  <path
-    fill="#fff"
-    d="M155 182
-       C155 136 190 104 238 104
-       H415
-       V184
-       H319
-       V313
-       C319 371 278 408 228 408
-       V184
-       H155
-       Z"/>
-  <circle cx="138" cy="295" r="40" fill="#fff"/>
+  <g transform="translate(4 0)">
+    <path fill="#7d7d7d" d="M224 200H320V304A96 96 0 0 1 224 400Z"/>
+    <path fill="#c9c9c9" d="M224 200H328L224 304Z"/>
+    <path fill="#fff" d="M144 208A96 96 0 0 1 240 112H400V208Z"/>
+    <circle cx="160" cy="304" r="40" fill="#fff"/>
+  </g>
 </svg>
