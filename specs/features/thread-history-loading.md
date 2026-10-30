@@ -76,20 +76,20 @@ Which tool results stay outside a folded process is a client layout decision, so
 Both clients follow these rules for the conversation transcript.
 
 1. Opening a thread subscribes first, then reads the header and the newest Turn page with `itemsView: "summary"` concurrently.
-2. A running or waiting Turn in the page is read in full with Turn-scoped `thread/items/list` before it renders, and then follows live notifications. Every other Turn renders from its summary.
+2. Only a completed Turn folds its work, so only a completed Turn renders from its summary. A running, waiting, failed, or cancelled Turn in the page is read in full with Turn-scoped `thread/items/list` before it renders, and a live one then follows notifications.
 3. Older pages are read with `itemsView: "summary"`.
-4. A summary Turn renders its user message, activity boundary and duration, pinned results, file changes, and final reply exactly as the fully loaded Turn would. Its activity boundary is expandable when `itemCount` exceeds the number of summary Items.
+4. A summary Turn renders its user message, activity boundary and duration, pinned results, file changes (including the changes card of a Turn without a reply), and final reply exactly as the fully loaded Turn would. Its activity boundary is expandable when `itemCount` exceeds the number of summary Items.
 5. Opening the folded process of a summary Turn reads all its Items with Turn-scoped `thread/items/list`. The process shows a loading state until the Items arrive; on failure it shows the error with a retry and the summary stays in place. The Turn then stays fully loaded while the thread's history is held, and its Items take the Turn's place in the transcript.
 6. Revealing an Item that is not in any loaded Turn loads the full Items of summary Turns, newest first, before reading older pages.
 7. Live notifications for a summary Turn merge by stable id and never mark it fully loaded. A Turn that starts after the thread opened is fully loaded.
-8. Thread-wide derivations treat a summary Turn as known by its summary: file changes and citations come from summary Items, and a failed Turn counts as a bare retry only when its loaded Items are all `error` Items and none were omitted.
+8. Thread-wide derivations treat a summary Turn as known by its summary: file changes and citations come from summary Items.
 9. A saved summary Turn (Mobile offline history) restores as a summary Turn.
 
 ## 6. Workflows
 
 ### 6.1 Open a long thread
 
-The client subscribes, then reads `thread/read` and `thread/turns/list { limit, itemsView: "summary", summaryTools }` together. Completed Turns render collapsed from their summaries; the transcript is usable once both responses arrive. A running Turn additionally reads its Items and streams.
+The client subscribes, then reads `thread/read` and `thread/turns/list { limit, itemsView: "summary", summaryTools }` together. Completed Turns render collapsed from their summaries; the transcript is usable once both responses arrive. A Turn that is not completed additionally reads its Items, and a running one streams.
 
 ### 6.2 Open a folded process
 

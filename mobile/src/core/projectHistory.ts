@@ -12,7 +12,6 @@ const SUMMARY_TOOLS = [
   { name: 'CreateThread', namespace: 'desktop' },
   { name: 'SendMessageToThread', namespace: 'desktop' },
 ]
-const LIVE_TURN_STATUSES = new Set(['running', 'waitingApproval', 'waitingInput'])
 
 export async function readTurnPage(
   client: DotCraftWireClient,
@@ -29,7 +28,7 @@ export async function readTurnPage(
   })
   const turns = await Promise.all(
     [...page.data].reverse().map(async (turn) =>
-      turn.itemsView === 'summary' && !LIVE_TURN_STATUSES.has(turn.status)
+      turn.itemsView === 'summary' && turn.status === 'completed'
         ? { turn, items: turn.items ?? [] }
         : { turn: { ...turn, itemsView: null, itemCount: null }, items: await readTurnItems(client, threadId, turn.id) },
     ),

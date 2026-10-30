@@ -15,7 +15,6 @@ const SUMMARY_TOOLS = [
   { name: 'CreateThread', namespace: 'desktop' },
   { name: 'SendMessageToThread', namespace: 'desktop' }
 ]
-const LIVE_TURN_STATUSES = new Set(['running', 'waitingApproval', 'waitingInput'])
 
 export type TurnItemsView = 'none' | 'summary'
 
@@ -111,7 +110,7 @@ export async function hydrateTurns(
   const hydrateFrom = async (index: number): Promise<void> => {
     const turn = turns[index]
     if (!turn) return
-    if (turn.itemsView === 'summary' && !LIVE_TURN_STATUSES.has(turn.status)) {
+    if (turn.itemsView === 'summary' && turn.status === 'completed') {
       hydrated[index] = turn
     } else {
       const { itemsView: _view, itemCount: _count, ...metadata } = turn

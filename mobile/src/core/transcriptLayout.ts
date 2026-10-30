@@ -104,7 +104,7 @@ export function layoutTurn(
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')
   const image = lastIndex(before, (entry) => entry.kind === 'image' && entry.status === 'completed' && entry.uri !== null)
   const pinned = (entry: TranscriptEntry, index: number) =>
-    (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || index === plan || index === image
+    (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || entry.kind === 'changes' || index === plan || index === image
   return [
     ...opening,
     pending

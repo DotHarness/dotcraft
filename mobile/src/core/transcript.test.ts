@@ -231,6 +231,15 @@ describe('turn changes', () => {
       expect(buildTranscript(history(items, status)).some((entry) => entry.kind === 'changes')).toBe(false)
     }
   })
+
+  it('keeps the changes entry of a summarized turn without a reply', () => {
+    const items = [item('userMessage', { text: 'Fix it' }), ...edit('a.ts', 'c1')]
+    const summarized = history(items, 'completed')
+    summarized.turns[0].summary = { itemCount: items.length + 2 }
+    const transcript = buildTranscript(summarized)
+    expect(transcript.find((entry) => entry.kind === 'activity')).toMatchObject({ pendingTurnId: 't1' })
+    expect(transcript.at(-1)).toMatchObject({ kind: 'changes', changes: { turnId: 't1' } })
+  })
 })
 
 describe('thinking status', () => {

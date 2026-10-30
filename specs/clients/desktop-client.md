@@ -287,7 +287,7 @@ Selecting a thread opens a new restore generation and clears the previous one. T
 
 1. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads, so updates racing the first page are observable.
 2. The thread header and newest Turn page are then read concurrently and merged into a chronological store by stable Turn and Item id.
-3. Turn pages are read in the summary view ([Thread History Loading](../features/thread-history-loading.md)); a running or waiting Turn is hydrated with all its Items before it renders. A summarized Turn renders as its folded form and loads all its Items when its process is opened or a reveal targets it, showing skeleton tool rows until they arrive and an error with retry if they fail; it then stays fully loaded while its history is held.
+3. Turn pages are read in the summary view ([Thread History Loading](../features/thread-history-loading.md)); a Turn that is not completed is hydrated with all its Items before it renders. A summarized Turn renders as its folded form and loads all its Items when its process is opened or a reveal targets it, showing skeleton tool rows until they arrive and an error with retry if they fail; it then stays fully loaded while its history is held.
 4. Replayed approval or user-input composers are not exposed until subscription readiness and the header and page reads for the current generation complete.
 5. Results belonging to an older restore generation (reads, subscription operations, interactive request results) are ignored.
 6. Subscription updates overwrite loaded entities by stable id; an unloaded Item is appended at the head without duplicating a concurrent page result.
