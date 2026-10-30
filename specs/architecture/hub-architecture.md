@@ -173,6 +173,8 @@ Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCance
 
 Hub keeps `hub.lock` open for its lifetime; the file is both the cross-process mutex and the discovery metadata. Other processes may read it but cannot acquire or replace it while the handle is held. A leftover file with no live handle is stale and may be recovered.
 
+Hub writes the metadata only once it serves HTTP and releases the handle only after shutdown finishes, so a live owner whose published `/v1/status` does not answer is shutting down or stalled. A starting Hub that finds the lock held probes the owner: when it answers, the new process exits without effect; otherwise it retries the lock for up to 30 seconds and takes over once the owner releases it, exiting instead if another starting Hub acquired it first.
+
 Clients verify both process liveness and `/v1/status` before trusting the metadata. Development clients may compare the binary path against their expected build and restart Hub when it differs.
 
 ### Hub Registry
@@ -243,7 +245,7 @@ Closing a local client does not stop a healthy managed AppServer or cancel start
 
 `POST /v1/appservers/ensure` is non-destructive for a healthy running AppServer. If a client reconnects with sidecar settings that differ from the running process, Hub returns the existing endpoint and reports services needing recreation as `serviceStatus.<service>.state = "restartRequired"` with a reason. Only explicit restart, stop, Hub shutdown, or ensure of an unhealthy/exited entry may stop a managed AppServer.
 
-Hub shutdown stops AppServers it manages, releases local state, and removes `hub.lock`.
+Hub shutdown emits `hub.stopping`, ends SSE streams, stops the HTTP API, then stops the AppServers and services it manages concurrently, releases local state, and removes `hub.lock` last, so a replacement Hub never manages processes the previous one still owns.
 
 ### Product-owned local services
 
@@ -261,11 +263,14 @@ Local clients default to Hub-managed local mode:
 
 1. Determine the target workspace.
 2. Locate a live Hub through `hub.lock`.
-3. Start Hub if none is live and auto-start is enabled.
-4. Call `POST /v1/appservers/ensure`.
-5. Connect to the returned AppServer WebSocket URL.
-6. Perform the normal AppServer Protocol handshake.
-7. Continue without Hub in the conversation path.
+3. If the lock owner is alive but `/v1/status` does not answer, wait for that owner to exit instead of starting Hub.
+4. Start Hub if none is live and auto-start is enabled, then wait for the new Hub to answer.
+5. Call `POST /v1/appservers/ensure`.
+6. Connect to the returned AppServer WebSocket URL.
+7. Perform the normal AppServer Protocol handshake.
+8. Continue without Hub in the conversation path.
+
+Waiting for a previous owner and waiting for a new Hub have separate budgets: 30 seconds for the owner to exit, then 15 seconds for the new Hub to answer, measured from when the owner is gone. Each status probe is bounded to 2 seconds. A client that restarts Hub because of a binary mismatch treats the Hub it asked to stop as such an owner and never reuses it.
 
 Explicit remote WebSocket mode remains available and bypasses Hub.
 
@@ -273,7 +278,7 @@ Explicit remote WebSocket mode remains available and bypasses Hub.
 
 A client may use the Hub of another machine it reaches over SSH. That Hub is an ordinary Hub run by the remote user: it binds loopback on its own machine, is single-user, and is unchanged by being used remotely.
 
-- The client starts the remote Hub over SSH detached from the session; a second start while a Hub holds `hub.lock` exits without effect.
+- The client starts the remote Hub over SSH detached from the session; a second start follows the lock rules in §7, so it exits while a Hub answers and takes over from one that is shutting down.
 - The client reads the remote `hub.lock` over SSH, opens an SSH local forward to the port in `apiBaseUrl`, and trusts the metadata only after `GET /v1/status` answers through the forward.
 - `POST /v1/appservers/ensure` takes the remote absolute workspace path. The client forwards the port of the returned `appServerWebSocket` endpoint and connects to it; it follows `appserver.running` and `port.allocated` events, or ensures again, when that port changes.
 

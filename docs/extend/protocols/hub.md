@@ -346,6 +346,7 @@ Common error codes:
 
 - Use Hub by default for local workspaces, while keeping explicit remote AppServer mode as an advanced path.
 - After starting Hub, reread `hub.lock` and verify `/v1/status`; do not assume the process is ready immediately.
+- If the `hub.lock` owner is alive but `/v1/status` does not answer, the previous Hub is still shutting down. Wait for it to exit before starting Hub, rather than reporting Hub as unavailable.
 - Render `appserver.unhealthy` and `appserver.exited` as actionable UI states, such as "restart workspace runtime."
 - Do not log Hub tokens or AppServer tokens.
 - Keep unknown endpoints, service statuses, and event kinds forward-compatible.

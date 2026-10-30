@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -261,6 +262,161 @@ test("Hub binary mismatch policy returns structured details", async () => {
     );
   } finally {
     globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+function startIdleProcess(): ChildProcess {
+  return spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+}
+
+async function writeHubLock(dir: string, lock: { pid: number; apiBaseUrl: string; binaryPath?: string }): Promise<void> {
+  await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+  await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({ ...lock, token: "hub-token" }), "utf8");
+}
+
+async function stopProcess(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolve) => {
+    child.once("exit", resolve);
+    child.kill();
+  });
+}
+
+// Exits while the lock owner is alive, so only a client that waits for the owner to exit gets a Hub.
+const FAKE_HUB_SCRIPT = `
+const fs = require("node:fs");
+const lockPath = process.env.DOTCRAFT_TEST_HUB_LOCK;
+let owner = null;
+try { owner = JSON.parse(fs.readFileSync(lockPath, "utf8")); } catch {}
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
+if (owner && alive(owner.pid)) process.exit(0);
+fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, apiBaseUrl: "http://127.0.0.1:49141", token: "hub-token" }));
+setInterval(() => {}, 1000);
+`;
+
+test("ensureHub starts a replacement only after a Hub that stopped answering exits", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-handoff-"));
+  const originalFetch = globalThis.fetch;
+  const originalCwd = process.cwd();
+  const lockPath = join(dir, ".craft", "hub", "hub.lock");
+  const previous = startIdleProcess();
+  try {
+    await writeHubLock(dir, { pid: previous.pid!, apiBaseUrl: "http://127.0.0.1:49140" });
+    // HubClient runs `<executable> hub`; with node as the executable that runs ./hub from the cwd.
+    await writeFile(join(dir, "hub"), FAKE_HUB_SCRIPT, "utf8");
+    process.chdir(dir);
+    process.env.DOTCRAFT_TEST_HUB_LOCK = lockPath;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.startsWith("http://127.0.0.1:49141/")) return new Response("{}", { status: 200 });
+      throw new TypeError("fetch failed");
+    }) as typeof fetch;
+
+    const options = { homeDir: dir, executable: process.execPath, hubStartupTimeoutMs: 5_000 };
+    const ensured = new HubClient(options).ensureHub();
+    let settled = false;
+    void ensured.then(() => { settled = true; }, () => { settled = true; });
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(settled, false);
+    await stopProcess(previous);
+
+    assert.equal((await ensured).apiBaseUrl, "http://127.0.0.1:49141");
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.chdir(originalCwd);
+    delete process.env.DOTCRAFT_TEST_HUB_LOCK;
+    await stopProcess(previous);
+    const replacement = readHubLockFromPath(lockPath);
+    if (replacement && replacement.pid !== previous.pid) {
+      try { process.kill(replacement.pid); } catch { /* already gone */ }
+    }
+    await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  }
+});
+
+test("ensureHub reports a previous Hub that never finishes shutting down", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-stalled-"));
+  const originalFetch = globalThis.fetch;
+  const previous = startIdleProcess();
+  try {
+    await writeHubLock(dir, { pid: previous.pid!, apiBaseUrl: "http://127.0.0.1:49142" });
+    globalThis.fetch = (async () => {
+      throw new TypeError("fetch failed");
+    }) as typeof fetch;
+
+    await assert.rejects(
+      new HubClient({ homeDir: dir, hubShutdownTimeoutMs: 300 }).ensureHub(),
+      (error: unknown) => error instanceof HubClientError
+        && error.code === "hubUnavailable"
+        && (error.details as { pid?: number }).pid === previous.pid,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await stopProcess(previous);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureHub applies the binary policy to a Hub that answers again after a failed probe", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-recovered-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeHubLock(dir, { pid: process.pid, apiBaseUrl: "http://127.0.0.1:49145", binaryPath: "/old/dotcraft" });
+    let probes = 0;
+    globalThis.fetch = (async () => {
+      if (probes++ === 0) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ binaryPath: "/old/dotcraft" }), { status: 200 });
+    }) as typeof fetch;
+
+    await assert.rejects(
+      new HubClient({
+        homeDir: dir,
+        expectedExecutable: "/new/dotcraft",
+        binaryMatchPolicy: "errorIfMismatch",
+      }).ensureHub(),
+      (error: unknown) => error instanceof HubClientError && error.code === "hubBinaryMismatch",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureHub never reuses a mismatched Hub it asked to stop", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-restart-"));
+  const originalFetch = globalThis.fetch;
+  const previous = startIdleProcess();
+  try {
+    await writeHubLock(dir, { pid: previous.pid!, apiBaseUrl: "http://127.0.0.1:49143", binaryPath: "/old/dotcraft" });
+    let shutdownRequested = false;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.port === "49143" && url.pathname === "/v1/shutdown") {
+        shutdownRequested = true;
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      const binaryPath = url.port === "49143" ? "/old/dotcraft" : "/new/dotcraft";
+      return new Response(JSON.stringify({ binaryPath }), { status: 200 });
+    }) as typeof fetch;
+
+    const ensured = new HubClient({
+      homeDir: dir,
+      executable: join(dir, "missing-dotcraft"),
+      expectedExecutable: "/new/dotcraft",
+      binaryMatchPolicy: "restartIfMismatch",
+    }).ensureHub();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(shutdownRequested, true);
+
+    await stopProcess(previous);
+    await writeHubLock(dir, { pid: process.pid, apiBaseUrl: "http://127.0.0.1:49144", binaryPath: "/new/dotcraft" });
+
+    assert.equal((await ensured).apiBaseUrl, "http://127.0.0.1:49144");
+  } finally {
+    globalThis.fetch = originalFetch;
+    await stopProcess(previous);
     await rm(dir, { recursive: true, force: true });
   }
 });

@@ -26,7 +26,7 @@ export class LocalProjectList {
   async refresh(): Promise<void> {
     const generation = ++this.generation
     const next = await this.fetchProjects()
-    if (generation !== this.generation) return
+    if (generation !== this.generation || next === null) return
     this.projects = next.sort((left, right) => Date.parse(left.addedAt) - Date.parse(right.addedAt))
     this.onChanged()
   }
@@ -57,12 +57,12 @@ export class LocalProjectList {
     this.watcher = null
   }
 
-  private async fetchProjects(): Promise<HubProject[]> {
+  private async fetchProjects(): Promise<HubProject[] | null> {
     try {
       return await this.getHubClient().listProjects()
     } catch (error) {
       console.warn('[desktop] failed to list Hub projects', error)
-      return []
+      return null
     }
   }
 

@@ -197,7 +197,8 @@ export class HubClientError extends DotCraftError {
 }
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
-const DEFAULT_SHUTDOWN_TIMEOUT_MS = 5_000;
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
+const PROBE_TIMEOUT_MS = 2_000;
 const POLL_MS = 200;
 
 export function hubLockPath(homeDir = homedir()): string {
@@ -563,40 +564,58 @@ export class HubClient {
   }
 
   async ensureHub(): Promise<HubLockInfo> {
-    const live = await this.tryGetLiveHub();
-    if (live) {
-      const mismatch = this.getBinaryMismatch(live);
-      if (!mismatch) return live;
-      if (this.binaryMatchPolicy === "errorIfMismatch") {
-        throw new HubClientError("hubBinaryMismatch", "Hub is running from a different executable.", mismatch);
-      }
-      if (this.binaryMatchPolicy === "restartIfMismatch") {
-        await this.shutdownMismatchedHub(live, mismatch);
-      } else {
-        return live;
-      }
-    }
+    const lockPath = hubLockPath(this.options.homeDir);
+    const shutdownDeadline = Date.now() + (this.options.hubShutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS);
+    let stopping: { pid: number; mismatch: { expectedExecutable: string; actualExecutable: string | null } } | null = null;
+    let startupDeadline: number | null = null;
 
-    this.startHub();
+    for (;;) {
+      const lock = readHubLockFromPath(lockPath);
+      const owner = lock && isProcessAlive(lock.pid) ? lock : null;
+      if (owner && owner.pid === stopping?.pid) {
+        if (Date.now() >= shutdownDeadline) {
+          throw new HubClientError(
+            "hubMismatchShutdownTimeout",
+            "Hub uses a different executable and did not stop after shutdown.",
+            stopping.mismatch,
+          );
+        }
+      } else if (owner) {
+        const live = await this.probeHub(owner);
+        if (live && startupDeadline !== null) return live;
+        if (live) {
+          const liveMismatch = this.getBinaryMismatch(live);
+          if (!liveMismatch || this.binaryMatchPolicy === "ignore") return live;
+          if (this.binaryMatchPolicy === "errorIfMismatch") {
+            throw new HubClientError("hubBinaryMismatch", "Hub is running from a different executable.", liveMismatch);
+          }
+          await this.requestMismatchedHubShutdown(live, liveMismatch);
+          stopping = { pid: live.pid, mismatch: liveMismatch };
+        } else if (startupDeadline === null && Date.now() >= shutdownDeadline) {
+          throw new HubClientError("hubUnavailable", "The previous DotCraft Hub is still shutting down.", { pid: owner.pid });
+        }
+      } else if (startupDeadline === null) {
+        this.startHub();
+        startupDeadline = Date.now() + (this.options.hubStartupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS);
+      }
 
-    const timeoutMs = this.options.hubStartupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      const info = await this.tryGetLiveHub();
-      if (info) return info;
+      if (startupDeadline !== null && Date.now() >= startupDeadline) {
+        throw new HubClientError("hubUnavailable", "DotCraft Hub could not be started.");
+      }
       await sleep(POLL_MS);
     }
-
-    throw new HubClientError("hubUnavailable", "DotCraft Hub could not be started.");
   }
 
   async tryGetLiveHub(): Promise<HubLockInfo | null> {
     const info = readHubLockFromPath(hubLockPath(this.options.homeDir));
     if (!info || !isProcessAlive(info.pid)) return null;
+    return await this.probeHub(info);
+  }
 
+  private async probeHub(info: HubLockInfo): Promise<HubLockInfo | null> {
     try {
       parseHubBaseUrl(info.apiBaseUrl);
-      const response = await fetch(`${info.apiBaseUrl}/v1/status`);
+      const response = await fetch(`${info.apiBaseUrl}/v1/status`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
       if (!response.ok) return null;
       let status: Partial<HubStatusResponse> = {};
       try {
@@ -681,7 +700,7 @@ export class HubClient {
     return { expectedExecutable: expected, actualExecutable: actual };
   }
 
-  private async shutdownMismatchedHub(
+  private async requestMismatchedHubShutdown(
     hub: HubLockInfo,
     details: { expectedExecutable: string; actualExecutable: string | null },
   ): Promise<void> {
@@ -695,17 +714,6 @@ export class HubClient {
         error,
       );
     }
-    const timeoutMs = this.options.hubShutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      if (!isProcessAlive(hub.pid)) return;
-      await sleep(POLL_MS);
-    }
-    throw new HubClientError(
-      "hubMismatchShutdownTimeout",
-      "Hub uses a different executable and did not stop after shutdown.",
-      details,
-    );
   }
 }
 

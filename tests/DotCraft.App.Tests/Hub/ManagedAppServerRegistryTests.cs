@@ -416,6 +416,59 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         workspaceLock?.DeleteAfterDispose();
     }
 
+    [Fact]
+    public async Task Dispose_StopsManagedAppServersConcurrently()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopping = new[] { new TaskCompletionSource(), new TaskCompletionSource() };
+        var workspaceLocks = new List<AppServerWorkspaceLock>();
+        var started = 0;
+        var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: Path.Combine(_tempDir, "hub", "appservers.json"))
+        {
+            StartAppServerProcessAsync = (_, canonical, _, _) =>
+            {
+                var index = started++;
+                workspaceLocks.Add(AcquireWorkspaceLock(canonical, $"ws://127.0.0.1:4313{index}/ws?token=x"));
+                return Task.FromResult<IManagedAppServerProcess>(new FakeManagedAppServerProcess(
+                    Environment.ProcessId,
+                    exitCode: null,
+                    recentStderr: "",
+                    stop: async () =>
+                    {
+                        stopping[index].TrySetResult();
+                        await release.Task;
+                    }));
+            },
+            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+        };
+        try
+        {
+            foreach (var name in new[] { "first-workspace", "second-workspace" })
+            {
+                await registry.EnsureAsync(new EnsureAppServerRequest
+                {
+                    WorkspacePath = CreateWorkspace(name),
+                    StartIfMissing = true
+                }, CancellationToken.None);
+            }
+
+            var dispose = registry.DisposeAsync().AsTask();
+            await Task.WhenAll(stopping.Select(signal => signal.Task)).WaitAsync(TimeSpan.FromSeconds(5));
+            release.SetResult();
+            await dispose.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            release.TrySetResult();
+            foreach (var workspaceLock in workspaceLocks)
+                workspaceLock.DeleteAfterDispose();
+        }
+    }
+
     private string CreateWorkspace(string name)
     {
         var path = Path.Combine(_tempDir, name);
@@ -473,7 +526,8 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     private sealed class FakeManagedAppServerProcess(
         int processId,
         int? exitCode,
-        string recentStderr) : IManagedAppServerProcess
+        string recentStderr,
+        Func<Task>? stop = null) : IManagedAppServerProcess
     {
         public bool IsRunning => !Disposed && !_exited;
 
@@ -491,10 +545,11 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
 
         public event Action? OnCrashed;
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
+            if (stop is not null)
+                await stop();
             Disposed = true;
-            return ValueTask.CompletedTask;
         }
 
         public void Exit() => _exited = true;

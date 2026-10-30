@@ -46,8 +46,8 @@ public sealed class DotCraftHubClientOptions
     /// </summary>
     public TimeSpan StartupTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
-    /// <summary>Timeout while waiting for a mismatched Hub to stop.</summary>
-    public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(5);
+    /// <summary>Timeout while waiting for a previous Hub, or one stopped for a binary mismatch, to exit.</summary>
+    public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Optional factory for test or host-provided HTTP clients.

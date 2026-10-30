@@ -346,6 +346,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 
 - 默认使用 Hub 管理本地工作区，并保留显式远程 AppServer 模式作为高级路径。
 - 启动 Hub 后应重读 `hub.lock` 并验证 `/v1/status`，不要假设进程已立即可用。
+- 如果 `hub.lock` 的进程仍存活但 `/v1/status` 无响应，说明上一个 Hub 正在关闭。应等它退出后再启动 Hub，而不是直接报告 Hub 不可用。
 - 对 `appserver.unhealthy` 和 `appserver.exited` 事件显示可操作状态，例如“重启工作区运行时”。
 - 不要把 Hub 令牌或 AppServer 令牌写入日志。
 - 对未知端点、服务状态和事件类型保持兼容。
