@@ -1530,7 +1530,7 @@ export function SettingsView({
     const text = stringifyComposerDraftSegments(segments)
     const ui = useUIStore.getState()
     const existing = ui.welcomeDraft
-    ui.setWelcomeDraft({
+    ui.stageWelcomeDraft({
       text,
       segments,
       selectionStart: text.length,
@@ -1541,7 +1541,6 @@ export function SettingsView({
       model: existing?.model || 'Default',
       approvalPolicy: existing?.approvalPolicy ?? 'default'
     })
-    ui.goToNewChat()
   }
 
   function normalizePortOrDefault(raw: string, defaultPort: number): number {

@@ -13,7 +13,7 @@ export function stageAutomationCreationInWelcome(prompt: string): void {
   const text = stringifyComposerDraftSegments(segments)
   const ui = useUIStore.getState()
   const existing = ui.welcomeDraft
-  ui.setWelcomeDraft({
+  ui.stageWelcomeDraft({
     text,
     segments,
     selectionStart: text.length,
@@ -24,5 +24,4 @@ export function stageAutomationCreationInWelcome(prompt: string): void {
     model: existing?.model || 'Default',
     approvalPolicy: existing?.approvalPolicy ?? 'default'
   })
-  ui.goToNewChat()
 }

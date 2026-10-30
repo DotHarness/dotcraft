@@ -237,6 +237,8 @@ function ConversationWelcomeCore({
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
   const welcomeApprovalPolicyDirtyRef = useRef(false)
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
+  const welcomeDraftStageSeq = useUIStore((s) => s.welcomeDraftStageSeq)
+  const hydratedStageSeqRef = useRef(welcomeDraftStageSeq)
   const workspaceLlmConfigResolvedRef = useRef(false)
   const workspaceProviderFromConfigRef = useRef<string | null>(null)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
@@ -485,6 +487,12 @@ function ConversationWelcomeCore({
   }, [canUseSkillPicker, fetchSkills])
 
   useEffect(() => {
+    if (hydratedStageSeqRef.current !== welcomeDraftStageSeq) {
+      hydratedStageSeqRef.current = welcomeDraftStageSeq
+      initialWelcomeDraftRef.current = useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey)
+      draftHydratedRef.current = false
+      userEditedBeforeHydrationRef.current = false
+    }
     const persistedText = readPlainComposerDraft(welcomeScopeKey(draftProjectKey))
     const welcomeDraft: WelcomeDraft | null = initialWelcomeDraftRef.current ?? (persistedText ? { text: persistedText, segments: [], images: [], mode: 'agent' as const, model: 'Default', updatedAt: 0 } : null)
     if (draftHydratedRef.current) return
@@ -550,7 +558,7 @@ function ConversationWelcomeCore({
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
     setDraftHydrated(true)
-  }, [canUseCommandPicker, customCommandStatus, skillCatalogReady])
+  }, [canUseCommandPicker, customCommandStatus, skillCatalogReady, welcomeDraftStageSeq])
 
   useEffect(() => {
     if (workspaceLlmConfigKey == null) return

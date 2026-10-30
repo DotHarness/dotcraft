@@ -29,7 +29,7 @@ export function stagePluginTryInChat(plugin: PluginEntry): void {
 function stagePluginDraft(text: string, segments: ComposerDraftSegment[]): void {
   const ui = useUIStore.getState()
   const existing = ui.welcomeDraft
-  ui.setWelcomeDraft({
+  ui.stageWelcomeDraft({
     text,
     segments,
     selectionStart: text.length,
@@ -40,5 +40,4 @@ function stagePluginDraft(text: string, segments: ComposerDraftSegment[]): void 
     model: existing?.model || 'Default',
     approvalPolicy: existing?.approvalPolicy ?? 'default'
   })
-  ui.goToNewChat()
 }

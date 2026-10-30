@@ -169,6 +169,7 @@ export interface UIState {
   /** Unsent welcome drafts keyed by normalized workspace path. */
   welcomeDraftsByWorkspace: Record<string, WelcomeDraft>
   welcomeDraftWorkspacePath: string | null
+  welcomeDraftStageSeq: number
   planApprovalDismissed: Record<string, boolean>
   showThinkingContent: boolean
   projectsSectionCollapsed: boolean
@@ -233,6 +234,7 @@ interface UIStore extends UIState {
   clearPendingProjectThreadOpen(projectKey?: string, threadId?: string): void
   setWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'> | null, workspacePath?: string): void
   clearWelcomeDraft(workspacePath?: string): void
+  stageWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'>): void
   setWelcomeDraftWorkspace(workspacePath: string): void
   getWelcomeDraftForWorkspace(workspacePath: string): WelcomeDraft | null
   dismissPlanApproval(turnId: string): void
@@ -338,6 +340,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   welcomeDraft: null,
   welcomeDraftsByWorkspace: {},
   welcomeDraftWorkspacePath: null,
+  welcomeDraftStageSeq: 0,
   planApprovalDismissed: {},
   showThinkingContent: false,
   projectsSectionCollapsed: false,
@@ -926,6 +929,12 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   clearWelcomeDraft(workspacePath) {
     get().setWelcomeDraft(null, workspacePath)
+  },
+
+  stageWelcomeDraft(draft) {
+    get().setWelcomeDraft(draft)
+    set((state) => ({ welcomeDraftStageSeq: state.welcomeDraftStageSeq + 1 }))
+    get().goToNewChat()
   },
 
   setWelcomeDraftWorkspace(workspacePath) {

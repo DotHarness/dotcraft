@@ -378,6 +378,24 @@ describe('ConversationWelcome composer', () => {
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
   })
 
+  it('loads a draft staged from another view while the welcome composer stays mounted', async () => {
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument())
+
+    act(() => {
+      useUIStore.getState().stageWelcomeDraft({
+        text: 'Help me create a plugin',
+        segments: [{ type: 'text', value: 'Help me create a plugin' }],
+        images: [],
+        mode: 'agent',
+        model: 'Default'
+      })
+    })
+
+    await waitFor(() => expect(textbox.textContent).toContain('Help me create a plugin'))
+  })
+
   it('returns the submission to the welcome composer when thread creation fails', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }

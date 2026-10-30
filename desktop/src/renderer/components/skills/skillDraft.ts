@@ -13,7 +13,7 @@ export function stageSkillTryInChat(skill: SkillEntry): void {
   const text = stringifyComposerDraftSegments(segments)
   const ui = useUIStore.getState()
   const existing = ui.welcomeDraft
-  ui.setWelcomeDraft({
+  ui.stageWelcomeDraft({
     text,
     segments,
     selectionStart: 1,
@@ -24,5 +24,4 @@ export function stageSkillTryInChat(skill: SkillEntry): void {
     model: existing?.model || 'Default',
     approvalPolicy: existing?.approvalPolicy ?? 'default'
   })
-  ui.goToNewChat()
 }
