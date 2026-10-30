@@ -216,7 +216,7 @@ internal static partial class ResponsesToolSearchMapper
             switch (content)
             {
                 case DataContent data when IsToolOutputImage(data):
-                    parts.Add(CreateImagePart(CreateDataUri(data)));
+                    parts.Add(CreateContentPartOrPlaceholder(ChatRole.User, data));
                     break;
                 case TextContent { Text.Length: 0 }:
                     break;
@@ -233,7 +233,7 @@ internal static partial class ResponsesToolSearchMapper
     }
 
     private static bool IsToolOutputImage(AIContent content) =>
-        content is DataContent data && ModelImageInputPreparer.IsSupportedRemoteImageMediaType(data.MediaType);
+        content is DataContent data && ModelImageInputPreparer.IsImageMediaType(data.MediaType);
 
     private static string SerializeResult(object? result)
     {

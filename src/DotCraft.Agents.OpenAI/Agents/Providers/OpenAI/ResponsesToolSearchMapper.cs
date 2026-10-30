@@ -654,16 +654,13 @@ internal static partial class ResponsesToolSearchMapper
         if (string.IsNullOrWhiteSpace(imageUri))
             return false;
 
-        part = CreateImagePart(imageUri);
-        return true;
-    }
-
-    private static JsonObject CreateImagePart(string imageUri) =>
-        new()
+        part = new JsonObject
         {
             ["type"] = "input_image",
             ["image_url"] = imageUri
         };
+        return true;
+    }
 
     private static string CreateDataUri(DataContent content) =>
         $"data:{NormalizeMediaType(content.MediaType)};base64,{Convert.ToBase64String(content.Data.ToArray())}";

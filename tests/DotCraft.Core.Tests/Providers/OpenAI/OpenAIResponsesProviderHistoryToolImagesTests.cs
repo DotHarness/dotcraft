@@ -33,6 +33,30 @@ public sealed class OpenAIResponsesProviderHistoryToolImagesTests
     }
 
     [Fact]
+    public async Task CaptureInputAsync_InvalidToolImageInUnsentTail_BecomesPlaceholder()
+    {
+        var context = CreateContext();
+        List<ChatMessage> messages =
+        [
+            new(ChatRole.User, "look at the screen"),
+            Call("call-1"),
+            new(ChatRole.Tool, (IList<AIContent>)
+            [
+                new FunctionResultContent("call-1", (IList<AIContent>)[new DataContent(new byte[] { 1, 2, 3 }, "image/png")])
+            ])
+        ];
+
+        var input = await context.CaptureInputAsync(ProviderCompactionPhase.MidTurn, messages, null, CancellationToken.None);
+
+        var output = input.Items
+            .Select(item => JsonNode.Parse(item.Payload.GetRawText())!.AsObject())
+            .Single(IsCallOutput)["output"];
+        var part = Assert.Single(Assert.IsType<JsonArray>(output));
+        Assert.Equal("input_text", (string?)part!["type"]);
+        Assert.Equal(ModelImageInputPreparer.CouldNotProcessPlaceholder, (string?)part["text"]);
+    }
+
+    [Fact]
     public async Task PrepareInputAsync_KeepsUserAttachedImages()
     {
         var context = CreateContext();
