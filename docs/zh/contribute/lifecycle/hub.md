@@ -25,6 +25,8 @@ dotcraft hub
 
 启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。Hub 自动分配本地端口。如果启动因端口被占用、权限受限或安全软件阻止本地回环而失败，重启 Hub 或 Desktop 即可重新分配。
 
+如果上一个 Hub 仍在关闭，新的 `dotcraft hub` 会最多等待 30 秒，待其释放 `hub.lock` 后再启动；已有 Hub 正在运行时，再次启动会直接退出。
+
 ## 本地状态
 
 ```text

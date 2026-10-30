@@ -255,6 +255,55 @@ public sealed class HubClientTests
         Assert.EndsWith("new-dotcraft", error.Details?.GetProperty("expectedExecutable").GetString());
     }
 
+    [Fact]
+    public async Task EnsureHubAsync_WaitsForALiveOwnerThatStoppedAnswering()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        await File.WriteAllTextAsync(lockPath, $$"""
+            { "pid": {{Environment.ProcessId}}, "apiBaseUrl": "http://127.0.0.1:49129", "token": "hub-token" }
+            """);
+        var answering = 0;
+        var handler = new CaptureHandler(_ => Volatile.Read(ref answering) == 1
+            ? Json(HttpStatusCode.OK, "{}")
+            : throw new HttpRequestException("Connection refused."));
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            StartHubIfMissing = false,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var ensure = hub.EnsureHubAsync();
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        Assert.False(ensure.IsCompleted);
+
+        Volatile.Write(ref answering, 1);
+        var live = await ensure.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("http://127.0.0.1:49129", live.ApiBaseUrl);
+    }
+
+    [Fact]
+    public async Task EnsureHubAsync_ReportsAPreviousHubThatNeverStops()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        await File.WriteAllTextAsync(lockPath, $$"""
+            { "pid": {{Environment.ProcessId}}, "apiBaseUrl": "http://127.0.0.1:49130", "token": "hub-token" }
+            """);
+        var handler = new CaptureHandler(_ => throw new HttpRequestException("Connection refused."));
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            ShutdownTimeout = TimeSpan.FromMilliseconds(300),
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var error = await Assert.ThrowsAsync<HubClientException>(() => hub.EnsureHubAsync());
+        Assert.Equal("hubUnavailable", error.Code);
+        Assert.Equal(Environment.ProcessId, error.Details?.GetProperty("pid").GetInt32());
+    }
+
     private const string AppServerJson = """
         {"workspacePath":"X:/fixtures/workspace","canonicalWorkspacePath":"X:/fixtures/workspace","state":"running","pid":123,"endpoints":{},"serviceStatus":{},"serverVersion":"0.1","startedByHub":true}
         """;

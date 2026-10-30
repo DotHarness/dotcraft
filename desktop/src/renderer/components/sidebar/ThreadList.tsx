@@ -42,6 +42,7 @@ import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { SidebarEntryDetailsActionRow } from './SidebarEntryDetailsActionRow'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
+import { workspacePathName } from './ThreadEntryDetails'
 import { canOpenSshProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
@@ -231,7 +232,7 @@ export function ThreadList({
             kind: 'local',
             path: effectiveForegroundWorkspacePath,
             identityWorkspacePath: effectiveForegroundWorkspacePath,
-            name: effectiveForegroundWorkspacePath,
+            name: workspacePathName(effectiveForegroundWorkspacePath) ?? effectiveForegroundWorkspacePath,
             state: 'foreground',
             running: true,
             loaded: true,

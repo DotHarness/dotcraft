@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -135,6 +136,85 @@ public sealed class HubHostTests : IDisposable
 
         await ShutdownAsync(http, info, cts.Token);
         await runTask.WaitAsync(cts.Token);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShutdownDoesNotWaitForOpenEventStreams()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        var runTask = host.RunAsync(cts.Token);
+        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+
+        using var http = new HttpClient();
+        using var eventsRequest = new HttpRequestMessage(HttpMethod.Get, $"{info.ApiBaseUrl}/v1/events");
+        eventsRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", info.Token);
+        using var eventsResponse = await http.SendAsync(eventsRequest, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        eventsResponse.EnsureSuccessStatusCode();
+
+        var stopwatch = Stopwatch.StartNew();
+        await ShutdownAsync(http, info, cts.Token);
+        await runTask.WaitAsync(cts.Token);
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Hub took {stopwatch.Elapsed} to stop.");
+        Assert.False(File.Exists(paths.LockFilePath));
+    }
+
+    [Fact]
+    public async Task RunAsync_WaitsForAnOwnerThatStoppedAnswering_ThenTakesOver()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        Assert.True(HubLockFile.TryAcquire(paths, out var stoppingOwner, out _));
+        var unansweredUrl = $"http://127.0.0.1:{HubPortAllocator.AllocateLoopbackPort()}";
+        stoppingOwner!.Publish(new HubLockInfo(
+            Environment.ProcessId,
+            unansweredUrl,
+            "old-token",
+            DateTimeOffset.UtcNow,
+            "old"));
+
+        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var runTask = host.RunAsync(cts.Token);
+
+        await Task.Delay(TimeSpan.FromSeconds(1), cts.Token);
+        Assert.False(runTask.IsCompleted);
+
+        stoppingOwner.DeleteAfterDispose();
+        HubLockInfo? info = null;
+        while (info is null || info.ApiBaseUrl == unansweredUrl)
+        {
+            Assert.False(runTask.IsCompleted);
+            await Task.Delay(50, cts.Token);
+            info = HubLockFile.TryRead(paths.LockFilePath);
+        }
+
+        using var http = new HttpClient();
+        (await http.GetAsync($"{info.ApiBaseUrl}/v1/status", cts.Token)).EnsureSuccessStatusCode();
+        await ShutdownAsync(http, info, cts.Token);
+        await runTask.WaitAsync(cts.Token);
+    }
+
+    [Fact]
+    public async Task RunAsync_ExitsWhileTheLockOwnerAnswers()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        await using var running = new HubHost(new HubConfig { Port = 0 }, paths);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var runningTask = running.RunAsync(cts.Token);
+        var info = await WaitForLockAsync(paths.LockFilePath, runningTask, cts.Token);
+
+        await using var second = new HubHost(new HubConfig { Port = 0 }, paths);
+        await second.RunAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
+
+        Assert.False(runningTask.IsCompleted);
+        Assert.Equal(info, HubLockFile.TryRead(paths.LockFilePath));
+
+        using var http = new HttpClient();
+        await ShutdownAsync(http, info, cts.Token);
+        await runningTask.WaitAsync(cts.Token);
     }
 
     [Fact]

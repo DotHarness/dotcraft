@@ -14,6 +14,7 @@ namespace DotCraft.Sdk.Hub;
 public sealed class HubClient
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
     private readonly DotCraftHubClientOptions _options;
 
     /// <summary>
@@ -149,30 +150,7 @@ public sealed class HubClient
             return null;
         }
 
-        try
-        {
-            ParseHubBaseUrl(lockInfo.ApiBaseUrl);
-            using var http = CreateHttpClient();
-            using var response = await http.Client.GetAsync($"{lockInfo.ApiBaseUrl.TrimEnd('/')}/v1/status", cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            try
-            {
-                var status = await response.Content.ReadFromJsonAsync<HubStatusResponse>(DotCraftJson.Options, cancellationToken);
-                return lockInfo with { BinaryPath = status?.BinaryPath ?? lockInfo.BinaryPath };
-            }
-            catch
-            {
-                return lockInfo;
-            }
-        }
-        catch
-        {
-            return null;
-        }
+        return await ProbeHubAsync(lockInfo, cancellationToken);
     }
 
     /// <summary>
@@ -180,47 +158,109 @@ public sealed class HubClient
     /// </summary>
     public async Task<HubLockInfo> EnsureHubAsync(CancellationToken cancellationToken = default)
     {
-        if (await TryGetLiveHubAsync(cancellationToken) is { } live)
-        {
-            if (GetBinaryMismatch(live) is not { } mismatch)
-            {
-                return live;
-            }
+        var shutdownDeadline = DateTimeOffset.UtcNow + _options.ShutdownTimeout;
+        int? retiringPid = null;
+        JsonElement? mismatch = null;
+        DateTimeOffset? startupDeadline = null;
 
-            switch (_options.BinaryMatchPolicy)
-            {
-                case HubBinaryMatchPolicy.ErrorIfMismatch:
-                    throw new HubClientException(
-                        "hubBinaryMismatch",
-                        "Hub is running from a different executable.",
-                        mismatch);
-                case HubBinaryMatchPolicy.RestartIfMismatch:
-                    await ShutdownMismatchedHubAsync(live, mismatch, cancellationToken);
-                    break;
-                default:
-                    return live;
-            }
-        }
-
-        if (!_options.StartHubIfMissing)
-        {
-            throw new HubClientException("hubUnavailable", "DotCraft Hub is not running.");
-        }
-
-        StartHubProcess();
-        var deadline = DateTimeOffset.UtcNow + _options.StartupTimeout;
-        while (DateTimeOffset.UtcNow < deadline)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await TryGetLiveHubAsync(cancellationToken) is { } started)
+            var lockInfo = ReadHubLock(GetLockPath());
+            var owner = lockInfo is not null && IsProcessAlive(lockInfo.Pid) ? lockInfo : null;
+            if (owner is not null && owner.Pid == retiringPid)
             {
-                return started;
+                if (mismatch is null && await ProbeHubAsync(owner, cancellationToken) is { } recovered)
+                {
+                    return recovered;
+                }
+
+                if (DateTimeOffset.UtcNow >= shutdownDeadline)
+                {
+                    throw RetiringHubException(owner.Pid, mismatch);
+                }
+            }
+            else if (owner is not null)
+            {
+                var live = await ProbeHubAsync(owner, cancellationToken);
+                if (live is not null && startupDeadline is not null)
+                {
+                    return live;
+                }
+
+                if (live is not null)
+                {
+                    if (GetBinaryMismatch(live) is not { } liveMismatch ||
+                        _options.BinaryMatchPolicy == HubBinaryMatchPolicy.Ignore)
+                    {
+                        return live;
+                    }
+
+                    if (_options.BinaryMatchPolicy == HubBinaryMatchPolicy.ErrorIfMismatch)
+                    {
+                        throw new HubClientException(
+                            "hubBinaryMismatch",
+                            "Hub is running from a different executable.",
+                            liveMismatch);
+                    }
+
+                    await RequestMismatchedHubShutdownAsync(live, liveMismatch, cancellationToken);
+                    mismatch = liveMismatch;
+                    retiringPid = live.Pid;
+                }
+                else if (startupDeadline is null)
+                {
+                    retiringPid = owner.Pid;
+                }
+            }
+            else if (startupDeadline is null)
+            {
+                if (!_options.StartHubIfMissing)
+                {
+                    throw new HubClientException("hubUnavailable", "DotCraft Hub is not running.");
+                }
+
+                StartHubProcess();
+                startupDeadline = DateTimeOffset.UtcNow + _options.StartupTimeout;
+            }
+
+            if (DateTimeOffset.UtcNow >= startupDeadline)
+            {
+                throw new HubClientException("hubUnavailable", "DotCraft Hub could not be started.");
             }
 
             await Task.Delay(PollInterval, cancellationToken);
         }
+    }
 
-        throw new HubClientException("hubUnavailable", "DotCraft Hub could not be started.");
+    private async Task<HubLockInfo?> ProbeHubAsync(HubLockInfo lockInfo, CancellationToken cancellationToken)
+    {
+        try
+        {
+            ParseHubBaseUrl(lockInfo.ApiBaseUrl);
+            using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            probeCts.CancelAfter(ProbeTimeout);
+            using var http = CreateHttpClient();
+            using var response = await http.Client.GetAsync($"{lockInfo.ApiBaseUrl.TrimEnd('/')}/v1/status", probeCts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            try
+            {
+                var status = await response.Content.ReadFromJsonAsync<HubStatusResponse>(DotCraftJson.Options, probeCts.Token);
+                return lockInfo with { BinaryPath = status?.BinaryPath ?? lockInfo.BinaryPath };
+            }
+            catch
+            {
+                return lockInfo;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -550,7 +590,7 @@ public sealed class HubClient
         return JsonSerializer.SerializeToElement(new { expectedExecutable = expected, actualExecutable = actual }, DotCraftJson.Options);
     }
 
-    private async Task ShutdownMismatchedHubAsync(
+    private async Task RequestMismatchedHubShutdownAsync(
         HubLockInfo hub,
         JsonElement details,
         CancellationToken cancellationToken)
@@ -567,22 +607,18 @@ public sealed class HubClient
                 details,
                 ex);
         }
-
-        var deadline = DateTimeOffset.UtcNow + _options.ShutdownTimeout;
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsProcessAlive(hub.Pid))
-            {
-                return;
-            }
-            await Task.Delay(PollInterval, cancellationToken);
-        }
-        throw new HubClientException(
-            "hubMismatchShutdownTimeout",
-            "Hub uses a different executable and did not stop after shutdown.",
-            details);
     }
+
+    private static HubClientException RetiringHubException(int pid, JsonElement? mismatch) =>
+        mismatch is { } details
+            ? new HubClientException(
+                "hubMismatchShutdownTimeout",
+                "Hub uses a different executable and did not stop after shutdown.",
+                details)
+            : new HubClientException(
+                "hubUnavailable",
+                "The previous DotCraft Hub is still shutting down.",
+                JsonSerializer.SerializeToElement(new { pid }, DotCraftJson.Options));
 
     private static string? ReadString(JsonElement element, string propertyName)
     {

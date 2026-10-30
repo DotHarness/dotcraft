@@ -137,7 +137,7 @@ export class SshMachinesManager {
           createRemoteHubClient({ ...options, clientName: 'dotcraft-desktop', clientVersion: deps.appVersion })),
       sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
       now: deps.now ?? (() => Date.now()),
-      hubStartTimeoutMs: deps.hubStartTimeoutMs ?? 20_000
+      hubStartTimeoutMs: deps.hubStartTimeoutMs ?? 45_000
     }
     this.runProcess = deps.runProcess ?? runSshProcess
     this.retryDelaysMs = deps.retryDelaysMs ?? CONNECT_RETRY_DELAYS_MS

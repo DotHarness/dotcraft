@@ -306,19 +306,21 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         if (_disposed)
             return;
         _disposed = true;
-        foreach (var entry in _entries.Values)
+        await Task.WhenAll(_entries.Values.Select(StopEntryForDisposeAsync));
+    }
+
+    private static async Task StopEntryForDisposeAsync(Entry entry)
+    {
+        await entry.Mutex.WaitAsync();
+        try
         {
-            await entry.Mutex.WaitAsync();
-            try
-            {
-                await StopProcessAsync(entry);
-                entry.State = HubManagedServiceStates.Stopped;
-            }
-            finally
-            {
-                entry.Mutex.Release();
-                entry.Mutex.Dispose();
-            }
+            await StopProcessAsync(entry);
+            entry.State = HubManagedServiceStates.Stopped;
+        }
+        finally
+        {
+            entry.Mutex.Release();
+            entry.Mutex.Dispose();
         }
     }
 

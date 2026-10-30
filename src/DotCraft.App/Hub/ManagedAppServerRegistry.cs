@@ -374,31 +374,32 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             catch (OperationCanceledException) { }
         }
 
-        foreach (var entry in _entries.Values)
-        {
-            await entry.Mutex.WaitAsync();
-            try
-            {
-                if (entry.AdoptedExternalLock)
-                {
-                    RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
-                    Persist(entry);
-                    continue;
-                }
-
-                await StopManagedProcessesAsync(entry);
-                entry.State = HubAppServerStates.Stopped;
-                Persist(entry);
-                _events.Publish("appserver.exited", entry.CanonicalWorkspacePath, new { hubStopping = true });
-            }
-            finally
-            {
-                entry.Mutex.Release();
-                entry.Mutex.Dispose();
-            }
-        }
-
+        await Task.WhenAll(_entries.Values.Select(StopEntryForDisposeAsync));
         _healthCts.Dispose();
+    }
+
+    private async Task StopEntryForDisposeAsync(ManagedEntry entry)
+    {
+        await entry.Mutex.WaitAsync();
+        try
+        {
+            if (entry.AdoptedExternalLock)
+            {
+                RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+                Persist(entry);
+                return;
+            }
+
+            await StopManagedProcessesAsync(entry);
+            entry.State = HubAppServerStates.Stopped;
+            Persist(entry);
+            _events.Publish("appserver.exited", entry.CanonicalWorkspacePath, new { hubStopping = true });
+        }
+        finally
+        {
+            entry.Mutex.Release();
+            entry.Mutex.Dispose();
+        }
     }
 
     private ServicePlan BuildServicePlan(

@@ -25,6 +25,8 @@ dotcraft hub
 
 Hub starts a loopback management API and writes discovery metadata to `~/.craft/hub/hub.lock`. It allocates local ports automatically; if startup fails because a port is busy, a permission is denied, or security software blocks loopback, restart Hub or Desktop to reallocate.
 
+If a previous Hub is still shutting down, a new `dotcraft hub` waits up to 30 seconds for it to release `hub.lock`, then starts. A start while a Hub is running exits without effect.
+
 ## Local state
 
 ```text

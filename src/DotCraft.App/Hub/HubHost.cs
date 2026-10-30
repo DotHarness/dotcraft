@@ -15,6 +15,10 @@ namespace DotCraft.Hub;
 /// </summary>
 public sealed class HubHost : IDotCraftHost
 {
+    private static readonly TimeSpan LockHandoffTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan LockRetryInterval = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan OwnerProbeTimeout = TimeSpan.FromSeconds(2);
+
     private readonly HubConfig _config;
     private readonly HubPaths _paths;
     private readonly string? _dotcraftBin;
@@ -54,25 +58,12 @@ public sealed class HubHost : IDotCraftHost
         {
             ["Module"] = "Hub"
         });
-        if (!HubLockFile.TryAcquire(_paths, out _lockFile, out var existingInfo))
-        {
-            var hint = existingInfo is null
-                ? "Hub already running."
-                : $"Hub already running at {existingInfo.ApiBaseUrl} (pid {existingInfo.Pid}).";
-            AnsiConsole.MarkupLine($"[yellow][[Hub]][/] {Markup.Escape(hint)}");
-            _logger.LogWarning("Hub lock is already held: {Hint}", hint);
+        if (!await AcquireLockAsync(cancellationToken))
             return;
-        }
 
         var lockFile = _lockFile;
         if (lockFile is null)
             throw new InvalidOperationException("Hub lock acquisition returned no lock file.");
-
-        if (existingInfo is not null)
-        {
-            AnsiConsole.MarkupLine("[grey][[Hub]][/] Recovered stale hub.lock");
-            _logger.LogInformation("Recovered stale Hub lock");
-        }
 
         var port = _config.Port == 0 ? HubPortAllocator.AllocateLoopbackPort() : _config.Port;
         var host = NormalizeHost(_config.Host);
@@ -141,6 +132,69 @@ public sealed class HubHost : IDotCraftHost
         finally
         {
             await CleanupAsync();
+        }
+    }
+
+    private async Task<bool> AcquireLockAsync(CancellationToken cancellationToken)
+    {
+        if (HubLockFile.TryAcquire(_paths, out _lockFile, out var owner))
+        {
+            if (owner is not null)
+            {
+                AnsiConsole.MarkupLine("[grey][[Hub]][/] Recovered stale hub.lock");
+                _logger.LogInformation("Recovered stale Hub lock");
+            }
+
+            return true;
+        }
+
+        if (owner is null || await OwnerAnswersAsync(owner, cancellationToken))
+        {
+            var hint = owner is null
+                ? "Hub already running."
+                : $"Hub already running at {owner.ApiBaseUrl} (pid {owner.Pid}).";
+            AnsiConsole.MarkupLine($"[yellow][[Hub]][/] {Markup.Escape(hint)}");
+            _logger.LogWarning("Hub lock is already held: {Hint}", hint);
+            return false;
+        }
+
+        AnsiConsole.MarkupLine($"[grey][[Hub]][/] Waiting for the previous Hub (pid {owner.Pid}) to stop");
+        _logger.LogInformation("Waiting for the previous Hub (pid {Pid}) to release the Hub lock", owner.Pid);
+        var deadline = DateTimeOffset.UtcNow + LockHandoffTimeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(LockRetryInterval, cancellationToken);
+            if (HubLockFile.TryAcquire(_paths, out _lockFile, out var current))
+                return true;
+
+            if (current?.Pid != owner.Pid)
+            {
+                AnsiConsole.MarkupLine("[yellow][[Hub]][/] Another Hub took over hub.lock.");
+                _logger.LogWarning("Another Hub acquired the Hub lock after pid {Pid} released it", owner.Pid);
+                return false;
+            }
+        }
+
+        AnsiConsole.MarkupLine(
+            $"[yellow][[Hub]][/] The previous Hub (pid {owner.Pid}) did not stop within {LockHandoffTimeout.TotalSeconds:N0}s.");
+        _logger.LogWarning(
+            "The previous Hub (pid {Pid}) did not release the Hub lock within {Timeout}",
+            owner.Pid,
+            LockHandoffTimeout);
+        return false;
+    }
+
+    private static async Task<bool> OwnerAnswersAsync(HubLockInfo owner, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = OwnerProbeTimeout };
+            using var response = await http.GetAsync($"{owner.ApiBaseUrl}/v1/status", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return false;
         }
     }
 
@@ -254,8 +308,16 @@ public sealed class HubHost : IDotCraftHost
                 return;
             }
 
-            var reader = events.Subscribe(ct);
-            await HubEventBus.WriteSseAsync(response, reader, ct);
+            // Kestrel waits for open requests on stop, so streams must end when the Hub starts stopping.
+            using var streamCts = CancellationTokenSource.CreateLinkedTokenSource(ct, app.Lifetime.ApplicationStopping);
+            var reader = events.Subscribe(streamCts.Token);
+            try
+            {
+                await HubEventBus.WriteSseAsync(response, reader, streamCts.Token);
+            }
+            catch (OperationCanceledException) when (streamCts.IsCancellationRequested)
+            {
+            }
         });
         app.MapPost("/v1/notifications/request", (HttpRequest request, HubNotificationRequest body) =>
         {
@@ -460,17 +522,13 @@ public sealed class HubHost : IDotCraftHost
             _mobile = null;
         }
 
-        if (_registry is not null)
-        {
-            await _registry.DisposeAsync();
-            _registry = null;
-        }
-
-        if (_serviceRegistry is not null)
-        {
-            await _serviceRegistry.DisposeAsync();
-            _serviceRegistry = null;
-        }
+        var registry = _registry;
+        var serviceRegistry = _serviceRegistry;
+        _registry = null;
+        _serviceRegistry = null;
+        await Task.WhenAll(
+            registry?.DisposeAsync().AsTask() ?? Task.CompletedTask,
+            serviceRegistry?.DisposeAsync().AsTask() ?? Task.CompletedTask);
 
         if (_satellites is not null)
         {
