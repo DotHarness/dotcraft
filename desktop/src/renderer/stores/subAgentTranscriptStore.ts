@@ -141,7 +141,8 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
           const { thread } = await readThreadHistoryHead(
             (method, params) => window.api.appServer.sendRequest(method, params),
             childThreadId,
-            TRANSCRIPT_TURN_LIMIT
+            TRANSCRIPT_TURN_LIMIT,
+            'none'
           )
           if (fetches.get(childThreadId) !== flight) return
           const history = (thread.turns ?? []).map((turn) =>

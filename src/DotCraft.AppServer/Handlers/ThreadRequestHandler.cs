@@ -32,10 +32,6 @@ internal sealed partial class ThreadRequestHandler(
 {
     private const int ThreadListDefaultPageLimit = 50;
     private const int ThreadListMaxPageLimit = 100;
-    private const int ThreadTurnsDefaultPageLimit = 20;
-    private const int ThreadTurnsMaxPageLimit = 100;
-    private const int ThreadItemsDefaultPageLimit = 100;
-    private const int ThreadItemsMaxPageLimit = 100;
     private const string ThreadListCursorKind = "thread-list";
     private readonly object _pendingInteractiveReplayLock = new();
     private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
@@ -351,82 +347,6 @@ internal sealed partial class ThreadRequestHandler(
             Thread = AppServerContractMapper.ToContract(await threadProjector.ProjectHeaderAsync(snapshot, ct))
         };
         return AppServerTypedResult<Contract.ThreadReadResult>.FromResult(result);
-    }
-
-    private async Task<AppServerTypedResult<Contract.ThreadTurnsListResult>> HandleThreadTurnsListAsync(
-        AppServerTypedRequest<Contract.ThreadTurnsListParams> request,
-        CancellationToken ct)
-    {
-        var p = request.Params;
-        var direction = ParseHistoryDirection(p.SortDirection);
-        var directionName = HistoryDirectionName(direction);
-        var cursor = ThreadHistoryCursorCodec.Decode(
-            p.Cursor, p.ThreadId, "turns", null, directionName);
-        ThreadHistoryPage<SessionTurn> page;
-        try
-        {
-            page = await sessionService.ListThreadTurnsAsync(
-                p.ThreadId,
-                cursor,
-                NormalizePageLimit(p.Limit, ThreadTurnsDefaultPageLimit, ThreadTurnsMaxPageLimit, "limit"),
-                direction,
-                ct);
-        }
-        catch (NotSupportedException ex)
-        {
-            throw AppServerErrors.Unsupported(ex.Message);
-        }
-        return AppServerTypedResult<Contract.ThreadTurnsListResult>.FromResult(new()
-        {
-            Data = page.Data.Select(turn => AppServerContractMapper.ToContract(turn.ToWire(includeItems: false))).ToArray(),
-            NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.RolloutOrdinal)
-                : null,
-            BackwardsCursor = page.BackwardsCursor is { } anchor
-                ? ThreadHistoryCursorCodec.EncodeBackwards(p.ThreadId, "turns", anchor.RolloutOrdinal)
-                : null
-        });
-    }
-
-    private async Task<AppServerTypedResult<Contract.ThreadItemsListResult>> HandleThreadItemsListAsync(
-        AppServerTypedRequest<Contract.ThreadItemsListParams> request,
-        CancellationToken ct)
-    {
-        var p = request.Params;
-        var turnId = string.IsNullOrWhiteSpace(p.TurnId) ? null : p.TurnId;
-        var scope = turnId is null ? "items" : "turn-items";
-        var direction = ParseHistoryDirection(p.SortDirection);
-        var directionName = HistoryDirectionName(direction);
-        var cursor = ThreadHistoryCursorCodec.Decode(
-            p.Cursor, p.ThreadId, scope, turnId, directionName);
-        ThreadHistoryPage<ThreadHistoryItem> page;
-        try
-        {
-            page = await sessionService.ListThreadItemsAsync(
-                p.ThreadId,
-                turnId,
-                cursor,
-                NormalizePageLimit(p.Limit, ThreadItemsDefaultPageLimit, ThreadItemsMaxPageLimit, "limit"),
-                direction,
-                ct);
-        }
-        catch (NotSupportedException ex)
-        {
-            throw AppServerErrors.Unsupported(ex.Message);
-        }
-        var snapshot = await sessionService.ReadThreadSnapshotAsync(p.ThreadId, ct);
-        var projected = threadProjector.ProjectHistoryItems(snapshot.Thread, page.Data);
-        return AppServerTypedResult<Contract.ThreadItemsListResult>.FromResult(new()
-        {
-            Data = projected.Select(entry => new Contract.ThreadItemListEntry
-            {
-                TurnId = entry.TurnId,
-                Item = AppServerContractMapper.ToContract(entry.Item)
-            }).ToArray(),
-            NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.RolloutOrdinal)
-                : null
-        });
     }
 
     private async Task<AppServerTypedResult<Contract.ThreadGoalGetResult>> HandleThreadGoalGetAsync(
@@ -996,16 +916,6 @@ internal sealed partial class ThreadRequestHandler(
                 throw AppServerErrors.InvalidParams($"'{field}' is no longer supported.");
         }
     }
-
-    private static ThreadHistorySortDirection ParseHistoryDirection(string? value) => value switch
-    {
-        null or "descending" => ThreadHistorySortDirection.Descending,
-        "ascending" => ThreadHistorySortDirection.Ascending,
-        _ => throw AppServerErrors.InvalidParams("'sortDirection' must be 'ascending' or 'descending'.")
-    };
-
-    private static string HistoryDirectionName(ThreadHistorySortDirection direction) =>
-        direction == ThreadHistorySortDirection.Ascending ? "ascending" : "descending";
 
     private static string EncodeCursor(string kind, int offset)
     {

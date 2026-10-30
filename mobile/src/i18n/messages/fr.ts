@@ -64,6 +64,7 @@ export const MESSAGES_FR: Catalog = {
   'activity.workingFor': 'En cours depuis {{duration}}',
   'activity.worked': 'Travail terminé',
   'activity.workedFor': 'Travail effectué en {{duration}}',
+  'activity.workFailed': 'Impossible de charger le travail de ce tour.',
   'activity.interrupted': 'Réponse interrompue',
   'activity.interruptedAfter': 'Réponse interrompue après {{duration}}',
   'toolGroup.created.one': 'Fichier créé',

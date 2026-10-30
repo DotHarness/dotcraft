@@ -1,6 +1,7 @@
 import type { RelayInfo } from '../core/gateway'
 import { FakeBackground, type FakeBackgroundSeed, type FakeWorkflowRun } from './fakeBackground'
 import { FakeFiles } from './fakeFiles'
+import { withSummaries } from './fakeHistorySummary'
 
 export interface FakeItem {
   id: string
@@ -489,8 +490,10 @@ export class FakeComputer {
     switch (method) {
       case 'thread/read':
         return { result: { thread: this.threadBody(thread) } }
-      case 'thread/turns/list':
-        return { result: page('turns', thread.turns, params) }
+      case 'thread/turns/list': {
+        const listed = page('turns', thread.turns, params)
+        return { result: { ...listed, data: withSummaries(listed.data, thread.items, params) } }
+      }
       case 'thread/items/list': {
         const items = params.turnId ? thread.items.filter((item) => item.turnId === params.turnId) : thread.items
         const listed = page('items', items, params)

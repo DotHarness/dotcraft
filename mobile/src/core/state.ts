@@ -1,4 +1,4 @@
-import type { ModelCatalogItem, ThreadConfiguration, ThreadReadState, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
+import type { ModelCatalogItem, SessionItem, ThreadConfiguration, ThreadReadState, ThreadRuntimeState, UserInputQuestion } from '@dotcraft/sdk/contracts'
 import type { ProviderUsage } from './accountUsage'
 import type { BackgroundTask, TaskSource, TaskSources } from './backgroundTasks'
 import { chatState, needsYou, type ChatState } from './chatState'
@@ -10,6 +10,7 @@ import {
   applyEvent,
   emptyHistory,
   prependTurns,
+  replaceTurnItems,
   type ChatHistory,
   type Echo,
   type HistoryEvent,
@@ -210,6 +211,7 @@ export type ComputerAction =
   | { type: 'historyBatch'; key: string; deltas: Extract<HistoryEvent, { kind: 'delta' }>[] }
   | { type: 'olderLoading'; key: string; value: boolean }
   | { type: 'olderLoaded'; key: string; cursor: string; turns: TurnPageEntry[]; olderCursor: string | null }
+  | { type: 'turnItemsLoaded'; key: string; turnId: string; items: SessionItem[] }
   | { type: 'echo'; key: string; echo: Echo }
   | { type: 'echoDropped'; key: string; clientId: string }
   | { type: 'pendingAdded'; key: string; request: PendingRequest }
@@ -417,6 +419,8 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       // A reload while the page was read replaced the history and its cursor; drop the stale page.
       if (state.details[action.key]?.history.olderCursor !== action.cursor) return state
       return patchDetail(state, action.key, (history) => prependTurns(history, action.turns, action.olderCursor))
+    case 'turnItemsLoaded':
+      return patchDetail(state, action.key, (history) => replaceTurnItems(history, action.turnId, action.items))
     case 'chatConfig': {
       const detail = state.details[action.key]
       return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, config: action.config } } } : state

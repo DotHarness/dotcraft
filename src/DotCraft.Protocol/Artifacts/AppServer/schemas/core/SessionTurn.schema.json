@@ -48,6 +48,16 @@
         }
       ]
     },
+    "itemCount": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "items": {
       "anyOf": [
         {
@@ -55,6 +65,16 @@
           "items": {
             "$ref": "./SessionItem.schema.json"
           }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "itemsView": {
+      "anyOf": [
+        {
+          "type": "string"
         },
         {
           "type": "null"

@@ -259,6 +259,8 @@ export interface ConversationTurn {
   providerError?: string
   /** Reason set when status === 'cancelled' */
   cancelReason?: string
+  /** Set while `items` holds only the Turn's summary; its full Items load on demand. */
+  summary?: { itemCount: number }
 }
 
 /** Supported input part types for turn/start */
@@ -859,6 +861,7 @@ export function wireTurnToConversationTurn(raw: Record<string, unknown>): Conver
     tokenUsage: raw.tokenUsage as ConversationTurn['tokenUsage'],
     error: (raw.error as string | undefined),
     providerError: (raw.providerError as string | undefined),
-    cancelReason: (raw.reason as string | undefined)
+    cancelReason: (raw.reason as string | undefined),
+    ...(raw.itemsView === 'summary' ? { summary: { itemCount: Number(raw.itemCount ?? rawItems.length) } } : {})
   }
 }

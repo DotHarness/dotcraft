@@ -65,6 +65,7 @@ export function layoutTurn(
   origin: TaskWake | null = null,
   heading: string | null = null,
   stoppedByYou = false,
+  summarized = false,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
@@ -96,17 +97,21 @@ export function layoutTurn(
     endedAt: status === 'worked' ? (finalAt ?? turn.completedAt ?? null) : (turn.completedAt ?? null),
     origin,
   }
-  if (status !== 'worked' || final <= 0) return [...opening, { ...activity, children: [] }, ...body, ...tail]
-  const before = body.slice(0, final)
+  const pending = summarized && status === 'worked'
+  if (status !== 'worked' || (final <= 0 && !pending)) return [...opening, { ...activity, children: [] }, ...body, ...tail]
+  const split = final >= 0 ? final : body.length
+  const before = body.slice(0, split)
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')
   const image = lastIndex(before, (entry) => entry.kind === 'image' && entry.status === 'completed' && entry.uri !== null)
   const pinned = (entry: TranscriptEntry, index: number) =>
-    (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || index === plan || index === image
+    (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || entry.kind === 'changes' || index === plan || index === image
   return [
     ...opening,
-    { ...activity, children: before.filter((entry, index) => !pinned(entry, index)) },
+    pending
+      ? { ...activity, children: [], pendingTurnId: turnId }
+      : { ...activity, children: before.filter((entry, index) => !pinned(entry, index)) },
     ...before.filter(pinned),
-    ...body.slice(final),
+    ...body.slice(split),
     ...tail,
   ]
 }

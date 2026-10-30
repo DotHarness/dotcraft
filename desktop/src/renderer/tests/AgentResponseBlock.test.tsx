@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
-import { useConversationStore } from '../stores/conversationStore'
+import { activateThreadConversation, createThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
@@ -296,5 +296,79 @@ describe('AgentResponseBlock subagent endings', () => {
     )
 
     expect(screen.getAllByRole('button', { name: 'Open subagent Core' })).toHaveLength(2)
+  })
+
+  it('keeps endings inside the folded work of a finished turn', () => {
+    const ending = (id: string, label: string): ConversationItem => ({
+      id, type: 'userMessage', status: 'completed', deliveryMode: 'guidance', createdAt: '2026-09-02T00:05:00Z',
+      triggerKind: 'subagent', triggerLabel: label, triggerRefId: `/root/${label}`, triggerStatus: 'completed',
+      text: `Subagent ${label} finished`
+    })
+    const turn: ConversationTurn = {
+      id: 'turn-ended', threadId: 'parent-B', status: 'completed', startedAt: '2026-09-02T00:00:00Z', completedAt: '2026-09-02T00:10:00Z',
+      items: [
+        makeSpawn(),
+        ending('ending-a', 'review_a'),
+        ending('ending-b', 'review_b'),
+        { id: 'final', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done.', createdAt: '2026-09-02T00:09:00Z' }
+      ]
+    }
+    useConversationStore.setState({ turns: [turn] })
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Done.')).toBeInTheDocument()
+    expect(screen.queryByText(/review_a/)).toBeNull()
+  })
+})
+
+describe('AgentResponseBlock summary turns', () => {
+  function SummaryTurn(): JSX.Element | null {
+    const turn = useConversationStore((s) => s.turns[0])
+    return turn ? <AgentResponseBlock turn={turn} /> : null
+  }
+
+  it('loads the folded work of a summary turn when it is opened', async () => {
+    let finishRead: (value: unknown) => void = () => {}
+    const sendRequest = vi.fn((method: string) => method === 'thread/items/list'
+      ? new Promise((resolve) => { finishRead = resolve })
+      : Promise.resolve({}))
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest },
+      shell: { openExternal: vi.fn().mockResolvedValue(undefined) }
+    })
+    createThreadConversation('thread-s')
+    activateThreadConversation('thread-s')
+    useThreadStore.setState({ activeThreadId: 'thread-s' })
+    const final = { id: 'final', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done.', createdAt: '2026-09-02T00:09:00Z' }
+    const turn: ConversationTurn = {
+      id: 'turn-s', threadId: 'thread-s', status: 'completed', startedAt: '2026-09-02T00:00:00Z', completedAt: '2026-09-02T00:10:00Z',
+      items: [final as ConversationItem],
+      summary: { itemCount: 3 }
+    }
+    useConversationStore.getState().setTurns([turn])
+
+    render(<LocaleProvider><SummaryTurn /></LocaleProvider>)
+    expect(sendRequest).not.toHaveBeenCalledWith('thread/items/list', expect.anything())
+
+    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    expect(await screen.findByRole('status', { name: "Loading this turn's work" })).toBeInTheDocument()
+    expect(sendRequest).toHaveBeenCalledWith('thread/items/list', expect.objectContaining({ threadId: 'thread-s', turnId: 'turn-s' }))
+
+    finishRead({
+      data: [
+        { turnId: 'turn-s', item: { id: 'commentary', type: 'agentMessage', status: 'completed', createdAt: '2026-09-02T00:01:00Z', payload: { text: 'Checking.', phase: 'commentary' } } },
+        { turnId: 'turn-s', item: { id: 'reasoning', type: 'reasoningContent', status: 'completed', createdAt: '2026-09-02T00:02:00Z', payload: { text: 'thinking' } } },
+        { turnId: 'turn-s', item: { ...final, payload: { text: 'Done.', phase: 'final' } } }
+      ],
+      nextCursor: null
+    })
+    await waitFor(() => expect(useConversationStore.getState().turns[0].summary).toBeUndefined())
+    expect(useConversationStore.getState().turns[0].items.map((item) => item.id)).toEqual(['commentary', 'reasoning', 'final'])
   })
 })

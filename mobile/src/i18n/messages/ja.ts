@@ -64,6 +64,7 @@ export const MESSAGES_JA: Catalog = {
   'activity.workingFor': '{{duration}}処理中',
   'activity.worked': '処理済み',
   'activity.workedFor': '処理時間: {{duration}}',
+  'activity.workFailed': 'このターンの処理内容を読み込めませんでした。',
   'activity.interrupted': '返信が中断されました',
   'activity.interruptedAfter': '{{duration}}後に返信が中断されました',
   'toolGroup.created.one': 'ファイルを作成しました',

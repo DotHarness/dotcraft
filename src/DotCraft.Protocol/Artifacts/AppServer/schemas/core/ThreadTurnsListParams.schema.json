@@ -14,6 +14,16 @@
         }
       ]
     },
+    "itemsView": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "limit": {
       "anyOf": [
         {
@@ -28,6 +38,19 @@
       "anyOf": [
         {
           "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "summaryTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ThreadSummaryTool.schema.json"
+          }
         },
         {
           "type": "null"

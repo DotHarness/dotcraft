@@ -733,6 +733,27 @@ public sealed class ThreadTurnsListParams : ExtensibleJsonObject
     [JsonPropertyName("sortDirection")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SortDirection { get; init; }
+
+    /// <summary><c>none</c> (default) returns Turns without Items; <c>summary</c> returns each Turn with its summary Items.</summary>
+    [JsonPropertyName("itemsView")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemsView { get; init; }
+
+    /// <summary>Tools whose calls and results a summary keeps; valid only with the <c>summary</c> view.</summary>
+    [JsonPropertyName("summaryTools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ThreadSummaryTool>? SummaryTools { get; init; }
+}
+
+/// <summary>A tool identity whose calls a Turn summary keeps.</summary>
+public sealed class ThreadSummaryTool : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("namespace")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; init; }
 }
 
 /// <summary>Parameters for reading one page of Items.</summary>
@@ -1021,6 +1042,16 @@ public sealed class SessionTurn : ExtensibleJsonObject
     [JsonPropertyName("items")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<SessionItem>? Items { get; init; }
+
+    /// <summary><c>summary</c> when <see cref="Items"/> holds only the Turn's summary Items.</summary>
+    [JsonPropertyName("itemsView")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemsView { get; init; }
+
+    /// <summary>Number of Items Turn-scoped <c>thread/items/list</c> returns on this connection; set with a summary.</summary>
+    [JsonPropertyName("itemCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ItemCount { get; init; }
 }
 
 /// <summary>Wire snapshot of a thread.</summary>

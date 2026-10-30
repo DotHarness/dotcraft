@@ -161,6 +161,9 @@ export interface Turn {
   createdAt: string
   completedAt?: string
   items?: Array<Record<string, unknown>>
+  /** `summary` when `items` holds only the Turn's summary Items. */
+  itemsView?: string
+  itemCount?: number
   threadId?: string
   tokenUsage?: { inputTokens: number; outputTokens: number }
 }

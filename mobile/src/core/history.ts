@@ -18,6 +18,8 @@ export interface HistoryTurn {
   providerError?: string | null
   startedAt?: string | null
   completedAt?: string | null
+  /** Set while only the Turn's summary Items are loaded. */
+  summary?: { itemCount: number }
 }
 
 export interface Echo {
@@ -93,6 +95,7 @@ function turnFromWire(turn: SessionTurn): HistoryTurn {
     providerError: turn.providerError ?? null,
     startedAt: turn.startedAt,
     completedAt: turn.completedAt ?? null,
+    ...(turn.itemsView === 'summary' ? { summary: { itemCount: turn.itemCount ?? 0 } } : {}),
   }
 }
 
@@ -124,6 +127,23 @@ export function prependTurns(history: ChatHistory, page: TurnPageEntry[], olderC
     items: [...older.flatMap((entry) => entry.items.map(pageItem)), ...history.items],
     turns: [...older.map((entry) => turnFromWire(entry.turn)), ...history.turns],
     olderCursor,
+  }
+}
+
+/** Replaces a summarized Turn's Items with all of its Items at the Turn's place. */
+export function replaceTurnItems(history: ChatHistory, turnId: string, items: SessionItem[]): ChatHistory {
+  const turn = history.turns.find((candidate) => candidate.id === turnId)
+  if (!turn?.summary) return history
+  const first = history.items.findIndex((item) => item.turnId === turnId)
+  const later = new Set(history.turns.slice(history.turns.indexOf(turn) + 1).map((candidate) => candidate.id))
+  const at = first >= 0 ? first : history.items.findIndex((item) => later.has(item.turnId))
+  const rest = history.items.filter((item) => item.turnId !== turnId)
+  const position = at < 0 ? rest.length : at
+  const { summary: _summary, ...loaded } = turn
+  return {
+    ...history,
+    items: [...rest.slice(0, position), ...items.map(pageItem), ...rest.slice(position)],
+    turns: history.turns.map((candidate) => (candidate === turn ? loaded : candidate)),
   }
 }
 

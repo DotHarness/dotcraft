@@ -358,6 +358,13 @@ export class ComputerLink {
     if (connection?.ready && connection.isOpen(threadId)) await connection.loadOlder(threadId)
   }
 
+  async loadTurnItems(key: string, turnId: string): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    const connection = this.connections.get(projectId)
+    if (!connection?.ready) throw new Error('The chat is not connected.')
+    await connection.loadTurnItems(threadId, turnId)
+  }
+
   closeChat(key: string): void {
     const count = this.views.get(key) ?? 0
     if (count > 1) {

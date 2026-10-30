@@ -166,7 +166,9 @@ async function readGapEdge(
     requestAppServer,
     threadId,
     cursor,
-    edge === 'older' ? 'descending' : 'ascending'
+    edge === 'older' ? 'descending' : 'ascending',
+    undefined,
+    'summary'
   )
   if (!isCurrent(threadId, generation)) return
   const listed = takeUntilLoaded(page.turns, loadedTurnIds(threadId))
@@ -213,14 +215,14 @@ export async function openThreadHistoryAround(
         position.offset
       )).nextCursor
   const older = targetCursor
-    ? await listThreadTurns(requestAppServer, threadId, targetCursor, 'descending')
+    ? await listThreadTurns(requestAppServer, threadId, targetCursor, 'descending', undefined, 'summary')
     : null
   const target = older?.turns[0]
   if (!older?.backwardsCursor || !target) throw new Error('listed turn is no longer in the thread')
   assertCurrent()
   if (loadedTurnIds(threadId).has(target.id)) return target.id
 
-  const newer = await listThreadTurns(requestAppServer, threadId, older.backwardsCursor, 'ascending')
+  const newer = await listThreadTurns(requestAppServer, threadId, older.backwardsCursor, 'ascending', undefined, 'summary')
   assertCurrent()
   const listedLoaded = loadedTurnIds(threadId)
   const olderListed = takeUntilLoaded(older.turns, listedLoaded)

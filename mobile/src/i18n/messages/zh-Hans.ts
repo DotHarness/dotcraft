@@ -64,6 +64,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'activity.workingFor': '正在处理 {{duration}}',
   'activity.worked': '已处理',
   'activity.workedFor': '已处理 {{duration}}',
+  'activity.workFailed': '无法加载本轮的处理过程。',
   'activity.interrupted': '本轮回复已中断',
   'activity.interruptedAfter': '本轮回复在 {{duration}}后中断',
   'toolGroup.created.one': '已创建文件',

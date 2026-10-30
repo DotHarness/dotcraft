@@ -9,6 +9,8 @@ using DotCraft.Plugins;
 using DotCraft.Persistence;
 using DotCraft.Persistence.Upgrades;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.Sessions.Wire;
 using DotCraft.Tools;
 
@@ -41,6 +43,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
     private readonly ThreadAttachmentStore _attachmentStore;
     private readonly ThreadHistoryProjectionStore _historyProjectionStore;
     private readonly SemaphoreSlim _reconcileGate = new(1, 1);
+    private readonly ILogger _logger;
     private static readonly TimeSpan OrphanAttachmentAge = TimeSpan.FromDays(1);
     private static readonly TimeSpan OrphanSweepInterval = TimeSpan.FromHours(1);
     private DateTimeOffset _lastOrphanSweep = DateTimeOffset.MinValue;
@@ -53,8 +56,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public ThreadStore(
         string botPath,
         WorkspaceStateDatabase? stateRuntime,
-        Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync = null)
-        : this(botPath, stateRuntime, beforeRolloutDeleteAsync, new OrderedRolloutWriter())
+        Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync = null,
+        ILogger<ThreadStore>? logger = null)
+        : this(botPath, stateRuntime, beforeRolloutDeleteAsync, new OrderedRolloutWriter(), logger)
     {
     }
 
@@ -62,8 +66,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
         string botPath,
         WorkspaceStateDatabase? stateRuntime,
         Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync,
-        IRolloutWriter rolloutWriter)
+        IRolloutWriter rolloutWriter,
+        ILogger? logger = null)
     {
+        _logger = logger ?? NullLogger.Instance;
         _botPath = Path.GetFullPath(botPath);
         StateDatabase = stateRuntime ?? new WorkspaceStateDatabase(botPath);
         _metadataStore = new ThreadMetadataStore(StateDatabase);
@@ -254,45 +260,6 @@ public sealed partial class ThreadStore : IAsyncDisposable
         }
 
         return null;
-    }
-
-    public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
-        string threadId,
-        CancellationToken ct = default)
-    {
-        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var path = ResolvePersistedHistoryPath(threadId);
-        var snapshot = await _historyProjectionStore.ReadSnapshotAsync(threadId, path, ct);
-        if (snapshot.Thread.Ephemeral)
-            throw new NotSupportedException("Paged history is not supported for ephemeral Threads.");
-        return snapshot;
-    }
-
-    public async Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
-        string threadId,
-        ThreadHistoryCursor? cursor,
-        int limit,
-        ThreadHistorySortDirection direction,
-        CancellationToken ct = default)
-    {
-        ValidateHistoryPageLimit(limit);
-        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var path = ResolvePersistedHistoryPath(threadId);
-        return await _historyProjectionStore.ListTurnsAsync(threadId, path, cursor, limit, direction, ct);
-    }
-
-    public async Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
-        string threadId,
-        string? turnId,
-        ThreadHistoryCursor? cursor,
-        int limit,
-        ThreadHistorySortDirection direction,
-        CancellationToken ct = default)
-    {
-        ValidateHistoryPageLimit(limit);
-        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var path = ResolvePersistedHistoryPath(threadId);
-        return await _historyProjectionStore.ListItemsAsync(threadId, path, turnId, cursor, limit, direction, ct);
     }
 
     /// <summary>

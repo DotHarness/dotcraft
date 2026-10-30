@@ -976,6 +976,7 @@ function mergeExistingRealtimeTurn(
     tokenUsage: keepExistingTerminalStatus ? existing.tokenUsage : incoming.tokenUsage,
     error: keepExistingTerminalStatus ? existing.error : incoming.error,
     cancelReason: keepExistingTerminalStatus ? existing.cancelReason : incoming.cancelReason,
+    summary: existing.summary && incoming.summary,
     items: sortItemsByCreatedAt(mergedItems)
   }
 }

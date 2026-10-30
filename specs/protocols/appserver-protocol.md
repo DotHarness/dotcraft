@@ -418,9 +418,9 @@ Read the current Thread header without resuming it. Params: `threadId`. Result: 
 
 ### 4.4.1 `thread/turns/list`
 
-Read one page of provider-neutral Turn metadata. Params: `threadId`, `cursor`, `limit` (default 20, max 100), `sortDirection` (default `descending`).
+Read one page of provider-neutral Turn metadata. Params: `threadId`, `cursor`, `limit` (default 20, max 100), `sortDirection` (default `descending`), `itemsView` (`none` default, or `summary`), and, with `summary` only, `summaryTools` (at most 32 `{ name, namespace? }`).
 
-**Result**: `{ data: Turn[], nextCursor, backwardsCursor }`. Returned Turns have no `items`. `backwardsCursor` is anchored at and includes the first returned Turn, is valid with either direction so clients can read outward from any listed Turn, and is `null` for an empty page.
+**Result**: `{ data: Turn[], nextCursor, backwardsCursor }`. With `itemsView = none`, returned Turns have no `items`. With `summary`, each Turn carries `itemsView: "summary"`, `itemCount` (the number of Items Turn-scoped `thread/items/list` returns on this connection), and `items` holding its summary Items as defined by [Thread History Loading](../features/thread-history-loading.md#51-summary-view). `backwardsCursor` is anchored at and includes the first returned Turn, is valid with either direction so clients can read outward from any listed Turn, and is `null` for an empty page.
 
 ### 4.4.2 `thread/items/list`
 

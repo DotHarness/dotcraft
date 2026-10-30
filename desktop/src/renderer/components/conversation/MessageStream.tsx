@@ -14,7 +14,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { ConversationFindSurface } from '../../find/ConversationFindSurface'
 import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
-import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
+import { AgentResponseBlock } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { RunningTurnChangesPill } from './RunningTurnChangesPill'
 import { StreamRetryNotice } from './StreamRetryNotice'
@@ -43,7 +43,6 @@ const CHANGES_PILL_BOTTOM_GAP_PX = 4
 /** Resting gap reserved below the last message so it never sits flush against the
  *  composer (and clears the dock's top edge when a dock is present). */
 export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
-const FULL_HISTORY_TURN_COUNT = 3
 const NO_HISTORY_GAPS: HistoryGap[] = []
 
 
@@ -281,12 +280,6 @@ function MessageStreamContent(): JSX.Element {
                 >
                   <TurnBlock
                     turn={turn}
-                    historicalToolContentMode={getHistoricalToolContentMode({
-                      turn,
-                      index: idx,
-                      totalTurns: turns.length,
-                      activeTurnId
-                    })}
                     streamingMessage={isActiveTurn ? streamingMessage : ''}
                     streamingReasoning={isActiveTurn ? streamingReasoning : ''}
                     isRunning={
@@ -384,7 +377,6 @@ function MessageStreamContent(): JSX.Element {
 
 interface TurnBlockProps {
   turn: ConversationTurn
-  historicalToolContentMode: HistoricalToolContentMode
   streamingMessage: string
   streamingReasoning: string
   isRunning: boolean
@@ -403,7 +395,6 @@ interface TurnBlockProps {
 
 const TurnBlock = memo(function TurnBlock({
   turn,
-  historicalToolContentMode,
   streamingMessage,
   streamingReasoning,
   isRunning,
@@ -466,7 +457,6 @@ const TurnBlock = memo(function TurnBlock({
         isRunning={isRunning}
         showWorkingLine={showWorkingLine}
         isLastTurn={isLastTurn}
-        historicalToolContentMode={historicalToolContentMode}
       />
     </div>
   )
@@ -474,7 +464,6 @@ const TurnBlock = memo(function TurnBlock({
 
 function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps): boolean {
   return previous.turn === next.turn &&
-    previous.historicalToolContentMode === next.historicalToolContentMode &&
     previous.streamingMessage === next.streamingMessage &&
     previous.streamingReasoning === next.streamingReasoning &&
     previous.isRunning === next.isRunning &&
@@ -485,24 +474,4 @@ function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps):
     previous.threadOrigin === next.threadOrigin &&
     previous.isIdle === next.isIdle &&
     previous.editing === next.editing
-}
-
-function getHistoricalToolContentMode({
-  turn,
-  index,
-  totalTurns,
-  activeTurnId
-}: {
-  turn: ConversationTurn
-  index: number
-  totalTurns: number
-  activeTurnId: string | null
-}): HistoricalToolContentMode {
-  const recentStartIndex = Math.max(0, totalTurns - FULL_HISTORY_TURN_COUNT)
-  if (index >= recentStartIndex) return 'full'
-  if (turn.id === activeTurnId) return 'full'
-  if (turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput') {
-    return 'full'
-  }
-  return 'trimmed'
 }

@@ -142,7 +142,10 @@ public static class ServiceRegistration
             new McpClientManager(paths, sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>()));
         services.AddSingleton<LspServerManager>();
         services.AddSingleton(new SessionGate(config.MaxSessionQueueSize));
-        services.AddSingleton(sp => new ThreadStore(dataPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
+        services.AddSingleton(sp => new ThreadStore(
+            dataPath,
+            sp.GetRequiredService<WorkspaceStateDatabase>(),
+            logger: sp.GetService<ILogger<ThreadStore>>()));
         services.AddSingleton<IWorldStateSection>(sp =>
             new VisualizationStateSection(sp.GetRequiredService<ThreadStore>().VisualizationWidgetStates));
         services.AddSingleton(sp => new DreamsRunRegistry(sp.GetRequiredService<ThreadStore>()));
