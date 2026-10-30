@@ -12,7 +12,6 @@ public interface IConfigurationSecretProtector
 }
 
 public sealed class ConfigurationSecretProtector(
-    IWebHostEnvironment environment,
     IOptionsMonitor<SettingsWriteOptions> settingsOptions) : IConfigurationSecretProtector
 {
     private const string Prefix = "enc:v1:";
@@ -129,9 +128,7 @@ public sealed class ConfigurationSecretProtector(
             return Path.GetFullPath(configured);
         }
 
-        var stateRoot = OratorioStatePaths.ResolveDefaultStateRoot(
-            environment.ContentRootPath,
-            Environment.GetEnvironmentVariable("DOTCRAFT_MANAGED_SERVICE_STATE_ROOT"));
+        var stateRoot = OratorioStatePaths.ResolveDefaultStateRoot();
         return Path.Combine(stateRoot, "secrets.key");
     }
 }

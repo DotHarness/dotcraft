@@ -153,6 +153,27 @@ public sealed class ContractAnalyzerTests
     }
 
     [Fact]
+    public void Generator_ConsumerUsesTheReferencedContractCatalog()
+    {
+        var compilation = CreateCompilation("""
+            public static class Consumer
+            {
+                public static string ReadMethod =>
+                    DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead;
+            }
+            """);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [new AppServerRpcCatalogGenerator().AsSourceGenerator()],
+            parseOptions: new CSharpParseOptions(LanguageVersion.Latest));
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
+
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var catalog = output.GetTypeByMetadataName("DotCraft.Protocol.AppServer.AppServerMethodNames");
+        Assert.Equal("DotCraft.Protocol", catalog!.ContainingAssembly.Name);
+    }
+
+    [Fact]
     public async Task Analyzer_IgnoresContractsOutsideTheAppServerNamespace()
     {
         const string source = """

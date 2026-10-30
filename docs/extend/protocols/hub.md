@@ -188,12 +188,11 @@ Ensure request:
 ```json
 {
   "serviceId": "oratorio",
-  "startIfMissing": true,
-  "executable": "/absolute/path/to/oratorio"
+  "startIfMissing": true
 }
 ```
 
-The host resolves `executable`. Clients cannot supply arguments, environment variables, a state directory, or a health path. Concurrent ensure calls reuse the same healthy process.
+Hub defaults to its own DotCraft binary and starts `oratorio serve` in a separate process. The optional `executable` field selects an explicitly resolved DotCraft executable or DLL. Clients cannot supply arguments, environment variables, a state directory, or a health path. Concurrent ensure calls reuse the same healthy process.
 
 ```json
 {
@@ -210,7 +209,7 @@ The host resolves `executable`. Clients cannot supply arguments, environment var
 
 Treat `endpoint` and `accessToken` as host-only credentials. Do not pass them to a renderer, log them, or persist them. Service state is in-memory for the Hub lifetime. Hub stops owned processes during shutdown but does not automatically restart a failed service.
 
-Use `{ "serviceId": "oratorio" }` for stop. Restart also requires the resolved `executable`.
+Use `{ "serviceId": "oratorio" }` for stop or restart. Restart accepts the same optional `executable` override as ensure.
 
 ### Notifications
 

@@ -61,11 +61,11 @@ export class DesktopHubClient {
     return this.run(() => this.inner.listAppServers())
   }
 
-  ensureManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+  ensureManagedService(serviceId: string, executable?: string): Promise<HubManagedServiceResponse> {
     return this.run(() => this.inner.ensureManagedService(serviceId, { executable }))
   }
 
-  restartManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+  restartManagedService(serviceId: string, executable?: string): Promise<HubManagedServiceResponse> {
     return this.run(() => this.inner.restartManagedService(serviceId, executable))
   }
 

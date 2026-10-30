@@ -22,6 +22,12 @@ so worktrees Oratorio creates open in AppServer without path translation.
 - **Webhook gateway**: optional overlay exposing only declared webhook paths
   (Server Webhook Ingress).
 
+AppServer and Oratorio use the same version of the
+`ghcr.io/dotharness/dotcraft` image in separate containers. Oratorio's entry point
+prepares its git identity and state directory, then executes
+`dotcraft oratorio serve`. The services have separate state volumes and service
+tokens. Oratorio exposes `/health` for its container health check.
+
 AppServer, Dashboard and Oratorio bind to host loopback by default. Remote
 Desktop access uses separate SSH tunnels. The webhook gateway is the only
 component meant for public traffic.

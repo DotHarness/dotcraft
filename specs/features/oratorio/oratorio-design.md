@@ -79,9 +79,12 @@ flowchart LR
 
 Runtime topology:
 
-- **Local service**: Desktop asks Hub to ensure the bundled Oratorio Server.
-  Hub owns the process lifecycle; Desktop's main process owns API semantics,
-  authentication and the realtime stream.
+- **Local service**: Desktop asks Hub to ensure the user-level Oratorio service.
+  Hub starts `dotcraft oratorio serve` in an independent process using the same
+  DotCraft distribution as AppServer. Hub owns the process lifecycle; Desktop's
+  main process owns API semantics, authentication and the realtime stream.
+  Opening multiple workspaces reuses one service and its `~/.craft/oratorio`
+  state; closing a workspace does not stop it.
 - **Remote Stack service**: Desktop connects to the official Stack through
   separate authenticated SSH tunnels for AppServer and Oratorio. The remote
   service owns orchestration, durable state, source sync, managed worktrees,
@@ -94,6 +97,20 @@ Runtime topology:
 - Stack initialization creates a writable server configuration in the
   deployment's Oratorio state. Desktop Settings use the same revision and
   secret semantics in local and remote modes.
+
+### Service hosting
+
+`DotCraft.Oratorio` is a service library. `DotCraft.App` owns the
+`dotcraft oratorio serve [--state <directory>] [--listen <http-url>]` entry point.
+Agent work runs in workspace AppServers accessed through the SDK. The hosting
+boundary is defined in [Runtime module boundaries](../../architecture/runtime-module-boundaries.md#application-and-feature-ownership).
+
+Explicit CLI state and listen options override managed-service environment
+inputs. The default state root is `~/.craft/oratorio` and the default listener
+is `http://127.0.0.1:5087`. Explicit database and configuration paths apply when
+a state root is unspecified. Service credentials come from environment or
+configuration. The service publishes readiness after database initialization
+and listener startup, and releases owned resources on startup failure or shutdown.
 
 ## 3. Lifecycle Contract
 

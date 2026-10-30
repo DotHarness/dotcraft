@@ -32,7 +32,8 @@ public sealed class AppServerRpcCatalogGenerator : IIncrementalGenerator
     private static void EmitCatalog(SourceProductionContext context, Compilation compilation)
     {
         var descriptorOwner = compilation.GetTypeByMetadataName("DotCraft.Protocol.AppServer.AppServerRpc");
-        if (descriptorOwner is null)
+        if (descriptorOwner is null
+            || !SymbolEqualityComparer.Default.Equals(descriptorOwner.ContainingAssembly, compilation.Assembly))
             return;
 
         var descriptors = new List<DescriptorInfo>();

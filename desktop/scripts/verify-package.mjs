@@ -78,18 +78,18 @@ function verifyResourcesDir(target) {
     verifyVoiceInference(entries, unpackedRoot, platform, arch)
   }
 
-  const oratorioRuntime = path.join(
-    resourcesDir,
-    'bin',
-    platform === 'win32' ? 'oratorio.exe' : 'oratorio'
-  )
-  if (!existsSync(oratorioRuntime)) {
-    fail(`Missing packaged Oratorio runtime ${path.relative(resourcesDir, oratorioRuntime)}.`)
-  }
-
   const bundledPluginsRoot = path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins')
-  if (!existsSync(bundledPluginsRoot)) {
-    fail('Missing bundled plugins directory.')
+  const oratorioPlugin = path.join(bundledPluginsRoot, 'oratorio')
+  const requiredServiceArtifacts = [
+    path.join(resourcesDir, 'bin', platform === 'win32' ? 'dotcraft.exe' : 'dotcraft'),
+    path.join(oratorioPlugin, '.craft-plugin', 'plugin.json'),
+    path.join(oratorioPlugin, 'desktop', 'dist', 'index.mjs'),
+    path.join(oratorioPlugin, 'desktop', 'dist', 'index.css')
+  ]
+  for (const required of requiredServiceArtifacts) {
+    if (!existsSync(required)) {
+      fail(`Missing packaged service artifact ${path.relative(resourcesDir, required)}.`)
+    }
   }
 
   verifyChannelFeishuCompanion(resourcesDir, platform, arch)

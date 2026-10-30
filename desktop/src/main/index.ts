@@ -3586,7 +3586,6 @@ app.whenReady().then(async () => {
   registerOratorioIpc(
     () => getProtocolWorkspacePath() || null,
     () => createHubClient(sharedSettings),
-    undefined,
     async () => {
       if (resolveConnectionMode(sharedSettings) !== 'remote') return null
       const active = resolveActiveRemoteStack(sharedSettings)

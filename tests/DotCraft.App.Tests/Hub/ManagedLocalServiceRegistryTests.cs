@@ -90,7 +90,7 @@ public sealed class ManagedLocalServiceRegistryTests : IDisposable
         var captured = new List<FakeProcess>();
         starts = captured;
         var registry = new ManagedLocalServiceRegistry([
-            new ManagedLocalServiceDefinition("oratorio", Path.Combine(_root, "state"), "/health")
+            new ManagedLocalServiceDefinition("oratorio", Path.Combine(_root, "state"), "/health", ["oratorio", "serve"])
         ]);
         registry.StartProcessAsync = (launch, _) =>
         {

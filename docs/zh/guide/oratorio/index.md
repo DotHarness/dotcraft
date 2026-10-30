@@ -38,7 +38,7 @@ Oratorio 默认不向代码托管平台写入任何内容，需要你显式启�
 
 ## 本地运行与远程部署
 
-本地模式下，第一次打开 Oratorio 时 Desktop 会启动随包提供的 Oratorio Server，不需要额外安装。
+本地模式下，Desktop 负责启动 Oratorio 服务。
 
 需要远程部署时，把 Desktop 连接到 [DotCraft Stack](../../self-hosting/server-deployment)。Board 与任务操作完全一致，只是服务器管理设置在远程连接下是只读的。
 

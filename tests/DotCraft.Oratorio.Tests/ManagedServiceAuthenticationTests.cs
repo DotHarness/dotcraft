@@ -10,7 +10,7 @@ public sealed class ManagedServiceAuthenticationTests
     {
         await using var app = new TestOratorioApp(settings: new Dictionary<string, string?>
         {
-            ["DOTCRAFT_MANAGED_SERVICE_TOKEN"] = "managed-secret"
+            ["Oratorio:Hosting:ServiceToken"] = "managed-secret"
         });
         using var client = app.CreateClient();
 

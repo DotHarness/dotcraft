@@ -14,9 +14,21 @@
 | **Desktop Renderer** | 通过 typed IPC 渲染 Board、任务详情和 Settings，不获取 endpoint 或 bearer。 |
 | **内置桌面扩展** | 通过公共桌面扩展激活契约注册 Oratorio 视图与 Settings page。 |
 
-本地 Desktop 会在首次使用时请求 Hub 确保随包提供的 Server 已运行。远程 Desktop 则从当前 [DotCraft Stack](../../self-hosting/server-deployment) 解析 Oratorio 服务。两种模式下，Renderer 请求都经过同一个 Main process 边界。
+本地 Desktop 会在首次使用时请求 Hub 确保 Oratorio 已运行。远程 Desktop 则从当前 [DotCraft Stack](../../self-hosting/server-deployment) 解析服务。两种模式下，Renderer 请求都经过同一个 Main process 边界。
 
 App connection handoff 在 Main 中检查，并要求用户明确批准。用户为 Thread 启用 Oratorio 后，Main 会把 bind handoff 作为技术激活直接交给 managed service，并将激活失败返回发起流程。Renderer 只在 connection consent 时接收 request ID 与脱敏摘要。
+
+## 服务宿主与命令行
+
+`DotCraft.App` 使用 `DotCraft.Oratorio` 组合 Oratorio Web 应用。Oratorio 通过 .NET SDK 向工作区 AppServer 派发 Agent 任务。
+
+```bash
+dotcraft oratorio serve --state /path/to/oratorio-state --listen http://127.0.0.1:5087
+```
+
+默认状态目录为 `~/.craft/oratorio`，默认监听地址为 `http://127.0.0.1:5087`。
+
+Hub 把这个命令作为用户级进程运行，本地工作区共用该进程。Stack 使用 DotCraft 镜像，在独立容器中分别运行 AppServer 与 Oratorio。
 
 ## GitHub 讨论执行
 
@@ -28,11 +40,12 @@ App connection handoff 在 Main 中检查，并要求用户明确批准。用户
 
 ## 开发与验证
 
-在仓库根目录构建 Server 并运行专用测试：
+在仓库根目录构建应用，并运行服务与宿主测试：
 
 ```bash
-dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet build src/DotCraft.App/DotCraft.App.csproj
 dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
+dotnet test tests/DotCraft.App.Tests/DotCraft.App.Tests.csproj
 ```
 
 在 `desktop/` 目录运行 Desktop 检查：
@@ -42,7 +55,7 @@ npm test
 npm run build
 ```
 
-打包会把 self-contained Server 发布到 `build/oratorio/`，再放进 Desktop resources。本机 Windows 打包运行 `build.bat`，各发行平台的产物由仓库的 `build-multiplatform` workflow 生成。
+打包把 `build/dotcraft/` 中的 DotCraft 发布产物放入 Desktop resources。本机 Windows 打包运行 `build.bat`，各发行平台的产物由仓库的 `build-multiplatform` workflow 生成。
 
 Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式化显示数据，但不得重新实现 lifecycle、retry、recovery、工作树或 decision 规则。
 

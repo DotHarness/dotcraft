@@ -214,13 +214,22 @@ test("Hub management methods share structured models and authorization", async (
     assert.equal((await client.restartAppServer("/repo")).state, "running");
     assert.equal((await client.stopAppServer("/repo")).state, "running");
     assert.equal((await client.getStatus()).capabilities.appServerManagement, true);
-    assert.equal((await client.ensureManagedService("oratorio", { executable: "/opt/oratorio" })).serviceId, "oratorio");
+    assert.equal((await client.ensureManagedService("oratorio")).serviceId, "oratorio");
+    assert.equal((await client.ensureManagedService("oratorio", { executable: "/opt/dotcraft" })).serviceId, "oratorio");
     assert.equal((await client.getManagedService("oratorio")).state, "running");
-    assert.equal((await client.restartManagedService("oratorio", "/opt/oratorio")).pid, 42);
+    assert.equal((await client.restartManagedService("oratorio")).pid, 42);
+    assert.equal((await client.restartManagedService("oratorio", "/opt/dotcraft")).pid, 42);
     assert.equal((await client.stopManagedService("oratorio")).state, "running");
     assert.ok(calls.filter((call) => call.path.startsWith("/v1/appservers")).every((call) => call.authorization === "Bearer hub-token"));
     assert.ok(calls.filter((call) => call.path.startsWith("/v1/services")).every((call) => call.authorization === "Bearer hub-token"));
-    assert.match(calls.find((call) => call.path === "/v1/services/ensure")?.body ?? "", /"executable":"\/opt\/oratorio"/);
+    assert.deepEqual(calls.filter((call) => call.path === "/v1/services/ensure").map((call) => JSON.parse(call.body!)), [
+      { serviceId: "oratorio", startIfMissing: true },
+      { serviceId: "oratorio", executable: "/opt/dotcraft", startIfMissing: true },
+    ]);
+    assert.deepEqual(calls.filter((call) => call.path === "/v1/services/restart").map((call) => JSON.parse(call.body!)), [
+      { serviceId: "oratorio" },
+      { serviceId: "oratorio", executable: "/opt/dotcraft" },
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
     await rm(dir, { recursive: true, force: true });

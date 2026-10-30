@@ -247,7 +247,7 @@ Hub shutdown stops AppServers it manages, releases local state, and removes `hub
 
 ### Product-owned local services
 
-Hub may supervise a fixed, composition-registered set of user-level product services. This is a thin process-lifecycle facility, not plugin discovery or a general process launcher. A client selects only a registered `serviceId` and may provide the resolved executable path; arguments, environment, state root, health path, and readiness are owned by DotCraft composition.
+Hub supervises a fixed, composition-registered set of user-level product services. A client selects a registered `serviceId` and may provide a DotCraft executable path; the default is Hub's own binary. DotCraft composition owns the fixed command arguments, environment, state root, health path, and readiness. The `oratorio` service runs `dotcraft oratorio serve` in an independent process.
 
 Service entries are in memory for the Hub's lifetime. Concurrent ensures for one service coalesce. Hub allocates a loopback endpoint and ephemeral bearer, starts the process with the standard `DOTCRAFT_MANAGED_SERVICE_*` environment, waits for a standard JSON ready record, and confirms `/health`. It detects exit and supports ensure, status, stop, and restart; shutdown terminates services it started. It does not persist service credentials, restart failed services automatically, proxy service traffic, or expose service discovery to plugins.
 

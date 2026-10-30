@@ -625,12 +625,6 @@ internal sealed partial class FakeAppServerClient(
         captureToolResult(await _dynamicToolHandler!(CreateCall(threadId, turnId, callId, "oratorio_run", "SubmitReviewDraft", arguments), CancellationToken.None));
     }
 
-    public IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync(CancellationToken ct) =>
-        outcome is FakeAppServerOutcome.TimeoutAfterTurnStarted or FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal ||
-        outcome == FakeAppServerOutcome.HoldInterruptWithoutTerminal && _interrupted
-            ? ReadEventsThenCancelAsync(ct)
-            : _notifications.Reader.ReadAllAsync(ct);
-
     public ValueTask DisposeAsync()
         => ValueTask.CompletedTask;
 

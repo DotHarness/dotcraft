@@ -34,6 +34,7 @@ public sealed class AppServerRunTerminationTests
             new DispatchRequest("appServer", "Interrupt a stalled DotCraft run before retrying.", null, null));
 
         await WaitForItemAsync(client, "task:test-appserver-stalled-interrupt", x => x.Item.State == ItemState.Running);
+        await fakeAppServer.FirstTurnStartedProcessed.WaitAsync(TimeSpan.FromSeconds(5));
         clock.Advance(TimeSpan.FromSeconds(6));
         await WaitForItemAsync(client, "task:test-appserver-stalled-interrupt", x => x.Runs.Count == 2);
         clock.Advance(TimeSpan.FromSeconds(2));
@@ -64,6 +65,7 @@ public sealed class AppServerRunTerminationTests
             new DispatchRequest("appServer", "Do not retry an unconfirmed stalled turn.", null, null));
 
         await WaitForItemAsync(client, "task:test-appserver-stalled-unconfirmed", x => x.Item.State == ItemState.Running);
+        await fakeAppServer.FirstTurnStartedProcessed.WaitAsync(TimeSpan.FromSeconds(5));
         clock.Advance(TimeSpan.FromSeconds(6));
 
         var failed = await WaitForItemAsync(client, "task:test-appserver-stalled-unconfirmed", x => x.Item.State == ItemState.Failed);

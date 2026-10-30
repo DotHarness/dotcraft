@@ -28,9 +28,10 @@ DotCraft.App (official composition root)
 | **`DotCraft.Protocol`** | Wire contracts shared by AppServer and protocol clients |
 | **`DotCraft.AppServer`** | JSON-RPC request handling, contract mapping, connection state, and stdio and WebSocket transports |
 | **`DotCraft.App`** | Official composition root for process entry points, providers, optional features, logging, and process policy |
-| **Feature assemblies** | Automations, Dynamic Workflows, channels, and other feature-owned behavior built on Core contracts |
+| **`DotCraft.Oratorio`** | [Oratorio](./oratorio) web application and orchestration over workspace AppServers through the SDK |
+| **Workspace feature assemblies** | Automations, Dynamic Workflows, channels, and other feature-owned behavior built on Core contracts |
 
-Core builds on the provider-neutral Agents foundation. Runtime and feature assemblies build on Core. AppServer adapts Core domain capabilities to Protocol contracts. The official App picks these components and connects feature-specific protocol adapters at the composition boundary. Runtime and AppServer share the same host-owned `ISessionService`.
+Core builds on the provider-neutral Agents foundation. Runtime and workspace feature assemblies build on Core. AppServer adapts Core domain capabilities to Protocol contracts. The official App picks these components and connects feature-specific protocol adapters at the composition boundary. Runtime and AppServer share the same host-owned `ISessionService`.
 
 ## Module discovery and capability facets
 

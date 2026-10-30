@@ -45,6 +45,7 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 | `dotcraft exec resume --last <prompt>` | Add a task to the workspace's most recently active thread |
 | `dotcraft exec interrupt <thread-id>` | Stop the running task of a thread |
 | `dotcraft app-server` | Start AppServer (defaults to stdio) |
+| `dotcraft oratorio serve` | Start the independent [Oratorio service](../architecture/oratorio#service-hosting-and-command-line) |
 | `--listen <URL>` | AppServer transport, used with `app-server` |
 | `--remote <URL>` | Client connection to a remote AppServer, used with `exec` or ACP |
 | `--token <VALUE>` | WebSocket auth token, used with `--listen` or `--remote` |

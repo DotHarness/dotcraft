@@ -153,7 +153,7 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         try
         {
             process = await StartProcessAsync(
-                new ManagedServiceLaunch(definition.ServiceId, executable, endpoint, token, definition.StateRoot),
+                new ManagedServiceLaunch(definition.ServiceId, executable, endpoint, token, definition.StateRoot, definition.Arguments),
                 cancellationToken);
             entry.Process = process;
             entry.Pid = process.ProcessId;
@@ -216,15 +216,9 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
 
     private static string ResolveExecutable(string? executable)
     {
-        if (string.IsNullOrWhiteSpace(executable))
-        {
-            throw new HubProtocolException(
-                "managedServiceExecutableRequired",
-                "A host-resolved executable is required to start the local service.",
-                StatusCodes.Status400BadRequest);
-        }
-
-        var path = Path.GetFullPath(executable.Trim());
+        var path = Path.GetFullPath(string.IsNullOrWhiteSpace(executable)
+            ? HubLauncher.CurrentBinary()
+            : executable.Trim());
         if (!File.Exists(path))
         {
             throw new HubProtocolException(
@@ -278,6 +272,7 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         var startInfo = new ProcessStartInfo
         {
             FileName = launch.Executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? "dotnet" : launch.Executable,
+            WorkingDirectory = launch.StateRoot,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -285,6 +280,8 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         };
         if (launch.Executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             startInfo.ArgumentList.Add(launch.Executable);
+        foreach (var argument in launch.Arguments)
+            startInfo.ArgumentList.Add(argument);
 
         startInfo.Environment["DOTCRAFT_MANAGED_SERVICE_ID"] = launch.ServiceId;
         startInfo.Environment["DOTCRAFT_MANAGED_SERVICE_URL"] = launch.Endpoint;
@@ -348,7 +345,8 @@ internal sealed record ManagedServiceLaunch(
     string Executable,
     string Endpoint,
     string AccessToken,
-    string StateRoot);
+    string StateRoot,
+    IReadOnlyList<string> Arguments);
 
 internal sealed record ManagedServiceReady(string ServiceId, string Endpoint, string? Version);
 

@@ -2,19 +2,14 @@ namespace DotCraft.Oratorio.Services;
 
 public static class OratorioStatePaths
 {
-    public static string ResolveDefaultStateRoot(string contentRootPath, string? stateRoot = null)
-    {
-        if (!string.IsNullOrWhiteSpace(stateRoot))
-        {
-            return Path.GetFullPath(stateRoot);
-        }
+    public static string ResolveDefaultStateRoot(string? stateRoot = null) =>
+        !string.IsNullOrWhiteSpace(stateRoot)
+            ? Path.GetFullPath(stateRoot)
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "oratorio");
 
-        return Path.GetFullPath(Path.Combine(contentRootPath, "..", ".craft", "oratorio"));
-    }
+    public static string ResolveDefaultDatabasePath(string? stateRoot = null) =>
+        Path.Combine(ResolveDefaultStateRoot(stateRoot), "oratorio.db");
 
-    public static string ResolveDefaultDatabasePath(string contentRootPath, string? stateRoot = null) =>
-        Path.Combine(ResolveDefaultStateRoot(contentRootPath, stateRoot), "oratorio.db");
-
-    public static string ResolveDefaultConfigurationOverlayPath(string contentRootPath, string? stateRoot = null) =>
-        Path.Combine(ResolveDefaultStateRoot(contentRootPath, stateRoot), "config.json");
+    public static string ResolveDefaultConfigurationOverlayPath(string? stateRoot = null) =>
+        Path.Combine(ResolveDefaultStateRoot(stateRoot), "config.json");
 }
