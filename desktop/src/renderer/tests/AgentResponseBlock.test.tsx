@@ -297,4 +297,31 @@ describe('AgentResponseBlock subagent endings', () => {
 
     expect(screen.getAllByRole('button', { name: 'Open subagent Core' })).toHaveLength(2)
   })
+
+  it('keeps endings inside the folded work of a finished turn', () => {
+    const ending = (id: string, label: string): ConversationItem => ({
+      id, type: 'userMessage', status: 'completed', deliveryMode: 'guidance', createdAt: '2026-09-02T00:05:00Z',
+      triggerKind: 'subagent', triggerLabel: label, triggerRefId: `/root/${label}`, triggerStatus: 'completed',
+      text: `Subagent ${label} finished`
+    })
+    const turn: ConversationTurn = {
+      id: 'turn-ended', threadId: 'parent-B', status: 'completed', startedAt: '2026-09-02T00:00:00Z', completedAt: '2026-09-02T00:10:00Z',
+      items: [
+        makeSpawn(),
+        ending('ending-a', 'review_a'),
+        ending('ending-b', 'review_b'),
+        { id: 'final', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done.', createdAt: '2026-09-02T00:09:00Z' }
+      ]
+    }
+    useConversationStore.setState({ turns: [turn] })
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Done.')).toBeInTheDocument()
+    expect(screen.queryByText(/review_a/)).toBeNull()
+  })
 })

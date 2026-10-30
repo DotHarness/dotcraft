@@ -754,7 +754,7 @@ function findFirstThreadTaskIndexBefore(items: ConversationItem[], beforeIndex: 
 }
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
-  return item.type === 'userMessage' && item.deliveryMode === 'guidance'
+  return item.type === 'userMessage' && item.deliveryMode === 'guidance' && !isMidTurnSubAgentEnding(item)
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
