@@ -107,6 +107,12 @@ workspace tools. Its reusable endpoints belong to `DotCraft.ModelService`; its c
 contract belong to Agents. `DotCraft.App` owns the standalone command and file configuration.
 Embedded hosts provide their own authorization and storage.
 
+`DotCraft.Oratorio` owns the reusable Oratorio web application, orchestration, storage and source
+integrations. It depends on the SDK/Protocol, not Core, Runtime or the application. `DotCraft.App`
+owns `dotcraft oratorio serve`, its environment and command-line inputs, and process policy. This
+mode starts no WorkspaceRuntime, Session Core, model provider or plugin runtime. Desktop and Stack
+reuse the DotCraft distribution while keeping Oratorio in an independent process.
+
 The mobile relay (`dotcraft relay serve`) forwards phone tunnels for Hub without Session Core,
 workspace tools, or providers. Like Hub, it belongs to `DotCraft.App`.
 

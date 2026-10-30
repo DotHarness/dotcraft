@@ -57,8 +57,9 @@ actions stay in the board header and follow the active DotCraft theme.
 ### 2.1 Service connection
 
 - **Local** is the default. Desktop's main process asks Hub to ensure the
-  bundled Oratorio Server and keeps its address and credential out of the
-  renderer.
+  Oratorio service and keeps its address and credential out of the renderer.
+  Hub uses its current DotCraft executable with the fixed `oratorio serve`
+  command.
 - **Remote** is used with an active saved DotCraft Stack. Desktop opens
   separate SSH tunnels for AppServer and Oratorio and holds both credentials
   only in the main process.

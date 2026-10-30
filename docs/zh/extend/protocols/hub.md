@@ -188,12 +188,11 @@ Ensure 请求：
 ```json
 {
   "serviceId": "oratorio",
-  "startIfMissing": true,
-  "executable": "/absolute/path/to/oratorio"
+  "startIfMissing": true
 }
 ```
 
-宿主负责解析 `executable`。客户端不能提供参数、环境变量、状态目录或健康检查路径。并发 ensure 会复用同一个健康进程。
+Hub 默认使用自身的 DotCraft 二进制，在独立进程中启动 `oratorio serve`。可选的 `executable` 字段指定显式解析的 DotCraft 可执行文件或 DLL。客户端不能提供参数、环境变量、状态目录或健康检查路径。并发 ensure 会复用同一个健康进程。
 
 ```json
 {
@@ -210,7 +209,7 @@ Ensure 请求：
 
 将 `endpoint` 和 `accessToken` 视为仅供宿主使用的凭据。不要把它们交给 Renderer，也不要记录或持久化。服务状态只存在于当前 Hub 生命周期内。Hub 关闭时停止它拥有的进程，但不会在服务失败后自动重启。
 
-停止请求使用 `{ "serviceId": "oratorio" }`。重启还必须提供解析后的 `executable`。
+停止或重启请求使用 `{ "serviceId": "oratorio" }`。重启与 ensure 一样支持可选的 `executable` 覆盖。
 
 ### 通知请求
 

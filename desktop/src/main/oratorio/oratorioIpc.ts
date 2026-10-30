@@ -42,7 +42,6 @@ const subscribedSenders = new Set<number>()
 export function registerOratorioIpc(
   getWorkspacePath: () => string | null,
   getHubClient?: () => DesktopHubClient,
-  resolveExecutable?: () => string,
   resolveRemoteService?: () => Promise<RemoteOratorioService | null>
 ): void {
   for (const channel of HANDLERS) ipcMain.removeHandler(channel)
@@ -50,7 +49,7 @@ export function registerOratorioIpc(
   subscribedSenders.clear()
   provider?.disconnect()
   provider = getHubClient
-    ? new OratorioProvider(getHubClient, getWorkspacePath, resolveExecutable, (nextRevision, event) => {
+    ? new OratorioProvider(getHubClient, getWorkspacePath, (nextRevision, event) => {
         revision = nextRevision
         broadcast(event ? { type: 'board-event', revision, event } : { type: 'data-changed', revision })
       }, resolveRemoteService)

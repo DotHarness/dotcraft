@@ -69,7 +69,7 @@ describe('Oratorio local context', () => {
         endpoint: 'http://127.0.0.1:9999', accessToken: 'secret'
       })
     }
-    registerOratorioIpc(() => workspace, () => hub as never, () => 'oratorio.exe')
+    registerOratorioIpc(() => workspace, () => hub as never)
     const getContext = electron.handlers.get('oratorio:get-context')
     expect(getContext).toBeDefined()
     await expect(getContext?.()).resolves.toMatchObject({ workspacePath: 'F:/workspace/one', provider: 'local' })

@@ -717,9 +717,7 @@ public sealed class ServerConfigurationService(
         var configured = settingsOptions.CurrentValue.ConfigPath;
 
         return string.IsNullOrWhiteSpace(configured)
-            ? OratorioStatePaths.ResolveDefaultConfigurationOverlayPath(
-                environment.ContentRootPath,
-                Environment.GetEnvironmentVariable("DOTCRAFT_MANAGED_SERVICE_STATE_ROOT"))
+            ? OratorioStatePaths.ResolveDefaultConfigurationOverlayPath()
             : Path.GetFullPath(configured);
     }
 

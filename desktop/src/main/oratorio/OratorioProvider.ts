@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { app } from 'electron'
 import WebSocket from 'ws'
 
 import type { OratorioBoardEvent, OratorioHandoffRequest, OratorioRequest, OratorioResponse, OratorioServiceContext } from '../../shared/oratorio'
@@ -44,7 +42,6 @@ export class OratorioProvider {
   constructor(
     private readonly getHubClient: () => DesktopHubClient,
     private readonly getWorkspacePath: () => string | null,
-    private readonly resolveExecutable: () => string = resolveOratorioExecutable,
     private readonly onDataChanged: (revision: number, event?: OratorioBoardEvent) => void = () => {},
     private readonly resolveRemoteService: () => Promise<RemoteOratorioService | null> = async () => null
   ) {}
@@ -191,7 +188,7 @@ export class OratorioProvider {
             provider: 'remote' as const
           }
         }
-        const service = await this.getHubClient().ensureManagedService(SERVICE_ID, this.resolveExecutable())
+        const service = await this.getHubClient().ensureManagedService(SERVICE_ID)
         if (service.state !== 'running' || !service.endpoint || !service.accessToken) {
           throw new OratorioProviderError(
             'oratorio.serviceUnavailable',
@@ -291,24 +288,6 @@ function sanitizeDrawerPayload(value: unknown): OratorioBoardEvent['payload'] | 
   const type = typeof record.type === 'string' ? record.type : undefined
   const status = typeof record.status === 'string' ? record.status : undefined
   return type || status || text ? { type, status, text } : undefined
-}
-
-export function resolveOratorioExecutable(): string {
-  const extension = process.platform === 'win32' ? '.exe' : ''
-  const configured = process.env.DOTCRAFT_ORATORIO_BIN?.trim()
-  const candidates = [
-    configured,
-    app.isPackaged ? resolve(process.resourcesPath, 'bin', `oratorio${extension}`) : undefined,
-    resolve(app.getAppPath(), '..', 'build', 'oratorio', `oratorio${extension}`)
-  ].filter((value): value is string => Boolean(value))
-  const executable = candidates.find(existsSync)
-  if (!executable) {
-    throw new OratorioProviderError(
-      'oratorio.executableNotFound',
-      'The local Oratorio server executable could not be found.'
-    )
-  }
-  return executable
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {

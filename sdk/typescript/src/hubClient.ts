@@ -383,7 +383,7 @@ export class HubClient {
     );
   }
 
-  async restartManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+  async restartManagedService(serviceId: string, executable?: string): Promise<HubManagedServiceResponse> {
     const hub = await this.ensureHub();
     return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/restart", {
       method: "POST",

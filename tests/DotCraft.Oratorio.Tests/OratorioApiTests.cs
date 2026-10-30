@@ -359,22 +359,6 @@ public sealed class OratorioApiTests
     }
 
     [Fact]
-    public void StatePathDefaults_PreferStateRootOverContentRoot()
-    {
-        var root = Directory.CreateTempSubdirectory("oratorio-state-paths-");
-        var contentRoot = Directory.CreateDirectory(Path.Combine(root.FullName, "release", "server")).FullName;
-        var stateRoot = Directory.CreateDirectory(Path.Combine(root.FullName, "desktop-state")).FullName;
-        var contentStateRoot = Path.GetFullPath(Path.Combine(contentRoot, "..", ".craft", "oratorio"));
-
-        Assert.Equal(stateRoot, OratorioStatePaths.ResolveDefaultStateRoot(contentRoot, stateRoot));
-        Assert.Equal(Path.Combine(stateRoot, "oratorio.db"), OratorioStatePaths.ResolveDefaultDatabasePath(contentRoot, stateRoot));
-        Assert.Equal(Path.Combine(stateRoot, "config.json"), OratorioStatePaths.ResolveDefaultConfigurationOverlayPath(contentRoot, stateRoot));
-        Assert.Equal(contentStateRoot, OratorioStatePaths.ResolveDefaultStateRoot(contentRoot));
-        Assert.Equal(Path.Combine(contentStateRoot, "oratorio.db"), OratorioStatePaths.ResolveDefaultDatabasePath(contentRoot));
-        Assert.Equal(Path.Combine(contentStateRoot, "config.json"), OratorioStatePaths.ResolveDefaultConfigurationOverlayPath(contentRoot));
-    }
-
-    [Fact]
     public async Task ServerConfiguration_AutomationLabels_DefaultOnlyBeforeOverlayExists()
     {
         var root = Directory.CreateTempSubdirectory("oratorio-config-label-defaults-");

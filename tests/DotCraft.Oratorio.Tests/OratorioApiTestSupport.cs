@@ -8,12 +8,8 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
@@ -309,60 +305,6 @@ internal static class OratorioApiTestSupport
     }
 }
 
-internal sealed class TestOratorioApp : WebApplicationFactory<Program>
-{
-    private readonly string _databasePath;
-    private readonly Action<IServiceCollection>? _configureServices;
-    private readonly IReadOnlyDictionary<string, string?> _settings;
-
-    public TestOratorioApp(
-        Action<IServiceCollection>? configureServices = null,
-        IReadOnlyDictionary<string, string?>? settings = null,
-        string? databasePath = null)
-    {
-        _databasePath = databasePath ?? Path.Combine(Path.GetTempPath(), "oratorio-tests", $"{Guid.NewGuid():n}.db");
-        _configureServices = configureServices;
-        _settings = settings ?? new Dictionary<string, string?>();
-    }
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        builder.UseEnvironment("Testing");
-        Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
-        var defaultWorkspace = Path.ChangeExtension(_databasePath, ".workspace");
-        Directory.CreateDirectory(defaultWorkspace);
-        builder.UseSetting("Oratorio:DatabasePath", _databasePath);
-        builder.UseSetting("Oratorio:Settings:SecretKeyPath", Path.ChangeExtension(_databasePath, ".key"));
-        builder.UseSetting("Oratorio:DotCraft:MaxRunAttempts", "1");
-        builder.UseSetting("Oratorio:DotCraft:RetryBackoffSeconds", "1");
-        builder.UseSetting("Oratorio:DotCraft:MaxRetryBackoffSeconds", "1");
-        builder.UseSetting("Oratorio:DotCraft:RepositoryWorkspaceRoutes:0:Project", "github:github.com/example-owner/oratorio");
-        builder.UseSetting("Oratorio:DotCraft:RepositoryWorkspaceRoutes:0:WorkspacePath", defaultWorkspace);
-        builder.UseSetting("Oratorio:GitHub:Token", "test-token");
-        builder.UseSetting("Oratorio:GitHub:WritesEnabled", "true");
-        builder.UseSetting("Oratorio:GitHub:AppId", "12345");
-        builder.UseSetting("Oratorio:GitHub:InstallationProfiles:0:Instance", "github.com");
-        builder.UseSetting("Oratorio:GitHub:InstallationProfiles:0:Owner", "example-owner");
-        builder.UseSetting("Oratorio:GitHub:InstallationProfiles:0:InstallationId", "98765");
-        builder.UseSetting("Oratorio:GitHub:InstallationProfiles:0:Source", "manual");
-        builder.UseSetting("Oratorio:GitHub:PrivateKey", "test-private-key");
-        builder.UseSetting("Oratorio:GitHub:WebhookSecret", "test-secret");
-        builder.UseSetting("Oratorio:GitHub:Repositories:0", "example-owner/oratorio");
-        foreach (var (key, value) in _settings)
-        {
-            builder.UseSetting(key, value);
-        }
-
-        builder.ConfigureTestServices(services =>
-        {
-            services.RemoveAll<IWorktreeManager>();
-            services.AddSingleton<IWorktreeManager, FakeWorktreeManager>();
-            services.RemoveAll<IGitDeliveryClient>();
-            services.AddSingleton<IGitDeliveryClient, FakeGitDeliveryClient>();
-            _configureServices?.Invoke(services);
-        });
-    }
-}
 
 internal sealed class FakeReviewLocalDiffProvider : IReviewLocalDiffProvider
 {
@@ -626,6 +568,8 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public DynamicToolResult? LastToolResult { get; set; }
     public List<DynamicToolResult> ToolResults { get; } = [];
     private int _turnCount;
+    private readonly TaskCompletionSource _firstTurnStartedProcessed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task FirstTurnStartedProcessed => _firstTurnStartedProcessed.Task;
 
     public Task<IDotCraftAppServerClient> ConnectAsync(string appServerUrl, CancellationToken ct, string? token = null)
     {
@@ -679,6 +623,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
             steer => SteerRequests.Add(steer))
         {
             LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt,
+            TurnStartedProcessed = () => _firstTurnStartedProcessed.TrySetResult(),
             SteeredRunRelease = () => SteeredRunRelease
         });
     }

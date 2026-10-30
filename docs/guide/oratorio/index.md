@@ -38,7 +38,7 @@ In that conversation you can also connect a repository by asking. Send `$oratori
 
 ## Local and remote deployments
 
-In local mode, Desktop starts the bundled Oratorio Server the first time you open the feature. There is nothing extra to install.
+In local mode, Desktop starts the Oratorio service.
 
 For a remote deployment, connect Desktop to a [DotCraft Stack](../../self-hosting/server-deployment). The Board and task operations are identical. Server administration settings are read-only over a remote connection.
 

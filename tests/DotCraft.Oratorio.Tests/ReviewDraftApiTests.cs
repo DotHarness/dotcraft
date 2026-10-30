@@ -704,7 +704,10 @@ public sealed class ReviewDraftApiTests
             client,
             $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare structured PR review suggestions.", null, null));
-        var failedPublish = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.PublishFailed);
+        var failedPublish = await WaitForItemByIdAsync(client, pr.ItemId!, x =>
+            x.ReviewDrafts.Count == 1 &&
+            x.ReviewDrafts[0].Status == ReviewDraftStatus.PublishFailed &&
+            x.SourceWrites.Any(write => write.Intent == "reviewDraftPublish" && write.Status == SourceWriteStatus.Failed));
 
         var failedDraft = Assert.Single(failedPublish.ReviewDrafts);
         Assert.Equal(ReviewDraftStatus.PublishFailed, failedDraft.Status);

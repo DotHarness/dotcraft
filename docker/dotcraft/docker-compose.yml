@@ -50,11 +50,12 @@ services:
       - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft
 
   oratorio:
-    image: ghcr.io/dotharness/oratorio:${DOTCRAFT_VERSION:-latest}
-    # To build from this checkout instead of pulling GHCR:
+    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    command: ["/opt/dotcraft/oratorio-entrypoint.sh"]
+    # To build from a source checkout instead of pulling GHCR:
     # build:
     #   context: ../..
-    #   dockerfile: docker/oratorio/Dockerfile
+    #   dockerfile: docker/dotcraft/Dockerfile
     depends_on:
       - dotcraft
     environment:
@@ -62,6 +63,8 @@ services:
       DOTCRAFT_MANAGED_SERVICE_URL: http://0.0.0.0:5087
       DOTCRAFT_MANAGED_SERVICE_TOKEN: ${ORATORIO_SERVICE_TOKEN:?set ORATORIO_SERVICE_TOKEN in .env}
       DOTCRAFT_MANAGED_SERVICE_STATE_ROOT: /data/oratorio
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      DOTNET_gcServer: "0"
       Oratorio__Settings__Writable: "true"
       Oratorio__DotCraft__AppServerUrl: ws://dotcraft:${APPSERVER_PORT:-9100}/ws
       Oratorio__DotCraft__AppServerToken: ${APPSERVER_TOKEN:?set APPSERVER_TOKEN in .env}
@@ -82,4 +85,17 @@ services:
       - ${DOTCRAFT_WORKSPACE_DIR:-./workspace}:/workspace
       - ${DOTCRAFT_STACK_STATE_DIR:-./state}/oratorio:/data/oratorio
       - ./secrets:/secrets:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:5087/health', { signal: AbortSignal.timeout(4000) })
+          .then(response => process.exit(response.ok ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     restart: unless-stopped

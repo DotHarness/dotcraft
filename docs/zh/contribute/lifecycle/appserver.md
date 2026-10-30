@@ -45,6 +45,7 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "总结当前工作
 | `dotcraft exec resume --last <prompt>` | 在当前工作区最近活跃的线程上继续执行新任务 |
 | `dotcraft exec interrupt <thread-id>` | 停止线程上正在运行的任务 |
 | `dotcraft app-server` | 启动 AppServer（默认 stdio 模式） |
+| `dotcraft oratorio serve` | 启动独立的 [Oratorio 服务](../architecture/oratorio#服务宿主与命令行) |
 | `--listen <URL>` | AppServer 传输方式，搭配 `app-server` 使用 |
 | `--remote <URL>` | 客户端连接远程 AppServer，搭配 `exec` 或 ACP 使用 |
 | `--token <VALUE>` | WebSocket 认证 Token，可搭配 `--listen` 或 `--remote` |

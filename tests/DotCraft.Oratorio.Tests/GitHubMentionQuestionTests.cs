@@ -88,7 +88,9 @@ public sealed class GitHubMentionQuestionTests
 
         await harness.AskOnGitHubAsync(9502, $"@dotcraft-ai {Question}");
         var answered = await harness.WaitForAnsweredAsync(itemId);
-        var reviewed = await WaitForItemByIdAsync(harness.Client, itemId, x => x.Item.State == ItemState.AwaitingReview);
+        var reviewed = await WaitForItemByIdAsync(harness.Client, itemId, x =>
+            x.Item.State == ItemState.AwaitingReview &&
+            x.ReviewDrafts.Any(draft => draft.Status == ReviewDraftStatus.Published));
 
         var steer = Assert.Single(harness.AppServer.SteerRequests);
         Assert.Equal(run.TurnId, steer.ExpectedTurnId);

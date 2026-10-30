@@ -140,7 +140,7 @@ Each public method has exactly one typed descriptor (`RpcRequest<TParams, TResul
 
 The catalog covers four kinds: client-to-server requests and notifications, and server-to-client requests (approval, user input, tool execution, other callbacks) and notifications (lifecycle and state changes). Direction and request/notification kind are part of method identity and cannot vary by transport.
 
-Catalog order is independent of source order: methods sort by wire name, direction, and kind. Duplicate wire identities fail compilation.
+Catalog order is independent of source order: methods sort by wire name, direction, and kind. Duplicate wire identities fail compilation. Catalog indexes and method-name constants are generated only in the compilation that declares the RPC descriptors, not in SDK or runtime consumers that reference the compiled contract assembly.
 
 ### 6.2 Modules
 

@@ -5,6 +5,7 @@ WORKDIR /src
 
 COPY dotcraft.sln ./
 COPY src ./src
+COPY sdk/dotnet/src/DotCraft.Sdk ./sdk/dotnet/src/DotCraft.Sdk
 COPY desktop/src/renderer/styles/foundations/tokens.css desktop/src/renderer/styles/foundations/themes.css ./desktop/src/renderer/styles/foundations/
 COPY desktop/resources/dotcraft.svg ./desktop/resources/
 COPY docker/dotcraft ./docker/dotcraft
@@ -67,9 +68,10 @@ COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/dist /opt
 COPY --from=desktop-plugins-build /src/desktop/resources/plugins/dotcraft-bundled/plugins /opt/dotcraft/plugins
 
 COPY docker/dotcraft/entrypoint.sh /opt/dotcraft/entrypoint.sh
+COPY docker/dotcraft/oratorio-entrypoint.sh /opt/dotcraft/oratorio-entrypoint.sh
 COPY docker/dotcraft/render-config.mjs /opt/dotcraft/render-config.mjs
 
-RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh
+RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh /opt/dotcraft/oratorio-entrypoint.sh
 
 ENV PATH="/opt/dotcraft/bin:${PATH}" \
     DOTCRAFT_NODE_BIN="/usr/local/bin/node" \
@@ -78,6 +80,6 @@ ENV PATH="/opt/dotcraft/bin:${PATH}" \
     DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL="https://github.com/DotHarness/dotcraft-plugins/archive/refs/heads/main.zip" \
     DOTCRAFT_CONTAINER="true"
 
-EXPOSE 6700 8080 9000 9100
+EXPOSE 5087 6700 8080 9000 9100
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/dotcraft/entrypoint.sh"]

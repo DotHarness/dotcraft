@@ -186,7 +186,9 @@
         "from": "resources/bin",
         "to": "bin",
         "filter": [
-          "**/*"
+          "dotcraft",
+          "dotcraft.exe",
+          "cua-driver/**/*"
         ]
       },
       {

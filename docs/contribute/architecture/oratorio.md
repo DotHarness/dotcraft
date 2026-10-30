@@ -14,9 +14,21 @@ This page targets DotCraft contributors. It explains the integration boundaries 
 | **Desktop Renderer** | Renders the Board, task detail, and Settings through typed IPC without receiving the endpoint or bearer. |
 | **Bundled Desktop extension** | Registers the Oratorio view and Settings page through the public Desktop extension activation contract. |
 
-Local Desktop asks Hub to ensure the bundled Server on first use. Remote Desktop resolves the Oratorio service alongside the selected [DotCraft Stack](../../self-hosting/server-deployment). In both modes, Renderer requests cross the same Main-process boundary.
+Local Desktop asks Hub to ensure Oratorio on first use. Remote Desktop resolves the service alongside the selected [DotCraft Stack](../../self-hosting/server-deployment). In both modes, Renderer requests cross the same Main-process boundary.
 
 App connection handoffs are inspected in Main and require explicit user approval. After the user enables Oratorio for a thread, Main delivers the bind handoff directly to the managed service as technical activation and returns activation failures to the initiating flow. Renderer receives only a request ID and redacted summary for connection consent.
+
+## Service hosting and command line
+
+`DotCraft.App` composes the Oratorio web application from `DotCraft.Oratorio`. Oratorio dispatches Agent work to workspace AppServers through the .NET SDK.
+
+```bash
+dotcraft oratorio serve --state /path/to/oratorio-state --listen http://127.0.0.1:5087
+```
+
+The default state directory is `~/.craft/oratorio`, and the default listener is `http://127.0.0.1:5087`.
+
+Hub runs this command as one user-level process shared by local workspaces. The Stack runs AppServer and Oratorio in separate containers using the DotCraft image.
 
 ## GitHub discussion execution
 
@@ -28,11 +40,12 @@ The question includes the issue title, body, URL and discussion history, plus th
 
 ## Develop and validate
 
-Build the Server and run its focused tests from the repository root:
+Build the application and run the service and host tests from the repository root:
 
 ```bash
-dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet build src/DotCraft.App/DotCraft.App.csproj
 dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
+dotnet test tests/DotCraft.App.Tests/DotCraft.App.Tests.csproj
 ```
 
 Run Desktop checks from `desktop/`:
@@ -42,7 +55,7 @@ npm test
 npm run build
 ```
 
-Packaging publishes the self-contained Server to `build/oratorio/` and stages it in Desktop resources. Run `build.bat` for a local Windows package. The repository's `build-multiplatform` workflow produces the same layout for every shipped platform.
+Packaging stages the DotCraft publish output from `build/dotcraft/` in Desktop resources. Run `build.bat` for a local Windows package. The repository's `build-multiplatform` workflow produces the same layout for every shipped platform.
 
 Keep Oratorio domain behavior in the Server. Desktop view models may format data for display but must not recreate lifecycle, retry, recovery, Worktree, or decision rules.
 
