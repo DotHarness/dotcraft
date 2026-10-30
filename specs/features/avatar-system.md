@@ -53,19 +53,27 @@ Out of scope:
 ```ts
 interface Appearance {
   version: 1
-  palette: number        // 0–11 role palettes; -1 is the original brand mascot
+  palette: number        // 0–11 role palettes; -1 is the original brand mascot; -2 is ink
   baseFace: number       // 0–4
   head: HeadId | 'none'
   face: FaceId | 'none'
   hand: HandId | 'none'
   back: BackId | 'none'
   skin: SkinId | 'none'
+  antenna?: 'ball' | 'star'
 }
 ```
 
 `originalAppearance` is `palette: -1`, `baseFace: 0`, and every slot `'none'`. An empty normalized
 name derives it. Desktop's default composer mascot renders it unless the person has dressed the
 companion (section 11).
+
+Ink paint (`palette: -2`) and the star antenna (`antenna: 'star'`) exist for hosts that fix a
+brand look, such as Universe's own Agent. Name derivation never produces them, so no derived robot
+can wear a host's brand. Ink is a near-black gradient with ink face marks. The star antenna is a
+four-point star whose tips lie on a radius-84 circle and whose edges are radius-168 arcs; it floats
+35 above a shortened neck inside the same white outline, and takes the status light's colours.
+A head item still replaces whichever antenna is set.
 
 The mascot draws a rendered name through a resolver that defaults to `deriveAppearance`; a host may
 pass its own. The resolver covers every name the mascot shows, including both sides of a profile

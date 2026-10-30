@@ -85,8 +85,15 @@
   border-radius: 10px;
   background: color-mix(in srgb, var(--bg-tertiary) 55%, transparent);
 }
-.agent-builder-model-settings .dc-settings-row + .dc-settings-row {
-  border-top: 1px solid var(--border-default);
+.agent-builder-model-settings .dc-settings-row + .dc-settings-row { position: relative; }
+.agent-builder-model-settings .dc-settings-row + .dc-settings-row::before {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  background: var(--border-default);
+  content: "";
 }
 .agent-builder-model-warning {
   padding: 10px 16px;

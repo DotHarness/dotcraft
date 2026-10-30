@@ -7,6 +7,8 @@ export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
 
 export type MascotLight = 'default' | 'error' | 'success'
 
+const STAR_ANTENNA = 'M512 156A168 168 0 0 0 596 240A168 168 0 0 0 512 324A168 168 0 0 0 428 240A168 168 0 0 0 512 156Z'
+
 export interface BodyPaint {
   render: (id: string) => ReactNode
   shadow: string
@@ -36,6 +38,7 @@ interface MascotRobotProps {
    * deliberately stays brand-yellow so its error/success status semantics survive.
    */
   avatar?: { palette: number }
+  antenna?: 'ball' | 'star'
 }
 
 export function MascotRig({
@@ -44,7 +47,7 @@ export function MascotRig({
   size = 48,
   className,
   style,
-  avatar, top, back, front, surface, paint, baseFace, accessory, faceplate, held
+  avatar, top, back, front, surface, paint, baseFace, accessory, faceplate, held, antenna = 'ball'
 }: MascotRobotProps): JSX.Element {
   const uid = useId().replace(/:/g, '')
   const blue = `dca-part-blue-${uid}`
@@ -57,6 +60,7 @@ export function MascotRig({
   const lightFill =
     light === 'error' ? 'var(--dca-error, #dc2626)' : light === 'success' ? 'var(--dca-success, #16a34a)' : `url(#${yellow})`
   const glowFill = light === 'error' ? 'var(--dca-error, #dc2626)' : light === 'success' ? 'var(--dca-success, #16a34a)' : '#f6b500'
+  const star = antenna === 'star'
 
   const palette = mascotPaletteOf(avatar)
   const body0 = palette.bodyD
@@ -126,13 +130,19 @@ export function MascotRig({
           <rect className="dca-part-arm-l-w" x="165" y="472" width="136" height="256" rx="58" fill="#fff" />
           <rect className="dca-part-arm-r-w" x="723" y="472" width="136" height="256" rx="58" fill="#fff" />
           {!top && <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff" />}
-          {!top && <circle className="dca-part-antenna-w" cx="512" cy="229" r="116" fill="#fff" />}
+          {!top && (star
+            ? <path className="dca-part-antenna-w" d={STAR_ANTENNA} fill="#fff" stroke="#fff" strokeWidth="86" strokeLinejoin="round" />
+            : <circle className="dca-part-antenna-w" cx="512" cy="229" r="116" fill="#fff" />)}
         </g>
 
-        <RigMaterial clipId={materialClip} paintId={blue} shadowId={innerLift} surface={surface} antenna={!top} />
+        <RigMaterial clipId={materialClip} paintId={blue} shadowId={innerLift} surface={surface} antenna={top ? undefined : star ? 359 : 337} />
         <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff" />
-        {!top && <circle className="dca-part-glow" cx="512" cy="229" r="96" fill={glowFill} />}
-        {top ?? <circle className="dca-part-light" cx="512" cy="229" r="73" fill={lightFill} />}
+        {!top && (star
+          ? <path className="dca-part-glow" d={STAR_ANTENNA} fill={glowFill} stroke={glowFill} strokeWidth="30" strokeLinejoin="round" />
+          : <circle className="dca-part-glow" cx="512" cy="229" r="96" fill={glowFill} />)}
+        {top ?? (star
+          ? <path className="dca-part-light" d={STAR_ANTENNA} fill={lightFill} stroke={lightFill} strokeWidth="6" strokeLinejoin="round" />
+          : <circle className="dca-part-light" cx="512" cy="229" r="73" fill={lightFill} />)}
 
         {held && <g className="dca-part-arm-l">{held}</g>}
         {accessory}

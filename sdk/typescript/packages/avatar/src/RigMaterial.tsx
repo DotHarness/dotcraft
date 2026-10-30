@@ -11,13 +11,13 @@ export function RigMaterialClip({ id }: { id: string }) {
 }
 
 export function RigMaterial({ clipId, paintId, shadowId, surface, antenna }: {
-  clipId: string; paintId: string; shadowId: string; surface?: ReactNode; antenna: boolean
+  clipId: string; paintId: string; shadowId: string; surface?: ReactNode; antenna?: number
 }) {
   return <g filter={`url(#${shadowId})`}>
     <g className="dca-part-material" clipPath={`url(#${clipId})`}>
       <rect {...materialBounds} fill={`url(#${paintId})`} />
       {surface && <g className="dca-part-surface">{surface}</g>}
     </g>
-    {antenna && <rect x="479" y="337" width="66" height="119" rx="6" fill={`url(#${paintId})`} />}
+    {antenna !== undefined && <rect x="479" y={antenna} width="66" height={456 - antenna} rx="6" fill={`url(#${paintId})`} />}
   </g>
 }

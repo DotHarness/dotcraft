@@ -48,7 +48,14 @@ export const PALETTE: PaletteEntry[] = [
 ]
 
 
-export function paletteOf(spec: { palette: number }): PaletteEntry { return PALETTE[spec.palette] ?? DEFAULT_MASCOT_PALETTE }
+/** Near-black paint for a host's brand robot (`palette: -2`); name derivation never draws it. */
+export const INK_PALETTE: PaletteEntry = {
+  key: 'ink', bodyD: '#0b0c0f', bodyM: '#24272d', bodyL: '#4a4f58', markD: '#16181d', markL: '#2c3038', shadow: '#0b0c0f', accent: '#4a4f58'
+}
+
+export function paletteOf(spec: { palette: number }): PaletteEntry {
+  return spec.palette === -2 ? INK_PALETTE : PALETTE[spec.palette] ?? DEFAULT_MASCOT_PALETTE
+}
 export function mascotPaletteOf(spec?: { palette: number; skin?: SkinId | 'none' }): MascotPaintPalette {
   const material = paintMaterialOf(spec?.skin ?? 'none')
   const paint: MascotPaintPalette = !spec || spec.palette === -1 ? DEFAULT_MASCOT_PALETTE : { ...paletteOf(spec), markM: paletteOf(spec).markL }

@@ -1,3 +1,13 @@
 .dc-settings-group__body > .dc-settings-row + .dc-settings-row {
-  border-top: 1px solid var(--border-default);
+  position: relative;
+}
+
+.dc-settings-group__body > .dc-settings-row + .dc-settings-row::before {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  background: var(--border-default);
+  content: "";
 }

@@ -9,6 +9,7 @@ export interface Appearance {
   hand: HandId | 'none'
   back: BackId | 'none'
   skin: SkinId | 'none'
+  antenna?: 'ball' | 'star'
 }
 export type SlotValue<S extends Slot> = ItemOf<S> | 'none'
 

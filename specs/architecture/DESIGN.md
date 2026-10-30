@@ -1705,8 +1705,9 @@ header: the title in `--type-heading`, the description one `--text-secondary` li
 4px beneath, actions right-aligned on the title line. A header with an action is
 never shorter than the settings control band (`28px`); a title-only header keeps
 its text height. The card follows 8px below and holds rows only: `--bg-secondary`,
-`1px` `--border-default`, radius 12, hairline dividers between rows and none above
-the first. Groups stand 20px apart.
+`1px` `--border-default`, radius 12, hairline dividers between rows inset by the
+row's own 16px padding at both ends, never edge to edge, and none above the first.
+Groups stand 20px apart.
 
 Explanatory text belongs to the row it explains: label, hint (in `--type-hint`
 under the label), control on the right. A group description is reserved for list

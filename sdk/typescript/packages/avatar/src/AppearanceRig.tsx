@@ -12,5 +12,5 @@ export function AppearanceRig({ appearance, pose, expression: override, top, acc
   return <MascotRig size={1024} expression={expression} top={top} accessory={accessory} faceplate={faceplate} held={held} back={back} front={front} surface={surface} paint={paint}
     baseFace={appearance.baseFace}
     light={pose === 'blocked' ? 'error' : pose === 'done' ? 'success' : 'default'}
-    avatar={appearance.palette === -1 ? undefined : { palette: appearance.palette }} />
+    avatar={appearance.palette === -1 ? undefined : { palette: appearance.palette }} antenna={appearance.antenna} />
 }
