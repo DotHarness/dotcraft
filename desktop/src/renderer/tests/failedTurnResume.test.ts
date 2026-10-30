@@ -57,4 +57,13 @@ describe('findSupersededRetryTurnIds', () => {
 
     expect(findSupersededRetryTurnIds(turns).size).toBe(0)
   })
+
+  it('keeps a summarized retry whose omitted items may hold output', () => {
+    const turns = [
+      turn('retry-1', { status: 'failed', providerError: 'serverOverloaded', items: [item('e1', 'error')], summary: { itemCount: 3 } }),
+      turn('retry-2', { status: 'failed', providerError: 'serverOverloaded', items: [item('e2', 'error')] })
+    ]
+
+    expect(findSupersededRetryTurnIds(turns).size).toBe(0)
+  })
 })

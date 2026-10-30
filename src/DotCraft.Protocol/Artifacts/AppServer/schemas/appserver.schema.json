@@ -14004,6 +14004,16 @@
             }
           ]
         },
+        "itemCount": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "items": {
           "anyOf": [
             {
@@ -14011,6 +14021,16 @@
               "items": {
                 "$ref": "#/$defs/SessionItem"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "itemsView": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"
@@ -19471,6 +19491,29 @@
         "status"
       ]
     },
+    "ThreadSummaryTool": {
+      "title": "ThreadSummaryTool",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name"
+      ]
+    },
     "ThreadTokenUsage": {
       "title": "ThreadTokenUsage",
       "type": "object",
@@ -19580,6 +19623,16 @@
             }
           ]
         },
+        "itemsView": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "limit": {
           "anyOf": [
             {
@@ -19594,6 +19647,19 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summaryTools": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadSummaryTool"
+              }
             },
             {
               "type": "null"

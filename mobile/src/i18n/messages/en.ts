@@ -62,6 +62,7 @@ export const MESSAGES_EN = {
   'activity.workingFor': 'Working for {{duration}}',
   'activity.worked': 'Worked',
   'activity.workedFor': 'Worked for {{duration}}',
+  'activity.workFailed': "Couldn't load this turn's work.",
   'activity.interrupted': 'Interrupted',
   'activity.interruptedAfter': 'Interrupted after {{duration}}',
   'toolGroup.created.one': 'Created a file',

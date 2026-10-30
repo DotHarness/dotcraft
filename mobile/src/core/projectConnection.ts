@@ -17,7 +17,7 @@ import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraf
 import { providerUsage } from './accountUsage'
 import type { Timers } from './backoff'
 import { StreamBatch } from './streamBatch'
-import { readTurnPage } from './projectHistory'
+import { readTurnItems, readTurnPage } from './projectHistory'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
 import type { BackgroundTask } from './backgroundTasks'
 import { BackgroundTaskSync } from './backgroundTaskSync'
@@ -504,6 +504,12 @@ export class ProjectConnection {
     } finally {
       if (this.capturing.get(threadId) === buffer) this.capturing.delete(threadId)
     }
+  }
+
+  /** Reads all Items of a summarized Turn of an open chat and puts them at the Turn's place. */
+  async loadTurnItems(threadId: string, turnId: string): Promise<void> {
+    const items = await readTurnItems(this.requireClient(), threadId, turnId)
+    this.store.dispatch({ type: 'turnItemsLoaded', key: this.key(threadId), turnId, items })
   }
 
   /** Loads the next page of older whole Turns of an open chat; one load per chat at a time. */

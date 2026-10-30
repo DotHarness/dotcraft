@@ -162,7 +162,7 @@ describe('agent profiles', () => {
 })
 
 describe('history pages', () => {
-  it('opens a long chat on its newest whole turns and reads older pages back to the first turn', async () => {
+  it('opens a long chat on summaries of its newest turns and reads older pages back to the first turn', async () => {
     const computer = createStudio(new Date())
     computer.streamDelayMs = 1
     const thread = computer.projects.flatMap((project) => project.threads).find((candidate) => candidate.displayName === 'Rename the settings segments')!
@@ -193,7 +193,9 @@ describe('history pages', () => {
     expect(loaded().turns).toHaveLength(5)
     expect(loaded().olderCursor).toBeTruthy()
     for (const turn of loaded().turns) {
-      expect(loaded().items.filter((item) => item.turnId === turn.id)).toHaveLength(thread.items.filter((item) => item.turnId === turn.id).length)
+      const all = thread.items.filter((item) => item.turnId === turn.id).length
+      if (turn.summary) expect(turn.summary.itemCount).toBe(all)
+      else expect(loaded().items.filter((item) => item.turnId === turn.id)).toHaveLength(all)
     }
 
     await harness.link().loadOlder(key)
@@ -201,5 +203,33 @@ describe('history pages', () => {
     expect(loaded().turns.map((turn) => turn.id)).toEqual(thread.turns.map((turn) => turn.id))
     expect(loaded().olderCursor).toBeNull()
     expect(state().details[key].loadingOlder).toBe(false)
+  })
+
+  it('loads the work of a summarized turn in place', async () => {
+    const computer = createStudio(new Date())
+    computer.streamDelayMs = 1
+    const thread = computer.projects.flatMap((project) => project.threads).find((candidate) => candidate.displayName === 'Rename the settings segments')!
+    const harness = createHarness([computer])
+    harnesses.push(harness)
+    const state = () => harness.computerState()
+    await harness.session.boot()
+    await waitFor(() => state().link === 'online' && !state().syncing)
+    const key = Object.values(state().chats).find((chat) => chat.title === 'Rename the settings segments')!.key
+    harness.link().openChat(key)
+    await waitFor(() => state().details[key]?.loading === false)
+
+    const history = () => state().details[key].history
+    const summarized = history().turns.find((turn) => turn.summary && turn.summary.itemCount > history().items.filter((item) => item.turnId === turn.id).length)
+    expect(summarized).toBeDefined()
+    const order = history().turns.map((turn) => turn.id)
+
+    await harness.link().loadTurnItems(key, summarized!.id)
+
+    expect(history().turns.find((turn) => turn.id === summarized!.id)?.summary).toBeUndefined()
+    expect(history().items.filter((item) => item.turnId === summarized!.id).map((item) => item.id)).toEqual(
+      thread.items.filter((item) => item.turnId === summarized!.id).map((item) => item.id),
+    )
+    const turnOrder = history().items.map((item) => item.turnId).filter((turnId, index, all) => all.indexOf(turnId) === index)
+    expect(turnOrder).toEqual(order.filter((turnId) => turnOrder.includes(turnId)))
   })
 })

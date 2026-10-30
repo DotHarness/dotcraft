@@ -47,6 +47,7 @@ import { resolveToolKind } from '../../utils/toolKind'
 import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
+import { TurnWorkLoader } from './TurnWorkLoader'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -57,13 +58,9 @@ interface AgentResponseBlockProps {
   showWorkingLine?: boolean
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
-  /** Keeps assistant/user text and plans visible while avoiding historical tool-detail mounts. */
-  historicalToolContentMode?: HistoricalToolContentMode
   readOnly?: boolean
   renderTurnCompletion?: (turnId: string) => ReactNode
 }
-
-export type HistoricalToolContentMode = 'full' | 'trimmed'
 
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
@@ -90,7 +87,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   showWorkingLine = false,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
-  historicalToolContentMode = 'full',
   readOnly = false,
   renderTurnCompletion
 }: AgentResponseBlockProps): JSX.Element {
@@ -102,15 +98,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
   const citationSources = useWebCitationSources(turn, streamingMessage)
 
-  const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
-  const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
-  const defaultRenderableItems = hydratedItems
+  const renderableItems = hydrateToolCallItems(turn.items)
     .filter((item) => !shouldHideCoordinationTool(item, isRunning))
     .filter(isDefaultRenderableItem)
-
-  const renderableItems = trimHistoricalToolContent
-    ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
-    : defaultRenderableItems
 
   const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
     && turn.providerError === 'serverOverloaded'
@@ -159,7 +149,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       const item = itemsToRender[i]
 
       if (threadTaskCardKind(item)) {
-        const taskItems = defaultRenderableItems.filter((candidate) => threadTaskCardKind(candidate))
+        const taskItems = renderableItems.filter((candidate) => threadTaskCardKind(candidate))
         if (taskItems[0] === item && !readOnly) {
           nodes.push({ key: `thread-tasks-${item.id}`, kind: 'tool', node: <TurnThreadTaskCards threadId={turn.threadId} items={taskItems} /> })
         }
@@ -288,8 +278,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     return nodes
   }
 
-  const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
-  const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
+  const activity = getTurnActivityState(turn, renderableItems, isRunning)
   const working = showWorkingLine && isRunning
   const thinkingLabel = turnThinkingLabel({
     items: renderableItems,
@@ -306,10 +295,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const footerAgentMessageId =
     lastAgentMessageIndex >= 0 ? renderableItems[lastAgentMessageIndex]?.id : null
   const turnCompletionContent =
-    !trimHistoricalToolContent && turn.status === 'completed'
+    turn.status === 'completed'
       ? renderTurnCompletion ? renderTurnCompletion(turn.id) : <TurnCompletionContent turnId={turn.id} />
       : null
-  const collapsesIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
+  const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
+  const collapsesIntermediate = activity.status === 'worked' && (lastFinalAgentMessageIndex > 0 || omitsWork)
   const renderNodes: ConversationRenderNode[] = []
   const activitySummary = (intermediateNodes: ConversationRenderNode[]): ConversationRenderNode => ({
     key: `turn-activity-${turn.id}`,
@@ -323,27 +313,15 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         startedAt={turn.startedAt} completedAt={activity.completedAt}
         taskWake={getTaskWake(turn)}
       >
-        {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
+        {omitsWork
+          ? <TurnWorkLoader threadId={turn.threadId} turnId={turn.id} />
+          : intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
       </TurnActivitySummary>
     )
   })
 
-  if (collapsesIntermediate && trimHistoricalToolContent) {
-    const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
-    const pinnedTrimmedIndices = collectTrimmedPinnedIntermediateIndices(beforeFinalItems)
-    renderNodes.push(activitySummary(renderItemSequence(
-      beforeFinalItems.filter((item, index) =>
-        !pinnedTrimmedIndices.has(index) && isTrimmedHistoryCollapsedItem(item)
-      )
-    )))
-    renderNodes.push(...Array.from(pinnedTrimmedIndices)
-      .sort((a, b) => a - b)
-      .flatMap((pinnedIndex) => renderItemSequence([beforeFinalItems[pinnedIndex]])))
-    renderNodes.push(...renderItemSequence(
-      collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem)
-    ))
-  } else if (activity.status) {
-    const splitIndex = collapsesIntermediate ? lastFinalAgentMessageIndex
+  if (activity.status) {
+    const splitIndex = collapsesIntermediate ? Math.max(lastFinalAgentMessageIndex, 0)
       : activity.status === 'worked' ? 0 : renderableItems.length
     const pinnedIndices = collapsesIntermediate ? collectPinnedIntermediateIndices(renderableItems, splitIndex) : []
     const intermediateNodes: ConversationRenderNode[] = []
@@ -735,20 +713,6 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
   return Array.from(indices).sort((a, b) => a - b)
 }
 
-function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set<number> {
-  const indices = new Set<number>()
-  items.forEach((item, index) => {
-    if (isCreatePlanItem(item) || isGuidanceUserMessage(item)) indices.add(index)
-  })
-  const imageIndex = findLastImageGenerationIndexBefore(items, items.length)
-  if (imageIndex >= 0) indices.add(imageIndex)
-  const workflowIndex = findLastSuccessfulWorkflowIndexBefore(items, items.length)
-  if (workflowIndex >= 0) indices.add(workflowIndex)
-  const taskCardIndex = findFirstThreadTaskIndexBefore(items, items.length)
-  if (taskCardIndex >= 0) indices.add(taskCardIndex)
-  return indices
-}
-
 function findFirstThreadTaskIndexBefore(items: ConversationItem[], beforeIndex: number): number {
   return items.slice(0, beforeIndex).findIndex((item) => threadTaskCardKind(item) != null)
 }
@@ -774,11 +738,6 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   )
 }
 
-function isCreatePlanItem(item: ConversationItem): boolean {
-  return isToolLikeItemType(item.type)
-    && resolveCoreFallbackPlan(item)?.family === 'createPlan'
-}
-
 function isSuccessfulWorkflowLaunchItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
@@ -794,24 +753,6 @@ function findLastSuccessfulWorkflowIndexBefore(
     if (isSuccessfulWorkflowLaunchItem(items[index])) return index
   }
   return -1
-}
-
-function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {
-  if (item.type === 'agentMessage') return true
-  if (item.type === 'userMessage') return item.deliveryMode === 'guidance'
-  if (item.type === 'error') return true
-  if (item.type === 'systemNotice') return true
-  if (isCompletedImageGenerationResult(item)) return true
-  return isCreatePlanItem(item) || isSuccessfulWorkflowLaunchItem(item) || threadTaskCardKind(item) != null
-}
-
-function isTrimmedHistoryCollapsedItem(item: ConversationItem): boolean {
-  if (item.type === 'agentMessage') return true
-  if (item.type === 'reasoningContent') return true
-  if (item.type === 'userMessage') return item.deliveryMode === 'guidance'
-  if (item.type === 'error') return true
-  if (item.type === 'systemNotice') return true
-  return false
 }
 
 function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {

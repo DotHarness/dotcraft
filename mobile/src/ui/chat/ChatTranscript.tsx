@@ -24,6 +24,7 @@ import { ImageReaderContext, type ImageReader } from './Images'
 import { ScrollToBottom } from './ScrollToBottom'
 import { LiveSignals, RetryContext, ThreadLinksContext, type ThreadLinks } from './TimelineMarkers'
 import { TranscriptLine, useKeptWorkingLine } from './Transcript'
+import { TurnWorkContext } from './TurnWork'
 
 const OLDER_THRESHOLD = 800
 
@@ -117,6 +118,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   const projectName = slice.project ? projectTitle(slice.project, t) : ''
   const online = isReachable(slice.status)
   const olderCursor = slice.history?.olderCursor
+  const loadTurnWork = useCallback((turnId: string) => session.loadTurnItems(chatKey, turnId), [session, chatKey])
   const loadOlder = useCallback(() => {
     if (olderCursor && !slice.loadingOlder && live) void session.loadOlder(chatKey).catch(() => undefined)
   }, [olderCursor, slice.loadingOlder, live, session, chatKey])
@@ -207,9 +209,11 @@ export const ChatTranscript = memo(function ChatTranscript({
             <ChangesOpenerContext.Provider value={openChanges}>
               <ThreadLinksContext.Provider value={threadLinks}>
                 <RetryContext.Provider value={retry}>
-                  {shownLines.map((entry, index) => (
-                    <TranscriptLine key={entry.id} entry={entry} previous={shownLines[index - 1]} workspacePath={slice.workspacePath} />
-                  ))}
+                  <TurnWorkContext.Provider value={loadTurnWork}>
+                    {shownLines.map((entry, index) => (
+                      <TranscriptLine key={entry.id} entry={entry} previous={shownLines[index - 1]} workspacePath={slice.workspacePath} />
+                    ))}
+                  </TurnWorkContext.Provider>
                 </RetryContext.Provider>
               </ThreadLinksContext.Provider>
             </ChangesOpenerContext.Provider>

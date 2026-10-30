@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { loadThreadHistoryGap, useThreadHistoryStore } from '../stores/threadHistoryStore'
+import { loadTurnItems, useTurnItemsLoadStore } from '../stores/turnItemsLoadStore'
 import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { findToolCallRevealTarget, finishToolCallReveal, useToolCallRevealStore, type ToolCallRevealMatch } from '../stores/toolCallRevealStore'
@@ -42,6 +43,16 @@ export function useToolCallReveal(container: RefObject<HTMLDivElement | null>): 
     if (found) {
       useToolCallRevealStore.setState({ target: found })
       return
+    }
+    const summarized = turns.findLast((turn) => turn.summary)
+    if (summarized) {
+      let cancelled = false
+      void loadTurnItems(request.threadId, summarized.id).then(() => {
+        if (cancelled || useTurnItemsLoadStore.getState().statuses[summarized.id] !== 'failed') return
+        addToast(t(unavailableMessageKey(request.match)), 'error')
+        finishToolCallReveal(request.nonce)
+      })
+      return () => { cancelled = true }
     }
     const newestGap = gaps[gaps.length - 1]
     if (!newestGap) {

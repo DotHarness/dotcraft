@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { systemEventSignals, turnSignals } from './signals'
 import { NO_SIGNALS } from './state'
+import { supersededTurns } from './timelineMarkers'
 import { buildTranscript, type TranscriptEntry } from './transcript'
 
 let clock = 0
@@ -194,5 +195,15 @@ describe('live signals', () => {
     expect(retry.retry).toEqual({ turnId: 't1', attempt: 2, max: 5, busy: true })
     expect(turnSignals(retry, { id: 't1', status: 'running' })).toBe(retry)
     expect(turnSignals(retry, { id: 't1', status: 'completed' }).retry).toBeNull()
+  })
+})
+
+describe('superseded retries', () => {
+  it('keeps a summarized failed turn whose omitted items may hold output', () => {
+    const failed = { error: 'overloaded', providerError: 'serverOverloaded' }
+    const turns = [turn('r1', 'failed', { ...failed, summary: { itemCount: 3 } }), turn('r2', 'failed', failed), turn('r3', 'failed', failed)]
+    const items = [item('error', { message: 'overloaded' }, 'r1'), item('error', { message: 'overloaded' }, 'r2'), item('error', { message: 'overloaded' }, 'r3')]
+
+    expect([...supersededTurns(history(items, turns))]).toEqual(['r2'])
   })
 })

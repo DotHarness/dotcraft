@@ -28,6 +28,7 @@ import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
 import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard } from './TimelineMarkers'
+import { TurnWork } from './TurnWork'
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
   terminal: 'squareTerminal',
@@ -286,7 +287,7 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
   const timed = Number.isFinite(elapsed) && elapsed >= (working ? 1000 : 0)
   const [plain, withDuration] = ACTIVITY_TEXT[entry.status]
   const label = timed ? t(withDuration, { duration: duration(elapsed, { live: working }) }) : t(plain)
-  const expandable = entry.children.length > 0
+  const expandable = entry.children.length > 0 || entry.pendingTurnId !== undefined
   const origin = entry.origin ? wakeText(entry.origin, t) : null
   return (
     <View style={styles.activity}>
@@ -305,6 +306,7 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
         {expandable ? <Disclosure open={open} /> : null}
         <View style={[styles.rule, { backgroundColor: colors.borderDefault }]} />
       </Pressable>
+      {open && entry.pendingTurnId !== undefined ? <TurnWork turnId={entry.pendingTurnId} /> : null}
       {open
         ? entry.children.map((child, index) => (
             <TranscriptLine key={child.id} entry={child} previous={entry.children[index - 1]} workspacePath={workspacePath} />

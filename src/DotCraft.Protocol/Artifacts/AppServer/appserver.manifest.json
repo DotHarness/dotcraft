@@ -17599,8 +17599,22 @@
           "const": null
         },
         {
+          "name": "itemCount",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "items",
           "type": "array<core.SessionItem>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "itemsView",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
@@ -23869,6 +23883,31 @@
       "variants": []
     },
     {
+      "id": "core.ThreadSummaryTool",
+      "name": "ThreadSummaryTool",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadSummaryTool.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "namespace",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadTokenUsage",
       "name": "ThreadTokenUsage",
       "module": "core",
@@ -23987,6 +24026,13 @@
           "const": null
         },
         {
+          "name": "itemsView",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "limit",
           "type": "integer",
           "required": false,
@@ -23996,6 +24042,13 @@
         {
           "name": "sortDirection",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "summaryTools",
+          "type": "array<core.ThreadSummaryTool>",
           "required": false,
           "nullable": true,
           "const": null

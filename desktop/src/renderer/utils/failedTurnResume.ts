@@ -16,7 +16,9 @@ export function canResumeLastTurn(turns: readonly ConversationTurn[]): boolean {
 }
 
 function isBareRetryFailure(turn: ConversationTurn): boolean {
-  return turn.status === 'failed' && turn.items.every((item) => item.type === 'error')
+  return turn.status === 'failed'
+    && turn.items.every((item) => item.type === 'error')
+    && (turn.summary == null || turn.summary.itemCount === turn.items.length)
 }
 
 /** A run of identical failed retries renders only its latest turn. */

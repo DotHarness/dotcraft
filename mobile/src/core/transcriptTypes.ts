@@ -134,6 +134,8 @@ export type TranscriptEntry =
       endedAt: string | null
       origin: TaskWake | null
       children: TranscriptEntry[]
+      /** The summarized Turn whose folded work loads when the row opens. */
+      pendingTurnId?: string
     }
   | { kind: 'notice'; id: string; notice: NoticeKind; detail?: string }
   | { kind: 'failure'; id: string; message: string; overloaded: boolean; retry: { delay: number | null } | null }

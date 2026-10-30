@@ -93,8 +93,11 @@ export function capacityRetry(history: ChatHistory): { turnId: string; delay: nu
 }
 
 export function supersededTurns(history: ChatHistory): Set<string> {
-  const bare = (turn: HistoryTurn) =>
-    turn.status === 'failed' && history.items.every((item) => item.turnId !== turn.id || item.type === 'error')
+  const bare = (turn: HistoryTurn) => {
+    if (turn.status !== 'failed') return false
+    const own = history.items.filter((item) => item.turnId === turn.id)
+    return own.every((item) => item.type === 'error') && (!turn.summary || turn.summary.itemCount === own.length)
+  }
   const superseded = new Set<string>()
   for (let index = 0; index < history.turns.length - 1; index++) {
     const turn = history.turns[index]

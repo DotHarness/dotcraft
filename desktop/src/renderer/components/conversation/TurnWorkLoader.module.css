@@ -1,0 +1,8 @@
+.failed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+}

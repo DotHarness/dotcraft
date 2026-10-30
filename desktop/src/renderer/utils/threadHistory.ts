@@ -7,6 +7,17 @@ const HISTORY_TURN_PAGE_LIMIT = 5
 const TURN_ITEM_PAGE_LIMIT = 100
 /** How many Turns of a page hydrate their Items concurrently. */
 const TURN_HYDRATION_CONCURRENCY = 5
+/** Tools whose results stay outside a folded Turn, so its summary keeps their calls. */
+const SUMMARY_TOOLS = [
+  { name: 'CreatePlan' },
+  { name: 'Workflow' },
+  { name: 'Automation' },
+  { name: 'CreateThread', namespace: 'desktop' },
+  { name: 'SendMessageToThread', namespace: 'desktop' }
+]
+const LIVE_TURN_STATUSES = new Set(['running', 'waitingApproval', 'waitingInput'])
+
+export type TurnItemsView = 'none' | 'summary'
 
 export type TurnSortDirection = 'ascending' | 'descending'
 
@@ -73,13 +84,15 @@ export async function listThreadTurns(
   threadId: string,
   cursor: string | null,
   sortDirection: TurnSortDirection,
-  limit = HISTORY_TURN_PAGE_LIMIT
+  limit = HISTORY_TURN_PAGE_LIMIT,
+  itemsView: TurnItemsView = 'none'
 ): Promise<ThreadTurnsListing> {
   const page = await request('thread/turns/list', {
     threadId,
     cursor,
     limit,
-    sortDirection
+    sortDirection,
+    ...(itemsView === 'summary' ? { itemsView, summaryTools: SUMMARY_TOOLS } : {})
   }) as TurnsListResult
   return {
     turns: page.data ?? [],
@@ -98,7 +111,12 @@ export async function hydrateTurns(
   const hydrateFrom = async (index: number): Promise<void> => {
     const turn = turns[index]
     if (!turn) return
-    hydrated[index] = { ...turn, items: await readTurnItems(request, threadId, turn.id) }
+    if (turn.itemsView === 'summary' && !LIVE_TURN_STATUSES.has(turn.status)) {
+      hydrated[index] = turn
+    } else {
+      const { itemsView: _view, itemCount: _count, ...metadata } = turn
+      hydrated[index] = { ...metadata, items: await readTurnItems(request, threadId, turn.id) }
+    }
     await hydrateFrom(index + TURN_HYDRATION_CONCURRENCY)
   }
   await Promise.all(
@@ -110,14 +128,15 @@ export async function hydrateTurns(
   return hydrated
 }
 
-/** Reads the Thread header plus its newest fully hydrated Turns. */
+/** Reads the Thread header plus its newest Turns, summarized unless `itemsView` is `none`. */
 export async function readThreadHistoryHead(
   request: HistoryRequest,
   threadId: string,
-  turnLimit = HISTORY_TURN_PAGE_LIMIT
+  turnLimit = HISTORY_TURN_PAGE_LIMIT,
+  itemsView: TurnItemsView = 'summary'
 ): Promise<ThreadHistoryRead> {
   const readTurns = async (): Promise<{ turns: Turn[]; nextCursor: string | null }> => {
-    const page = await listThreadTurns(request, threadId, null, 'descending', turnLimit)
+    const page = await listThreadTurns(request, threadId, null, 'descending', turnLimit, itemsView)
     const turns = await hydrateTurns(request, threadId, page.turns)
     return { turns: turns.reverse(), nextCursor: page.nextCursor }
   }

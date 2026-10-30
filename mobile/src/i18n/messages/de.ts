@@ -64,6 +64,7 @@ export const MESSAGES_DE: Catalog = {
   'activity.workingFor': 'Seit {{duration}} in Bearbeitung',
   'activity.worked': 'Bearbeitet',
   'activity.workedFor': '{{duration}} lang bearbeitet',
+  'activity.workFailed': 'Die Arbeit dieses Durchgangs konnte nicht geladen werden.',
   'activity.interrupted': 'Antwort unterbrochen',
   'activity.interruptedAfter': 'Antwort nach {{duration}} unterbrochen',
   'toolGroup.created.one': 'Datei erstellt',

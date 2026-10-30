@@ -3549,7 +3549,9 @@ export interface SessionTurn {
   httpStatus?: number | null;
   id: string;
   initiator?: TurnInitiatorContext | null;
+  itemCount?: number | null;
   items?: SessionItem[] | null;
+  itemsView?: string | null;
   originChannel?: string | null;
   providerError?: string | null;
   startedAt: string;
@@ -4829,6 +4831,12 @@ export interface ThreadSummary {
   [key: string]: unknown;
 }
 
+export interface ThreadSummaryTool {
+  name: string;
+  namespace?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadTokenUsage {
   last?: TokenUsageBreakdown;
   modelContextWindow?: number | null;
@@ -4853,8 +4861,10 @@ export interface ThreadToolPolicy {
 
 export interface ThreadTurnsListParams {
   cursor?: string | null;
+  itemsView?: string | null;
   limit?: number | null;
   sortDirection?: string | null;
+  summaryTools?: ThreadSummaryTool[] | null;
   threadId: string;
   [key: string]: unknown;
 }

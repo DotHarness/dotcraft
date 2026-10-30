@@ -64,6 +64,7 @@ export const MESSAGES_KO: Catalog = {
   'activity.workingFor': '{{duration}} 동안 작업 중',
   'activity.worked': '작업 완료',
   'activity.workedFor': '{{duration}} 동안 작업함',
+  'activity.workFailed': '이 턴의 작업 내용을 불러오지 못했습니다.',
   'activity.interrupted': '응답이 중단되었습니다',
   'activity.interruptedAfter': '{{duration}} 후 응답이 중단되었습니다',
   'toolGroup.created.one': '파일 생성함',

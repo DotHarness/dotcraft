@@ -33,6 +33,29 @@ function makeRequest(
 }
 
 describe('thread history paging', () => {
+  it('keeps completed summary turns and reads items only for a live turn', async () => {
+    const request = makeRequest(
+      {
+        head: {
+          data: [
+            { id: 'turn-2', status: 'running', itemsView: 'summary', itemCount: 3, items: [{ id: 'user-2' }] },
+            { id: 'turn-1', status: 'completed', itemsView: 'summary', itemCount: 4, items: [{ id: 'user-1' }, { id: 'final-1' }] }
+          ] as Array<{ id: string }>,
+          nextCursor: null
+        }
+      },
+      { 'turn-2': [{ id: 'user-2' }, { id: 'tool-2' }, { id: 'reply-2' }] }
+    )
+
+    const result = await readThreadHistoryHead(request, 'thread-1')
+
+    expect(request.mock.calls.find(([method]) => method === 'thread/turns/list')?.[1]).toMatchObject({ itemsView: 'summary' })
+    expect(result.thread.turns[0]).toMatchObject({ id: 'turn-1', itemsView: 'summary', items: [{ id: 'user-1' }, { id: 'final-1' }] })
+    expect(result.thread.turns[1]).toMatchObject({ id: 'turn-2', items: [{ id: 'user-2' }, { id: 'tool-2' }, { id: 'reply-2' }] })
+    expect(result.thread.turns[1].itemsView).toBeUndefined()
+    expect(request.mock.calls.filter(([method]) => method === 'thread/items/list').map(([, params]) => params.turnId)).toEqual(['turn-2'])
+  })
+
   it('returns the newest turns oldest-first with every item hydrated', async () => {
     const request = makeRequest(
       { head: { data: [{ id: 'turn-3' }, { id: 'turn-2' }, { id: 'turn-1' }], nextCursor: 'older' } },

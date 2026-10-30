@@ -154,7 +154,8 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           if (last >= 0) body[last] = { ...(body[last] as Extract<TranscriptEntry, { kind: 'failure' }>), retry: { delay: retry } }
         }
         body.push(...actions)
-        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped), old?.entries ?? [])
+        const summarized = !!turn?.summary && turn.summary.itemCount > chunk.items.length
+        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
         const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), stopped: wasStopped, retry, changes: turnChanges, entries }
         nextCache.set(key, next)
         output.push(...entries)

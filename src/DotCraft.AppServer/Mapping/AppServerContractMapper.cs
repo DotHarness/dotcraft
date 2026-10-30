@@ -61,15 +61,17 @@ public static class AppServerContractMapper
         AppBindings = value.AppBindings?.Select(ThreadContractMapper.ToContract).ToArray(),
         OriginApp = value.OriginApp is null ? null : ThreadContractMapper.ToContract(value.OriginApp),
         OriginPresentation = value.OriginPresentation is null ? null : ThreadContractMapper.ToContract(value.OriginPresentation),
-        Turns = value.Turns?.Select(ToContract).ToArray(),
+        Turns = value.Turns?.Select(turn => ToContract(turn)).ToArray(),
         Plan = value.Plan is null ? null : ThreadContractMapper.ToContract(value.Plan),
         ContextUsage = value.ContextUsage is null ? null : ThreadContractMapper.ToContract(value.ContextUsage),
         ReadState = value.ReadState is null ? null : ToContract(value.ReadState)
     };
 
     /// <summary>Projects the complete public Session Wire turn shape into Contracts.</summary>
-    public static Contract.SessionTurn ToContract(SessionWireTurn value) => new()
+    public static Contract.SessionTurn ToContract(SessionWireTurn value, string? itemsView = null, int? itemCount = null) => new()
     {
+        ItemsView = itemsView,
+        ItemCount = itemCount,
         Id = value.Id,
         ThreadId = value.ThreadId,
         Status = WireString(value.Status),
