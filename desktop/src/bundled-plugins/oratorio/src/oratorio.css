@@ -210,7 +210,7 @@
 .ora-finding > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .ora-finding--resolved { padding: 0 12px 10px; }
 .ora-finding--resolved > header { align-items: center; color: var(--text-secondary); }
-.ora-finding--resolved > header > svg { flex: none; color: var(--success); }
+.ora-finding--resolved > header > svg { flex: none; }
 .ora-finding--resolved > header > strong { color: var(--text-secondary); font-weight: var(--type-ui-weight); }
 .ora-finding__resolution { font-size: var(--type-secondary-size); line-height: var(--type-secondary-line-height); }
 .ora-finding--resolved > header > button { margin-left: auto; }
