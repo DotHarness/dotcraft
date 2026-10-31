@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "dotcraft",
-  "version": "0.9.9",
+  "version": "0.9.10",
   "displayName": "DotCraft",
   "description": "Desktop debugging and troubleshooting workflows for DotCraft.",
   "capabilities": ["skill", "desktop"],
