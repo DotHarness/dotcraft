@@ -7,7 +7,7 @@ import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { LineCommentCard } from '../../code/LineCommentCard'
 import { Button } from '../../ui/Button'
 import './preview-comments.css'
-import { sameWorkspaceProjectKey } from '../../../../shared/workspaceProjectKey'
+import { sameFilePath } from '../../../../shared/workspaceProjectKey'
 
 export interface PreviewBox {
   top: number
@@ -25,7 +25,7 @@ const CARD_WIDTH = 384
 const EMPTY: LineCommentContext[] = []
 
 const isFileAnnotation = (path: string) => (entry: { kind: string; path?: string }): entry is FileAnnotationContext =>
-  entry.kind === 'fileAnnotation' && sameWorkspaceProjectKey(entry.path, path)
+  entry.kind === 'fileAnnotation' && entry.path !== undefined && sameFilePath(entry.path, path)
 
 interface FileAnnotations {
   threadId: string | null

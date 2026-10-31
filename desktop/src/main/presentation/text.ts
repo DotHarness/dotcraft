@@ -3,6 +3,8 @@ import { EMU_PER_PX } from './fill'
 import { resolveColor, themeFont, type ColorContext } from './theme'
 import { child, children, numberAttr, unwrapAlternate, type XmlNode } from './xml'
 
+const MAX_AUTO_NUMBER = 32767
+
 const PX_PER_POINT = 96 / 72
 const LEVELS = 9
 const LINK_SCHEMES = /^(https?:|mailto:)/i
@@ -83,7 +85,7 @@ function parseParagraphStyle(node: XmlNode | undefined, context: ColorContext): 
   const char = child(node, 'buChar')?.attrs.char
   if (char) bullet = { kind: 'char', char }
   const auto = child(node, 'buAutoNum')
-  if (auto) bullet = { kind: 'auto', scheme: auto.attrs.type ?? 'arabicPeriod', startAt: numberAttr(auto, 'startAt') ?? 1 }
+  if (auto) bullet = { kind: 'auto', scheme: auto.attrs.type ?? 'arabicPeriod', startAt: Math.min(Math.max(numberAttr(auto, 'startAt') ?? 1, 1), MAX_AUTO_NUMBER) }
   const line = spacing(child(node, 'lnSpc'))
   const before = spacing(child(node, 'spcBef'))
   const after = spacing(child(node, 'spcAft'))
@@ -162,9 +164,10 @@ function alpha(value: number): string {
 
 function autoNumber(scheme: string, value: number): string {
   const lower = scheme.toLowerCase()
+  const lettered = Number.isFinite(value) && value >= 1 && value <= MAX_AUTO_NUMBER
   let digits = String(value)
-  if (lower.startsWith('roman')) digits = roman(value)
-  else if (lower.startsWith('alpha')) digits = alpha(value)
+  if (lettered && lower.startsWith('roman')) digits = roman(value)
+  else if (lettered && lower.startsWith('alpha')) digits = alpha(value)
   if (lower.includes('uc')) digits = digits.toUpperCase()
   if (lower.endsWith('parenboth')) return `(${digits})`
   if (lower.endsWith('parenr')) return `${digits})`

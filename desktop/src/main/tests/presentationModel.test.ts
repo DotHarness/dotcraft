@@ -58,7 +58,15 @@ const SLIDE_ONE = `<p:sld ${NS}><p:cSld><p:spTree>
 const SLIDE_TWO = `<p:sld ${NS} show="0"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="112233"/></a:solidFill></p:bgPr></p:bg><p:spTree>
 <p:grpSp><p:nvGrpSpPr><p:cNvPr id="7" name="Group 6"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="1905000" y="0"/><a:ext cx="1905000" cy="1905000"/><a:chOff x="0" y="0"/><a:chExt cx="952500" cy="952500"/></a:xfrm></p:grpSpPr>
 <p:sp><p:nvSpPr><p:cNvPr id="8" name="TextBox 7"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(476250, 476250, 476250, 476250)}<a:prstGeom prst="rect"/><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="none"/><a:p><a:r><a:t>Hidden note</a:t></a:r></a:p></p:txBody></p:sp>
-</p:grpSp></p:spTree></p:cSld></p:sld>`
+</p:grpSp>
+<p:grpSp><p:nvGrpSpPr><p:cNvPr id="20" name="Rotated Group"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm rot="5400000"><a:off x="0" y="0"/><a:ext cx="1905000" cy="1905000"/><a:chOff x="0" y="0"/><a:chExt cx="1905000" cy="1905000"/></a:xfrm></p:grpSpPr>
+<p:sp><p:nvSpPr><p:cNvPr id="21" name="Rotated Child"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(0, 0, 190500, 190500)}<a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></p:spPr></p:sp>
+</p:grpSp>
+<p:grpSp><p:nvGrpSpPr><p:cNvPr id="22" name="Flipped Group"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm flipH="1"><a:off x="0" y="0"/><a:ext cx="1905000" cy="1905000"/><a:chOff x="0" y="0"/><a:chExt cx="1905000" cy="1905000"/></a:xfrm></p:grpSpPr>
+<p:sp><p:nvSpPr><p:cNvPr id="23" name="Flipped Child"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(0, 0, 190500, 190500)}<a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></p:spPr></p:sp>
+</p:grpSp>
+<p:sp><p:nvSpPr><p:cNvPr id="24" name="Numbered"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(0, 0, 952500, 952500)}</p:spPr><p:txBody><a:bodyPr/><a:p><a:pPr><a:buAutoNum type="romanLcPeriod" startAt="100000000000000000000"/></a:pPr><a:r><a:t>Item</a:t></a:r></a:p></p:txBody></p:sp>
+</p:spTree></p:cSld></p:sld>`
 
 const NOTES = `<p:notes ${NS}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:r><a:t>Mention churn.</a:t></a:r></a:p><a:p><a:r><a:t>Then pricing.</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`
 
@@ -158,6 +166,18 @@ describe('buildPresentation', () => {
     const box = second!.elements.find((element) => element.name === 'TextBox 7')!
     expect(box).toMatchObject({ kind: 'text', frame: { x: 300, y: 100, w: 100, h: 100 } })
     expect(box.text?.wrap).toBe(false)
+  })
+
+  it('rotates and mirrors grouped children around the group centre', () => {
+    const rotated = second!.elements.find((element) => element.name === 'Rotated Child')!
+    expect(rotated.frame).toMatchObject({ x: 180, y: 0, w: 20, h: 20, rotation: 90 })
+    const flipped = second!.elements.find((element) => element.name === 'Flipped Child')!
+    expect(flipped.frame).toMatchObject({ x: 180, y: 0, w: 20, h: 20, flipH: true })
+  })
+
+  it('bounds automatic numbering to the format range', () => {
+    const numbered = second!.elements.find((element) => element.name === 'Numbered')!
+    expect(numbered.text?.paragraphs[0]?.bullet?.text).toBe('mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmdcclxvii.')
   })
 
   it('labels elements uniquely for comment targets', () => {

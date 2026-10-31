@@ -13,7 +13,7 @@ import { lineHasComment, useLineCommentDraftStore } from '../../../stores/lineCo
 import { modelReviewCommentsForFile, parseModelReviewComments } from '../../../utils/modelReviewComments'
 import { LineCommentCard, ModelLineCommentCard, lineCommentLabel } from '../../code/LineCommentCard'
 import { Button } from '../../ui/Button'
-import { sameWorkspaceProjectKey } from '../../../../shared/workspaceProjectKey'
+import { sameFilePath } from '../../../../shared/workspaceProjectKey'
 
 interface Anchor {
   line: number
@@ -92,7 +92,7 @@ export function FileEditorComments({
   const [, setScrolled] = useState(0)
 
   const onFile = (entry: ComposerContextRecord): entry is DiffAnnotationContext =>
-    entry.kind === 'diffAnnotation' && sameWorkspaceProjectKey(entry.path, absolutePath) && entry.side === 'right'
+    entry.kind === 'diffAnnotation' && sameFilePath(entry.path, absolutePath) && entry.side === 'right'
   const saved = contexts.filter(onFile)
   const open = drafts.filter(onFile)
   const models = useMemo(

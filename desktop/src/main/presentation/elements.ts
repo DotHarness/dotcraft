@@ -86,15 +86,42 @@ function groupTransform(grpSpPr: XmlNode | undefined, outer: Transform): Transfo
   const ch = emu(numberAttr(chExt, 'cy'))
   const sx = cw ? frame.w / cw : 1
   const sy = ch ? frame.h / ch : 1
-  return (inner) =>
-    outer({
-      ...inner,
-      x: frame.x + (inner.x - cx) * sx,
-      y: frame.y + (inner.y - cy) * sy,
-      w: inner.w * sx,
-      h: inner.h * sy,
-      ...(inner.rotation || frame.rotation ? { rotation: (inner.rotation ?? 0) + (frame.rotation ?? 0) } : {})
+  const centerX = frame.x + frame.w / 2
+  const centerY = frame.y + frame.h / 2
+  const angle = ((frame.rotation ?? 0) * Math.PI) / 180
+  return (inner) => {
+    const w = inner.w * sx
+    const h = inner.h * sy
+    let dx = frame.x + (inner.x - cx) * sx + w / 2 - centerX
+    let dy = frame.y + (inner.y - cy) * sy + h / 2 - centerY
+    let rotation = inner.rotation ?? 0
+    let flipH = inner.flipH ?? false
+    let flipV = inner.flipV ?? false
+    if (frame.flipH) {
+      dx = -dx
+      flipH = !flipH
+      rotation = -rotation
+    }
+    if (frame.flipV) {
+      dy = -dy
+      flipV = !flipV
+      rotation = -rotation
+    }
+    const rotatedX = dx * Math.cos(angle) - dy * Math.sin(angle)
+    const rotatedY = dx * Math.sin(angle) + dy * Math.cos(angle)
+    rotation += frame.rotation ?? 0
+    const { rotation: _rotation, flipH: _flipH, flipV: _flipV, ...rest } = inner
+    return outer({
+      ...rest,
+      x: centerX + rotatedX - w / 2,
+      y: centerY + rotatedY - h / 2,
+      w,
+      h,
+      ...(rotation ? { rotation } : {}),
+      ...(flipH ? { flipH } : {}),
+      ...(flipV ? { flipV } : {})
     })
+  }
 }
 
 function textLevels(context: ShapeContext, ph: { type: string } | undefined, layoutPh?: Placeholder, masterPh?: Placeholder): LevelStyles {

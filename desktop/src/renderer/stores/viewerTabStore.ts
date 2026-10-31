@@ -15,7 +15,7 @@ import type {
   FileRevealRequest
 } from '../../shared/viewer/types'
 import { normalizeBrowserUrl } from '../../shared/viewer/linkResolver'
-import { sameWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { sameFilePath } from '../../shared/workspaceProjectKey'
 
 function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   if (tabs.length === 0) return tabs
@@ -294,7 +294,7 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
 
     const existing = forceNew
       ? undefined
-      : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && sameWorkspaceProjectKey(t.absolutePath, absolutePath))
+      : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && sameFilePath(t.absolutePath, absolutePath))
     const activeFilesTab = !forceNew
       ? threadState.tabs.find((tab) => tab.id === threadState.activeTabId && tab.kind === 'files')
       : undefined

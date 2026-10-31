@@ -18,6 +18,13 @@ export function sameWorkspaceProjectKey(
   return Boolean(leftKey && rightKey && leftKey === rightKey)
 }
 
+const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\\\)/i
+
+export function sameFilePath(left: string, right: string): boolean {
+  if (left === right) return true
+  return WINDOWS_PATH.test(left) && WINDOWS_PATH.test(right) && sameWorkspaceProjectKey(left, right)
+}
+
 function normalizeLocalWorkspaceProjectKey(value: string): string {
   const slashPath = value.replace(/\\/g, '/')
   const { prefix, rest } = splitPathPrefix(slashPath)

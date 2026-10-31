@@ -85,6 +85,11 @@ describe('openFile', () => {
     expect(openFile(THREAD_A, 'decks/q4.pptx', { absolutePath: 'D:\\work\\decks\\q4.pptx' })).toBe(forward)
   })
 
+  it('keeps case-distinct POSIX paths in separate tabs', () => {
+    const upper = openFile(THREAD_A, 'Report.csv', { absolutePath: '/work/Report.csv' })
+    expect(openFile(THREAD_A, 'report.csv', { absolutePath: '/work/report.csv' })).not.toBe(upper)
+  })
+
   it('refreshes, bumps, and clears navigation hints when focusing an existing tab', () => {
     const id = openFile(THREAD_A, 'src/foo.ts', { navigationHint: { line: 5 } })
     expect(store().getThreadState(THREAD_A).tabs[0]).toMatchObject({ navigationRevision: 1 })

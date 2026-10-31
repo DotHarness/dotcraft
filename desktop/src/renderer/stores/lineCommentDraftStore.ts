@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ComposerContextRecord, DiffAnnotationContext, LineCommentContext } from '../../shared/composerContext'
-import { sameWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { sameFilePath } from '../../shared/workspaceProjectKey'
 
 const EMPTY: LineCommentContext[] = []
 
@@ -37,7 +37,7 @@ export function lineHasComment(
   endLine: number
 ): boolean {
   const matches = (entry: LineCommentContext) =>
-    entry.kind === 'diffAnnotation' && sameWorkspaceProjectKey(entry.path, path) && entry.side === side && entry.endLine === endLine
+    entry.kind === 'diffAnnotation' && sameFilePath(entry.path, path) && entry.side === side && entry.endLine === endLine
   return saved.some(matches) || useLineCommentDraftStore.getState().getDrafts(threadId).some(matches)
 }
 
@@ -48,6 +48,6 @@ export function fileTargetHasComment(
   target: string
 ): boolean {
   const matches = (entry: ComposerContextRecord) =>
-    entry.kind === 'fileAnnotation' && sameWorkspaceProjectKey(entry.path, path) && entry.target === target
+    entry.kind === 'fileAnnotation' && sameFilePath(entry.path, path) && entry.target === target
   return saved.some(matches) || useLineCommentDraftStore.getState().getDrafts(threadId).some(matches)
 }
