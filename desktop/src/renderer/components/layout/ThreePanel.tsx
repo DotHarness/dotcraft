@@ -308,8 +308,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
                   left: 0,
                   width: `${detailFrameWidth}px`,
                   display: 'flex',
-                  flexDirection: 'column',
-                  contain: 'layout paint'
+                  flexDirection: 'column'
                 }}
               >
                 {detail}
