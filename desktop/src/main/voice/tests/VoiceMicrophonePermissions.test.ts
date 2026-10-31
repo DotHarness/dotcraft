@@ -48,7 +48,7 @@ describe('VoiceMicrophonePermissions', () => {
 })
 
 describe('configureVoiceMediaPermissions', () => {
-  it('allows only application-window audio and sanitized clipboard requests', () => {
+  it('allows only application-window audio, fullscreen, and sanitized clipboard requests', () => {
     let check: ((...args: any[]) => boolean) | undefined
     let request: ((...args: any[]) => void) | undefined
     const applicationSession = {
@@ -63,12 +63,16 @@ describe('configureVoiceMediaPermissions', () => {
     expect(check?.(webContents, 'media', '', { mediaType: 'audio' })).toBe(true)
     expect(check?.(webContents, 'media', '', { mediaType: 'video' })).toBe(false)
     expect(check?.(webContents, 'clipboard-sanitized-write', '', {})).toBe(true)
+    expect(check?.(webContents, 'fullscreen', '', {})).toBe(true)
+    expect(check?.(webContents, 'geolocation', '', {})).toBe(false)
 
     const callback = vi.fn()
     request?.(webContents, 'media', callback, { mediaTypes: ['audio'] })
     expect(callback).toHaveBeenLastCalledWith(true)
     request?.(webContents, 'media', callback, { mediaTypes: ['audio', 'video'] })
     expect(callback).toHaveBeenLastCalledWith(false)
+    request?.(webContents, 'fullscreen', callback, {})
+    expect(callback).toHaveBeenLastCalledWith(true)
 
     fromWebContents.mockReturnValue(null)
     request?.(webContents, 'media', callback, { mediaTypes: ['audio'] })
