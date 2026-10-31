@@ -13,9 +13,6 @@ public sealed record SessionInputContext
     public string? ItemId { get; init; }
     public string? SelectedText { get; init; }
     public string? Comment { get; init; }
-    public string? Side { get; init; }
-    public int? StartLine { get; init; }
-    public int? EndLine { get; init; }
     public string? Url { get; init; }
     public string? Title { get; init; }
     public string? SelectionKind { get; init; }

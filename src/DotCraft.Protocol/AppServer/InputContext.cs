@@ -35,15 +35,6 @@ public sealed record InputContext
     [JsonPropertyName("comment")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Comment { get; init; }
-    [JsonPropertyName("side")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Side { get; init; }
-    [JsonPropertyName("startLine")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? StartLine { get; init; }
-    [JsonPropertyName("endLine")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? EndLine { get; init; }
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Url { get; init; }

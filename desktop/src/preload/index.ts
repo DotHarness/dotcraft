@@ -2,6 +2,8 @@ import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import type { ForgeBranchPullResult, ForgeRefResult, ForgeRefTarget, ForgeRepo } from '../shared/forgeReferences'
 import type { LinkPreviewResult } from '../shared/linkPreviews'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
+import type { ReadSpreadsheetParams, ReadSpreadsheetResult } from '../shared/viewer/spreadsheet'
+import type { ReadPresentationParams, ReadPresentationResult } from '../shared/viewer/presentation'
 import type { PastedTextContext } from '../shared/composerContext'
 import type { ChatsFolderInfo } from '../shared/chatFolders'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
@@ -88,6 +90,7 @@ import type {
   BrowserEventPayload,
   TerminalDataEventPayload,
   TerminalExitEventPayload,
+  ClassifyResult,
   ReadTextResult,
   WriteTextParams,
   WriteTextResult,
@@ -1155,11 +1158,7 @@ const api = {
 
       classify(params: {
         absolutePath: string
-      }): Promise<{
-        contentClass: 'text' | 'image' | 'pdf' | 'unsupported'
-        mime: string
-        sizeBytes: number
-      }> {
+      }): Promise<ClassifyResult> {
         return ipcRenderer.invoke('workspace:viewer:classify', params)
       },
 
@@ -1169,6 +1168,14 @@ const api = {
         limitBytes?: number
       }): Promise<ReadTextResult> {
         return ipcRenderer.invoke('workspace:viewer:read-text', params)
+      },
+
+      readSpreadsheet(params: ReadSpreadsheetParams): Promise<ReadSpreadsheetResult> {
+        return ipcRenderer.invoke('workspace:viewer:read-spreadsheet', params)
+      },
+
+      readPresentation(params: ReadPresentationParams): Promise<ReadPresentationResult> {
+        return ipcRenderer.invoke('workspace:viewer:read-presentation', params)
       },
 
       writeText(params: WriteTextParams): Promise<WriteTextResult> {
@@ -1199,6 +1206,10 @@ const api = {
 
       toViewerUrl(params: { absolutePath: string }): Promise<{ url: string }> {
         return ipcRenderer.invoke('workspace:viewer:to-viewer-url', params)
+      },
+
+      saveCopyAs(params: { absolutePath: string }): Promise<{ saved: boolean }> {
+        return ipcRenderer.invoke('workspace:viewer:save-copy-as', params)
       },
 
         browser: {

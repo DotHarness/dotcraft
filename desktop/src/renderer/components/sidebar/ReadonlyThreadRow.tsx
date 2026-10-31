@@ -168,9 +168,7 @@ export function ReadonlyThreadRow({
         </ActionTooltip>
       ) : threadDetails.rowPull ? (
         <ThreadPullRequestGlyph pull={threadDetails.rowPull} />
-      ) : (
-        <span className="dc-thread-row__time">{relativeTime}</span>
-      )}
+      ) : null}
     </span>
   )
 

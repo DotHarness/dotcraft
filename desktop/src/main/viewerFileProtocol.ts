@@ -11,10 +11,12 @@
  * drive colon becomes its own segment, e.g. `dotcraft-viewer://workspace/E%3A/index.html`.
  */
 import { protocol, net } from 'electron'
-import { promises as fs } from 'fs'
+import { createReadStream, promises as fs } from 'fs'
 import * as path from 'path'
+import { Readable } from 'stream'
 import { pathToFileURL } from 'url'
 import { chatFolderFor } from './chatFolderAccess'
+import { mimeForExtension } from './viewerMime'
 
 export const VIEWER_SCHEME = 'dotcraft-viewer'
 const VIEWER_HOST = 'workspace'
@@ -81,10 +83,42 @@ export async function handleViewerFileRequest(request: Request): Promise<Respons
       return new Response(null, { status: 403 })
     }
 
+    const range = parseByteRange(request.headers.get('range'), stat.size)
+    if (range === 'unsatisfiable') {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${stat.size}` } })
+    }
+    if (range) {
+      const body = Readable.toWeb(createReadStream(filePath, range)) as ReadableStream<Uint8Array>
+      return new Response(body, {
+        status: 206,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Content-Type': mimeForExtension(path.extname(filePath)),
+          'Content-Length': String(range.end - range.start + 1),
+          'Content-Range': `bytes ${range.start}-${range.end}/${stat.size}`
+        }
+      })
+    }
     return net.fetch(pathToFileURL(filePath).toString())
   } catch {
     return new Response(null, { status: 500 })
   }
+}
+
+/** Multi-range and malformed headers yield null so the whole file is served. */
+function parseByteRange(
+  header: string | null,
+  size: number
+): { start: number; end: number } | 'unsatisfiable' | null {
+  const match = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null
+  if (!match || (!match[1] && !match[2])) return null
+  if (!match[1]) {
+    const suffix = Number(match[2])
+    return suffix === 0 || size === 0 ? 'unsatisfiable' : { start: Math.max(0, size - suffix), end: size - 1 }
+  }
+  const start = Number(match[1])
+  const end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1
+  return start >= size || end < start ? 'unsatisfiable' : { start, end }
 }
 
 /** Update the allowed workspace root. Pass '' to deny all requests. */

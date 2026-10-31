@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { FileViewerTab } from '../../shared/viewer/types'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 
 const store = () => useViewerTabStore.getState()
@@ -77,6 +78,16 @@ describe('openFile', () => {
     expect(forced).not.toBe(a)
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(3)
     expect(store().getThreadState(THREAD_A).activeTabId).toBe(forced)
+  })
+
+  it('treats separator spellings of one path as the same tab', () => {
+    const forward = openFile(THREAD_A, 'decks/q4.pptx', { absolutePath: 'D:/work/decks/q4.pptx' })
+    expect(openFile(THREAD_A, 'decks/q4.pptx', { absolutePath: 'D:\\work\\decks\\q4.pptx' })).toBe(forward)
+  })
+
+  it('keeps case-distinct POSIX paths in separate tabs', () => {
+    const upper = openFile(THREAD_A, 'Report.csv', { absolutePath: '/work/Report.csv' })
+    expect(openFile(THREAD_A, 'report.csv', { absolutePath: '/work/report.csv' })).not.toBe(upper)
   })
 
   it('refreshes, bumps, and clears navigation hints when focusing an existing tab', () => {
@@ -284,5 +295,34 @@ describe('thread lifecycle', () => {
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(0)
     expect(store().getThreadState(THREAD_B).tabs).toHaveLength(0)
     expect(store().currentWorkspacePath).toBe('/new/workspace')
+  })
+})
+
+describe('pending reveal', () => {
+  const fileTab = (threadId: string, tabId: string) =>
+    store().getThreadState(threadId).tabs.find((tab): tab is FileViewerTab => tab.id === tabId && tab.kind === 'file')
+
+  it('hands each reveal to the file tab once and keeps a newer request when an older one is cleared', () => {
+    const tabId = openFile(THREAD_A, 'model.xlsx', {
+      contentClass: 'spreadsheet',
+      reveal: { targetKind: 'range', location: { sheet: 'Revenue', range: 'B6:D8' } }
+    })
+    const first = fileTab(THREAD_A, tabId)?.pendingReveal
+    expect(first).toMatchObject({ targetKind: 'range', location: { sheet: 'Revenue', range: 'B6:D8' } })
+
+    expect(openFile(THREAD_A, 'model.xlsx', {
+      contentClass: 'spreadsheet',
+      reveal: { targetKind: 'object', location: { sheet: 'Revenue', elementId: 'chart-1' } }
+    })).toBe(tabId)
+    const second = fileTab(THREAD_A, tabId)?.pendingReveal
+    expect(second?.revision).toBeGreaterThan(first!.revision)
+
+    store().clearPendingReveal(THREAD_A, tabId, first!.revision)
+    expect(fileTab(THREAD_A, tabId)?.pendingReveal).toEqual(second)
+    store().clearPendingReveal(THREAD_A, tabId, second!.revision)
+    expect(fileTab(THREAD_A, tabId)?.pendingReveal).toBeUndefined()
+
+    openFile(THREAD_A, 'model.xlsx', { contentClass: 'spreadsheet' })
+    expect(fileTab(THREAD_A, tabId)?.pendingReveal).toBeUndefined()
   })
 })

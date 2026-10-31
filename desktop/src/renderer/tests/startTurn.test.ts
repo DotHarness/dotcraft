@@ -47,4 +47,32 @@ describe('startTurnWithOptimisticUI thread naming', () => {
 
     expect(useThreadStore.getState().threadList[0]?.displayName).toBe(expected)
   })
+
+  it('names an untitled thread from the user text before the turn starts', async () => {
+    useConversationStore.getState().reset()
+    useThreadStore.getState().reset()
+    useThreadStore.setState({
+      threadList: [{
+        id: 'thread-1',
+        displayName: null,
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString()
+      }]
+    })
+
+    await startTurnWithOptimisticUI({
+      threadId: 'thread-1',
+      workspacePath: 'X:\\fixtures\\workspace',
+      text: 'Tighten the retry loop',
+      contexts: [{ id: 'c1', kind: 'diffAnnotation', path: 'a.ts', side: 'right', startLine: 1, endLine: 1, comment: 'here' }],
+      fallbackThreadName: 'Image message'
+    })
+
+    const methods = sendRequest.mock.calls.map(([method]) => method)
+    expect(methods.indexOf('thread/rename')).toBeLessThan(methods.indexOf('turn/start'))
+    expect(sendRequest).toHaveBeenCalledWith('thread/rename', { threadId: 'thread-1', displayName: 'Tighten the retry loop' })
+    expect(useThreadStore.getState().threadList[0]?.displayName).toBe('Tighten the retry loop')
+  })
 })

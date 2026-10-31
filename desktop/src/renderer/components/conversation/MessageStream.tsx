@@ -28,6 +28,7 @@ import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { reloadThreadAfterRollback } from '../../utils/threadRollback'
 import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
+import { splitMessageComments } from '../../../shared/messageComments'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
 import { ConversationAsides } from './conversationAside/ConversationAside'
@@ -66,8 +67,8 @@ interface RollbackThreadResult {
 function isTextOnlyEditableUserMessage(item: ConversationItem): boolean {
   if (item.type !== 'userMessage') return false
   if ((item.images?.length ?? 0) > 0 || (item.imageDataUrls?.length ?? 0) > 0) return false
-  if (!item.nativeInputParts || item.nativeInputParts.length === 0) return true
-  return item.nativeInputParts.every((part) => part.type === 'text')
+  if (!item.nativeInputParts || item.nativeInputParts.length === 0) return splitMessageComments(item.text ?? '').comments.length === 0
+  return item.nativeInputParts.every((part) => part.type === 'text' && splitMessageComments(part.text).comments.length === 0)
 }
 
 function editableUserText(item: ConversationItem): string {

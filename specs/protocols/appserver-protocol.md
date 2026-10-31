@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.9 |
+| **Version** | 0.9.10 |
 | **Status** | Living |
 | **Date** | 2026-10-29 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -653,7 +653,7 @@ The response returns immediately with the initial Turn (`running`, empty `items`
 | `skillRef` (`name`) | Skill reference, materialized into a model-visible `<skill>` block with the skill name and path; instructions are not inlined (the agent loads them through `SkillView` or by reading `SKILL.md`). Skills chosen from a slash picker are still `skillRef`. |
 | `fileRef` (`path`, `displayPath`) | File reference. `path` is canonical (workspace-relative or local absolute); the model sees `@path`. `displayPath` is used only for history rendering. Referencing an outside path grants no access; reads still follow file-tool approval. |
 | `image` (`url`) | Base64 `data:image/...` URL, decoded payload ≤ 64 MiB. Other media types, malformed or oversized payloads → `InvalidParams`. HTTP(S) URLs → `InvalidParams` with `error.data.code = "RemoteImageUrlNotSupported"`; clients download remote images themselves. |
-| `contextRef` (`context`) | Structured context record: `pastedText`, `pageReference`, `responseAnnotation`, `diffAnnotation`, `visualizationChanges` (a visualization's `path`, `title`, and non-empty client-rendered `text` listing the user's design-control changes, quoted as reference data), or `threadReferences` (a client-rendered prompt block in `text` that materializes to exactly that text, keeping model-only framing for mentioned threads out of the message's display text). Context identity, source snapshot, comment, and owned image reference persist in native input; materialization expands the record into text and image parts once. Preview data URLs are not part of the record. |
+| `contextRef` (`context`) | Structured context record: `pastedText`, `pageReference`, `responseAnnotation`, `visualizationChanges` (a visualization's `path`, `title`, and non-empty client-rendered `text` listing the user's design-control changes, quoted as reference data), or `threadReferences` (a client-rendered prompt block in `text` that materializes to exactly that text, keeping model-only framing for mentioned threads out of the message's display text). Context identity, source snapshot, comment, and owned image reference persist in native input; materialization expands the record into text and image parts once. Preview data URLs are not part of the record. |
 | `localImage` (`path`, `mimeType?`, `fileName?`) | Local image file; optional metadata is for UI rehydration. The model sees the image framed by `<image name=[Image #N] path="<path>">` … `</image>` (N numbers the message's local images from 1), so it can refer to the file by path. |
 
 The user message's display text is built from text, file, command, and skill parts only. The server normalizes, validates, and locally resolves `InputPart[]` before starting the agent or persisting queued input, persists the native and materialized snapshots, and passes resolved content to Session Core. Validation is identical for `turn/start`, `turn/enqueue`, and `turn/steer`.

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { StateEffect, StateField, type EditorState } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { MessageSquarePlus } from 'lucide-react'
-import type { DiffAnnotationContext } from '../../../../shared/composerContext'
+import type { ComposerContextRecord, DiffAnnotationContext, LineCommentContext } from '../../../../shared/composerContext'
 import { useT } from '../../../contexts/LocaleContext'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useComposerContextStore } from '../../../stores/composerContextStore'
@@ -13,6 +13,7 @@ import { lineHasComment, useLineCommentDraftStore } from '../../../stores/lineCo
 import { modelReviewCommentsForFile, parseModelReviewComments } from '../../../utils/modelReviewComments'
 import { LineCommentCard, ModelLineCommentCard, lineCommentLabel } from '../../code/LineCommentCard'
 import { Button } from '../../ui/Button'
+import { sameFilePath } from '../../../../shared/workspaceProjectKey'
 
 interface Anchor {
   line: number
@@ -58,7 +59,7 @@ export const lineCommentField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field)
 })
 
-const EMPTY: DiffAnnotationContext[] = []
+const EMPTY: LineCommentContext[] = []
 
 function containerFor(containers: Map<string, HTMLElement>, id: string): HTMLElement {
   let element = containers.get(id)
@@ -90,11 +91,10 @@ export function FileEditorComments({
   const containers = useRef(new Map<string, HTMLElement>())
   const [, setScrolled] = useState(0)
 
-  const saved = contexts.filter(
-    (entry): entry is DiffAnnotationContext =>
-      entry.kind === 'diffAnnotation' && entry.path === absolutePath && entry.side === 'right'
-  )
-  const open = drafts.filter((entry) => entry.path === absolutePath && entry.side === 'right')
+  const onFile = (entry: ComposerContextRecord): entry is DiffAnnotationContext =>
+    entry.kind === 'diffAnnotation' && sameFilePath(entry.path, absolutePath) && entry.side === 'right'
+  const saved = contexts.filter(onFile)
+  const open = drafts.filter(onFile)
   const models = useMemo(
     () =>
       workspacePath
@@ -159,7 +159,6 @@ export function FileEditorComments({
       side: 'right',
       startLine,
       endLine,
-      selectedText: doc.sliceString(doc.line(startLine).from, doc.line(endLine).to),
       comment: ''
     })
     if (preview) void useFileEditorStore.getState().switchMode(tabId, 'source')

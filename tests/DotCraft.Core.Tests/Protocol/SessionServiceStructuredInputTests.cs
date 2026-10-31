@@ -34,7 +34,7 @@ public sealed class SessionServiceStructuredInputTests : SessionServiceRuntimeSi
         var user = Assert.Single(saved!.Turns.SelectMany(turn => turn.Items).Select(item => item.Payload).OfType<UserMessagePayload>(), payload => payload.ClientUserMessageId == snapshot.ClientUserMessageId);
         Assert.Equal(snapshot.NativeInputParts, user.NativeInputParts);
         Assert.Equal(snapshot.MaterializedInputParts, user.MaterializedInputParts);
-        Assert.Equal(4, user.NativeInputParts!.Count);
+        Assert.Equal(3, user.NativeInputParts!.Count);
     }
 
     [Fact]
@@ -88,7 +88,6 @@ public sealed class SessionServiceStructuredInputTests : SessionServiceRuntimeSi
         SessionInputContext[] contexts = [
             new() { Id = "page", Kind = "pageReference", Url = "https://example.test", Title = "Page", SelectionKind = "text", Text = "Button", Comment = "Explain" },
             new() { Id = "reply", Kind = "responseAnnotation", ThreadId = "source", TurnId = "turn", ItemId = "item", SelectedText = "Quote", Comment = "Clarify" },
-            new() { Id = "diff", Kind = "diffAnnotation", Path = "a.cs", Side = "left", StartLine = 3, EndLine = 5, SelectedText = "old code", Comment = "Keep" },
             new() { Id = "paste", Kind = "pastedText", Path = "/attachments/paste.txt", FileName = "paste.txt", Preview = "Preview", CharacterCount = 10000 }
         ];
         return new SessionInputSnapshot

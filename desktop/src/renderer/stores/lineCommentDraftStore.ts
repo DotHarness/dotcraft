@@ -1,12 +1,13 @@
 import { create } from 'zustand'
-import type { DiffAnnotationContext } from '../../shared/composerContext'
+import type { ComposerContextRecord, DiffAnnotationContext, LineCommentContext } from '../../shared/composerContext'
+import { sameFilePath } from '../../shared/workspaceProjectKey'
 
-const EMPTY: DiffAnnotationContext[] = []
+const EMPTY: LineCommentContext[] = []
 
 interface LineCommentDraftStore {
-  byThread: Record<string, DiffAnnotationContext[]>
-  getDrafts(threadId: string): DiffAnnotationContext[]
-  open(threadId: string, draft: DiffAnnotationContext): void
+  byThread: Record<string, LineCommentContext[]>
+  getDrafts(threadId: string): LineCommentContext[]
+  open(threadId: string, draft: LineCommentContext): void
   update(threadId: string, id: string, comment: string): void
   close(threadId: string, id: string): void
 }
@@ -35,6 +36,18 @@ export function lineHasComment(
   side: DiffAnnotationContext['side'],
   endLine: number
 ): boolean {
-  const matches = (entry: DiffAnnotationContext) => entry.path === path && entry.side === side && entry.endLine === endLine
+  const matches = (entry: LineCommentContext) =>
+    entry.kind === 'diffAnnotation' && sameFilePath(entry.path, path) && entry.side === side && entry.endLine === endLine
+  return saved.some(matches) || useLineCommentDraftStore.getState().getDrafts(threadId).some(matches)
+}
+
+export function fileTargetHasComment(
+  threadId: string,
+  saved: readonly ComposerContextRecord[],
+  path: string,
+  target: string
+): boolean {
+  const matches = (entry: ComposerContextRecord) =>
+    entry.kind === 'fileAnnotation' && sameFilePath(entry.path, path) && entry.target === target
   return saved.some(matches) || useLineCommentDraftStore.getState().getDrafts(threadId).some(matches)
 }

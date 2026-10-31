@@ -294,7 +294,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       setFrameWidth(resolveInlineFrameWidth(requested.width, availableWidth, !borderless))
     }
     if (requested.height !== undefined) {
-      setHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(requested.height))))
+      setHeight(Math.min(MAX_HEIGHT, Math.ceil(requested.height)))
     }
   }, [borderless])
 
@@ -536,7 +536,6 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
           position: 'relative',
           width: '100%',
           height: fullscreen ? 'auto' : height,
-          minHeight: MIN_HEIGHT,
           flex: fullscreen ? 1 : undefined,
           minWidth: 0
         }}

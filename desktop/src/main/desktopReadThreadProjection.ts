@@ -163,8 +163,7 @@ function projectInputPart(part: JsonObject): JsonObject {
 
 function projectContext(context: JsonObject): JsonObject {
   const result = pick(context, ['id', 'kind', 'path', 'fileName', 'preview', 'characterCount',
-    'threadId', 'turnId', 'itemId', 'selectedText', 'comment', 'side', 'startLine', 'endLine',
-    'url', 'title', 'selectionKind', 'text'])
+    'threadId', 'turnId', 'itemId', 'selectedText', 'comment', 'url', 'title', 'selectionKind', 'text'])
   if (typeof result.url === 'string' && /^data:/i.test(result.url)) delete result.url
   if (isRecord(context.image)) result.image = pick(context.image, ['tempPath', 'fileName', 'mimeType'])
   return result

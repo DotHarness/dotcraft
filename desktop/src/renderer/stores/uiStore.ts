@@ -8,6 +8,7 @@ import type { AppNavigationLocation } from './appNavigationStore'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { activeDetailScopeId } from '../utils/detailPanelScope'
+import type { ThreadTitleRequest } from '../utils/threadTitleGeneration'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import {
   AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
@@ -99,6 +100,7 @@ export interface PendingWelcomeTurnInput {
   files?: ComposerFileAttachment[]
   appIds?: string[]
   sentAsGoal?: boolean
+  title?: ThreadTitleRequest
 }
 
 /**
@@ -151,6 +153,7 @@ export interface UIState {
   lastActiveSystemTab: SystemDetailTab
   quickOpenVisible: boolean
   explorerVisible: boolean
+  slideSidebarVisible: boolean
   explorerWidth: number
   explorerRevealPath: string | null
   selectedChangeKey: string | null
@@ -207,6 +210,7 @@ interface UIStore extends UIState {
   closeViewerTab(options?: DetailRevealOptions): void
   setQuickOpenVisible(visible: boolean): void
   toggleExplorer(): void
+  toggleSlideSidebar(): void
   setExplorerVisible(visible: boolean): void
   setExplorerWidth(width: number): void
   revealInExplorer(absoluteDir: string): void
@@ -326,6 +330,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   lastActiveSystemTab: 'changes',
   quickOpenVisible: false,
   explorerVisible: false,
+  slideSidebarVisible: true,
   explorerWidth: EXPLORER_DEFAULT_WIDTH,
   explorerRevealPath: null,
   selectedChangeKey: null,
@@ -664,6 +669,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set((state) => ({ explorerVisible: !state.explorerVisible }))
   },
 
+  toggleSlideSidebar() {
+    set((state) => ({ slideSidebarVisible: !state.slideSidebarVisible }))
+  },
+
   setExplorerVisible(visible: boolean) {
     set({ explorerVisible: visible })
   },
@@ -821,14 +830,15 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, appIds, sentAsGoal } = p
+      const { text, inputParts, images, files, appIds, sentAsGoal, title } = p
       return {
         text,
         inputParts,
         ...(images !== undefined ? { images } : {}),
         ...(files !== undefined ? { files } : {}),
         ...(appIds !== undefined ? { appIds } : {}),
-        ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
+        ...(sentAsGoal !== undefined ? { sentAsGoal } : {}),
+        ...(title !== undefined ? { title } : {})
       }
     }
     return null

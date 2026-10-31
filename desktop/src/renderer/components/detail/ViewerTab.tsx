@@ -14,6 +14,8 @@ import { SideChatTab } from '../sideChat/SideChatTab'
 import { AutomationViewerTab } from '../automations/AutomationViewerTab'
 import { IconButton } from '../ui/IconButton'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
+import { previewUnavailableReason, type FilePreviewProps } from './viewers/filePreview'
+import { UnavailableNotice } from './viewers/UnavailableNotice'
 
 const LazyFileEditor = lazy(() =>
   import('./viewers/FileEditor').then((m) => ({ default: m.FileEditor }))
@@ -33,8 +35,14 @@ const LazyImageViewer = lazy(() =>
 const LazyPdfViewer = lazy(() =>
   import('./viewers/PdfViewer').then((m) => ({ default: m.PdfViewer }))
 )
-const LazyUnsupportedViewer = lazy(() =>
-  import('./viewers/UnsupportedViewer').then((m) => ({ default: m.UnsupportedViewer }))
+const LazySpreadsheetViewer = lazy(() =>
+  import('./viewers/spreadsheet/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
+)
+const LazyPresentationViewer = lazy(() =>
+  import('./viewers/presentation/PresentationViewer').then((m) => ({ default: m.PresentationViewer }))
+)
+const LazyVideoViewer = lazy(() =>
+  import('./viewers/video/VideoViewer').then((m) => ({ default: m.VideoViewer }))
 )
 
 interface ViewerTabProps {
@@ -57,6 +65,8 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const explorerWidth = useUIStore((s) => s.explorerWidth)
   const setExplorerVisible = useUIStore((s) => s.setExplorerVisible)
+  const slideSidebarVisible = useUIStore((s) => s.slideSidebarVisible)
+  const toggleSlideSidebar = useUIStore((s) => s.toggleSlideSidebar)
   const editorSession = useFileEditorStore((s) => s.sessions.get(tabId))
   const switchEditorMode = useFileEditorStore((s) => s.switchMode)
 
@@ -132,6 +142,12 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   }
 
   const markdown = isMarkdownPath(tab.absolutePath)
+  const unavailable = previewUnavailableReason(tab.contentClass, tab.sizeBytes)
+  const preview: FilePreviewProps = {
+    absolutePath: tab.absolutePath,
+    relativePath: tab.relativePath,
+    tabId: tab.id
+  }
   const isPlainText = tab.contentClass === 'text' && !markdown
   const wordWrap = tab.wordWrap !== false
 
@@ -150,30 +166,37 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
           const currentMode = editorSession?.mode ?? 'preview'
           void switchEditorMode(tab.id, currentMode === 'preview' ? 'source' : 'preview')
         } : undefined}
+        slideSidebar={tab.contentClass === 'presentation' && !unavailable
+          ? { visible: slideSidebarVisible, onToggle: toggleSlideSidebar }
+          : undefined}
       />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
         <div style={{ flex: '1 1 0', minWidth: 160, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <Suspense fallback={suspenseFallback}>
-            {tab.contentClass === 'text' && (
-              <LazyFileEditor
-                tabId={tab.id}
-                absolutePath={tab.absolutePath}
-                markdown={markdown}
-                wordWrap={wordWrap}
-                navigationHint={tab.navigationHint}
-                navigationRevision={tab.navigationRevision}
-              />
-            )}
-            {tab.contentClass === 'image' && (
-              <LazyImageViewer absolutePath={tab.absolutePath} sizeBytes={tab.sizeBytes} />
-            )}
-            {tab.contentClass === 'pdf' && (
-              <LazyPdfViewer absolutePath={tab.absolutePath} />
-            )}
-            {tab.contentClass === 'unsupported' && (
-              <LazyUnsupportedViewer filePath={tab.absolutePath} />
-            )}
-          </Suspense>
+          {unavailable ? (
+            <UnavailableNotice absolutePath={tab.absolutePath} relativePath={tab.relativePath} reason={unavailable} />
+          ) : (
+            <Suspense fallback={suspenseFallback}>
+              {tab.contentClass === 'text' && (
+                <LazyFileEditor
+                  tabId={tab.id}
+                  absolutePath={tab.absolutePath}
+                  markdown={markdown}
+                  wordWrap={wordWrap}
+                  navigationHint={tab.navigationHint}
+                  navigationRevision={tab.navigationRevision}
+                />
+              )}
+              {tab.contentClass === 'image' && (
+                <LazyImageViewer key={tab.id} absolutePath={tab.absolutePath} sizeBytes={tab.sizeBytes} />
+              )}
+              {tab.contentClass === 'pdf' && (
+                <LazyPdfViewer key={tab.id} absolutePath={tab.absolutePath} />
+              )}
+              {tab.contentClass === 'spreadsheet' && <LazySpreadsheetViewer key={tab.id} {...preview} />}
+              {tab.contentClass === 'presentation' && <LazyPresentationViewer key={tab.id} {...preview} />}
+              {tab.contentClass === 'video' && <LazyVideoViewer key={tab.id} {...preview} />}
+            </Suspense>
+          )}
         </div>
 
         {explorerVisible && (

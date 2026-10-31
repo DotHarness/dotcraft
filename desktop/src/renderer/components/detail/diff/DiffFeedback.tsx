@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Plus } from 'lucide-react'
-import type { DiffAnnotationContext } from '../../../../shared/composerContext'
+import type { DiffAnnotationContext, LineCommentContext } from '../../../../shared/composerContext'
 import type { FileDiff } from '../../../types/toolCall'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useConversationStore } from '../../../stores/conversationStore'
@@ -29,8 +29,7 @@ import {
   ModelLineCommentCard,
   lineCommentLabel,
 } from '../../code/LineCommentCard'
-import { buildUnifiedRows } from './diffRows'
-import type { DiffModel } from './useDiffModel'
+import { diffHunkExcerpt } from './diffRows'
 
 type Side = 'left' | 'right'
 interface Selection {
@@ -51,7 +50,7 @@ const RowHeights = createContext<{
   measure: (key: string, height: number) => void
 } | null>(null)
 
-const EMPTY: DiffAnnotationContext[] = []
+const EMPTY: LineCommentContext[] = []
 
 function span(selection: Selection): [number, number] {
   return [Math.min(selection.anchor, selection.line), Math.max(selection.anchor, selection.line)]
@@ -68,12 +67,10 @@ export function useDiffComments(): FeedbackValue | null {
 
 export function DiffFeedbackProvider({
   diff,
-  model,
   workspacePath,
   children,
 }: {
   diff: FileDiff
-  model: DiffModel
   workspacePath: string
   children: ReactNode
 }): JSX.Element {
@@ -109,24 +106,13 @@ export function DiffFeedbackProvider({
     (entry): entry is DiffAnnotationContext =>
       entry.kind === 'diffAnnotation' && entry.path === diff.filePath,
   )
-  const fileDrafts = drafts.filter((entry) => entry.path === diff.filePath)
-  const rows = useMemo(
-    () => buildUnifiedRows(diff, model.sides),
-    [diff, model.sides],
+  const fileDrafts = drafts.filter(
+    (entry): entry is DiffAnnotationContext =>
+      entry.kind === 'diffAnnotation' && entry.path === diff.filePath,
   )
-
   function openDraft(side: Side, startLine: number, endLine: number) {
     if (!threadId || lineHasComment(threadId, userComments, diff.filePath, side, endLine))
       return
-    const selectedText = rows
-      .flatMap((row) => {
-        if (row.kind !== 'line') return []
-        const number = Number(side === 'left' ? row.oldNum : row.newNum)
-        return number >= startLine && number <= endLine
-          ? [row.cell.content]
-          : []
-      })
-      .join('\n')
     useLineCommentDraftStore.getState().open(threadId, {
       kind: 'diffAnnotation',
       id: crypto.randomUUID(),
@@ -134,7 +120,7 @@ export function DiffFeedbackProvider({
       side,
       startLine,
       endLine,
-      selectedText,
+      diffHunk: diffHunkExcerpt(diff, side, startLine, endLine),
       comment: '',
     })
   }

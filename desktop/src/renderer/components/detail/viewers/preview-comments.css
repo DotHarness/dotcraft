@@ -1,0 +1,45 @@
+.dc-preview-comment__action {
+  position: absolute;
+  z-index: 8;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+}
+
+.dc-preview-comment__marker {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  cursor: pointer;
+}
+
+.dc-preview-comment__marker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dc-preview-comment__card {
+  position: absolute;
+  z-index: 9;
+  width: min(384px, calc(100% - 12px));
+  container-type: inline-size;
+  cursor: default;
+  user-select: text;
+}
+
+.dc-preview-comment__card .dc-line-comment {
+  position: static;
+  width: auto;
+  padding: 0;
+  --dc-line-comment-inset: 0px;
+}

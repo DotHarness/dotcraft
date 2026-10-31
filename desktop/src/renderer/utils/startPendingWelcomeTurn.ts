@@ -35,7 +35,8 @@ export async function startPendingWelcomeTurn({
     fileFallbackThreadName: translate('toast.fileReferenceMessage'),
     attachmentFallbackThreadName: translate('toast.attachmentMessage'),
     sentAsGoal: pending.sentAsGoal,
-    onScreen
+    onScreen,
+    title: pending.title
   })
   if (!echo) return
 

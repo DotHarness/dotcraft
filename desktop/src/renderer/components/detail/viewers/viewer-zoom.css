@@ -1,0 +1,20 @@
+.dc-viewer-zoom {
+  flex-shrink: 0;
+  min-width: 52px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--type-secondary-size);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.dc-viewer-zoom:hover,
+.dc-viewer-zoom[aria-expanded='true'] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}

@@ -6,7 +6,6 @@ describe('ReadThread content projection', () => {
     const contexts = [
       { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
       { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
-      { kind: 'diffAnnotation', path: 'example.ts', side: 'right', startLine: 1, endLine: 2, selectedText: 'selected code', comment: 'check' },
       { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
       { kind: 'threadReferences', text: 'referenced thread snapshot' }
     ]

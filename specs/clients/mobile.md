@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.9 |
+| Version | 0.9.10 |
 | Status | Draft |
 | Date | 2026-10-29 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
@@ -458,6 +458,8 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   directly; images on the computer, including those referenced by `localImage` from any client, are
   read with `fs/readFile`. Local file links show as file chips that open File; web links open the
   browser. File and skill references in user messages show as chips, and sent photos as thumbnails.
+  Line and file comments a message carries ([Desktop 5.5](desktop-client.md#55-input-rules)) show
+  as a file chip with their location followed by the comment, never as the raw comment section.
   Math is not typeset: formulas show their TeX source as code.
 - The phone renders neither Generative UI blocks nor visualizations. A top-level `dotcraft-ui` block
   shows as a tool activity line whose details hold its source; a visualization reference line is

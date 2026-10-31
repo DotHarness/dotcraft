@@ -21,10 +21,6 @@
   display: inline-flex;
 }
 
-.dc-thread-row__time {
-  color: var(--text-dimmed);
-}
-
 .dc-thread-row[data-hover]:hover:has(.dc-thread-row__archive) .dc-thread-row__status,
 .dc-thread-row[data-hover]:has(.dc-thread-row__archive:focus-visible) .dc-thread-row__status {
   display: none;

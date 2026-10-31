@@ -52,7 +52,7 @@ export const voiceMicrophonePermissions = new VoiceMicrophonePermissions()
 export function configureVoiceMediaPermissions(applicationSession: Session): void {
   applicationSession.setPermissionCheckHandler((webContents, permission, _origin, details) => {
     if (!isApplicationWindow(webContents)) return false
-    if (permission === 'clipboard-sanitized-write') return true
+    if (permission === 'clipboard-sanitized-write' || permission === 'fullscreen') return true
     return permission === 'media' && details.mediaType === 'audio'
   })
 
@@ -61,7 +61,7 @@ export function configureVoiceMediaPermissions(applicationSession: Session): voi
       callback(false)
       return
     }
-    if (permission === 'clipboard-sanitized-write') {
+    if (permission === 'clipboard-sanitized-write' || permission === 'fullscreen') {
       callback(true)
       return
     }

@@ -2,6 +2,7 @@ import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ConversationItem, ConversationTurn, QueuedTurnInput } from '../types/conversation'
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
+import { splitMessageComments } from '../../shared/messageComments'
 import { projectInputParts } from './inputPresentation'
 import { splitThreadMentions } from './threadReferences'
 import { isVisibleUserMessage } from './visibleUserMessage'
@@ -46,8 +47,9 @@ function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistory
     }
   }
 
-  if (!text.trim()) return null
-  return { text, segments: [], contexts: [] }
+  const sent = splitMessageComments(text)
+  if (!sent.text.trim() && sent.comments.length === 0) return null
+  return { text: sent.text, segments: [], contexts: sent.comments }
 }
 
 function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[] {
@@ -85,11 +87,12 @@ export async function queuedInputToComposerDraft(item: QueuedTurnInput): Promise
 
   if (!parts) {
     if (!item.displayText) throw new Error('Queued message has no editable content.')
+    const sent = splitMessageComments(item.displayText)
     return {
       clientUserMessageId: item.clientUserMessageId,
-      text: item.displayText,
-      contexts: [],
-      segments: [{ type: 'text', value: item.displayText }],
+      text: sent.text,
+      contexts: sent.comments,
+      segments: sent.text ? [{ type: 'text', value: sent.text }] : [],
       files: [],
       images: []
     }

@@ -66,12 +66,16 @@ import {
   viewerRootsFor
 } from './viewerFileProtocol'
 import { viewerTextWatchManager } from './viewerTextWatch'
-import type { WriteTextParams } from '../shared/viewer/types'
+import { readSpreadsheet } from './spreadsheet/readSpreadsheet'
+import type { ReadSpreadsheetParams } from '../shared/viewer/spreadsheet'
+import { readPresentation } from './presentation/readPresentation'
+import type { ReadPresentationParams } from '../shared/viewer/presentation'
+import type { SaveCopyAsParams, WriteTextParams } from '../shared/viewer/types'
 import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
 import { registerDesktopPluginModuleIpc, unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { BROWSER_FEEDBACK_CHANNELS, registerBrowserFeedbackIpc } from './browserFeedbackIpc'
-import { saveFileAs, type SaveFileAsRequest } from './fileSaveAs'
+import { saveFileAs, saveFileCopyAs, type SaveFileAsRequest } from './fileSaveAs'
 import { registerViewerTerminalHandlers, unregisterViewerTerminalHandlers } from './viewerTerminalIpc'
 import { registerProjectActionsHandlers, unregisterProjectActionsHandlers } from './projectActions/projectActionsIpc'
 import { browserUseManager } from './browserUseManager'
@@ -1678,6 +1682,28 @@ export function registerIpcHandlers(
   )
 
   handleSafe(
+    'workspace:viewer:read-spreadsheet',
+    async (_event, params: ReadSpreadsheetParams) => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      const absolutePath = await resolveViewerFileForAccess(params.absolutePath, workspacePath)
+      return readSpreadsheet(absolutePath, params.sheetIndex)
+    }
+  )
+
+  handleSafe(
+    'workspace:viewer:read-presentation',
+    async (_event, params: ReadPresentationParams) => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      const absolutePath = await resolveViewerFileForAccess(params.absolutePath, workspacePath)
+      return readPresentation(absolutePath)
+    }
+  )
+
+  handleSafe(
     'workspace:viewer:write-text',
     async (_event, params: WriteTextParams) => {
       if (!workspacePath) {
@@ -1726,6 +1752,16 @@ export function registerIpcHandlers(
       }
       const { resolved } = assertPathWithinViewerRoots(params.absolutePath, workspacePath, mainLocale(callbacks))
       return { url: buildViewerUrl(resolved) }
+    }
+  )
+
+  handleSafe(
+    'workspace:viewer:save-copy-as',
+    async (event, params: SaveCopyAsParams): Promise<{ saved: boolean }> => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      return saveFileCopyAs(event.sender, await resolveViewerFileForAccess(params.absolutePath, workspacePath))
     }
   )
 
@@ -2433,12 +2469,15 @@ export function unregisterIpcHandlers(options: { preserveDesktopPluginModules?: 
   ipcMain.removeHandler('workspace:viewer:list-dir')
   ipcMain.removeHandler('workspace:viewer:classify')
   ipcMain.removeHandler('workspace:viewer:read-text')
+  ipcMain.removeHandler('workspace:viewer:read-spreadsheet')
+  ipcMain.removeHandler('workspace:viewer:read-presentation')
   ipcMain.removeHandler('workspace:viewer:write-text')
   ipcMain.removeHandler('workspace:viewer:watch-text')
   ipcMain.removeHandler('workspace:viewer:unwatch-text')
   viewerTextWatchManager.disposeAll()
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
+  ipcMain.removeHandler('workspace:viewer:save-copy-as')
   unregisterDesktopPluginModuleIpc(options.preserveDesktopPluginModules)
   ipcMain.removeHandler('desktop-plugin:app-surface-get-json')
   ipcMain.removeHandler('desktop-plugin:app-surface-post-json')
