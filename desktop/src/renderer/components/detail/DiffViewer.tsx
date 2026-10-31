@@ -33,7 +33,6 @@ export function DiffViewer({
     <DiffFeedbackProvider
       key={`${threadId}:${diff.filePath}`}
       diff={diff}
-      model={model}
       workspacePath={workspacePath}
     >
       <div

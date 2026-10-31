@@ -29,8 +29,7 @@ import {
   ModelLineCommentCard,
   lineCommentLabel,
 } from '../../code/LineCommentCard'
-import { buildUnifiedRows } from './diffRows'
-import type { DiffModel } from './useDiffModel'
+import { diffHunkExcerpt } from './diffRows'
 
 type Side = 'left' | 'right'
 interface Selection {
@@ -68,12 +67,10 @@ export function useDiffComments(): FeedbackValue | null {
 
 export function DiffFeedbackProvider({
   diff,
-  model,
   workspacePath,
   children,
 }: {
   diff: FileDiff
-  model: DiffModel
   workspacePath: string
   children: ReactNode
 }): JSX.Element {
@@ -113,23 +110,9 @@ export function DiffFeedbackProvider({
     (entry): entry is DiffAnnotationContext =>
       entry.kind === 'diffAnnotation' && entry.path === diff.filePath,
   )
-  const rows = useMemo(
-    () => buildUnifiedRows(diff, model.sides),
-    [diff, model.sides],
-  )
-
   function openDraft(side: Side, startLine: number, endLine: number) {
     if (!threadId || lineHasComment(threadId, userComments, diff.filePath, side, endLine))
       return
-    const selectedText = rows
-      .flatMap((row) => {
-        if (row.kind !== 'line') return []
-        const number = Number(side === 'left' ? row.oldNum : row.newNum)
-        return number >= startLine && number <= endLine
-          ? [row.cell.content]
-          : []
-      })
-      .join('\n')
     useLineCommentDraftStore.getState().open(threadId, {
       kind: 'diffAnnotation',
       id: crypto.randomUUID(),
@@ -137,7 +120,7 @@ export function DiffFeedbackProvider({
       side,
       startLine,
       endLine,
-      selectedText,
+      diffHunk: diffHunkExcerpt(diff, side, startLine, endLine),
       comment: '',
     })
   }

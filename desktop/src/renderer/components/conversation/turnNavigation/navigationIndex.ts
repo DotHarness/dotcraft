@@ -4,6 +4,7 @@ import type { ListedTurnPosition } from '../../../stores/threadHistoryStore'
 import { isOptimisticUserMessage } from '../../../stores/optimisticMessages'
 import { isVisibleUserMessage } from '../../../utils/visibleUserMessage'
 import { stripSystemReminderBlocks } from '../../../utils/systemReminderText'
+import { splitMessageComments } from '../../../../shared/messageComments'
 import { stripWebCitations } from '../../../utils/webCitations'
 import { deriveTurnOutputs, type TurnOutput } from './turnOutputs'
 
@@ -44,7 +45,7 @@ export function deriveTurnEntries(items: readonly ConversationItem[]): EntryCont
     if (isVisibleUserMessage(item)) {
       entries.push({
         userItemId: item.id,
-        label: stripSystemReminderBlocks(item.text ?? '').trim(),
+        label: splitMessageComments(stripSystemReminderBlocks(item.text ?? '')).text.trim(),
         response: '',
         automation: item.triggerKind === 'automation',
         bookmarkable: !isOptimisticUserMessage(item)

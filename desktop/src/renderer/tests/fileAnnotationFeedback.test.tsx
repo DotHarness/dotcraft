@@ -29,7 +29,6 @@ const lineComment: DiffAnnotationContext = {
   side: 'right',
   startLine: 3,
   endLine: 3,
-  selectedText: 'const app = 1',
   comment: 'why?'
 }
 

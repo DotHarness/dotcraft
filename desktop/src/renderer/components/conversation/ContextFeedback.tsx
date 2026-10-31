@@ -8,9 +8,9 @@ import type {
   ResponseAnnotationContext,
   VisualizationChangesContext
 } from '../../../shared/composerContext'
+import { isLineCommentContext } from '../../../shared/messageComments'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { isLineCommentContext } from '../../stores/lineCommentDraftStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { openFileViewer } from '../../utils/conversationDeepLink'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'

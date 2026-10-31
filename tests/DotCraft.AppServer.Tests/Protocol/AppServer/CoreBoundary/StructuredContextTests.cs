@@ -15,7 +15,6 @@ public sealed class StructuredContextTests
         SessionInputContext[] contexts = [
             new() { Id = "page", Kind = "pageReference", Url = "https://example.test", Title = "Page", SelectionKind = "region", Text = "Chart", Comment = "Explain", Image = new() { TempPath = "/attachments/chart.png", FileName = "chart.png", MimeType = "image/png" } },
             new() { Id = "reply", Kind = "responseAnnotation", ThreadId = "thread", TurnId = "turn", ItemId = "item", SelectedText = "Quote", Comment = "Clarify" },
-            new() { Id = "diff", Kind = "diffAnnotation", Path = "a.cs", Side = "left", StartLine = 3, EndLine = 5, SelectedText = "old code", Comment = "Keep" },
             new() { Id = "paste", Kind = "pastedText", Path = "/attachments/paste.txt", FileName = "paste.txt", Preview = "Preview", CharacterCount = 10000 }
         ];
         var input = contexts.Select(context => new SessionInputPart { Type = "contextRef", Context = context }).ToArray();
@@ -81,7 +80,7 @@ public sealed class StructuredContextTests
             threadId = thread.Id,
             input = new[]
             {
-                new { type = "contextRef", context = new { id = "bad", kind = "diffAnnotation", startLine = 9, endLine = 2 } }
+                new { type = "contextRef", context = new { id = "bad", kind = "diffAnnotation", path = "a.cs", comment = "Keep" } }
             }
         });
 

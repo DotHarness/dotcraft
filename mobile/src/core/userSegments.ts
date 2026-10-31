@@ -1,3 +1,5 @@
+import { splitMessageComments, type MessageComment } from './messageComments'
+
 export type UserSegment =
   | { type: 'text'; value: string }
   | { type: 'file'; path: string; display: string }
@@ -36,11 +38,25 @@ function parseUserText(text: string): UserSegment[] {
 type InputPart = { type?: string; text?: string; path?: string; displayPath?: string; name?: string; rawText?: string; argsText?: string }
 
 export function userSegments(text: string, parts: unknown): UserSegment[] {
-  if (!Array.isArray(parts) || parts.length === 0) return parseUserText(text)
-  return (parts as InputPart[]).flatMap((part): UserSegment[] => {
+  const comments: MessageComment[] = []
+  const plain = (value: string) => {
+    const split = splitMessageComments(value)
+    comments.push(...split.comments)
+    return parseUserText(split.text)
+  }
+  const segments = !Array.isArray(parts) || parts.length === 0 ? plain(text) : nativeSegments(parts as InputPart[], plain)
+  return [...segments, ...comments.flatMap((comment, index): UserSegment[] => [
+    ...(segments.length > 0 || index > 0 ? [{ type: 'text' as const, value: '\n' }] : []),
+    { type: 'file', path: comment.path, display: comment.label },
+    ...(comment.comment ? [{ type: 'text' as const, value: ` ${comment.comment}` }] : []),
+  ])]
+}
+
+function nativeSegments(parts: InputPart[], plain: (value: string) => UserSegment[]): UserSegment[] {
+  return parts.flatMap((part): UserSegment[] => {
     switch (part.type) {
       case 'text':
-        return parseUserText(part.text ?? '')
+        return plain(part.text ?? '')
       case 'fileRef':
         return part.path ? [{ type: 'file', path: part.path, display: part.displayPath ?? part.path }] : []
       case 'skillRef':

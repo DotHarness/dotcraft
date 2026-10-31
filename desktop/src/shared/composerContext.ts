@@ -30,7 +30,7 @@ export type DiffAnnotationContext = ContextBase & {
   side: 'left' | 'right'
   startLine: number
   endLine: number
-  selectedText: string
+  diffHunk?: string
   comment: string
 }
 

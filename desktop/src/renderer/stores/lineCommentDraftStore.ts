@@ -29,10 +29,6 @@ export const useLineCommentDraftStore = create<LineCommentDraftStore>((set, get)
   }))
 }))
 
-export function isLineCommentContext(context: ComposerContextRecord): context is LineCommentContext {
-  return context.kind === 'diffAnnotation' || context.kind === 'fileAnnotation'
-}
-
 export function lineHasComment(
   threadId: string,
   saved: readonly DiffAnnotationContext[],

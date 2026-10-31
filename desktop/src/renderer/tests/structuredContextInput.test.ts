@@ -13,16 +13,22 @@ afterEach(() => vi.unstubAllGlobals())
 const contexts: ComposerContextRecord[] = [
   { id: 'paste', kind: 'pastedText', path: 'C:/attachments/pasted-text.txt', fileName: 'pasted-text.txt', preview: 'large text', characterCount: 120_000 },
   { id: 'response', kind: 'responseAnnotation', threadId: 'thread', turnId: 'turn', itemId: 'item', selectedText: 'quoted\n</quote>', comment: 'change this' },
-  { id: 'diff', kind: 'diffAnnotation', path: 'a.ts', side: 'left', startLine: 2, endLine: 4, selectedText: 'old code', comment: 'keep' },
-  { id: 'cells', kind: 'fileAnnotation', path: 'C:/workspace/model.xlsx', target: 'Revenue!B6:D8', targetKind: 'range', location: { sheet: 'Revenue', range: 'B6:D8', rowCount: 3, columnCount: 3 }, comment: 'check totals' },
-  { id: 'page', kind: 'pageReference', url: 'https://example.com', title: 'Page', selectionKind: 'region', text: 'chart', comment: 'explain', image: { tempPath: 'C:/region.png', dataUrl: 'data:image/png;base64,AA', fileName: 'region.png', mimeType: 'image/png' } }
+  { id: 'page', kind: 'pageReference', url: 'https://example.com', title: 'Page', selectionKind: 'region', text: 'chart', comment: 'explain', image: { tempPath: 'C:/region.png', dataUrl: 'data:image/png;base64,AA', fileName: 'region.png', mimeType: 'image/png' } },
+  { id: 'comment-1', kind: 'diffAnnotation', path: 'a.ts', side: 'left', startLine: 2, endLine: 4, comment: 'keep' },
+  { id: 'comment-2', kind: 'fileAnnotation', path: 'C:/workspace/model.xlsx', target: 'Revenue!B6:D8', targetKind: 'range', location: { sheet: 'Revenue', range: 'B6:D8', rowCount: 3, columnCount: 3 }, comment: 'check totals' }
 ]
+const withoutPageImage = contexts.filter((context) => context.kind !== 'pageReference')
 
 describe('composer context recovery', () => {
-  it('preserves typed references without embedding preview image bytes or flattening context into text', () => {
+  it('keeps typed references structured, writes comments after the message text, and reads both back', () => {
     const { inputParts } = buildComposerInputParts({ contexts, text: 'my request' })
-    expect(projectInputParts(inputParts).contexts.slice(0, 4)).toEqual(contexts.slice(0, 4))
-    expect(inputParts.filter(part => part.type === 'text')).toEqual([{ type: 'text', text: 'my request' }])
+    const projected = projectInputParts(inputParts)
+    expect(projected.contexts.map(({ id }) => id)).toEqual(contexts.map(({ id }) => id))
+    expect(projected.contexts.filter((context) => context.kind !== 'pageReference')).toEqual(withoutPageImage)
+    expect(inputParts.filter((part) => part.type === 'contextRef').map((part) => part.context.kind)).toEqual(['pastedText', 'responseAnnotation', 'pageReference'])
+    const text = inputParts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+    expect(text.startsWith('my request\n\n# Diff comments:\n')).toBe(true)
+    expect(projected.parts).toEqual([{ type: 'text', text: 'my request' }])
     expect(JSON.stringify(inputParts)).not.toContain('data:image/png')
   })
 
@@ -39,9 +45,17 @@ describe('composer context recovery', () => {
   })
 
   it('recovers context-only native history after serialization', () => {
-    const { inputParts } = buildComposerInputParts({ contexts: contexts.slice(0, 4), text: '' })
+    const { inputParts } = buildComposerInputParts({ contexts: withoutPageImage, text: '' })
     const turn = JSON.parse(JSON.stringify({ id: 'turn', threadId: 'thread', items: [{ id: 'item', type: 'userMessage', nativeInputParts: inputParts }] })) as ConversationTurn
-    expect(buildComposerHistory([turn], 'thread')[0].contexts).toEqual(contexts.slice(0, 4))
+    expect(buildComposerHistory([turn], 'thread')[0].contexts).toEqual(withoutPageImage)
+  })
+
+  it('restores comments from message text when no native input was kept', () => {
+    const comments = withoutPageImage.filter((context) => context.kind !== 'pastedText' && context.kind !== 'responseAnnotation')
+    const text = buildComposerInputParts({ contexts: comments, text: 'fix these' }).inputParts
+      .flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+    const turn = { id: 'turn', threadId: 'thread', items: [{ id: 'item', type: 'userMessage', text }] } as ConversationTurn
+    expect(buildComposerHistory([turn], 'thread')[0]).toMatchObject({ text: 'fix these', contexts: comments })
   })
 
   it('persists only plain draft text across store recreation', () => {
@@ -58,7 +72,7 @@ describe('composer context recovery', () => {
   it('restores rejected Welcome input alongside newer contexts', async () => {
     useComposerDraftStore.setState({ draftsByThread: {} })
     useComposerContextStore.setState({ byThread: {}, restoreRequests: {} })
-    const submitted = contexts.slice(0, 4)
+    const submitted = withoutPageImage
     const input = buildComposerInputParts({ text: 'welcome request', contexts: submitted }).inputParts
     const newer = { ...submitted[0], id: 'newer' }
     useComposerContextStore.getState().setContexts('welcome-created', [...submitted, newer])

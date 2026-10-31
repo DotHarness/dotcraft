@@ -1,4 +1,5 @@
 import type { ComposerContextRecord } from '../../shared/composerContext'
+import { formatMessageComments, isLineCommentContext } from '../../shared/messageComments'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
@@ -91,6 +92,7 @@ export function buildComposerInputParts({
   }
 
   for (const context of contexts) {
+    if (isLineCommentContext(context)) continue
     const persisted = context.kind === 'pageReference' && context.image
       ? { ...context, image: { tempPath: context.image.tempPath, mimeType: context.image.mimeType, fileName: context.image.fileName } }
       : context
@@ -101,6 +103,11 @@ export function buildComposerInputParts({
     inputParts.push({ type: 'contextRef', context: buildThreadReferencesContext(threadIds) })
   }
   inputParts.push(...segmentsToInputParts(normalizedSegments))
+  const comments = contexts.filter(isLineCommentContext)
+  if (comments.length > 0) {
+    const separator = inputParts.some((part) => part.type !== 'contextRef') ? '\n\n' : ''
+    inputParts.push({ type: 'text', text: `${separator}${formatMessageComments(comments)}` })
+  }
 
   for (const image of images) {
     inputParts.push({

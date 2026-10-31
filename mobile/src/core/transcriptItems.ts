@@ -2,6 +2,7 @@ import { isComplete, type HistoryItem, type HistoryTurn } from './history'
 import { dividerOf, failureEntry, originOf, threadActionOf } from './timelineMarkers'
 import { baseName, entryId, imageUri, planEntry, str, subagentEndingEntry, toolEntry } from './transcriptTools'
 import type { NoticeKind, TaskWake, TranscriptEntry } from './transcriptTypes'
+import { splitMessageComments } from './messageComments'
 import { userImages, userSegments } from './userSegments'
 
 interface ItemContext {
@@ -107,7 +108,7 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
       const images = userImages(payload.nativeInputParts)
       if (!text && images.length === 0) return {}
       const origin = originOf(payload) ?? (context.fallbackOrigin && !trigger ? { kind: 'thread' as const, label: '', threadId: context.fallbackOrigin } : null)
-      return { entry: { kind: 'user', id, text, segments: userSegments(text, payload.nativeInputParts), images, added: mode === 'guidance', origin, goal: payload.sentAsGoal === true } }
+      return { entry: { kind: 'user', id, text: splitMessageComments(text).text, segments: userSegments(text, payload.nativeInputParts), images, added: mode === 'guidance', origin, goal: payload.sentAsGoal === true } }
     }
     case 'agentMessage': {
       const text = str(payload.text)

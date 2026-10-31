@@ -24,16 +24,6 @@
         }
       ]
     },
-    "endLine": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "fileName": {
       "anyOf": [
         {
@@ -104,26 +94,6 @@
       "anyOf": [
         {
           "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "side": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "startLine": {
-      "anyOf": [
-        {
-          "type": "integer"
         },
         {
           "type": "null"

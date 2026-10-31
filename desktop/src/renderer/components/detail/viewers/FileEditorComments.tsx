@@ -159,7 +159,6 @@ export function FileEditorComments({
       side: 'right',
       startLine,
       endLine,
-      selectedText: doc.sliceString(doc.line(startLine).from, doc.line(endLine).to),
       comment: ''
     })
     if (preview) void useFileEditorStore.getState().switchMode(tabId, 'source')

@@ -6,7 +6,6 @@ describe('ReadThread content projection', () => {
     const contexts = [
       { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
       { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
-      { kind: 'diffAnnotation', path: 'example.ts', side: 'right', startLine: 1, endLine: 2, selectedText: 'selected code', comment: 'check' },
       { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
       { kind: 'threadReferences', text: 'referenced thread snapshot' }
     ]
@@ -46,18 +45,6 @@ describe('ReadThread content projection', () => {
       type: 'contextRef', context: { ...context, image: { tempPath: 'evidence.png', fileName: 'evidence.png', mimeType: 'image/png' } }
     })
     expect(JSON.stringify(data)).not.toContain('BINARY')
-  })
-
-  it('preserves a file annotation target and location from native input', async () => {
-    const context = {
-      id: 'context-1', kind: 'fileAnnotation', path: '/workspace/model.xlsx', target: 'Revenue!B6:D8', targetKind: 'range',
-      location: { sheet: 'Revenue', range: 'B6:D8', rowCount: 3, columnCount: 3 }, comment: 'check totals'
-    }
-    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-      text: '', nativeInputParts: [{ type: 'contextRef', context }]
-    })] }])
-    const { data } = await read(client)
-    expect(data.turns[0].items[0].content[0]).toEqual({ type: 'contextRef', context })
   })
 
   it('omits inline image URLs from native and materialized input regardless of scheme case', async () => {

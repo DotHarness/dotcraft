@@ -18,6 +18,7 @@ import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseU
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
 import { openImagePathInViewer } from '../../utils/conversationDeepLink'
 import { stripSystemReminderBlocks } from '../../utils/systemReminderText'
+import { splitMessageComments } from '../../../shared/messageComments'
 import { formatMessageTime } from '../../utils/messageTime'
 import { resolveSkillReferencePath } from '../../utils/referencePaths'
 import { addToast } from '../../stores/toastStore'
@@ -101,7 +102,9 @@ export function UserMessageBlock({
       revealPath: image.absolutePath
     }))
   }, [hydratedImages, messageId])
-  const displayText = stripSystemReminderBlocks(text)
+  const sentText = useMemo(() => splitMessageComments(stripSystemReminderBlocks(text)), [text])
+  const displayText = sentText.text
+  const contexts = projected && nativeInputParts?.length ? projected.contexts : sentText.comments
   const segments = nativeInputParts != null && nativeInputParts.length > 0
     ? segmentsFromNativeInputParts(projected!.parts)
     : displayText.length > 0
@@ -205,7 +208,7 @@ export function UserMessageBlock({
             userSelect: 'text'
           }}
         >
-          {!editing && projected && <SentContextAttachments contexts={projected.contexts} />}
+          {!editing && <SentContextAttachments contexts={contexts} />}
           {editing ? (
             <>
               <Textarea

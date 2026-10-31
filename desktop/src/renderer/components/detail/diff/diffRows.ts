@@ -140,6 +140,48 @@ export function buildSplitRows(diff: FileDiff, sides: DiffSideModel): SplitRow[]
   return rows
 }
 
+const HUNK_CONTEXT_LINES = 3
+const HUNK_MAX_LINES = 60
+const PREFIX: Record<DiffLine['type'], string> = { context: ' ', add: '+', remove: '-' }
+
+export function diffHunkExcerpt(
+  diff: FileDiff,
+  side: 'left' | 'right',
+  startLine: number,
+  endLine: number
+): string | undefined {
+  let budget = HUNK_MAX_LINES
+  const parts = diff.diffHunks.flatMap((hunk) => {
+    let oldLine = hunk.oldStart
+    let newLine = hunk.newStart
+    const numbered = hunk.lines.map((line) => {
+      const entry = { line, oldLine, newLine }
+      if (line.type !== 'add') oldLine++
+      if (line.type !== 'remove') newLine++
+      return entry
+    })
+    const hits = numbered.flatMap((entry, index) => {
+      if (entry.line.type === (side === 'left' ? 'add' : 'remove')) return []
+      const number = side === 'left' ? entry.oldLine : entry.newLine
+      return number >= startLine && number <= endLine ? [index] : []
+    })
+    if (hits.length === 0 || budget <= 0) return []
+    const first = Math.max(0, hits[0] - HUNK_CONTEXT_LINES)
+    const last = Math.min(hits[hits.length - 1] + HUNK_CONTEXT_LINES + 1, first + budget)
+    const slice = numbered.slice(first, last)
+    budget -= slice.length
+    const oldCount = slice.filter((entry) => entry.line.type !== 'add').length
+    const newCount = slice.filter((entry) => entry.line.type !== 'remove').length
+    const oldStart = oldCount === 0 ? slice[0].oldLine - 1 : slice[0].oldLine
+    const newStart = newCount === 0 ? slice[0].newLine - 1 : slice[0].newLine
+    return [
+      `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`,
+      ...slice.map((entry) => `${PREFIX[entry.line.type]}${entry.line.content}`)
+    ].join('\n')
+  })
+  return parts.length > 0 ? parts.join('\n') : undefined
+}
+
 export function unchangedBeforeHunk(
   oldStart: number,
   newStart: number,

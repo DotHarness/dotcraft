@@ -2034,7 +2034,6 @@ export interface InitializeResult {
 export interface InputContext {
   characterCount?: number | null;
   comment?: string | null;
-  endLine?: number | null;
   fileName?: string | null;
   id: string;
   image?: ContextImage | null;
@@ -2044,8 +2043,6 @@ export interface InputContext {
   preview?: string | null;
   selectedText?: string | null;
   selectionKind?: string | null;
-  side?: string | null;
-  startLine?: number | null;
   text?: string | null;
   threadId?: string | null;
   title?: string | null;

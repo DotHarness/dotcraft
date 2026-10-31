@@ -9934,13 +9934,6 @@
           "const": null
         },
         {
-          "name": "endLine",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "fileName",
           "type": "string",
           "required": false,
@@ -9999,20 +9992,6 @@
         {
           "name": "selectionKind",
           "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "side",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "startLine",
-          "type": "integer",
           "required": false,
           "nullable": true,
           "const": null

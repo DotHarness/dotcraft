@@ -1,4 +1,5 @@
 import type { ComposerContextRecord } from '../../shared/composerContext'
+import { splitMessageComments } from '../../shared/messageComments'
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../types/conversation'
 
 export function projectInputParts(input: InputPart[]): {
@@ -15,6 +16,14 @@ export function projectInputParts(input: InputPart[]): {
     }
     else if (part.type === 'localImage') images.push({ path: part.path, fileName: part.fileName, mimeType: part.mimeType })
     else if (part.type === 'image') imageDataUrls.push(part.url)
+    else if (part.type === 'text') {
+      const split = splitMessageComments(part.text)
+      if (split.comments.length === 0) parts.push(part)
+      else {
+        contexts.push(...split.comments)
+        if (split.text.length > 0) parts.push({ ...part, text: split.text })
+      }
+    }
     else parts.push(part)
   }
   return { parts, contexts, images, imageDataUrls }
