@@ -151,6 +151,7 @@ export interface UIState {
   lastActiveSystemTab: SystemDetailTab
   quickOpenVisible: boolean
   explorerVisible: boolean
+  slideSidebarVisible: boolean
   explorerWidth: number
   explorerRevealPath: string | null
   selectedChangeKey: string | null
@@ -207,6 +208,7 @@ interface UIStore extends UIState {
   closeViewerTab(options?: DetailRevealOptions): void
   setQuickOpenVisible(visible: boolean): void
   toggleExplorer(): void
+  toggleSlideSidebar(): void
   setExplorerVisible(visible: boolean): void
   setExplorerWidth(width: number): void
   revealInExplorer(absoluteDir: string): void
@@ -326,6 +328,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   lastActiveSystemTab: 'changes',
   quickOpenVisible: false,
   explorerVisible: false,
+  slideSidebarVisible: true,
   explorerWidth: EXPLORER_DEFAULT_WIDTH,
   explorerRevealPath: null,
   selectedChangeKey: null,
@@ -662,6 +665,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   toggleExplorer() {
     set((state) => ({ explorerVisible: !state.explorerVisible }))
+  },
+
+  toggleSlideSidebar() {
+    set((state) => ({ slideSidebarVisible: !state.slideSidebarVisible }))
   },
 
   setExplorerVisible(visible: boolean) {

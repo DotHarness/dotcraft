@@ -1850,6 +1850,44 @@ Content beside the conversation stays quieter than the conversation itself.
   result count, previous/next, and close, without replacement.
 - Large files stay read-only with a neutral outlined notice in the body, not a
   yellow warning strip.
+- Spreadsheets (`xlsx`, `xlsm`, `csv`, `tsv`) open as a read-only grid on the main
+  surface: column letters and row numbers in secondary text on a pinned header row
+  and column, hairline cell rules, tabular figures, and long cells cut to one line
+  with the full value in a tooltip; links open in the browser. A read-only formula
+  bar above the grid shows the selection's address (`3R x 2C` while dragging) and
+  the active cell's formula or value. A workbook with several sheets lists them as
+  neutral tabs below the grid. Copy puts the selection on the clipboard as tab
+  separated text and an HTML table. A table header row offers Filter & sort (value
+  checkboxes, Select all, Sort A→Z and Z→A). A truncated grid says which rows and columns it shows in the neutral notice.
+- Presentations (`pptx`) show one slide at a time, fitted to the panel, with a
+  left rail of numbered thumbnails that the header can hide (Show/Hide slide
+  sidebar). The rail dims hidden slides and counts each slide's comments; arrow
+  keys, Page Up/Down, Home, and End move between slides, and a narrow panel swaps
+  the rail for an "n of m" stepper. Grid view shows every slide at once. Speaker
+  notes sit in a collapsible strip under the slide ("No speaker notes" when empty).
+  Present opens a fullscreen slideshow ("n of m", arrows, Esc to exit). A slide
+  that cannot be drawn keeps its frame and says so.
+- Spreadsheet and presentation zoom offers 25, 50, 100, 150, and 200% and Zoom to
+  fit (Fit on slides), with wheel and pinch zoom clamped to 10–400%. Their find
+  bar (the platform Find shortcut) searches cell values or slide text and shows
+  "n / m" with previous, next, and close.
+- Spreadsheets and presentations take comments the way text files do. Dragging
+  across cells selects a range (a 16% accent tint inside a `1.5px` accent
+  outline); clicking a slide element (title, text, image, chart, table) outlines it,
+  and clicking the slide's background selects the whole slide. The selection's
+  floating Comment action opens the shared comment card just below it, labelled
+  with the target (`Revenue!B6:D8`, `Revenue · Chart`, `Slide 3 · Chart`,
+  `Slide 3`). A commented
+  target keeps an `18px` inverted marker (`--text-primary` fill, comment glyph) on
+  its top-right corner that reopens its card.
+- Video (`mp4`, `webm`, `mov`, `m4v`) plays in a contained frame on black, centred
+  and scaled to fit. Its controls are the shared neutral player:
+  play/pause, seek, elapsed / total time, mute with volume, fullscreen, and an
+  options menu with Playback speed (0.25–2×), Picture in picture, and Save video
+  as…. Space toggles playback and the arrow keys seek.
+- The Refresh for latest offer after a file changes on disk and the notice for a
+  preview that is unavailable (type, size, or load failure) are neutral notices,
+  never an error tone.
 - External-change review is a single-column diff with a fixed footer ordered wrap
   toggle (neutral pressed tone), Edit and Reject (`outline`), and Accept
   (`primary`). An over-limit diff shows an unavailable-preview message without

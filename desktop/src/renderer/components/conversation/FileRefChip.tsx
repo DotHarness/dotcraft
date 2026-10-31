@@ -14,7 +14,8 @@ export function FileRefChip({
   className,
   workspacePath,
   activeThreadId,
-  remoteWorkspaceActive
+  remoteWorkspaceActive,
+  onOpen
 }: {
   displayPath: string
   targetPath: string
@@ -23,6 +24,7 @@ export function FileRefChip({
   workspacePath: string
   activeThreadId: string | null
   remoteWorkspaceActive: boolean
+  onOpen?: (threadId: string) => void
 }): JSX.Element {
   const t = useT()
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; reference: LocalReference } | null>(null)
@@ -50,6 +52,7 @@ export function FileRefChip({
         }}
         onClick={() => {
           if (!canOpen || !activeThreadId) return
+          if (onOpen) return onOpen(activeThreadId)
           void openConversationLink({
             target: targetPath,
             workspacePath,

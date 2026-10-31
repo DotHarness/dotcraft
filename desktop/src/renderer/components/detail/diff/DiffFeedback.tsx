@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Plus } from 'lucide-react'
-import type { DiffAnnotationContext } from '../../../../shared/composerContext'
+import type { DiffAnnotationContext, LineCommentContext } from '../../../../shared/composerContext'
 import type { FileDiff } from '../../../types/toolCall'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useConversationStore } from '../../../stores/conversationStore'
@@ -51,7 +51,7 @@ const RowHeights = createContext<{
   measure: (key: string, height: number) => void
 } | null>(null)
 
-const EMPTY: DiffAnnotationContext[] = []
+const EMPTY: LineCommentContext[] = []
 
 function span(selection: Selection): [number, number] {
   return [Math.min(selection.anchor, selection.line), Math.max(selection.anchor, selection.line)]
@@ -109,7 +109,10 @@ export function DiffFeedbackProvider({
     (entry): entry is DiffAnnotationContext =>
       entry.kind === 'diffAnnotation' && entry.path === diff.filePath,
   )
-  const fileDrafts = drafts.filter((entry) => entry.path === diff.filePath)
+  const fileDrafts = drafts.filter(
+    (entry): entry is DiffAnnotationContext =>
+      entry.kind === 'diffAnnotation' && entry.path === diff.filePath,
+  )
   const rows = useMemo(
     () => buildUnifiedRows(diff, model.sides),
     [diff, model.sides],

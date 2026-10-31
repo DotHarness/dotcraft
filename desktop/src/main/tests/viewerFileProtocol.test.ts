@@ -177,3 +177,48 @@ describe('resolveViewerFileForAccess', () => {
     }
   })
 })
+
+describe('handleViewerFileRequest byte ranges', () => {
+  function videoFixture(): string {
+    const root = createTempDir()
+    const file = join(root, 'clip.mp4')
+    writeFileSync(file, '0123456789')
+    setViewerWorkspaceRoot(root)
+    return file
+  }
+
+  const request = (file: string, range: string) =>
+    handleViewerFileRequest(new Request(buildViewerUrl(file), { headers: { Range: range } }))
+
+  it.each([
+    ['bytes=2-5', '2345', 'bytes 2-5/10'],
+    ['bytes=7-', '789', 'bytes 7-9/10'],
+    ['bytes=-3', '789', 'bytes 7-9/10'],
+    ['bytes=8-99', '89', 'bytes 8-9/10']
+  ])('answers %s with partial content', async (range, body, contentRange) => {
+    const response = await request(videoFixture(), range)
+    expect(response.status).toBe(206)
+    expect(response.headers.get('content-range')).toBe(contentRange)
+    expect(response.headers.get('content-type')).toBe('video/mp4')
+    expect(await response.text()).toBe(body)
+    expect(netFetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects ranges past the end and serves the whole file for unsupported range forms', async () => {
+    const file = videoFixture()
+    const past = await request(file, 'bytes=10-')
+    expect(past.status).toBe(416)
+    expect(past.headers.get('content-range')).toBe('bytes */10')
+    expect((await request(file, 'bytes=0-1,4-5')).status).toBe(200)
+    expect(netFetchMock).toHaveBeenCalledWith(pathToFileURL(file).toString())
+  })
+
+  it('keeps the access boundary for range requests', async () => {
+    const file = videoFixture()
+    const outside = join(createTempDir(), 'other.mp4')
+    writeFileSync(outside, '0123456789')
+    expect((await request(outside, 'bytes=0-3')).status).toBe(403)
+    setViewerWorkspaceRoot('')
+    expect((await request(file, 'bytes=0-3')).status).toBe(403)
+  })
+})

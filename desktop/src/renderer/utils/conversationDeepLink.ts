@@ -2,7 +2,7 @@ import { resolveConversationLink, type LinkRejectReason } from '../../shared/vie
 import type { FileNavigationHint } from '../../shared/viewer/types'
 import { useUIStore } from '../stores/uiStore'
 import { addToast } from '../stores/toastStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useViewerTabStore, type FileReveal } from '../stores/viewerTabStore'
 import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
 
 type Translator = (key: string) => string
@@ -13,6 +13,7 @@ interface OpenFileViewerParams {
   absolutePath: string
   forceNew: boolean
   hint?: FileNavigationHint
+  reveal?: FileReveal
   t: Translator
 }
 
@@ -48,14 +49,15 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
     contentClass: classified.contentClass,
     sizeBytes: classified.sizeBytes,
     forceNew: params.forceNew,
-    navigationHint: params.hint
+    navigationHint: params.hint,
+    reveal: params.reveal
   })
   const ui = useUIStore.getState()
   ui.setActiveViewerTab(tabId)
   ui.setDetailPanelVisible(true)
 }
 
-async function openFileViewer(params: OpenFileViewerParams): Promise<boolean> {
+export async function openFileViewer(params: OpenFileViewerParams): Promise<boolean> {
   try {
     await openWorkspaceFileViewer(params)
     return true

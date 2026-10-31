@@ -3,7 +3,7 @@
  * chrome and never render this header.
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ChevronRight, Code2, Eye, Folder, FolderOpen } from 'lucide-react'
+import { ChevronRight, Code2, Eye, Folder, FolderOpen, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -24,6 +24,7 @@ interface ViewerHeaderProps {
   onToggleWordWrap: () => void
   markdownMode?: FileEditorMode
   onToggleMarkdownMode?: () => void
+  slideSidebar?: { visible: boolean; onToggle: () => void }
 }
 
 /** Splits a relativePath into ordered segments + the forward-slashed abs prefix. */
@@ -46,7 +47,8 @@ export function ViewerHeader({
   wordWrap,
   onToggleWordWrap,
   markdownMode,
-  onToggleMarkdownMode
+  onToggleMarkdownMode,
+  slideSidebar
 }: ViewerHeaderProps): JSX.Element {
   const t = useT()
   const explorerVisible = useUIStore((s) => s.explorerVisible)
@@ -132,6 +134,19 @@ export function ViewerHeader({
             icon={markdownMode === 'preview'
               ? <Code2 size={16} aria-hidden style={{ display: 'block' }} />
               : <Eye size={16} aria-hidden style={{ display: 'block' }} />}
+          />
+        )}
+
+        {slideSidebar && (
+          <IconButton
+            size={28}
+            label={slideSidebar.visible ? t('viewer.slides.hideSidebar') : t('viewer.slides.showSidebar')}
+            tooltipLabel={slideSidebar.visible ? t('viewer.slides.hideSidebar') : t('viewer.slides.showSidebar')}
+            tooltipPlacement="bottom"
+            onClick={slideSidebar.onToggle}
+            icon={slideSidebar.visible
+              ? <PanelLeftClose size={16} aria-hidden style={{ display: 'block' }} />
+              : <PanelLeftOpen size={16} aria-hidden style={{ display: 'block' }} />}
           />
         )}
 

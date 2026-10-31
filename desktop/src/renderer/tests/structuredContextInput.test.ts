@@ -14,13 +14,14 @@ const contexts: ComposerContextRecord[] = [
   { id: 'paste', kind: 'pastedText', path: 'C:/attachments/pasted-text.txt', fileName: 'pasted-text.txt', preview: 'large text', characterCount: 120_000 },
   { id: 'response', kind: 'responseAnnotation', threadId: 'thread', turnId: 'turn', itemId: 'item', selectedText: 'quoted\n</quote>', comment: 'change this' },
   { id: 'diff', kind: 'diffAnnotation', path: 'a.ts', side: 'left', startLine: 2, endLine: 4, selectedText: 'old code', comment: 'keep' },
+  { id: 'cells', kind: 'fileAnnotation', path: 'C:/workspace/model.xlsx', target: 'Revenue!B6:D8', targetKind: 'range', location: { sheet: 'Revenue', range: 'B6:D8', rowCount: 3, columnCount: 3 }, comment: 'check totals' },
   { id: 'page', kind: 'pageReference', url: 'https://example.com', title: 'Page', selectionKind: 'region', text: 'chart', comment: 'explain', image: { tempPath: 'C:/region.png', dataUrl: 'data:image/png;base64,AA', fileName: 'region.png', mimeType: 'image/png' } }
 ]
 
 describe('composer context recovery', () => {
   it('preserves typed references without embedding preview image bytes or flattening context into text', () => {
     const { inputParts } = buildComposerInputParts({ contexts, text: 'my request' })
-    expect(projectInputParts(inputParts).contexts.slice(0, 3)).toEqual(contexts.slice(0, 3))
+    expect(projectInputParts(inputParts).contexts.slice(0, 4)).toEqual(contexts.slice(0, 4))
     expect(inputParts.filter(part => part.type === 'text')).toEqual([{ type: 'text', text: 'my request' }])
     expect(JSON.stringify(inputParts)).not.toContain('data:image/png')
   })
@@ -38,9 +39,9 @@ describe('composer context recovery', () => {
   })
 
   it('recovers context-only native history after serialization', () => {
-    const { inputParts } = buildComposerInputParts({ contexts: contexts.slice(0, 3), text: '' })
+    const { inputParts } = buildComposerInputParts({ contexts: contexts.slice(0, 4), text: '' })
     const turn = JSON.parse(JSON.stringify({ id: 'turn', threadId: 'thread', items: [{ id: 'item', type: 'userMessage', nativeInputParts: inputParts }] })) as ConversationTurn
-    expect(buildComposerHistory([turn], 'thread')[0].contexts).toEqual(contexts.slice(0, 3))
+    expect(buildComposerHistory([turn], 'thread')[0].contexts).toEqual(contexts.slice(0, 4))
   })
 
   it('persists only plain draft text across store recreation', () => {
@@ -57,13 +58,13 @@ describe('composer context recovery', () => {
   it('restores rejected Welcome input alongside newer contexts', async () => {
     useComposerDraftStore.setState({ draftsByThread: {} })
     useComposerContextStore.setState({ byThread: {}, restoreRequests: {} })
-    const submitted = contexts.slice(0, 3)
+    const submitted = contexts.slice(0, 4)
     const input = buildComposerInputParts({ text: 'welcome request', contexts: submitted }).inputParts
     const newer = { ...submitted[0], id: 'newer' }
     useComposerContextStore.getState().setContexts('welcome-created', [...submitted, newer])
     await restoreRejectedWelcomeInput('welcome-created', input)
     expect(useComposerDraftStore.getState().getDraft('welcome-created')?.text).toBe('welcome request')
-    expect(useComposerContextStore.getState().restoreRequests['welcome-created']?.contexts).toHaveLength(4)
+    expect(useComposerContextStore.getState().restoreRequests['welcome-created']?.contexts).toHaveLength(5)
   })
 
   it('merges rejected Welcome references with newer structured input and attachments', async () => {

@@ -2,14 +2,17 @@ import { useState } from 'react'
 import { Pencil, SlidersHorizontal, X } from 'lucide-react'
 import type {
   ComposerContextRecord,
-  DiffAnnotationContext,
+  FileAnnotationContext,
+  LineCommentContext,
   PageReferenceContext,
   ResponseAnnotationContext,
   VisualizationChangesContext
 } from '../../../shared/composerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { isLineCommentContext } from '../../stores/lineCommentDraftStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { openFileViewer } from '../../utils/conversationDeepLink'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import { IconButton } from '../ui/IconButton'
 import { ContextCommentEditor } from './ContextCommentEditor'
@@ -36,7 +39,7 @@ export function ContextFeedback({
 }): JSX.Element {
   const t = useT()
   const [editing, setEditing] = useState<string | null>(null)
-  const comments = contexts.filter((context): context is DiffAnnotationContext => context.kind === 'diffAnnotation')
+  const comments = contexts.filter(isLineCommentContext)
   const pages = contexts.filter((context): context is PageReferenceContext => context.kind === 'pageReference')
   const replies = contexts.filter((context): context is ResponseAnnotationContext => context.kind === 'responseAnnotation')
   const visualizations = contexts.filter((context): context is VisualizationChangesContext => context.kind === 'visualizationChanges')
@@ -151,31 +154,57 @@ export function ContextFeedback({
   )
 }
 
-function LineCommentList({ comments }: { comments: DiffAnnotationContext[] }): JSX.Element {
+function fileName(path: string): string {
+  return path.split(/[/\\]/).pop() || path
+}
+
+function LineCommentList({ comments }: { comments: LineCommentContext[] }): JSX.Element {
+  const t = useT()
   const workspacePath = useConversationStore((state) => state.workspacePath)
   const remoteWorkspaceActive = useConversationStore((state) => state.remoteWorkspaceActive)
   const viewerScopeId = useViewerTabStore((state) => state.currentThreadId)
+  const chip = (comment: LineCommentContext, targetPath: string, label: string, onOpen?: (threadId: string) => void) => (
+    <FileRefChip
+      className="dc-feedback-file"
+      displayPath={comment.path}
+      targetPath={targetPath}
+      label={label}
+      workspacePath={workspacePath}
+      activeThreadId={viewerScopeId}
+      remoteWorkspaceActive={remoteWorkspaceActive}
+      onOpen={onOpen}
+    />
+  )
+  const openTarget = (comment: FileAnnotationContext) => (threadId: string) => {
+    void openFileViewer({
+      threadId,
+      workspacePath,
+      absolutePath: comment.path,
+      forceNew: false,
+      reveal: { targetKind: comment.targetKind, location: comment.location },
+      t
+    })
+  }
   return (
     <div className="dc-feedback-list">
       {comments.map((comment) => (
         <div key={comment.id} className="dc-feedback-row">
-          <div className="dc-feedback-meta">
-            <FileRefChip
-              className="dc-feedback-file"
-              displayPath={comment.path}
-              targetPath={`${comment.path}:${comment.startLine}`}
-              label={toWorkspaceRelativePath(workspacePath, comment.path)}
-              workspacePath={workspacePath}
-              activeThreadId={viewerScopeId}
-              remoteWorkspaceActive={remoteWorkspaceActive}
-            />
-            <span className="dc-feedback-side">{comment.side === 'left' ? 'L' : 'R'}</span>
-            <span>
-              {comment.startLine === comment.endLine
-                ? comment.startLine
-                : `${comment.startLine}–${comment.endLine}`}
-            </span>
-          </div>
+          {comment.kind === 'fileAnnotation' ? (
+            <div className="dc-feedback-meta">
+              {chip(comment, comment.path, fileName(comment.path), openTarget(comment))}
+              <span>{comment.target}</span>
+            </div>
+          ) : (
+            <div className="dc-feedback-meta">
+              {chip(comment, `${comment.path}:${comment.startLine}`, toWorkspaceRelativePath(workspacePath, comment.path))}
+              <span className="dc-feedback-side">{comment.side === 'left' ? 'L' : 'R'}</span>
+              <span>
+                {comment.startLine === comment.endLine
+                  ? comment.startLine
+                  : `${comment.startLine}–${comment.endLine}`}
+              </span>
+            </div>
+          )}
           {comment.comment && <div className="dc-feedback-text">{comment.comment}</div>}
         </div>
       ))}

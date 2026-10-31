@@ -48,6 +48,18 @@ describe('ReadThread content projection', () => {
     expect(JSON.stringify(data)).not.toContain('BINARY')
   })
 
+  it('preserves a file annotation target and location from native input', async () => {
+    const context = {
+      id: 'context-1', kind: 'fileAnnotation', path: '/workspace/model.xlsx', target: 'Revenue!B6:D8', targetKind: 'range',
+      location: { sheet: 'Revenue', range: 'B6:D8', rowCount: 3, columnCount: 3 }, comment: 'check totals'
+    }
+    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
+      text: '', nativeInputParts: [{ type: 'contextRef', context }]
+    })] }])
+    const { data } = await read(client)
+    expect(data.turns[0].items[0].content[0]).toEqual({ type: 'contextRef', context })
+  })
+
   it('omits inline image URLs from native and materialized input regardless of scheme case', async () => {
     for (const scheme of ['data:', 'DATA:', 'DaTa:']) for (const materialized of [false, true]) {
       const image = { type: 'image', url: `${scheme}image/png;base64,BINARY` }

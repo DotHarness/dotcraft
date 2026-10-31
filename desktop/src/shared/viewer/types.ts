@@ -1,7 +1,16 @@
+import type { FileAnnotationLocation, FileAnnotationTargetKind } from '../composerContext'
+
 export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow' | 'automation' | 'sideChat'
 export type * from './browserFeedback'
 
-export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
+export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'spreadsheet' | 'presentation' | 'video' | 'unsupported'
+
+/** A target a viewer scrolls to and selects once; `revision` distinguishes repeated requests. */
+export interface FileRevealRequest {
+  targetKind: FileAnnotationTargetKind
+  location: FileAnnotationLocation
+  revision: number
+}
 
 export interface FileNavigationHint {
   line?: number
@@ -32,6 +41,7 @@ export interface FileViewerTab extends ViewerTabBase {
   navigationHint?: FileNavigationHint
   /** Increments for explicit opens, even when the target position is unchanged. */
   navigationRevision?: number
+  pendingReveal?: FileRevealRequest
   wordWrap?: boolean
 }
 
@@ -105,6 +115,7 @@ export interface ClassifyResult {
   contentClass: ViewerContentClass
   mime: string
   sizeBytes: number
+  mtimeMs: number
 }
 
 export interface ReadTextResult {
@@ -125,6 +136,10 @@ export interface ListFilesParams {
 }
 
 export interface ClassifyParams {
+  absolutePath: string
+}
+
+export interface SaveCopyAsParams {
   absolutePath: string
 }
 

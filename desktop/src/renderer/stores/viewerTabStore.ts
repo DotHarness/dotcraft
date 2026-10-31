@@ -11,9 +11,11 @@ import type {
   ViewerContentClass,
   ViewerKind,
   PerThreadViewerState,
-  FileNavigationHint
+  FileNavigationHint,
+  FileRevealRequest
 } from '../../shared/viewer/types'
 import { normalizeBrowserUrl } from '../../shared/viewer/linkResolver'
+import { sameWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 
 function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   if (tabs.length === 0) return tabs
@@ -122,14 +124,22 @@ function terminalDefaultLabel(tabs: ViewerTab[], tabIndex: number): string {
   return position >= 0 ? `Terminal ${position + 1}` : 'Terminal'
 }
 
-function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNavigationHint): FileViewerTab {
+function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNavigationHint, reveal?: FileReveal): FileViewerTab {
   const next: FileViewerTab = { ...tab, navigationRevision: (tab.navigationRevision ?? 0) + 1 }
   if (navigationHint) {
     next.navigationHint = { ...navigationHint }
   } else {
     delete next.navigationHint
   }
+  if (reveal) next.pendingReveal = revealRequest(reveal)
   return next
+}
+
+export type FileReveal = Omit<FileRevealRequest, 'revision'>
+
+let _revealRevision = 0
+function revealRequest(reveal: FileReveal): FileRevealRequest {
+  return { targetKind: reveal.targetKind, location: { ...reveal.location }, revision: ++_revealRevision }
 }
 
 interface ViewerTabStoreState {
@@ -152,6 +162,7 @@ interface ViewerTabStoreActions {
     kind?: ViewerKind
     forceNew?: boolean
     navigationHint?: FileNavigationHint
+    reveal?: FileReveal
   }): string
 
   openBrowser(params: {
@@ -196,6 +207,8 @@ interface ViewerTabStoreActions {
   setActiveTab(threadId: string, tabId: string): void
 
   setWordWrap(threadId: string, tabId: string, wordWrap: boolean): void
+
+  clearPendingReveal(threadId: string, tabId: string, revision: number): void
 
   onThreadSwitched(newThreadId: string | null): void
 
@@ -273,21 +286,22 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     contentClass,
     sizeBytes,
     forceNew = false,
-    navigationHint
+    navigationHint,
+    reveal
   }) {
     const state = get()
     const threadState = state.getThreadState(threadId)
 
     const existing = forceNew
       ? undefined
-      : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && t.absolutePath === absolutePath)
+      : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && sameWorkspaceProjectKey(t.absolutePath, absolutePath))
     const activeFilesTab = !forceNew
       ? threadState.tabs.find((tab) => tab.id === threadState.activeTabId && tab.kind === 'files')
       : undefined
     if (existing && !forceNew) {
       const nextTabs = computeLabels(threadState.tabs.map((tab) => {
         if (tab.id !== existing.id || tab.kind !== 'file') return tab
-        return applyFileNavigationHint(tab, navigationHint)
+        return applyFileNavigationHint(tab, navigationHint, reveal)
       }).filter((tab) => tab.id !== activeFilesTab?.id))
       set((s) => {
         const next = new Map(s.byThread)
@@ -306,7 +320,8 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       contentClass,
       navigationRevision: 1,
       ...(sizeBytes !== undefined ? { sizeBytes } : {}),
-      ...(navigationHint ? { navigationHint: { ...navigationHint } } : {})
+      ...(navigationHint ? { navigationHint: { ...navigationHint } } : {}),
+      ...(reveal ? { pendingReveal: revealRequest(reveal) } : {})
     }
 
     const newTabs = computeLabels(activeFilesTab
@@ -593,6 +608,19 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     set((s) => {
       const next = new Map(s.byThread)
       next.set(threadId, { ...threadState, tabs: nextTabs })
+      return { byThread: next }
+    })
+  },
+
+  clearPendingReveal(threadId, tabId, revision) {
+    const threadState = get().getThreadState(threadId)
+    const current = threadState.tabs.find((tab): tab is FileViewerTab => tab.id === tabId && tab.kind === 'file')
+    if (current?.pendingReveal?.revision !== revision) return
+    const rest: FileViewerTab = { ...current }
+    delete rest.pendingReveal
+    set((s) => {
+      const next = new Map(s.byThread)
+      next.set(threadId, { ...threadState, tabs: threadState.tabs.map((tab) => (tab === current ? rest : tab)) })
       return { byThread: next }
     })
   },

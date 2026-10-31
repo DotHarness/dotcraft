@@ -4,6 +4,7 @@ import {
   listWorkspaceFiles,
   type FileListResultWire
 } from './workspaceComposerIpc'
+import { mimeForExtension } from './viewerMime'
 import type {
   ClassifyResult,
   DirEntryWire,
@@ -24,6 +25,12 @@ const IMAGE_EXTENSIONS = new Set([
 ])
 
 const PDF_EXTENSION = '.pdf'
+
+const SPREADSHEET_EXTENSIONS = new Set(['.xlsx', '.xlsm', '.csv', '.tsv'])
+
+const PRESENTATION_EXTENSIONS = new Set(['.pptx'])
+
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.m4v'])
 
 /** Well-known text / source extensions (non-exhaustive; fallback uses magic byte check). */
 const TEXT_EXTENSIONS = new Set([
@@ -79,26 +86,6 @@ function sniffMagicClass(header: Buffer): ViewerContentClass | null {
   return null
 }
 
-function extToMime(ext: string): string {
-  const map: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-    '.bmp': 'image/bmp',
-    '.ico': 'image/x-icon',
-    '.pdf': 'application/pdf',
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.json': 'application/json'
-  }
-  return map[ext] ?? 'application/octet-stream'
-}
-
 
 /** Both paths go through `fs.realpath` so symlinks and `..` cannot escape the root. */
 export async function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): Promise<boolean> {
@@ -131,19 +118,14 @@ export async function classifyFile(
   }
 
   const ext = path.extname(absolutePath).toLowerCase()
-  const sizeBytes = stat.size
+  const facts = { mime: mimeForExtension(ext), sizeBytes: stat.size, mtimeMs: stat.mtimeMs }
 
-  if (ext === PDF_EXTENSION) {
-    return { contentClass: 'pdf', mime: 'application/pdf', sizeBytes }
-  }
-
-  if (IMAGE_EXTENSIONS.has(ext)) {
-    return { contentClass: 'image', mime: extToMime(ext), sizeBytes }
-  }
-
-  if (TEXT_EXTENSIONS.has(ext)) {
-    return { contentClass: 'text', mime: extToMime(ext), sizeBytes }
-  }
+  if (ext === PDF_EXTENSION) return { contentClass: 'pdf', ...facts }
+  if (IMAGE_EXTENSIONS.has(ext)) return { contentClass: 'image', ...facts }
+  if (SPREADSHEET_EXTENSIONS.has(ext)) return { contentClass: 'spreadsheet', ...facts }
+  if (PRESENTATION_EXTENSIONS.has(ext)) return { contentClass: 'presentation', ...facts }
+  if (VIDEO_EXTENSIONS.has(ext)) return { contentClass: 'video', ...facts }
+  if (TEXT_EXTENSIONS.has(ext)) return { contentClass: 'text', ...facts }
 
   try {
     const fh = await fs.open(absolutePath, 'r')
@@ -152,9 +134,7 @@ export async function classifyFile(
     await fh.close()
     const buf = header.subarray(0, bytesRead)
     const sniffed = sniffMagicClass(buf)
-    if (sniffed) {
-      return { contentClass: sniffed, mime: extToMime(ext) || 'application/octet-stream', sizeBytes }
-    }
+    if (sniffed) return { contentClass: sniffed, ...facts }
 
     let likelyText = true
     for (let i = 0; i < buf.length; i++) {
@@ -164,14 +144,12 @@ export async function classifyFile(
         break
       }
     }
-    if (likelyText) {
-      return { contentClass: 'text', mime: 'text/plain', sizeBytes }
-    }
+    if (likelyText) return { contentClass: 'text', ...facts, mime: 'text/plain' }
   } catch {
     // If we can't read the header, fall through to unsupported
   }
 
-  return { contentClass: 'unsupported', mime: extToMime(ext) || 'application/octet-stream', sizeBytes }
+  return { contentClass: 'unsupported', ...facts }
 }
 
 

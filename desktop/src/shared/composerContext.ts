@@ -34,6 +34,28 @@ export type DiffAnnotationContext = ContextBase & {
   comment: string
 }
 
+export type FileAnnotationTargetKind = 'range' | 'object' | 'slide' | 'element'
+
+export type FileAnnotationLocation = {
+  sheet?: string
+  range?: string
+  rowCount?: number
+  columnCount?: number
+  slide?: number
+  elementId?: string
+}
+
+export type FileAnnotationContext = ContextBase & {
+  kind: 'fileAnnotation'
+  path: string
+  target: string
+  targetKind: FileAnnotationTargetKind
+  location: FileAnnotationLocation
+  comment: string
+}
+
+export type LineCommentContext = DiffAnnotationContext | FileAnnotationContext
+
 export type PageReferenceContext = ContextBase & {
   kind: 'pageReference'
   url: string
@@ -51,7 +73,7 @@ export type VisualizationChangesContext = ContextBase & {
   text: string
 }
 
-export type ComposerContextRecord = PastedTextContext | ResponseAnnotationContext | DiffAnnotationContext | PageReferenceContext | VisualizationChangesContext
+export type ComposerContextRecord = PastedTextContext | ResponseAnnotationContext | DiffAnnotationContext | FileAnnotationContext | PageReferenceContext | VisualizationChangesContext
 
 export type ThreadReferencesContext = ContextBase & {
   kind: 'threadReferences'

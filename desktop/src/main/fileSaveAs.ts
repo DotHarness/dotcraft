@@ -14,7 +14,22 @@ export async function saveFileAs(
   if (!(request?.data instanceof Uint8Array) || request.data.byteLength === 0) {
     throw new Error('File data is missing.')
   }
-  const name = sanitizeFileName(request.suggestedName)
+  const target = await chooseSavePath(sender, request.suggestedName)
+  if (!target) return { saved: false }
+  await fs.writeFile(target, Buffer.from(request.data))
+  return { saved: true }
+}
+
+/** `sourcePath` must already be resolved through the caller's access boundary. */
+export async function saveFileCopyAs(sender: WebContents, sourcePath: string): Promise<{ saved: boolean }> {
+  const target = await chooseSavePath(sender, path.basename(sourcePath))
+  if (!target) return { saved: false }
+  if (path.resolve(target) !== path.resolve(sourcePath)) await fs.copyFile(sourcePath, target)
+  return { saved: true }
+}
+
+async function chooseSavePath(sender: WebContents, suggestedName: string): Promise<string | null> {
+  const name = sanitizeFileName(suggestedName)
   const ext = path.extname(name).slice(1)
   const options: SaveDialogOptions = {
     defaultPath: path.join(app.getPath('downloads'), name),
@@ -24,9 +39,7 @@ export async function saveFileAs(
   const result = owner && !owner.isDestroyed()
     ? await dialog.showSaveDialog(owner, options)
     : await dialog.showSaveDialog(options)
-  if (result.canceled || !result.filePath) return { saved: false }
-  await fs.writeFile(result.filePath, Buffer.from(request.data))
-  return { saved: true }
+  return result.canceled || !result.filePath ? null : result.filePath
 }
 
 function sanitizeFileName(name: string): string {
