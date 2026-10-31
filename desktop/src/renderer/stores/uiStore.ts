@@ -8,6 +8,7 @@ import type { AppNavigationLocation } from './appNavigationStore'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { activeDetailScopeId } from '../utils/detailPanelScope'
+import type { ThreadTitleRequest } from '../utils/threadTitleGeneration'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import {
   AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
@@ -99,6 +100,7 @@ export interface PendingWelcomeTurnInput {
   files?: ComposerFileAttachment[]
   appIds?: string[]
   sentAsGoal?: boolean
+  title?: ThreadTitleRequest
 }
 
 /**
@@ -828,14 +830,15 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, appIds, sentAsGoal } = p
+      const { text, inputParts, images, files, appIds, sentAsGoal, title } = p
       return {
         text,
         inputParts,
         ...(images !== undefined ? { images } : {}),
         ...(files !== undefined ? { files } : {}),
         ...(appIds !== undefined ? { appIds } : {}),
-        ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
+        ...(sentAsGoal !== undefined ? { sentAsGoal } : {}),
+        ...(title !== undefined ? { title } : {})
       }
     }
     return null

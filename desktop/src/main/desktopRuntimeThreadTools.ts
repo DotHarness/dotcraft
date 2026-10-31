@@ -131,12 +131,14 @@ const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
 // Bound-tool state is connection-local; reconnecting gives AppServer a new callback target.
 let boundClient: AppServerRequestClient | null = null
 let boundThreadIds = new Set<string>()
+let helperThreadIds = new Set<string>()
 let visualizationBoundThreadIds = new Set<string>()
 let visualizationBindingPromises = new Map<string, Promise<void>>()
 
 export function resetDesktopThreadToolBindings(): void {
   boundClient = null
   boundThreadIds = new Set<string>()
+  helperThreadIds = new Set<string>()
   visualizationBoundThreadIds = new Set<string>()
   visualizationBindingPromises = new Map<string, Promise<void>>()
 }
@@ -343,6 +345,13 @@ export async function sendDesktopAppServerRequest<T = unknown>(
     if (threadId) {
       await ensureVisualizationThreadBound(client, threadId, options)
     }
+  }
+
+  if (method === 'thread/start' && isRecord(params) && params.ephemeral === true) {
+    const result = await client.sendRequest<T>(method, params, timeoutMs)
+    const threadId = extractThreadId(result)
+    if (threadId) helperThreadIds.add(threadId)
+    return result
   }
 
   const startsThread = method === 'thread/start' || method === 'worktree/createAndStart'
@@ -668,7 +677,7 @@ async function ensureDesktopThreadToolsBound(
   options: DesktopAppServerRequestOptions
 ): Promise<void> {
   trackClient(client)
-  if (boundThreadIds.has(threadId) || options.supportsDynamicToolRebind !== true) {
+  if (boundThreadIds.has(threadId) || helperThreadIds.has(threadId) || options.supportsDynamicToolRebind !== true) {
     return
   }
 
@@ -725,6 +734,7 @@ function trackClient(client: AppServerRequestClient): void {
   if (boundClient === client) return
   boundClient = client
   boundThreadIds = new Set<string>()
+  helperThreadIds = new Set<string>()
   visualizationBoundThreadIds = new Set<string>()
   visualizationBindingPromises = new Map<string, Promise<void>>()
 }

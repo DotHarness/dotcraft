@@ -5,7 +5,9 @@ import type { ConversationTurn } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { isLineCommentContext } from '../../shared/messageComments'
 import { buildComposerInputParts } from './composeInputParts'
+import { generateThreadTitle, threadTitleRequest, type ThreadTitleRequest } from './threadTitleGeneration'
 import { getFallbackThreadName } from './threadFallbackName'
 import { runtimeWorkspaceRootsFor } from './workspaceRuntimeRoots'
 
@@ -30,6 +32,7 @@ interface StartTurnParams {
   onScreen?: boolean
   /** Marks this submission as the one that established the thread goal (durable "sent as goal"). */
   sentAsGoal?: boolean
+  title?: ThreadTitleRequest
 }
 
 export interface OptimisticTurn {
@@ -37,6 +40,7 @@ export interface OptimisticTurn {
   clientUserMessageId: string
   inputParts: InputPart[]
   onScreen: boolean
+  title?: { request: ThreadTitleRequest; rename: boolean }
 }
 
 /** Echoes the submission; callers gating the RPC pass the result to `submitOptimisticTurn` later. */
@@ -54,24 +58,36 @@ export function echoOptimisticTurn({
   attachmentFallbackThreadName,
   renameThreadFromText = true,
   sentAsGoal = false,
-  onScreen = true
+  onScreen = true,
+  title: namedTitle
 }: StartTurnParams): OptimisticTurn | null {
   const built = providedInputParts ? null : buildComposerInputParts({ text, threadId, segments, files, images, contexts })
   const inputParts = providedInputParts ?? built!.inputParts
   const visibleText = built?.visibleText ?? text
   if (inputParts.length === 0) return null
 
-  if (renameThreadFromText) {
+  let title: OptimisticTurn['title']
+  if (namedTitle) {
+    title = { request: namedTitle, rename: false }
+  } else if (renameThreadFromText) {
     const threadEntry = useThreadStore.getState().threadList.find((t) => t.id === threadId)
     if (!threadEntry?.displayName) {
-      useThreadStore.getState().renameThread(threadId, getFallbackThreadName({
+      const fallbackName = getFallbackThreadName({
         visibleText,
         imagesCount: images.length,
         filesCount: files.length,
         fallbackThreadName,
         fileFallbackThreadName,
         attachmentFallbackThreadName
-      }))
+      })
+      const request = threadTitleRequest({
+        bodyText: built?.bodyText ?? text,
+        comments: contexts?.filter(isLineCommentContext),
+        visibleText,
+        referencesTitle: fallbackName
+      })
+      if (request) title = { request, rename: true }
+      useThreadStore.getState().renameThread(threadId, request?.provisionalTitle ?? fallbackName)
     }
   }
 
@@ -84,7 +100,7 @@ export function echoOptimisticTurn({
     startedAt: new Date().toISOString()
   }
   if (onScreen) useConversationStore.getState().addOptimisticTurn(optimisticTurn)
-  return { optimisticTurnId, clientUserMessageId, inputParts, onScreen }
+  return { optimisticTurnId, clientUserMessageId, inputParts, onScreen, title }
 }
 
 export async function submitOptimisticTurn(
@@ -103,6 +119,12 @@ export async function submitOptimisticTurn(
     // runtimeWorkspaceRoots is a complete replacement with no cwd retargeting, so
     // the thread's existing working directory is preserved.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    if (echo.title?.rename) {
+      await window.api.appServer.sendRequest('thread/rename', {
+        threadId,
+        displayName: echo.title.request.provisionalTitle
+      }).catch((error) => console.debug('[thread-title] provisional rename failed', { threadId, error }))
+    }
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
       input: echo.inputParts,
@@ -114,6 +136,7 @@ export async function submitOptimisticTurn(
     if (res.turn?.id && echo.onScreen) {
       useConversationStore.getState().promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
     }
+    if (echo.title) void generateThreadTitle(threadId, echo.title.request)
   } catch (err) {
     console.error('turn/start failed:', err)
     if (echo.onScreen) useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)

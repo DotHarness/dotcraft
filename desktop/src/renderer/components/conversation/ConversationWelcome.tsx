@@ -43,6 +43,8 @@ import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
 import { chatFolderThreadStart, startsInChatFolder } from '../../utils/chatFolderThreadStart'
 import { getFallbackThreadName } from '../../utils/threadFallbackName'
+import { threadTitleRequest } from '../../utils/threadTitleGeneration'
+import { isLineCommentContext } from '../../../shared/messageComments'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { startPendingWelcomeTurn } from '../../utils/startPendingWelcomeTurn'
@@ -897,7 +899,7 @@ function ConversationWelcomeCore({
     agentProfileId: selectedProfileId
   }), [modelName, providerId, reasoningConfig, selectedProfileId, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
-  const startWelcomeThread = useCallback(async (firstMessage: string): Promise<ThreadSummary> => {
+  const startWelcomeThread = useCallback(async (firstMessage: string, displayName?: string): Promise<ThreadSummary> => {
     const identity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
@@ -914,6 +916,7 @@ function ConversationWelcomeCore({
     // establishes them instead.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
+    const nameField = displayName ? { displayName } : {}
 
     const thread = welcomeWorkspaceMode === 'worktree' && !chatFolder
       ? await createWelcomeWorktreeThread({
@@ -924,14 +927,16 @@ function ConversationWelcomeCore({
             historyMode: 'server',
             baseRef: welcomeBaseRef || undefined,
             branchName: welcomeWorktreeBranchName || undefined,
-            config
+            config,
+            ...nameField
           },
-          localParams: { identity, historyMode: 'server', config, ...rootsField }
+          localParams: { identity, historyMode: 'server', config, ...rootsField, ...nameField }
         })
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
           historyMode: 'server',
           config,
+          ...nameField,
           ...(chatFolder ? { cwd: chatFolder.cwd } : rootsField)
         }) as unknown as { thread: ThreadSummary }).thread
 
@@ -995,7 +1000,8 @@ function ConversationWelcomeCore({
     const requestId = crypto.randomUUID()
 
     const preview = buildComposerInputParts({ text: trimmedObjective })
-    const threadName = welcomeThreadName(preview.visibleText, 0, 0)
+    const title = threadTitleRequest({ bodyText: preview.bodyText })
+    const threadName = title?.provisionalTitle ?? welcomeThreadName(preview.visibleText, 0, 0)
 
     let createdThreadId: string | null = null
     try {
@@ -1012,7 +1018,7 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread(trimmedObjective)
+      const thread = await startWelcomeThread(trimmedObjective, title?.provisionalTitle)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
 
@@ -1032,7 +1038,8 @@ function ConversationWelcomeCore({
         text: trimmedObjective,
         inputParts,
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
-        sentAsGoal: true
+        sentAsGoal: true,
+        ...(title ? { title } : {})
       })
       openOrDetachCreatedThread(thread.id)
       return true
@@ -1142,7 +1149,14 @@ function ConversationWelcomeCore({
       files: capturedFiles,
       images: capturedImages
     })
-    const threadName = welcomeThreadName(preview.visibleText, capturedImages.length, capturedFiles.length)
+    const fallbackName = welcomeThreadName(preview.visibleText, capturedImages.length, capturedFiles.length)
+    const title = threadTitleRequest({
+      bodyText: preview.bodyText,
+      comments: inputContexts.filter(isLineCommentContext),
+      visibleText: preview.visibleText,
+      referencesTitle: fallbackName
+    })
+    const threadName = title?.provisionalTitle ?? fallbackName
 
     let createdThreadId: string | null = null
     try {
@@ -1158,7 +1172,7 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread(preview.visibleText)
+      const thread = await startWelcomeThread(preview.visibleText, title?.provisionalTitle)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
@@ -1171,7 +1185,8 @@ function ConversationWelcomeCore({
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
         files: capturedFiles.length > 0 ? capturedFiles : undefined,
-        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {})
+        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
+        ...(title ? { title } : {})
       })
       addThread({ ...thread, displayName: thread.displayName || threadName })
       openOrDetachCreatedThread(thread.id)

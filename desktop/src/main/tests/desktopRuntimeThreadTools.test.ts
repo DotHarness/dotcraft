@@ -89,6 +89,25 @@ describe('desktop runtime thread tools', () => {
     expect(hasDesktopThreadTools('thread-other', { supportsDynamicToolRebind: true })).toBe(true)
   })
 
+  it('keeps Desktop thread tools off ephemeral helper threads, including their turns', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'helper-1' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      throw new Error(`unexpected ${method}`)
+    })
+    const params = { identity: { channelName: 'dotcraft-desktop' }, ephemeral: true, config: { mcpServers: [] } }
+
+    await sendDesktopAppServerRequest(client, 'thread/start', params)
+    await sendDesktopAppServerRequest(client, 'turn/start', {
+      threadId: 'helper-1',
+      input: [{ type: 'text', text: 'name this' }]
+    }, undefined, { supportsDynamicToolRebind: true })
+
+    const calls = vi.mocked(client.sendRequest).mock.calls
+    expect(calls.map((call) => call[0])).toEqual(['thread/start', 'turn/start'])
+    expect(calls[0][1]).toEqual(params)
+  })
+
   it('declares all Desktop thread tools as deferred', () => {
     const tools = buildDesktopThreadDynamicTools()
 
