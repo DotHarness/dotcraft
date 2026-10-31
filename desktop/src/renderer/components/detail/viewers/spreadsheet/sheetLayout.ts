@@ -142,6 +142,12 @@ export function toDisplayRange(layout: SheetLayout, range: CellRange): DisplayRa
   return { r1, r2, c1: Math.min(...columns), c2: Math.max(...columns) }
 }
 
+export function mapsBack(layout: SheetLayout, display: DisplayRange, range: CellRange): boolean {
+  const back = toDisplayRange(layout, range)
+  const expected = normalizeDisplay(display)
+  return back !== null && back.r1 === expected.r1 && back.r2 === expected.r2 && back.c1 === expected.c1 && back.c2 === expected.c2
+}
+
 export function rowHeaderWidth(rowCount: number): number {
   return Math.max(40, String(rowCount).length * 8 + 16)
 }

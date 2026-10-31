@@ -3,7 +3,7 @@ import type { FileAnnotationContext } from '../../../../../shared/composerContex
 import { parseRangeAddress, rangeAddress, type CellRange } from '../../../../../shared/viewer/spreadsheet'
 import { PreviewCommentAction, PreviewCommentCard, PreviewCommentMarker, useFileAnnotations } from '../PreviewComments'
 import type { GridOverlay } from './SheetGrid'
-import { toDisplayRange, type DisplayRange, type SheetLayout } from './sheetLayout'
+import { mapsBack, toDisplayRange, type DisplayRange, type SheetLayout } from './sheetLayout'
 import { rangeTarget } from './sheetSelection'
 
 function annotationRange(annotation: FileAnnotationContext): CellRange | null {
@@ -81,7 +81,7 @@ export function useSheetComments({
       )
     })
   }
-  if (showAction && selected && selectedRange && selectedTarget && !cardOpenForSelection) {
+  if (showAction && selected && selectedRange && selectedTarget && !cardOpenForSelection && mapsBack(layout, selected, selectedRange)) {
     overlays.push({
       key: 'action',
       range: selected,

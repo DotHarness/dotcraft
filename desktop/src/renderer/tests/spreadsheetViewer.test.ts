@@ -9,7 +9,7 @@ import {
 import { selectionClipboard } from '../components/detail/viewers/spreadsheet/sheetClipboard'
 import { applyView, columnValues, detectHeader, EMPTY_VIEW } from '../components/detail/viewers/spreadsheet/sheetFilter'
 import { findCells, nearestMatch, stepMatch } from '../components/detail/viewers/spreadsheet/sheetFind'
-import { baseRows, buildLayout, expandToMerges, toDisplayRange, toSheetRange } from '../components/detail/viewers/spreadsheet/sheetLayout'
+import { baseRows, buildLayout, expandToMerges, mapsBack, toDisplayRange, toSheetRange } from '../components/detail/viewers/spreadsheet/sheetLayout'
 import { addressLabel, moveSelection, rangeTarget } from '../components/detail/viewers/spreadsheet/sheetSelection'
 
 function sheetOf(rows: Array<Array<string | number | null>>, extra: Partial<SpreadsheetSheet> = {}): SpreadsheetSheet {
@@ -108,6 +108,15 @@ describe('filter and sort view', () => {
     expect(applyView(sales, header, { excluded: {}, sort: { column: 0, direction: 'asc' } }, rows)).toEqual([0, 3, 1, 2, 4])
     expect(columnValues(sales, header, rows, 0)).toEqual(['East', 'North', 'South'])
     expect(columnValues(sales, header, rows, 1)).toEqual(['4', '30', '200', ''])
+  })
+
+  it('offers a comment only when a sorted selection is one source range', () => {
+    const header = detectHeader(sales)!
+    const sorted = buildLayout(sales, applyView(sales, header, { excluded: {}, sort: { column: 1, direction: 'desc' } }, baseRows(sales)), true)
+    const scattered = { r1: 1, c1: 0, r2: 2, c2: 1 }
+    expect(mapsBack(sorted, scattered, toSheetRange(sorted, scattered))).toBe(false)
+    const single = { r1: 1, c1: 0, r2: 1, c2: 1 }
+    expect(mapsBack(sorted, single, toSheetRange(sorted, single))).toBe(true)
   })
 })
 
