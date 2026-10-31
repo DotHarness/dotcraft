@@ -193,7 +193,6 @@ export const MESSAGES_KO: Catalog = {
   'approval.type.remoteResource': '원격 리소스 작업',
   'approval.type.computerUse': '컴퓨터 사용',
   'decision.count': '{{count}} 중 {{index}}',
-  'decision.about': '{{option}} 설명',
   'decision.failed': '보내지 못했습니다. 다시 시도하세요.',
 
   'question.previous': '이전 질문',

@@ -193,7 +193,6 @@ export const MESSAGES_DE: Catalog = {
   'approval.type.remoteResource': 'Vorgang mit Remote-Ressource',
   'approval.type.computerUse': 'Computersteuerung',
   'decision.count': '{{index}} von {{count}}',
-  'decision.about': 'Über {{option}}',
   'decision.failed': 'Senden nicht möglich. Versuchen Sie es erneut.',
 
   'question.previous': 'Vorherige Frage',

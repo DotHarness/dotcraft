@@ -191,7 +191,6 @@ export const MESSAGES_EN = {
   'approval.type.remoteResource': 'Remote resource operation',
   'approval.type.computerUse': 'Computer use',
   'decision.count': '{{index}} of {{count}}',
-  'decision.about': 'About {{option}}',
   'decision.failed': 'Couldn’t send that. Try again.',
 
   'question.previous': 'Previous question',

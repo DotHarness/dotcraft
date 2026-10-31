@@ -389,6 +389,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   otherwise; Stop calls `turn/interrupt`.
 - The decision card shows one request at a time and counts the others waiting. Options are choice
   rows: tapping selects, tapping a selected row answers, and **Submit** answers with the selection.
+  An option's description shows under its label, since a phone has no hover to reveal it.
 - An approval shows its type, operation, target, and reason, with **Allow once**, **Allow for
   session**, and **Reject**, answering `item/approval/request` with `accept`, `acceptForSession`, or
   `decline`. The phone never offers `acceptAlways`; permanent grants belong on the computer. An

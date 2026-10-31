@@ -193,7 +193,6 @@ export const MESSAGES_JA: Catalog = {
   'approval.type.remoteResource': 'リモートリソース操作',
   'approval.type.computerUse': 'コンピューター操作',
   'decision.count': '{{index}}/{{count}}',
-  'decision.about': '{{option}} の説明',
   'decision.failed': '送信できませんでした。もう一度お試しください。',
 
   'question.previous': '前の質問',

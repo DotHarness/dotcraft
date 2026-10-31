@@ -45,9 +45,7 @@ function ChoiceRow({
   disabled: boolean
   onPress: () => void
 }) {
-  const { t } = useI18n()
   const { colors } = useTheme()
-  const [explained, setExplained] = useState(false)
   const about = description?.trim() ?? ''
   return (
     <Pressable
@@ -66,19 +64,8 @@ function ChoiceRow({
       <View style={styles.choiceLine}>
         <Text style={[type.meta, styles.number, { color: colors.textDimmed }]}>{`${index + 1}.`}</Text>
         <Txt style={styles.label}>{label}</Txt>
-        {about ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('decision.about', { option: label })}
-            accessibilityState={{ expanded: explained }}
-            hitSlop={8}
-            onPress={() => setExplained((value) => !value)}
-          >
-            <Icon name="circleAlert" size={14} color={colors.textDimmed} />
-          </Pressable>
-        ) : null}
       </View>
-      {explained ? (
+      {about ? (
         <Txt variant="meta" tone="secondary" style={styles.about}>
           {about}
         </Txt>

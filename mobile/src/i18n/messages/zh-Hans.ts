@@ -193,7 +193,6 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'approval.type.remoteResource': '远程资源操作',
   'approval.type.computerUse': '电脑操控',
   'decision.count': '第 {{index}} 个，共 {{count}} 个',
-  'decision.about': '{{option}} 的说明',
   'decision.failed': '无法发送，请重试。',
 
   'question.previous': '上一题',
