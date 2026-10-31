@@ -9,6 +9,7 @@ import {
 } from '../../stores/uiStore'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { ConversationTargetWidthContext } from '../../contexts/ConversationLayoutContext'
+import { prefersReducedMotion } from '../../utils/appearance'
 import { DragHandle } from './DragHandle'
 import { ResizeEdgeGlow } from './ResizeEdgeGlow'
 
@@ -96,6 +97,23 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
   const detailShellWidth = fullView
     ? Math.max(effectiveDetailPanelWidth, mainSurfaceWidth)
     : effectiveDetailPanelWidth
+  const [closingDetailWidth, setClosingDetailWidth] = useState<number | null>(null)
+  const openDetailWidthRef = useRef(detailShellWidth)
+  if (effectiveDetailPanelVisible) openDetailWidthRef.current = detailShellWidth
+  const shellTransition = resizingEdge === 'detail' || prefersReducedMotion()
+    ? 'none'
+    : `width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out, min-width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out`
+
+  useEffect(() => {
+    if (effectiveDetailPanelVisible || shellTransition === 'none') {
+      setClosingDetailWidth(null)
+      return
+    }
+    setClosingDetailWidth(openDetailWidthRef.current)
+    const timer = window.setTimeout(() => setClosingDetailWidth(null), DETAIL_PANEL_TRANSITION_MS)
+    return () => window.clearTimeout(timer)
+  }, [effectiveDetailPanelVisible])
+  const detailFrameWidth = effectiveDetailPanelVisible ? detailShellWidth : closingDetailWidth
 
   useEffect(() => {
     const element = mainSurfaceRef.current
@@ -270,10 +288,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             flexShrink: 0,
             position: 'relative',
             overflow: 'visible',
-            transition:
-              resizingEdge === 'detail'
-                ? 'none'
-                : `width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out, min-width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out`,
+            transition: shellTransition,
             background: 'transparent',
             display: 'flex',
             flexDirection: 'column'
@@ -281,17 +296,25 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         >
           <div
             data-testid="detail-panel-content-clip"
-            style={{
-              width: '100%',
-              flex: 1,
-              minWidth: 0,
-              minHeight: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
+            style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
           >
-            {effectiveDetailPanelVisible && detail}
+            {detailFrameWidth != null && (
+              <div
+                inert={!effectiveDetailPanelVisible}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  width: `${detailFrameWidth}px`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  contain: 'layout paint'
+                }}
+              >
+                {detail}
+              </div>
+            )}
           </div>
 
           {detailDividerVisible && (

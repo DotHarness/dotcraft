@@ -175,13 +175,10 @@ export function SummaryPanel({
 
   const plan = state.plan
   const planLabel = plan ? plan.title || t('summary.progressCount', { done: plan.done, total: plan.total }) : ''
-  const empty = !changes && !plan && state.subagents.length === 0 && state.automations.length === 0
-    && state.terminals.length === 0 && state.workflows.length === 0 && sources.length === 0 && !webSearch
 
   return (
     <div className="conversation-summary" data-variant={variant}>
       {header}
-      {empty ? <p className="conversation-summary__empty">{t('summary.empty')}</p> : null}
 
       {plan ? (
         <Section title={plan.title ? t('summary.plan') : t('summary.progress')}>
@@ -231,7 +228,13 @@ export function SummaryPanel({
       ) : null}
 
       <ContextSection services={services} threadId={threadId} />
-      <EnvironmentSection services={services} threadId={threadId} workspacePath={workspacePath} changes={changes} />
+      <EnvironmentSection
+        services={services}
+        threadId={threadId}
+        workspacePath={workspacePath}
+        roots={workspacePath ? services.workspaces.roots(workspacePath) : []}
+        changes={changes}
+      />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
-import { diffTotals, rolledBackTurns, toSummaryItem, type ChangeTotals, type SummaryItem } from './sources'
+import { diffTotals, rolledBackTurns, toSummaryItem, type FileChanges, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
 import { createTerminalFeed, type SummaryTerminal } from './terminalFeed'
 
@@ -38,7 +38,7 @@ export interface SummaryState {
   readonly automations: readonly SummaryAutomation[]
   readonly plan: SummaryPlan | null
   readonly items: readonly SummaryItem[]
-  readonly turnDiffs: ReadonlyMap<string, ChangeTotals>
+  readonly turnDiffs: ReadonlyMap<string, FileChanges>
   readonly terminals: readonly SummaryTerminal[]
 }
 
@@ -246,9 +246,9 @@ export function startSummaryFeed(
 
   const stopTurnDiff = services.appServer.onNotification('turn/diff/updated', (params) => {
     if (params.threadId !== threadId) return
-    const totals = diffTotals(params.diff ?? '')
+    const files = diffTotals(params.diff ?? '')
     const next = new Map(state.turnDiffs)
-    if (totals) next.set(params.turnId, totals)
+    if (files.size > 0) next.set(params.turnId, files)
     else next.delete(params.turnId)
     publish({ turnDiffs: next })
   })

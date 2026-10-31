@@ -11,9 +11,9 @@
   width: 300px;
   max-height: calc(100% - 24px);
   overflow-y: auto;
-  border: 1px solid var(--border-default);
   border-radius: 16px;
   background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
   pointer-events: auto;
   scrollbar-width: none;
   opacity: 1;
@@ -40,7 +40,6 @@
   z-index: var(--z-popover);
   box-sizing: border-box;
   overflow-y: auto;
-  border: 1px solid var(--border-default);
   border-radius: 16px;
   background: var(--bg-elevated);
   scrollbar-width: none;
@@ -68,15 +67,12 @@
   white-space: nowrap;
 }
 
-.conversation-summary-section,
-.conversation-summary__empty {
-  padding: 10px 0;
-  border-top: 1px solid var(--border-subtle);
+.conversation-summary-section {
+  padding: 6px 0;
 }
 
-.conversation-summary-section:last-child,
-.conversation-summary__empty {
-  padding-bottom: 12px;
+.conversation-summary-section:last-child {
+  padding-bottom: 14px;
 }
 
 .conversation-summary-section__title {
@@ -103,6 +99,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.conversation-summary-section__toggle {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.conversation-summary-section__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.conversation-summary-section__toggle[aria-expanded='true'] > .dc-disclosure-chevron {
+  opacity: 0;
+}
+
+.conversation-summary-section__toggle:hover > .dc-disclosure-chevron,
+.conversation-summary-section__toggle:focus-visible > .dc-disclosure-chevron {
+  opacity: 1;
 }
 
 .conversation-summary-section__actions {
@@ -278,13 +302,6 @@
   font-size: var(--type-hint-size);
   line-height: var(--type-hint-line-height);
   font-variant-numeric: tabular-nums;
-}
-
-.conversation-summary__empty {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line-height);
 }
 
 html[data-reduce-motion='on'] .conversation-summary-pinned {

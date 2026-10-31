@@ -4726,7 +4726,6 @@ export const MESSAGES_DE = {
   'summary.panelLabel': 'Übersicht',
   'summary.toggle': 'Übersicht ein- oder ausblenden',
   'summary.togglePinned': 'Übersicht anheften oder lösen',
-  'summary.empty': 'Noch nichts zusammenzufassen',
   'summary.changes': 'Änderungen',
   'summary.subagents': 'Subagenten',
   'summary.scheduled': 'Geplante Aufgaben',

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.9 |
+| **Version** | 0.9.10 |
 | **Status** | Living |
-| **Date** | 2026-10-29 |
+| **Date** | 2026-10-31 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -389,7 +389,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **Summary**
 
 - The thread header carries a Summary toggle beside the Detail Panel toggle. When the conversation leaves room beside its reading column, the Summary is a card pinned there; the toggle pins and unpins it, and the choice persists across restarts (pinned by default). Without room, the toggle opens the Summary as a popover under the button that closes on Escape or an outside click.
-- The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); its context window usage; and its environment: the changed-line totals (opens Changes) and the workspace's project actions. With nothing to show it says so.
+- The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); its context window usage; and its environment: the changed-line totals (opens Changes) and the workspace's project actions. A multi-folder project splits the totals by the project folder that contains each changed file. Sections with nothing to show are left out.
 - The Summary is Core content of the `conversation.aside.trailing` seat ([Desktop Extensions](../architecture/desktop-plugins.md)), so a Desktop extension can add to, wrap, or replace it there.
 
 **Tool rows**
@@ -722,7 +722,7 @@ A project can declare actions — named commands such as Run or Test — that ru
 
 - **Files.** Environment files, their discovery, and their format are defined in [Local Environments §4](../features/local-environments.md#4-environment-files).
 - **Subagents row.** The conversation Summary's Subagents row reads "n working" while any child works or waits, otherwise "n done" counting the finished children, and the whole row takes the secondary text colour once none is working; while some work and some have finished, the finished count follows as secondary text. Its avatars show the working children, otherwise the finished ones. The label changes in place without a transition.
-- **Environment section.** The conversation Summary has an Environment section: a Changes row once the conversation changed files (opening the Changes panel) and, in a local workspace, the primary action plus an actions menu ([Local Environments §7](../features/local-environments.md#7-conversation-environment-section)). The conversation environment and run order are remembered per project on this device ([Local Environments §5](../features/local-environments.md#5-selection)).
+- **Environment section.** The conversation Summary has an Environment section: a Changes row once the conversation changed files (opening the Changes panel) and, in a local workspace, the primary action plus an actions menu ([Local Environments §7](../features/local-environments.md#7-conversation-environment-section)). In a multi-folder project the section is titled with the primary folder and starts expanded, and each other folder the conversation changed follows as its own collapsed section with its own Changes row. The conversation environment and run order are remembered per project on this device ([Local Environments §5](../features/local-environments.md#5-selection)).
 - **Running.** Running an action opens or focuses the conversation's terminal tab for that environment and action, restarts its shell in the environment root inside the thread's execution workspace, and enters the command in that shell's syntax. The terminal owns the process.
 - **Adding.** Adding an action writes the whole environment file (creating `environment.json` in the workspace when none exists) and makes it the most recent action without running it. If the file changed on disk since the dialog opened, saving fails and nothing is written.
 

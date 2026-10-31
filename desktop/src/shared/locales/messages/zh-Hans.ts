@@ -4795,7 +4795,6 @@ export const MESSAGES_ZH_HANS = {
   'summary.panelLabel': '摘要',
   'summary.toggle': '切换摘要',
   'summary.togglePinned': '切换固定摘要',
-  'summary.empty': '暂时没有可摘要的内容',
   'summary.changes': '更改',
   'summary.subagents': '子智能体',
   'summary.scheduled': '定时任务',

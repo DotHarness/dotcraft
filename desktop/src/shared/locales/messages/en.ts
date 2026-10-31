@@ -4867,7 +4867,6 @@ export const MESSAGES_EN = {
   'summary.panelLabel': 'Summary',
   'summary.toggle': 'Toggle summary',
   'summary.togglePinned': 'Toggle pinned summary',
-  'summary.empty': 'Nothing to summarize yet',
   'summary.changes': 'Changes',
   'summary.subagents': 'Subagents',
   'summary.scheduled': 'Scheduled tasks',

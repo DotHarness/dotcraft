@@ -38,6 +38,7 @@ import { openActiveThreadFile, openAutomation, openExternalUrl, revealToolCall }
 import { compactThreadContext } from '../../../utils/manualCompaction'
 import { openSkill } from '../../../utils/openSkill'
 import { loadLocalImageDataUrl } from '../imagePreview/galleryImages'
+import { viewerRootsFor } from '../../../utils/viewerRoots'
 import {
   onThreadWorktreeEnvironmentChange,
   setThreadWorktreeEnvironment,
@@ -106,6 +107,7 @@ export interface SummaryServices {
   }
   readonly workspaces: {
     readImageAttachment(path: string): Promise<string>
+    roots(workspacePath: string): string[]
   }
   readonly ui: {
     showError(message: string): void
@@ -196,7 +198,8 @@ export const desktopSummaryServices: SummaryServices = {
         throw new Error('Image attachments are unavailable in a remote workspace.')
       }
       return loadLocalImageDataUrl(path)
-    }
+    },
+    roots: viewerRootsFor
   },
   ui: {
     showError: (message) => {

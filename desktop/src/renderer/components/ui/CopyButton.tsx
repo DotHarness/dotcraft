@@ -68,7 +68,7 @@ export function CopyButton({
         event.stopPropagation()
         void handleCopy()
       }}
-      style={copied ? { ...style, color: 'var(--success)' } : style}
+      style={copied ? { ...style, color: 'var(--text-primary)' } : style}
       icon={copied ? <Check size={iconSize} aria-hidden /> : <Copy size={iconSize} aria-hidden />}
     />
   )

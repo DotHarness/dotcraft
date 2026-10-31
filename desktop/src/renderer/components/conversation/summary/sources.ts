@@ -42,45 +42,60 @@ export interface ChangeTotals {
   readonly deletions: number
 }
 
+export type FileChanges = ReadonlyMap<string, ChangeTotals>
+
+function addTo(target: Map<string, ChangeTotals>, path: string, additions: number, deletions: number): void {
+  const current = target.get(path) ?? { additions: 0, deletions: 0 }
+  target.set(path, { additions: current.additions + additions, deletions: current.deletions + deletions })
+}
+
 export function changeTotals(
   items: readonly SummaryItem[],
-  turnDiffs: ReadonlyMap<string, ChangeTotals> = new Map()
-): ChangeTotals | null {
-  const turns = new Map<string, ChangeTotals>()
+  turnDiffs: ReadonlyMap<string, FileChanges> = new Map()
+): FileChanges | null {
+  const turns = new Map<string, Map<string, ChangeTotals>>()
   for (const item of items) {
     const content = item.type === 'toolResult' ? item.payload.structuredContent : null
     if (!isRecord(content) || content.kind !== 'fileChange' || !Array.isArray(content.changes)) continue
     for (const change of content.changes) {
       if (!isRecord(change)) continue
-      const current = turns.get(item.turnId) ?? { additions: 0, deletions: 0 }
-      turns.set(item.turnId, {
-        additions: current.additions + countOf(change.additions),
-        deletions: current.deletions + countOf(change.deletions)
-      })
+      const files = turns.get(item.turnId) ?? new Map<string, ChangeTotals>()
+      turns.set(item.turnId, files)
+      addTo(files, stringOf(change.path) ?? '', countOf(change.additions), countOf(change.deletions))
     }
   }
   if (turns.size === 0) return null
+  const totals = new Map<string, ChangeTotals>()
+  for (const [turnId, calls] of turns) {
+    for (const [path, change] of turnDiffs.get(turnId) ?? calls) addTo(totals, path, change.additions, change.deletions)
+  }
+  return totals
+}
+
+export function sumChanges(changes: Iterable<ChangeTotals>): ChangeTotals {
   let additions = 0
   let deletions = 0
-  for (const [turnId, calls] of turns) {
-    const totals = turnDiffs.get(turnId) ?? calls
-    additions += totals.additions
-    deletions += totals.deletions
+  for (const change of changes) {
+    additions += change.additions
+    deletions += change.deletions
   }
   return { additions, deletions }
 }
 
-export function diffTotals(diff: string): ChangeTotals | null {
-  let additions = 0
-  let deletions = 0
+export function diffTotals(diff: string): FileChanges {
+  const files = new Map<string, ChangeTotals>()
+  let path: string | null = null
   let inHunk = false
   for (const line of diff.split('\n')) {
-    if (line.startsWith('diff --git ')) inHunk = false
-    else if (line.startsWith('@@')) inHunk = true
-    else if (inHunk && line.startsWith('+')) additions += 1
-    else if (inHunk && line.startsWith('-')) deletions += 1
+    if (line.startsWith('diff --git ')) {
+      const marker = line.lastIndexOf(' b/')
+      path = marker >= 0 ? line.slice(marker + 3) : null
+      inHunk = false
+    } else if (line.startsWith('@@')) inHunk = true
+    else if (inHunk && path != null && line.startsWith('+')) addTo(files, path, 1, 0)
+    else if (inHunk && path != null && line.startsWith('-')) addTo(files, path, 0, 1)
   }
-  return additions > 0 || deletions > 0 ? { additions, deletions } : null
+  return files
 }
 
 export function extractSources(items: readonly SummaryItem[], workspacePath: string | null): Source[] {

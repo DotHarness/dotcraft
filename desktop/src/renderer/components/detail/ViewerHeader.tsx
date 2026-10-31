@@ -115,6 +115,13 @@ export function ViewerHeader({
       )}
 
       <div style={actionsStyle}>
+        <ViewerActionsMenu
+          absolutePath={absolutePath}
+          isText={isText}
+          wordWrap={wordWrap}
+          onToggleWordWrap={onToggleWordWrap}
+        />
+
         {markdownMode && onToggleMarkdownMode && (
           <IconButton
             size={28}
@@ -127,13 +134,6 @@ export function ViewerHeader({
               : <Eye size={16} aria-hidden style={{ display: 'block' }} />}
           />
         )}
-
-        <ViewerActionsMenu
-          absolutePath={absolutePath}
-          isText={isText}
-          wordWrap={wordWrap}
-          onToggleWordWrap={onToggleWordWrap}
-        />
 
         <OpenTargetButton
           targetPath={absolutePath}

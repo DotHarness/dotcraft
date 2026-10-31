@@ -1125,11 +1125,11 @@ function ProjectHeader({
           </span>
         ) : null}
       </div>
-      {menuPosition && (
-        <ContextMenu position={menuPosition} items={menuItems} onClose={() => setMenuPosition(null)} />
-      )}
     </div>
     </SidebarEntryDetailsCard>
+    {menuPosition && (
+      <ContextMenu position={menuPosition} items={menuItems} onClose={() => setMenuPosition(null)} />
+    )}
     {addProject.dialog}
     </>
   )

@@ -4727,7 +4727,6 @@ export const MESSAGES_FR = {
   'summary.panelLabel': 'Résumé',
   'summary.toggle': 'Afficher ou masquer le résumé',
   'summary.togglePinned': 'Épingler ou détacher le résumé',
-  'summary.empty': 'Rien à résumer pour l’instant',
   'summary.changes': 'Changements',
   'summary.subagents': 'Sous-agents',
   'summary.scheduled': 'Tâches planifiées',

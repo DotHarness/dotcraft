@@ -4727,7 +4727,6 @@ export const MESSAGES_ES = {
   'summary.panelLabel': 'Resumen',
   'summary.toggle': 'Mostrar u ocultar el resumen',
   'summary.togglePinned': 'Fijar o soltar el resumen',
-  'summary.empty': 'Aún no hay nada que resumir',
   'summary.changes': 'Cambios',
   'summary.subagents': 'Subagentes',
   'summary.scheduled': 'Tareas programadas',

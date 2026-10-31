@@ -1,4 +1,5 @@
-import type { JSX, ReactNode } from 'react'
+import { useState, type JSX, type ReactNode } from 'react'
+import { DisclosureChevron } from '../../ui/DisclosureChevron'
 
 export const GLYPH = { size: 16, strokeWidth: 1.75 } as const
 
@@ -78,6 +79,37 @@ export function Section({
         </div>
       ) : heading}
       <ul className="conversation-summary-rows">{children}</ul>
+    </section>
+  )
+}
+
+export function CollapsibleSection({
+  title,
+  actions,
+  defaultExpanded,
+  children
+}: {
+  title: string
+  actions?: ReactNode
+  defaultExpanded: boolean
+  children: ReactNode
+}): JSX.Element {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  return (
+    <section className="conversation-summary-section" aria-label={title}>
+      <div className="conversation-summary-section__header">
+        <button
+          type="button"
+          className="conversation-summary-section__toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <h3 className="conversation-summary-section__title">{title}</h3>
+          <DisclosureChevron expanded={expanded} />
+        </button>
+        {actions ? <div className="conversation-summary-section__actions">{actions}</div> : null}
+      </div>
+      {expanded ? <ul className="conversation-summary-rows">{children}</ul> : null}
     </section>
   )
 }

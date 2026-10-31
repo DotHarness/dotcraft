@@ -4726,7 +4726,6 @@ export const MESSAGES_JA = {
   'summary.panelLabel': 'サマリー',
   'summary.toggle': 'サマリーを切り替え',
   'summary.togglePinned': 'サマリーの固定を切り替え',
-  'summary.empty': 'まだまとめる内容がありません',
   'summary.changes': '変更点',
   'summary.subagents': 'サブエージェント',
   'summary.scheduled': 'スケジュール済みタスク',

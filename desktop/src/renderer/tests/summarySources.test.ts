@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, workflowCallIds, type SummaryItem } from '../components/conversation/summary/sources'
+import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, sumChanges, toSummaryItem, workflowCallIds, type SummaryItem } from '../components/conversation/summary/sources'
+import { changesByFolder } from '../components/conversation/summary/folderChanges'
 
 let counter = 0
 
@@ -129,14 +130,17 @@ describe('Summary changes', () => {
   const edit = (callId: string, changes: unknown[]): SummaryItem =>
     item('toolResult', { callId, toolName: 'EditFile', structuredContent: { kind: 'fileChange', changes } })
 
-  it('totals the changed lines of every file change in the thread', () => {
+  it('totals the changed lines of every file change in the thread per file', () => {
     expect(changeTotals([
       edit('c1', [{ path: 'a.ts', kind: 'update', additions: 4, deletions: 1 }]),
       call('c2', 'ReadFile', { path: 'a.ts' }),
       result('c2', 'ReadFile', 'x'),
       edit('c3', [{ path: 'a.ts', kind: 'update', additions: 2, deletions: 3 }]),
       edit('c4', [{ path: 'b.ts', kind: 'add', additions: 10, deletions: 0 }])
-    ])).toEqual({ additions: 16, deletions: 4 })
+    ])).toEqual(new Map([
+      ['a.ts', { additions: 6, deletions: 4 }],
+      ['b.ts', { additions: 10, deletions: 0 }]
+    ]))
     expect(changeTotals([call('c1', 'ReadFile', { path: 'a.ts' }), result('c1', 'ReadFile', 'x')])).toBeNull()
     expect(changeTotals([edit('c2', [])])).toBeNull()
   })
@@ -147,17 +151,36 @@ describe('Summary changes', () => {
       toolName: 'EditFile',
       structuredContent: { kind: 'fileChange', changes: [{ path: 'b.ts', kind: 'update', additions: 2, deletions: 0 }] }
     }, 'turn-2')
-    expect(changeTotals([
+    const totals = changeTotals([
       edit('c1', [{ path: 'notes.md', kind: 'add', additions: 5, deletions: 0 }]),
       edit('c2', [{ path: 'notes.md', kind: 'update', additions: 1, deletions: 1 }]),
       later
-    ], new Map([['turn-1', { additions: 5, deletions: 0 }]]))).toEqual({ additions: 7, deletions: 0 })
+    ], new Map([['turn-1', new Map([['notes.md', { additions: 5, deletions: 0 }]])]]))
+    expect(sumChanges(totals!.values())).toEqual({ additions: 7, deletions: 0 })
   })
 
-  it('counts added and removed lines inside diff hunks only', () => {
-    const diff = ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -1,2 +1,3 @@', ' keep', '-old', '+new', '+more'].join('\n')
-    expect(diffTotals(diff)).toEqual({ additions: 2, deletions: 1 })
-    expect(diffTotals('')).toBeNull()
+  it('counts added and removed lines inside diff hunks only, per file', () => {
+    const diff = [
+      'diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -1,2 +1,3 @@', ' keep', '-old', '+new', '+more',
+      'diff --git a/D:/other/b.md b/D:/other/b.md', '--- /dev/null', '+++ b/D:/other/b.md', '@@ -0,0 +1 @@', '+hello'
+    ].join('\n')
+    expect(diffTotals(diff)).toEqual(new Map([
+      ['a.ts', { additions: 2, deletions: 1 }],
+      ['D:/other/b.md', { additions: 1, deletions: 0 }]
+    ]))
+    expect(diffTotals('').size).toBe(0)
+  })
+
+  it('groups changes under the project folder that contains them', () => {
+    const changes = new Map([
+      ['src/a.ts', { additions: 3, deletions: 1 }],
+      ['D:/docs/page.tsx', { additions: 2, deletions: 0 }],
+      ['D:\\docs\\style.css', { additions: 1, deletions: 4 }]
+    ])
+    expect(changesByFolder(changes, 'D:/app', ['D:/app', 'D:/docs'])).toEqual(new Map([
+      ['D:/app', { additions: 3, deletions: 1 }],
+      ['D:/docs', { additions: 3, deletions: 4 }]
+    ]))
   })
 })
 

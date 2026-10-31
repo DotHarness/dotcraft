@@ -22,9 +22,11 @@ import { useT } from '../../../contexts/LocaleContext'
 import { DesktopPluginMenu as Menu } from '../../desktopPlugins/DesktopPluginMenu'
 import { IconButton } from '../../ui/IconButton'
 import { EnvironmentSetupTip } from './EnvironmentSetupTip'
-import type { ChangeTotals } from './sources'
+import { rootLabel } from '../../../utils/viewerRoots'
+import { changesByFolder } from './folderChanges'
+import { sumChanges, type ChangeTotals, type FileChanges } from './sources'
 import type { SummaryServices } from './summaryServices'
-import { GLYPH, Row, Section } from './SummaryRows'
+import { CollapsibleSection, GLYPH, Row, Section } from './SummaryRows'
 import { sameEnvironmentPath, type ThreadWorktreeEnvironment } from './worktreeEnvironment'
 
 const ACTION_GLYPHS: Record<DesktopPluginProjectActionIcon, typeof Play> = {
@@ -107,20 +109,48 @@ function ChangesRow({ services, changes }: {
   )
 }
 
-export function EnvironmentSection({ services, threadId, workspacePath, changes }: {
+export function EnvironmentSection({ services, threadId, workspacePath, roots, changes }: {
   services: SummaryServices
   threadId: string
   workspacePath: string | null
-  changes: ChangeTotals | null
+  roots: readonly string[]
+  changes: FileChanges | null
 }): JSX.Element | null {
   const t = useT()
   const snapshot = useProjectActions(services, workspacePath)
   const worktree = useThreadWorktreeEnvironment(services, threadId)
   const agentSetupAvailable = useAgentSetupAvailable(services, threadId)
   const tipDismissed = useSetupTipDismissed(services)
-  const changesRow = changes ? <ChangesRow services={services} changes={changes} /> : null
+  const multiFolder = workspacePath != null && roots.length > 1
+  const folders = multiFolder && changes ? changesByFolder(changes, workspacePath, roots) : null
+  const primaryChanges = folders ? folders.get(roots[0]) : changes ? sumChanges(changes.values()) : undefined
+  const changesRow = primaryChanges ? <ChangesRow services={services} changes={primaryChanges} /> : null
+  const folderSections = folders
+    ? roots.slice(1).flatMap((root) => {
+        const totals = folders.get(root)
+        return totals
+          ? [(
+              <CollapsibleSection key={root} title={rootLabel(root)} defaultExpanded={false}>
+                <ChangesRow services={services} changes={totals} />
+              </CollapsibleSection>
+            )]
+          : []
+      })
+    : []
+  const environment = (actions: JSX.Element | undefined, children: JSX.Element | null) => (
+    <>
+      {multiFolder ? (
+        <CollapsibleSection title={rootLabel(roots[0])} actions={actions} defaultExpanded>
+          {children}
+        </CollapsibleSection>
+      ) : (
+        <Section title={t('summary.environment')} actions={actions}>{children}</Section>
+      )}
+      {folderSections}
+    </>
+  )
   if (!snapshot || !workspacePath) {
-    return changesRow ? <Section title={t('summary.environment')}>{changesRow}</Section> : null
+    return changesRow || folderSections.length > 0 ? environment(undefined, changesRow) : null
   }
 
   const { environments } = snapshot
@@ -222,10 +252,5 @@ export function EnvironmentSection({ services, threadId, workspacePath, changes 
     <EnvironmentSetupTip items={createEntries} onDismiss={services.environmentSetup.dismissTip} />
   ) : null
 
-  return (
-    <Section title={t('summary.environment')} actions={actions}>
-      {changesRow}
-      {tip}
-    </Section>
-  )
+  return environment(actions, <>{changesRow}{tip}</>)
 }

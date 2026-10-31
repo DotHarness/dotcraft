@@ -1,5 +1,5 @@
 ---
-version: "0.9.9"
+version: "0.9.10"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -526,6 +526,15 @@ and icon position and grows only in width (over `--duration-expand` on
 neighbor. The in-browser Annotate control is the reference case. Ordinary toggles
 stay icon-only and show their pressed state with the neutral `active` tone.
 
+### Panel reveal
+
+A shell panel opens and closes by animating its width only. Its content is laid
+out once at the panel's final width, anchored to the panel's inner edge and
+clipped by the moving shell, so it reads as one card sliding in and its text never
+re-wraps mid-animation. Closing keeps the content mounted and inert until the
+shell has closed. Drag-resizing follows the pointer with no transition, and
+reduced motion snaps.
+
 ### Sidebar selection
 
 The current sidebar destination looks the same in the expanded rows and the
@@ -734,8 +743,8 @@ Recurring icon actions are single shared components, so every surface draws them
 the same way:
 
 - **Copy** is frameless on every surface, including error blocks and diagram
-  toolbars. It confirms in place by swapping to a `--success` check and
-  relabelling its tooltip, with no toast. A labelled copy action (Copy link in a
+  toolbars. It confirms in place by swapping to a neutral check that lifts to
+  `--text-primary` and relabelling its tooltip, with no toast and no status hue. A labelled copy action (Copy link in a
   dialog) is an ordinary button.
 - **Dialog close** is a `30px` borderless button with a `16px` X and neutral hover
   feedback, top-right, aligned with the header badge row. A dialog may place it
@@ -1771,16 +1780,22 @@ Content beside the conversation stays quieter than the conversation itself.
 - **Header toggle.** A side panel's header toggle is a standard toolbar icon
   button with the header's size, gap, and pressed treatment. Its glyph never
   echoes the panel toggles or the overflow menu.
-- **Summary card.** One self-contained card on `--bg-elevated` with a `1px`
-  default border, a 16px radius, and 20px horizontal padding. Pinned, it aligns to
-  the stream's trailing edge, 16px in, with no shadow; the popover form adds
-  `--shadow-lg`. A section title is secondary-size muted text with no count;
-  sections separate with a hairline. Rows are single-line at UI size with a 16px
+- **Summary card.** One self-contained, borderless card on `--bg-elevated` with a
+  16px radius and 20px horizontal padding, lifted by surface and shadow:
+  `--shadow-md` pinned, where it aligns to the stream's trailing edge 16px in, and
+  `--shadow-lg` as a popover. A section title is secondary-size muted text with no
+  count; sections separate by space alone, with no rule between them, and the
+  card's header carries no rule either. Rows are single-line at UI size with a 16px
   leading glyph and no trailing meta (except line totals, `+N` in `--success` and
   `-M` in `--error`, tabular, zero side omitted); a trailing row action stays hidden
   until hover or focus and is a sibling of the row's own button, never inside it.
-  The card is its own scroll container, so its border and radius stay whole while
-  it scrolls; it scrolls by wheel or trackpad with no visible scrollbar.
+  The card is its own scroll container, so its radius stays whole while it
+  scrolls; it scrolls by wheel or trackpad with no visible scrollbar.
+- **Summary folder sections.** A multi-folder project's Summary sections are
+  titled with the folder name. The title is the section's toggle and keeps its
+  muted colour; its chevron follows the title, shows while the section is
+  collapsed, and while expanded appears only on hover or keyboard focus of the
+  title.
 - **Summary context.** The Context section is one row with no leading glyph (the
   composer ring already shows usage): "n% used", and used / window tokens as meta
   with a reveal chevron. Open, it shows an 8px segmented bar and one flat legend at
@@ -1819,6 +1834,9 @@ Content beside the conversation stays quieter than the conversation itself.
   header switches between source and preview with one icon button that shows the
   mode it switches to (code for source, eye for preview) rather than a pressed
   state, and each mode keeps its own selection and scroll.
+- A file viewer header orders its actions overflow menu, view-mode toggle, Open,
+  explorer toggle: the view-mode toggle sits beside Open as the file's own
+  control, and the explorer toggle closes the row as the panel control.
 - File-link navigation marks the target with a restrained full-line background and
   gutter marker from `--bg-navigation` and `--border-navigation`, distinct from
   selection, the active line, and search matches, preserving syntax colours. It

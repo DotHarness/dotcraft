@@ -4726,7 +4726,6 @@ export const MESSAGES_KO = {
   'summary.panelLabel': '요약',
   'summary.toggle': '요약 전환',
   'summary.togglePinned': '고정 요약 전환',
-  'summary.empty': '아직 요약할 내용이 없습니다',
   'summary.changes': '변경 사항',
   'summary.subagents': '하위 에이전트',
   'summary.scheduled': '예약된 작업',
