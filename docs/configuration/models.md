@@ -208,6 +208,11 @@ used as its lowercase key. If a provider serves a different limit, set an overri
 workspace catalog. More-specific keys win over family prefixes, so a concrete model can safely carry
 a different window from its family.
 
+Existing entries also include official provider base prices when models.dev publishes an
+unambiguous match. `pricingProvider` identifies the provider, and `pricing` stores USD rates per
+million input, output, cache-read and cache-write tokens. These are baseline rates for estimates,
+with context tiers and alternate service modes outside this table. Missing prices remain unspecified.
+
 Model context capacity comes directly from the merged catalog. Unknown models use
 `defaultContextWindow`, falling back to 256,000 tokens. Summary reserves and safety buffers
 are applied by compaction after the optional client budget.

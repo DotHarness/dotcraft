@@ -49,6 +49,13 @@ and retain their upstream IDs, limits, protocols, reasoning options and prices w
 generic prefix matching. Agents owns the shared resource so provider integrations and Core can
 consume it without reversing assembly dependencies.
 
+Existing generic entries may also carry `pricing` and `pricingProvider`: the first-party provider's
+base USD rates per million input, output, cache-read and cache-write tokens. These use the same
+`ModelPricing` shape as provider records. Generation reads models.dev's provider catalog, matches
+canonical or native model IDs exactly after local version normalization, and excludes relay prices.
+Ambiguous or absent prices stay unspecified. Root `pricingSource` and `pricingCapturedAt` describe
+this baseline snapshot. These base rates do not include context tiers or alternate service modes.
+
 An entry may also declare `maxInputTokens` when the model accepts less input than its context window
 because output tokens are reserved inside it. The built-in value comes from the model's first-party
 provider entry on models.dev; input caps that only a gateway applies are not synchronized.

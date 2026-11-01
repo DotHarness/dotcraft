@@ -9,6 +9,8 @@ internal sealed class BuiltInModelCatalog
     internal static BuiltInModelCatalog Instance { get; } = Load();
 
     public int DefaultContextWindow { get; init; } = 256_000;
+    public string? PricingSource { get; init; }
+    public DateTimeOffset? PricingCapturedAt { get; init; }
     public Dictionary<string, ModelDefaults> Models { get; init; } = [];
     public Dictionary<string, ProviderCatalog> Providers { get; init; } = [];
 
@@ -26,6 +28,8 @@ internal sealed class BuiltInModelCatalog
         private FastCapability? _fast;
         public int? ContextWindow { get; init; }
         public int? MaxInputTokens { get; init; }
+        public string? PricingProvider { get; init; }
+        public ModelPricing? Pricing { get; init; }
         public FastCapability? Fast
         {
             get => _fast;

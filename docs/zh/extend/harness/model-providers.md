@@ -100,8 +100,10 @@ backend 在 Core 选择协议相关行为前解析模型记录。模型列表、
 `BackendSettings` 接受 `order`、`only`、`ignore`、`sort`、`allow_fallbacks` 和 `require_parameters`。
 
 OpenRouter 记录从官方 `/models` API 生成，转换为运行时共用的模型格式后合入统一的内置
-`models.json`。在仓库根目录运行 `dotnet run scripts/update-model-catalog.cs` 可以更新这一部分，
-并保留通用模型默认值。运行时刷新通过 `/models/user` 按 key 过滤目录。路由与持久化保留原始模型 ID。
+`models.json`。在仓库根目录运行 `dotnet run scripts/update-model-catalog.cs` 可以更新 OpenRouter
+记录和现有通用模型的官方基准价，上下文与 Fast 默认值保持不变。追加 `-- --pricing-only`
+可仅更新基准价。生成器输出带缩进的展开 JSON。运行时刷新通过 `/models/user` 按 key 过滤
+OpenRouter 目录。路由与持久化保留原始模型 ID。
 
 ## 使用兼容端点
 
