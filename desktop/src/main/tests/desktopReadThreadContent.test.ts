@@ -100,6 +100,26 @@ describe('Desktop history safe content', () => {
     } })
   })
 
+  it('reads saved message content when native input contains only a display label', async () => {
+    const displayText = 'Message notification'
+    const messageText = 'Saved message body 😀'.repeat(500)
+    const { client } = historyClient([{ id: 'turn-1', items: [item('message', 'userMessage', {
+      text: displayText,
+      nativeInputParts: [{ type: 'text', text: displayText }],
+      materializedInputParts: [{ type: 'text', text: messageText }]
+    })] }])
+
+    const { data } = await callHistory(client, 'ReadThreadItem', {
+      threadId: 'thread-1', turnId: 'turn-1', itemId: 'message'
+    })
+
+    expect(data.item).toMatchObject({
+      text: displayText,
+      content: [{ type: 'text', text: messageText }],
+      truncation: { preview: false, outputs: false }
+    })
+  })
+
   it('reads exactly one ID with complete text, arguments, context and outputs without preview limits', async () => {
     const long = 'full text 😀'.repeat(5_000)
     const values = [

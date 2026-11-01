@@ -50,6 +50,7 @@ ListThreadItems takes `threadId/turnId`, optional `cursor`, `limit` (default 20,
 ### Preview and complete values
 
 - Summary results carry `itemsView/itemCount`; page and text truncation states remain separate.
+- User-message retrieval prefers non-empty `materializedInputParts`, falling back to `nativeInputParts`. Display labels do not replace the materialized message body.
 - Body and materialized input context share the Item's character allowance. Identical body text is not repeated in multiple fields.
 - Large arguments, errors and context fields cannot bypass preview limits. Shortened non-text values are explicit preview fields, never partial JSON presented as complete arguments.
 - Message body previews retain `text: string` and add `textTruncated` and `textOriginalChars` when shortened. Other preview fields identify truncation and original size. Identity fields remain intact. Media is represented by references, not inline binary.

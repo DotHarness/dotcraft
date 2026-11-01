@@ -122,8 +122,7 @@ export function projectReadThreadItem(item: JsonObject, options?: HistoryPreview
       if (typeof payload.text === 'string' && payload.text.length > 0) write('text', payload.text)
       const native = Array.isArray(payload.nativeInputParts) ? payload.nativeInputParts.filter(isRecord) : []
       const materialized = Array.isArray(payload.materializedInputParts) ? payload.materializedInputParts.filter(isRecord) : []
-      const hasContext = native.some(part => part.type === 'contextRef')
-      const parts = materialized.length > 0 && hasContext ? materialized : native.length > 0 ? native : materialized
+      const parts = materialized.length > 0 ? materialized : native
       const seen = new Set(typeof payload.text === 'string' && payload.text ? [payload.text] : [])
       const texts = parts.filter(part => part.type === 'text').map(part => part.text)
       const bodyOnly = payload.text && (texts.join('') === payload.text || texts.join('\n') === payload.text)
