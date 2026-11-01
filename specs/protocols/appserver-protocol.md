@@ -406,6 +406,14 @@ Search conversations of the server workspace's threads.
 
 The candidate set is what `thread/list` with `scope = "workspace"` finds, never including SubAgent or internal threads. A thread matches when a user or agent message contains the term as a case-insensitive fixed string. `snippet` is a whitespace-collapsed excerpt around the first match, with ellipses where it is cut.
 
+### 4.3.3 `thread/searchOccurrences`
+
+Search visible user and assistant message text within one thread. Params: `threadId`, `searchTerm` (trimmed, non-empty), optional `cursor` and `limit` (default 20, 1–100).
+
+Result: `{ data: [{ turnId, itemId, snippet, snippetMatchRange: { start, end }, turnCursor }], nextCursor }`. Matches are case-insensitive literal substrings ordered by persisted Item position and non-overlapping match position. Ranges are UTF-16 offsets within the snippet. The inclusive `turnCursor` is valid with either direction of `thread/turns/list`. Search continuation is bound to the thread and exact trimmed query; malformed or mismatched cursors return `InvalidParams`.
+
+Search uses current visible projected history, excluding tool Items, reasoning and provider-native records. It does not load execution state. See [Thread Context Retrieval](../features/thread-context-retrieval.md).
+
 ### 4.4 `thread/read`
 
 Read the current Thread header without resuming it. Params: `threadId`. Result: `{ thread }`.
@@ -437,6 +445,12 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 - Fork, rollback, archive, unarchive, and worktree-fork results carry only Thread headers; clients invalidate affected cursors and reload pages.
 - For a thread not loaded in the process, a persisted Turn still `running`, `waitingApproval`, or `waitingInput` has no execution owner: `thread/read` and history pages report it as `cancelled` and `runtime` as idle. Storage changes only when the thread is next loaded (cold-load recovery, Section 4.2).
 - Ephemeral threads return `Unsupported`. If a consistent projection cannot be produced, the methods return `ThreadHistoryUnavailable`; there is no full-history fallback.
+
+### 4.4.4 `thread/items/read`
+
+Read specific persisted Items without loading or resuming the thread. Params: `threadId`, `turnId`, `itemIds` (1–100). Result: `{ data: [{ turnId, item }] }`, using the same connection-scoped filtering and presentation as `thread/items/list`.
+
+Items appear in stored order. Duplicate IDs do not duplicate results; missing IDs are omitted. The history visibility, projection repair and unsupported-history rules in Section 4.4.3 apply.
 
 ### 4.5 `thread/rollback`
 

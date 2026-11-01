@@ -1,131 +1,78 @@
 import { describe, expect, it } from 'vitest'
-import { historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
+import { callHistory, clientFor, historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
 
-describe('ReadThread content projection', () => {
-  it('preserves the saved materialized input for every context kind', async () => {
-    const contexts = [
-      { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
-      { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
-      { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
-      { kind: 'threadReferences', text: 'referenced thread snapshot' }
-    ]
-    for (const context of contexts) {
-      const snapshot = `Saved context snapshot: ${JSON.stringify(context)}\n${'context text '.repeat(2_000)}`
-      const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-        text: '',
-        nativeInputParts: [
-          { type: 'text', text: 'question' },
-          { type: 'contextRef', context: { id: 'context-1', ...context } }
-        ],
-        materializedInputParts: [
-          { type: 'text', text: 'question' },
-          { type: 'text', text: snapshot },
-          { type: 'localImage', path: 'evidence.png', mimeType: 'image/png' }
-        ]
-      })] }])
-      const { data } = await read(client, { threadId: 'thread-1', includeOutputs: false, maxOutputCharsPerItem: 0 })
-      const content = data.turns[0].items[0].content
-      expect(content.filter((part: RecordValue) => part.type === 'text').map((part: RecordValue) => part.text))
-        .toEqual(['question', snapshot])
-      expect(content.find((part: RecordValue) => part.type === 'localImage')).toMatchObject({ path: 'evidence.png' })
-    }
-  })
-
-  it('preserves native context data when no materialized snapshot exists, excluding inline media', async () => {
-    const context = {
-      id: 'context-1', kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region',
-      text: 'selected page text', comment: 'explain',
-      image: { tempPath: 'evidence.png', fileName: 'evidence.png', mimeType: 'image/png', dataUrl: 'DATA:image/png;base64,BINARY' }
-    }
+describe('Desktop history safe content', () => {
+  it('shares the preview allowance across user body and saved context without repeating the body', async () => {
+    const body = 'question'
+    const snapshot = 'context '.repeat(1_000)
     const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-      text: '', nativeInputParts: [{ type: 'contextRef', context }]
+      text: body,
+      nativeInputParts: [{ type: 'text', text: body }, { type: 'contextRef', context: { text: 'native reference' } }],
+      materializedInputParts: [{ type: 'text', text: body }, { type: 'text', text: snapshot }]
     })] }])
-    const { data } = await read(client)
-    expect(data.turns[0].items[0].content[0]).toEqual({
-      type: 'contextRef', context: { ...context, image: { tempPath: 'evidence.png', fileName: 'evidence.png', mimeType: 'image/png' } }
-    })
-    expect(JSON.stringify(data)).not.toContain('BINARY')
+    const { response, data } = await read(client, { threadId: 'thread-1', maxCharsPerItem: 80 })
+    const projected = data.turns[0].items[0]
+    expect(projected.text).toBe(body)
+    expect(projected.content).toBeUndefined()
+    expect(projected.contentPreview).toMatchObject({ truncated: true, originalChars: JSON.stringify([{ type: 'text', text: snapshot }]).length })
+    expect(projected.text.length + projected.contentPreview.text.length).toBe(80)
+    expect(projected.truncation).toEqual({ preview: true, outputs: false })
+    expect(JSON.stringify(data).split(body)).toHaveLength(2)
+    expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
   })
 
-  it('omits inline image URLs from native and materialized input regardless of scheme case', async () => {
-    for (const scheme of ['data:', 'DATA:', 'DaTa:']) for (const materialized of [false, true]) {
-      const image = { type: 'image', url: `${scheme}image/png;base64,BINARY` }
-      const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-        nativeInputParts: materialized ? [{ type: 'contextRef', context: { id: 'context-1', kind: 'threadReferences', text: 'reference' } }] : [image],
-        materializedInputParts: materialized ? [image] : []
-      })] }])
-      const { data } = await read(client)
-      expect(data.turns[0].items[0].content).toEqual([{ type: 'image' }])
-      expect(JSON.stringify(data)).not.toContain('BINARY')
-    }
-  })
-
-  it('preserves complete messages independently of output controls', async () => {
-    const text = '完整正文😀\n'.repeat(5_000)
-    const argumentsValue = { prompt: text, nested: { flags: [true, false] } }
-    const { client } = historyClient([{ id: 'turn-1', status: 'completed', items: [
-      item('user', 'userMessage', { text, nativeInputParts: [{ type: 'text', text }] }),
-      item('call', 'toolCall', { toolName: 'Example', callId: 'call-1', arguments: argumentsValue }),
-      item('assistant', 'agentMessage', { text, deliveryMode: 'final' })
-    ] }])
-    for (const includeOutputs of [false, true]) {
-      const { response, data } = await read(client, { threadId: 'thread-1', includeOutputs, maxOutputCharsPerItem: 0 })
-      expect(response.success).toBe(true)
-      expect(data.turns[0].items[0].text).toBe(text)
-      expect(data.turns[0].items[0].content[0].text).toBe(text)
-      expect(data.turns[0].items[1].arguments).toEqual(argumentsValue)
-      expect(data.turns[0].items[2].text).toBe(text)
-      expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
-    }
-  })
-
-  it('preserves the final answer in large tool-heavy turns', async () => {
-    const answer = '答'.repeat(4_266)
-    const items = Array.from({ length: 51 }, (_, index) => item(`result-${index}`, 'toolResult', {
-      callId: `call-${index}`, success: true, result: 'output'.repeat(2_000)
-    }))
-    items.push(item('final', 'agentMessage', { text: answer }))
-    const { client } = historyClient([{ id: 'turn-1', items }])
-    for (const includeOutputs of [false, true]) for (const maxOutputCharsPerItem of [0, 2_000, 6_000, 20_000]) {
-      const { response, data } = await read(client, { threadId: 'thread-1', includeOutputs, maxOutputCharsPerItem })
-      expect(response.success).toBe(true)
-      expect(data.turns[0].items.at(-1).text).toBe(answer)
-      expect(data.turns[0].items).toHaveLength(52)
-      if (includeOutputs && maxOutputCharsPerItem > 0) expect(JSON.stringify(data).length).toBeGreaterThan(30_000)
-    }
-  })
-
-  it('bounds each output with explicit metadata at every limit', async () => {
-    const text = 'abcdef'
-    const args = { value: 'full arguments' }
+  it('bounds long body, native context, arguments and errors with explicit preview values', async () => {
+    const long = '完整正文😀'.repeat(1_000)
+    const argumentsValue = { prompt: long, nested: { flags: [true, false] } }
     const { client } = historyClient([{ id: 'turn-1', items: [
-      item('command', 'commandExecution', { command: 'test', aggregatedOutput: text }),
-      item('result', 'toolResult', { result: text }),
-      item('dynamic', 'dynamicToolCall', {
-        toolName: 'Example', arguments: args, contentItems: [{ type: 'text', text }], structuredContent: { text }
-      }),
-      item('reasoning', 'reasoningContent', { text }),
-      item('execution', 'toolExecution', { resultPreview: text, durationMs: 25 })
+      item('agent', 'agentMessage', { text: long }),
+      item('user', 'userMessage', { text: long, nativeInputParts: [{ type: 'text', text: long }] }),
+      item('context', 'userMessage', { nativeInputParts: [{ type: 'contextRef', context: { text: long, comment: long } }] }),
+      item('call', 'dynamicToolCall', { callId: 'call-1', toolName: 'Example', arguments: argumentsValue, errorMessage: long }),
+      item('error', 'error', { code: 'ExampleError', message: long })
     ] }])
-    for (const limit of [0, 5, 6, 10]) {
-      const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true, maxOutputCharsPerItem: limit })
-      const projected = data.turns[0].items
-      const expected = {
-        text: text.slice(0, limit), truncated: text.length > limit,
-        ...(text.length > limit ? { originalChars: text.length } : {})
-      }
-      for (const output of [projected[0].output, projected[1].result, projected[2].content,
-        projected[3].text, projected[4].resultPreview]) expect(output).toEqual(expected)
-      const structured = JSON.stringify({ text })
-      expect(projected[2].structuredContent).toEqual({
-        text: structured.slice(0, limit), truncated: true, originalChars: structured.length
-      })
-      expect(projected[2].arguments).toEqual(args)
-      expect(projected[4].durationMs).toBe(25)
+    const { response, data } = await read(client, { threadId: 'thread-1', maxCharsPerItem: 51 })
+    const [agent, user, context, call, error] = data.turns[0].items
+    for (const message of [agent, user]) {
+      expect(message).toMatchObject({ text: long.slice(0, 51), textTruncated: true, textOriginalChars: long.length })
     }
+    for (const value of [context.contentPreview, call.argumentsPreview, error.messagePreview]) {
+      expect(value.truncated).toBe(true)
+      expect(value.text.length).toBeLessThanOrEqual(51)
+      expect(value.originalChars).toBeGreaterThan(51)
+    }
+    expect(user.content).toBeUndefined()
+    expect(call.arguments).toBeUndefined()
+    expect(call.errorMessagePreview.text).toBe('')
+    expect(call).toMatchObject({ callId: 'call-1', toolName: 'Example' })
+    expect(error.code).toBe('ExampleError')
+    expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
   })
 
-  it('omits all tool output and reasoning by default, including execution previews', async () => {
+  it('uses default preview limits and shares output allowance across content and structured data', async () => {
+    const long = 'x'.repeat(2_001)
+    const { client } = historyClient([{ id: 'turn-1', items: [
+      item('agent', 'agentMessage', { text: long }),
+      item('call', 'mcpToolCall', {
+        server: 'example', toolName: 'Read', arguments: { key: 1 },
+        content: [{ type: 'text', text: long }], structuredContent: { result: long }
+      })
+    ] }])
+    const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true })
+    const [agent, call] = data.turns[0].items
+    expect(agent).toMatchObject({ text: 'x'.repeat(2_000), textTruncated: true, textOriginalChars: 2_001 })
+    expect(call.arguments).toEqual({ key: 1 })
+    expect(call.content).toBeUndefined()
+    expect(call.contentPreview.text).toHaveLength(2_000)
+    expect(call.structuredContent).toBeUndefined()
+    expect(call.structuredContentPreview).toMatchObject({ text: '', truncated: true })
+    expect(call.truncation).toEqual({ preview: false, outputs: true })
+    const noOutput = await read(client, { threadId: 'thread-1', includeOutputs: true, maxOutputCharsPerItem: 0 })
+    expect(noOutput.data.turns[0].items[1].contentPreview.text).toBe('')
+    expect(noOutput.data.turns[0].items[1].structuredContentPreview.text).toBe('')
+  })
+
+  it('omits tool output and reasoning by default while keeping bounded call metadata', async () => {
     const secret = 'OUTPUT_MUST_BE_OMITTED'
     const { client } = historyClient([{ id: 'turn-1', items: [
       item('command', 'commandExecution', { command: 'test', aggregatedOutput: secret }),
@@ -136,61 +83,130 @@ describe('ReadThread content projection', () => {
     ] }])
     const { response, data } = await read(client)
     expect(JSON.stringify(response)).not.toContain(secret)
-    expect(data.turns[0].items[0].outputChars).toBe(secret.length)
+    expect(data.turns[0].items[0]).toMatchObject({ command: 'test', outputChars: secret.length })
     expect(data.turns[0].items[1].resultChars).toBe(secret.length)
   })
 
-  it('uses the default 2,000 character limit for MCP output and preserves call metadata', async () => {
-    const text = 'x'.repeat(2_001)
-    for (const field of ['content', 'modelContentItems']) {
-      const { client } = historyClient([{ id: 'turn-1', items: [item('mcp', 'mcpToolCall', {
-        server: 'example', toolName: 'Read', arguments: { path: 'example.txt' },
-        durationMs: 50, success: true, [field]: [{ type: 'text', text }, { type: 'image', dataBase64: 'BINARY' }]
-      })] }])
-      const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true })
-      expect(data.turns[0].items[0]).toMatchObject({
-        server: 'example', toolName: 'Read', arguments: { path: 'example.txt' }, durationMs: 50, success: true,
-        content: { text: 'x'.repeat(2_000), truncated: true, originalChars: 2_001 }
-      })
-      expect(JSON.stringify(data)).not.toContain('BINARY')
-    }
+  it('uses the same bounded projection for one Item discovery page', async () => {
+    const { client } = historyClient([{ id: 'turn-1', items: [item('call', 'toolCall', {
+      callId: 'call-1', arguments: { prompt: 'x'.repeat(100) }
+    })] }])
+    const { data } = await callHistory(client, 'ListThreadItems', {
+      threadId: 'thread-1', turnId: 'turn-1', maxCharsPerItem: 10
+    })
+    expect(data.data[0]).toMatchObject({ turnId: 'turn-1', item: {
+      id: 'call', type: 'toolCall', callId: 'call-1', argumentsPreview: { text: '{"prompt":', truncated: true },
+      truncation: { preview: true, outputs: false }
+    } })
   })
 
-  it('retains upstream truncation, output paths and the original length', async () => {
+  it('reads saved message content when native input contains only a display label', async () => {
+    const displayText = 'Message notification'
+    const messageText = 'Saved message body 😀'.repeat(500)
+    const { client } = historyClient([{ id: 'turn-1', items: [item('message', 'userMessage', {
+      text: displayText,
+      nativeInputParts: [{ type: 'text', text: displayText }],
+      materializedInputParts: [{ type: 'text', text: messageText }]
+    })] }])
+
+    const { data } = await callHistory(client, 'ReadThreadItem', {
+      threadId: 'thread-1', turnId: 'turn-1', itemId: 'message'
+    })
+
+    expect(data.item).toMatchObject({
+      text: displayText,
+      content: [{ type: 'text', text: messageText }],
+      truncation: { preview: false, outputs: false }
+    })
+  })
+
+  it('reads exactly one ID with complete text, arguments, context and outputs without preview limits', async () => {
+    const long = 'full text 😀'.repeat(5_000)
+    const values = [
+      item('user', 'userMessage', {
+        text: 'question',
+        nativeInputParts: [{ type: 'contextRef', context: { kind: 'threadReferences', text: 'native' } }],
+        materializedInputParts: [{ type: 'text', text: 'question' }, { type: 'text', text: long }]
+      }),
+      item('call', 'dynamicToolCall', {
+        callId: 'call-1', arguments: { prompt: long }, contentItems: [{ type: 'text', text: long }],
+        structuredContent: { result: long }, errorMessage: long
+      })
+    ]
+    const { client, sendRequest } = historyClient([{ id: 'turn-1', items: values }])
+    const user = await callHistory(client, 'ReadThreadItem', { threadId: 'thread-1', turnId: 'turn-1', itemId: 'user' })
+    expect(user.data.item).toMatchObject({ text: 'question', content: [{ type: 'text', text: long }] })
+    const { response, data } = await callHistory(client, 'ReadThreadItem', { threadId: 'thread-1', turnId: 'turn-1', itemId: 'call' })
+    expect(data.item).toMatchObject({
+      arguments: { prompt: long }, content: [{ type: 'text', text: long }], structuredContent: { result: long },
+      errorMessage: long, truncation: { preview: false, outputs: false }
+    })
+    expect(sendRequest.mock.calls).toEqual([
+      ['thread/items/read', { threadId: 'thread-1', turnId: 'turn-1', itemIds: ['user'] }],
+      ['thread/items/read', { threadId: 'thread-1', turnId: 'turn-1', itemIds: ['call'] }]
+    ])
+    expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
+  })
+
+  it('excludes private boundary fields and inline media while preserving same-named business data', async () => {
+    const secret = 'PRIVATE_DATA'
+    const businessData = {
+      _meta: { source: 'business metadata' }, blob: 'business blob', dataBase64: 'business base64',
+      dataUrl: 'business data URL', url: 'data:application/example,business-value',
+      nested: { _meta: { key: 'business key' }, type: 'image', data: 'business data' }
+    }
+    const values = [
+      item('user', 'userMessage', { text: 'question', nativeInputParts: [
+        { type: 'text', text: 'question' },
+        { type: 'contextRef', context: { text: 'selected', image: { tempPath: 'evidence.png', dataUrl: secret } } },
+        { type: 'image', url: 'DaTa:image/png;base64,' + secret, dataBase64: secret },
+        { type: 'fileRef', path: 'example.txt' }
+      ] }),
+      item('tool', 'mcpToolCall', {
+        _meta: { secret }, arguments: businessData,
+        modelContentItems: [{ type: 'text', text: 'output', _meta: { secret } }, { type: 'image', url: 'image.png', dataBase64: secret }],
+        structuredContent: businessData
+      }),
+      item('response', 'userInputResponse', { requestId: 'request-1', answers: { secret }, response: secret })
+    ]
+    const { client } = historyClient([{ id: 'turn-1', items: values }])
+    const results: RecordValue[] = []
+    for (const value of values) {
+      const { response, data } = await callHistory(client, 'ReadThreadItem', { threadId: 'thread-1', turnId: 'turn-1', itemId: value.id })
+      expect(response.success).toBe(true)
+      expect(JSON.stringify(response)).not.toContain(secret)
+      results.push(data.item)
+    }
+    expect(results[0].content).toEqual([
+      { type: 'contextRef', context: { text: 'selected', image: { tempPath: 'evidence.png' } } },
+      { type: 'image' }, { type: 'fileRef', path: 'example.txt' }
+    ])
+    expect(results[1].content).toEqual([{ type: 'text', text: 'output' }, { type: 'image', url: 'image.png' }])
+    expect(results[1].arguments).toEqual(businessData)
+    expect(results[1].structuredContent).toEqual(businessData)
+    expect(results[2]).toEqual({
+      id: 'response', type: 'userInputResponse', status: 'completed', requestId: 'request-1',
+      truncation: { preview: false, outputs: false }
+    })
+  })
+
+  it('fails a missing exact Item rather than returning an empty successful result', async () => {
+    const { client, sendRequest } = clientFor(async () => ({ data: [] }))
+    expect((await callHistory(client, 'ReadThreadItem', {
+      threadId: 'thread-1', turnId: 'turn-1', itemId: 'missing'
+    })).response).toMatchObject({ success: false, errorCode: 'ItemNotFound' })
+    expect(sendRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains upstream truncation and original output size', async () => {
     const { client } = historyClient([{ id: 'turn-1', items: [item('command', 'commandExecution', {
-      aggregatedOutput: 'short', truncated: true, originalOutputChars: 9_000,
-      outputPath: 'result.txt', exitCode: 0
+      aggregatedOutput: 'short', truncated: true, originalOutputChars: 9_000, outputPath: 'result.txt', exitCode: 0
     })] }])
     const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true })
     expect(data.turns[0].items[0]).toMatchObject({
       truncated: true, originalOutputChars: 9_000, outputPath: 'result.txt', exitCode: 0,
-      output: { text: 'short', truncated: true, originalChars: 9_000 }
+      outputPreview: { text: 'short', truncated: true, originalChars: 9_000 },
+      truncation: { preview: false, outputs: true }
     })
-  })
-
-  it('preserves runtime and bounded queued input metadata, projecting media references', async () => {
-    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-      materializedInputParts: [
-        { type: 'text', text: 'materialized text' },
-        { type: 'localImage', path: 'image.png', dataBase64: 'BINARY_IMAGE_DATA' },
-        { type: 'image', url: 'data:image/png;base64,BINARY_IMAGE_DATA' },
-        { type: 'fileRef', path: 'file.txt', displayPath: 'file.txt' }
-      ]
-    })] }], {
-      runtime: { running: true, waitingOnInput: true },
-      queuedInputs: Array.from({ length: 12 }, (_, index) => ({
-        id: `queued-${index}`, status: 'queued', displayText: 'x'.repeat(1_000),
-        sender: { displayName: 'Sender', userId: 'sender-1', channelName: 'cli' }, readyAfterTurnId: 'turn-1'
-      }))
-    })
-    const { data } = await read(client)
-    expect(data.thread.runtime).toEqual({ running: true, waitingOnInput: true })
-    expect(data.thread.queuedInputCount).toBe(12)
-    expect(data.thread.queuedInputs).toHaveLength(10)
-    expect(data.thread.queuedInputs[0].displayText).toHaveLength(500)
-    expect(data.thread.queuedInputs[0].sender.userId).toBe('sender-1')
-    expect(data.turns[0].items[0].content[0].text).toBe('materialized text')
-    expect(data.turns[0].items[0].content[1].path).toBe('image.png')
-    expect(JSON.stringify(data)).not.toContain('BINARY_IMAGE_DATA')
   })
 })

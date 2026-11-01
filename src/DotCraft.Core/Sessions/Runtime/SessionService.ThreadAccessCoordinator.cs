@@ -81,6 +81,29 @@ public sealed partial class SessionService
             CancellationToken ct) =>
             ListItemsCoreAsync(NormalizeRequiredThreadId(threadId), turnId, cursor, limit, direction, ct);
 
+        public Task<ThreadMessageSearchPage> SearchThreadMessageOccurrencesAsync(
+            string threadId,
+            string searchTerm,
+            ThreadMessageSearchCursor? cursor,
+            int limit,
+            CancellationToken ct)
+        {
+            var normalized = NormalizeRequiredThreadId(threadId);
+            ThrowIfEphemeral(normalized);
+            return owner.Persistence.SearchThreadMessageOccurrencesAsync(normalized, searchTerm, cursor, limit, ct);
+        }
+
+        public Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadItemsAsync(
+            string threadId,
+            string turnId,
+            IReadOnlyList<string> itemIds,
+            CancellationToken ct)
+        {
+            var normalized = NormalizeRequiredThreadId(threadId);
+            ThrowIfEphemeral(normalized);
+            return owner.Persistence.ReadThreadItemsAsync(normalized, turnId, itemIds, ct);
+        }
+
         private async Task<ThreadHistoryPage<SessionTurn>> ListTurnsCoreAsync(
             string threadId,
             ThreadHistoryCursor? cursor,

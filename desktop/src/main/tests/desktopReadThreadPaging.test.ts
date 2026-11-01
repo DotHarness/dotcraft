@@ -1,149 +1,128 @@
 import { describe, expect, it } from 'vitest'
-import { clientFor, historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
+import { JsonRpcError } from '@dotcraft/sdk/wire'
+import { callHistory, clientFor, historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
 
-describe('ReadThread turn pagination', () => {
-  it('defaults to the newest complete turn and returns older turns through one cursor', async () => {
-    const turns = [
-      { id: 'turn-2', items: Array.from({ length: 1_001 }, (_, index) => item(`item-${index}`, 'agentMessage', { text: `${index}` })) },
-      { id: 'turn-1', items: [item('first', 'userMessage', { text: 'earlier' })] }
-    ]
-    const { client, sendRequest } = historyClient(turns)
+describe('Desktop history discovery', () => {
+  it('requests summary Turns directly and navigates their cursor without hydrating Items', async () => {
+    const first = item('user', 'userMessage', { text: 'question' })
+    const final = item('answer', 'agentMessage', { text: 'answer' })
+    const { client, sendRequest } = historyClient([
+      { id: 'turn-2', items: [first, ...Array.from({ length: 1_001 }, (_, i) => item(`tool-${i}`, 'toolResult', {})), final],
+        summaryItems: [first, final] },
+      { id: 'turn-1', items: [item('earlier', 'userMessage', { text: 'earlier' })] }
+    ])
     const { response, data } = await read(client)
     expect(response.success).toBe(true)
-    expect(data.schemaVersion).toBe(1)
     expect(data.page).toEqual({ order: 'newest_first', limit: 1, nextCursor: 'turns:1', hasMore: true })
-    expect(data.turns.map((turn: RecordValue) => turn.id)).toEqual(['turn-2'])
-    expect(data.turns[0].items.map((item: RecordValue) => item.id)).toEqual(turns[0].items.map(item => item.id))
-    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/items/list')).toHaveLength(11)
-    for (const [method, params] of sendRequest.mock.calls) {
-      expect(['thread/read', 'thread/turns/list', 'thread/items/list']).toContain(method)
-      if (method === 'thread/items/list') expect(params).toMatchObject({ turnId: 'turn-2', limit: 100, sortDirection: 'ascending' })
-    }
-    const older = await read(client, { threadId: 'thread-1', cursor: data.page.nextCursor })
+    expect(data.turns[0]).toMatchObject({ id: 'turn-2', itemsView: 'summary', itemCount: 1_003, itemsTruncated: true })
+    expect(data.turns[0].items.map((entry: RecordValue) => entry.id)).toEqual(['user', 'answer'])
+    expect(sendRequest.mock.calls).toEqual([
+      ['thread/read', { threadId: 'thread-1' }],
+      ['thread/turns/list', { threadId: 'thread-1', limit: 1, sortDirection: 'descending', itemsView: 'summary' }]
+    ])
+    const older = await read(client, { threadId: 'thread-1', cursor: data.page.nextCursor, turnLimit: 10 })
     expect(older.data.turns.map((turn: RecordValue) => turn.id)).toEqual(['turn-1'])
-    expect(older.data.turns[0].items[0].text).toBe('earlier')
     expect(older.data.page).toMatchObject({ nextCursor: null, hasMore: false })
+    expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
   })
 
-  it('preserves newest-first turn order and chronological item order across a multi-turn page', async () => {
-    const { client } = historyClient([3, 2, 1].map(index => ({
-      id: `turn-${index}`,
-      items: [item('user', 'userMessage', { text: 'question' }), item('agent', 'agentMessage', { text: 'answer' })]
-    })))
-    const { data } = await read(client, { threadId: 'thread-1', turnLimit: 3 })
-    expect(data.turns.map((turn: RecordValue) => turn.id)).toEqual(['turn-3', 'turn-2', 'turn-1'])
-    for (const turn of data.turns) expect(turn.items.map((item: RecordValue) => item.id)).toEqual(['user', 'agent'])
+  it('requests metadata only with includeItems false', async () => {
+    const { client, sendRequest } = historyClient([{ id: 'turn-1', items: [item('body', 'userMessage', { text: 'hidden body' })] }])
+    const { data } = await read(client, { threadId: 'thread-1', includeItems: false })
+    expect(sendRequest.mock.calls[1][1]).toMatchObject({ itemsView: 'none' })
+    expect(data.turns[0]).toEqual({ id: 'turn-1', itemsView: 'none', items: [] })
+    expect(sendRequest).toHaveBeenCalledTimes(2)
   })
 
-  it('continues across empty item pages when a next cursor exists', async () => {
-    const { client, sendRequest } = clientFor(async (method, params) => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-      if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
-      return params.cursor == null ? { data: [], nextCursor: 'after-empty' } : {
-        data: [{ turnId: 'turn-1', item: item('answer', 'agentMessage', { text: 'complete' }) }]
-      }
-    })
-    const { data } = await read(client)
-    expect(data.turns[0].items[0].text).toBe('complete')
-    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/items/list')).toHaveLength(2)
-  })
-
-  it('returns an exhausted empty page without requesting items for an empty thread', async () => {
-    const { client, sendRequest } = historyClient([])
-    const { data } = await read(client)
-    expect(data.turns).toEqual([])
-    expect(data.page).toEqual({ order: 'newest_first', limit: 1, nextCursor: null, hasMore: false })
-    expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(['thread/read', 'thread/turns/list'])
-  })
-
-  it('returns ThreadNotFound for a missing header without fetching items', async () => {
-    const { client, sendRequest } = clientFor(async method => method === 'thread/read' ? {} : { data: [] })
-    const { response } = await read(client)
-    expect(response).toMatchObject({ success: false, errorCode: 'ThreadNotFound' })
-    expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(['thread/read', 'thread/turns/list'])
-  })
-
-  it('limits concurrent turn hydration to five without changing result order', async () => {
-    const turns = Array.from({ length: 10 }, (_, index) => ({ id: `turn-${index}` }))
-    let active = 0
-    let maximum = 0
+  it('reads the header and Turn page concurrently', async () => {
+    let releaseHeader!: (value: unknown) => void
+    let pageStarted = false
     const { client } = clientFor(async method => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-      if (method === 'thread/turns/list') return { data: turns }
-      active++
-      maximum = Math.max(maximum, active)
-      await new Promise(resolve => setTimeout(resolve, 0))
-      active--
+      if (method === 'thread/read') return new Promise(resolve => { releaseHeader = resolve })
+      pageStarted = true
+      releaseHeader({ thread: { id: 'thread-1' } })
       return { data: [] }
     })
-    const { data } = await read(client, { threadId: 'thread-1', turnLimit: 10 })
-    expect(maximum).toBe(5)
-    expect(data.turns.map((turn: RecordValue) => turn.id)).toEqual(turns.map(turn => turn.id))
+    expect((await read(client)).response.success).toBe(true)
+    expect(pageStarted).toBe(true)
   })
 
-  it('fails repeated item cursors', async () => {
-    for (const cursors of [['a', 'a'], ['a', 'b', 'a']]) {
-      let index = 0
-      const { client } = clientFor(async method => {
-        if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-        if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
-        return { data: [], nextCursor: cursors[index++] ?? null }
-      })
-      const { response } = await read(client)
-      expect(response.success).toBe(false)
-      expect(response.errorCode).toBe('AppServerRequestFailed')
-      expect(response.structuredContent).toBeUndefined()
+  it('returns ThreadNotFound for a missing header', async () => {
+    const { client } = clientFor(async method => method === 'thread/read' ? {} : { data: [] })
+    expect((await read(client)).response).toMatchObject({ success: false, errorCode: 'ThreadNotFound' })
+  })
+
+  it('reads only one ascending Item page, even when the page is empty with continuation', async () => {
+    for (const entries of [[], [{ turnId: 'turn-1', item: item('call', 'toolCall', { toolName: 'Example', arguments: { value: 1 } }) }]]) {
+      const { client, sendRequest } = clientFor(async () => ({ data: entries, nextCursor: 'items:21' }))
+      const { response, data } = await callHistory(client, 'ListThreadItems', { threadId: 'thread-1', turnId: 'turn-1', cursor: 'items:1' })
+      expect(sendRequest.mock.calls).toEqual([['thread/items/list', {
+        threadId: 'thread-1', turnId: 'turn-1', cursor: 'items:1', limit: 20, sortDirection: 'ascending'
+      }]])
+      expect(data.page).toEqual({ order: 'oldest_first', limit: 20, nextCursor: 'items:21', hasMore: true })
+      expect(data.data.map((entry: RecordValue) => entry.item.id)).toEqual(entries.map(entry => entry.item.id))
+      expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
     }
   })
 
-  it('fails the call if a later item page fails instead of exposing a partial turn', async () => {
-    const { client } = clientFor(async (method, params) => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-      if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
-      if (params.cursor) throw new Error('History unavailable')
-      return { data: [{ turnId: 'turn-1', item: item('partial', 'agentMessage', { text: 'partial' }) }], nextCursor: 'next' }
+  it('forwards search arguments and occurrence results without altering ranges or cursors', async () => {
+    const result = { data: [{
+      turnId: 'turn-2', itemId: 'message-1', snippet: '😀 Match match', snippetMatchRange: { start: 3, end: 8 }, turnCursor: 'turn:opaque'
+    }], nextCursor: 'occurrence:next' }
+    const { client, sendRequest } = clientFor(async () => result)
+    const { response, data } = await callHistory(client, 'SearchThreadMessages', {
+      threadId: ' thread-1 ', searchTerm: ' Match ', cursor: 'occurrence:prior', limit: 100
     })
-    const { response } = await read(client)
-    expect(response.success).toBe(false)
-    expect(response.structuredContent).toBeUndefined()
-    expect(response.contentItems).toBeUndefined()
+    expect(sendRequest.mock.calls).toEqual([['thread/searchOccurrences', {
+      threadId: 'thread-1', searchTerm: 'Match', cursor: 'occurrence:prior', limit: 100
+    }]])
+    expect(data).toEqual(result)
+    expect(JSON.parse(response.contentItems![0].text!)).toEqual(result)
   })
 
-  it('rejects a history item from another turn', async () => {
-    const { client } = clientFor(async method => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-      if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
-      return { data: [{ turnId: 'wrong-turn', item: item('wrong', 'userMessage', { text: 'wrong' }) }] }
-    })
-    expect((await read(client)).response.success).toBe(false)
-  })
-
-  it('propagates server cursor failures and rejects non-advancing turn cursors', async () => {
-    for (const invalidCursor of [true, false]) {
-      const { client } = clientFor(async method => {
-        if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-        if (invalidCursor) throw new Error('InvalidParams: cursor scope mismatch')
-        return { data: [], nextCursor: 'cursor' }
-      })
-      const { response } = await read(client, { threadId: 'thread-1', cursor: 'cursor' })
-      expect(response.success).toBe(false)
-      expect(response.structuredContent).toBeUndefined()
-    }
-  })
-
-  it('rejects invalid and obsolete arguments without making requests', async () => {
-    const invalid = [
-      null, [], 'thread-1', {}, { threadId: '' }, { threadId: ' ' },
-      ...['turnCursor', 'itemCursor', 'itemLimit', 'unexpected'].map(key => ({ threadId: 'thread-1', [key]: 1 })),
-      ...[0, -1, 11, 1.5, '1', null].map(turnLimit => ({ threadId: 'thread-1', turnLimit })),
-      ...[-1, 20_001, 0.5, '100', null].map(maxOutputCharsPerItem => ({ threadId: 'thread-1', maxOutputCharsPerItem })),
-      { threadId: 'thread-1', includeOutputs: 'true' },
-      { threadId: 'thread-1', cursor: '' }, { threadId: 'thread-1', cursor: null }
+  it('maps structured invalid-parameter RPC errors without inferring codes from messages', async () => {
+    const cases = [
+      { error: new JsonRpcError(-32602, 'Cursor scope mismatch'), errorCode: 'InvalidArguments' },
+      { error: new JsonRpcError(-32000, 'History unavailable'), errorCode: 'AppServerRequestFailed' },
+      { error: new Error('InvalidParams: cursor scope mismatch'), errorCode: 'AppServerRequestFailed' }
     ]
+    for (const { error, errorCode } of cases) {
+      const { client } = clientFor(async () => { throw error })
+      const { response } = await callHistory(client, 'SearchThreadMessages', {
+        threadId: 'thread-1', searchTerm: 'query', cursor: 'invalid-cursor'
+      })
+      expect(response).toEqual({ success: false, errorCode, errorMessage: error.message })
+    }
+  })
+
+  it('rejects nulls, unknown fields and invalid ranges before making any requests', async () => {
+    const bases: Record<string, RecordValue> = {
+      ReadThread: { threadId: 'thread-1' },
+      ListThreadItems: { threadId: 'thread-1', turnId: 'turn-1' },
+      SearchThreadMessages: { threadId: 'thread-1', searchTerm: 'query' },
+      ReadThreadItem: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1' }
+    }
     const { client, sendRequest } = historyClient([])
-    for (const args of invalid) {
-      const { response } = await read(client, args)
-      expect(response, JSON.stringify(args)).toMatchObject({ success: false, errorCode: 'InvalidArguments' })
+    for (const [tool, base] of Object.entries(bases)) {
+      const invalid: unknown[] = [null, [], 'thread-1', {}, { ...base, unexpected: 1 }]
+      for (const key of Object.keys(base)) for (const value of [null, '', ' ']) invalid.push({ ...base, [key]: value })
+      if (tool !== 'ReadThreadItem') for (const cursor of [null, '', ' ', 1]) invalid.push({ ...base, cursor })
+      if (tool === 'ReadThread' || tool === 'ListThreadItems') {
+        for (const key of ['includeItems', 'includeOutputs']) {
+          if (key === 'includeItems' && tool !== 'ReadThread') continue
+          for (const value of [null, 'true']) invalid.push({ ...base, [key]: value })
+        }
+        for (const maxCharsPerItem of [0, -1, 20_001, 0.5, '1', null]) invalid.push({ ...base, maxCharsPerItem })
+        for (const maxOutputCharsPerItem of [-1, 20_001, 0.5, '1', null]) invalid.push({ ...base, maxOutputCharsPerItem })
+      }
+      if (tool !== 'ReadThreadItem') {
+        const key = tool === 'ReadThread' ? 'turnLimit' : 'limit'
+        for (const value of [0, -1, tool === 'ReadThread' ? 11 : 101, 0.5, '1', null]) invalid.push({ ...base, [key]: value })
+      }
+      for (const args of invalid) {
+        expect((await callHistory(client, tool, args)).response, JSON.stringify(args))
+          .toMatchObject({ success: false, errorCode: 'InvalidArguments' })
+      }
     }
     expect(sendRequest).not.toHaveBeenCalled()
   })

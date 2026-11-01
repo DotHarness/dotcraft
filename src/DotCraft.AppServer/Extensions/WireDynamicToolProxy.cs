@@ -629,6 +629,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
                 "DynamicToolCancelled" => ToolErrorCodes.Cancelled,
                 "DynamicToolProtocolError" => ToolErrorCodes.DynamicProtocolError,
                 "DynamicToolResultInvalid" => ToolErrorCodes.ResultInvalid,
+                "InvalidArguments" => ToolErrorCodes.InputInvalid,
                 _ => ToolErrorCodes.ExecutionFailed
             };
             return new ToolExecutionResult(

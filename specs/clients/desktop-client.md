@@ -632,7 +632,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`. No other model-visible aliases exist.
+- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`. No other model-visible aliases exist.
 - They are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery.
 - Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, plus the rules for starting other chats: how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call.
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
@@ -642,7 +642,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 - Tools call ordinary AppServer methods. `SetThreadPinned` only updates Desktop settings; proposals and offers are Desktop-local state.
 - `ListThreads` calls `thread/list` with optional `query`, `limit` (default 20, max 100), `cursor`, and `includeArchived`, returning a page summary with `nextCursor` and `totalMatched`.
-- `ReadThread` reads the header and newest complete Turns without resuming, subscribing, or selecting the thread. Arguments: `threadId`, optional Turn `cursor`, `turnLimit` (default 1, 1–10), `includeOutputs` (default false), `maxOutputCharsPerItem` (default 2,000, 0–20,000); invalid arguments fail. Turns are fully hydrated or the call fails. The result `{ schemaVersion: 1, thread, page, turns }` appears in both structured and text content: full user/assistant text and typed Item metadata, media as references, materialized input snapshots ahead of `contextRef`, optional outputs with truncation metadata, newest-first pagination, and a bounded summary of queued inputs with their total count.
+- Historical tools follow [Thread Context Retrieval](../features/thread-context-retrieval.md): `ReadThread` returns summary or metadata-only Turns with bounded body/context previews, never assembling all Item pages. `SearchThreadMessages` finds message occurrences; `ListThreadItems` discovers IDs in one Turn page; `ReadThreadItem` reads one complete model-safe Item. Results remain JSON text with mirrored structured client data, not a Runtime Dynamic output-schema extension. Source and CodeMode size limits still apply.
 - `SendMessageToThread` sends a turn without stealing focus. If the target is running, waiting, or in blocking maintenance, it uses `turn/enqueue`, or fails as busy when unavailable.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`; visible state updates through normal broadcasts.
 - `SetThreadPinned` rejects archived and subagent threads when pinning and updates the project-scoped pin preference so the sidebar updates immediately.

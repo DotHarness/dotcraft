@@ -129,6 +129,21 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.ListThreadItemsAsync(threadId, turnId, cursor, limit, direction, ct);
 
+    internal Task<ThreadMessageSearchPage> SearchThreadMessageOccurrencesAsync(
+        string threadId,
+        string searchTerm,
+        ThreadMessageSearchCursor? cursor,
+        int limit,
+        CancellationToken ct = default)
+        => threadStore.SearchThreadMessageOccurrencesAsync(threadId, searchTerm, cursor, limit, ct);
+
+    internal Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadItemsAsync(
+        string threadId,
+        string turnId,
+        IReadOnlyList<string> itemIds,
+        CancellationToken ct = default)
+        => threadStore.ReadThreadItemsAsync(threadId, turnId, itemIds, ct);
+
     public Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
         => threadStore.LoadThreadFromPathAsync(path, ct);
 

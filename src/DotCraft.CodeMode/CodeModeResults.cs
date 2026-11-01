@@ -23,6 +23,12 @@ public static class CodeModeResults
                 return CheckSize(JsonNode.Parse(rawError.GetRawText()), definition.Name, maxBytes, contentEnvelope: true);
             var code = result.Error?.Code ?? ToolErrorCodes.ExecutionFailed;
             var message = result.Error?.Message ?? result.Content ?? "Tool execution failed.";
+            if (result.Error is { } sourceError
+                && sourceError.Parameters.TryGetValue("sourceErrorCode", out var sourceCode)
+                && sourceCode.ValueKind == JsonValueKind.String
+                && sourceCode.GetString() is { Length: > 0 } sourceCodeText
+                && !string.Equals(sourceCodeText, code, StringComparison.Ordinal))
+                message = $"{sourceCodeText}: {message}";
             return (null, $"{code}: {message}");
         }
 

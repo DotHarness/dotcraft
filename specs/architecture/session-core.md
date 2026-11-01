@@ -904,6 +904,8 @@ Read-only query operations:
 - `ReadThreadSnapshot(threadId)` — Thread header and persisted runtime.
 - `ListThreadTurns(threadId, cursor, limit, direction)` — one ordered Turn page without Items.
 - `ListThreadItems(threadId, turnId?, cursor, limit, direction)` — one ordered Item page with owning Turn ids.
+- `SearchThreadMessageOccurrences(threadId, searchTerm, cursor, limit)` — chronological literal matches in current persisted user/assistant messages, including Item identity and Turn position.
+- `ReadThreadItems(threadId, turnId, itemIds)` — selected persisted Items in stored order without loading execution state; see [Thread Context Retrieval](../features/thread-context-retrieval.md).
 - `ReadThreadItem(threadId, turnId, itemId)` and `ReadThreadTurn(threadId, turnId)` — one Item or Turn, for actions on older history such as opening a View.
 - `ReadThreadTurns(threadId, direction, includeItems)` — the visible Turns in order, read lazily, for operations such as fork that need a range of older history.
 - `ReadThreadAggregates(threadId)` — history-wide token totals and tool-call count.

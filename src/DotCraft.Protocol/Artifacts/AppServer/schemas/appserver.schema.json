@@ -17873,6 +17873,46 @@
         "data"
       ]
     },
+    "ThreadItemsReadParams": {
+      "title": "ThreadItemsReadParams",
+      "type": "object",
+      "properties": {
+        "itemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "itemIds",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "ThreadItemsReadResult": {
+      "title": "ThreadItemsReadResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadItemListEntry"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
+      ]
+    },
     "ThreadListParams": {
       "title": "ThreadListParams",
       "type": "object",
@@ -18798,6 +18838,98 @@
         "thread"
       ]
     },
+    "ThreadSearchOccurrence": {
+      "title": "ThreadSearchOccurrence",
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "snippetMatchRange": {
+          "$ref": "#/$defs/ThreadSearchTextRange"
+        },
+        "turnCursor": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "itemId",
+        "snippet",
+        "snippetMatchRange",
+        "turnCursor",
+        "turnId"
+      ]
+    },
+    "ThreadSearchOccurrencesParams": {
+      "title": "ThreadSearchOccurrencesParams",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "searchTerm": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "searchTerm",
+        "threadId"
+      ]
+    },
+    "ThreadSearchOccurrencesResult": {
+      "title": "ThreadSearchOccurrencesResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadSearchOccurrence"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
+      ]
+    },
     "ThreadSearchParams": {
       "title": "ThreadSearchParams",
       "type": "object",
@@ -18885,6 +19017,23 @@
       "additionalProperties": true,
       "required": [
         "data"
+      ]
+    },
+    "ThreadSearchTextRange": {
+      "title": "ThreadSearchTextRange",
+      "type": "object",
+      "properties": {
+        "end": {
+          "type": "integer"
+        },
+        "start": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "end",
+        "start"
       ]
     },
     "ThreadSkillsPolicy": {

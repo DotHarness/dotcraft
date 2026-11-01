@@ -116,9 +116,11 @@ describe('desktop runtime thread tools', () => {
     expect(namespace.type).toBe('namespace')
     if (namespace.type !== 'namespace') throw new Error('Expected a namespace declaration')
     expect(namespace.name).toBe(DESKTOP_THREAD_TOOL_NAMESPACE)
-    expect(namespace.tools).toHaveLength(8)
+    expect(namespace.tools).toHaveLength(11)
     expect(namespace.tools.every((tool) => tool.deferLoading === true)).toBe(true)
-    expect(namespace.tools.map((tool) => tool.name)).toContain('SetThreadPinned')
+    expect(namespace.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
+      'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem'
+    ]))
   })
 
   it('rebinds Desktop thread tools before sending a turn on an older thread', async () => {

@@ -33,7 +33,7 @@ A completed Turn renders as its user message, a folded "Worked for" process, the
 
 - Changing how Items are stored, the rollout format, or cursor semantics.
 - Paging or summarizing inside the running Turn; it keeps full Items and live streaming.
-- Agent-facing thread reads (`ReadThread`, thread export, context export), SubAgent transcripts, side chats, and the Summary aside, which read full Items.
+- Agent-facing retrieval, governed by [Thread Context Retrieval](thread-context-retrieval.md). Thread export, context export, SubAgent transcripts, side chats, and the Summary aside keep their own full-Item reads.
 - Turn navigation previews.
 - Evicting full Items after they load.
 - Bounding the size of a summary or of a Turn-scoped Item page beyond the existing page limits.
