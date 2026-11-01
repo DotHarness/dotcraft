@@ -49,6 +49,45 @@ public sealed class CodeModeWorkerProcessTests
     }
 
     [Fact]
+    public async Task Cell_PreservesOuterBindingsAndGlobalsAfterAwaitInLexicalForLoop()
+    {
+        await using var worker = await Worker.StartAsync();
+        await worker.WriteAsync("cell_1", "cell.start", StartPayload("""
+            const emit = text;
+            const totals = [];
+            for (let i = 0; i < 2; i++) {
+                const result = await tools.Alpha({ n: i });
+                totals.push(result.total);
+            }
+            emit(totals);
+            text('done');
+            store('totals', totals);
+            """));
+
+        for (var i = 0; i < 2; i++)
+        {
+            var request = await worker.ReadAsync();
+            Assert.Equal("call.request", request["type"]!.GetValue<string>());
+            Assert.Equal("Alpha", request["payload"]!["tool"]!.GetValue<string>());
+            Assert.Equal(i, request["payload"]!["arguments"]!["n"]!.GetValue<int>());
+            await worker.WriteAsync("cell_1", "call.result", new JsonObject
+            {
+                ["requestId"] = request["payload"]!["requestId"]!.GetValue<string>(),
+                ["value"] = new JsonObject { ["total"] = i + 1 }
+            });
+        }
+
+        var output = await worker.ReadAsync();
+        Assert.Equal("cell.output", output["type"]!.GetValue<string>());
+        Assert.Equal("[1,2]", output["payload"]!["text"]!.GetValue<string>());
+        Assert.Equal("done", (await worker.ReadAsync())["payload"]!["text"]!.GetValue<string>());
+        var done = await worker.ReadAsync();
+        Assert.Equal("cell.done", done["type"]!.GetValue<string>());
+        Assert.Equal("completed", done["payload"]!["outcome"]!.GetValue<string>());
+        Assert.Equal("[1,2]", done["payload"]!["store"]!["set"]!["totals"]!.ToJsonString());
+    }
+
+    [Fact]
     public async Task Cell_RejectsFailedCallsAndUnknownTools()
     {
         await using var worker = await Worker.StartAsync();
