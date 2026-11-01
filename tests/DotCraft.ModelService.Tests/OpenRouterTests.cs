@@ -70,6 +70,30 @@ public sealed class OpenRouterTests
         Assert.Single(seen);
     }
 
+    [Theory]
+    [InlineData("auto", 3)]
+    [InlineData("anthropic", 2)]
+    [InlineData("openai-responses", 2)]
+    [InlineData("openai-chat-completions", 3)]
+    public async Task CatalogFiltersModelsBeforeResolvingAFixedProtocol(string protocol, int expectedCount)
+    {
+        var runtime = new EffectiveModelRuntime("router", "", protocol, "OpenRouter", "test-key",
+            OpenRouterModelCatalog.DefaultEndpoint, 20, null, new())
+        { BackendId = "openrouter", ConfiguredProtocol = protocol };
+        using var http = new HttpClient(new Catalog());
+        var backend = new OpenRouterProvider(new(runtime, new Credentials(), default), catalogClient: http);
+        var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders(); builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<IModelServiceAccess>(new Access(runtime, backend));
+        builder.Services.AddDotCraftModelService();
+        await using var service = builder.Build(); service.MapDotCraftModelService(); await service.StartAsync();
+        using var transport = new RemoteProviderTransport(new(new Uri("http://localhost/model-service/"), "worker-secret"), service.GetTestClient());
+        var provider = Assert.Single((await transport.GetCatalogAsync()).Providers);
+        Assert.NotNull(provider.Models);
+        Assert.Equal(expectedCount, provider.Models.Count);
+        Assert.Contains("anthropic/claude-opus-5.5", provider.Models.Keys);
+        Assert.Equal(protocol is "auto" or "openai-chat-completions", provider.Models.ContainsKey("deepseek/test"));
+    }
+
     private static string Response(string protocol)
     {
         if (protocol == "anthropic") return """{"id":"msg_1","type":"message","role":"assistant","model":"test","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}""";
@@ -91,7 +115,8 @@ public sealed class OpenRouterTests
             { id, name = id, context_length = 1000000, top_provider = new { max_completion_tokens = 4096 },
                 architecture = new { input_modalities = new[] { "text" }, output_modalities = new[] { "text" } },
                 supported_parameters = new[] { "tools", "reasoning" }, reasoning = new { mandatory = true, supported_efforts = new[] { "medium" }, default_effort = "medium" },
-                endpoints = new[] { "/api/v1/messages", "/api/v1/responses", "/api/v1/chat/completions" } });
+                endpoints = id == "deepseek/test" ? new[] { "/api/v1/chat/completions" }
+                    : new[] { "/api/v1/messages", "/api/v1/responses", "/api/v1/chat/completions" } });
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(request.RequestUri!.AbsolutePath.EndsWith("/key")
                 ? """{"data":{"usage":1,"limit_remaining":9,"limit":10}}""" : JsonSerializer.Serialize(new { data = models }), Encoding.UTF8, "application/json") });
         }

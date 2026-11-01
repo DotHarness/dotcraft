@@ -1,5 +1,6 @@
 using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic.Core;
@@ -35,9 +36,12 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
         }
         var result = await base.GetResponseAsync(PrepareMessages(messages), Prepare(options), cancellationToken).ConfigureAwait(false);
         var metadata = new OpenRouterResponseMetadata();
-        metadata.Read(result.RawRepresentation);
-        if (metadata.Reasoning.Count > 0 && result.Messages.LastOrDefault() is { } message)
-            message.Contents.Add(metadata.ReasoningContent());
+        var plaintext = metadata.Read(result.RawRepresentation);
+        if (result.Messages.LastOrDefault() is { } message)
+        {
+            AddPlaintextReasoning(message.Contents, plaintext);
+            if (metadata.Reasoning.Count > 0) message.Contents.Add(metadata.ReasoningContent());
+        }
         if (metadata.Cost is { } amount) (result.AdditionalProperties ??= new())[CostKey] = amount;
         completed(metadata.Cost);
         return result;
@@ -51,7 +55,7 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
         await foreach (var update in base.GetStreamingResponseAsync(PrepareMessages(messages), Prepare(options), cancellationToken).ConfigureAwait(false))
         {
             messageId = update.MessageId ?? messageId;
-            metadata.Read(update.RawRepresentation);
+            AddPlaintextReasoning(update.Contents, metadata.Read(update.RawRepresentation));
             yield return update;
         }
         completed(metadata.Cost);
@@ -62,6 +66,12 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
             if (metadata.Cost is { } amount) (update.AdditionalProperties ??= new())[CostKey] = amount;
             yield return update;
         }
+    }
+
+    private static void AddPlaintextReasoning(IList<AIContent> contents, string? text)
+    {
+        if (!string.IsNullOrEmpty(text) && !contents.OfType<TextReasoningContent>().Any(content => !string.IsNullOrEmpty(content.Text)))
+            contents.Add(new TextReasoningContent(text));
     }
 
     private ChatOptions Prepare(ChatOptions? options)
@@ -177,16 +187,14 @@ internal sealed class OpenRouterResponseMetadata
         }
     };
 
-    internal void Read(object? raw)
+    internal string? Read(object? raw)
     {
         switch (raw)
         {
             case ChatCompletion completion:
-                Read(ref completion.Patch, "$.choices[0].message.reasoning_details"u8);
-                break;
+                return Read(ref completion.Patch, "$.choices[0].message.reasoning_details"u8, "$.choices[0].message.reasoning"u8);
             case StreamingChatCompletionUpdate update:
-                Read(ref update.Patch, "$.choices[0].delta.reasoning_details"u8);
-                break;
+                return Read(ref update.Patch, "$.choices[0].delta.reasoning_details"u8, "$.choices[0].delta.reasoning"u8);
             case StreamingResponseCompletedUpdate update:
                 Read(ref update.Patch);
                 Read(ref update.Response.Patch);
@@ -201,29 +209,45 @@ internal sealed class OpenRouterResponseMetadata
                 Read(message.RawData);
                 break;
         }
+        return null;
     }
 
-    private void Read(ref JsonPatch patch, ReadOnlySpan<byte> reasoningPath = default)
+    private string? Read(ref JsonPatch patch, ReadOnlySpan<byte> detailsPath = default, ReadOnlySpan<byte> textPath = default)
     {
         if (patch.TryGetValue("$.usage.cost"u8, out decimal cost)
             || patch.TryGetValue("$.openrouter_metadata.usage.cost"u8, out cost)) Cost = cost;
-        if (reasoningPath.IsEmpty || !patch.TryGetJson(reasoningPath, out var data)) return;
+        var text = !textPath.IsEmpty && patch.TryGetValue(textPath, out string? value) ? value : null;
+        if (detailsPath.IsEmpty || !patch.TryGetJson(detailsPath, out var data)) return text;
         using var details = JsonDocument.Parse(data);
-        if (details.RootElement.ValueKind != JsonValueKind.Array) return;
+        if (details.RootElement.ValueKind != JsonValueKind.Array) return text;
+        var detailText = new StringBuilder();
         foreach (var detail in details.RootElement.EnumerateArray())
         {
             if (detail.ValueKind != JsonValueKind.Object) continue;
             var index = detail.TryGetProperty("index", out var position) && position.ValueKind != JsonValueKind.Null
                 ? position.GetInt32() : Reasoning.Count;
             var existing = Reasoning.FirstOrDefault(item => item["index"]?.GetValue<int>() == index);
-            if (existing is null) { var copy = JsonSerializer.SerializeToNode(detail)!.AsObject(); copy["index"] = index; Reasoning.Add(copy); continue; }
-            foreach (var property in detail.EnumerateObject())
+            if (existing is null)
             {
-                if (property.Name is "text" or "summary" or "data" && property.Value.ValueKind == JsonValueKind.String)
-                    existing[property.Name] = (existing[property.Name]?.GetValue<string>() ?? string.Empty) + property.Value.GetString();
-                else existing[property.Name] = JsonSerializer.SerializeToNode(property.Value);
+                existing = JsonSerializer.SerializeToNode(detail)!.AsObject();
+                existing["index"] = index;
+                Reasoning.Add(existing);
             }
+            else
+            {
+                foreach (var property in detail.EnumerateObject())
+                {
+                    if (property.Name is "text" or "summary" or "data" && property.Value.ValueKind == JsonValueKind.String)
+                        existing[property.Name] = (existing[property.Name]?.GetValue<string>() ?? string.Empty) + property.Value.GetString();
+                    else existing[property.Name] = JsonSerializer.SerializeToNode(property.Value);
+                }
+            }
+            var field = existing["type"]?.GetValue<string>() switch
+            { "reasoning.text" => "text", "reasoning.summary" => "summary", _ => null };
+            if (field is not null && detail.TryGetProperty(field, out var chunk) && chunk.ValueKind == JsonValueKind.String)
+                detailText.Append(chunk.GetString());
         }
+        return string.IsNullOrEmpty(text) ? detailText.ToString() : text;
     }
 
     private void Read(IReadOnlyDictionary<string, JsonElement> data)

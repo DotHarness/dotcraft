@@ -76,6 +76,9 @@ const catalogs = new Map<string | null, ModelCatalogState>()
 const inFlightLoads = new Map<string | null, Promise<ModelCatalogState>>()
 
 const initialState: ModelCatalogState = {
+  source: undefined,
+  refreshedAt: undefined,
+  refreshNotice: undefined,
   status: 'idle',
   models: [],
   modelOptions: [],
@@ -230,9 +233,9 @@ async function fetchCatalog(providerId: string | null, refresh = false): Promise
     if (result == null) return state
     state.providerId = parseEffectiveProviderId(result, providerId)
     const metadata = result as { source?: string; refreshedAt?: string; refreshNotice?: string }
-    if (metadata.source) state.source = metadata.source
-    if (metadata.refreshedAt) state.refreshedAt = metadata.refreshedAt
-    if (metadata.refreshNotice) state.refreshNotice = metadata.refreshNotice
+    state.source = metadata.source
+    state.refreshedAt = metadata.refreshedAt
+    state.refreshNotice = metadata.refreshNotice
     const models = parseModelCatalogItems(result)
     const error = parseModelListError(result)
     if (error.code || error.message) {

@@ -227,7 +227,7 @@ function ensureUsageSubscription(): void {
   if (typeof window === 'undefined' || !window.api?.appServer?.onNotification) return
   usageNotificationUnsubscribe = window.api.appServer.onNotification((payload) => {
     if (payload?.method === 'turn/completed') {
-      refreshBalanceUsage()
+      refreshMeteredUsage()
       return
     }
     if (payload?.method !== 'provider/auth/usage/updated') return
@@ -237,10 +237,10 @@ function ensureUsageSubscription(): void {
   })
 }
 
-function refreshBalanceUsage(): void {
+function refreshMeteredUsage(): void {
   const store = useProvidersStore.getState()
   for (const [key, snapshot] of Object.entries(store.usage)) {
-    if (snapshot.balances) void store.refreshUsage(key)
+    if (snapshot.balances || snapshot.labels?.scope === 'apiKey') void store.refreshUsage(key)
   }
 }
 

@@ -33,9 +33,13 @@ public static class ModelServiceProviderCatalog
             try { if (result.Success && source.Backend is IProviderUsageReader reader) usage = await reader.ReadAsync(refresh.Token).ConfigureAwait(false); }
             catch (HttpRequestException) { }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+            var protocol = runtime.ConfiguredProtocol ?? runtime.Protocol;
             return source.Description with
             {
-                Models = result.Models.ToDictionary(model => model.Id, model => resolver.ResolveRuntime(runtime with { Model = model.Id }).RequestAdaptation!, StringComparer.Ordinal),
+                Models = result.Models
+                    .Where(model => string.IsNullOrWhiteSpace(protocol) || protocol == "auto"
+                        || model.SupportedProtocols?.Contains(protocol) == true)
+                    .ToDictionary(model => model.Id, model => resolver.ResolveRuntime(runtime with { Model = model.Id }).RequestAdaptation!, StringComparer.Ordinal),
                 CatalogState = new ModelCatalogResult { Success = result.Success, ErrorCode = result.ErrorCode, ErrorMessage = result.ErrorMessage,
                     Source = result.Source, RefreshedAt = result.RefreshedAt, RefreshNotice = result.RefreshNotice },
                 Usage = usage,

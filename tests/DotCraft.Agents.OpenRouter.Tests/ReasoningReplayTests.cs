@@ -64,6 +64,58 @@ public sealed class ReasoningReplayTests
             && item["encrypted_content"]?.GetValue<string>() == "opaque-reasoning");
     }
 
+    [Theory]
+    [InlineData(false, "reasoning")]
+    [InlineData(true, "reasoning")]
+    [InlineData(false, "details")]
+    [InlineData(true, "details")]
+    [InlineData(false, "both")]
+    [InlineData(true, "both")]
+    public async Task PlaintextReasoningIsVisibleWithoutDuplicatingSdkContent(bool streaming, string format)
+    {
+        const string protocol = "openai-chat-completions";
+        using var server = new RequestTests.LocalServer();
+        var runtime = RoutingTests.Runtime() with { Protocol = protocol, ConfiguredProtocol = protocol,
+            EndPoint = server.Root, ConfiguredEndPoint = server.Root, Model = "anthropic/claude-opus-5.5" };
+        using var client = RoutingTests.Create(runtime).CreateChatClient(runtime);
+        var response = JsonNode.Parse(Response(protocol))!;
+        var message = response["choices"]![0]!["message"]!;
+        var encrypted = message["reasoning_details"]![0]!.DeepClone();
+        var first = new JsonObject { ["type"] = "reasoning.text", ["index"] = 1, ["text"] = "inspect " };
+        var summary = new JsonObject { ["type"] = "reasoning.summary", ["index"] = 2, ["summary"] = "result" };
+        message["reasoning_details"] = new JsonArray(encrypted.DeepClone(), first.DeepClone(), summary.DeepClone());
+        if (format != "details") message["reasoning"] = "inspect result";
+        if (format == "both") message["reasoning_content"] = "inspect result";
+        var start = new JsonObject { ["role"] = "assistant", ["reasoning_details"] = new JsonArray(
+            encrypted.DeepClone(), first.DeepClone(), new JsonObject { ["type"] = "reasoning.summary", ["index"] = 2, ["summary"] = "" }) };
+        var delta = new JsonObject { ["reasoning_details"] = new JsonArray(new JsonObject { ["index"] = 2, ["summary"] = "result" }) };
+        if (format != "details") { start["reasoning"] = "inspect "; delta["reasoning"] = "result"; }
+        if (format == "both") { start["reasoning_content"] = "inspect "; delta["reasoning_content"] = "result"; }
+        var payload = streaming ? Chunk(start) + Chunk(delta) + Chunk(new JsonObject(), "stop") + "data: [DONE]\n\n" : response.ToJsonString();
+        var captured = server.Reply(protocol, payload, streaming);
+        ChatResponse result;
+        if (streaming)
+        {
+            var updates = new List<ChatResponseUpdate>();
+            await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "inspect")])) updates.Add(update);
+            Assert.Equal(["inspect ", "result"], updates.SelectMany(update => update.Contents).OfType<TextReasoningContent>()
+                .Select(content => content.Text).Where(text => !string.IsNullOrEmpty(text)));
+            result = updates.ToAgentResponse();
+        }
+        else result = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "inspect")]);
+        await captured;
+        var contents = result.Messages.SelectMany(item => item.Contents).OfType<TextReasoningContent>().ToArray();
+        Assert.Equal("inspect result", string.Concat(contents.Select(content => content.Text)));
+        var replay = Assert.Single(contents.Select(content => content.AdditionalProperties?.GetValueOrDefault("openrouter.reasoning_details")).OfType<string>());
+        Assert.Equal("opaque-reasoning-推理", JsonNode.Parse(replay)![0]!["data"]!.GetValue<string>());
+
+        static string Chunk(JsonObject delta, string? finish = null) => "data: " + new JsonObject
+        {
+            ["id"] = "chatcmpl_plain", ["object"] = "chat.completion.chunk", ["created"] = 1,
+            ["choices"] = new JsonArray(new JsonObject { ["index"] = 0, ["delta"] = delta, ["finish_reason"] = finish })
+        }.ToJsonString() + "\n\n";
+    }
+
     internal static string Response(string protocol) => protocol switch
     {
         "anthropic" => """{"id":"msg_1","type":"message","role":"assistant","model":"anthropic/claude-opus-5.5","content":[{"type":"thinking","thinking":"inspect","signature":"opaque-signature"},{"type":"tool_use","id":"call_1","name":"probe","input":{}}],"stop_reason":"tool_use","usage":{"input_tokens":5,"output_tokens":2},"openrouter_metadata":{"usage":{"cost":0.00001}}}""",
