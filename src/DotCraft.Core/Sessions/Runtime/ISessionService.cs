@@ -390,6 +390,21 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Paged Thread history is not supported by this session service.");
 
+    Task<ThreadMessageSearchPage> SearchThreadMessageOccurrencesAsync(
+        string threadId,
+        string searchTerm,
+        ThreadMessageSearchCursor? cursor,
+        int limit,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Message occurrence search is not supported by this session service.");
+
+    Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadItemsAsync(
+        string threadId,
+        string turnId,
+        IReadOnlyList<string> itemIds,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Exact history reads are not supported by this session service.");
+
     /// <summary>Returns one visible Turn with its Items, or null when the Thread has no such Turn.</summary>
     async Task<SessionTurn?> ReadThreadTurnAsync(string threadId, string turnId, CancellationToken ct = default) =>
         (await GetThreadAsync(threadId, ct).ConfigureAwait(false)).Turns

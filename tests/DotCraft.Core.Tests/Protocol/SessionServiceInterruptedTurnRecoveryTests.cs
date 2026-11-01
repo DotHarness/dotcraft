@@ -12,7 +12,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
+public sealed partial class SessionServiceInterruptedTurnRecoveryTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(
         Path.GetTempPath(),

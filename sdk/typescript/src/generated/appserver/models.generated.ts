@@ -4491,6 +4491,18 @@ export interface ThreadItemsListResult {
   [key: string]: unknown;
 }
 
+export interface ThreadItemsReadParams {
+  itemIds: string[];
+  threadId: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadItemsReadResult {
+  data: ThreadItemListEntry[];
+  [key: string]: unknown;
+}
+
 export interface ThreadListParams {
   channelName?: string | null;
   crossChannelOrigins?: string[] | null;
@@ -4718,6 +4730,29 @@ export interface ThreadSearchMatch {
   [key: string]: unknown;
 }
 
+export interface ThreadSearchOccurrence {
+  itemId: string;
+  snippet: string;
+  snippetMatchRange: ThreadSearchTextRange;
+  turnCursor: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadSearchOccurrencesParams {
+  cursor?: string | null;
+  limit?: number | null;
+  searchTerm: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadSearchOccurrencesResult {
+  data: ThreadSearchOccurrence[];
+  nextCursor?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadSearchParams {
   archived?: boolean | null;
   cursor?: string | null;
@@ -4731,6 +4766,12 @@ export interface ThreadSearchParams {
 export interface ThreadSearchResult {
   data: ThreadSearchMatch[];
   nextCursor?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadSearchTextRange {
+  end: number;
+  start: number;
   [key: string]: unknown;
 }
 

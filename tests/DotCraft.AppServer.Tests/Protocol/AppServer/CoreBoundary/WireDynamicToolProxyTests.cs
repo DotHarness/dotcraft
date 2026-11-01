@@ -251,6 +251,31 @@ public sealed class WireDynamicToolProxyTests
         Assert.Null(transport.Method);
     }
 
+    [Theory]
+    [InlineData("InvalidArguments", ToolErrorCodes.InputInvalid)]
+    [InlineData("ItemNotFound", ToolErrorCodes.ExecutionFailed)]
+    public async Task CallbackErrorsKeepTheirClassificationAndSourceCode(string sourceCode, string expectedCode)
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = new RecordingTransport(new RuntimeDynamicToolCallResult
+        {
+            Success = false,
+            ErrorCode = sourceCode,
+            ErrorMessage = "The request could not be read.",
+            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = "The request could not be read." }]
+        });
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+        var registration = Assert.Single(snapshot.Registrations).Value;
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot, registration.Definition.Name, new JsonObject { ["body"] = "test" },
+            new ToolInvocationRequest("thread_test", "turn_test", "call_error", ToolInvocationAudience.Model));
+        Assert.False(result.Success);
+        Assert.Equal(expectedCode, result.Error?.Code);
+        Assert.Equal(sourceCode, result.Error?.Parameters["sourceErrorCode"].GetString());
+    }
+
     [Fact]
     public async Task InvalidCallbackResultMapsToStableProtocolError()
     {

@@ -6,7 +6,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class ThreadHistoryProjectionTests : IDisposable
+public sealed partial class ThreadHistoryProjectionTests : IDisposable
 {
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),

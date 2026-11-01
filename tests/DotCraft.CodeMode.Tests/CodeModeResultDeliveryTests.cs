@@ -83,6 +83,32 @@ public sealed class CodeModeResultDeliveryTests
         Assert.True(recorded.Success);
     }
 
+    [Fact]
+    public async Task BusinessFailuresExposeTheSourceCodeWithoutPrivateErrorParameters()
+    {
+        var source = ToolExecutionResult.Failed(new ToolError(
+            ToolErrorCodes.ExecutionFailed,
+            "The requested item is missing.",
+            new Dictionary<string, JsonElement>
+            {
+                ["sourceErrorCode"] = JsonSerializer.SerializeToElement("ItemNotFound"),
+                ["private"] = JsonSerializer.SerializeToElement("private-value")
+            }));
+        var (script, _, calls) = await RunAsync(source, """
+            try {
+              await tools.Read({});
+            } catch (error) {
+              text(error.message);
+            }
+            """);
+
+        Assert.Equal("completed", script.StructuredContent?.GetProperty("status").GetString());
+        Assert.Contains(ToolErrorCodes.ExecutionFailed, script.Content);
+        Assert.Contains("ItemNotFound", script.Content);
+        Assert.DoesNotContain("private-value", script.Content);
+        Assert.Equal(1, calls);
+    }
+
     private static async Task<(ToolExecutionResult Script, ToolExecutionResult Recorded, int Calls)> RunAsync(
         ToolExecutionResult source,
         string code,
@@ -142,7 +168,8 @@ public sealed class CodeModeResultDeliveryTests
         }
         finally
         {
-            Directory.Delete(workspace, recursive: true);
+            try { Directory.Delete(workspace, recursive: true); }
+            catch (IOException) { }
         }
     }
 

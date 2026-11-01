@@ -181,6 +181,7 @@ export interface ClientRequestMethods {
   "thread/goal/get": { params: Models.ThreadGoalGetParams; result: Models.ThreadGoalGetResult };
   "thread/goal/set": { params: Models.ThreadGoalSetParams; result: Models.ThreadGoalSetResult };
   "thread/items/list": { params: Models.ThreadItemsListParams; result: Models.ThreadItemsListResult };
+  "thread/items/read": { params: Models.ThreadItemsReadParams; result: Models.ThreadItemsReadResult };
   "thread/list": { params: Models.ThreadListParams; result: Models.ThreadListResult };
   "thread/maintenance/interrupt": { params: Models.ThreadMaintenanceInterruptParams; result: Models.RpcEmpty };
   "thread/mode/set": { params: Models.ThreadModeSetParams; result: Models.RpcEmpty };
@@ -192,6 +193,7 @@ export interface ClientRequestMethods {
   "thread/resume": { params: Models.ThreadResumeParams; result: Models.ThreadResumeResult };
   "thread/rollback": { params: Models.ThreadRollbackParams; result: Models.ThreadRollbackResponse };
   "thread/search": { params: Models.ThreadSearchParams; result: Models.ThreadSearchResult };
+  "thread/searchOccurrences": { params: Models.ThreadSearchOccurrencesParams; result: Models.ThreadSearchOccurrencesResult };
   "thread/start": { params: Models.ThreadStartParams; result: Models.ThreadStartResult };
   "thread/subscribe": { params: Models.ThreadSubscribeParams; result: Models.RpcEmpty };
   "thread/turns/list": { params: Models.ThreadTurnsListParams; result: Models.ThreadTurnsListResult };

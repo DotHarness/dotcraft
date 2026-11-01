@@ -1,5 +1,4 @@
-import { readThreadTool } from './desktopReadThread'
-import { readThreadToolDefinition } from './desktopReadThreadContract'
+import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection } from './threadTasks/childThreads'
 import {
@@ -116,7 +115,7 @@ const TOOL_NAMES = new Set([
   'CreateThread',
   'DismissProposal',
   'ListThreads',
-  'ReadThread',
+  ...threadHistoryToolNames,
   'SendMessageToThread',
   'SetThreadTitle',
   'SetThreadArchived',
@@ -204,7 +203,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       },
       display: { title: 'List threads', subtitle: 'Desktop' }
     },
-    readThreadToolDefinition,
+    ...threadHistoryToolDefinitions,
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'SendMessageToThread',
@@ -423,6 +422,9 @@ export async function handleDesktopRuntimeThreadToolCall(
   const args = isRecord(p.arguments) ? p.arguments : {}
 
   try {
+    if (threadHistoryToolNames.has(p.tool)) {
+      return await handleDesktopThreadHistoryTool(client, p.tool, p.arguments)
+    }
     switch (p.tool) {
       case 'CreateThread':
         return await createThreadTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
@@ -430,8 +432,6 @@ export async function handleDesktopRuntimeThreadToolCall(
         return dismissProposalTool(options.tasks, args, p)
       case 'ListThreads':
         return await listThreadsTool(client, args, workspacePath, options)
-      case 'ReadThread':
-        return await readThreadTool(client, p.arguments)
       case 'SendMessageToThread':
         return await sendMessageToThreadTool(client, args, options)
       case 'SetThreadTitle':
@@ -964,6 +964,7 @@ function requestErrorMessage(error: unknown): string {
 }
 
 function mapRequestErrorCode(error: unknown): string {
+  if (isRecord(error) && error.rpcCode === -32602) return 'InvalidArguments'
   const message = requestErrorMessage(error).toLowerCase()
   if (message.includes('not found')) return 'ThreadNotFound'
   if (message.includes('archived')) return 'ThreadArchived'
