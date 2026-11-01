@@ -11,6 +11,7 @@ export type ProviderProtocol = string
 
 interface ProviderProtocolIconProps {
   protocol: ProviderProtocol
+  backendId?: string
   size?: number
 }
 
@@ -20,12 +21,13 @@ export function getProviderProtocolMarkKind(protocol: ProviderProtocol): Provide
 
 export function ProviderProtocolIcon({
   protocol,
+  backendId,
   size = 28
 }: ProviderProtocolIconProps): JSX.Element {
   return (
     <span style={frameStyle(size)} aria-hidden="true">
-      {tryNormalizeProviderProtocol(protocol)
-        ? <ProviderMark kind={getProviderProtocolMarkKind(protocol)} size={size} style={MARK_STYLE} />
+      {backendId === 'openrouter' || tryNormalizeProviderProtocol(protocol)
+        ? <ProviderMark kind={backendId === 'openrouter' ? 'openrouter' : getProviderProtocolMarkKind(protocol)} size={size} style={MARK_STYLE} />
         : <Plug size={size} />}
     </span>
   )

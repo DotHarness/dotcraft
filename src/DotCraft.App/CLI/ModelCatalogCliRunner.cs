@@ -22,6 +22,8 @@ public static class ModelCatalogCliRunner
         public string ApiKey { get; set; } = string.Empty;
         public string AuthMethod { get; set; } = ModelProviderAuthMethods.ApiKey;
         public string EndPoint { get; set; } = string.Empty;
+        public string? BackendId { get; set; }
+        public System.Text.Json.Nodes.JsonObject BackendSettings { get; set; } = new();
         public int? NetworkTimeoutSeconds { get; set; }
     }
 
@@ -52,12 +54,12 @@ public static class ModelCatalogCliRunner
                 return 0;
             }
 
+            using var resolver = new ModelBackendResolver(new ModelProviderRegistry([
+                new OpenAIClientProvider(auth), new AnthropicClientProvider()]), new AuthCliRunner.NoContributions(),
+                paths.CraftHomePath, [new OpenRouterBackend()]);
             var result = await ModelProviderCatalog.FetchAsync(
                 config,
-                new ModelProviderRegistry([
-                    new OpenAIClientProvider(auth),
-                    new AnthropicClientProvider()
-                ]),
+                resolver,
                 providerId,
                 cancellationToken: cancellationToken);
             if (!result.Success && !string.IsNullOrWhiteSpace(result.ErrorMessage))
@@ -110,6 +112,7 @@ public static class ModelCatalogCliRunner
         config.Providers[providerId] = new AppConfig.ModelProviderConfig
         {
             DisplayName = draft.DisplayName,
+            BackendId = draft.BackendId, BackendSettings = draft.BackendSettings,
             Protocol = draft.Protocol,
             ApiKey = draft.ApiKey,
             AuthMethod = draft.AuthMethod,

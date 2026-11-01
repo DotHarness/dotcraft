@@ -89,6 +89,18 @@ var appConfig = new AppConfig
 
 `EndPoint` 为空时会使用所选协议的内置默认端点。
 
+## 配置 OpenRouter
+
+Harness 已包含 `openrouter` backend。自定义 Runtime 宿主在注册 Runtime 时调用
+`services.AddOpenRouterModelProvider()`。将 `BackendId` 配置为 `openrouter`，`Protocol` 配置为 `auto`，
+并提供 API key 或使用 `openrouterOAuth` 认证。
+
+自动路由会选择模型支持的协议。设置固定的 `Protocol` 可显式选择协议。
+`BackendSettings` 接受 `order`、`only`、`ignore`、`sort`、`allow_fallbacks` 和 `require_parameters`。
+
+在仓库根目录运行 `dotnet run scripts/update-model-catalog.cs`，更新内置 OpenRouter 目录和
+模型官方基准价。追加 `-- --pricing-only` 可仅更新基准价。
+
 ## 使用兼容端点
 
 如果 OpenAI 兼容或 Anthropic 兼容的 Provider 由其他服务转发，可以设置 `EndPoint`：

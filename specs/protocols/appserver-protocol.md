@@ -1764,6 +1764,10 @@ Non-obvious fields:
 - `reasoning`: optional server-authored capability metadata; clients use it rather than hardcoding compatibility. A model backend's models carry only the reasoning their backend reports, and preference repair and reasoning validation never apply built-in protocol catalogs to them; built-in providers use the merged model catalog. `supportsDisable` (an Off choice is allowed), `supportedEfforts` (`effort` among `low`, `medium`, `high`, `extraHigh`, `max`, `ultra`, plus a display `label`; `ultra` is advertised only when the model supports `max` and the Dynamic Workflow runtime is available), `defaultEffort`, `supportedOutputs` (`none`, `summary`, `full`), `defaultOutput`.
 - `speed`: optional `supportedModes` (Fast-capable models list `standard` and `fast`) and `defaultMode` (`standard`). When missing, clients must not offer Fast. Model backend models never carry it.
 - `contextWindow`: raw model capacity from the merged model catalog, independent of compaction limits.
+- Built-in backend models may report `supportedProtocols`, `defaultProtocol`, `maxOutputTokens`,
+  `inputModalities`, and `pricing` from the same model record as context and reasoning. Model-list
+  results report `source`, `refreshedAt`, and `refreshNotice` alongside the model list.
+- `model/list` accepts `refresh: true` to bypass the server catalog cache; ordinary reads reuse it.
 - `isDefault`: exactly one `true` in a non-empty list — the model of the provider's effective preference (workspace over personal, as `thread/start` resolves it), or the first item when there is no preference or its model is not listed. Since `thread/start` without a model fails when the provider has no preference, a client starting on a default it did not read from a preference names `providerId` and `model` explicitly.
 
 ### 21.5 `model/list`

@@ -58,6 +58,32 @@ describe('modelCatalogStore', () => {
     })
   })
 
+  it('clears refresh metadata after recovery, provider changes and reset', async () => {
+    appServerListModels.mockResolvedValue({
+      success: false, errorCode: 'Network', errorMessage: 'offline', refreshNotice: 'usingCachedCatalog',
+      source: 'cache', refreshedAt: '2026-01-01T00:00:00Z',
+      models: [{ id: 'cached' }]
+    })
+    const store = useModelCatalogStore.getState()
+    await store.loadIfNeeded(false, 'one')
+    expect(useModelCatalogStore.getState().refreshNotice).toBe('usingCachedCatalog')
+    appServerListModels.mockResolvedValue({ success: true, source: 'user', models: [{ id: 'fresh' }] })
+    await store.loadIfNeeded(true, 'one')
+    expect(useModelCatalogStore.getState()).toMatchObject({ source: 'user', refreshedAt: undefined, refreshNotice: undefined })
+
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const loading = store.loadIfNeeded(false, 'two')
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'loading', source: undefined, refreshedAt: undefined, refreshNotice: undefined })
+    pending.resolve({ success: true, models: [] })
+    await loading
+    expect(useModelCatalogStore.getState().source).toBeUndefined()
+    await store.loadIfNeeded(false, 'one')
+    expect(useModelCatalogStore.getState().source).toBe('user')
+    store.reset()
+    expect(useModelCatalogStore.getState()).toMatchObject({ source: undefined, refreshedAt: undefined, refreshNotice: undefined })
+  })
+
   it('stores thrown model/list errors and keeps loading after a synchronous failure', async () => {
     appServerListModels.mockRejectedValueOnce(new Error('proxy unavailable'))
 

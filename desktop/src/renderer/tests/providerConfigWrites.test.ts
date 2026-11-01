@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, ProviderExistsError, providerCreateValue, providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
+import { createProvider, updateProvider, ProviderExistsError, providerCreateValue, providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
 import type { ProviderInfoWire } from '../components/settings/providerInfo'
 
 const stored: ProviderInfoWire = {
@@ -85,5 +85,22 @@ describe('provider create', () => {
       expect.objectContaining({ expectedVersion: 'v1' }),
       expect.anything()
     )
+  })
+
+  it('keeps OpenRouter keys, endpoints and routing preferences in explicit backend configuration', () => {
+    expect(providerCreateValue({ ...unchanged, backendId: 'openrouter', protocol: 'auto', apiKey: 'router-key',
+      endPoint: 'https://openrouter.ai/api/v1', backendSettings: { only: ['anthropic'] } })).toMatchObject({
+      BackendId: 'openrouter', Protocol: 'auto', ApiKey: 'router-key', EndPoint: 'https://openrouter.ai/api/v1',
+      BackendSettings: { only: ['anthropic'] }
+    })
+  })
+
+  it('replaces the routing object so clearing a preference deletes it', async () => {
+    const sendRequest = stubConfigRead({})
+    const previous = { ...stored, backendId: 'openrouter', backendSettings: { only: ['anthropic'] } }
+    await updateProvider(previous, { ...unchanged, backendId: 'openrouter', backendSettings: {} })
+    expect(sendRequest).toHaveBeenCalledWith('config/batchWrite', expect.objectContaining({ edits: expect.arrayContaining([
+      expect.objectContaining({ value: {}, mergeStrategy: 'replace' })
+    ]) }), expect.anything())
   })
 })

@@ -1,0 +1,7 @@
+.notice {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-hint-size);
+}

@@ -43,7 +43,13 @@ The server's built-in model metadata is stored in `models.json`. Its synchronize
 entries use the provider-agnostic [models.dev](https://models.dev/) catalog and include models whose
 metadata declares tool calling, text output, and a context window of at least 1,000 tokens. The final
 segment of each canonical model id becomes a lowercase matching key, and duplicate keys are rejected. Provider-specific limits remain outside this
-provider-agnostic catalog.
+provider-agnostic matching table. The catalog's `providers` section holds exact provider-specific
+records for model IDs, protocols, limits, reasoning options and prices.
+
+Generic entries may carry `pricing` and `pricingProvider` for first-party base rates in USD per
+million input, output, cache-read and cache-write tokens. `pricingSource` and `pricingCapturedAt`
+identify their source and freshness. These estimates describe standard service at the base context
+tier. Unknown prices remain unspecified.
 
 An entry may also declare `maxInputTokens` when the model accepts less input than its context window
 because output tokens are reserved inside it. The built-in value comes from the model's first-party

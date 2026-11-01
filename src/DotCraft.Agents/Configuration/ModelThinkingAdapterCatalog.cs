@@ -216,7 +216,7 @@ public static class ModelThinkingAdapterCatalog
 
     private static bool MatchesModel(string? model, IReadOnlyCollection<string> patterns)
     {
-        var normalizedModel = model?.Trim();
+        var normalizedModel = ModelCapabilityIdentity.ForMatching(model);
         if (string.IsNullOrWhiteSpace(normalizedModel))
             return false;
 
@@ -257,7 +257,7 @@ public static class ModelThinkingAdapterCatalog
         var bestLength = -1;
         foreach (var pattern in patterns)
         {
-            if (!value.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
+            if (!ModelCapabilityIdentity.MatchesPrefix(value, pattern))
                 continue;
 
             if (pattern.Length > bestLength)
@@ -599,6 +599,7 @@ public static class ModelThinkingAdapterCatalog
         public HashSet<string> Endpoints { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool SupportsDisable { get; set; } = true;
+        public bool DefaultEnabled { get; set; }
 
         public List<ReasoningEffortOptionData> SupportedEfforts { get; } = [];
 
@@ -649,6 +650,7 @@ public static class ModelThinkingAdapterCatalog
             var clone = new ReasoningCapabilityData
             {
                 SupportsDisable = SupportsDisable,
+                DefaultEnabled = DefaultEnabled,
                 DefaultEffort = DefaultEffort,
                 DefaultOutput = DefaultOutput
             };

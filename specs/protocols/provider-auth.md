@@ -18,6 +18,7 @@ The methods are available when `capabilities.providerManagement` is advertised.
 | Method | Kind | Behavior |
 |---|---|---|
 | `provider/backend/list` | request | Returns active backend descriptors, protocols and authentication methods |
+| `provider/routing/list` | request | Returns upstream supplier names and slugs for a saved provider or an unsaved backend/endpoint draft |
 | `provider/auth/login` | request | Starts one login for a configured provider; returns its current state immediately |
 | `provider/auth/state` | request | Reads the owning connection's login snapshot |
 | `provider/auth/input` | request | Supplies one answer for the identified login and prompt |
@@ -27,6 +28,10 @@ The methods are available when `capabilities.providerManagement` is advertised.
 | `provider/auth/usage` | request | Returns provider account usage |
 | `provider/auth/updated` | notification | Publishes a revisioned login snapshot to the initiating connection |
 | `provider/auth/usage/updated` | notification | Publishes changed usage for one provider |
+
+`provider/routing/list` accepts `providerId` for a saved instance, or `backendId` and optional
+`endPoint` for a draft. It returns supplier `id` and `displayName` entries in `providers`.
+Supplier selections retain their configured order.
 
 ## Authentication methods
 

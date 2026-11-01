@@ -24,9 +24,10 @@ internal static class AuthCliRunner
         await using var services = new ServiceCollection()
             .AddOpenAIModelProvider(paths.CraftHomePath)
             .AddAnthropicModelProvider()
+            .AddOpenRouterModelProvider()
             .BuildServiceProvider();
         using var resolver = new ModelBackendResolver(
-            new ModelProviderRegistry(services.GetServices<IModelProvider>()), new NoContributions(), paths.CraftHomePath);
+            new ModelProviderRegistry(services.GetServices<IModelProvider>()), new NoContributions(), paths.CraftHomePath, services.GetServices<IModelBackend>());
         await using var coordinator = new ProviderAuthenticationCoordinator(resolver);
         return await RunAsync(coordinator, resolver, config, args, ct);
     }
@@ -307,7 +308,7 @@ internal static class AuthCliRunner
     private static string Plan(ProviderAuthenticationStatus status) =>
         string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType;
 
-    private sealed class NoContributions : IContributionView
+    internal sealed class NoContributions : IContributionView
     {
         public IReadOnlyList<TContract> Resolve<TContract>(string? threadId = null)
             where TContract : class, IContributionContract => [];

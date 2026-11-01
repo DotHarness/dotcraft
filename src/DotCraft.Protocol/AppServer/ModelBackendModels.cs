@@ -103,6 +103,8 @@ public sealed class ProviderAuthLoginState
 
 public sealed class ProviderAuthUsageResult
 {
+    [JsonPropertyName("values"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyDictionary<string, double>? Values { get; init; }
+    [JsonPropertyName("labels"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyDictionary<string, string>? Labels { get; init; }
     [JsonPropertyName("available")] public bool Available { get; init; }
     [JsonPropertyName("fetchedAt")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public DateTimeOffset? FetchedAt { get; init; }
     [JsonPropertyName("planType")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PlanType { get; init; }

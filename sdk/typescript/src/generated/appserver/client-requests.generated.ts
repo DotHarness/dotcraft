@@ -134,6 +134,7 @@ export interface ClientRequestMethods {
   "provider/auth/usage": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthUsageResult };
   "provider/backend/list": { params: Models.RpcEmpty; result: Models.ProviderBackendListResult };
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };
+  "provider/routing/list": { params: Models.ProviderRoutingListParams; result: Models.ProviderRoutingListResult };
   "provider/test": { params: Models.ProviderTestParams; result: Models.ProviderTestResult };
   "remoteToolHost/connect": { params: Models.RemoteToolHostConnectParams; result: Models.RemoteToolHostConnectResult };
   "remoteToolHost/disconnect": { params: Models.RemoteToolHostDisconnectParams; result: Models.RemoteToolHostDisconnectResult };

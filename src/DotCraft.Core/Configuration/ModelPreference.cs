@@ -42,7 +42,7 @@ public static class ModelPreferenceRules
             return normalized;
 
         var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, runtime);
-        if (reasoning is { SupportsDisable: false })
+        if (reasoning is { SupportsDisable: false } or { DefaultEnabled: true })
         {
             normalized.Reasoning.Enabled = true;
             normalized.Reasoning.Effort = reasoning.DefaultEffort.ToModelReasoningEffort();
@@ -109,7 +109,7 @@ public static class ModelPreferenceRules
             return null;
         if (!reasoning.Enabled)
             return capability.SupportsDisable ? null : $"Model '{runtime.Model}' does not support disabling reasoning.";
-        return capability.SupportedEfforts.Any(option => option.Effort == reasoning.Effort.ToProviderEffort())
+        return capability.SupportedEfforts.Count == 0 || capability.SupportedEfforts.Any(option => option.Effort == reasoning.Effort.ToProviderEffort())
             ? null
             : $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.";
     }

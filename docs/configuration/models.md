@@ -23,7 +23,8 @@ Personal provider example:
     },
     "openrouter": {
       "DisplayName": "OpenRouter",
-      "Protocol": "openai-chat-completions",
+      "BackendId": "openrouter",
+      "Protocol": "auto",
       "ApiKey": "${OPENROUTER_API_KEY}",
       "EndPoint": "https://openrouter.ai/api/v1"
     }
@@ -67,16 +68,31 @@ Provider object fields:
 | Field | Description | Default |
 |-------|-------------|---------|
 | `DisplayName` | User-facing provider name; falls back to the provider id when empty | Empty |
-| `Protocol` | Provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. Empty values default to `openai-chat-completions`. | `openai-chat-completions` |
+| `BackendId` | Provider integration. Use `openrouter` for OpenRouter | Empty |
+| `Protocol` | `anthropic`, `openai-chat-completions`, or `openai-responses`. OpenRouter accepts `auto` to select by model | `openai-chat-completions`, or `auto` for OpenRouter |
 | `ApiKey` | Provider API key; prefer `${ENV_NAME}` environment variable references | Empty |
-| `AuthMethod` | Authentication method: `apiKey` uses the static `ApiKey`; `chatgptOAuth` authenticates with a ChatGPT subscription account (OpenAI protocols only, see below). Unrecognized values fall back to `apiKey` | `apiKey` |
-| `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
+| `AuthMethod` | `apiKey` for an API key, `chatgptOAuth` for ChatGPT sign-in, or `openrouterOAuth` for OpenRouter browser sign-in | `apiKey` |
+| `EndPoint` | Provider base URL | OpenAI: `https://api.openai.com/v1`, Anthropic: `https://api.anthropic.com`, OpenRouter: `https://openrouter.ai/api/v1` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
 | `MaxOutputTokens` | Per-provider default maximum output tokens, applied when a request does not set its own | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
 | `SupportsImageGeneration` | Whether this provider serves the OpenAI Images API. When omitted, ChatGPT OAuth and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
 | `SupportsFreeformTools` | Whether this provider accepts grammar-constrained (`custom`) tools on the Responses protocol. When `false`, tools such as code mode's `CodeMode` are sent as ordinary function tools. When omitted, `chatgptOAuth` providers and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. | Provider default |
+
+## Connect OpenRouter
+
+In **Settings → Models**, add OpenRouter and enter an API key or sign in through your browser.
+The request protocol defaults to automatic selection by model.
+
+Select the model by its complete OpenRouter ID, such as `anthropic/claude-opus-5.5`. Refresh the model
+list to load the models available to your API key.
+
+For browser authorization from the CLI, set `AuthMethod` to `openrouterOAuth` on the provider above,
+then run `dotcraft auth login openrouter` and follow the terminal prompts.
+
+Use the OpenRouter settings to choose preferred upstream suppliers and their priority. The usage
+popover shows API-key spending, remaining limits and the last request cost reported by OpenRouter.
 
 ## Sign in with ChatGPT
 

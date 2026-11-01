@@ -13,6 +13,8 @@ public static class RemoteModelConfiguration
         config.Providers = catalog.Providers.ToDictionary(provider => provider.Id, provider => new AppConfig.ModelProviderConfig
         {
             DisplayName = provider.DisplayName,
+            BackendId = provider.BackendId,
+            BackendSettings = System.Text.Json.Nodes.JsonNode.Parse(provider.BackendSettingsJson) as System.Text.Json.Nodes.JsonObject ?? new(),
             Protocol = provider.Protocol,
             EndPoint = provider.Endpoint,
             AuthMethod = provider.AuthMethod,
@@ -22,7 +24,8 @@ public static class RemoteModelConfiguration
             NetworkTimeoutSeconds = provider.NetworkTimeoutSeconds,
             RemoteAuthentication = provider.Authentication,
             RemoteWebSearchBackend = provider.WebSearchBackend,
-            RemoteModels = provider.Models
+            RemoteModels = provider.Models,
+            RemoteCatalogState = provider.CatalogState, RemoteUsage = provider.Usage
         }, StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -9,21 +9,31 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly ModelProviderRegistry builtins;
     private readonly IContributionView contributions;
     private readonly string credentialRoot;
+    private readonly IReadOnlyDictionary<string, IModelBackend> officialBackends;
+    private readonly List<IContributionHandle> _officialRegistrations = [];
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
     private long _chatGptRevision;
     public event Action? Changed;
 
-    public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot)
+    public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot,
+        IEnumerable<IModelBackend>? officialBackends = null)
     {
         this.builtins = builtins;
         this.contributions = contributions;
         this.credentialRoot = credentialRoot;
-        if (contributions is IContributionRegistry registry) registry.Changed += OnContributionsChanged;
+        this.officialBackends = (officialBackends ?? []).ToDictionary(backend => backend.Descriptor.Id, StringComparer.Ordinal);
+        if (contributions is IContributionRegistry registry)
+        {
+            foreach (var backend in this.officialBackends.Values)
+                _officialRegistrations.Add(registry.Add<IModelBackendSource>(new OfficialSource(backend)));
+            registry.Changed += OnContributionsChanged;
+        }
     }
 
     public IReadOnlyList<ModelBackendDescriptor> GetBackends() =>
-        contributions.Resolve<IModelBackendSource>().Select(source => source.Backend.Descriptor)
+        officialBackends.Values.Select(backend => backend.Descriptor)
+            .Concat(contributions.Resolve<IModelBackendSource>().Where(source => !officialBackends.ContainsKey(source.Backend.Descriptor.Id)).Select(source => source.Backend.Descriptor))
             .OrderBy(descriptor => descriptor.Id, StringComparer.Ordinal).ToArray();
 
     public EffectiveModelRuntime Normalize(EffectiveModelRuntime runtime)
@@ -34,6 +44,19 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             return runtime.IsChatGptOAuth
                 ? runtime with { BackendGeneration = "chatgpt:" + Interlocked.Read(ref _chatGptRevision) }
                 : runtime;
+        }
+        if (officialBackends.TryGetValue(runtime.BackendId, out var official))
+        {
+            var configured = runtime with
+            {
+                IsBuiltInBackend = true,
+                ConfiguredProtocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
+                ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
+                AuthMethod = string.IsNullOrWhiteSpace(runtime.AuthMethod) ? official.Descriptor.AuthenticationMethods[0].Id : runtime.AuthMethod
+            };
+            var provider = ResolveOfficial(configured, official);
+            return provider.GetService(typeof(IProviderModelRuntimeResolver)) is IProviderModelRuntimeResolver resolver
+                ? resolver.ResolveRuntime(configured) : configured;
         }
         var entry = Find(runtime.BackendId);
         var descriptor = entry.Contribution.Backend.Descriptor;
@@ -58,6 +81,8 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     {
         if (string.IsNullOrWhiteSpace(runtime.BackendId))
             return builtins.Resolve(runtime);
+        if (officialBackends.TryGetValue(runtime.BackendId, out var official))
+            return ResolveOfficial(runtime, official);
         var normalized = Normalize(runtime) with { Model = string.Empty };
         return _providers.GetOrAdd(normalized, key => new Lazy<IModelProvider>(() =>
         {
@@ -69,7 +94,22 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 
     public CancellationToken GetStopping(EffectiveModelRuntime runtime) =>
         string.IsNullOrWhiteSpace(runtime.BackendId) ? CancellationToken.None
+            : officialBackends.TryGetValue(runtime.BackendId, out var official) ? official.Stopping
             : Find(runtime.BackendId).Contribution.Backend.Stopping;
+
+    private IModelProvider ResolveOfficial(EffectiveModelRuntime runtime, IModelBackend backend)
+    {
+        var key = runtime with
+        {
+            Model = string.Empty, ModelMetadata = null, RequestAdaptation = null,
+            Protocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
+            EndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
+            BackendGeneration = _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime)).ToString(),
+            MaxOutputTokens = runtime.ConfiguredMaxOutputTokens, Capabilities = backend.Descriptor.Capabilities
+        };
+        return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() => backend.CreateProvider(
+            new ModelBackendContext(value, new ProviderCredentialStore(credentialRoot, backend.Descriptor.Id, value.ProviderId), backend.Stopping)))).Value;
+    }
 
     public void InvalidateAuthentication(EffectiveModelRuntime runtime)
     {
@@ -108,7 +148,13 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     public void Dispose()
     {
         if (contributions is IContributionRegistry registry) registry.Changed -= OnContributionsChanged;
+        foreach (var handle in _officialRegistrations) handle.Dispose();
         _providers.Clear();
         Changed = null;
+    }
+
+    private sealed class OfficialSource(IModelBackend backend) : IModelBackendSource
+    {
+        public IModelBackend Backend => backend;
     }
 }

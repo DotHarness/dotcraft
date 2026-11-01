@@ -57,10 +57,10 @@ export function ProviderKeyFields({ draft, setDraft, savedProvider }: ProviderKe
               endPoint: e.target.value
             }))}
             mono
-            placeholder={defaultProviderEndpoint(protocol)}
+            placeholder={draft.backendId === 'openrouter' ? 'https://openrouter.ai/api/v1' : defaultProviderEndpoint(protocol)}
           />
           <div className={styles.hint} style={settingsHintStyle(false)}>
-            {protocol === ANTHROPIC_PROTOCOL
+            {draft.backendId === 'openrouter' ? t('settings.llm.openrouter.endpointHint') : protocol === ANTHROPIC_PROTOCOL
               ? t('settings.llm.field.endpointAnthropicHint')
               : t('settings.llm.field.endpointOpenAiHint')}
           </div>

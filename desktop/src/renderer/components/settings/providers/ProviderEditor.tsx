@@ -25,6 +25,7 @@ import {
   type ProviderDraft
 } from './providerDraft'
 import styles from './ProviderEditor.module.css'
+import { OpenRouterFields } from './OpenRouterFields'
 
 export interface ProviderTestResultWire {
   success: boolean
@@ -150,7 +151,6 @@ export function ProviderEditor({
           control={
             <Select
               value={providerConnectionValue(draft)}
-              disabled={!isNew}
               ariaLabel={t('settings.llm.connectionType')}
               options={selectOptions}
               onValueChange={selectConnection}
@@ -178,6 +178,7 @@ export function ProviderEditor({
       {connectionMode === 'apiKey' && (
         <ProviderKeyFields draft={draft} setDraft={setDraft} savedProvider={savedProvider} />
       )}
+      {draft.backendId === 'openrouter' && <OpenRouterFields draft={draft} setDraft={setDraft} provider={savedProvider} />}
 
       <SettingsGroup title={t('settings.group.advanced')}>
         <SettingsRow

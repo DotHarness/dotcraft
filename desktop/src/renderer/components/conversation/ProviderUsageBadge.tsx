@@ -25,12 +25,17 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { getProviderProtocolMarkKind } from '../settings/panels/ProviderProtocolIcon'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
+import { OpenRouterUsageBadge } from './OpenRouterUsageBadge'
 
 interface ProviderUsageBadgeProps {
   provider: ProviderSummary | null
 }
 
 export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
+  return provider?.backendId === 'openrouter' ? <OpenRouterUsageBadge provider={provider} /> : <ProviderQuotaUsageBadge provider={provider} />
+}
+
+function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
   const t = useT()
   const locale = useLocale()
   const providerId = provider?.id ?? null
@@ -38,6 +43,9 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
   const providerManagement = useConnectionStore((state) => state.capabilities?.providerManagement === true)
   const refreshUsage = useProvidersStore((state) => state.refreshUsage)
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (open && providerId && providerManagement) void refreshUsage(providerId)
+  }, [open, providerId, providerManagement, refreshUsage])
   const wrapperRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {

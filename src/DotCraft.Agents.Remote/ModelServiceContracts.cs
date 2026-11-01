@@ -16,7 +16,11 @@ public sealed record RemoteModelProvider(
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,
     IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null,
-    string? WebSearchBackend = null);
+    string? WebSearchBackend = null,
+    string? BackendId = null,
+    string BackendSettingsJson = "{}",
+    ModelCatalogResult? CatalogState = null,
+    ProviderUsageSnapshot? Usage = null);
 
 public sealed record ModelServiceCatalog(string CallerId, IReadOnlyList<RemoteModelProvider> Providers);
 
@@ -48,6 +52,8 @@ public static class ModelServiceProtocol
         || name.Equals("session-id", StringComparison.OrdinalIgnoreCase)
         || name.Equals("thread-id", StringComparison.OrdinalIgnoreCase)
         || name.Equals("x-client-request-id", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("x-session-id", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("X-OpenRouter-Metadata", StringComparison.OrdinalIgnoreCase)
         || name.StartsWith("x-codex-", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsResponseHeader(string name) =>

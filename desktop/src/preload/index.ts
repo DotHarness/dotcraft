@@ -571,8 +571,8 @@ const api = {
       )
     },
 
-    listModels(providerId?: string | null): Promise<unknown> {
-      return ipcRenderer.invoke('appserver:model-list', providerId)
+    listModels(providerId?: string | null, refresh = false): Promise<unknown> {
+      return refresh ? ipcRenderer.invoke('appserver:model-list', providerId, true) : ipcRenderer.invoke('appserver:model-list', providerId)
     },
 
     getConnectionStatus(): Promise<ConnectionStatusPayload> {

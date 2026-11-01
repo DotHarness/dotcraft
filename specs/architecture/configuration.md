@@ -117,6 +117,9 @@ Option sets are declared on the field: `Permissions.DefaultApprovalPolicy` accep
 
 `Providers` is an object-valued field mapping a provider id to a provider object with the fields `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `BackendId`, `BackendSettings`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Provider ids compare case-insensitively. Its reload behavior is `SubsystemRestart` in the `threadAgents` subsystem.
 
+Provider-specific routing and authentication follow the selected backend's contract, including
+[OpenRouter](openrouter.md).
+
 Providers are created, edited, and deleted only by configuration writes: an edit of `Providers.<id>` or `Providers.<id>.<Field>` creates or changes a provider, and a `null` value at `Providers.<id>` deletes it. A write does not distinguish creating from editing; a client that must not overwrite an existing provider checks the listed ids and supplies the expected version of the user layer.
 
 Provider definitions are personal and live in the user layer. A write whose edits are all under `Providers` targets the user layer by default; a write that mixes `Providers` edits with other keys must name the user layer; any write with an edit under `Providers` whose target is another layer fails with `configValidationError`, as does a replacement of the workspace layer that changes content under `Providers`.

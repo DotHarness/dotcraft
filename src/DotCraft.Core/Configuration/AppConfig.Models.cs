@@ -5,6 +5,9 @@ namespace DotCraft.Configuration;
 
 public sealed partial class AppConfig
 {
+    [JsonIgnore, ConfigField(Ignore = true)]
+    public IModelRuntimeResolver? RuntimeResolver { get; set; }
+
     [ConfigField(Ignore = true)]
     public ModelServiceConfig? ModelService { get; set; }
 
@@ -32,6 +35,8 @@ public sealed partial class AppConfig
 
         [JsonIgnore]
         public IReadOnlyDictionary<string, ProviderRequestAdaptation>? RemoteModels { get; set; }
+        [JsonIgnore] public ModelCatalogResult? RemoteCatalogState { get; set; }
+        [JsonIgnore] public ProviderUsageSnapshot? RemoteUsage { get; set; }
 
         public string DisplayName { get; set; } = string.Empty;
 
@@ -76,6 +81,7 @@ public sealed partial class AppConfig
             RemoteAuthentication = RemoteAuthentication,
             RemoteWebSearchBackend = RemoteWebSearchBackend,
             RemoteModels = RemoteModels,
+            RemoteCatalogState = RemoteCatalogState, RemoteUsage = RemoteUsage,
             DisplayName = DisplayName,
             Protocol = Protocol,
             ApiKey = ApiKey,

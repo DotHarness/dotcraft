@@ -23,7 +23,8 @@
     },
     "openrouter": {
       "DisplayName": "OpenRouter",
-      "Protocol": "openai-chat-completions",
+      "BackendId": "openrouter",
+      "Protocol": "auto",
       "ApiKey": "${OPENROUTER_API_KEY}",
       "EndPoint": "https://openrouter.ai/api/v1"
     }
@@ -67,16 +68,31 @@ Provider 对象字段：
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
 | `DisplayName` | 面向用户显示的 Provider 名称。为空时使用 provider id | 空 |
-| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
+| `BackendId` | 提供商接入类型，OpenRouter 使用 `openrouter` | 空 |
+| `Protocol` | `anthropic`、`openai-chat-completions` 或 `openai-responses`。OpenRouter 使用 `auto` 按模型选择 | `openai-chat-completions`，OpenRouter 为 `auto` |
 | `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
-| `AuthMethod` | 认证方式。`apiKey` 使用静态 `ApiKey`，`chatgptOAuth` 以 ChatGPT 订阅账号认证（仅限 OpenAI 协议，见下文）。无法识别的取值回退为 `apiKey` | `apiKey` |
-| `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
+| `AuthMethod` | 认证方式。`apiKey` 使用 API key，`chatgptOAuth` 使用 ChatGPT 登录，`openrouterOAuth` 使用 OpenRouter 浏览器登录 | `apiKey` |
+| `EndPoint` | 提供商 API 地址 | OpenAI：`https://api.openai.com/v1`，Anthropic：`https://api.anthropic.com`，OpenRouter：`https://openrouter.ai/api/v1` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
 | `MaxOutputTokens` | 单个 Provider 的默认最大输出 token 数，请求自己没有指定时使用该值 | 空 |
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
 | `SupportsImageGeneration` | 该提供商是否支持 OpenAI Images API。省略时，ChatGPT OAuth 和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
 | `SupportsFreeformTools` | 该提供商在 Responses 协议下是否接受带语法约束的 `custom` 工具。为 `false` 时，代码模式的 `CodeMode` 等工具以普通 function 工具发送。省略时，`chatgptOAuth` 提供商和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
+
+## 连接 OpenRouter
+
+在**设置 → 模型**中添加 OpenRouter，填写 API key 或使用浏览器登录。
+请求协议默认按模型自动选择。
+
+使用完整的 OpenRouter 模型 ID，例如 `anthropic/claude-opus-5.5`。刷新模型列表，获取当前 API key
+可用的模型。
+
+从 CLI 使用浏览器授权时，将上面提供商的 `AuthMethod` 设为 `openrouterOAuth`，然后运行
+`dotcraft auth login openrouter`，按终端提示完成登录。
+
+在 OpenRouter 设置中选择偏好的上游供应商并调整优先顺序。用量浮层显示 API key 的已用金额、
+剩余额度和 OpenRouter 返回的上次请求费用。
 
 ## 使用 ChatGPT 登录
 

@@ -92,6 +92,19 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ExplicitNoneDisablesAdaptiveThinkingWithoutAnEffort()
+    {
+        var handler = new CaptureHandler();
+        var config = CreateConfig(true, ModelReasoningEffort.High, ReasoningOutput.Full);
+        using var client = CreateBetaClient(handler, config, "test-xhigh-model");
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
+        { Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None } });
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        Assert.Equal("disabled", document.RootElement.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.False(document.RootElement.TryGetProperty("output_config", out var output) && output.TryGetProperty("effort", out _));
+    }
+
+    [Fact]
     public async Task GetResponseAsync_UnlistedBetaModelSerializesExtendedThinking()
     {
         var handler = new CaptureHandler();

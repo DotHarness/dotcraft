@@ -56,6 +56,33 @@ docker compose up -d model-service
 
 The default port is `8090`. Use HTTPS at your reverse proxy when connecting across an untrusted network.
 
+## Use OpenRouter
+
+Add an OpenRouter provider to `state/config.json`, passing its environment variable into the container:
+
+```json
+{
+  "Providers": {
+    "router": {
+      "BackendId": "openrouter",
+      "Protocol": "auto",
+      "ApiKey": "${OPENROUTER_API_KEY}"
+    }
+  }
+}
+```
+
+For browser sign-in, replace `ApiKey` with `"AuthMethod": "openrouterOAuth"`, then run:
+
+```bash
+docker compose run --rm model-service dotcraft model-service --state /state \
+  auth login --provider router --no-browser
+```
+
+Open the printed URL and paste the complete callback URL into the terminal. Use `--provider router`
+when creating the client credential below, then select `router` and a complete OpenRouter model ID
+in the connected Stack.
+
 ## Connect a Stack
 
 Create a credential for each Runtime. The command prints its client ID and writes the credential to a file:

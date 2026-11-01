@@ -7,6 +7,9 @@
     "defaultEffort": {
       "type": "string"
     },
+    "defaultEnabled": {
+      "type": "boolean"
+    },
     "defaultOutput": {
       "type": "string"
     },

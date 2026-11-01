@@ -6,4 +6,6 @@ public sealed record ProviderRequestAdaptation(
     bool UseResponsesLite,
     bool DeepThinking,
     ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData? AnthropicThinking,
-    ModelThinkingAdapterCatalog.AnthropicMessageContentAdapterData? AnthropicMessageContent);
+    ModelThinkingAdapterCatalog.AnthropicMessageContentAdapterData? AnthropicMessageContent,
+    ModelCatalogEntry? Model = null,
+    string? Protocol = null);

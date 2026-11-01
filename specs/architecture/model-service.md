@@ -26,6 +26,8 @@ never become upstream authentication. The service cannot execute workspace tools
 Provider descriptions contain protocol, authentication method, non-secret routing and model
 metadata, and sanitized authentication status. They contain no API keys, OAuth tokens, or server
 filesystem paths. Workers keep provider request shaping and native history.
+Built-in backends publish each model's supported protocols, limits, reasoning options and prices.
+Workers resolve the model's protocol before inference, and the service validates its operation.
 Thread, root thread, Turn, and request-kind correlation remain explicit. Cache routing identities
 are scoped by the stable caller identity.
 
@@ -41,6 +43,8 @@ registration and HTTP endpoints for an embedding ASP.NET host or the official `d
 model-service` host. Neither service registration nor endpoint mapping creates a Session runtime.
 The official host uses its own state directory; an embedded host supplies authorization,
 provider resolution, credential storage, and usage recording.
+Hosts explicitly compose built-in backends such as [OpenRouter](openrouter.md). Local plugin backends
+remain outside the service boundary.
 
 OpenAI authorization, exchange, refresh, and revocation have one implementation in DotCraft.
 File storage and host-owned encrypted storage implement the same token-store contract. A credential

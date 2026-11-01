@@ -89,6 +89,18 @@ var appConfig = new AppConfig
 
 An empty `EndPoint` selects the built-in default for the chosen protocol.
 
+## Configure OpenRouter
+
+Harness includes the `openrouter` backend. A custom Runtime host calls
+`services.AddOpenRouterModelProvider()` alongside its Runtime registration. Configure `BackendId`
+as `openrouter`, `Protocol` as `auto`, and an API key or `openrouterOAuth` authentication.
+
+Automatic routing selects a protocol supported by the model. Set a fixed `Protocol` to choose it explicitly.
+`BackendSettings` accepts `order`, `only`, `ignore`, `sort`, `allow_fallbacks` and `require_parameters`.
+
+From the repository root, run `dotnet run scripts/update-model-catalog.cs` to update the built-in
+OpenRouter directory and official model base prices. Add `-- --pricing-only` to update base prices alone.
+
 ## Use a compatible endpoint
 
 Set `EndPoint` when routing an OpenAI-compatible or Anthropic-compatible provider through another service:

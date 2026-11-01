@@ -2543,17 +2543,23 @@ export interface MemoryResetResult {
 export interface ModelCatalogItem {
   contextWindow?: number;
   createdAt?: string;
+  defaultProtocol?: string;
   displayName?: string;
   id?: string;
+  inputModalities?: string[];
   isDefault?: boolean;
+  maxOutputTokens?: number;
   ownedBy?: string;
+  pricing?: ModelPricingInfo;
   reasoning?: ModelReasoningCapability | null;
   speed?: ModelSpeedCapability | null;
+  supportedProtocols?: string[];
   [key: string]: unknown;
 }
 
 export interface ModelListParams {
   providerId?: string | null;
+  refresh?: boolean;
   [key: string]: unknown;
 }
 
@@ -2563,6 +2569,9 @@ export interface ModelListResult {
   models?: ModelCatalogItem[];
   protocol?: string | null;
   providerId?: string | null;
+  refreshNotice?: string;
+  refreshedAt?: string;
+  source?: string;
   success?: boolean;
   [key: string]: unknown;
 }
@@ -2574,8 +2583,17 @@ export interface ModelPreference {
   [key: string]: unknown;
 }
 
+export interface ModelPricingInfo {
+  cacheReadPerMillion?: number | null;
+  cacheWritePerMillion?: number | null;
+  inputPerMillion?: number | null;
+  outputPerMillion?: number | null;
+  [key: string]: unknown;
+}
+
 export interface ModelReasoningCapability {
   defaultEffort?: string;
+  defaultEnabled?: boolean;
   defaultOutput?: string;
   supportedEfforts?: ModelReasoningEffortOption[];
   supportedOutputs?: string[];
@@ -3113,10 +3131,12 @@ export interface ProviderAuthUsageResult {
   balances?: ProviderAuthUsageBalance[] | null;
   credits?: ProviderAuthUsageCredits | null;
   fetchedAt?: string | null;
+  labels?: Record<string, string> | null;
   limitReachedKind?: string | null;
   planType?: string | null;
   primary?: ProviderAuthUsageWindow | null;
   secondary?: ProviderAuthUsageWindow | null;
+  values?: Record<string, number> | null;
   [key: string]: unknown;
 }
 
@@ -3180,6 +3200,7 @@ export interface ProviderInfo {
   apiKey?: string | null;
   authMethod?: string;
   backendId?: string;
+  backendSettings?: JsonValue;
   capabilities?: ProviderCapabilities;
   displayName?: string;
   endPoint?: string;
@@ -3207,8 +3228,28 @@ export interface ProviderListResult {
   [key: string]: unknown;
 }
 
+export interface ProviderRoutingInfo {
+  displayName: string;
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderRoutingListParams {
+  backendId?: string;
+  endPoint?: string;
+  providerId?: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderRoutingListResult {
+  providers: ProviderRoutingInfo[];
+  [key: string]: unknown;
+}
+
 export interface ProviderTestParams {
   apiKey?: string | null;
+  backendId?: string;
+  backendSettings?: JsonValue;
   endPoint?: string | null;
   maxOutputTokens?: number | null;
   networkTimeoutSeconds?: number | null;

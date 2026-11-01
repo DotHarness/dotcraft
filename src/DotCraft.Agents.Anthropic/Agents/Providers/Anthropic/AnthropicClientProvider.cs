@@ -46,7 +46,8 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
                 runtime.Model,
                 catalogPath),
             runtime.Model,
-            runtime.MaxOutputTokens);
+            runtime.MaxOutputTokens,
+            reasoningSupport: runtime.ModelMetadata?.Reasoning);
         client = new AnthropicDeferredToolLoadingChatClient(
             client,
             runtime.Model,
@@ -185,7 +186,7 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
             {
                 ApiKey = clientKey.IsRemote ? "remote" : clientKey.ApiKey,
                 AuthToken = null,
-                HttpClient = clientKey.IsRemote ? RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint) : SharedHttpClient,
+                HttpClient = httpTransport is not null ? RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint) : SharedHttpClient,
                 BaseUrl = clientKey.Endpoint.ToString().TrimEnd('/'),
                 MaxRetries = 0,
                 Timeout = TimeSpan.FromSeconds(clientKey.NetworkTimeoutSeconds)

@@ -1,0 +1,18 @@
+.rows {
+  display: grid;
+  gap: 10px;
+  padding-block: 8px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+}
+
+.value {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

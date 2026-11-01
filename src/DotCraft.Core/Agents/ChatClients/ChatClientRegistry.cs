@@ -59,8 +59,11 @@ public sealed class ChatClientRegistry
     public EffectiveModelRuntime ResolveMainRuntime(
         AppConfig config,
         string? providerIdOverride = null,
-        string? modelOverride = null) =>
-        ResolveRuntimeMetadata(config, ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
+        string? modelOverride = null)
+    {
+        config.RuntimeResolver = _runtimeResolver;
+        return ResolveRuntimeMetadata(config, ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
+    }
 
     /// <summary>
     /// Resolves the effective MainAgent model for a workspace or thread.
@@ -80,10 +83,13 @@ public sealed class ChatClientRegistry
     public EffectiveModelRuntime ResolveSubAgentRuntime(
         AppConfig config,
         string effectiveMainProviderId,
-        string effectiveMainModel) =>
-        ResolveRuntimeMetadata(
+        string effectiveMainModel)
+    {
+        config.RuntimeResolver = _runtimeResolver;
+        return ResolveRuntimeMetadata(
             config,
             ModelProviderResolver.ResolveSubAgent(config, effectiveMainProviderId, effectiveMainModel));
+    }
 
     /// <summary>
     /// Resolves the effective native SubAgent model for the current thread context.

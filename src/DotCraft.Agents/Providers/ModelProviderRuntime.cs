@@ -160,9 +160,17 @@ public sealed record EffectiveModelRuntime(
     public string? BackendId { get; init; }
     public string BackendSettingsJson { get; init; } = "{}";
     public string? BackendGeneration { get; init; }
+    public bool IsBuiltInBackend { get; init; }
+    public string? ConfiguredProtocol { get; init; }
+    public string? ConfiguredEndPoint { get; init; }
+    public ModelCatalogEntry? ModelMetadata { get; init; }
+    public int? ConfiguredMaxOutputTokens { get; init; }
+    public IReadOnlyDictionary<string, DotCraft.Agents.ProviderRequestAdaptation>? RemoteModels { get; init; }
+    public ModelCatalogResult? RemoteCatalogState { get; init; }
+    public DotCraft.Agents.ProviderUsageSnapshot? RemoteUsage { get; init; }
 
-    public bool IsOpenAICompatible => BackendId is null && ModelProviderProtocols.IsOpenAIProtocol(Protocol);
-    public bool IsOpenAIResponses => BackendId is null && ModelProviderProtocols.IsOpenAIResponses(Protocol);
+    public bool IsOpenAICompatible => (BackendId is null || IsBuiltInBackend) && ModelProviderProtocols.IsOpenAIProtocol(Protocol);
+    public bool IsOpenAIResponses => (BackendId is null || IsBuiltInBackend) && ModelProviderProtocols.IsOpenAIResponses(Protocol);
     public bool IsChatGptOAuth => BackendId is null && ModelProviderAuthMethods.IsChatGptOAuth(AuthMethod);
 }
 
@@ -191,12 +199,23 @@ public sealed class ModelCatalogEntry
     public DateTimeOffset CreatedAt { get; set; }
     /// <summary>Reasoning choices reported by the provider; null defers to the built-in protocol catalog.</summary>
     public ModelReasoningSupport? Reasoning { get; set; }
+    public int? ContextWindow { get; set; }
+    public int? MaxOutputTokens { get; set; }
+    public IReadOnlyList<string>? SupportedProtocols { get; set; }
+    public string? DefaultProtocol { get; set; }
+    public IReadOnlyList<string>? InputModalities { get; set; }
+    public ModelPricing? Pricing { get; set; }
 }
+
+public sealed record ModelPricing(decimal? InputPerMillion, decimal? OutputPerMillion,
+    decimal? CacheReadPerMillion = null, decimal? CacheWritePerMillion = null);
 
 public sealed record ModelReasoningSupport(
     bool SupportsDisable,
     IReadOnlyList<ProviderReasoningEffort> SupportedEfforts,
-    ProviderReasoningEffort DefaultEffort);
+    ProviderReasoningEffort DefaultEffort,
+    bool DefaultEnabled = false,
+    ProviderReasoningEffort? UpstreamDefaultEffort = null);
 
 /// <summary>A provider-neutral model catalog operation result.</summary>
 public sealed class ModelCatalogResult
@@ -208,4 +227,7 @@ public sealed class ModelCatalogResult
     public string? ProviderId { get; set; }
     public string? Protocol { get; set; }
     public string? EndPoint { get; set; }
+    public string? Source { get; set; }
+    public DateTimeOffset? RefreshedAt { get; set; }
+    public string? RefreshNotice { get; set; }
 }

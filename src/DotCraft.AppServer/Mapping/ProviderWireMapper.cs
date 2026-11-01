@@ -11,6 +11,7 @@ public static class ProviderContractMapper
         AppConfig config, IModelRuntimeResolver? resolver, ProviderAuthenticationCoordinator? authentication, CancellationToken ct)
     {
         var infos = new List<Contract.ProviderInfo>();
+        config.RuntimeResolver = resolver;
         foreach (var (id, provider) in config.Providers.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
         {
             var authenticated = authentication is null
@@ -42,6 +43,7 @@ public static class ProviderContractMapper
         {
             Id = id,
             BackendId = custom ? provider.BackendId! : default(Protocol.Optional<string>),
+            BackendSettings = custom ? System.Text.Json.JsonSerializer.SerializeToElement(provider.BackendSettings) : default(Protocol.Optional<System.Text.Json.JsonElement>),
             ManagedBy = provider.RemoteAuthentication is null ? default : "modelService",
             IsAuthenticated = authenticated is { } ready ? ready
                 : provider.RemoteAuthentication is null ? default(Protocol.Optional<bool>) : provider.RemoteAuthentication.IsAuthenticated,
@@ -98,6 +100,7 @@ public static class ProviderContractMapper
         return new Contract.ModelReasoningCapability
         {
             SupportsDisable = capability.SupportsDisable,
+            DefaultEnabled = capability.DefaultEnabled ? true : default(Protocol.Optional<bool>),
             SupportedEfforts = new Protocol.Optional<IReadOnlyList<Contract.ModelReasoningEffortOption>>(
                 efforts),
             DefaultEffort = ReasoningEffortToken(capability.DefaultEffort),
@@ -143,7 +146,14 @@ public static class ProviderContractMapper
                 ModelThinkingAdapterResolver.ResolveReasoningCapability(config, providerId, protocol, endpoint, model),
                 includeUltra),
             Speed = backend ? null : MapSpeedCapability(config, protocol, model.Id),
-            ContextWindow = ModelCatalog.Resolve(config, model.Id)
+            ContextWindow = model.ContextWindow ?? ModelCatalog.Resolve(config, model.Id),
+            MaxOutputTokens = model.MaxOutputTokens is { } max ? max : default(Protocol.Optional<int>),
+            SupportedProtocols = model.SupportedProtocols is { } protocols ? new(protocols) : default,
+            DefaultProtocol = model.DefaultProtocol is { } selected ? selected : default(Protocol.Optional<string>),
+            InputModalities = model.InputModalities is { } inputs ? new(inputs) : default,
+            Pricing = model.Pricing is { } price ? new Contract.ModelPricingInfo
+            { InputPerMillion = price.InputPerMillion, OutputPerMillion = price.OutputPerMillion,
+                CacheReadPerMillion = price.CacheReadPerMillion, CacheWritePerMillion = price.CacheWritePerMillion } : default(Protocol.Optional<Contract.ModelPricingInfo>)
         })];
     }
 

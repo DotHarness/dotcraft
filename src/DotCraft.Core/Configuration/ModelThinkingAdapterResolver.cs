@@ -45,7 +45,7 @@ public static class ModelThinkingAdapterResolver
     public static ModelThinkingAdapterCatalog.ReasoningCapabilityData? ResolveReasoningCapability(
         AppConfig config,
         EffectiveModelRuntime runtime) =>
-        runtime.BackendId is null
+        runtime.ModelMetadata?.Reasoning is { } reported ? FromReported(reported) : runtime.BackendId is null
             ? ResolveReasoningCapability(config, runtime.Protocol, runtime.EndPoint, runtime.Model)
             : null;
 
@@ -68,6 +68,7 @@ public static class ModelThinkingAdapterResolver
         var capability = new ModelThinkingAdapterCatalog.ReasoningCapabilityData
         {
             SupportsDisable = reported.SupportsDisable,
+            DefaultEnabled = reported.DefaultEnabled,
             DefaultEffort = reported.DefaultEffort
         };
         capability.SupportedEfforts.AddRange(reported.SupportedEfforts.Select(static effort => new ModelThinkingAdapterCatalog.ReasoningEffortOptionData(effort)));

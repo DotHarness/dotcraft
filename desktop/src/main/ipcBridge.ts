@@ -1064,7 +1064,7 @@ export function registerIpcHandlers(
     )
   )
 
-  handleSafe('appserver:model-list', async (_event, providerId?: string | null) => {
+  handleSafe('appserver:model-list', async (_event, providerId?: string | null, refresh = false) => {
     const client = getWireClient()
     if (!client) {
       return null
@@ -1072,7 +1072,7 @@ export function registerIpcHandlers(
     const normalizedProviderId = providerId?.trim() || null
     return client.sendRequest(
       'model/list',
-      normalizedProviderId ? { providerId: normalizedProviderId } : {},
+      { ...(normalizedProviderId ? { providerId: normalizedProviderId } : {}), ...(refresh ? { refresh: true } : {}) },
       20_000
     )
   })

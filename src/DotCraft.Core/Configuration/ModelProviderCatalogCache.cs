@@ -33,7 +33,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
             runtime.BackendGeneration ?? string.Empty,
             runtime.BackendSettingsJson,
             runtime.Protocol,
-            runtime.EndPoint.TrimEnd('/').ToLowerInvariant(),
+            runtime.EndPoint.TrimEnd('/'),
             runtime.AuthMethod,
             Fingerprint(runtime.ApiKey));
     }
@@ -64,7 +64,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
 
             entry.Failure = Clone(result);
             entry.FailureAt = now;
-            return entry.Catalog is null ? result : Clone(entry.Catalog);
+            return result.RefreshNotice is not null || entry.Catalog is null ? result : Clone(entry.Catalog);
         }
         finally
         {
@@ -75,6 +75,8 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
     private bool TryRead(CacheEntry entry, out ModelCatalogResult result)
     {
         var now = _timeProvider.GetUtcNow();
+        if (entry.Failure is { RefreshNotice: not null } visible && now - entry.FailureAt <= FailureRetryDelay)
+        { result = Clone(visible); return true; }
         var catalog = entry.Catalog;
         if (catalog != null && now - entry.CatalogAt <= CatalogTtl)
         {
@@ -85,7 +87,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
         var failure = entry.Failure;
         if (failure != null && now - entry.FailureAt <= FailureRetryDelay)
         {
-            result = Clone(catalog ?? failure);
+            result = Clone(failure.RefreshNotice is not null ? failure : catalog ?? failure);
             return true;
         }
 
@@ -106,6 +108,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
         ProviderId = source.ProviderId,
         Protocol = source.Protocol,
         EndPoint = source.EndPoint,
+        Source = source.Source, RefreshedAt = source.RefreshedAt, RefreshNotice = source.RefreshNotice,
         Models = source.Models
             .Select(static model => new ModelCatalogEntry
             {
@@ -113,7 +116,9 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
                 DisplayName = model.DisplayName,
                 OwnedBy = model.OwnedBy,
                 CreatedAt = model.CreatedAt,
-                Reasoning = model.Reasoning
+                Reasoning = model.Reasoning, ContextWindow = model.ContextWindow, MaxOutputTokens = model.MaxOutputTokens,
+                SupportedProtocols = model.SupportedProtocols, DefaultProtocol = model.DefaultProtocol,
+                InputModalities = model.InputModalities, Pricing = model.Pricing
             })
             .ToList()
     };

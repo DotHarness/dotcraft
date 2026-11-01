@@ -31,6 +31,11 @@ public interface IModelRuntimeResolver
     IModelProvider Resolve(EffectiveModelRuntime runtime);
 }
 
+public interface IProviderModelRuntimeResolver
+{
+    EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime);
+}
+
 /// <summary>A host-bound partition; refresh must run inside ModifyAsync to serialize rotated credentials.</summary>
 public interface IProviderCredentialStore
 {

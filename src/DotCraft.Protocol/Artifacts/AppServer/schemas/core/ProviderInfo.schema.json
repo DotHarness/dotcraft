@@ -20,6 +20,7 @@
     "backendId": {
       "type": "string"
     },
+    "backendSettings": {},
     "capabilities": {
       "$ref": "./ProviderCapabilities.schema.json"
     },

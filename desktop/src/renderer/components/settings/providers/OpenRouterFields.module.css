@@ -1,0 +1,5 @@
+.notice {
+  padding: 8px 16px;
+  color: var(--text-secondary);
+  font-size: var(--type-hint-size);
+}

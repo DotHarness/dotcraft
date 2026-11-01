@@ -51,12 +51,15 @@ internal sealed class ProviderRequestHandler(
             config,
             RequireModelResolver(),
             NormalizeOptionalString(ValueOrDefault(p.ProviderId)),
-            ModelCatalogRefreshStrategy.OnlineIfUncached,
+            p.Refresh.IsSet && p.Refresh.Value ? ModelCatalogRefreshStrategy.Online : ModelCatalogRefreshStrategy.OnlineIfUncached,
             ct);
 
         return new Contract.ModelListResult
         {
             Success = result.Success,
+            Source = result.Source is { } source ? source : default(Protocol.Optional<string>),
+            RefreshedAt = result.RefreshedAt is { } refreshed ? refreshed : default(Protocol.Optional<DateTimeOffset>),
+            RefreshNotice = result.RefreshNotice is { } notice ? notice : default(Protocol.Optional<string>),
             ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol,
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
@@ -84,6 +87,15 @@ internal sealed class ProviderRequestHandler(
         ModelCatalogResult result;
         if (!string.IsNullOrWhiteSpace(providerId))
         {
+            if (config.Providers.TryGetValue(providerId, out var saved) && p.Protocol.IsSet)
+            {
+                var draft = saved.Clone();
+                draft.Protocol = ValueOrDefault(p.Protocol) ?? draft.Protocol;
+                if (p.BackendId.IsSet) draft.BackendId = ValueOrDefault(p.BackendId);
+                if (p.EndPoint.IsSet) draft.EndPoint = ValueOrDefault(p.EndPoint) ?? string.Empty;
+                if (p.BackendSettings.IsSet) draft.BackendSettings = System.Text.Json.Nodes.JsonNode.Parse(p.BackendSettings.Value.GetRawText()) as System.Text.Json.Nodes.JsonObject ?? new();
+                config.Providers[providerId] = draft;
+            }
             result = await ModelProviderCatalog.FetchAsync(
                 config,
                 RequireModelResolver(),
@@ -94,8 +106,9 @@ internal sealed class ProviderRequestHandler(
         else
         {
             EnsureLocallyManaged();
-            var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
-            ValidateProviderPayload(
+            var backendId = NormalizeOptionalString(ValueOrDefault(p.BackendId));
+            var protocol = backendId is null ? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)) : ValueOrDefault(p.Protocol) ?? "auto";
+            if (backendId is null) ValidateProviderPayload(
                 protocol,
                 ValueOrDefault(p.EndPoint),
                 ValueOrDefault(p.NetworkTimeoutSeconds),
@@ -111,6 +124,8 @@ internal sealed class ProviderRequestHandler(
                     [draftProviderId] = new()
                     {
                         DisplayName = "Provider Test",
+                        BackendId = backendId,
+                        BackendSettings = p.BackendSettings.IsSet ? System.Text.Json.Nodes.JsonNode.Parse(p.BackendSettings.Value.GetRawText()) as System.Text.Json.Nodes.JsonObject ?? new() : new(),
                         Protocol = protocol,
                         ApiKey = NormalizeOptionalString(ValueOrDefault(p.ApiKey)) ?? string.Empty,
                         EndPoint = NormalizeOptionalString(ValueOrDefault(p.EndPoint)) ?? string.Empty,
@@ -134,7 +149,7 @@ internal sealed class ProviderRequestHandler(
         {
             Success = result.Success,
             ProviderId = OmitIfNull(result.ProviderId),
-            Protocol = result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
+            Protocol = result.Protocol ?? ValueOrDefault(p.Protocol),
             Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 ProviderContractMapper.BuildModelCatalogItems(
                 config,

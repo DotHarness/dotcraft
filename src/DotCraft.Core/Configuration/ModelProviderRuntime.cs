@@ -20,11 +20,12 @@ public static partial class ModelProviderResolver
             throw new ArgumentException("Model must be configured.", nameof(config));
 
         var modelId = model.Trim();
-        return provider with
+        var selected = provider with
         {
             Model = modelId,
             RequestAdaptation = config.Providers[provider.ProviderId].RemoteModels?.GetValueOrDefault(modelId)
         };
+        return config.RuntimeResolver?.Normalize(selected) ?? selected;
     }
 
     public static EffectiveModelRuntime ResolveSubAgent(

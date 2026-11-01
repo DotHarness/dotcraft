@@ -6,7 +6,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace DotCraft.CLI;
 
-internal static class ModelServiceCliRunner
+internal static partial class ModelServiceCliRunner
 {
     public static async Task<int> ServeAsync(string stateDirectory, string listenUrl, CancellationToken cancellationToken)
     {
@@ -41,8 +41,10 @@ internal static class ModelServiceCliRunner
     public static OpenAIAuthManager Authentication(string directory) =>
         new(new OpenAITokenStore(Path.Combine(directory, "credentials")));
 
-    public static async Task<int> LoginAsync(string directory, bool noBrowser, TextWriter output, CancellationToken cancellationToken)
+    public static async Task<int> LoginAsync(string directory, bool noBrowser, TextWriter output, CancellationToken cancellationToken, string? providerId = null)
     {
+        if (providerId is not null)
+            return await LoginOpenRouterAsync(directory, providerId, noBrowser, output, cancellationToken);
         var status = await Authentication(directory).LoginAsync(!noBrowser, url => output.WriteLine(url), cancellationToken);
         output.WriteLine(status.LoggedIn ? "Signed in." : "Sign-in failed.");
         return status.LoggedIn ? 0 : 1;

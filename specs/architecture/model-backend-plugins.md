@@ -14,10 +14,12 @@ an explicitly configured backend.
 
 Agents owns provider-neutral backend and request contracts. Core contributes backends through
 `IModelBackendSource`. Runtime adapts collectible implementations and joins their lifetime to the
-existing generation gate. The application still explicitly selects its built-in providers.
+existing generation gate. The application explicitly selects built-in providers and backends.
+Built-in and plugin backends have separate lifetimes. Model-specific protocol and capabilities
+are resolved before orchestration. See [OpenRouter integration](openrouter.md).
 
-Backend IDs are unique workspace-wide. Activation stages backend registration and rejects duplicate
-IDs. Backend sources are workspace-scoped and cannot replace other
+Backend IDs are unique workspace-wide, and built-in IDs are reserved. Activation stages backend
+registration and rejects duplicate IDs. Backend sources are workspace-scoped and cannot replace other
 contributions. Registrations are activation-only. Missing, disabled or untrusted backends leave
 configuration readable but fail model operations without fallback.
 
@@ -70,7 +72,8 @@ Backend authenticators join built-in sign-in, including ChatGPT, in one Core coo
 and CLI share. AppServer projects it through [provider authentication](../protocols/provider-auth.md).
 
 Provider-independent startup permits plugin discovery, trust, configuration and login before any
-usable model exists. Standalone ModelService hosts reject local-backend configurations.
+usable model exists. Standalone ModelService hosts reject local plugin-backend configurations;
+hosts may explicitly compose built-in backends.
 
 ## Requests and conversation state
 
