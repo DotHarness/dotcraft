@@ -8,6 +8,8 @@ namespace DotCraft.CodeMode;
 
 public static class CodeModeResults
 {
+    internal const string ResultTooLargeErrorCode = "code_mode_result_too_large";
+
     public static (JsonNode? Value, string? Error) ToScriptValue(
         ToolRegistration registration,
         ToolExecutionResult result,
@@ -18,22 +20,22 @@ public static class CodeModeResults
         if (!result.Success)
         {
             if (isMcp && result.RawSourceResult is { } rawError && result.Error?.Code == ToolErrorCodes.ExecutionFailed)
-                return (BoundContent(JsonNode.Parse(rawError.GetRawText()), maxBytes), null);
+                return CheckSize(JsonNode.Parse(rawError.GetRawText()), definition.Name, maxBytes, contentEnvelope: true);
             var code = result.Error?.Code ?? ToolErrorCodes.ExecutionFailed;
             var message = result.Error?.Message ?? result.Content ?? "Tool execution failed.";
             return (null, $"{code}: {message}");
         }
 
         if (isMcp && result.RawSourceResult is { } raw)
-            return (BoundContent(JsonNode.Parse(raw.GetRawText()), maxBytes), null);
+            return CheckSize(JsonNode.Parse(raw.GetRawText()), definition.Name, maxBytes, contentEnvelope: true);
         if ((definition.OutputSchema is not null || CodeModeDeclarations.IsCommandExecution(definition))
             && result.StructuredContent is { } structured)
-            return (Bound(JsonNode.Parse(structured.GetRawText()), maxBytes), null);
-        if (definition.OutputSchema is { } schema && !IsStringSchema(schema) && TryParse(result.Content, out var parsed))
-            return (Bound(parsed, maxBytes), null);
-        if (result.ContentItems?.Any(IsImage) == true)
-            return (BoundContent(ContentResult(result.ContentItems), maxBytes), null);
-        return (Bound(JsonValue.Create(result.Content ?? string.Empty), maxBytes), null);
+            return CheckSize(JsonNode.Parse(structured.GetRawText()), definition.Name, maxBytes);
+        if (definition.OutputSchema is { } schema && !IsStringSchema(schema) && TryParse(result.SourceContent, out var parsed))
+            return CheckSize(parsed, definition.Name, maxBytes);
+        if (result.SourceContentItems?.Any(IsImage) == true)
+            return CheckSize(ContentResult(result.SourceContentItems), definition.Name, maxBytes, contentEnvelope: true);
+        return CheckSize(JsonValue.Create(result.SourceContent ?? string.Empty), definition.Name, maxBytes);
     }
 
     private static JsonObject ContentResult(IEnumerable<AIContent> items) => new()
@@ -53,24 +55,24 @@ public static class CodeModeResults
 
     private static bool IsImage(AIContent item) => item is DataContent data && data.HasTopLevelMediaType("image");
 
-    private static JsonNode? BoundContent(JsonNode? value, int maxBytes)
+    private static (JsonNode? Value, string? Error) CheckSize(
+        JsonNode? value,
+        ToolName name,
+        int maxBytes,
+        bool contentEnvelope = false)
     {
-        if (value is not JsonObject result || result["content"] is not JsonArray content)
-            return Bound(value, maxBytes);
-        var images = content.OfType<JsonObject>().Where(static block => (string?)block["type"] == "image").ToList();
-        var imageBytes = images.Sum(static image => Encoding.UTF8.GetByteCount((string?)image["data"] ?? string.Empty));
-        if (Encoding.UTF8.GetByteCount(result.ToJsonString()) - imageBytes <= maxBytes)
-            return result;
-        var text = string.Join("\n", content.OfType<JsonObject>()
-            .Where(static block => (string?)block["type"] == "text")
-            .Select(static block => (string?)block["text"]));
-        var bounded = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = Bound(JsonValue.Create(text), maxBytes) });
-        foreach (var image in images)
-            bounded.Add(image.DeepClone());
-        var envelope = new JsonObject { ["content"] = bounded };
-        if (result["isError"] is { } isError)
-            envelope["isError"] = isError.DeepClone();
-        return envelope;
+        var bytes = Encoding.UTF8.GetByteCount(value?.ToJsonString() ?? "null");
+        if (contentEnvelope && value is JsonObject result && result["content"] is JsonArray content)
+        {
+            bytes -= content.OfType<JsonObject>()
+                .Where(static block => (string?)block["type"] == "image")
+                .Sum(static block => block["data"] is JsonValue data && data.TryGetValue<string>(out _)
+                    ? Encoding.UTF8.GetByteCount(data.ToJsonString()) - 2
+                    : 0);
+        }
+        if (bytes <= maxBytes)
+            return (value, null);
+        return (null, $"{ResultTooLargeErrorCode}: Tool '{name}' has already run, but its result exceeds the {maxBytes}-byte program limit. Request a smaller page or less data; do not automatically repeat calls with side effects.");
     }
 
     private static bool IsStringSchema(JsonElement schema) =>
@@ -90,28 +92,5 @@ public static class CodeModeResults
         {
             return false;
         }
-    }
-
-    private static JsonNode? Bound(JsonNode? value, int maxBytes)
-    {
-        var text = value is JsonValue scalar && scalar.GetValueKind() == JsonValueKind.String
-            ? scalar.GetValue<string>()
-            : null;
-        var json = value?.ToJsonString() ?? "null";
-        if (Encoding.UTF8.GetByteCount(json) <= maxBytes)
-            return value;
-
-        var marker = $"\n[Result truncated to {maxBytes / 1024} KiB; the complete result is in the tool call item.]";
-        return JsonValue.Create(Truncate(text ?? json, maxBytes - Encoding.UTF8.GetByteCount(marker)) + marker);
-    }
-
-    private static string Truncate(string text, int maxBytes)
-    {
-        var length = Math.Min(text.Length, Math.Max(0, maxBytes));
-        while (length > 0 && Encoding.UTF8.GetByteCount(text.AsSpan(0, length)) > maxBytes)
-            length = Math.Max(0, length - Math.Max(1, (Encoding.UTF8.GetByteCount(text.AsSpan(0, length)) - maxBytes) / 3));
-        if (length > 0 && char.IsHighSurrogate(text[length - 1]))
-            length--;
-        return text[..length];
     }
 }
