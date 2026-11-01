@@ -342,6 +342,8 @@ Failures include a concise textual fallback plus stable `errorCode`; `errorMessa
 
 On the Dynamic wire, `contentItems` carries rich content and `structuredContent` carries client data. MCP results preserve standard `content`, `structuredContent`, and `_meta` semantics. Native and plugin results use the same audiences.
 
+Model-only normalization uses `ToolExecutionResult.WithModelContent` to bound display content while retaining original invocation text and rich content for CodeMode. The originals are transient host data and are not serialized or persisted as additional fields.
+
 ## 10. Session item projection
 
 Each registration declares exactly one projection shape; the recorder never infers it from a call name or result payload.

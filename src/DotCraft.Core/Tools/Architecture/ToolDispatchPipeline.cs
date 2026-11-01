@@ -202,43 +202,21 @@ public sealed class DefaultToolResultNormalizer(
                     context.CallId)!;
             if (!string.IsNullOrWhiteSpace(workspacePath) && !string.IsNullOrWhiteSpace(dataPath))
                 normalizedContent = "[Agent-local result file; read locally.]\n" + normalizedContent;
-            result = new ToolExecutionResult(
-                result.Success,
+            result = result.WithModelContent(
                 normalizedContent,
-                result.StructuredContent,
-                result.Meta,
-                result.RawSourceResult,
-                result.Error,
-                result.ProviderResult,
-                LimitRichText(result.ContentItems, normalizedContent),
-                result.Directive);
+                LimitRichText(result.ContentItems, normalizedContent));
         }
 
         if (result.Success
             && context.Audience.HasFlag(ToolInvocationAudience.Model)
             && string.IsNullOrWhiteSpace(result.Content))
         {
-            result = new ToolExecutionResult(
-                true,
+            result = result.WithModelContent(
                 ToolResultProcessor.EmptyResultMessage(registration.Definition.Name.Name),
-                result.StructuredContent,
-                result.Meta,
-                result.RawSourceResult,
-                providerResult: result.ProviderResult,
-                contentItems: result.ContentItems,
-                directive: result.Directive);
+                result.ContentItems);
         }
 
-        return ValueTask.FromResult(new ToolExecutionResult(
-            result.Success,
-            result.Content,
-            result.StructuredContent,
-            result.Meta,
-            result.RawSourceResult,
-            result.Error,
-            result.ProviderResult,
-            result.ContentItems,
-            result.Directive));
+        return ValueTask.FromResult(result);
     }
 
     private static int ResolveResultLimit(ToolRegistration registration, int globalLimit) =>

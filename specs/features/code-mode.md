@@ -286,9 +286,12 @@ image, carries the `dotcraft/returnsContent` annotation, and its declaration say
 viewing an image file as `image()` over the image block of a `ReadFile` result.
 
 A failed dispatch rejects the Promise with an `Error` whose message is the stable error code and
-message. A nested result entering the engine is at most 1 MiB, counting everything but image data;
-an oversized result is truncated with a marker, its images are kept whole, and the full value stays in
-the item.
+message. Programs consume original invocation content, independently of model-facing truncation or
+spill previews; source-owned read and transport limits still apply. A nested result entering the
+engine is at most 1 MiB, counting everything but image data. Oversized results reject with
+`code_mode_result_too_large` instead of modifying the value or its type. The error states that the
+tool has already run and asks for less data, without automatically repeating calls with side effects.
+Emitted output retains the independent budget in §7.
 
 ## 7. Output
 

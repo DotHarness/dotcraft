@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -147,6 +148,8 @@ public sealed class ToolExecutionResult
         Error = error;
         ProviderResult = providerResult;
         ContentItems = contentItems is { Count: > 0 } ? contentItems.ToArray() : null;
+        SourceContent = content;
+        SourceContentItems = ContentItems;
         Directive = directive;
     }
 
@@ -166,8 +169,19 @@ public sealed class ToolExecutionResult
     public object? ProviderResult { get; }
     /// <summary>Gets optional model-safe rich content preserved for model history and client projection.</summary>
     public IReadOnlyList<AIContent>? ContentItems { get; }
+    [JsonIgnore]
+    public string? SourceContent { get; private init; }
+    [JsonIgnore]
+    public IReadOnlyList<AIContent>? SourceContentItems { get; private init; }
     /// <summary>Gets host-private control flow for the current model Turn.</summary>
     public ToolExecutionDirective Directive { get; }
+
+    public ToolExecutionResult WithModelContent(string content, IReadOnlyList<AIContent>? contentItems) =>
+        new(Success, content, StructuredContent, Meta, RawSourceResult, Error, ProviderResult, contentItems, Directive)
+        {
+            SourceContent = SourceContent,
+            SourceContentItems = SourceContentItems
+        };
 
     /// <summary>Creates a successful result.</summary>
     public static ToolExecutionResult Succeeded(

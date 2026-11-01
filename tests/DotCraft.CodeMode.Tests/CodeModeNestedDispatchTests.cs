@@ -104,8 +104,10 @@ public sealed class CodeModeNestedDispatchTests
         Assert.Equal(2, result.StructuredContent?.GetProperty("nestedCalls").GetInt32());
     }
 
-    [Fact]
-    public void An_oversized_MCP_error_keeps_its_error_flag()
+    [Theory]
+    [InlineData(64)]
+    [InlineData(2048)]
+    public void McpErrorsKeepTheirEnvelopeOrRejectWhenOverTheProgramLimit(int contentLength)
     {
         var id = new ToolDefinitionId(ToolSourceKind.Mcp, "server", new SourceToolId("Lookup"));
         var registration = new ToolRegistration(
@@ -114,15 +116,24 @@ public sealed class CodeModeNestedDispatchTests
             ToolProjectionShape.StandardPair);
         var raw = JsonSerializer.SerializeToElement(new
         {
-            content = new[] { new { type = "text", text = new string('x', 2048) } },
+            content = new[] { new { type = "text", text = new string('x', contentLength) } },
             isError = true
         });
         var result = new ToolExecutionResult(false, "failed", rawSourceResult: raw, error: new ToolError(ToolErrorCodes.ExecutionFailed, "failed"));
 
         var (value, error) = CodeModeResults.ToScriptValue(registration, result, maxBytes: 1024);
 
-        Assert.Null(error);
-        Assert.True(value!["isError"]!.GetValue<bool>());
+        if (contentLength < 1024)
+        {
+            Assert.Null(error);
+            Assert.True(value!["isError"]!.GetValue<bool>());
+            Assert.Equal(contentLength, value["content"]![0]!["text"]!.GetValue<string>().Length);
+        }
+        else
+        {
+            Assert.Null(value);
+            Assert.StartsWith(CodeModeResults.ResultTooLargeErrorCode, error);
+        }
     }
 
     private static ToolRegistration Registration(string name, bool requiresApproval, IToolRuntime? runtime = null, bool returnsContent = false)
