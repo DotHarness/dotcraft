@@ -75,12 +75,13 @@ Add an OpenRouter provider to `state/config.json`, passing its environment varia
 For browser sign-in, replace `ApiKey` with `"AuthMethod": "openrouterOAuth"`, then run:
 
 ```bash
-dotcraft model-service --state /path/to/state auth login --provider router --no-browser
+docker compose run --rm model-service dotcraft model-service --state /state \
+  auth login --provider router --no-browser
 ```
 
-Open the printed URL and paste the complete callback URL back into the terminal. Authorize clients for
-`router` using the same client-create command below. Workers can select different models and protocols
-through this provider while the OpenRouter key stays on the service host.
+Open the printed URL and paste the complete callback URL into the terminal. Use `--provider router`
+when creating the client credential below, then select `router` and a complete OpenRouter model ID
+in the connected Stack.
 
 ## Connect a Stack
 

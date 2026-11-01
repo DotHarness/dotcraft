@@ -43,18 +43,13 @@ The server's built-in model metadata is stored in `models.json`. Its synchronize
 entries use the provider-agnostic [models.dev](https://models.dev/) catalog and include models whose
 metadata declares tool calling, text output, and a context window of at least 1,000 tokens. The final
 segment of each canonical model id becomes a lowercase matching key, and duplicate keys are rejected. Provider-specific limits remain outside this
-provider-agnostic matching table. The same resource contains a `providers` section for exact
-provider-specific model records, including OpenRouter. Those records use the shared model format
-and retain their upstream IDs, limits, protocols, reasoning options and prices without entering
-generic prefix matching. Agents owns the shared resource so provider integrations and Core can
-consume it without reversing assembly dependencies.
+provider-agnostic matching table. The catalog's `providers` section holds exact provider-specific
+records for model IDs, protocols, limits, reasoning options and prices.
 
-Existing generic entries may also carry `pricing` and `pricingProvider`: the first-party provider's
-base USD rates per million input, output, cache-read and cache-write tokens. These use the same
-`ModelPricing` shape as provider records. Generation reads models.dev's provider catalog, matches
-canonical or native model IDs exactly after local version normalization, and excludes relay prices.
-Ambiguous or absent prices stay unspecified. Root `pricingSource` and `pricingCapturedAt` describe
-this baseline snapshot. These base rates do not include context tiers or alternate service modes.
+Generic entries may carry `pricing` and `pricingProvider` for first-party base rates in USD per
+million input, output, cache-read and cache-write tokens. `pricingSource` and `pricingCapturedAt`
+identify their source and freshness. These estimates describe standard service at the base context
+tier. Unknown prices remain unspecified.
 
 An entry may also declare `maxInputTokens` when the model accepts less input than its context window
 because output tokens are reserved inside it. The built-in value comes from the model's first-party

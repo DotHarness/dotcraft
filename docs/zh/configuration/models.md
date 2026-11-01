@@ -68,10 +68,11 @@ Provider 对象字段：
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
 | `DisplayName` | 面向用户显示的 Provider 名称。为空时使用 provider id | 空 |
-| `Protocol` | 通用 Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。OpenRouter 还接受 `auto`，按模型选择协议 | 通用 Provider：`openai-chat-completions`，OpenRouter：`auto` |
+| `BackendId` | 提供商接入类型，OpenRouter 使用 `openrouter` | 空 |
+| `Protocol` | `anthropic`、`openai-chat-completions` 或 `openai-responses`。OpenRouter 使用 `auto` 按模型选择 | `openai-chat-completions`，OpenRouter 为 `auto` |
 | `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
-| `AuthMethod` | 认证方式。`apiKey` 使用静态 `ApiKey`，`chatgptOAuth` 以 ChatGPT 订阅账号认证（仅限 OpenAI 协议，见下文）。无法识别的取值回退为 `apiKey` | `apiKey` |
-| `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
+| `AuthMethod` | 认证方式。`apiKey` 使用 API key，`chatgptOAuth` 使用 ChatGPT 登录，`openrouterOAuth` 使用 OpenRouter 浏览器登录 | `apiKey` |
+| `EndPoint` | 提供商 API 地址 | OpenAI：`https://api.openai.com/v1`，Anthropic：`https://api.anthropic.com`，OpenRouter：`https://openrouter.ai/api/v1` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
 | `MaxOutputTokens` | 单个 Provider 的默认最大输出 token 数，请求自己没有指定时使用该值 | 空 |
 | `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
@@ -81,19 +82,17 @@ Provider 对象字段：
 
 ## 连接 OpenRouter
 
-在**设置 → 模型**中选择 OpenRouter，填写 API key 或使用浏览器登录。同一个提供商可以通过 Messages
-调用 Claude，通过 Responses 调用 OpenAI 模型，通过 Chat Completions 调用其他模型。自动选择以模型声明
-支持的协议为准。固定协议应用于整个提供商实例，模型不支持该协议时会显示错误。
+在**设置 → 模型**中添加 OpenRouter，填写 API key 或使用浏览器登录。
+请求协议默认按模型自动选择。
 
-使用完整的 OpenRouter 模型 ID，例如 `anthropic/claude-opus-5.5`。刷新模型列表可以获取新模型和当前 key
-可用的选项。离线时仍可使用内置目录，刷新错误会单独显示。Opus 5.5 使用 adaptive thinking，在 DotCraft
-中默认选择 Medium。
+使用完整的 OpenRouter 模型 ID，例如 `anthropic/claude-opus-5.5`。刷新模型列表，获取当前 API key
+可用的模型。
 
 从 CLI 使用浏览器授权时，将上面提供商的 `AuthMethod` 设为 `openrouterOAuth`，然后运行
-`dotcraft auth login openrouter`。浏览器位于其他机器时，可以粘贴授权后得到的完整回调 URL。凭据按提供商实例保存。
+`dotcraft auth login openrouter`，按终端提示完成登录。
 
-OpenRouter 的供应商路由设置决定由哪家供应商运行同一个模型。不填写偏好时使用 OpenRouter 默认值。
-用量浮层会显示当前 key 的已用金额、剩余额度，以及 API 返回的上次请求费用。key 额度与账户余额不同。
+在 OpenRouter 设置中选择偏好的上游供应商并调整优先顺序。用量浮层显示 API key 的已用金额、
+剩余额度和 OpenRouter 返回的上次请求费用。
 
 ## 使用 ChatGPT 登录
 
@@ -201,11 +200,6 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 支持工具调用、输出包含文本且上下文窗口不少于 1,000 token 的模型。规范模型 ID 的最后一段
 会转换为小写 key。若某个 provider 实际提供不同限制，请在全局或 workspace 目录中覆盖。
 更具体的 key 优先于家族前缀，因此具体模型可以安全地使用不同于家族的窗口值。
-
-当 models.dev 提供可明确匹配的官方服务商报价时，现有条目也会记录基准价格。
-`pricingProvider` 标明服务商，`pricing` 保存输入、输出、缓存读取和缓存写入的每百万 token
-美元费率。这些基准价供费用估算使用，目录不包含上下文阶梯和其他服务模式的价格。
-缺失的价格保持未指定。
 
 模型上下文容量直接来自合并后的目录。未知模型使用 `defaultContextWindow`，未配置时回退到
 256,000 token。压缩流程先应用可选的客户端预算，再计算摘要预留和安全缓冲。

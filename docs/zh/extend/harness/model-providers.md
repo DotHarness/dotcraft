@@ -91,19 +91,15 @@ var appConfig = new AppConfig
 
 ## 配置 OpenRouter
 
-Harness 已组合内置 `openrouter` backend。自定义 Runtime 宿主在注册 Runtime 时显式调用
+Harness 已包含 `openrouter` backend。自定义 Runtime 宿主在注册 Runtime 时调用
 `services.AddOpenRouterModelProvider()`。将 `BackendId` 配置为 `openrouter`，`Protocol` 配置为 `auto`，
 并提供 API key 或使用 `openrouterOAuth` 认证。
 
-backend 在 Core 选择协议相关行为前解析模型记录。模型列表、reasoning 验证、压缩容量与请求适配共用
-这份记录。提供商身份保持为 `openrouter`，实际协议是 Messages、Responses 或 Chat Completions。
+自动路由会选择模型支持的协议。设置固定的 `Protocol` 可显式选择协议。
 `BackendSettings` 接受 `order`、`only`、`ignore`、`sort`、`allow_fallbacks` 和 `require_parameters`。
 
-OpenRouter 记录从官方 `/models` API 生成，转换为运行时共用的模型格式后合入统一的内置
-`models.json`。在仓库根目录运行 `dotnet run scripts/update-model-catalog.cs` 可以更新 OpenRouter
-记录和现有通用模型的官方基准价，上下文与 Fast 默认值保持不变。追加 `-- --pricing-only`
-可仅更新基准价。生成器输出带缩进的展开 JSON。运行时刷新通过 `/models/user` 按 key 过滤
-OpenRouter 目录。路由与持久化保留原始模型 ID。
+在仓库根目录运行 `dotnet run scripts/update-model-catalog.cs`，更新内置 OpenRouter 目录和
+模型官方基准价。追加 `-- --pricing-only` 可仅更新基准价。
 
 ## 使用兼容端点
 

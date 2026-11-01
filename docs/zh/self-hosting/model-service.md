@@ -75,11 +75,12 @@ docker compose up -d model-service
 使用浏览器登录时，将 `ApiKey` 替换为 `"AuthMethod": "openrouterOAuth"`，然后运行：
 
 ```bash
-dotcraft model-service --state /path/to/state auth login --provider router --no-browser
+docker compose run --rm model-service dotcraft model-service --state /state \
+  auth login --provider router --no-browser
 ```
 
-在浏览器中打开输出的链接，将完整回调 URL 粘贴回终端。使用下方相同的客户端创建命令，为客户端授权
-`router`。Worker 可以通过这个提供商选择不同模型和协议，OpenRouter key 始终保留在服务端。
+在浏览器中打开输出的链接，将完整回调 URL 粘贴回终端。在下方创建客户端凭据时使用
+`--provider router`，然后在连接的 Stack 中选择 `router` 和完整的 OpenRouter 模型 ID。
 
 ## 连接 Stack
 

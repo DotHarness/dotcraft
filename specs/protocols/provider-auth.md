@@ -29,12 +29,11 @@ The methods are available when `capabilities.providerManagement` is advertised.
 | `provider/auth/updated` | notification | Publishes a revisioned login snapshot to the initiating connection |
 | `provider/auth/usage/updated` | notification | Publishes changed usage for one provider |
 
-## Authentication methods
-
 `provider/routing/list` accepts `providerId` for a saved instance, or `backendId` and optional
-`endPoint` for a draft. It returns `providers` containing `id` and `displayName`. It uses the selected
-backend's routing catalog and does not send an inference request. Selected suppliers retain their
-configured order independently of the fetched directory.
+`endPoint` for a draft. It returns supplier `id` and `displayName` entries in `providers`.
+Supplier selections retain their configured order.
+
+## Authentication methods
 
 A provider's `AuthMethod` names its configured method. Built-in OpenAI-protocol providers offer
 `apiKey` and `chatgptOAuth`; built-in Anthropic providers offer `apiKey`. A backend declares its

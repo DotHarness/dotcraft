@@ -15,12 +15,11 @@ an explicitly configured backend.
 Agents owns provider-neutral backend and request contracts. Core contributes backends through
 `IModelBackendSource`. Runtime adapts collectible implementations and joins their lifetime to the
 existing generation gate. The application explicitly selects built-in providers and backends.
-Host-composed backends are registered separately from collectible contributions and cannot be
-replaced by plugins. An optional host-owned provider resolver materializes the actual model protocol
-and capabilities before orchestration. See [OpenRouter integration](openrouter.md).
+Built-in and plugin backends have separate lifetimes. Model-specific protocol and capabilities
+are resolved before orchestration. See [OpenRouter integration](openrouter.md).
 
-Backend IDs are unique workspace-wide. Activation stages backend registration and rejects duplicate
-IDs. Backend sources are workspace-scoped and cannot replace other
+Backend IDs are unique workspace-wide, and built-in IDs are reserved. Activation stages backend
+registration and rejects duplicate IDs. Backend sources are workspace-scoped and cannot replace other
 contributions. Registrations are activation-only. Missing, disabled or untrusted backends leave
 configuration readable but fail model operations without fallback.
 

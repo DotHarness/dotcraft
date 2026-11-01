@@ -1,10 +1,5 @@
 # DotCraft Configuration Specification
 
-`Providers.<id>.BackendId = "openrouter"` selects the explicitly composed OpenRouter backend.
-Its `Protocol` defaults to `auto`; `BackendSettings` holds typed provider-routing preferences.
-Original model IDs and instance configuration remain separate from resolved protocol and endpoint.
-See [OpenRouter integration](openrouter.md).
-
 | Field | Value |
 |-------|-------|
 | **Version** | 0.9.1 |
@@ -121,6 +116,9 @@ Option sets are declared on the field: `Permissions.DefaultApprovalPolicy` accep
 ### 5.5 Providers
 
 `Providers` is an object-valued field mapping a provider id to a provider object with the fields `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `BackendId`, `BackendSettings`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Provider ids compare case-insensitively. Its reload behavior is `SubsystemRestart` in the `threadAgents` subsystem.
+
+Provider-specific routing and authentication follow the selected backend's contract, including
+[OpenRouter](openrouter.md).
 
 Providers are created, edited, and deleted only by configuration writes: an edit of `Providers.<id>` or `Providers.<id>.<Field>` creates or changes a provider, and a `null` value at `Providers.<id>` deletes it. A write does not distinguish creating from editing; a client that must not overwrite an existing provider checks the listed ids and supplies the expected version of the user layer.
 

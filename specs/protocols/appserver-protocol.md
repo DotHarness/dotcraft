@@ -1766,8 +1766,7 @@ Non-obvious fields:
 - `contextWindow`: raw model capacity from the merged model catalog, independent of compaction limits.
 - Built-in backend models may report `supportedProtocols`, `defaultProtocol`, `maxOutputTokens`,
   `inputModalities`, and `pricing` from the same model record as context and reasoning. Model-list
-  results report catalog source, refresh time and refresh notices. Authentication errors remain
-  visible even when stale models are readable.
+  results report `source`, `refreshedAt`, and `refreshNotice` alongside the model list.
 - `model/list` accepts `refresh: true` to bypass the server catalog cache; ordinary reads reuse it.
 - `isDefault`: exactly one `true` in a non-empty list — the model of the provider's effective preference (workspace over personal, as `thread/start` resolves it), or the first item when there is no preference or its model is not listed. Since `thread/start` without a model fails when the provider has no preference, a client starting on a default it did not read from a preference names `providerId` and `model` explicitly.
 

@@ -91,21 +91,15 @@ An empty `EndPoint` selects the built-in default for the chosen protocol.
 
 ## Configure OpenRouter
 
-Harness composes the built-in `openrouter` backend. A custom Runtime host explicitly calls
+Harness includes the `openrouter` backend. A custom Runtime host calls
 `services.AddOpenRouterModelProvider()` alongside its Runtime registration. Configure `BackendId`
 as `openrouter`, `Protocol` as `auto`, and an API key or `openrouterOAuth` authentication.
 
-The backend resolves a model record before Core selects protocol-dependent behavior. It shares that
-record across model listing, reasoning validation, compaction capacity and request shaping. Provider
-identity remains `openrouter`, while the effective protocol is Messages, Responses or Chat Completions.
+Automatic routing selects a protocol supported by the model. Set a fixed `Protocol` to choose it explicitly.
 `BackendSettings` accepts `order`, `only`, `ignore`, `sort`, `allow_fallbacks` and `require_parameters`.
 
-OpenRouter records are generated from its official `/models` API and merged into the shared built-in
-`models.json` in the same format used at runtime. From the repository root, run
-`dotnet run scripts/update-model-catalog.cs` to update OpenRouter records and the official base prices
-of existing generic models. Context and Fast defaults are preserved. Add `-- --pricing-only` to update
-only those base prices. The updater writes readable, indented JSON. Runtime refresh personalizes the
-OpenRouter directory through `/models/user`. Original model IDs are preserved across routing and persistence.
+From the repository root, run `dotnet run scripts/update-model-catalog.cs` to update the built-in
+OpenRouter directory and official model base prices. Add `-- --pricing-only` to update base prices alone.
 
 ## Use a compatible endpoint
 

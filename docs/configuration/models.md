@@ -68,10 +68,11 @@ Provider object fields:
 | Field | Description | Default |
 |-------|-------------|---------|
 | `DisplayName` | User-facing provider name; falls back to the provider id when empty | Empty |
-| `Protocol` | Generic provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. OpenRouter also accepts `auto` for model-specific routing. | Generic: `openai-chat-completions`; OpenRouter: `auto` |
+| `BackendId` | Provider integration. Use `openrouter` for OpenRouter | Empty |
+| `Protocol` | `anthropic`, `openai-chat-completions`, or `openai-responses`. OpenRouter accepts `auto` to select by model | `openai-chat-completions`, or `auto` for OpenRouter |
 | `ApiKey` | Provider API key; prefer `${ENV_NAME}` environment variable references | Empty |
-| `AuthMethod` | Authentication method: `apiKey` uses the static `ApiKey`; `chatgptOAuth` authenticates with a ChatGPT subscription account (OpenAI protocols only, see below). Unrecognized values fall back to `apiKey` | `apiKey` |
-| `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
+| `AuthMethod` | `apiKey` for an API key, `chatgptOAuth` for ChatGPT sign-in, or `openrouterOAuth` for OpenRouter browser sign-in | `apiKey` |
+| `EndPoint` | Provider base URL | OpenAI: `https://api.openai.com/v1`, Anthropic: `https://api.anthropic.com`, OpenRouter: `https://openrouter.ai/api/v1` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
 | `MaxOutputTokens` | Per-provider default maximum output tokens, applied when a request does not set its own | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
@@ -81,22 +82,17 @@ Provider object fields:
 
 ## Connect OpenRouter
 
-In **Settings → Models**, choose OpenRouter and enter an API key or use browser sign-in. The same
-provider can serve Claude through Messages, OpenAI models through Responses, and other models through
-Chat Completions. Automatic selection uses each model's advertised protocols. A fixed protocol applies
-to that provider instance and reports an error when a model does not support it.
+In **Settings → Models**, add OpenRouter and enter an API key or sign in through your browser.
+The request protocol defaults to automatic selection by model.
 
 Select the model by its complete OpenRouter ID, such as `anthropic/claude-opus-5.5`. Refresh the model
-list to load new models and the key's available choices. The bundled catalog remains usable offline,
-with refresh errors shown separately. Opus 5.5 uses adaptive thinking and starts at Medium in DotCraft.
+list to load the models available to your API key.
 
 For browser authorization from the CLI, set `AuthMethod` to `openrouterOAuth` on the provider above,
-then run `dotcraft auth login openrouter`. A remote browser can paste the complete callback URL printed
-after authorization. Credentials belong to the selected provider instance.
+then run `dotcraft auth login openrouter` and follow the terminal prompts.
 
-OpenRouter's provider-routing settings select which supplier serves the same model. Unset preferences
-keep OpenRouter's defaults. The usage popover shows current-key usage, remaining key limits and the
-last request cost when returned by the API. Key limits are distinct from account balances.
+Use the OpenRouter settings to choose preferred upstream suppliers and their priority. The usage
+popover shows API-key spending, remaining limits and the last request cost reported by OpenRouter.
 
 ## Sign in with ChatGPT
 
@@ -207,11 +203,6 @@ and declare a context window of at least 1,000 tokens. The final segment of the 
 used as its lowercase key. If a provider serves a different limit, set an override in the global or
 workspace catalog. More-specific keys win over family prefixes, so a concrete model can safely carry
 a different window from its family.
-
-Existing entries also include official provider base prices when models.dev publishes an
-unambiguous match. `pricingProvider` identifies the provider, and `pricing` stores USD rates per
-million input, output, cache-read and cache-write tokens. These are baseline rates for estimates,
-with context tiers and alternate service modes outside this table. Missing prices remain unspecified.
 
 Model context capacity comes directly from the merged catalog. Unknown models use
 `defaultContextWindow`, falling back to 256,000 tokens. Summary reserves and safety buffers
