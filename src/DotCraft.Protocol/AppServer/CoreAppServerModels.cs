@@ -2369,7 +2369,7 @@ public sealed class MemoryResetResult : ExtensibleJsonObject
 {
 }
 
-public sealed class ModelCatalogItem : ExtensibleJsonObject
+public sealed partial class ModelCatalogItem : ExtensibleJsonObject
 {
     [JsonPropertyName("contextWindow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2405,7 +2405,7 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
 
 }
 
-public sealed class ModelListParams : ExtensibleJsonObject
+public sealed partial class ModelListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("providerId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2413,7 +2413,7 @@ public sealed class ModelListParams : ExtensibleJsonObject
 
 }
 
-public sealed class ModelListResult : ExtensibleJsonObject
+public sealed partial class ModelListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errorCode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2458,7 +2458,7 @@ public sealed class ModelPreference : ExtensibleJsonObject
 
 }
 
-public sealed class ModelReasoningCapability : ExtensibleJsonObject
+public sealed partial class ModelReasoningCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultEffort")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3463,7 +3463,7 @@ public sealed partial class ProviderListResult : ExtensibleJsonObject
 
 }
 
-public sealed class ProviderTestParams : ExtensibleJsonObject
+public sealed partial class ProviderTestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("apiKey")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

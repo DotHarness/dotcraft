@@ -861,6 +861,8 @@ export function SettingsView({
       } else {
         payload = {
           protocol: providerDraft.protocol,
+          backendId: providerDraft.backendId,
+          backendSettings: providerDraft.backendSettings,
           apiKey: isStoredApiKey(providerDraft) ? null : providerDraft.apiKey.trim(),
           endPoint: providerDraft.endPoint.trim() || null,
           networkTimeoutSeconds: providerDraft.networkTimeoutSeconds.trim()
@@ -868,6 +870,8 @@ export function SettingsView({
             : null
         }
       }
+      payload = { ...payload, protocol: providerDraft.protocol, backendId: providerDraft.backendId,
+        backendSettings: providerDraft.backendSettings, endPoint: providerDraft.endPoint.trim() || null }
       const result = await window.api.appServer.sendRequest('provider/test', payload, 25_000) as ProviderTestResultWire
       setProviderTestResult(result)
     } catch (err) {
@@ -2052,7 +2056,7 @@ export function SettingsView({
                             >
                               <ActionTooltip label={providerDetails(provider, providerBackends, t)}>
                                 <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-                                  <ProviderProtocolIcon protocol={provider.protocol} size={30} />
+                                  <ProviderProtocolIcon protocol={provider.protocol} backendId={provider.backendId} size={30} />
                                 </span>
                               </ActionTooltip>
                               <div style={{ flex: 1, minWidth: 0 }}>

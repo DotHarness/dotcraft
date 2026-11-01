@@ -12,6 +12,8 @@ public static class ProviderUsageMapping
             : new Contract.ProviderAuthUsageResult
             {
                 Available = true,
+                Values = snapshot.Values.Count > 0 ? snapshot.Values : null,
+                Labels = snapshot.Labels,
                 FetchedAt = snapshot.ObservedAt,
                 PlanType = snapshot.PlanType,
                 Primary = ToWire(snapshot.Primary),

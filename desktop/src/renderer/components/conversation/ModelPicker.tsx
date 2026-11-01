@@ -25,6 +25,7 @@ import {
 import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import css from './ModelPicker.module.css'
+import { ModelCatalogNotice } from './ModelCatalogNotice'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -626,6 +627,7 @@ export function ModelPicker({
           }}
         >
           <ComposerOverlapBand height={overlapBandHeight} />
+          <ModelCatalogNotice providerId={providerId} />
           {errorMessage && (
             <div
               role="status"

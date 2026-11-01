@@ -43,7 +43,11 @@ The server's built-in model metadata is stored in `models.json`. Its synchronize
 entries use the provider-agnostic [models.dev](https://models.dev/) catalog and include models whose
 metadata declares tool calling, text output, and a context window of at least 1,000 tokens. The final
 segment of each canonical model id becomes a lowercase matching key, and duplicate keys are rejected. Provider-specific limits remain outside this
-provider-agnostic catalog.
+provider-agnostic matching table. The same resource contains a `providers` section for exact
+provider-specific model records, including OpenRouter. Those records use the shared model format
+and retain their upstream IDs, limits, protocols, reasoning options and prices without entering
+generic prefix matching. Agents owns the shared resource so provider integrations and Core can
+consume it without reversing assembly dependencies.
 
 An entry may also declare `maxInputTokens` when the model accepts less input than its context window
 because output tokens are reserved inside it. The built-in value comes from the model's first-party

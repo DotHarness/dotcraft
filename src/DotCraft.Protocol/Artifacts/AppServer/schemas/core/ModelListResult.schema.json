@@ -50,6 +50,16 @@
         }
       ]
     },
+    "refreshNotice": {
+      "type": "string"
+    },
+    "refreshedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string"
+    },
     "success": {
       "type": "boolean"
     }

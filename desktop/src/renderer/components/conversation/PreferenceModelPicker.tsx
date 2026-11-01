@@ -190,7 +190,7 @@ export function createCatalogDefaultPreference(
   const reasoning = model?.reasoning
   return {
     model: modelId,
-    reasoning: reasoning && !reasoning.supportsDisable
+    reasoning: reasoning && (!reasoning.supportsDisable || reasoning.defaultEnabled)
       ? {
           enabled: true,
           effort: reasoning.defaultEffort,

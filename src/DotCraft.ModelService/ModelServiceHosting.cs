@@ -15,7 +15,8 @@ public sealed record ModelServiceCaller(string Id, object? State = null);
 public sealed record ModelServiceProvider(
     RemoteModelProvider Description,
     EffectiveModelRuntime Runtime,
-    OpenAIAuthManager? Authentication = null);
+    OpenAIAuthManager? Authentication = null,
+    IModelProvider? Backend = null);
 
 public interface IModelServiceAccess
 {

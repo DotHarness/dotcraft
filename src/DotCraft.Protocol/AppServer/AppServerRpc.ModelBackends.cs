@@ -3,6 +3,8 @@ namespace DotCraft.Protocol.AppServer;
 public static partial class AppServerRpc
 {
     private const string BackendSpec = "specs/protocols/provider-auth.md";
+    public static readonly RpcRequest<ProviderRoutingListParams, ProviderRoutingListResult> ProviderRoutingList =
+        new("provider/routing/list", RpcDirection.ClientToServer, "1", BackendSpec, scope: "connection", capability: "providerManagement", errors: CommonErrors);
     public static readonly RpcRequest<RpcEmpty, ProviderBackendListResult> ProviderBackendList =
         new("provider/backend/list", RpcDirection.ClientToServer, "1", BackendSpec, scope: "connection", capability: "providerManagement", errors: CommonErrors);
     public static readonly RpcRequest<ProviderAuthLoginParams, ProviderAuthLoginState> ProviderAuthLogin =

@@ -17,6 +17,7 @@
     <ProjectReference Include="../DotCraft.Agents.Remote/DotCraft.Agents.Remote.csproj" PrivateAssets="all" />
     <ProjectReference Include="../DotCraft.Agents.OpenAI/DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
     <ProjectReference Include="../DotCraft.Agents.Anthropic/DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../DotCraft.Agents.OpenRouter/DotCraft.Agents.OpenRouter.csproj" PrivateAssets="all" />
     <ProjectReference Include="../DotCraft.Core/DotCraft.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 </Project>

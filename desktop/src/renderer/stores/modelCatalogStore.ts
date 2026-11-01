@@ -18,6 +18,7 @@ export interface ModelReasoningEffortOption {
 }
 
 export interface ModelReasoningCapability {
+  defaultEnabled?: boolean
   supportsDisable: boolean
   supportedEfforts: ModelReasoningEffortOption[]
   defaultEffort: ReasoningEffortWire
@@ -26,6 +27,11 @@ export interface ModelReasoningCapability {
 }
 
 export interface ModelCatalogItem {
+  supportedProtocols?: string[]
+  defaultProtocol?: string
+  maxOutputTokens?: number | null
+  inputModalities?: string[]
+  pricing?: { inputPerMillion?: number | null; outputPerMillion?: number | null }
   id: string
   displayName?: string
   ownedBy?: string
@@ -39,6 +45,9 @@ export interface ModelCatalogItem {
 const MODEL_LIST_ERROR_ENDPOINT_NOT_SUPPORTED = 'EndpointNotSupported'
 
 interface ModelCatalogState {
+  source?: string
+  refreshedAt?: string
+  refreshNotice?: string
   status: ModelCatalogStatus
   models: ModelCatalogItem[]
   modelOptions: string[]
@@ -103,6 +112,7 @@ function parseReasoningCapability(value: unknown): ModelReasoningCapability | nu
   if (!value || typeof value !== 'object') return null
   const typed = value as {
     supportsDisable?: unknown
+    defaultEnabled?: unknown
     supportedEfforts?: unknown
     defaultEffort?: unknown
     supportedOutputs?: unknown
@@ -134,6 +144,7 @@ function parseReasoningCapability(value: unknown): ModelReasoningCapability | nu
     : []
   return {
     supportsDisable: typed.supportsDisable !== false,
+    ...(typed.defaultEnabled === true ? { defaultEnabled: true } : {}),
     supportedEfforts,
     defaultEffort,
     supportedOutputs: supportedOutputs.length > 0 ? supportedOutputs : ['full'],
@@ -150,9 +161,10 @@ function parseContextWindow(value: unknown): number | null {
 export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
   const typed = payload as {
     success?: boolean
-    models?: Array<{ id?: string; Id?: string; displayName?: unknown; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; speed?: unknown; Speed?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
+    refreshNotice?: string
+    models?: Array<Partial<ModelCatalogItem> & { Id?: string; OwnedBy?: string; CreatedAt?: string; Reasoning?: unknown; Speed?: unknown; ContextWindow?: unknown }>
   }
-  if (!typed.success || !Array.isArray(typed.models)) return []
+  if ((!typed.success && typed.refreshNotice !== 'usingCachedCatalog') || !Array.isArray(typed.models)) return []
   const byId = new Map<string, ModelCatalogItem>()
   for (const model of typed.models) {
     const id = String(model.id ?? model.Id ?? '').trim()
@@ -160,6 +172,11 @@ export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
     const displayName = typeof model.displayName === 'string' ? model.displayName.trim() : ''
     byId.set(id, {
       id,
+      ...(Array.isArray(model.supportedProtocols) ? { supportedProtocols: model.supportedProtocols.filter((value) => typeof value === 'string') } : {}),
+      ...(typeof model.defaultProtocol === 'string' ? { defaultProtocol: model.defaultProtocol } : {}),
+      ...(model.maxOutputTokens != null ? { maxOutputTokens: parseContextWindow(model.maxOutputTokens) } : {}),
+      ...(Array.isArray(model.inputModalities) ? { inputModalities: model.inputModalities.filter((value) => typeof value === 'string') } : {}),
+      ...(model.pricing && typeof model.pricing === 'object' ? { pricing: model.pricing } : {}),
       ...(displayName ? { displayName } : {}),
       ownedBy: typeof (model.ownedBy ?? model.OwnedBy) === 'string' ? String(model.ownedBy ?? model.OwnedBy) : undefined,
       createdAt: typeof (model.createdAt ?? model.CreatedAt) === 'string' ? String(model.createdAt ?? model.CreatedAt) : undefined,
@@ -206,18 +223,22 @@ function parseModelListError(payload: unknown): { code: string | null; message: 
   }
 }
 
-async function fetchCatalog(providerId: string | null): Promise<ModelCatalogState> {
+async function fetchCatalog(providerId: string | null, refresh = false): Promise<ModelCatalogState> {
   const state = { ...initialState, providerId, requestedProviderId: providerId }
   try {
-    const result = await window.api.appServer.listModels(providerId)
+    const result = refresh ? await window.api.appServer.listModels(providerId, true) : await window.api.appServer.listModels(providerId)
     if (result == null) return state
     state.providerId = parseEffectiveProviderId(result, providerId)
+    const metadata = result as { source?: string; refreshedAt?: string; refreshNotice?: string }
+    if (metadata.source) state.source = metadata.source
+    if (metadata.refreshedAt) state.refreshedAt = metadata.refreshedAt
+    if (metadata.refreshNotice) state.refreshNotice = metadata.refreshNotice
+    const models = parseModelCatalogItems(result)
     const error = parseModelListError(result)
     if (error.code || error.message) {
-      return { ...state, status: 'error', modelListUnsupportedEndpoint: parseModelListUnsupportedEndpoint(result),
+      return { ...state, models, modelOptions: models.map(model => model.id), status: 'error', modelListUnsupportedEndpoint: parseModelListUnsupportedEndpoint(result),
         errorCode: error.code, errorMessage: error.message }
     }
-    const models = parseModelCatalogItems(result)
     return { ...state, status: 'ready', models, modelOptions: models.map(model => model.id) }
   } catch (error) {
     return { ...state, status: 'error', errorMessage: error instanceof Error ? error.message : String(error) }
@@ -239,7 +260,7 @@ export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
     set({ ...initialState, status: 'loading', providerId: key, requestedProviderId: key })
     let load = inFlightLoads.get(key)
     if (!load) {
-      load = fetchCatalog(key)
+      load = fetchCatalog(key, force)
       inFlightLoads.set(key, load)
     }
     const result = await load

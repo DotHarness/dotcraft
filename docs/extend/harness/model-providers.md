@@ -89,6 +89,23 @@ var appConfig = new AppConfig
 
 An empty `EndPoint` selects the built-in default for the chosen protocol.
 
+## Configure OpenRouter
+
+Harness composes the built-in `openrouter` backend. A custom Runtime host explicitly calls
+`services.AddOpenRouterModelProvider()` alongside its Runtime registration. Configure `BackendId`
+as `openrouter`, `Protocol` as `auto`, and an API key or `openrouterOAuth` authentication.
+
+The backend resolves a model record before Core selects protocol-dependent behavior. It shares that
+record across model listing, reasoning validation, compaction capacity and request shaping. Provider
+identity remains `openrouter`, while the effective protocol is Messages, Responses or Chat Completions.
+`BackendSettings` accepts `order`, `only`, `ignore`, `sort`, `allow_fallbacks` and `require_parameters`.
+
+OpenRouter records are generated from its official `/models` API and merged into the shared built-in
+`models.json` in the same format used at runtime. From the repository root, run
+`dotnet run scripts/update-model-catalog.cs` to update that section while preserving generic model
+defaults. Runtime refresh personalizes the directory through `/models/user`. Original model IDs are
+preserved across routing and persistence.
+
 ## Use a compatible endpoint
 
 Set `EndPoint` when routing an OpenAI-compatible or Anthropic-compatible provider through another service:

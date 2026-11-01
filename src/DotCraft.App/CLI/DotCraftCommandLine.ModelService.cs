@@ -47,15 +47,19 @@ public static partial class DotCraftCommandLine
         clientGroup.Subcommands.Add(revoke);
         group.Subcommands.Add(clientGroup);
 
-        var auth = new Command("auth", "Manage the service ChatGPT subscription.");
+        var auth = new Command("auth", "Manage service provider authorization.");
+        var authProvider = new Option<string?>("--provider") { Recursive = true, Description = "OpenRouter provider instance; omit for ChatGPT." };
+        auth.Options.Add(authProvider);
         var noBrowser = Flag("--no-browser", "Print the authorization URL without opening a browser.");
         var login = new Command("login", "Sign in to ChatGPT for this service.") { noBrowser };
         login.SetAction((parse, cancellationToken) => ModelServiceCliRunner.LoginAsync(
-            parse.GetRequiredValue(state), parse.GetValue(noBrowser), parse.InvocationConfiguration.Output, cancellationToken));
+            parse.GetRequiredValue(state), parse.GetValue(noBrowser), parse.InvocationConfiguration.Output, cancellationToken, parse.GetValue(authProvider)));
         var logout = new Command("logout", "Revoke and remove this service's subscription credentials.");
         logout.SetAction(async (parse, cancellationToken) =>
         {
-            await ModelServiceCliRunner.Authentication(parse.GetRequiredValue(state)).LogoutAsync(cancellationToken);
+            if (parse.GetValue(authProvider) is { } selected)
+                await ModelServiceCliRunner.LogoutOpenRouterAsync(parse.GetRequiredValue(state), selected, cancellationToken);
+            else await ModelServiceCliRunner.Authentication(parse.GetRequiredValue(state)).LogoutAsync(cancellationToken);
             return 0;
         });
         auth.Subcommands.Add(login);

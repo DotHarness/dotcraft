@@ -64,6 +64,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
         }
         services.AddOpenAIModelProvider(paths.UserData.RootPath, localAuthentication: runtimeOptions.Config.ModelService is null);
         services.AddAnthropicModelProvider();
+        services.AddOpenRouterModelProvider();
         services.AddDotCraftRuntime(runtimeOptions, paths);
         return services;
     }

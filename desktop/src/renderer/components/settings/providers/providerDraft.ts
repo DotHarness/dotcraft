@@ -20,6 +20,7 @@ const BACKEND_CONNECTION_PREFIX = 'backend:'
 const STORED_API_KEY = '********'
 
 export interface ProviderDraft {
+  backendSettings?: Record<string, import('@dotcraft/sdk/contracts').JsonValue>
   id: string
   displayName: string
   protocol: string
@@ -67,6 +68,7 @@ export function createProviderDraft(): ProviderDraft {
 export function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft {
   return {
     id: provider.id,
+    backendSettings: provider.backendSettings,
     displayName: provider.displayName,
     protocol: provider.backendId ? provider.protocol : normalizeProviderProtocol(provider.protocol),
     backendId: provider.backendId ?? null,
@@ -103,8 +105,9 @@ export function providerConnectionOptions(
       const methods = backend.authenticationMethods.length > 0 ? backend.authenticationMethods : [null]
       return methods.map((method): ProviderConnectionOption => ({
         value: backendConnectionValue(backend.id, method?.id ?? ''),
-        label: method && methods.length > 1 ? `${backend.displayName} · ${method.displayName}` : backend.displayName,
-        mode: method && method.kind !== 'ambient' ? 'signIn' : 'none',
+        label: backend.id === 'openrouter' ? `OpenRouter · ${t(method?.kind === 'apiKey' ? 'settings.llm.field.apiKey' : 'settings.llm.signIn.signIn')}`
+          : method && methods.length > 1 ? `${backend.displayName} · ${method.displayName}` : backend.displayName,
+        mode: backend.id === 'openrouter' && method?.kind === 'apiKey' ? 'apiKey' : method && method.kind !== 'ambient' ? 'signIn' : 'none',
         protocol: backend.defaultProtocol,
         backendId: backend.id,
         authMethod: method?.id ?? ''
@@ -135,7 +138,8 @@ export function applyProviderConnection(draft: ProviderDraft, option: ProviderCo
       protocol: option.protocol,
       authMethod: option.authMethod,
       apiKey: '',
-      endPoint: ''
+      endPoint: option.backendId === 'openrouter' ? 'https://openrouter.ai/api/v1' : '',
+      backendSettings: {}
     }
   }
   const protocol = normalizeProviderProtocol(option.protocol)
@@ -163,7 +167,7 @@ export function providerConnectionMode(
   const backend = backends.find((candidate) => candidate.id === draft.backendId)
   if (!backend) return 'signIn'
   const method = backend.authenticationMethods.find((candidate) => candidate.id === draft.authMethod)
-  return method && method.kind !== 'ambient' ? 'signIn' : 'none'
+  return backend.id === 'openrouter' && method?.kind === 'apiKey' ? 'apiKey' : method && method.kind !== 'ambient' ? 'signIn' : 'none'
 }
 
 function backendConnectionValue(backendId: string, method: string): string {
@@ -189,6 +193,7 @@ export function providerFieldsFromDraft(
     displayName: draft.displayName.trim(),
     protocol: draft.protocol,
     backendId: draft.backendId,
+    backendSettings: draft.backendSettings,
     authMethod: draft.authMethod,
     apiKey: savedProvider?.hasApiKey === true && draft.apiKey === STORED_API_KEY ? null : draft.apiKey.trim(),
     endPoint: draft.endPoint.trim(),

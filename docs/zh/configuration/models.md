@@ -23,7 +23,8 @@
     },
     "openrouter": {
       "DisplayName": "OpenRouter",
-      "Protocol": "openai-chat-completions",
+      "BackendId": "openrouter",
+      "Protocol": "auto",
       "ApiKey": "${OPENROUTER_API_KEY}",
       "EndPoint": "https://openrouter.ai/api/v1"
     }
@@ -67,7 +68,7 @@ Provider 对象字段：
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
 | `DisplayName` | 面向用户显示的 Provider 名称。为空时使用 provider id | 空 |
-| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
+| `Protocol` | 通用 Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。OpenRouter 还接受 `auto`，按模型选择协议 | 通用 Provider：`openai-chat-completions`，OpenRouter：`auto` |
 | `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
 | `AuthMethod` | 认证方式。`apiKey` 使用静态 `ApiKey`，`chatgptOAuth` 以 ChatGPT 订阅账号认证（仅限 OpenAI 协议，见下文）。无法识别的取值回退为 `apiKey` | `apiKey` |
 | `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
@@ -77,6 +78,22 @@ Provider 对象字段：
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
 | `SupportsImageGeneration` | 该提供商是否支持 OpenAI Images API。省略时，ChatGPT OAuth 和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
 | `SupportsFreeformTools` | 该提供商在 Responses 协议下是否接受带语法约束的 `custom` 工具。为 `false` 时，代码模式的 `CodeMode` 等工具以普通 function 工具发送。省略时，`chatgptOAuth` 提供商和使用官方 OpenAI endpoint 的 API-key 提供商默认按 `true` 处理，其他 endpoint 默认按 `false` 处理。 | 提供商默认值 |
+
+## 连接 OpenRouter
+
+在**设置 → 模型**中选择 OpenRouter，填写 API key 或使用浏览器登录。同一个提供商可以通过 Messages
+调用 Claude，通过 Responses 调用 OpenAI 模型，通过 Chat Completions 调用其他模型。自动选择以模型声明
+支持的协议为准。固定协议应用于整个提供商实例，模型不支持该协议时会显示错误。
+
+使用完整的 OpenRouter 模型 ID，例如 `anthropic/claude-opus-5.5`。刷新模型列表可以获取新模型和当前 key
+可用的选项。离线时仍可使用内置目录，刷新错误会单独显示。Opus 5.5 使用 adaptive thinking，在 DotCraft
+中默认选择 Medium。
+
+从 CLI 使用浏览器授权时，将上面提供商的 `AuthMethod` 设为 `openrouterOAuth`，然后运行
+`dotcraft auth login openrouter`。浏览器位于其他机器时，可以粘贴授权后得到的完整回调 URL。凭据按提供商实例保存。
+
+OpenRouter 的供应商路由设置决定由哪家供应商运行同一个模型。不填写偏好时使用 OpenRouter 默认值。
+用量浮层会显示当前 key 的已用金额、剩余额度，以及 API 返回的上次请求费用。key 额度与账户余额不同。
 
 ## 使用 ChatGPT 登录
 

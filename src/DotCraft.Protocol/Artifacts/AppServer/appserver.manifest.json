@@ -12434,6 +12434,13 @@
           "const": null
         },
         {
+          "name": "defaultProtocol",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "displayName",
           "type": "string",
           "required": false,
@@ -12448,6 +12455,13 @@
           "const": null
         },
         {
+          "name": "inputModalities",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "isDefault",
           "type": "boolean",
           "required": false,
@@ -12455,8 +12469,22 @@
           "const": null
         },
         {
+          "name": "maxOutputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "ownedBy",
           "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pricing",
+          "type": "core.ModelPricingInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -12473,6 +12501,13 @@
           "type": "core.ModelSpeedCapability",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportedProtocols",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -12491,6 +12526,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "refresh",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -12540,6 +12582,27 @@
           "const": null
         },
         {
+          "name": "refreshNotice",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "refreshedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "success",
           "type": "boolean",
           "required": false,
@@ -12582,6 +12645,45 @@
       "variants": []
     },
     {
+      "id": "core.ModelPricingInfo",
+      "name": "ModelPricingInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ModelPricingInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cacheReadPerMillion",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "cacheWritePerMillion",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "inputPerMillion",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "outputPerMillion",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ModelReasoningCapability",
       "name": "ModelReasoningCapability",
       "module": "core",
@@ -12592,6 +12694,13 @@
         {
           "name": "defaultEffort",
           "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "defaultEnabled",
+          "type": "boolean",
           "required": false,
           "nullable": false,
           "const": null
@@ -15254,6 +15363,13 @@
           "const": null
         },
         {
+          "name": "labels",
+          "type": "map<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "limitReachedKind",
           "type": "string",
           "required": false,
@@ -15277,6 +15393,13 @@
         {
           "name": "secondary",
           "type": "core.ProviderAuthUsageWindow",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "values",
+          "type": "map<number>",
           "required": false,
           "nullable": true,
           "const": null
@@ -15604,6 +15727,13 @@
           "const": null
         },
         {
+          "name": "backendSettings",
+          "type": "json",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "capabilities",
           "type": "core.ProviderCapabilities",
           "required": false,
@@ -15740,6 +15870,81 @@
       "variants": []
     },
     {
+      "id": "core.ProviderRoutingInfo",
+      "name": "ProviderRoutingInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderRoutingInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ProviderRoutingListParams",
+      "name": "ProviderRoutingListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderRoutingListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "backendId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "endPoint",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ProviderRoutingListResult",
+      "name": "ProviderRoutingListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderRoutingListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "providers",
+          "type": "array<core.ProviderRoutingInfo>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ProviderTestParams",
       "name": "ProviderTestParams",
       "module": "core",
@@ -15752,6 +15957,20 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "backendId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "backendSettings",
+          "type": "json",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -32503,6 +32722,26 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "provider/routing/list",
+      "descriptorMember": "ProviderRoutingList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ProviderRoutingListParams",
+      "resultType": "core.ProviderRoutingListResult",
+      "module": "core",
+      "capability": "providerManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {

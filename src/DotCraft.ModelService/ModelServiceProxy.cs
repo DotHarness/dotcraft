@@ -49,7 +49,7 @@ internal sealed class ModelServiceProxy(
             await ErrorAsync(context, 403, "provider_forbidden", "This client cannot use the requested provider.");
             return;
         }
-        if (!(context.Request.Method == "POST" && operation == "tools/search"
+        if (provider.Backend is null && !(context.Request.Method == "POST" && operation == "tools/search"
             ? ProviderWebSearchBackend.Resolve(provider.Runtime.EndPoint, provider.Runtime.AuthMethod) == ProviderWebSearchBackend.DeepSeek
             : IsAllowedOperation(provider.Runtime.Protocol, context.Request.Method, operation)))
         {
@@ -70,6 +70,33 @@ internal sealed class ModelServiceProxy(
             return;
         }
         IDisposable? lease;
+        if (provider.Backend is { } backend)
+        {
+            try
+            {
+                var resolver = backend.GetService(typeof(IProviderModelRuntimeResolver)) as IProviderModelRuntimeResolver
+                    ?? throw new ArgumentException("The backend cannot resolve model requests.");
+                var selected = resolver.ResolveRuntime(provider.Runtime with { Model = requestContext.Model });
+                var expected = selected.Protocol switch
+                { "anthropic" => "v1/messages", "openai-responses" => "responses", _ => "chat/completions" };
+                if (context.Request.Method != "POST" || operation != expected)
+                    throw new ArgumentException("The operation does not match the model protocol.");
+                if (context.Request.Method == "POST")
+                {
+                    context.Request.EnableBuffering();
+                    using var body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    context.Request.Body.Position = 0;
+                    if (!body.RootElement.TryGetProperty("model", out var model) || model.GetString() != requestContext.Model)
+                        throw new ArgumentException("The body model does not match the request context.");
+                }
+                provider = provider with { Runtime = selected };
+            }
+            catch (Exception ex) when (ex is ArgumentException or JsonException)
+            {
+                await ErrorAsync(context, 400, "invalid_model_operation", ex.Message);
+                return;
+            }
+        }
         try
         {
             lease = await access.BeginRequestAsync(caller, requestContext, cancellationToken).ConfigureAwait(false);
@@ -91,7 +118,9 @@ internal sealed class ModelServiceProxy(
             timeout.CancelAfter(TimeSpan.FromSeconds(provider.Runtime.NetworkTimeoutSeconds));
             if (provider.Authentication is not null)
                 context.Request.EnableBuffering();
-            var token = provider.Authentication is null ? provider.Runtime.ApiKey
+            var token = provider.Backend?.GetService(typeof(IProviderAccessTokenReader)) is IProviderAccessTokenReader readerToken
+                ? await readerToken.TryGetAccessTokenAsync(false, timeout.Token).ConfigureAwait(false) ?? string.Empty
+                : provider.Authentication is null ? provider.Runtime.ApiKey
                 : await provider.Authentication.GetAccessTokenAsync(false, timeout.Token).ConfigureAwait(false);
             using var response = await SendWithAuthenticationAsync(context, provider, operation, token, timeout.Token)
                 .ConfigureAwait(false);
@@ -180,7 +209,7 @@ internal sealed class ModelServiceProxy(
                     || header.Key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
                     request.Content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
         }
-        if (operation != "tools/search" && provider.Runtime.Protocol == ModelProviderProtocols.Anthropic)
+        if (provider.Backend is null && operation != "tools/search" && provider.Runtime.Protocol == ModelProviderProtocols.Anthropic)
             request.Headers.TryAddWithoutValidation("x-api-key", token);
         else
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

@@ -1,5 +1,10 @@
 # DotCraft Configuration Specification
 
+`Providers.<id>.BackendId = "openrouter"` selects the explicitly composed OpenRouter backend.
+Its `Protocol` defaults to `auto`; `BackendSettings` holds typed provider-routing preferences.
+Original model IDs and instance configuration remain separate from resolved protocol and endpoint.
+See [OpenRouter integration](openrouter.md).
+
 | Field | Value |
 |-------|-------|
 | **Version** | 0.9.1 |

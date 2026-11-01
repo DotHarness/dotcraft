@@ -56,6 +56,31 @@ docker compose up -d model-service
 
 默认端口为 `8090`。跨不可信网络连接时，在反向代理上配置 HTTPS。
 
+## 使用 OpenRouter
+
+在 `state/config.json` 中添加 OpenRouter 提供商，并将其环境变量传入容器：
+
+```json
+{
+  "Providers": {
+    "router": {
+      "BackendId": "openrouter",
+      "Protocol": "auto",
+      "ApiKey": "${OPENROUTER_API_KEY}"
+    }
+  }
+}
+```
+
+使用浏览器登录时，将 `ApiKey` 替换为 `"AuthMethod": "openrouterOAuth"`，然后运行：
+
+```bash
+dotcraft model-service --state /path/to/state auth login --provider router --no-browser
+```
+
+在浏览器中打开输出的链接，将完整回调 URL 粘贴回终端。使用下方相同的客户端创建命令，为客户端授权
+`router`。Worker 可以通过这个提供商选择不同模型和协议，OpenRouter key 始终保留在服务端。
+
 ## 连接 Stack
 
 为每个 Runtime 创建凭据。命令会输出客户端 ID，并将凭据写入文件：

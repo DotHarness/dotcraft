@@ -18,7 +18,7 @@ internal static class ProviderChatClientAdapters
             CreatePipelineOptions(
                 runtime,
                 reasoningConfig ?? config.Reasoning,
-                ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
+                runtime.BackendId is null && ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
                     ? config.Speed
                     : InferenceSpeed.Standard,
                 config.PromptCaching));
@@ -34,7 +34,7 @@ internal static class ProviderChatClientAdapters
         bool useDefaultReasoning = true)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        if (runtime.BackendId is null)
+        if (runtime.BackendId is null || runtime.IsBuiltInBackend)
             UseFlatToolIdentity(builder, runtime.Protocol);
 
         _ = useDefaultReasoning;
@@ -43,7 +43,7 @@ internal static class ProviderChatClientAdapters
             CreatePipelineOptions(
                 runtime,
                 reasoningConfig ?? config.Reasoning,
-                ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
+                runtime.BackendId is null && ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
                     ? speed
                     : InferenceSpeed.Standard,
                 promptCaching)));

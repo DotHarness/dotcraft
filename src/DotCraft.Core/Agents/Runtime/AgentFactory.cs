@@ -217,7 +217,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var effectiveMainModel = runtime.Model;
         var compactionConfig = ModelCatalog.ResolveCompactionConfig(
             effectiveConfig,
-            effectiveMainModel);
+            effectiveMainModel, runtime.ModelMetadata?.ContextWindow);
         var key = CompactionPipelineKey.From(
             string.IsNullOrWhiteSpace(sessionKey) ? string.Empty : sessionKey.Trim(),
             runtime,

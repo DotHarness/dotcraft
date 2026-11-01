@@ -25,6 +25,7 @@ public static class ModelProviderCatalog
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(providerRegistry);
+        config.RuntimeResolver = providerRegistry;
 
         EffectiveModelRuntime runtime;
         try

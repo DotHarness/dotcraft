@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ProviderUsageBalance, ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
 import { formatBalanceAmount } from '../../utils/providerBalance'
+import { OpenRouterUsageRows } from './OpenRouterUsageRows'
+import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
+import styles from './ProviderUsagePopover.module.css'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   formatCreditsBalance,
@@ -12,14 +15,19 @@ import {
 interface ProviderUsagePopoverProps {
   title: string
   usage: ProviderUsageSnapshot | null
+  markKind?: ProviderMarkKind
 }
 
 const POPOVER_WIDTH = 280
 
-export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps): JSX.Element {
+export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePopoverProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
+  const heading = <div className={styles.identity}>
+    {markKind && <ProviderMark kind={markKind} size={18} />}
+    <span style={titleStyle()}>{title}{usage?.planType ? <span style={planNameStyle()}> {formatPlanName(usage.planType)}</span> : null}</span>
+  </div>
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000)
@@ -28,14 +36,13 @@ export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps
 
   if (!usage || !usage.available) {
     return (
-      <div style={containerStyle()}>
-        <div style={titleStyle()}>{title}</div>
-        <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
+      <div style={containerStyle()} role="dialog" aria-label={title}>
+        {heading}
+        <div style={emptyStateStyle()}>{t(markKind === 'openrouter' ? 'settings.llm.openrouter.usageUnavailable' : 'composer.chatgptUsage.unavailable')}</div>
       </div>
     )
   }
 
-  const planName = formatPlanName(usage.planType)
   const displayWindows = shapeChatGptUsageWindows(usage)
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
   const balances = displayWindows.length === 0 ? usage.balances : null
@@ -43,10 +50,7 @@ export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps
     <div style={containerStyle()} role="dialog" aria-label={title}>
       <div style={headerRowStyle()}>
         <div style={headerTextStyle()}>
-          <span style={titleStyle()}>
-            {title}
-            {planName ? <span style={planNameStyle()}> {planName}</span> : null}
-          </span>
+          {heading}
           {usage.fetchedAt && (
             <span style={subtitleStyle()}>
               {t('composer.chatgptUsage.lastFetched', { time: formatRelative(usage.fetchedAt, now, t) })}
@@ -55,6 +59,8 @@ export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps
         </div>
       </div>
       <div style={dividerStyle()} />
+
+      {usage.labels?.scope === 'apiKey' && <OpenRouterUsageRows usage={usage} />}
 
       {displayWindows.map((display, index) => (
         <UsageWindowRow
@@ -74,11 +80,11 @@ export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps
         <div style={emptyStateStyle()}>{t('composer.balanceUsage.empty')}</div>
       )}
 
-      {displayWindows.length === 0 && !hasSupplementalUsage && !balances && (
+      {usage.labels?.scope !== 'apiKey' && displayWindows.length === 0 && !hasSupplementalUsage && !balances && (
         <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
       )}
 
-      {usage.credits?.hasCredits && (
+      {usage.labels?.scope !== 'apiKey' && usage.credits?.hasCredits && (
         <div style={creditsRowStyle()}>
           <span>{t('composer.chatgptUsage.credits')}</span>
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>

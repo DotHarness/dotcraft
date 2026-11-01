@@ -1,0 +1,35 @@
+.root {
+  position: relative;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--composer-footer-text, var(--text-secondary));
+  font-size: var(--type-ui-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.badge:hover {
+  background: var(--bg-tertiary);
+}
+
+.suffix {
+  color: var(--text-tertiary);
+}
+
+.popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+}

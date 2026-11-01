@@ -10,6 +10,35 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class ModelBackendCatalogTests
 {
     [Fact]
+    public async Task RoutingDirectorySupportsDraftsWithoutChangingSavedProvidersOrReturningKeys()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "routing-catalog-" + Guid.NewGuid().ToString("N"));
+        var craft = Path.Combine(root, ".craft");
+        Directory.CreateDirectory(craft);
+        var contributions = new ContributionRegistry();
+        contributions.Add<IModelBackendSource>(new Source());
+        using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), contributions, root);
+        var config = new AppConfig { Providers = new() { ["saved"] = new() { BackendId = "catalog-demo", ApiKey = "test-key" } } };
+        using var harness = new AppServerTestHarness(workspaceCraftPath: craft,
+            appConfigMonitor: new AppConfigMonitor(config), modelRuntimeResolver: resolver);
+        await harness.InitializeAsync();
+        try
+        {
+            foreach (var parameters in new object[] { new { providerId = "saved" }, new { backendId = "catalog-demo", endPoint = "https://router.example/api/v1" } })
+            {
+                await harness.ExecuteRequestAsync(harness.BuildRequest("provider/routing/list", parameters));
+                var result = await ReadResultAsync(harness);
+                var supplier = Assert.Single(result.GetProperty("providers").EnumerateArray());
+                Assert.Equal("supplier-a", supplier.GetProperty("id").GetString());
+                Assert.Equal("Supplier A", supplier.GetProperty("displayName").GetString());
+                Assert.DoesNotContain("test-key", result.GetRawText());
+            }
+            Assert.Single(config.Providers);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task ModelListDescribesBackendModelsOnlyFromTheBackend()
     {
         var root = Path.Combine(Path.GetTempPath(), "backend-catalog-" + Guid.NewGuid().ToString("N"));
@@ -63,7 +92,7 @@ public sealed class ModelBackendCatalogTests
         }
     }
 
-    private sealed class Source : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider
+    private sealed class Source : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider, IProviderRoutingCatalog
     {
         public IModelBackend Backend => this;
         public ModelBackendDescriptor Descriptor => new("catalog-demo", "Catalog demo", "anthropic", ["anthropic"], [], new ModelProviderCapabilities());
@@ -71,6 +100,8 @@ public sealed class ModelBackendCatalogTests
         public IModelProvider CreateProvider(ModelBackendContext context) => this;
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
         public object? GetService(Type type, object? key = null) => type.IsInstanceOfType(this) ? this : null;
+        public Task<IReadOnlyList<ProviderRoutingOption>> FetchRoutingProvidersAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ProviderRoutingOption>>([new("supplier-a", "Supplier A")]);
         public Task<ModelCatalogResult> FetchModelsAsync(EffectiveModelRuntime runtime, CancellationToken ct) => Task.FromResult(new ModelCatalogResult
         {
             Success = true,

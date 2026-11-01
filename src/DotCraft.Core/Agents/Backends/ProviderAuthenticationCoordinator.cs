@@ -128,7 +128,9 @@ public sealed class ProviderAuthenticationCoordinator(
         if (config.ModelService is not null)
         {
             RequireProvider(config, providerId);
-            return null;
+            var remoteRuntime = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
+            var reader = resolver.Resolve(remoteRuntime).GetService(typeof(IProviderUsageReader)) as IProviderUsageReader;
+            return reader is null ? config.Providers[providerId].RemoteUsage : await reader.ReadAsync(ct).ConfigureAwait(false);
         }
         var runtime = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
         if (string.IsNullOrWhiteSpace(runtime.BackendId) && !runtime.IsChatGptOAuth)

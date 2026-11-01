@@ -1,5 +1,10 @@
 # Remote model service
 
+Host-composed built-in backends publish model-specific protocol, limits, reasoning, prices and
+request adaptation through the catalog. Workers resolve the actual model protocol before sampling.
+The proxy validates that model's operation and supplies upstream credentials. Local collectible
+plugin backends remain unsupported. See [OpenRouter integration](openrouter.md).
+
 | Field | Value |
 |---|---|
 | Version | 0.9.1 |

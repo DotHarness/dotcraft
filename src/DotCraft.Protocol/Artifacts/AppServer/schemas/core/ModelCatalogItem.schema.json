@@ -11,17 +11,32 @@
       "type": "string",
       "format": "date-time"
     },
+    "defaultProtocol": {
+      "type": "string"
+    },
     "displayName": {
       "type": "string"
     },
     "id": {
       "type": "string"
     },
+    "inputModalities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "isDefault": {
       "type": "boolean"
     },
+    "maxOutputTokens": {
+      "type": "integer"
+    },
     "ownedBy": {
       "type": "string"
+    },
+    "pricing": {
+      "$ref": "./ModelPricingInfo.schema.json"
     },
     "reasoning": {
       "anyOf": [
@@ -42,6 +57,12 @@
           "type": "null"
         }
       ]
+    },
+    "supportedProtocols": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "additionalProperties": true

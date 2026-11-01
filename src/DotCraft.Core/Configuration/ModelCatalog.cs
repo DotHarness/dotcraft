@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using DotCraft.Context.Compaction;
 
@@ -10,7 +9,6 @@ public static class ModelCatalog
     public const string FileName = "models.json";
 
     private const int MinContextWindow = 1_000;
-    private const string EmbeddedResourceName = "DotCraft.Resources.models.json";
 
     public static void ApplyToConfig(
         AppConfig config,
@@ -23,11 +21,11 @@ public static class ModelCatalog
             config, ModelProviderResolver.ResolveConfiguredModel(config)).ContextWindow;
     }
 
-    public static CompactionConfig ResolveCompactionConfig(AppConfig config, string? model)
+    public static CompactionConfig ResolveCompactionConfig(AppConfig config, string? model, int? reportedCapacity = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         var compaction = config.Compaction.Clone();
-        var catalogWindow = ResolveInputCapacity(model,
+        var catalogWindow = reportedCapacity ?? ResolveInputCapacity(model,
             CatalogPathForConfig(config.GlobalConfigPath), CatalogPathForConfig(config.WorkspaceConfigPath));
         compaction.ContextWindow = compaction.MaxContextWindow > 0
             ? Math.Min(catalogWindow, compaction.MaxContextWindow)
@@ -166,23 +164,19 @@ public static class ModelCatalog
 
     private static CatalogData LoadBuiltInCatalog()
     {
-        var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream(EmbeddedResourceName);
-        if (stream is null)
-            return CatalogData.WithDefault();
-
-        using var reader = new StreamReader(stream);
-        try
+        var source = BuiltInModelCatalog.Instance;
+        var catalog = new CatalogData { DefaultContextWindow = source.DefaultContextWindow };
+        foreach (var (id, model) in source.Models)
         {
-            var catalog = LoadJson(reader.ReadToEnd());
-            if (catalog.DefaultContextWindow is null)
-                catalog.DefaultContextWindow = DefaultContextWindow;
-            return catalog;
+            var fast = model.Fast is null ? null : new FastCapabilityData();
+            if (fast is not null) fast.Protocols.UnionWith(model.Fast!.Protocols);
+            catalog.Models[id] = new ModelData
+            {
+                ContextWindow = model.ContextWindow, MaxInputTokens = model.MaxInputTokens,
+                HasFastDeclaration = model.HasFastDeclaration, Fast = fast
+            };
         }
-        catch (JsonException)
-        {
-            return CatalogData.WithDefault();
-        }
+        return catalog;
     }
 
     private static void MergeFile(CatalogData target, string? path)
@@ -221,7 +215,7 @@ public static class ModelCatalog
         IReadOnlyDictionary<string, ModelData> models,
         Func<ModelData, bool> predicate)
     {
-        var normalizedModel = model?.Trim();
+        var normalizedModel = ModelCapabilityIdentity.ForMatching(model);
         if (string.IsNullOrWhiteSpace(normalizedModel))
             return null;
 
@@ -251,7 +245,7 @@ public static class ModelCatalog
             {
                 if (!predicate(entry))
                     continue;
-                if (!suffix.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
+                if (!ModelCapabilityIdentity.MatchesPrefix(suffix, pattern))
                     continue;
 
                 if (pattern.Length <= bestLength)
@@ -276,7 +270,7 @@ public static class ModelCatalog
         {
             if (!predicate(entry))
                 continue;
-            if (!model.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
+            if (!ModelCapabilityIdentity.MatchesPrefix(model, pattern))
                 continue;
 
             if (pattern.Length <= bestLength)
@@ -355,8 +349,6 @@ public static class ModelCatalog
         public int? DefaultContextWindow { get; set; }
 
         public Dictionary<string, ModelData> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public static CatalogData WithDefault() => new() { DefaultContextWindow = ModelCatalog.DefaultContextWindow };
 
         public void MergeFrom(CatalogData other)
         {

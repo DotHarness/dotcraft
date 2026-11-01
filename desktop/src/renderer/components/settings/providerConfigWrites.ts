@@ -3,6 +3,7 @@ import { configKeyPath } from '../../stores/configStore'
 import type { ProviderInfoWire } from './providerInfo'
 
 export interface ProviderFields {
+  backendSettings?: Record<string, JsonValue>
   displayName: string
   protocol: string
   backendId: string | null
@@ -27,6 +28,11 @@ export function providerCreateValue(fields: ProviderFields): ProviderValue {
   if (fields.displayName) value.DisplayName = fields.displayName
   if (fields.backendId) {
     value.BackendId = fields.backendId
+    if (fields.backendSettings) value.BackendSettings = fields.backendSettings
+    if (fields.backendId === 'openrouter') {
+      if (fields.apiKey && fields.authMethod === 'apiKey') value.ApiKey = fields.apiKey
+      if (fields.endPoint) value.EndPoint = fields.endPoint
+    }
     if (fields.authMethod) value.AuthMethod = fields.authMethod
   } else {
     if (fields.authMethod === 'chatgptOAuth') value.AuthMethod = fields.authMethod
@@ -47,7 +53,8 @@ export function providerUpdateValue(previous: ProviderInfoWire, fields: Provider
   change('BackendId', previous.backendId ?? '', fields.backendId ?? '')
   change('Protocol', previous.protocol, fields.protocol)
   change('AuthMethod', previous.authMethod ?? 'apiKey', fields.authMethod)
-  change('EndPoint', previous.endPoint, fields.backendId ? '' : fields.endPoint)
+  change('EndPoint', previous.endPoint, fields.backendId && fields.backendId !== 'openrouter' ? '' : fields.endPoint)
+  if (JSON.stringify(previous.backendSettings ?? {}) !== JSON.stringify(fields.backendSettings ?? {})) value.BackendSettings = fields.backendSettings ?? {}
   change('NetworkTimeoutSeconds', previous.networkTimeoutSeconds ?? null, fields.networkTimeoutSeconds)
   const previousImageGeneration = previous.supportsImageGeneration === true
   if (fields.supportsImageGeneration == null) {
@@ -58,7 +65,7 @@ export function providerUpdateValue(previous: ProviderInfoWire, fields: Provider
   ) {
     value.SupportsImageGeneration = fields.supportsImageGeneration
   }
-  if (fields.backendId || fields.authMethod === 'chatgptOAuth') {
+  if ((fields.backendId && fields.backendId !== 'openrouter') || fields.authMethod !== 'apiKey') {
     if (previous.hasApiKey) value.ApiKey = null
   } else if (fields.apiKey !== null) {
     value.ApiKey = fields.apiKey || null
@@ -107,6 +114,17 @@ export async function createProvider(id: string, fields: ProviderFields): Promis
 
 export async function updateProvider(previous: ProviderInfoWire, fields: ProviderFields): Promise<void> {
   const value = providerUpdateValue(previous, fields)
+  if ('BackendSettings' in value) {
+    const settings = value.BackendSettings
+    delete value.BackendSettings
+    await window.api.appServer.sendRequest('config/batchWrite', {
+      edits: [
+        ...(Object.keys(value).length ? [{ keyPath: configKeyPath('Providers', previous.id), value, mergeStrategy: 'upsert' }] : []),
+        { keyPath: configKeyPath('Providers', previous.id, 'BackendSettings'), value: settings, mergeStrategy: 'replace' }
+      ]
+    }, PROVIDER_WRITE_TIMEOUT_MS)
+    return
+  }
   if (Object.keys(value).length > 0) await writeProviderEntry(previous.id, value, 'upsert')
 }
 

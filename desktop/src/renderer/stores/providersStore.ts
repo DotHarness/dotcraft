@@ -30,6 +30,8 @@ export interface ProviderUsageBalance {
 }
 
 export interface ProviderUsageSnapshot {
+  values?: Record<string, number>
+  labels?: Record<string, string>
   available: boolean
   planType: string | null
   primary: ProviderUsageWindow | null
@@ -76,6 +78,8 @@ function parseUsage(raw: unknown): ProviderUsageSnapshot | null {
   }
   return {
     available: obj.available === true,
+    ...(obj.values && typeof obj.values === 'object' ? { values: obj.values as Record<string, number> } : {}),
+    ...(obj.labels && typeof obj.labels === 'object' ? { labels: obj.labels as Record<string, string> } : {}),
     planType: typeof obj.planType === 'string' ? obj.planType : null,
     primary: parseWindow(obj.primary),
     secondary: parseWindow(obj.secondary),

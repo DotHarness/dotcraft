@@ -41,6 +41,19 @@
         }
       ]
     },
+    "labels": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "limitReachedKind": {
       "anyOf": [
         {
@@ -75,6 +88,19 @@
       "anyOf": [
         {
           "$ref": "./ProviderAuthUsageWindow.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "values": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
         },
         {
           "type": "null"

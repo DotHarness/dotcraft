@@ -14,7 +14,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\models.json" />
     <EmbeddedResource Include="Skills\BuiltIn\**\*" />
     <EmbeddedResource Include="Commands\Custom\BuiltIn\**\*" />
     <EmbeddedResource Include="Agents\Profiles\BuiltIn\**\*" />
@@ -52,6 +51,9 @@
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>DotCraft.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.Agents.OpenRouter.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>DotCraft.AppServer.TestSupport</_Parameter1>

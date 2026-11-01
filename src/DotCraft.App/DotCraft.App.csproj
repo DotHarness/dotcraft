@@ -61,6 +61,7 @@
     <ProjectReference Include="..\DotCraft.Oratorio\DotCraft.Oratorio.csproj" />
     <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.OpenRouter\DotCraft.Agents.OpenRouter.csproj" />
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.DynamicWorkflows\DotCraft.DynamicWorkflows.csproj" />
     <ProjectReference Include="..\DotCraft.CodeMode\DotCraft.CodeMode.csproj" />

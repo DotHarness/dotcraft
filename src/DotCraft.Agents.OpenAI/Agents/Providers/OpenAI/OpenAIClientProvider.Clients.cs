@@ -28,7 +28,7 @@ public sealed partial class OpenAIClientProvider
                 clientKey.NetworkTimeoutSeconds,
                 installationId,
                 provider._logger);
-            if (clientKey.IsRemote)
+            if (clientKey.IsRemote || provider._httpTransport is not null)
                 options.Transport = new HttpClientPipelineTransport(provider.RemoteHttpClient(clientKey.ProviderId, clientKey.Endpoint));
             if (isOAuth)
             {

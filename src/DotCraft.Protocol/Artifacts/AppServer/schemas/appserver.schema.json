@@ -9992,17 +9992,32 @@
           "type": "string",
           "format": "date-time"
         },
+        "defaultProtocol": {
+          "type": "string"
+        },
         "displayName": {
           "type": "string"
         },
         "id": {
           "type": "string"
         },
+        "inputModalities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "isDefault": {
           "type": "boolean"
         },
+        "maxOutputTokens": {
+          "type": "integer"
+        },
         "ownedBy": {
           "type": "string"
+        },
+        "pricing": {
+          "$ref": "#/$defs/ModelPricingInfo"
         },
         "reasoning": {
           "anyOf": [
@@ -10023,6 +10038,12 @@
               "type": "null"
             }
           ]
+        },
+        "supportedProtocols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": true
@@ -10040,6 +10061,9 @@
               "type": "null"
             }
           ]
+        },
+        "refresh": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -10094,6 +10118,16 @@
             }
           ]
         },
+        "refreshNotice": {
+          "type": "string"
+        },
+        "refreshedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string"
+        },
         "success": {
           "type": "boolean"
         }
@@ -10116,12 +10150,62 @@
       },
       "additionalProperties": true
     },
+    "ModelPricingInfo": {
+      "title": "ModelPricingInfo",
+      "type": "object",
+      "properties": {
+        "cacheReadPerMillion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cacheWritePerMillion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputPerMillion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputPerMillion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "ModelReasoningCapability": {
       "title": "ModelReasoningCapability",
       "type": "object",
       "properties": {
         "defaultEffort": {
           "type": "string"
+        },
+        "defaultEnabled": {
+          "type": "boolean"
         },
         "defaultOutput": {
           "type": "string"
@@ -12111,6 +12195,19 @@
             }
           ]
         },
+        "labels": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "limitReachedKind": {
           "anyOf": [
             {
@@ -12145,6 +12242,19 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ProviderAuthUsageWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "values": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
             },
             {
               "type": "null"
@@ -12402,6 +12512,7 @@
         "backendId": {
           "type": "string"
         },
+        "backendSettings": {},
         "capabilities": {
           "$ref": "#/$defs/ProviderCapabilities"
         },
@@ -12497,6 +12608,55 @@
       },
       "additionalProperties": true
     },
+    "ProviderRoutingInfo": {
+      "title": "ProviderRoutingInfo",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "displayName",
+        "id"
+      ]
+    },
+    "ProviderRoutingListParams": {
+      "title": "ProviderRoutingListParams",
+      "type": "object",
+      "properties": {
+        "backendId": {
+          "type": "string"
+        },
+        "endPoint": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ProviderRoutingListResult": {
+      "title": "ProviderRoutingListResult",
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderRoutingInfo"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "providers"
+      ]
+    },
     "ProviderTestParams": {
       "title": "ProviderTestParams",
       "type": "object",
@@ -12511,6 +12671,10 @@
             }
           ]
         },
+        "backendId": {
+          "type": "string"
+        },
+        "backendSettings": {},
         "endPoint": {
           "anyOf": [
             {

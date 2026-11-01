@@ -19,6 +19,7 @@ internal sealed class ModelBackendRequestHandler(
 
     public void RegisterMethods(AppServerMethodTable table)
     {
+        Map(table, Contract.AppServerRpc.ProviderRoutingList, ListRoutingProvidersAsync);
         Map(table, Contract.AppServerRpc.ProviderBackendList, (_, _) => Task.FromResult<object?>(new Contract.ProviderBackendListResult
         {
             Backends = Resolver.GetBackends().Select(descriptor => new Contract.ProviderBackendInfo
@@ -68,6 +69,24 @@ internal sealed class ModelBackendRequestHandler(
         }
     }
 
+    private async Task<object?> ListRoutingProvidersAsync(Contract.ProviderRoutingListParams parameters, CancellationToken ct)
+    {
+        var current = Config();
+        var id = parameters.ProviderId.IsSet ? Required(parameters.ProviderId.Value) : "__routing_draft__";
+        var provider = parameters.ProviderId.IsSet
+            ? current.Providers.GetValueOrDefault(id)?.Clone() ?? throw AppServerErrors.InvalidParams("Unknown provider.")
+            : new AppConfig.ModelProviderConfig { BackendId = parameters.BackendId.IsSet ? parameters.BackendId.Value : null };
+        if (parameters.EndPoint.IsSet) provider.EndPoint = parameters.EndPoint.Value ?? string.Empty;
+        var config = new AppConfig { NetworkTimeoutSeconds = current.NetworkTimeoutSeconds,
+            GlobalConfigPath = current.GlobalConfigPath, Providers = new() { [id] = provider } };
+        var runtime = Resolver.Normalize(ModelProviderResolver.ResolveProvider(config, id));
+        var catalog = Resolver.Resolve(runtime).GetService(typeof(IProviderRoutingCatalog)) as IProviderRoutingCatalog
+            ?? throw AppServerErrors.InvalidRequest("This provider does not expose a supplier directory.");
+        var suppliers = await catalog.FetchRoutingProvidersAsync(ct).ConfigureAwait(false);
+        return new Contract.ProviderRoutingListResult { Providers = suppliers.Select(supplier => new Contract.ProviderRoutingInfo
+            { Id = supplier.Id, DisplayName = supplier.DisplayName }).ToArray() };
+    }
+
     private AppConfig Config() => services.AppConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
 
     private void OnChanged(string owner, ProviderLoginState state)
@@ -89,7 +108,7 @@ internal sealed class ModelBackendRequestHandler(
         authentication.CancelOwner(_owner);
     }
 
-    private static string Required(string value) => !string.IsNullOrWhiteSpace(value) ? value.Trim()
+    private static string Required(string? value) => !string.IsNullOrWhiteSpace(value) ? value.Trim()
         : throw AppServerErrors.InvalidParams("A provider, login or prompt identifier is required.");
 
     private static void Map<TParams, TResult>(AppServerMethodTable table, RpcRequest<TParams, TResult> method,
