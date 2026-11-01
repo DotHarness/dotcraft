@@ -141,6 +141,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     })
     if (bodyRef.current) {
       resizeObserver.observe(bodyRef.current)
+      const viewport = bodyRef.current.closest('[data-detail-panel-viewport]')
+      if (viewport) resizeObserver.observe(viewport)
     }
     const onResize = () => queueBounds()
     const onScroll = () => queueBounds()

@@ -296,6 +296,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         >
           <div
             data-testid="detail-panel-content-clip"
+            data-detail-panel-viewport
             style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
           >
             {detailFrameWidth != null && (
