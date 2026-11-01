@@ -70,15 +70,7 @@ internal sealed class OpenRouterReasoning
 [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 internal sealed record OpenRouterPricing(decimal? Prompt, decimal? Completion, decimal? InputCacheRead, decimal? InputCacheWrite);
 
-internal sealed class OpenRouterResponse
-{
-    public OpenRouterResponseUsage? Usage { get; init; }
-    public OpenRouterResponse? Response { get; init; }
-    [JsonPropertyName("openrouter_metadata")] public OpenRouterMetadata? OpenRouterMetadata { get; init; }
-    public OpenRouterChoice[] Choices { get; init; } = [];
-}
-
 internal sealed record OpenRouterResponseUsage(decimal? Cost);
 internal sealed record OpenRouterMetadata(OpenRouterResponseUsage? Usage);
-internal sealed record OpenRouterChoice(OpenRouterAssistant? Delta, OpenRouterAssistant? Message);
-internal sealed record OpenRouterAssistant(JsonElement[]? ReasoningDetails);
+internal sealed record OpenRouterReasoningRequest(bool? Enabled = null, string? Effort = null);
+internal sealed record OpenRouterCacheControl(string Type, string? Ttl);

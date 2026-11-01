@@ -46,7 +46,8 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
                 runtime.Model,
                 catalogPath),
             runtime.Model,
-            runtime.MaxOutputTokens);
+            runtime.MaxOutputTokens,
+            reasoningSupport: runtime.ModelMetadata?.Reasoning);
         client = new AnthropicDeferredToolLoadingChatClient(
             client,
             runtime.Model,

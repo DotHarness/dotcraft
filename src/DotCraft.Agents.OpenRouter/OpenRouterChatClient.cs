@@ -1,65 +1,147 @@
+using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Anthropic.Core;
+using Anthropic.Models.Beta.Messages;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using OpenAI.Chat;
+using OpenAI.Responses;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
+using NativeMessageParams = Anthropic.Models.Beta.Messages.MessageCreateParams;
+
+#pragma warning disable OPENAI001, SCME0001
 
 namespace DotCraft.Agents;
 
-internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRuntime runtime, Action<decimal?> completed) : DelegatingChatClient(inner)
+internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRuntime runtime,
+    OpenRouterRoutingPreferences routing, Action<decimal?> completed) : DelegatingChatClient(inner)
 {
     internal const string ReasoningDetailsKey = "openrouter.reasoning_details";
     internal const string CostKey = "openrouter.costUsd";
-    internal static readonly AsyncLocal<OpenRouterCall?> Active = new();
 
     public override async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
-        var history = messages.ToList();
-        options = Prepare(options);
-        var call = new OpenRouterCall(history, options);
-        var previous = Active.Value;
-        Active.Value = call;
-        try
+        if (runtime.Protocol == "openai-responses")
         {
-            var response = await base.GetResponseAsync(history, options, cancellationToken).ConfigureAwait(false);
-            if (call.Reasoning.Count > 0 && response.Messages.LastOrDefault() is { } message)
-                message.Contents.Add(call.ReasoningContent());
-            if (call.Cost is { } cost) (response.AdditionalProperties ??= new())[CostKey] = cost;
-            completed(call.Cost);
+            var updates = new List<ChatResponseUpdate>();
+            await foreach (var update in GetStreamingResponseAsync(messages, options, cancellationToken).ConfigureAwait(false)) updates.Add(update);
+            var response = updates.ToAgentResponse();
+            if (updates.LastOrDefault(update => update.AdditionalProperties?.ContainsKey(CostKey) == true)
+                ?.AdditionalProperties?[CostKey] is decimal cost)
+                (response.AdditionalProperties ??= new())[CostKey] = cost;
             return response;
         }
-        finally { Active.Value = previous; }
+        var result = await base.GetResponseAsync(PrepareMessages(messages), Prepare(options), cancellationToken).ConfigureAwait(false);
+        var metadata = new OpenRouterResponseMetadata();
+        metadata.Read(result.RawRepresentation);
+        if (metadata.Reasoning.Count > 0 && result.Messages.LastOrDefault() is { } message)
+            message.Contents.Add(metadata.ReasoningContent());
+        if (metadata.Cost is { } amount) (result.AdditionalProperties ??= new())[CostKey] = amount;
+        completed(metadata.Cost);
+        return result;
     }
 
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var history = messages.ToList();
-        options = Prepare(options);
-        var call = new OpenRouterCall(history, options);
-        var previous = Active.Value;
-        Active.Value = call;
+        var metadata = new OpenRouterResponseMetadata();
         string? messageId = null;
-        try
+        await foreach (var update in base.GetStreamingResponseAsync(PrepareMessages(messages), Prepare(options), cancellationToken).ConfigureAwait(false))
         {
-            await foreach (var update in base.GetStreamingResponseAsync(history, options, cancellationToken).ConfigureAwait(false))
-            {
-                messageId = update.MessageId ?? messageId;
-                yield return update;
-            }
-            completed(call.Cost);
-            if (call.Reasoning.Count > 0 || call.Cost is not null)
-            {
-                var update = new ChatResponseUpdate { Role = ChatRole.Assistant, MessageId = messageId };
-                if (call.Reasoning.Count > 0) update.Contents.Add(call.ReasoningContent());
-                if (call.Cost is { } cost) (update.AdditionalProperties ??= new())[CostKey] = cost;
-                yield return update;
-            }
+            messageId = update.MessageId ?? messageId;
+            metadata.Read(update.RawRepresentation);
+            yield return update;
         }
-        finally { Active.Value = previous; }
+        completed(metadata.Cost);
+        if (metadata.Reasoning.Count > 0 || metadata.Cost is not null)
+        {
+            var update = new ChatResponseUpdate { Role = ChatRole.Assistant, MessageId = messageId };
+            if (metadata.Reasoning.Count > 0) update.Contents.Add(metadata.ReasoningContent());
+            if (metadata.Cost is { } amount) (update.AdditionalProperties ??= new())[CostKey] = amount;
+            yield return update;
+        }
     }
 
-    private ChatOptions? Prepare(ChatOptions? options)
+    private ChatOptions Prepare(ChatOptions? options)
+    {
+        options = PrepareReasoning(options)?.Clone() ?? new();
+        var factory = options.RawRepresentationFactory;
+        var effort = ProviderReasoningOptions.Resolve(options);
+        options.RawRepresentationFactory = client =>
+        {
+            var raw = factory?.Invoke(client);
+            if (runtime.Protocol == "anthropic")
+            {
+                var native = raw as NativeMessageParams ?? new NativeMessageParams
+                {
+                    Model = runtime.Model, MaxTokens = options.MaxOutputTokens ?? runtime.MaxOutputTokens ?? AnthropicClientProvider.DefaultMaxOutputTokens,
+                    Messages = []
+                };
+                if (routing.IsEmpty) return native;
+                var body = native.RawBodyData.ToDictionary();
+                body["provider"] = JsonSerializer.SerializeToElement(routing, OpenRouterJson.Options);
+                return NativeMessageParams.FromRawUnchecked(native.RawHeaderData, native.RawQueryData, body);
+            }
+            if (runtime.Protocol == "openai-responses")
+            {
+                var native = raw as CreateResponseOptions ?? new CreateResponseOptions();
+                PatchShared(ref native.Patch);
+                if (runtime.ModelMetadata?.Reasoning is { SupportedEfforts.Count: 0 })
+                {
+                    native.ReasoningOptions ??= new ResponseReasoningOptions();
+                    native.ReasoningOptions.ReasoningEffortLevel = null;
+                    if (options.Reasoning?.Output is { } output && output != ReasoningOutput.None)
+                        native.ReasoningOptions.ReasoningSummaryVerbosity ??= output == ReasoningOutput.Full
+                            ? ResponseReasoningSummaryVerbosity.Detailed : ResponseReasoningSummaryVerbosity.Auto;
+                }
+                return native;
+            }
+            var chat = raw as ChatCompletionOptions ?? new ChatCompletionOptions();
+            PatchShared(ref chat.Patch);
+            chat.Patch.Set("$.usage.include"u8, true);
+            chat.Patch.Remove("$.reasoning_effort"u8);
+            if (effort is { } selected)
+            {
+                var reasoning = selected == ProviderReasoningEffort.None ? new OpenRouterReasoningRequest(Enabled: false)
+                    : runtime.ModelMetadata?.Reasoning is { SupportedEfforts.Count: 0 } ? new OpenRouterReasoningRequest(Enabled: true)
+                    : new OpenRouterReasoningRequest(Effort: selected.ToToken());
+                chat.Patch.Set("$.reasoning"u8, BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(reasoning, OpenRouterJson.Options)));
+            }
+            return chat;
+        };
+        return options;
+    }
+
+    private void PatchShared(ref JsonPatch patch)
+    {
+        if (!routing.IsEmpty) patch.Set("$.provider"u8, BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(routing, OpenRouterJson.Options)));
+        if (runtime.Model.StartsWith("anthropic/", StringComparison.Ordinal)
+            && ProviderPipelineOptionsScope.Current is { PromptCachingEnabled: true } caching)
+        {
+            var cache = new OpenRouterCacheControl("ephemeral", caching.PromptCacheTtl is "5m" or "1h" ? caching.PromptCacheTtl : null);
+            patch.Set("$.cache_control"u8, BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(cache, OpenRouterJson.Options)));
+        }
+    }
+
+    private IEnumerable<ChatMessage> PrepareMessages(IEnumerable<ChatMessage> messages)
+    {
+        if (runtime.Protocol != "openai-chat-completions") return messages;
+        return messages.Select(message =>
+        {
+            var details = message.Contents.Select(content => content.AdditionalProperties?.GetValueOrDefault(ReasoningDetailsKey)).OfType<string>().LastOrDefault();
+            if (message.Role != ChatRole.Assistant || details is null) return message;
+            var native = new[] { message }.AsOpenAIChatMessages().OfType<AssistantChatMessage>().Single();
+            native.Patch.Set("$.reasoning_details"u8, BinaryData.FromString(details));
+            native.Patch.Remove("$.reasoning_content"u8);
+            var prepared = message.Clone();
+            prepared.RawRepresentation = native;
+            return prepared;
+        });
+    }
+
+    private ChatOptions? PrepareReasoning(ChatOptions? options)
     {
         options = ProviderReasoningOptions.ApplyDefaults(options, ProviderPipelineOptionsScope.Current);
         if (runtime.ModelMetadata?.Reasoning is not { } reasoning)
@@ -75,17 +157,14 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
             var enabled = !reasoning.SupportsDisable || (ProviderPipelineOptionsScope.Current?.ReasoningEnabled ?? reasoning.DefaultEnabled);
             ProviderReasoningOptions.Apply(options, true, enabled ? reasoning.DefaultEffort : ProviderReasoningEffort.None, ReasoningOutput.Full);
         }
-        if (ProviderReasoningOptions.Resolve(options) == ProviderReasoningEffort.None
-            && runtime.ModelMetadata?.Reasoning is { SupportsDisable: false })
+        if (ProviderReasoningOptions.Resolve(options) == ProviderReasoningEffort.None && !reasoning.SupportsDisable)
             throw new ArgumentException($"Model '{runtime.Model}' requires reasoning.");
         return options;
     }
 }
 
-internal sealed class OpenRouterCall(IReadOnlyList<ChatMessage> history, ChatOptions? options)
+internal sealed class OpenRouterResponseMetadata
 {
-    internal IReadOnlyList<ChatMessage> History => history;
-    internal ChatOptions? Options => options;
     internal List<JsonObject> Reasoning { get; } = [];
     internal decimal? Cost { get; private set; }
 
@@ -94,31 +173,64 @@ internal sealed class OpenRouterCall(IReadOnlyList<ChatMessage> history, ChatOpt
         AdditionalProperties = new()
         {
             ["dotcraft.reasoning.group"] = "openrouter.replay",
-            [OpenRouterChatClient.ReasoningDetailsKey] = new JsonArray(Reasoning.Select(item => item.DeepClone()).ToArray()).ToJsonString()
+            [OpenRouterChatClient.ReasoningDetailsKey] = JsonSerializer.Serialize(Reasoning)
         }
     };
 
-    internal void Read(OpenRouterResponse body)
+    internal void Read(object? raw)
     {
-        var usage = body.Usage ?? body.Response?.Usage;
-        var cost = usage?.Cost ?? body.OpenRouterMetadata?.Usage?.Cost;
-        if (cost is { } amount) Cost = amount;
-        foreach (var choice in body.Choices)
+        switch (raw)
         {
-            var message = choice.Delta ?? choice.Message;
-            foreach (var detail in message?.ReasoningDetails ?? [])
+            case ChatCompletion completion:
+                Read(ref completion.Patch, "$.choices[0].message.reasoning_details"u8);
+                break;
+            case StreamingChatCompletionUpdate update:
+                Read(ref update.Patch, "$.choices[0].delta.reasoning_details"u8);
+                break;
+            case StreamingResponseCompletedUpdate update:
+                Read(ref update.Patch);
+                Read(ref update.Response.Patch);
+                break;
+            case ResponseResult result:
+                Read(ref result.Patch);
+                break;
+            case BetaMessage message:
+                Read(message.RawData);
+                break;
+            case BetaRawMessageStreamEvent { Value: JsonModel message }:
+                Read(message.RawData);
+                break;
+        }
+    }
+
+    private void Read(ref JsonPatch patch, ReadOnlySpan<byte> reasoningPath = default)
+    {
+        if (patch.TryGetValue("$.usage.cost"u8, out decimal cost)
+            || patch.TryGetValue("$.openrouter_metadata.usage.cost"u8, out cost)) Cost = cost;
+        if (reasoningPath.IsEmpty || !patch.TryGetJson(reasoningPath, out var data)) return;
+        using var details = JsonDocument.Parse(data);
+        if (details.RootElement.ValueKind != JsonValueKind.Array) return;
+        foreach (var detail in details.RootElement.EnumerateArray())
+        {
+            if (detail.ValueKind != JsonValueKind.Object) continue;
+            var index = detail.TryGetProperty("index", out var position) && position.ValueKind != JsonValueKind.Null
+                ? position.GetInt32() : Reasoning.Count;
+            var existing = Reasoning.FirstOrDefault(item => item["index"]?.GetValue<int>() == index);
+            if (existing is null) { var copy = JsonSerializer.SerializeToNode(detail)!.AsObject(); copy["index"] = index; Reasoning.Add(copy); continue; }
+            foreach (var property in detail.EnumerateObject())
             {
-                var index = detail.TryGetProperty("index", out var position) && position.ValueKind != JsonValueKind.Null
-                    ? position.GetInt32() : Reasoning.Count;
-                var existing = Reasoning.FirstOrDefault(item => item["index"]?.GetValue<int>() == index);
-                if (existing is null) { var copy = JsonSerializer.SerializeToNode(detail)!.AsObject(); copy["index"] = index; Reasoning.Add(copy); continue; }
-                foreach (var property in detail.EnumerateObject())
-                {
-                    if (property.Name is "text" or "summary" or "data" && property.Value.ValueKind == JsonValueKind.String)
-                        existing[property.Name] = (existing[property.Name]?.GetValue<string>() ?? string.Empty) + property.Value.GetString();
-                    else existing[property.Name] = JsonSerializer.SerializeToNode(property.Value);
-                }
+                if (property.Name is "text" or "summary" or "data" && property.Value.ValueKind == JsonValueKind.String)
+                    existing[property.Name] = (existing[property.Name]?.GetValue<string>() ?? string.Empty) + property.Value.GetString();
+                else existing[property.Name] = JsonSerializer.SerializeToNode(property.Value);
             }
         }
+    }
+
+    private void Read(IReadOnlyDictionary<string, JsonElement> data)
+    {
+        if (data.TryGetValue("usage", out var usage) && usage.Deserialize<OpenRouterResponseUsage>(OpenRouterJson.Options)?.Cost is { } cost)
+            Cost = cost;
+        else if (data.TryGetValue("openrouter_metadata", out var metadata)
+            && metadata.Deserialize<OpenRouterMetadata>(OpenRouterJson.Options)?.Usage?.Cost is { } reported) Cost = reported;
     }
 }

@@ -22,7 +22,8 @@ internal sealed class AnthropicThinkingChatClient(
     string? model,
     int? defaultMaxOutputTokens = null,
     ReasoningOptions? defaultReasoning = null,
-    bool useDefaultReasoning = true)
+    bool useDefaultReasoning = true,
+    ModelReasoningSupport? reasoningSupport = null)
     : DelegatingChatClient(innerClient)
 {
     private const string FromReasoningEffort = "fromReasoningEffort";
@@ -61,9 +62,12 @@ internal sealed class AnthropicThinkingChatClient(
             reasoning = options?.Reasoning;
         }
         var resolvedEffort = ProviderReasoningOptions.Resolve(options);
-        var adapter = _adapter ?? (resolvedEffort == ProviderReasoningEffort.Max
-            ? new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { OutputConfigEffort = FromReasoningEffort }
-            : null);
+        var adapter = _adapter ?? (resolvedEffort switch
+        {
+            ProviderReasoningEffort.None => new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { ThinkingType = "disabled" },
+            ProviderReasoningEffort.Max => new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { OutputConfigEffort = FromReasoningEffort },
+            _ => null
+        });
         if (adapter == null || reasoning == null)
             return options;
 
@@ -165,6 +169,7 @@ internal sealed class AnthropicThinkingChatClient(
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
         ReasoningOptions reasoning)
     {
+        if (reasoning.Effort == ReasoningEffort.None) return new ThinkingConfigDisabled();
         var type = adapter.ThinkingType?.Trim();
         if (string.IsNullOrWhiteSpace(type))
             return null;
@@ -183,12 +188,14 @@ internal sealed class AnthropicThinkingChatClient(
         return null;
     }
 
-    private static OutputConfig? CreateOutputConfig(
+    private OutputConfig? CreateOutputConfig(
         OutputConfig? existing,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
         ReasoningOptions reasoning,
         ProviderReasoningEffort? resolvedEffort)
     {
+        if (resolvedEffort == ProviderReasoningEffort.None || reasoningSupport is { SupportedEfforts.Count: 0 })
+            return existing is null ? null : new OutputConfig(existing) { Effort = null };
         var effort = resolvedEffort == ProviderReasoningEffort.Max ? AnthropicEffort.Max : ResolveEffort(adapter, reasoning);
         if (!effort.HasValue)
             return null;
@@ -202,6 +209,7 @@ internal sealed class AnthropicThinkingChatClient(
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
         ReasoningOptions reasoning)
     {
+        if (reasoning.Effort == ReasoningEffort.None) return new AnthropicBetaThinkingConfigDisabled();
         var type = adapter.ThinkingType?.Trim();
         if (string.IsNullOrWhiteSpace(type))
             return null;
@@ -220,12 +228,14 @@ internal sealed class AnthropicThinkingChatClient(
         return null;
     }
 
-    private static AnthropicBetaOutputConfig? CreateBetaOutputConfig(
+    private AnthropicBetaOutputConfig? CreateBetaOutputConfig(
         AnthropicBetaOutputConfig? existing,
         ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData adapter,
         ReasoningOptions reasoning,
         ProviderReasoningEffort? resolvedEffort)
     {
+        if (resolvedEffort == ProviderReasoningEffort.None || reasoningSupport is { SupportedEfforts.Count: 0 })
+            return existing is null ? null : new AnthropicBetaOutputConfig(existing) { Effort = null };
         var effort = resolvedEffort == ProviderReasoningEffort.Max ? AnthropicBetaEffort.Max : ResolveBetaEffort(adapter, reasoning);
         if (!effort.HasValue)
             return null;

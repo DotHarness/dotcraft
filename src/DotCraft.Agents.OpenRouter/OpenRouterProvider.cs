@@ -88,12 +88,12 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
         var resolved = ResolveRuntime(runtime);
         var key = resolved.IsRemote ? "remote" : ApiKey();
         if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("OpenRouter API key is not configured.");
-        var transport = new OpenRouterHttpTransport(_routing, resolved, key, _remote);
+        var transport = new OpenRouterHttpTransport(resolved, key, _remote);
         var wire = resolved with { ApiKey = key, AuthMethod = "apiKey" };
         IChatClient client = resolved.Protocol == "anthropic"
             ? new AnthropicClientProvider(transport).CreateChatClient(wire)
             : new OpenAIClientProvider(httpTransport: transport).CreateChatClient(wire);
-        return new OpenRouterChatClient(client, resolved, cost => { lock (_usageGate) _lastRequestCost = cost; });
+        return new OpenRouterChatClient(client, resolved, _routing, cost => { lock (_usageGate) _lastRequestCost = cost; });
     }
 
     public async Task<ModelCatalogResult> FetchModelsAsync(EffectiveModelRuntime runtime, CancellationToken cancellationToken)

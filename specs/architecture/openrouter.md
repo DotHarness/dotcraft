@@ -36,6 +36,12 @@ Fixed API responses and routing preferences use typed DTOs. Preferences are pars
 per provider instance. JSON mutation remains limited to SDK request extensions and opaque reasoning
 payloads, preserving fields that the protocol clients do not own.
 
+The backend composes the existing protocol clients. Request extensions use their native SDK options
+and message mapping; response metadata comes from SDK response and stream-event objects. The HTTP
+transport only supplies authentication, session headers and remote forwarding, leaving bodies and
+response streams untouched. Responses storage and encrypted reasoning settings belong to the shared
+Responses client. Anthropic thinking enablement and effort support belong to its thinking client.
+
 OpenRouter records own runtime and UI capabilities, independently of generic `models.json` prefix
 matches. Official fields win; verified compatibility policies fill absent fields. Generic Anthropic
 matching recognizes dotted/dashed Claude versions, namespaces and context annotations locally while

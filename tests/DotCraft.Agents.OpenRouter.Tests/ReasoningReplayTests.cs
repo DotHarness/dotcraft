@@ -20,7 +20,8 @@ public sealed class ReasoningReplayTests
     {
         using var server = new RequestTests.LocalServer();
         var runtime = RoutingTests.Runtime() with { Protocol = protocol, ConfiguredProtocol = protocol,
-            EndPoint = server.Root, ConfiguredEndPoint = server.Root, Model = "anthropic/claude-opus-5.5" };
+            EndPoint = server.Root, ConfiguredEndPoint = server.Root, Model = "anthropic/claude-opus-5.5",
+            BackendSettingsJson = """{"only":["anthropic"]}""" };
         var provider = RoutingTests.Create(runtime);
         using var client = provider.CreateChatClient(runtime);
         var first = server.Reply(protocol, streaming ? ProtocolEvents.Build(protocol, Response(protocol)) : Response(protocol), streaming);
@@ -47,6 +48,7 @@ public sealed class ReasoningReplayTests
         var second = server.Reply(protocol);
         await client.GetResponseAsync(history, options);
         var sent = (await second).Body;
+        Assert.Equal("anthropic", sent["provider"]!["only"]![0]!.GetValue<string>());
         if (protocol == "anthropic")
         {
             var contents = sent["messages"]!.AsArray().OfType<JsonObject>().SelectMany(message => message["content"] as JsonArray ?? []);

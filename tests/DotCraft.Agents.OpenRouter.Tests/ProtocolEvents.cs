@@ -19,7 +19,8 @@ internal static class ProtocolEvents
                 ["function"] = new JsonObject { ["arguments"] = "{}" } }) };
             start["reasoning_details"]![0]!["data"] = "opaque-";
             delta["reasoning_details"] = new JsonArray(new JsonObject { ["index"] = 0, ["data"] = "reasoning-推理" });
-            return Chunk(start, null) + Chunk(delta, "tool_calls") + "data: " + new JsonObject
+            return Chunk(start, null) + Chunk(new JsonObject { ["reasoning_details"] = null }, null)
+                + Chunk(delta, "tool_calls") + "data: " + new JsonObject
             { ["id"] = "chatcmpl_1", ["object"] = "chat.completion.chunk", ["created"] = 1,
                 ["choices"] = new JsonArray(), ["usage"] = response["usage"]!.DeepClone() }.ToJsonString() + "\n\ndata: [DONE]\n\n";
         }
