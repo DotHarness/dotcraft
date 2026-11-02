@@ -503,7 +503,7 @@ export function ModelPicker({
         position: 'relative',
         minWidth: 0,
         width: triggerVariant === 'field' ? '100%' : undefined,
-        height: triggerVariant === 'field' ? '38px' : undefined,
+        height: triggerVariant === 'field' ? 'calc(var(--button-height) - 2px)' : undefined,
         display: triggerVariant === 'field' ? 'flex' : undefined
       }}
     >

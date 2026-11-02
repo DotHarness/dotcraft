@@ -2576,13 +2576,6 @@ export interface ModelListResult {
   [key: string]: unknown;
 }
 
-export interface ModelPreference {
-  model?: string;
-  reasoning?: ReasoningConfig;
-  speed?: string;
-  [key: string]: unknown;
-}
-
 export interface ModelPricingInfo {
   cacheReadPerMillion?: number | null;
   cacheWritePerMillion?: number | null;
@@ -3943,6 +3936,14 @@ export interface SubAgentGraphChangedNotification {
   [key: string]: unknown;
 }
 
+export interface SubAgentModelPreference {
+  model?: string;
+  providerId?: string | null;
+  reasoning?: ReasoningConfig;
+  speed?: string;
+  [key: string]: unknown;
+}
+
 export interface SubAgentProfileDiagnostic {
   binaryResolved?: boolean;
   enabled?: boolean;
@@ -4060,13 +4061,13 @@ export interface SubAgentProgressNotification {
 
 export interface SubAgentSettings {
   externalCliSessionResumeEnabled?: boolean;
-  providerPreferences?: Record<string, ModelPreference> | null;
+  providerPreferences?: Record<string, SubAgentModelPreference> | null;
   [key: string]: unknown;
 }
 
 export interface SubAgentSettingsUpdateParams {
   externalCliSessionResumeEnabled?: boolean | null;
-  providerPreferences?: Record<string, ModelPreference> | null;
+  providerPreferences?: Record<string, SubAgentModelPreference> | null;
   [key: string]: unknown;
 }
 

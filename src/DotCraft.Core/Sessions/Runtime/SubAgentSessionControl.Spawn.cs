@@ -103,6 +103,7 @@ public static partial class SubAgentSessionControl
                 && options.InvocationModelOverride.Effort != null
                 ? new SubAgentInvocationModelOverride
                 {
+                    ProviderId = childConfiguration.ProviderId,
                     Model = childConfiguration.Model,
                     Effort = options.InvocationModelOverride.Effort
                 }
@@ -110,6 +111,17 @@ public static partial class SubAgentSessionControl
             SubAgentModelCatalogSnapshots.ValidateInvocationOverride(
                 options.InvocationModelCatalogSnapshot,
                 validationOverride);
+        }
+        if (isNativeRuntime
+            && options.RuntimeConfig != null
+            && !string.Equals(
+                childConfiguration.ProviderId,
+                context.ParentThread.Configuration?.ProviderId ?? options.RuntimeConfig.ProviderId,
+                StringComparison.OrdinalIgnoreCase)
+            && !ModelProviderResolver.IsProviderUsable(options.RuntimeConfig, childConfiguration.ProviderId))
+        {
+            throw new InvalidOperationException(
+                $"Model provider '{childConfiguration.ProviderId}' is not configured or has no usable credentials, so the subagent cannot start.");
         }
         if (!isNativeRuntime || !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase))
             childConfiguration.SubAgentModelCatalogSnapshot = null;

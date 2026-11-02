@@ -1,11 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ModelPreference.schema.json",
-  "title": "ModelPreference",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SubAgentModelPreference.schema.json",
+  "title": "SubAgentModelPreference",
   "type": "object",
   "properties": {
     "model": {
       "type": "string"
+    },
+    "providerId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "reasoning": {
       "$ref": "./ReasoningConfig.schema.json"

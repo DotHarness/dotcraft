@@ -183,7 +183,7 @@ namespace DotCraft.Protocol;
 
 [JsonSerializable(typeof(AppServer.ModelListParams))]
 [JsonSerializable(typeof(AppServer.ModelListResult))]
-[JsonSerializable(typeof(AppServer.ModelPreference))]
+[JsonSerializable(typeof(AppServer.SubAgentModelPreference))]
 
 [JsonSerializable(typeof(AppServer.ModelReasoningCapability))]
 [JsonSerializable(typeof(AppServer.ModelReasoningEffortOption))]

@@ -3,7 +3,6 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.AppServer;
-using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -106,10 +105,10 @@ public sealed class SubAgentProfileManagementTests : IDisposable
 
         var settings = await UpdateSettingsAsync(harness, new
         {
-            providerPreferences = new Dictionary<string, ModelPreference>
+            providerPreferences = new Dictionary<string, object>
             {
                 ["openai"] = ModelPreferenceRules.CreateManual("gpt-x"),
-                ["anthropic-main"] = ModelPreferenceRules.CreateManual("claude-y")
+                ["anthropic-main"] = new { providerId = "openai", model = "claude-y" }
             }
         });
         Assert.Equal("gpt-x", settings.GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
@@ -118,6 +117,19 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         Assert.True(root["SubAgent"]!["CustomSettings"]!["keep"]!.GetValue<bool>());
         Assert.Equal("gpt-x", root["SubAgent"]!["ProviderPreferences"]!["openai"]!["Model"]!.GetValue<string>());
         Assert.Equal("claude-y", root["SubAgent"]!["ProviderPreferences"]!["anthropic-main"]!["Model"]!.GetValue<string>());
+        Assert.Equal("openai", root["SubAgent"]!["ProviderPreferences"]!["anthropic-main"]!["ProviderId"]!.GetValue<string>());
+        Assert.False(root["SubAgent"]!["ProviderPreferences"]!["openai"]!.AsObject().ContainsKey("ProviderId"));
+        Assert.Equal(
+            "openai",
+            (await ListAsync(harness)).GetProperty("settings").GetProperty("providerPreferences").GetProperty("anthropic-main").GetProperty("providerId").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
+        {
+            providerPreferences = new Dictionary<string, object> { ["openai"] = new { providerId = "missing", model = "m" } }
+        }));
+        AppServerTestHarness.AssertIsErrorResponse(
+            (await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)))[0],
+            AppServerErrors.InvalidParamsCode);
         Assert.Equal(
             "gpt-x",
             (await ListAsync(harness)).GetProperty("settings").GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
@@ -126,7 +138,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
         Assert.True(root["SubAgent"]!["CustomSettings"]!["keep"]!.GetValue<bool>());
 
-        var cleared = await UpdateSettingsAsync(harness, new { providerPreferences = new Dictionary<string, ModelPreference>() });
+        var cleared = await UpdateSettingsAsync(harness, new { providerPreferences = new Dictionary<string, object>() });
         Assert.False(cleared.TryGetProperty("providerPreferences", out _));
         root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
         Assert.False(root["SubAgent"]!.AsObject().ContainsKey("ProviderPreferences"));

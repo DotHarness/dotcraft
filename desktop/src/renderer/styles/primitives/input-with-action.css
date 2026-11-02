@@ -3,7 +3,20 @@
 }
 
 .dc-model-preference-field {
+  width: 100%;
+  min-width: 0;
+  height: var(--button-height);
+  box-sizing: border-box;
+  border: 1px solid var(--border-default);
+  border-radius: var(--button-radius);
+  background: var(--bg-primary);
   transition: border-color 120ms ease;
+}
+
+.dc-model-preference-field--loading {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
 }
 
 .dc-model-preference-field:focus-within {

@@ -10134,22 +10134,6 @@
       },
       "additionalProperties": true
     },
-    "ModelPreference": {
-      "title": "ModelPreference",
-      "type": "object",
-      "properties": {
-        "model": {
-          "type": "string"
-        },
-        "reasoning": {
-          "$ref": "#/$defs/ReasoningConfig"
-        },
-        "speed": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "ModelPricingInfo": {
       "title": "ModelPricingInfo",
       "type": "object",
@@ -15406,6 +15390,32 @@
       },
       "additionalProperties": true
     },
+    "SubAgentModelPreference": {
+      "title": "SubAgentModelPreference",
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "providerId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasoning": {
+          "$ref": "#/$defs/ReasoningConfig"
+        },
+        "speed": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "SubAgentProfileDiagnostic": {
       "title": "SubAgentProfileDiagnostic",
       "type": "object",
@@ -15954,7 +15964,7 @@
             {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/ModelPreference"
+                "$ref": "#/$defs/SubAgentModelPreference"
               }
             },
             {
@@ -15984,7 +15994,7 @@
             {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/ModelPreference"
+                "$ref": "#/$defs/SubAgentModelPreference"
               }
             },
             {

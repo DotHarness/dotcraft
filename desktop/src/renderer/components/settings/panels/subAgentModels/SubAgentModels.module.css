@@ -1,0 +1,72 @@
+.field {
+  min-width: 0;
+}
+
+.fieldHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 18px;
+  margin-bottom: 7px;
+}
+
+.selectionRow {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.modelPicker {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.choice {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.choiceMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.choiceModel {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choiceProvider {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.choiceStatus {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.fieldNotice {
+  display: flex;
+  margin-top: 10px;
+}

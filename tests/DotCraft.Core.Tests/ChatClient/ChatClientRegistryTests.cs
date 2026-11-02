@@ -24,7 +24,7 @@ public sealed class ChatClientRegistryTests
     public void ResolveSubAgentRuntime_MissingProviderPreference_InheritsThreadModel()
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "workspace-model");
-        config.SubAgent.ProviderPreferences["another-provider"] = new ModelPreference { Model = "wrong-model" };
+        config.SubAgent.ProviderPreferences["another-provider"] = new SubAgentModelPreference { Model = "wrong-model" };
         var registry = new ChatClientRegistry();
 
         var runtime = registry.ResolveSubAgentRuntime(config, config.ProviderId, "thread-model");
@@ -162,9 +162,9 @@ public sealed class ChatClientRegistryTests
             ProviderPreferences = new() { ["anthropic-main"] = new ModelPreference { Model = "main-model"  } },
             SubAgent = new AppConfig.SubAgentConfig
             {
-                ProviderPreferences = new Dictionary<string, ModelPreference>(StringComparer.OrdinalIgnoreCase)
+                ProviderPreferences = new Dictionary<string, SubAgentModelPreference>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["anthropic-main"] = new ModelPreference { Model = "sub-model" }
+                    ["anthropic-main"] = new SubAgentModelPreference { Model = "sub-model" }
                 }
             },
             Providers =

@@ -49,6 +49,8 @@ export interface SelectProps<T extends string = string> {
   adaptiveWidth?: boolean
   menuAlign?: 'start' | 'end'
   triggerIcon?: ReactNode
+  /** Shown when no option matches the value. */
+  placeholder?: ReactNode
 }
 
 interface MenuPosition {
@@ -87,7 +89,8 @@ export function Select<T extends string = string>({
   appearance = 'field',
   adaptiveWidth,
   menuAlign = 'start',
-  triggerIcon
+  triggerIcon,
+  placeholder
 }: SelectProps<T>): JSX.Element {
   const reactId = useId()
   const listboxId = `${id ?? reactId}-listbox`
@@ -107,7 +110,7 @@ export function Select<T extends string = string>({
   const [adaptiveAnchor, setAdaptiveAnchor] = useState<AdaptiveAnchor>('left')
   const [menuReady, setMenuReady] = useState(true)
   const selectedIndex = options.findIndex((option) => option.value === value)
-  const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : options[0]
+  const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : placeholder === undefined ? options[0] : undefined
   const selectedEnabledIndex = selectedIndex >= 0 && !options[selectedIndex]?.disabled
     ? selectedIndex
     : firstEnabledIndex(options)
@@ -542,8 +545,11 @@ export function Select<T extends string = string>({
       {(triggerIcon ?? selectedOption?.icon) && (
         <span className="dc-settings-select__icon" aria-hidden="true">{triggerIcon ?? selectedOption?.icon}</span>
       )}
-      <span className="dc-settings-select__value" {...valueProps}>
-        {selectedOption?.label ?? value}
+      <span
+        className={selectedOption || placeholder === undefined ? 'dc-settings-select__value' : 'dc-settings-select__value dc-settings-select__value--placeholder'}
+        {...valueProps}
+      >
+        {selectedOption?.label ?? placeholder ?? value}
       </span>
       <ChevronDown
         size={15}

@@ -134,24 +134,25 @@ internal static class SubAgentContractMapper
 
     public static Contract.SubAgentSettings ToContract(
         bool resumeEnabled,
-        IReadOnlyDictionary<string, ModelPreference> providerPreferences) => new()
+        IReadOnlyDictionary<string, SubAgentModelPreference> providerPreferences) => new()
     {
         ExternalCliSessionResumeEnabled = resumeEnabled,
         ProviderPreferences = providerPreferences.Count == 0
             ? default
-            : new Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
+            : new Protocol.Optional<IReadOnlyDictionary<string, Contract.SubAgentModelPreference>?>(
                 providerPreferences.ToDictionary(
                     pair => pair.Key,
                     pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
                     StringComparer.Ordinal))
     };
 
-    public static Dictionary<string, ModelPreference>? FromContract(
-        IReadOnlyDictionary<string, Contract.ModelPreference>? values) =>
+    public static Dictionary<string, SubAgentModelPreference>? FromContract(
+        IReadOnlyDictionary<string, Contract.SubAgentModelPreference>? values) =>
         values?.ToDictionary(
             pair => pair.Key,
             pair => ThreadConfigurationContractMapper.FromContract(pair.Value),
             StringComparer.Ordinal);
+
 
     public static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;

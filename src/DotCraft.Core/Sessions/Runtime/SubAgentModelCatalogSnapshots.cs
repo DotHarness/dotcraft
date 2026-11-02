@@ -14,10 +14,74 @@ internal static class SubAgentModelCatalogSnapshots
         string providerId,
         CancellationToken cancellationToken)
     {
-        ModelCatalogResult result;
+        var items = config.SubAgent.Models.Count > 0
+            ? await CreateConfiguredItemsAsync(config, providerRegistry, cancellationToken).ConfigureAwait(false)
+            : await CreateCatalogItemsAsync(config, providerRegistry, providerId, cancellationToken).ConfigureAwait(false);
+        return new SubAgentModelCatalogSnapshot
+        {
+            ProviderId = providerId,
+            Models = items,
+            Description = RenderDescription(items)
+        };
+    }
+
+    private static async Task<List<SubAgentModelCatalogItem>> CreateCatalogItemsAsync(
+        AppConfig config,
+        ModelProviderRegistry providerRegistry,
+        string providerId,
+        CancellationToken cancellationToken)
+    {
+        var result = await FetchCatalogAsync(config, providerRegistry, providerId, cancellationToken).ConfigureAwait(false);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return result.Success
+            ? result.Models
+                .Where(model => model.Id.Trim() is { Length: > 0 } id && seen.Add(id))
+                .Take(MaxModelOverrides)
+                .Select(model => CreateItem(config, providerId, model.Id.Trim(), result, model))
+                .ToList()
+            : [];
+    }
+
+    private static async Task<List<SubAgentModelCatalogItem>> CreateConfiguredItemsAsync(
+        AppConfig config,
+        ModelProviderRegistry providerRegistry,
+        CancellationToken cancellationToken)
+    {
+        var catalogs = new Dictionary<string, ModelCatalogResult>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var items = new List<SubAgentModelCatalogItem>();
+        foreach (var choice in config.SubAgent.Models.Take(SubAgentModelChoiceRules.MaxChoices))
+        {
+            var providerId = choice.ProviderId?.Trim() ?? string.Empty;
+            var model = choice.Model?.Trim() ?? string.Empty;
+            if (model.Length == 0
+                || !ModelProviderResolver.IsProviderUsable(config, providerId)
+                || !seen.Add($"{providerId}/{model}"))
+            {
+                continue;
+            }
+            if (!catalogs.TryGetValue(providerId, out var result))
+            {
+                result = await FetchCatalogAsync(config, providerRegistry, providerId, cancellationToken).ConfigureAwait(false);
+                catalogs[providerId] = result;
+            }
+            var entry = result.Success
+                ? result.Models.FirstOrDefault(candidate => string.Equals(candidate.Id.Trim(), model, StringComparison.OrdinalIgnoreCase))
+                : null;
+            items.Add(CreateItem(config, providerId, model, result, entry));
+        }
+        return items;
+    }
+
+    private static async Task<ModelCatalogResult> FetchCatalogAsync(
+        AppConfig config,
+        ModelProviderRegistry providerRegistry,
+        string providerId,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            result = await ModelProviderCatalog.FetchAsync(
+            return await ModelProviderCatalog.FetchAsync(
                 config,
                 providerRegistry,
                 providerId,
@@ -29,23 +93,8 @@ internal static class SubAgentModelCatalogSnapshots
         }
         catch
         {
-            result = new ModelCatalogResult { Success = false };
+            return new ModelCatalogResult { Success = false };
         }
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var items = result.Success
-            ? result.Models
-                .Where(model => model.Id.Trim() is { Length: > 0 } id && seen.Add(id))
-                .Take(MaxModelOverrides)
-                .Select(model => CreateItem(config, result, model))
-                .ToList()
-            : [];
-
-        return new SubAgentModelCatalogSnapshot
-        {
-            ProviderId = providerId,
-            Models = items,
-            Description = RenderDescription(items)
-        };
     }
 
     public static SubAgentModelCatalogSnapshot Clone(SubAgentModelCatalogSnapshot source) => new()
@@ -55,6 +104,8 @@ internal static class SubAgentModelCatalogSnapshots
         Models = source.Models.Select(static model => new SubAgentModelCatalogItem
         {
             Id = model.Id,
+            ProviderId = model.ProviderId,
+            Model = model.Model,
             SupportedReasoningEfforts = [.. model.SupportedReasoningEfforts],
             DefaultReasoningEffort = model.DefaultReasoningEffort
         }).ToList()
@@ -72,6 +123,7 @@ internal static class SubAgentModelCatalogSnapshots
         SubAgentModelCatalogSnapshot? snapshot,
         string? model,
         string? reasoningEffort,
+        string? inheritedProviderId = null,
         string? inheritedModel = null)
     {
         var normalizedModel = NormalizeOptional(model);
@@ -91,8 +143,7 @@ internal static class SubAgentModelCatalogSnapshots
         }
         else if (!string.IsNullOrWhiteSpace(inheritedModel))
         {
-            selected = snapshot.Models.FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, inheritedModel.Trim(), StringComparison.OrdinalIgnoreCase));
+            selected = Find(snapshot, inheritedProviderId, inheritedModel);
         }
 
         ModelReasoningEffort? effort = null;
@@ -113,7 +164,8 @@ internal static class SubAgentModelCatalogSnapshots
 
         return new SubAgentInvocationModelOverride
         {
-            Model = normalizedModel == null ? null : selected?.Id,
+            ProviderId = normalizedModel == null ? null : selected?.ProviderId,
+            Model = normalizedModel == null ? null : selected?.Model,
             Effort = effort
         };
     }
@@ -125,8 +177,7 @@ internal static class SubAgentModelCatalogSnapshots
         var model = NormalizeOptional(invocationOverride.Model);
         if (model == null)
             return;
-        var selected = snapshot.Models.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, model, StringComparison.OrdinalIgnoreCase));
+        var selected = Find(snapshot, invocationOverride.ProviderId, model);
         if (selected == null)
             throw new InvalidOperationException(BuildUnavailableModelMessage(snapshot));
         if (invocationOverride.Effort is { } effort
@@ -139,20 +190,34 @@ internal static class SubAgentModelCatalogSnapshots
         }
     }
 
+    private static SubAgentModelCatalogItem? Find(
+        SubAgentModelCatalogSnapshot snapshot,
+        string? providerId,
+        string? model) =>
+        snapshot.Models.FirstOrDefault(candidate =>
+            (providerId == null || string.Equals(candidate.ProviderId, providerId.Trim(), StringComparison.OrdinalIgnoreCase))
+            && string.Equals(candidate.Model, model?.Trim(), StringComparison.OrdinalIgnoreCase));
+
     private static SubAgentModelCatalogItem CreateItem(
         AppConfig config,
+        string providerId,
+        string model,
         ModelCatalogResult result,
-        ModelCatalogEntry model)
+        ModelCatalogEntry? entry)
     {
-        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
-            config,
-            result.ProviderId,
-            result.Protocol,
-            result.EndPoint,
-            model);
+        var capability = entry == null
+            ? null
+            : ModelThinkingAdapterResolver.ResolveReasoningCapability(
+                config,
+                result.ProviderId,
+                result.Protocol,
+                result.EndPoint,
+                entry);
         return new SubAgentModelCatalogItem
         {
-            Id = model.Id.Trim(),
+            Id = $"{providerId}/{model}",
+            ProviderId = providerId,
+            Model = model,
             SupportedReasoningEfforts = capability?.SupportedEfforts
                 .Select(static option => option.Effort.ToModelReasoningEffort())
                 .Distinct()

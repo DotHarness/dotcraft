@@ -14,11 +14,11 @@ import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 const FIELD_TRIGGER_STYLE: CSSProperties = {
   width: '100%',
   maxWidth: 'none',
-  height: '38px',
+  height: 'calc(var(--button-height) - 2px)',
   minWidth: 0,
   padding: '0 10px',
   border: 'none',
-  borderRadius: '7px',
+  borderRadius: 'calc(var(--button-radius) - 1px)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -65,16 +65,7 @@ export function PreferenceModelPicker({
       <div
         role="status"
         aria-label={inputAriaLabel}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          width: '100%',
-          height: '40px',
-          padding: '0 10px',
-          border: '1px solid var(--border-default)',
-          borderRadius: '8px',
-          background: 'var(--bg-primary)'
-        }}
+        className="dc-model-preference-field dc-model-preference-field--loading"
       >
         <Skeleton width="42%" height={12} radius={6} />
       </div>
@@ -109,14 +100,7 @@ export function PreferenceModelPicker({
   return (
     <div
       className="dc-model-preference-field"
-      style={{
-        width: '100%',
-        minWidth: 0,
-        border: '1px solid var(--border-default)',
-        borderRadius: '8px',
-        background: 'var(--bg-primary)',
-        opacity: disabled ? 0.56 : undefined
-      }}
+      style={disabled ? { opacity: 0.56 } : undefined}
     >
       <ModelPicker
         modelName={preference.model}

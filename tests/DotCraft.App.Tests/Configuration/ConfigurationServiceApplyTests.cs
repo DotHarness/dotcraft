@@ -129,6 +129,7 @@ public sealed class ConfigurationServiceApplyTests
             "SubAgent.EnableExternalCliSessionResume",
             "SubAgent.MaxConcurrentSubAgents",
             "SubAgent.MaxDepth",
+            "SubAgent.Models",
             "Tools.Shell.Policy.Rules",
             "Worktrees.BranchPrefix"
         ];

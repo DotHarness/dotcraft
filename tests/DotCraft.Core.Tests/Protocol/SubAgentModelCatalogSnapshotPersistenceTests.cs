@@ -48,7 +48,7 @@ public sealed class SubAgentModelCatalogSnapshotPersistenceTests : IDisposable
         var persisted = Assert.IsType<SessionThread>(await new ThreadStore(_root).LoadThreadAsync(thread.Id));
         var persistedSnapshot = Assert.IsType<SubAgentModelCatalogSnapshot>(
             persisted.Configuration?.SubAgentModelCatalogSnapshot);
-        Assert.Equal(["model-a"], persistedSnapshot.Models.Select(static model => model.Id));
+        Assert.Equal(["openai/model-a"], persistedSnapshot.Models.Select(static model => model.Id));
         Assert.Contains(persistedSnapshot.Description, firstDescription, StringComparison.Ordinal);
 
         provider.Models = ["model-b"];

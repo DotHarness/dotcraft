@@ -2441,8 +2441,12 @@ public sealed partial class ModelListResult : ExtensibleJsonObject
 
 }
 
-public sealed class ModelPreference : ExtensibleJsonObject
+public sealed class SubAgentModelPreference : ExtensibleJsonObject
 {
+
+    [JsonPropertyName("providerId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ProviderId { get; init; }
 
     [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4715,7 +4719,7 @@ public sealed class SubAgentSettingsUpdateParams : ExtensibleJsonObject
 
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, ModelPreference>?> ProviderPreferences { get; init; }
+    public Optional<IReadOnlyDictionary<string, SubAgentModelPreference>?> ProviderPreferences { get; init; }
 
 }
 
@@ -4735,7 +4739,7 @@ public sealed class SubAgentSettings : ExtensibleJsonObject
 
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, ModelPreference>?> ProviderPreferences { get; init; }
+    public Optional<IReadOnlyDictionary<string, SubAgentModelPreference>?> ProviderPreferences { get; init; }
 
 }
 

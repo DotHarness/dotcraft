@@ -80,6 +80,11 @@ public sealed class SubAgentRoleConfig
     public string? Model { get; set; }
 
     /// <summary>
+    /// Provider for <see cref="Model"/>; null means the parent's provider.
+    /// </summary>
+    public string? ProviderId { get; set; }
+
+    /// <summary>
     /// When true, <see cref="Instructions"/> replaces generated SubAgent guidance instead of augmenting it.
     /// </summary>
     public bool OverrideBasePrompt { get; set; }
@@ -97,6 +102,7 @@ public sealed class SubAgentRoleConfig
             Instructions = Instructions,
             Mode = Mode,
             Model = Model,
+            ProviderId = ProviderId,
             OverrideBasePrompt = OverrideBasePrompt
         };
 }

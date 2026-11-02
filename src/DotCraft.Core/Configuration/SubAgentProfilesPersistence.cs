@@ -30,7 +30,7 @@ public static class SubAgentProfilesPersistence
         IReadOnlyCollection<string> disabledProfiles,
         bool enableExternalCliSessionResume,
         IReadOnlyCollection<SubAgentProfile> profiles,
-        IReadOnlyDictionary<string, ModelPreference>? providerPreferences = null)
+        IReadOnlyDictionary<string, SubAgentModelPreference>? providerPreferences = null)
     {
         AtomicConfigDocument.Update(Path.Combine(craftPath, "config.json"), root =>
         {
@@ -93,7 +93,7 @@ public static class SubAgentProfilesPersistence
     /// </summary>
     private static void WriteProviderPreferences(
         JsonObject root,
-        IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
+        IReadOnlyDictionary<string, SubAgentModelPreference>? providerPreferences)
     {
         if (providerPreferences == null)
             return;
@@ -148,10 +148,10 @@ public static class SubAgentProfilesPersistence
     /// <summary>
     /// Normalizes provider keys and drops incomplete preferences.
     /// </summary>
-    private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
-        IReadOnlyDictionary<string, ModelPreference> providerPreferences)
+    private static Dictionary<string, SubAgentModelPreference> NormalizeProviderPreferences(
+        IReadOnlyDictionary<string, SubAgentModelPreference> providerPreferences)
     {
-        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        var result = new Dictionary<string, SubAgentModelPreference>(StringComparer.Ordinal);
         foreach (var kv in providerPreferences)
         {
             var providerId = kv.Key?.Trim();
@@ -161,8 +161,10 @@ public static class SubAgentProfilesPersistence
                 || string.Equals(kv.Value.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var preference = ModelPreferenceRules.Clone(kv.Value);
+            var preference = kv.Value.Clone();
             preference.Model = preference.Model.Trim();
+            if (string.Equals(preference.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+                preference.ProviderId = null;
             result[providerId] = preference;
         }
 
@@ -188,5 +190,5 @@ public static class SubAgentProfilesPersistence
 public sealed record SubAgentWorkspaceState(
     IReadOnlyList<string> DisabledProfiles,
     bool EnableExternalCliSessionResume,
-    IReadOnlyDictionary<string, ModelPreference> ProviderPreferences,
+    IReadOnlyDictionary<string, SubAgentModelPreference> ProviderPreferences,
     IReadOnlyList<SubAgentProfile> Profiles);
