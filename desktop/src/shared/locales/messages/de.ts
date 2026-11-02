@@ -366,6 +366,8 @@ export const MESSAGES_DE = {
   'update.download': 'Herunterladen',
   'update.downloadingPercent': 'Wird heruntergeladen {{percent}} %',
   'update.restart': 'Neu starten und aktualisieren',
+  'update.preparing': 'Neustart wird vorbereitet…',
+  'update.retryInstall': 'Installation erneut versuchen',
   'update.transferDetail': '{{transferred}} von {{total}} · {{speed}}/s',
   'update.downloadProgressAria': 'Download-Fortschritt des Updates',
   'update.retry': 'Erneut versuchen',

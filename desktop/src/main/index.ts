@@ -70,6 +70,11 @@ import {
   type IpcHandlerCallbacks
 } from './ipcBridge'
 import { LocalProjectList } from './localProjects'
+import { bindLocalProjectRecovery } from './localProjectRecovery'
+import { AppUpdateRuntime } from './appUpdateRuntime'
+import { DesktopUpdatePreparation } from './desktopUpdatePreparation'
+import { logDesktopHubFailure, logLiveDesktopHub } from './desktopHubDiagnostics'
+import { waitForAppUpdatePreparation } from './appUpdateLease'
 import { UserInputAutoResolutionCoordinator } from './userInputAutoResolution'
 import type {
   ConnectionErrorType,
@@ -175,6 +180,7 @@ import { WhatsNewCatalog } from './whatsNewCatalog'
 import { WhatsNewMediaCache, resolveWhatsNewMediaAssets } from './whatsNewMediaCache'
 import type { WhatsNewMediaState } from '../shared/whatsNew'
 import { AppUpdateService } from './appUpdate'
+import { resolveBinaryLocation } from './AppServerManager'
 import {
   retryAppServerConnection,
   type RetryConnectionRequest
@@ -294,11 +300,20 @@ const workspaceConnections = new Map<string, WorkspaceConnectionEntry>()
 let activeRemoteReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let activeRemoteReconnectAttempt = 0
 let isAppQuitting = false
+const appUpdateRuntime = new AppUpdateRuntime()
+const runtimeIsStopping = (): boolean => isAppQuitting || appUpdateRuntime.isPreparing
+let desktopUpdatePreparation: DesktopUpdatePreparation | null = null
+process.once('exit', () => desktopUpdatePreparation?.release())
 let ipcHandlersRegistered = false
 let finalQuitCleanupDone = false
 let finalQuitCleanupRunning = false
 let hubEventAbortController: AbortController | null = null
-const localProjects = new LocalProjectList(() => createHubClient(sharedSettings), emitWorkspaceProjects)
+const localProjects = new LocalProjectList(() => createHubClient(sharedSettings), () => {
+  emitWorkspaceProjects()
+  if (!runtimeIsStopping() && [...workspaceConnections.values()].some((entry) => entry.role === 'foreground' && entry.connected)) {
+    scheduleSecondaryWorkspaceRefresh()
+  }
+}, { isActive: () => !runtimeIsStopping() })
 let secondaryRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pendingChromeSettingsDeepLink = process.argv.some(isChromeSettingsDeepLink)
 let pendingWorkspaceOpenThreadId = findWorkspaceOpenDeepLink(process.argv)?.threadId ?? null
@@ -331,7 +346,7 @@ function installProcessGuards(): void {
 
   const parentPid = process.ppid
   const quitDevApp = (): void => {
-    if (isAppQuitting) return
+    if (runtimeIsStopping()) return
     app.quit()
   }
   const onBrokenPipe = (): void => {
@@ -453,7 +468,7 @@ function releaseConnectionThreadSubscriptions(entry: WorkspaceConnectionEntry, r
   for (const threadId of threadIds) {
     entry.client.sendRequest('thread/unsubscribe', { threadId })
       .catch((error: unknown) => {
-        if (!isAppQuitting) {
+        if (!runtimeIsStopping()) {
           console.warn(`[desktop] failed to unsubscribe ${threadId} during ${reason}`, error)
         }
       })
@@ -952,10 +967,39 @@ function getWhatsNewCatalog(): WhatsNewCatalog {
 function getAppUpdateService(): AppUpdateService {
   if (!appUpdateService) {
     appUpdateService = new AppUpdateService({
-      onStateChanged: broadcastAppUpdateState
+      onStateChanged: broadcastAppUpdateState,
+      beforeInstall: () => getDesktopUpdatePreparation().prepare(),
+      onInstallFailed: () => desktopUpdatePreparation?.release()
     })
   }
   return appUpdateService
+}
+
+function getDesktopUpdatePreparation(): DesktopUpdatePreparation {
+  return desktopUpdatePreparation ??= new DesktopUpdatePreparation({
+    runtime: appUpdateRuntime,
+    desktopExecutable: process.execPath,
+    runtimeExecutable: resolveDesktopBinarySource(sharedSettings) === 'bundled'
+      ? resolveBinaryLocation({ binarySource: 'bundled' }).path ?? undefined
+      : undefined,
+    stopBackgroundWork: () => {
+      localProjects.stop()
+      hubEventAbortController?.abort()
+      if (secondaryRefreshTimer) clearTimeout(secondaryRefreshTimer)
+      secondaryRefreshTimer = null
+      clearActiveRemoteReconnectTimer()
+      prewarmedAppServer = null
+      stopChromeSettingsDeepLinkServer()
+      sshMachinesManager?.dispose()
+      if (mainWindow && !mainWindow.isDestroyed()) viewerBrowserManager.destroyAllTabs(mainWindow)
+    },
+    disposeRuntime: async () => {
+      await Promise.all([
+        teardownRuntime('prepare update', { releaseWorkspaceLock: true }),
+        shutdownVoiceService()
+      ])
+    }
+  })
 }
 
 function scheduleInitialUpdateCheck(): void {
@@ -979,7 +1023,7 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   } else if (localeChanged) {
     refreshAppMenu()
   }
-  if (process.platform === 'darwin' && partial.showInMenuBar !== undefined) {
+  if (!runtimeIsStopping() && process.platform === 'darwin' && partial.showInMenuBar !== undefined) {
     if (sharedSettings.showInMenuBar === false) {
       await stopTrayProcess()
     } else {
@@ -1283,7 +1327,7 @@ function handleRemoteProjectEndpointChanged(machineId: string, projectId: string
   remoteProjectRefreshTimer = setTimeout(() => {
     remoteProjectRefreshTimer = null
     const current = sharedSettings.activeRemoteProject
-    if (isAppQuitting || current?.machineId !== machineId || current.projectId !== projectId) return
+    if (runtimeIsStopping() || current?.machineId !== machineId || current.projectId !== projectId) return
     void connectToAppServer(currentWorkspacePath).catch((error) => {
       console.warn('[desktop] remote project reconnect after port change failed', error)
     })
@@ -1313,7 +1357,7 @@ function clearActiveRemoteReconnectTimer(): void {
 }
 
 function hasRecoverableActiveRemoteStack(): boolean {
-  if (isAppQuitting || !currentWorkspacePath) return false
+  if (runtimeIsStopping() || !currentWorkspacePath) return false
   if (resolveConnectionMode(sharedSettings) !== 'remote') return false
   const ref = sharedSettings.activeRemoteStack
   const projectRef = sharedSettings.activeRemoteProject
@@ -1340,7 +1384,8 @@ function scheduleActiveRemoteStackReconnect(reason: string): void {
 function createHubClient(settings: AppSettings): DesktopHubClient {
   return createDesktopHubClient(settings, {
     preferDevBuild: import.meta.env.DEV,
-    requireDevBuild: import.meta.env.DEV
+    requireDevBuild: import.meta.env.DEV,
+    operationGate: appUpdateRuntime
   })
 }
 
@@ -1603,7 +1648,7 @@ function ensureWorkspaceActivation(workspacePath: string): void {
         })
     }
   }).then((handle) => {
-    if (generation !== workspaceActivationGeneration || currentWorkspacePath !== workspacePath || isAppQuitting) {
+    if (generation !== workspaceActivationGeneration || currentWorkspacePath !== workspacePath || runtimeIsStopping()) {
       handle.close()
       return
     }
@@ -1964,6 +2009,7 @@ function createWindow(
 // same workspace simultaneously.
 
 function openNewProcess(): void {
+  if (runtimeIsStopping()) return
   const filteredArgs = stripRemoteDebuggingPortArgs(stripWorkspaceArgs(process.argv.slice(1)))
   filteredArgs.push(NO_WORKSPACE_ARG)
   const child = spawn(process.execPath, filteredArgs, {
@@ -2261,7 +2307,7 @@ async function connectViaWebSocket(
   wsUrl: string,
   options: ConnectViaWebSocketOptions = {}
 ): Promise<void> {
-  if (isAppQuitting || !mainWindow || mainWindow.isDestroyed()) {
+  if (runtimeIsStopping() || !mainWindow || mainWindow.isDestroyed()) {
     return
   }
   const win = mainWindow!
@@ -2303,14 +2349,14 @@ async function connectViaWebSocket(
   workspaceConnections.set(connectionKey, entry)
   wireClient = client
   const isCurrentConnectAttempt = (): boolean =>
-    !isAppQuitting &&
+    !runtimeIsStopping() &&
     wireClient === client &&
     connectionGeneration === generation &&
     mainWindow === win &&
     !win.isDestroyed()
   const isCurrentForegroundClient = (): boolean =>
     isCurrentForegroundWorkspaceConnection({
-      appQuitting: isAppQuitting,
+      appQuitting: runtimeIsStopping(),
       mainWindow,
       window: win,
       wireClient,
@@ -2319,7 +2365,7 @@ async function connectViaWebSocket(
     })
 
   client.onNotification((method, params) => {
-    if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
+    if (!runtimeIsStopping() && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
       getThreadTasks().handleNotification(method, params)
       const turnEvent = readBrowserTurnNotification(method, params)
@@ -2328,7 +2374,7 @@ async function connectViaWebSocket(
       if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
     }
     const foreground = getWorkspaceNotificationForeground(method, {
-      appQuitting: isAppQuitting,
+      appQuitting: runtimeIsStopping(),
       mainWindow,
       window: win,
       wireClient,
@@ -2346,7 +2392,7 @@ async function connectViaWebSocket(
 
   client.onServerRequest(async (method, params) => {
     const routingState = {
-      appQuitting: isAppQuitting,
+      appQuitting: runtimeIsStopping(),
       mainWindow,
       window: win,
       wireClient,
@@ -2416,12 +2462,18 @@ async function connectViaWebSocket(
       flushPendingWorkspaceOpenThread(mainWindow)
       emitWorkspaceProjects()
     }
-    if (!options.remoteDiagnostic && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local') {
+    if (entry.kind !== 'remote' && !options.remoteDiagnostic && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local') {
       void restoreEnabledModuleTracking()
     }
   }
   client.on('ready', (result: InitializeResult) => emitConnected(result))
   client.on('reconnected', (result: InitializeResult) => emitConnected(result))
+  bindLocalProjectRecovery(client, {
+    refreshProjects: () => localProjects.refresh(),
+    refreshSecondaryConnections: refreshSecondaryWorkspaceConnections,
+    isCurrent: () => !runtimeIsStopping() && isCurrentForegroundClient() && entry.kind !== 'remote'
+      && entry.connected && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local'
+  })
   client.on('close', () => {
     entry.connected = false
     entry.connecting = false
@@ -2525,6 +2577,7 @@ function isSecondaryProjectEvent(event: HubEvent): boolean {
 }
 
 function scheduleSecondaryWorkspaceRefresh(): void {
+  if (runtimeIsStopping()) return
   if (secondaryRefreshTimer) {
     clearTimeout(secondaryRefreshTimer)
   }
@@ -2535,6 +2588,7 @@ function scheduleSecondaryWorkspaceRefresh(): void {
 }
 
 function startHubEventSubscription(workspacePath: string, hubClient: DesktopHubClient): void {
+  if (runtimeIsStopping()) return
   hubEventAbortController?.abort()
   const controller = new AbortController()
   hubEventAbortController = controller
@@ -2562,7 +2616,7 @@ function startHubEventSubscription(workspacePath: string, hubClient: DesktopHubC
     if (event.kind === 'appserver.running') {
       const data = event.data as { endpoints?: Record<string, string> } | null
       const endpoint = data?.endpoints?.appServerWebSocket
-      if (endpoint && currentWorkspacePath === workspacePath && !isAppQuitting) {
+      if (endpoint && currentWorkspacePath === workspacePath && !runtimeIsStopping()) {
         void connectViaWebSocket(workspacePath, endpoint)
       }
     }
@@ -2661,7 +2715,7 @@ function createSecondaryWorkspaceConnection(
   emitWorkspaceProjects()
 
   client.onNotification((method, params) => {
-    if (!isAppQuitting && workspaceConnections.get(entry.key) === entry) {
+    if (!runtimeIsStopping() && workspaceConnections.get(entry.key) === entry) {
       nodeReplManager.handleNotification(method, params)
       getThreadTasks().handleNotification(method, params)
       const turnEvent = readBrowserTurnNotification(method, params)
@@ -2670,7 +2724,7 @@ function createSecondaryWorkspaceConnection(
       if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
     }
     const foreground = getWorkspaceNotificationForeground(method, {
-      appQuitting: isAppQuitting,
+      appQuitting: runtimeIsStopping(),
       mainWindow,
       wireClient,
       client,
@@ -2687,7 +2741,7 @@ function createSecondaryWorkspaceConnection(
 
   client.onServerRequest(async (method, params) => {
     const routingState = {
-      appQuitting: isAppQuitting,
+      appQuitting: runtimeIsStopping(),
       mainWindow,
       wireClient,
       client,
@@ -2743,7 +2797,7 @@ function createSecondaryWorkspaceConnection(
 // group can list threads without the user opening it as a project. Skipped when Chat is
 // the foreground workspace, whose connection connectViaWebSocket owns instead.
 async function ensureDefaultChatConnection(): Promise<void> {
-  if (isAppQuitting) return
+  if (runtimeIsStopping()) return
   const chatPath = resolveDefaultChatWorkspacePath()
   if (isWorkspaceForeground(chatPath)) return
   const existing = getWorkspaceConnection(chatPath)
@@ -2756,7 +2810,7 @@ async function ensureDefaultChatConnection(): Promise<void> {
     const ensured = await createHubClient(sharedSettings).ensureAppServer(chatPath, {
       runtimeTools: resolveDotCraftRuntimeTools()
     })
-    if (isAppQuitting || isWorkspaceForeground(chatPath)) return
+    if (runtimeIsStopping() || isWorkspaceForeground(chatPath)) return
     const endpoint = ensured.endpoints?.appServerWebSocket
     if (endpoint?.trim()) {
       createSecondaryWorkspaceConnection(chatPath, endpoint, { kind: 'chat' })
@@ -2767,10 +2821,13 @@ async function ensureDefaultChatConnection(): Promise<void> {
 }
 
 async function refreshSecondaryWorkspaceConnections(): Promise<void> {
-  if (isAppQuitting || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
+  if (runtimeIsStopping() || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
     return
   }
+  if (secondaryRefreshTimer) clearTimeout(secondaryRefreshTimer)
+  secondaryRefreshTimer = null
   await ensureDefaultChatConnection()
+  if (runtimeIsStopping()) return
   const candidates = localProjects.list().filter((project) => !isWorkspaceForeground(project.path))
   if (candidates.length === 0) {
     emitWorkspaceProjects()
@@ -2979,7 +3036,7 @@ function reregisterIpcForWorkspace(workspacePath: string): void {
 }
 
 async function openWorkspaceWithoutConnection(workspacePath: string): Promise<void> {
-  if (isAppQuitting) {
+  if (runtimeIsStopping()) {
     return
   }
 
@@ -3037,10 +3094,16 @@ let prewarmedAppServer:
   | null = null
 
 function prewarmLocalAppServer(workspacePath: string): void {
+  if (runtimeIsStopping()) return
+  const startedAt = Date.now()
+  console.info('[desktop] prewarming local AppServer', { workspacePath, startedAt })
   const promise = createHubClient(sharedSettings).ensureAppServer(workspacePath, {
     runtimeTools: resolveDotCraftRuntimeTools()
   })
-  promise.catch(() => {})
+  void promise.then(
+    () => console.info('[desktop] local AppServer prewarm finished', { workspacePath, elapsedMs: Date.now() - startedAt }),
+    (error: unknown) => logDesktopHubFailure('prewarm', error, startedAt, workspacePath)
+  )
   prewarmedAppServer = { workspacePath, promise }
 }
 
@@ -3053,7 +3116,7 @@ function takePrewarmedAppServer(
 }
 
 async function connectToAppServer(workspacePath: string): Promise<boolean> {
-  if (isAppQuitting) {
+  if (runtimeIsStopping()) {
     return false
   }
   const remoteIdx = process.argv.indexOf('--remote')
@@ -3155,7 +3218,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
       emitConnectionStatus(win, { status: 'connecting' })
       try {
         const opened = await getSshMachinesManager().openProject(machine.id, remoteProject.id)
-        if (isAppQuitting || currentWorkspacePath !== workspacePath) return false
+        if (runtimeIsStopping() || currentWorkspacePath !== workspacePath) return false
         lastRemoteStackLocalPort = opened.localPort
         const project = buildSshRemoteProject(
           opened.machine,
@@ -3298,17 +3361,20 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   emitConnectionStatus(win, { status: 'connecting' })
 
   reregisterIpcForWorkspace(workspacePath)
+  const hubStartedAt = Date.now()
   try {
     const hubClient = createHubClient(sharedSettings)
     const ensured = await (takePrewarmedAppServer(workspacePath)
       ?? hubClient.ensureAppServer(workspacePath, { runtimeTools: resolveDotCraftRuntimeTools() }))
-    if (currentWorkspacePath !== workspacePath || isAppQuitting) return false
+    if (currentWorkspacePath !== workspacePath || runtimeIsStopping()) return false
 
     startHubEventSubscription(workspacePath, hubClient)
+    logLiveDesktopHub(hubClient)
     await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured))
-    void refreshSecondaryWorkspaceConnections()
     return true
   } catch (err) {
+    if (runtimeIsStopping()) return false
+    logDesktopHubFailure('foreground-connect', err, hubStartedAt, workspacePath)
     const message = err instanceof Error ? err.message : String(err)
     const isBinaryError =
       message.includes('binary') || message.includes('not found') || message.includes('ENOENT')
@@ -3526,6 +3592,16 @@ app.on('open-url', (event, url) => {
 })
 
 app.whenReady().then(async () => {
+  if (app.isPackaged) {
+    try {
+      await waitForAppUpdatePreparation(process.execPath)
+    } catch (error) {
+      console.warn('[desktop-update] startup blocked by update preparation', error)
+      if (!isTrayMode) dialog.showErrorBox(translate(normalizeLocale(loadSettings().locale), 'update.title'), String(error))
+      app.exit(0)
+      return
+    }
+  }
   isAppQuitting = false
   if (isTrayMode) {
     if (process.platform === 'darwin') {
@@ -3556,7 +3632,7 @@ app.whenReady().then(async () => {
   }
   try {
     desktopProcessRegistration = await registerDesktopProcess(() => app.quit())
-    if (isAppQuitting) {
+    if (runtimeIsStopping()) {
       desktopProcessRegistration.release()
       desktopProcessRegistration = null
       return

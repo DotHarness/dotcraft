@@ -366,6 +366,8 @@ export const MESSAGES_KO = {
   'update.download': '다운로드',
   'update.downloadingPercent': '다운로드 중 {{percent}}%',
   'update.restart': '다시 시작하여 업데이트',
+  'update.preparing': '다시 시작 준비 중…',
+  'update.retryInstall': '설치 다시 시도',
   'update.transferDetail': '{{transferred}} / {{total}} · {{speed}}/s',
   'update.downloadProgressAria': '업데이트 다운로드 진행률',
   'update.retry': '다시 시도',

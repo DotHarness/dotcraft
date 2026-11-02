@@ -93,6 +93,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - During reconnect, the user can tell that displayed thread data is local while live updates are unavailable.
 - After reconnect, the client reloads capabilities, re-establishes the active thread subscription, and refreshes thread and automation data that may have changed.
 - If recovery succeeds, the state returns to `connected` without the user rebuilding context. If recovery fails persistently, the state becomes `error` with a retry path.
+- A current local foreground connection becoming ready, including Retry, managed restart, and automatic reconnection, refreshes the Hub project snapshot before recovering secondary connections. This work runs in the background and a failed project refresh does not invalidate a successful foreground connection; remote and secondary connections do not trigger local recovery.
 
 ### 3.5 Workspace Switching
 
@@ -110,6 +111,14 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - User actions in one window do not change thread selection or visible state in another, except that workspace-level AppServer broadcasts may update shared thread summaries in all connected windows.
 - Each Desktop process registers a control endpoint in a user-scoped process registry. Tray Exit gracefully quits every registered Desktop process before shutting down Hub. Closing an individual window is client-only and stops neither Hub nor other windows.
 
+### 3.6.1 Installing Desktop Updates
+
+Windows packaged updates have an application-owned preparation phase before the updater starts the installer. Preparation saves and closes the initiating window's runtime resources, prevents new local ensures, subscriptions, reconnects, and tray creation, and requests normal shutdown of registered Desktop windows, tray, and the bundled Hub belonging to this installation. Discovery records include executable identity; authenticated live control responses confirm Desktop and tray identity before shutdown. It does not stop remote servers or a different installation's/custom/PATH runtime. Normal window close remains client-only.
+
+Only one installation attempt runs at a time. The initiating Desktop process stays alive until preparation succeeds and the installer is invoked; shutdown requests exclude it. Control acknowledgements, removed discovery files, and unavailable HTTP endpoints are not proof of process exit. Preparation waits for recorded PIDs to exit within one 30-second budget; an unresponsive registered target, unverifiable live identity, or unexited PID blocks installation and leaves the downloaded update available for retry. It does not force-terminate background processes, enumerate unrelated OS processes, or remove a live owner's lock. PID reuse may conservatively block preparation rather than authorizing a shutdown. Unregistered processes and other file users remain the installer's final running-process check, not a second Desktop process-management responsibility.
+
+The update UI reports preparation and prevents duplicate installation. Preparation failure preserves the downloaded update and allows retry without downloading it again; the initiating window remains available to report the blocking stage. Only after preparation completes does the updater handle the initiating process's exit, file replacement, and relaunch. Update exit has a bounded current-process watchdog; installer launch failure must not trigger unconditional termination. The installer retains its own running-process checks, including upgrades initiated by older clients without application preparation.
+
 ### 3.7 Projects Rail, Thread Navigation, and Secondary Connections
 
 **Structure**
@@ -119,6 +128,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Recents can optionally also list unpinned threads of loaded projects; a thread shown in two places is highlighted only where it was selected.
 - The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired phone agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly.
 - Local and remote projects keep distinct identities so remote threads never appear under the local workspace that initiated the remote connection.
+- A failed Hub project snapshot preserves the last successful snapshot and retries independently of the SSE subscription, including when the initial fetch failed and SSE remains connected without events. A successful empty snapshot is authoritative. Retries back off at 2, 5, 15, and then at most 30 seconds until success or shutdown; successful refreshes cancel pending retries. Concurrent invalidations must not lose a change, and stopped watchers cannot publish in-flight results.
 
 **Ordering and collapse**
 

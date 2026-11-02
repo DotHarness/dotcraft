@@ -5,7 +5,9 @@ import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   quitRegisteredDesktopProcesses,
+  readLiveDesktopRegistrations,
   registerDesktopProcess,
+  requestDesktopIdentity,
   type DesktopProcessRegistrationHandle
 } from '../desktopProcessRegistry'
 
@@ -81,15 +83,20 @@ describe('Desktop process registry', () => {
     for (const handle of handles) expect(existsSync(handle.path)).toBe(false)
   })
 
-  it('rejects unauthenticated quit requests', async () => {
+  it.each(['quit', 'identity'])('rejects unauthenticated %s requests', async (type) => {
     const registry = temporaryRegistry('authentication')
     const onQuit = vi.fn()
     const handle = await registerDesktopProcess(onQuit, registry)
     try {
       await expect(sendControlMessage(handle.endpoint, {
-        type: 'quit',
+        type,
         token: 'wrong-token',
         protocolVersion: handle.endpoint.protocolVersion
+      })).resolves.toEqual({ ok: false })
+      await expect(sendControlMessage(handle.endpoint, {
+        type,
+        token: handle.endpoint.token,
+        protocolVersion: handle.endpoint.protocolVersion + 1
       })).resolves.toEqual({ ok: false })
       expect(onQuit).not.toHaveBeenCalled()
     } finally {
@@ -97,7 +104,21 @@ describe('Desktop process registry', () => {
     }
   })
 
-  it('discards dead and malformed registrations without blocking live processes', async () => {
+  it('returns the authenticated server identity without requesting quit', async () => {
+    const registry = temporaryRegistry('identity')
+    const onQuit = vi.fn()
+    const handle = await registerDesktopProcess(onQuit, registry)
+    try {
+      const identity = { pid: process.pid, executable: process.execPath }
+      expect(readLiveDesktopRegistrations(registry)).toEqual([expect.objectContaining(identity)])
+      await expect(requestDesktopIdentity(handle.endpoint)).resolves.toEqual(identity)
+      expect(onQuit).not.toHaveBeenCalled()
+    } finally {
+      handle.release()
+    }
+  })
+
+  it('discards dead, malformed, and unknown-install registrations without blocking live processes', async () => {
     const registry = temporaryRegistry('stale')
     const onQuit = vi.fn()
     const handle = await registerDesktopProcess(onQuit, registry)
@@ -109,6 +130,9 @@ describe('Desktop process registry', () => {
         pid: 2_147_483_647
       }), 'utf8')
       writeFileSync(join(registry, 'malformed.json'), '{', 'utf8')
+      for (const [index, executable] of [undefined, '', 42].entries()) {
+        writeFileSync(join(registry, `unknown-install-${index}.json`), JSON.stringify({ ...live, executable }))
+      }
 
       await expect(quitRegisteredDesktopProcesses(registry)).resolves.toEqual({
         requested: 1,

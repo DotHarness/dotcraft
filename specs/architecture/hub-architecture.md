@@ -247,6 +247,8 @@ Closing a local client does not stop a healthy managed AppServer or cancel start
 
 Hub shutdown emits `hub.stopping`, ends SSE streams, stops the HTTP API, then stops the AppServers and services it manages concurrently, releases local state, and removes `hub.lock` last, so a replacement Hub never manages processes the previous one still owns.
 
+Desktop update preparation quiesces its local clients, requests normal shutdown of registered Desktop windows and tray belonging to the installation being replaced, and waits for their recorded PIDs to exit before stopping its bundled Hub. The Hub lock's executable identity selects the installation; when status answers, its PID and binary path must agree before the authenticated shutdown request. A shutdown acknowledgement or failed HTTP probe does not mean cleanup has finished. Other runtimes are not stopped merely because they own the user-scoped Hub lock. The shared 30-second preparation budget ends in a retryable failure if an owner remains alive; Desktop neither force-terminates it nor releases its lock. Hub remains responsible for cleaning up its managed process trees, and the installer retains the final file-use check.
+
 ### Product-owned local services
 
 Hub supervises a fixed, composition-registered set of user-level product services. A client selects a registered `serviceId` and may provide a DotCraft executable path; the default is Hub's own binary. DotCraft composition owns the fixed command arguments, environment, state root, health path, and readiness. The `oratorio` service runs `dotcraft oratorio serve` in an independent process.
@@ -271,6 +273,10 @@ Local clients default to Hub-managed local mode:
 8. Continue without Hub in the conversation path.
 
 Waiting for a previous owner and waiting for a new Hub have separate budgets: 30 seconds for the owner to exit, then 15 seconds for the new Hub to answer, measured from when the owner is gone. Each status probe is bounded to 2 seconds. A client that restarts Hub because of a binary mismatch treats the Hub it asked to stop as such an owner and never reuses it.
+
+Hub bootstrap failures retain structured stage and timing diagnostics for owner wait, mismatched-owner shutdown, spawning, and readiness, including available owner identity and the last failed status probe. Mismatched-owner shutdown requests share the bounded shutdown budget. Diagnostics must not include discovery bearer tokens or authenticated URLs. Desktop records the actual running Hub version and PID, not the version of an executable currently on disk.
+
+Desktop project snapshot recovery is independent of SSE liveness. Cold-start fetch failures retry even if the event subscription succeeds; subsequent local foreground readiness explicitly re-reads the snapshot before secondary recovery. Failed reads preserve cached projects; successful empty reads replace them.
 
 Explicit remote WebSocket mode remains available and bypasses Hub.
 

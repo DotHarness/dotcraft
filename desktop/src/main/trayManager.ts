@@ -507,9 +507,7 @@ export async function runTrayProcess(): Promise<void> {
 
   let disposed = false
   const lock = await tryAcquireTrayLock(undefined, {
-    onShutdown: () => {
-      if (!disposed) app.quit()
-    }
+    onShutdown: () => app.quit()
   })
   if (!lock) {
     app.quit()
@@ -537,7 +535,7 @@ export async function runTrayProcess(): Promise<void> {
   })
 
   const setMenu = (state: TrayState): void => {
-    if (!tray) return
+    if (disposed || !tray) return
     tray.setToolTip(translate(state.locale, 'tray.hub'))
     tray.setContextMenu(buildTrayMenu(state, hubClient, () => {
       void refresh()
@@ -559,7 +557,9 @@ export async function runTrayProcess(): Promise<void> {
       hubClient.listSatellites()
     ])
     const activeAppServers = appServers.status === 'fulfilled' ? appServers.value : []
+    if (disposed) return
     const recentThreads = await recentThreadCatalog.refresh(activeAppServers)
+    if (disposed) return
     setMenu({
       appServers: activeAppServers,
       satellites: satellites.status === 'fulfilled'
@@ -574,7 +574,7 @@ export async function runTrayProcess(): Promise<void> {
   }
 
   const subscribeEvents = (): void => {
-    if (eventAbortController) return
+    if (disposed || eventAbortController) return
     const controller = new AbortController()
     eventAbortController = controller
     void hubClient.subscribeEvents((event: HubEvent) => {
@@ -633,6 +633,7 @@ export async function runTrayProcess(): Promise<void> {
     locale: normalizeLocale(settings.locale)
   })
   await refresh()
+  if (disposed) return
   refreshTimer = setInterval(() => {
     void refresh()
   }, REFRESH_INTERVAL_MS)

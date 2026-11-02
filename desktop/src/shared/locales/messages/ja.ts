@@ -366,6 +366,8 @@ export const MESSAGES_JA = {
   'update.download': 'ダウンロード',
   'update.downloadingPercent': 'ダウンロード中 {{percent}}%',
   'update.restart': '再起動してアップデート',
+  'update.preparing': '再起動の準備中…',
+  'update.retryInstall': 'インストールを再試行',
   'update.transferDetail': '{{transferred}} / {{total}} · {{speed}}/s',
   'update.downloadProgressAria': 'アップデートのダウンロード進行状況',
   'update.retry': '再試行',

@@ -25,10 +25,11 @@ interface DesktopControlEndpoint {
   protocolVersion: number
 }
 
-interface DesktopProcessRegistration {
+export interface DesktopProcessRegistration {
   version: number
   pid: number
   startedAt: string
+  executable: string
   endpoint: DesktopControlEndpoint
 }
 
@@ -40,6 +41,8 @@ interface DesktopControlMessage {
 
 interface DesktopControlResponse {
   ok?: unknown
+  pid?: unknown
+  executable?: unknown
 }
 
 export interface DesktopProcessRegistrationHandle {
@@ -58,7 +61,7 @@ function writeJsonLine(socket: net.Socket, payload: unknown): void {
   socket.write(`${JSON.stringify(payload)}\n`, 'utf8')
 }
 
-function isProcessAlive(pid: number): boolean {
+export function isProcessAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
     process.kill(pid, 0)
@@ -101,6 +104,8 @@ function normalizeRegistration(value: unknown): DesktopProcessRegistration | nul
     !Number.isInteger(registration.pid) ||
     registration.pid <= 0 ||
     typeof registration.startedAt !== 'string' ||
+    typeof registration.executable !== 'string' ||
+    !registration.executable.trim() ||
     !endpoint
   ) {
     return null
@@ -109,6 +114,7 @@ function normalizeRegistration(value: unknown): DesktopProcessRegistration | nul
     version: registration.version,
     pid: registration.pid,
     startedAt: registration.startedAt,
+    executable: registration.executable,
     endpoint
   }
 }
@@ -148,17 +154,21 @@ async function startDesktopControlServer(onQuit: () => void): Promise<{
       try {
         const message = JSON.parse(line) as DesktopControlMessage
         if (
-          message.type !== 'quit' ||
+          (message.type !== 'quit' && message.type !== 'identity') ||
           message.token !== token ||
           message.protocolVersion !== DESKTOP_CONTROL_PROTOCOL_VERSION
         ) {
           throw new Error('Invalid Desktop control request.')
         }
-        if (!quitting) {
-          quitting = true
-          onQuit()
+        if (message.type === 'identity') {
+          writeJsonLine(socket, { ok: true, pid: process.pid, executable: process.execPath })
+        } else {
+          if (!quitting) {
+            quitting = true
+            onQuit()
+          }
+          writeJsonLine(socket, { ok: true })
         }
-        writeJsonLine(socket, { ok: true })
       } catch {
         writeJsonLine(socket, { ok: false })
       } finally {
@@ -212,6 +222,7 @@ export async function registerDesktopProcess(
     writeFileSync(temporaryPath, JSON.stringify({
       version: DESKTOP_PROCESS_REGISTRY_VERSION,
       pid: process.pid,
+      executable: process.execPath,
       startedAt: new Date().toISOString(),
       endpoint: control.endpoint
     } satisfies DesktopProcessRegistration, null, 2), 'utf8')
@@ -235,22 +246,25 @@ export async function registerDesktopProcess(
   }
 }
 
-async function requestDesktopQuit(endpoint: DesktopControlEndpoint): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
+async function requestDesktopControl(
+  endpoint: DesktopControlEndpoint,
+  type: 'quit' | 'identity'
+): Promise<DesktopControlResponse | null> {
+  return await new Promise((resolve) => {
     const socket = net.createConnection({ host: endpoint.host, port: endpoint.port })
     let settled = false
     let buffer = ''
-    const finish = (result: boolean): void => {
+    const finish = (result: DesktopControlResponse | null): void => {
       if (settled) return
       settled = true
       socket.destroy()
       resolve(result)
     }
     socket.setEncoding('utf8')
-    socket.setTimeout(DESKTOP_CONTROL_TIMEOUT_MS, () => finish(false))
+    socket.setTimeout(DESKTOP_CONTROL_TIMEOUT_MS, () => finish(null))
     socket.on('connect', () => {
       writeJsonLine(socket, {
-        type: 'quit',
+        type,
         token: endpoint.token,
         protocolVersion: endpoint.protocolVersion
       })
@@ -258,24 +272,38 @@ async function requestDesktopQuit(endpoint: DesktopControlEndpoint): Promise<boo
     socket.on('data', (chunk) => {
       buffer += chunk
       if (Buffer.byteLength(buffer, 'utf8') > DESKTOP_CONTROL_MAX_MESSAGE_BYTES) {
-        finish(false)
+        finish(null)
         return
       }
       const newline = buffer.indexOf('\n')
       if (newline < 0) return
       try {
         const response = JSON.parse(buffer.slice(0, newline)) as DesktopControlResponse
-        finish(response.ok === true)
+        finish(response?.ok === true ? response : null)
       } catch {
-        finish(false)
+        finish(null)
       }
     })
-    socket.on('error', () => finish(false))
-    socket.on('close', () => finish(false))
+    socket.on('error', () => finish(null))
+    socket.on('close', () => finish(null))
   })
 }
 
-function readLiveRegistrations(registryDirectory: string): DesktopProcessRegistration[] {
+export async function requestDesktopQuit(endpoint: DesktopControlEndpoint): Promise<boolean> {
+  return await requestDesktopControl(endpoint, 'quit') != null
+}
+
+export async function requestDesktopIdentity(
+  endpoint: DesktopControlEndpoint
+): Promise<{ pid: number; executable: string } | null> {
+  const response = await requestDesktopControl(endpoint, 'identity')
+  return response && typeof response.pid === 'number' && Number.isInteger(response.pid) && response.pid > 0 &&
+    typeof response.executable === 'string' && response.executable.trim()
+    ? { pid: response.pid, executable: response.executable }
+    : null
+}
+
+export function readLiveDesktopRegistrations(registryDirectory = getDesktopProcessRegistryDirectory()): DesktopProcessRegistration[] {
   if (!existsSync(registryDirectory)) return []
   let files: string[]
   try {
@@ -309,7 +337,7 @@ function readLiveRegistrations(registryDirectory: string): DesktopProcessRegistr
 export async function quitRegisteredDesktopProcesses(
   registryDirectory = getDesktopProcessRegistryDirectory()
 ): Promise<DesktopExitResult> {
-  const registrations = readLiveRegistrations(registryDirectory)
+  const registrations = readLiveDesktopRegistrations(registryDirectory)
   const outcomes = await Promise.allSettled(
     registrations.map((registration) => requestDesktopQuit(registration.endpoint))
   )

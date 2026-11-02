@@ -368,6 +368,8 @@ export const MESSAGES_EN = {
   'update.download': 'Download',
   'update.downloadingPercent': 'Downloading {{percent}}%',
   'update.restart': 'Restart to update',
+  'update.preparing': 'Preparing to restart…',
+  'update.retryInstall': 'Retry installation',
   'update.transferDetail': '{{transferred}} of {{total}} · {{speed}}/s',
   'update.downloadProgressAria': 'Update download progress',
   'update.retry': 'Retry download',

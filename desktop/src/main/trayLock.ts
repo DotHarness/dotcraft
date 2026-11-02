@@ -18,10 +18,11 @@ export interface TrayControlEndpoint {
   protocolVersion: number
 }
 
-interface TrayLockInfo {
+export interface TrayLockInfo {
   version?: number
   pid?: number
   startedAt?: string
+  executable?: string
   endpoint?: TrayControlEndpoint
 }
 
@@ -33,6 +34,8 @@ interface TrayControlMessage {
 
 interface TrayControlResponse {
   ok?: unknown
+  pid?: unknown
+  executable?: unknown
 }
 
 export interface TrayLockHandle {
@@ -128,11 +131,13 @@ async function startTrayControlServer(options: TrayLockOptions): Promise<TrayCon
         if (
           message.token !== token ||
           message.protocolVersion !== TRAY_CONTROL_PROTOCOL_VERSION ||
-          (message.type !== 'ping' && message.type !== 'shutdown')
+          (message.type !== 'ping' && message.type !== 'shutdown' && message.type !== 'identity')
         ) {
           throw new Error('Invalid tray control request.')
         }
-        writeJsonLine(socket, { ok: true })
+        writeJsonLine(socket, message.type === 'identity'
+          ? { ok: true, pid: process.pid, executable: process.execPath }
+          : { ok: true })
         if (message.type === 'shutdown' && !closing) {
           closing = true
           setImmediate(() => options.onShutdown?.())
@@ -179,20 +184,20 @@ async function startTrayControlServer(options: TrayLockOptions): Promise<TrayCon
 
 async function requestTrayControl(
   endpoint: TrayControlEndpoint,
-  type: 'ping' | 'shutdown'
-): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
+  type: 'ping' | 'shutdown' | 'identity'
+): Promise<TrayControlResponse | null> {
+  return await new Promise((resolve) => {
     const socket = net.createConnection({ host: endpoint.host, port: endpoint.port })
     let settled = false
     let buffer = ''
-    const finish = (result: boolean): void => {
+    const finish = (result: TrayControlResponse | null): void => {
       if (settled) return
       settled = true
       socket.destroy()
       resolve(result)
     }
     socket.setEncoding('utf8')
-    socket.setTimeout(TRAY_CONTROL_TIMEOUT_MS, () => finish(false))
+    socket.setTimeout(TRAY_CONTROL_TIMEOUT_MS, () => finish(null))
     socket.on('connect', () => {
       writeJsonLine(socket, {
         type,
@@ -203,20 +208,20 @@ async function requestTrayControl(
     socket.on('data', (chunk) => {
       buffer += chunk
       if (Buffer.byteLength(buffer, 'utf8') > TRAY_CONTROL_MAX_MESSAGE_BYTES) {
-        finish(false)
+        finish(null)
         return
       }
       const newline = buffer.indexOf('\n')
       if (newline < 0) return
       try {
         const response = JSON.parse(buffer.slice(0, newline)) as TrayControlResponse
-        finish(response.ok === true)
+        finish(response?.ok === true ? response : null)
       } catch {
-        finish(false)
+        finish(null)
       }
     })
-    socket.on('error', () => finish(false))
-    socket.on('close', () => finish(false))
+    socket.on('error', () => finish(null))
+    socket.on('close', () => finish(null))
   })
 }
 
@@ -249,6 +254,7 @@ export async function tryAcquireTrayLock(
         writeSync(fd, JSON.stringify({
           version: TRAY_LOCK_VERSION,
           pid: process.pid,
+          executable: process.execPath,
           startedAt: new Date().toISOString(),
           endpoint: control.endpoint
         }, null, 2), 0, 'utf8')
@@ -310,11 +316,31 @@ export async function tryAcquireTrayLock(
 
 export async function isTrayRunning(lockPath = getTrayLockPath()): Promise<boolean> {
   const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
-  return endpoint != null && await requestTrayControl(endpoint, 'ping')
+  return endpoint != null && await requestTrayControl(endpoint, 'ping') != null
+}
+
+export function readTrayLockInfo(lockPath = getTrayLockPath()): TrayLockInfo | null {
+  const snapshot = readLockSnapshot(lockPath)
+  const info = snapshot?.info
+  return endpointFromSnapshot(snapshot) && info &&
+    typeof info.pid === 'number' && Number.isInteger(info.pid) && info.pid > 0 &&
+    typeof info.executable === 'string' && info.executable.trim()
+    ? info : null
+}
+
+export async function requestTrayIdentity(
+  lockPath = getTrayLockPath()
+): Promise<{ pid: number; executable: string } | null> {
+  const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
+  const response = endpoint ? await requestTrayControl(endpoint, 'identity') : null
+  return response && typeof response.pid === 'number' && Number.isInteger(response.pid) && response.pid > 0 &&
+    typeof response.executable === 'string' && response.executable.trim()
+    ? { pid: response.pid, executable: response.executable }
+    : null
 }
 
 export async function requestTrayShutdown(lockPath = getTrayLockPath()): Promise<boolean> {
   const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
   if (!endpoint) return false
-  return await requestTrayControl(endpoint, 'shutdown')
+  return await requestTrayControl(endpoint, 'shutdown') != null
 }

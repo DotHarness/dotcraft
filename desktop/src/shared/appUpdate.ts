@@ -6,6 +6,7 @@ export type AppUpdateStatus =
   | 'available'
   | 'downloading'
   | 'downloaded'
+  | 'preparing'
   | 'error'
 
 export interface AppUpdateInfo {
@@ -27,4 +28,5 @@ export interface AppUpdateState {
   update?: AppUpdateInfo
   progress?: AppUpdateProgress
   error?: string
+  retryAction?: 'download' | 'install'
 }

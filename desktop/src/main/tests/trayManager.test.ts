@@ -503,6 +503,26 @@ describe('trayManager Hub refresh', () => {
     expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
   })
 
+  it('stops tray-only activity without quitting Desktop or restarting subscriptions after an in-flight refresh', async () => {
+    let resolveStatus!: (value: object) => void
+    hubClientMocks.getStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
+    const running = runTrayProcess()
+    await vi.waitFor(() => expect(hubClientMocks.getStatus).toHaveBeenCalledOnce(), { interval: 1 })
+    const options = (trayLockMocks.tryAcquireTrayLock.mock.calls[0] as unknown as [unknown, {
+      onShutdown(): void
+    }])[1]
+    options.onShutdown()
+    electronMocks.triggerBeforeQuit()
+    resolveStatus({})
+    await running
+    expect(recentThreadCatalogMocks.refresh).not.toHaveBeenCalled()
+    expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+    expect(desktopProcessRegistryMocks.quitRegisteredDesktopProcesses).not.toHaveBeenCalled()
+    expect(hubClientMocks.shutdownHub).not.toHaveBeenCalled()
+    expect(electronMocks.appQuit).toHaveBeenCalledOnce()
+    expect(trayLockMocks.release).toHaveBeenCalledOnce()
+  })
+
   it('quits every Desktop process before shutting down Hub and the tray', async () => {
     await runTrayProcess()
 

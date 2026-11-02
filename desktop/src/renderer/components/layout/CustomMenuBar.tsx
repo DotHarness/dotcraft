@@ -55,6 +55,7 @@ export function CustomMenuBar(): JSX.Element {
     updateState.status === 'available' ||
     updateState.status === 'downloading' ||
     updateState.status === 'downloaded' ||
+    updateState.status === 'preparing' ||
     updateState.status === 'error'
   )
   const updateLabel = getUpdateTooltipLabel(updateState, t)
@@ -141,7 +142,7 @@ export function CustomMenuBar(): JSX.Element {
           style={updateButtonStyle(updateState.status)}
           icon={(
             <>
-              {updateState.status === 'downloading'
+              {updateState.status === 'downloading' || updateState.status === 'preparing'
                 ? <Spinner size={16} />
                 : <Download size={16} aria-hidden="true" />}
               {(updateState.status === 'downloaded' || updateState.status === 'error') && (
@@ -260,6 +261,7 @@ function getUpdateTooltipLabel(
 ): string {
   if (state.status === 'downloading') return t('update.downloadingTooltip')
   if (state.status === 'downloaded') return t('update.downloadedTooltip')
+  if (state.status === 'preparing') return t('update.preparing')
   if (state.status === 'error') return t('update.failedTooltip')
   return t('update.availableTooltip')
 }
