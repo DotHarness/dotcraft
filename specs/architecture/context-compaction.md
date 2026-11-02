@@ -149,9 +149,10 @@ replacement history, not removed from the replayed prefix. Image descriptions, b
 input trimming apply only when constructing a non-cache summary request or a successful replacement.
 
 Providers may expose `IProviderHistoryRewritePolicy` to prepare history whose prefix changes.
-Anthropic removes thinking and redacted-thinking, including their native replay containers, from
-non-cache summary input and retained replacement history. Preparation never mutates the source
-history or snapshot. Other providers retain their existing behavior.
+Anthropic providers without a reasoning-history adapter remove thinking and redacted-thinking,
+including their native replay containers, from non-cache summary input and retained replacement
+history. Providers with a reasoning-history adapter retain reasoning for tool continuation.
+Preparation never mutates the source history or snapshot. Other providers retain their existing behavior.
 
 Maintenance traces record the chosen path and why a snapshot was not used, with only mismatch
 positions and fingerprints rather than message content. Provider failures preserve a classified

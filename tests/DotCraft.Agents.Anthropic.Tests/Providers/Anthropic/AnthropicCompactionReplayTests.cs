@@ -136,13 +136,71 @@ public sealed class AnthropicCompactionReplayTests
             && entry.MetadataJson!.Contains("request-test", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeepSeekPartialCompaction_PreservesThinkingForToolContinuation(bool withSnapshot)
+    {
+        using var handler = new CaptureHandler();
+        using var http = new HttpClient(handler);
+        using var client = CreateClient(http, "deepseek-v4-pro", "https://api.deepseek.com/anthropic");
+        var history = new List<ChatMessage>
+        {
+            new(ChatRole.User, "Earlier task"),
+            new(ChatRole.Assistant,
+                [new TextReasoningContent("earlier reasoning"), new TextContent("Earlier answer")]),
+            new(ChatRole.User, "Inspect the file"),
+            new(ChatRole.Assistant,
+            [
+                new TextReasoningContent("need a tool"),
+                new TextContent("Inspecting"),
+                new FunctionCallContent("call_1", "Inspect", new Dictionary<string, object?>())
+            ]),
+            new(ChatRole.Tool, [new FunctionResultContent("call_1", "file contents")])
+        };
+        var options = new ChatOptions
+        {
+            Reasoning = new ReasoningOptions { Effort = ReasoningEffort.High },
+            Tools = [AIFunctionFactory.Create(() => "ok", name: "Inspect")]
+        };
+        var snapshot = withSnapshot ? PromptRequestSnapshot.Capture(history, options) : null;
+
+        var attempt = await new PartialCompactor(client, Config(), new MaintenanceForkRunner(client))
+            .CompactAsync(history, snapshot);
+
+        var result = Assert.IsType<PartialCompactResult>(attempt.Result);
+        await client.GetResponseAsync(
+            new[] { new ChatMessage(ChatRole.User, result.FormattedSummary) }.Concat(result.PreservedTail), options);
+
+        Assert.Contains(Blocks(handler.Requests[0]), block =>
+            block["type"]?.GetValue<string>() == "thinking"
+            && block["thinking"]?.GetValue<string>() == "earlier reasoning");
+        var continuation = handler.Requests.Last();
+        Assert.Equal("enabled", continuation["thinking"]!["type"]!.GetValue<string>());
+        var assistant = continuation["messages"]!.AsArray().Single(message =>
+            message!["role"]!.GetValue<string>() == "assistant");
+        Assert.Collection(assistant!["content"]!.AsArray(),
+            block =>
+            {
+                Assert.Equal("thinking", block!["type"]!.GetValue<string>());
+                Assert.Equal("need a tool", block["thinking"]!.GetValue<string>());
+            },
+            block => Assert.Equal("Inspecting", block!["text"]!.GetValue<string>()),
+            block => Assert.Equal("call_1", block!["id"]!.GetValue<string>()));
+        Assert.Contains(Blocks(continuation), block =>
+            block["type"]?.GetValue<string>() == "tool_result"
+            && block["tool_use_id"]?.GetValue<string>() == "call_1"
+            && block["content"]!.ToJsonString().Contains("file contents", StringComparison.Ordinal));
+    }
+
     private static IEnumerable<JsonNode> Blocks(JsonNode request) => request["messages"]!.AsArray()
         .SelectMany(message => message!["content"]!.AsArray()).Select(block => block!);
 
-    private static IChatClient CreateClient(HttpClient http) =>
+    private static IChatClient CreateClient(
+        HttpClient http, string model = "test-model", string endpoint = "https://example.invalid") =>
         new AnthropicClientProvider(new Transport(http)).CreateChatClient(new EffectiveModelRuntime(
-            "test", "test-model", ModelProviderProtocols.Anthropic, "Test", "key",
-            "https://example.invalid", 30, 1024,
+            "test", model, ModelProviderProtocols.Anthropic, "Test", "key",
+            endpoint, 30, 1024,
             ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic)));
 
     private static CompactionConfig Config() => new()
