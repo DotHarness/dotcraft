@@ -14,6 +14,7 @@ import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginReg
 import { isToolExecutionFailure, parseToolResultObject } from '../../utils/toolCallDisplay'
 import { useConversationStore } from '../../stores/conversationStore'
 import { collectSubAgentEndings, hasEndingAfter, subAgentEndingInterrupted } from '../../utils/subAgentEndings'
+import { getTaskStopDisplay } from '../../utils/taskStopDisplay'
 
 const VISIBLE_CHIPS = 3
 const COLLAPSED_NAMES = 2
@@ -102,34 +103,47 @@ export function SubAgentChips({
 
 export function SubAgentEndingChips({
   items,
-  parentThreadId
+  parentThreadId,
+  running = false
 }: {
   items: ConversationItem[]
   parentThreadId: string
+  running?: boolean
 }): JSX.Element | null {
   const [showAll, setShowAll] = useState(false)
+  const t = useT()
   const { lookup } = useSubAgentLookup(parentThreadId, items.length > 0)
   if (items.length === 0) return null
-  const entries = items.map((item): ChipEntry => {
-    const child = findSubAgentChild(lookup, null, item.triggerRefId ?? null, 'children')
+  const entries = items.map((item) => {
+    const stop = getTaskStopDisplay(item, running)
+    const path = stop?.taskId ?? item.triggerRefId ?? null
+    const child = findSubAgentChild(lookup, null, path, stop ? 'tree' : 'children')
+    const fallbackName = stop
+      ? stop.label ?? path?.split('/').filter(Boolean).at(-1) ?? t('toolCall.subAgent.agent')
+      : item.triggerLabel?.trim() ?? item.triggerRefId ?? ''
     return {
       id: item.id,
-      name: child?.nickname ?? item.triggerLabel?.trim() ?? item.triggerRefId ?? '',
+      callId: item.toolCallId,
+      name: child?.nickname ?? fallbackName,
       prompt: '',
-      childThreadId: child?.childThreadId ?? null
+      childThreadId: child?.childThreadId ?? null,
+      stopping: stop?.stopping === true,
+      interrupted: stop != null || subAgentEndingInterrupted(item)
     }
   })
   const form = items.length === 1 ? 'one' : 'other'
-  const statusKey = subAgentEndingInterrupted(items[0])
-    ? `subAgentChips.interrupted.${form}`
-    : `subAgentChips.finished.${form}`
+  const statusKey = entries[0].stopping
+    ? 'subAgentChips.stopping.one'
+    : entries[0].interrupted
+      ? `subAgentChips.interrupted.${form}`
+      : `subAgentChips.finished.${form}`
 
   return (
     <ChipLine
       testId="subagent-ending-chips"
       entries={entries}
       statusKey={statusKey}
-      shimmer={false}
+      shimmer={running}
       parentThreadId={parentThreadId}
       showAll={showAll}
       onShowAll={() => setShowAll(true)}

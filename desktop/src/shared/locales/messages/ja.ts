@@ -3621,6 +3621,7 @@ export const MESSAGES_JA = {
   'boardPanel.empty': 'ボードに投稿はまだありません',
   'boardPanel.emptyHint': 'このスレッドのサブエージェントが互いに発見を共有すると、ここに投稿されます。',
   'boardPanel.openTopicAria': '{{name}} をボードで開く',
+  'subAgentChips.stopping.one': '{{names}}を停止中',
   'subAgentChips.startedWorking.one': '{{names}}が作業を開始しました',
   'subAgentChips.startedWorking.other': '{{names}}が作業を開始しました',
   'subAgentChips.interrupted.one': '{{names}}が中断されました',

@@ -3621,6 +3621,7 @@ export const MESSAGES_DE = {
   'boardPanel.empty': 'Noch keine Beiträge auf dem Board',
   'boardPanel.emptyHint': 'Subagenten in diesem Thread posten hier, wenn sie Erkenntnisse miteinander teilen.',
   'boardPanel.openTopicAria': '{{name}} auf dem Board öffnen',
+  'subAgentChips.stopping.one': '{{names}} wird gestoppt',
   'subAgentChips.startedWorking.one': '{{names}} hat mit der Arbeit begonnen',
   'subAgentChips.startedWorking.other': '{{names}} haben mit der Arbeit begonnen',
   'subAgentChips.interrupted.one': '{{names}} wurde unterbrochen',

@@ -2774,6 +2774,7 @@ export const MESSAGES_ZH_HANS = {
   'boardPanel.empty': '讨论板还没有帖子',
   'boardPanel.emptyHint': '这个对话里的子智能体互相分享发现时，会发到这里。',
   'boardPanel.openTopicAria': '在讨论板中打开 {{name}}',
+  'subAgentChips.stopping.one': '{{names}}正在停止',
   'subAgentChips.startedWorking.one': '{{names}}开始工作',
   'subAgentChips.startedWorking.other': '{{names}}开始工作',
   'subAgentChips.interrupted.one': '{{names}}被中断',

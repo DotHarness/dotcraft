@@ -2822,6 +2822,7 @@ export const MESSAGES_EN = {
   'boardPanel.empty': 'No board posts yet',
   'boardPanel.emptyHint': 'Subagents in this thread post here when they share findings with each other.',
   'boardPanel.openTopicAria': 'Open {{name}} on the board',
+  'subAgentChips.stopping.one': '{{names}} is stopping',
   'subAgentChips.startedWorking.one': '{{names}} started working',
   'subAgentChips.startedWorking.other': '{{names}} started working',
   'subAgentChips.interrupted.one': '{{names}} was interrupted',

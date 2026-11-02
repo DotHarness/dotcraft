@@ -1,6 +1,7 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { parseToolResultObject } from './toolCallDisplay'
+import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 
 type TaskKind = 'shell' | 'agent' | 'workflow'
 
@@ -11,26 +12,31 @@ const TASK_STOP_KEYS: Record<TaskKind, { stopped: string; stopping: string }> = 
 }
 
 export interface TaskStopDisplay {
-  label: string
-  message: string | null
+  kind: TaskKind
+  taskId: string | null
+  label: string | null
+  stopping: boolean
 }
 
-/** Null for a failed call, which keeps the generic row and its error. */
-export function getTaskStopDisplay(item: ConversationItem, running: boolean, locale: AppLocale): TaskStopDisplay | null {
-  if (!running && item.success === false) return null
+export function getTaskStopDisplay(item: ConversationItem, running: boolean): TaskStopDisplay | null {
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family !== 'task' || (!running && item.success === false)) return null
   const result = running ? undefined : parseToolResultObject(item.result)
-  const taskId = typeof item.arguments?.taskId === 'string' ? item.arguments.taskId.trim() : ''
-  const kind = isTaskKind(result?.kind) ? result.kind : kindOfTaskId(taskId)
-  const label = typeof result?.label === 'string' ? result.label.trim() : ''
-  const keys = TASK_STOP_KEYS[kind]
-  const key = running || result?.status === 'stopping' ? keys.stopping : keys.stopped
-  const message = typeof result?.lastAgentMessage === 'string' && result.lastAgentMessage.trim()
-    ? result.lastAgentMessage
-    : null
+  const taskId = getString(result?.taskId) ?? getString(item.arguments?.taskId)
+  const kind = isTaskKind(plan.options.kind) ? plan.options.kind
+    : isTaskKind(result?.kind) ? result.kind : kindOfTaskId(taskId ?? '')
   return {
-    label: label ? translate(locale, key, { label }) : translate(locale, `${key}Generic`),
-    message
+    kind,
+    taskId,
+    label: getString(result?.label),
+    stopping: running || result?.status === 'stopping'
   }
+}
+
+export function formatTaskStopLabel(display: TaskStopDisplay, locale: AppLocale): string {
+  const keys = TASK_STOP_KEYS[display.kind]
+  const key = display.stopping ? keys.stopping : keys.stopped
+  return display.label ? translate(locale, key, { label: display.label }) : translate(locale, `${key}Generic`)
 }
 
 export function formatTaskStopRunningLabel(taskId: string | null, locale: AppLocale): string {
@@ -45,4 +51,8 @@ function kindOfTaskId(taskId: string): TaskKind {
   if (taskId.startsWith('term_')) return 'shell'
   if (taskId.startsWith('run_')) return 'workflow'
   return 'agent'
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null
 }

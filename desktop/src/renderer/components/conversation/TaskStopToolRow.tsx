@@ -1,32 +1,32 @@
-import { useState } from 'react'
 import { CircleStop } from 'lucide-react'
+import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
-import type { TaskStopDisplay } from '../../utils/taskStopDisplay'
+import { formatTaskStopLabel, type TaskStopDisplay } from '../../utils/taskStopDisplay'
 import { RunningShimmer } from '../ui/RunningShimmer'
+import { SubAgentEndingChips } from './SubAgentChips'
 import { ToolDisclosure } from './ToolDisclosure'
-import styles from './TaskStopToolRow.module.css'
 
-export function TaskStopToolRow({ item, display, running }: {
+export function TaskStopToolRow({ item, display, running, threadId }: {
   item: ConversationItem
   display: TaskStopDisplay
   running: boolean
+  threadId: string
 }): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const expandable = !running && !!display.message
+  const locale = useLocale()
+  if (display.kind === 'agent') {
+    return <SubAgentEndingChips items={[item]} parentThreadId={threadId} running={running} />
+  }
+  const label = formatTaskStopLabel(display, locale)
   return (
     <ToolDisclosure
-      expanded={expandable && expanded}
-      onToggle={() => setExpanded((value) => !value)}
-      expandable={expandable}
+      expanded={false}
+      onToggle={() => {}}
+      expandable={false}
       callId={item.toolCallId}
       icon={{ icon: CircleStop }}
       title={running
-        ? <RunningShimmer className="dc-tool-row-running-label">{display.label}</RunningShimmer>
-        : display.label}
-    >
-      <div className={`selectable dc-tool-panel-surface ${styles.message}`} data-padded="true">
-        {display.message}
-      </div>
-    </ToolDisclosure>
+        ? <RunningShimmer className="dc-tool-row-running-label">{label}</RunningShimmer>
+        : label}
+    />
   )
 }

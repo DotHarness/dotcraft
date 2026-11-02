@@ -3621,6 +3621,7 @@ export const MESSAGES_KO = {
   'boardPanel.empty': '아직 보드에 게시물이 없습니다',
   'boardPanel.emptyHint': '이 스레드의 하위 에이전트가 서로 발견한 내용을 공유하면 여기에 게시됩니다.',
   'boardPanel.openTopicAria': '보드에서 {{name}} 열기',
+  'subAgentChips.stopping.one': '{{names}}: 중단 중입니다',
   'subAgentChips.startedWorking.one': '{{names}}: 작업을 시작했습니다',
   'subAgentChips.startedWorking.other': '{{names}}: 작업을 시작했습니다',
   'subAgentChips.interrupted.one': '{{names}}: 중단되었습니다',

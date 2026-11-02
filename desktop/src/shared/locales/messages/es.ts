@@ -3621,6 +3621,7 @@ export const MESSAGES_ES = {
   'boardPanel.empty': 'Aún no hay publicaciones en el tablero',
   'boardPanel.emptyHint': 'Los subagentes de este hilo publican aquí cuando comparten hallazgos entre sí.',
   'boardPanel.openTopicAria': 'Abrir {{name}} en el tablero',
+  'subAgentChips.stopping.one': '{{names}} se está deteniendo',
   'subAgentChips.startedWorking.one': '{{names}} empezó a trabajar',
   'subAgentChips.startedWorking.other': '{{names}} empezaron a trabajar',
   'subAgentChips.interrupted.one': '{{names}} se interrumpió',

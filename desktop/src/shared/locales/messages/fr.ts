@@ -3621,6 +3621,7 @@ export const MESSAGES_FR = {
   'boardPanel.empty': 'Aucun message sur le tableau pour l’instant',
   'boardPanel.emptyHint': 'Les sous-agents de ce fil publient ici lorsqu’ils partagent leurs découvertes entre eux.',
   'boardPanel.openTopicAria': 'Ouvrir {{name}} sur le tableau',
+  'subAgentChips.stopping.one': 'Arrêt de {{names}} en cours',
   'subAgentChips.startedWorking.one': '{{names}} a commencé à travailler',
   'subAgentChips.startedWorking.other': '{{names}} ont commencé à travailler',
   'subAgentChips.interrupted.one': '{{names}} a été interrompu',

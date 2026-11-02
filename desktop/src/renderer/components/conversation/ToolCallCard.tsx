@@ -396,9 +396,9 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} callId={item.toolCallId} />
   }
 
-  const taskStopDisplay = rendererFamily === 'task' ? getTaskStopDisplay(item, isRunning, locale) : null
+  const taskStopDisplay = rendererFamily === 'task' ? getTaskStopDisplay(item, isRunning) : null
   if (taskStopDisplay) {
-    return <TaskStopToolRow item={item} display={taskStopDisplay} running={isRunning} />
+    return <TaskStopToolRow item={item} display={taskStopDisplay} running={isRunning} threadId={threadId} />
   }
 
   if (rendererFamily === 'channel') {

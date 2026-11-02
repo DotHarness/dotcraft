@@ -58,6 +58,12 @@ Control tools may resolve across parents only when both ancestries prove the sam
 Activity entries open the active conversation's Subagents tab on the resolved child's read-only
 transcript; unresolved entries open the tab's list.
 
+An agent `TaskStop` reuses the subagent ending row and its identity, navigation, and interrupted
+outcome. A running call or a `stopping` result uses a stopping label. Each call keeps its own
+non-expandable row and records its outcome rather than following later child activity. The result's
+canonical task path takes precedence over the requested relative path; messages are read through
+the child's transcript.
+
 Desktop discovers children through `subagent/children/list` including closed children and threads,
 and refreshes on notifications. Status precedence: resolved runtime and explicit terminal state win
 over stale running notifications; closed edges are finished; failure displays `interrupted`. After
