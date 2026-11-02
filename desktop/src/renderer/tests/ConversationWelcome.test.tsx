@@ -166,13 +166,6 @@ describe('ConversationWelcome composer', () => {
         workspaceConfigManagement: true
       }
     })
-    useModelCatalogStore.setState({
-      status: 'ready',
-      providerId: 'openai',
-      requestedProviderId: 'openai',
-      modelOptions: ['gpt-5.4', 'gpt-5.4-mini'],
-      modelListUnsupportedEndpoint: false
-    })
 
     fileReadFile.mockResolvedValue('{}')
     settingsGet.mockResolvedValue({ locale: 'en' })

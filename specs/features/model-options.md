@@ -73,6 +73,12 @@ option changes reuse them. Manual refresh reloads the selected provider. Provide
 authentication changes invalidate catalogs; connection and workspace changes discard them, and
 responses from a previous connection or workspace never repopulate the cache.
 
+Each surface subscribes to the catalog for its own effective provider. Loading the workspace-default
+catalog or another provider never changes that selection, including when the default load starts last.
+Provider/model labels, option capabilities and usage use the same effective provider; usage does not
+infer a thread's provider from the last catalog loaded. Catalog requests wait for a connected capable
+server, and reconnecting reloads the selected catalog even when the provider/model values are unchanged.
+
 A thread composer resolves its options from thread configuration values. Receiving an unchanged thread
 snapshot does not reload the catalog or re-read workspace configuration.
 

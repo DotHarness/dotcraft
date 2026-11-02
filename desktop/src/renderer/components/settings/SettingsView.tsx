@@ -951,7 +951,7 @@ export function SettingsView({
 
   async function refreshAfterProviderSignIn(providerId: string): Promise<void> {
     await reloadProviders()
-    void useModelCatalogStore.getState().handleConfigChanged(['providers'])
+    useModelCatalogStore.getState().handleConfigChanged(['providers'])
     if (selectedProviderIdRef.current === providerId) void reloadProviderPreferences(providerId)
   }
 

@@ -64,7 +64,6 @@ import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
-import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
 import { ProviderUsageBadge } from './ProviderUsageBadge'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
@@ -184,7 +183,7 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
   const maintenanceKind = useConversationStore((state) => state.maintenanceKind)
   const hasSubmitOverride = props.submitOverride !== undefined
   const waitingForInput = !hasSubmitOverride && turnStatus === 'waitingInput'
-  const provider = useComposerProvider()
+  const provider = useComposerProvider(props.providerId, props.threadId)
   const context = {
     workspacePath: props.workspacePath || null,
     threadId: hasSubmitOverride ? null : props.threadId,
@@ -301,8 +300,7 @@ function InputComposerCore({
     if (capabilities?.providerManagement !== true) return
     void reloadProviders()
   }, [capabilities?.providerManagement, reloadProviders])
-  const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
-  const activeUsageProvider = useProviderSummary(activeCatalogProviderId)
+  const activeUsageProvider = useProviderSummary(desktopPluginSurfaceContext.provider?.id)
 
   const {
     turns,

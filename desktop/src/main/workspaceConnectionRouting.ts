@@ -13,6 +13,18 @@ export interface WorkspaceConnectionRoutingState<TClient, TWindow extends Destro
   role: WorkspaceConnectionRole
 }
 
+export function getForegroundWorkspaceClient<TClient, TWindow extends DestroyableWindow>(state: {
+  appQuitting: boolean
+  mainWindow: TWindow | null
+  wireClient: TClient | null
+  connection: { client: TClient; role: WorkspaceConnectionRole } | undefined
+}): TClient | null {
+  const { connection } = state
+  return connection && isCurrentForegroundWorkspaceConnection({ ...state, ...connection })
+    ? connection.client
+    : null
+}
+
 export const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
   'thread/started',
   'thread/renamed',

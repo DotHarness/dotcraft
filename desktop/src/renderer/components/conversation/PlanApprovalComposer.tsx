@@ -181,7 +181,7 @@ export function PlanApprovalComposer({
 
   const acceptSelected = selectedIndex === 0
   const adjustmentSelected = selectedIndex === 1
-  const provider = useComposerProvider()
+  const provider = useComposerProvider(desktopPluginSurfaceContext?.provider?.id, threadId)
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath,
     threadId,

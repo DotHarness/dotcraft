@@ -82,27 +82,30 @@ describe('generated title parsing', () => {
 
 describe('title helper thread', () => {
   beforeEach(() => {
-    useModelCatalogStore.setState({ providerId: 'provider-a', models: [] })
+    useModelCatalogStore.getState().reset()
     vi.spyOn(console, 'debug').mockImplementation(() => {})
   })
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
   it('runs on the source model without tools, MCP, or skills', () => {
     useModelCatalogStore.setState({
-      providerId: 'provider-a',
-      models: [{
-        id: 'model-x',
-        reasoning: {
-          supportsDisable: false,
-          supportedEfforts: [
-            { effort: 'high', label: 'High', description: '' },
-            { effort: 'medium', label: 'Medium', description: '' }
-          ],
-          defaultEffort: 'high',
-          supportedOutputs: ['none', 'summary'],
-          defaultOutput: 'summary'
-        }
-      }]
+      catalogs: new Map([['provider-a', {
+        ...useModelCatalogStore.getState().getCatalog('provider-a'),
+        providerId: 'provider-a',
+        models: [{
+          id: 'model-x',
+          reasoning: {
+            supportsDisable: false,
+            supportedEfforts: [
+              { effort: 'high', label: 'High', description: '' },
+              { effort: 'medium', label: 'Medium', description: '' }
+            ],
+            defaultEffort: 'high',
+            supportedOutputs: ['none', 'summary'],
+            defaultOutput: 'summary'
+          }
+        }]
+      }]])
     })
 
     expect(buildTitleHelperConfiguration({ providerId: 'provider-a', model: 'model-x', mode: 'plan' })).toEqual({

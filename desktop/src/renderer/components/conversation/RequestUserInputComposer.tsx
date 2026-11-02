@@ -282,7 +282,7 @@ export function RequestUserInputComposer({
   const visibleCountdownSeconds = countdownSeconds != null && countdownSeconds <= 60
     ? countdownSeconds
     : null
-  const provider = useComposerProvider()
+  const provider = useComposerProvider(desktopPluginSurfaceContext?.provider?.id)
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
     threadId: null,

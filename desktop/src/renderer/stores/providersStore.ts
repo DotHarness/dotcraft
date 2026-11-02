@@ -63,6 +63,7 @@ const initialState: ProvidersState = {
   usage: {}
 }
 
+let scope = 0
 let inFlight: Promise<void> | null = null
 const inFlightUsage = new Map<string, Promise<void>>()
 let usageNotificationUnsubscribe: (() => void) | null = null
@@ -135,6 +136,7 @@ function parseBalances(value: unknown): ProviderUsageBalance[] | null {
 export const useProvidersStore = create<ProvidersStore>((set, get) => ({
   ...initialState,
   reset() {
+    scope += 1
     inFlight = null
     inFlightUsage.clear()
     usageNotificationUnsubscribe?.()
@@ -150,12 +152,14 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
       set({ status: 'error' })
       return
     }
+    const requestScope = scope
     const next = (async () => {
       set({ status: 'loading' })
       try {
         const result = await window.api.appServer.sendRequest('provider/list', {}, 15_000) as
           | { providers?: Array<Record<string, unknown>> }
           | null
+        if (requestScope !== scope) return
         const list = (result?.providers ?? [])
           .map((raw): ProviderSummary | null => {
             if (!raw || typeof raw !== 'object') return null
@@ -175,14 +179,14 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
           .filter((p): p is ProviderSummary => p !== null)
         set({ providers: list, status: 'ready' })
       } catch {
-        set({ status: 'error' })
+        if (requestScope === scope) set({ status: 'error' })
       }
     })()
     inFlight = next
     try {
       await next
     } finally {
-      inFlight = null
+      if (inFlight === next) inFlight = null
     }
   },
   upsert(provider: ProviderSummary) {
@@ -207,10 +211,11 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     }
     if (typeof window === 'undefined' || !window.api?.appServer?.sendRequest) return
     ensureUsageSubscription()
+    const requestScope = scope
     const next = (async () => {
       try {
         const result = await window.api.appServer.sendRequest('provider/auth/usage', { providerId }, 30_000)
-        get().applyUsage(providerId, parseUsage(result))
+        if (requestScope === scope) get().applyUsage(providerId, parseUsage(result))
       } catch {
         return
       }
@@ -219,7 +224,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
     try {
       await next
     } finally {
-      inFlightUsage.delete(key)
+      if (inFlightUsage.get(key) === next) inFlightUsage.delete(key)
     }
   }
 }))
@@ -227,7 +232,9 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
 function ensureUsageSubscription(): void {
   if (usageNotificationUnsubscribe) return
   if (typeof window === 'undefined' || !window.api?.appServer?.onNotification) return
+  const subscriptionScope = scope
   usageNotificationUnsubscribe = window.api.appServer.onNotification((payload) => {
+    if (subscriptionScope !== scope || payload.foreground === false) return
     if (payload?.method === 'turn/completed') {
       refreshMeteredUsage()
       return

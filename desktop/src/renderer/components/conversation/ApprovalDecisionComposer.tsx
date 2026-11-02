@@ -129,7 +129,7 @@ export function ApprovalDecisionComposer({
       void sendDecision(option.value)
     }
   }))
-  const provider = useComposerProvider()
+  const provider = useComposerProvider(desktopPluginSurfaceContext?.provider?.id, request.threadId)
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
     threadId: request.threadId,

@@ -128,6 +128,27 @@ describe('configuration client', () => {
     expect(useConfigStore.getState().config).toEqual(serverConfig)
   })
 
+  it('discards old workspace reads without clearing the replacement in-flight read', async () => {
+    let resolvePrevious!: (value: unknown) => void
+    let resolveCurrent!: (value: unknown) => void
+    sendRequest
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveCurrent = resolve }))
+    const store = useConfigStore.getState()
+    const previousLoad = store.ensureLoaded()
+    store.reset()
+    const currentLoad = store.ensureLoaded()
+    resolvePrevious({ config: { ProviderId: 'previous' } })
+    await previousLoad
+
+    expect(useConfigStore.getState().config).toBeNull()
+    const duplicateLoad = store.ensureLoaded()
+    expect(configReads()).toBe(2)
+    resolveCurrent({ config: { ProviderId: 'current' } })
+    await Promise.all([currentLoad, duplicateLoad])
+    expect(useConfigStore.getState().config).toEqual({ ProviderId: 'current' })
+  })
+
   it('quotes key path segments that contain dots', async () => {
     serverConfig = { ProviderPreferences: { 'openai.personal': { model: 'gpt-5' } } }
     await useConfigStore.getState().ensureLoaded()
