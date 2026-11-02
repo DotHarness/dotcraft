@@ -20,6 +20,7 @@ function broadcastToWindows(event: MobileEvent): void {
 export class MobileHubBridge {
   private deps: MobileHubBridgeDeps
   private refCount = 0
+  private disposed = false
   private subscription: AbortController | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -32,6 +33,7 @@ export class MobileHubBridge {
   }
 
   acquire(): void {
+    if (this.disposed) return
     this.refCount += 1
     if (this.refCount === 1) this.startSubscription()
   }
@@ -44,8 +46,14 @@ export class MobileHubBridge {
     this.stopFallbackPoll()
   }
 
+  dispose(): void {
+    this.disposed = true
+    this.refCount = 0
+    this.release()
+  }
+
   private startSubscription(): void {
-    if (this.subscription) return
+    if (this.disposed || this.refCount === 0 || this.subscription) return
     const controller = new AbortController()
     this.subscription = controller
     this.stopFallbackPoll()
@@ -62,7 +70,7 @@ export class MobileHubBridge {
   }
 
   private startFallbackPoll(): void {
-    if (this.pollTimer) return
+    if (this.disposed || this.refCount === 0 || this.pollTimer) return
     this.pollTimer = setInterval(() => {
       void this.pollStatus().finally(() => this.startSubscription())
     }, FALLBACK_POLL_INTERVAL_MS)
@@ -85,6 +93,7 @@ export class MobileHubBridge {
   }
 
   private publish(event: MobileEvent): void {
+    if (this.disposed) return
     ;(this.deps.broadcast ?? broadcastToWindows)(event)
   }
 }
@@ -95,4 +104,8 @@ export function getMobileHubBridge(deps: MobileHubBridgeDeps): MobileHubBridge {
   if (sharedBridge) sharedBridge.updateDeps(deps)
   else sharedBridge = new MobileHubBridge(deps)
   return sharedBridge
+}
+
+export function disposeMobileHubBridge(): void {
+  sharedBridge?.dispose()
 }

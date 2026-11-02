@@ -366,6 +366,8 @@ export const MESSAGES_FR = {
   'update.download': 'Télécharger',
   'update.downloadingPercent': 'Téléchargement {{percent}} %',
   'update.restart': 'Redémarrer pour mettre à jour',
+  'update.preparing': 'Préparation du redémarrage…',
+  'update.retryInstall': 'Réessayer l’installation',
   'update.transferDetail': '{{transferred}} sur {{total}} · {{speed}}/s',
   'update.downloadProgressAria': 'Progression du téléchargement de la mise à jour',
   'update.retry': 'Réessayer',

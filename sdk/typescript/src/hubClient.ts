@@ -1,10 +1,12 @@
-import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve as resolvePath } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import { isIP } from "node:net";
 
 import { DotCraftError } from "./errors.js";
+import { ensureLocalHub, isProcessAlive, probeLocalHub } from "./hubBootstrap.js";
+
+export { isProcessAlive } from "./hubBootstrap.js";
 
 export interface HubClientOptions {
   executable?: string;
@@ -196,11 +198,6 @@ export class HubClientError extends DotCraftError {
   }
 }
 
-const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
-const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
-const PROBE_TIMEOUT_MS = 2_000;
-const POLL_MS = 200;
-
 export function hubLockPath(homeDir = homedir()): string {
   return join(homeDir, ".craft", "hub", "hub.lock");
 }
@@ -245,16 +242,6 @@ export function readHubLockFromPath(path: string): HubLockInfo | null {
   return null;
 }
 
-export function isProcessAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 export function isLoopbackHost(host: string): boolean {
   const normalized = host.trim().replace(/^\[/, "").replace(/\]$/, "");
   if (normalized.toLowerCase() === "localhost") return true;
@@ -296,10 +283,6 @@ export function findSseBoundary(buffer: string): { index: number; sequence: "\n\
   if (lf === -1) return { index: crlf, sequence: "\r\n\r\n" };
   if (crlf === -1) return { index: lf, sequence: "\n\n" };
   return crlf < lf ? { index: crlf, sequence: "\r\n\r\n" } : { index: lf, sequence: "\n\n" };
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export class HubClient {
@@ -565,85 +548,19 @@ export class HubClient {
 
   async ensureHub(): Promise<HubLockInfo> {
     const lockPath = hubLockPath(this.options.homeDir);
-    const shutdownDeadline = Date.now() + (this.options.hubShutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS);
-    let stopping: { pid: number; mismatch: { expectedExecutable: string; actualExecutable: string | null } } | null = null;
-    let startupDeadline: number | null = null;
-
-    for (;;) {
-      const lock = readHubLockFromPath(lockPath);
-      const owner = lock && isProcessAlive(lock.pid) ? lock : null;
-      if (owner && owner.pid === stopping?.pid) {
-        if (Date.now() >= shutdownDeadline) {
-          throw new HubClientError(
-            "hubMismatchShutdownTimeout",
-            "Hub uses a different executable and did not stop after shutdown.",
-            stopping.mismatch,
-          );
-        }
-      } else if (owner) {
-        const live = await this.probeHub(owner);
-        if (live && startupDeadline !== null) return live;
-        if (live) {
-          const liveMismatch = this.getBinaryMismatch(live);
-          if (!liveMismatch || this.binaryMatchPolicy === "ignore") return live;
-          if (this.binaryMatchPolicy === "errorIfMismatch") {
-            throw new HubClientError("hubBinaryMismatch", "Hub is running from a different executable.", liveMismatch);
-          }
-          await this.requestMismatchedHubShutdown(live, liveMismatch);
-          stopping = { pid: live.pid, mismatch: liveMismatch };
-        } else if (startupDeadline === null && Date.now() >= shutdownDeadline) {
-          throw new HubClientError("hubUnavailable", "The previous DotCraft Hub is still shutting down.", { pid: owner.pid });
-        }
-      } else if (startupDeadline === null) {
-        this.startHub();
-        startupDeadline = Date.now() + (this.options.hubStartupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS);
-      }
-
-      if (startupDeadline !== null && Date.now() >= startupDeadline) {
-        throw new HubClientError("hubUnavailable", "DotCraft Hub could not be started.");
-      }
-      await sleep(POLL_MS);
-    }
+    return await ensureLocalHub(this.options, {
+      lockPath,
+      readLock: () => readHubLockFromPath(lockPath),
+      validateBaseUrl: parseHubBaseUrl,
+      shutdown: (hub, signal) => this.requestJson(hub, "/v1/shutdown", { method: "POST", signal }),
+      error: (code, message, details) => new HubClientError(code, message, details),
+    });
   }
 
   async tryGetLiveHub(): Promise<HubLockInfo | null> {
     const info = readHubLockFromPath(hubLockPath(this.options.homeDir));
     if (!info || !isProcessAlive(info.pid)) return null;
-    return await this.probeHub(info);
-  }
-
-  private async probeHub(info: HubLockInfo): Promise<HubLockInfo | null> {
-    try {
-      parseHubBaseUrl(info.apiBaseUrl);
-      const response = await fetch(`${info.apiBaseUrl}/v1/status`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-      if (!response.ok) return null;
-      let status: Partial<HubStatusResponse> = {};
-      try {
-        status = (await response.json()) as Partial<HubStatusResponse>;
-      } catch {
-        // A status response can be empty during startup races.
-      }
-      return {
-        ...info,
-        binaryPath: typeof status.binaryPath === "string" ? status.binaryPath : info.binaryPath,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  private startHub(): void {
-    const executable = this.options.executable?.trim() || "dotcraft";
-    const isDll = executable.toLowerCase().endsWith(".dll");
-    const child = spawn(isDll ? "dotnet" : executable, isDll ? [executable, "hub"] : ["hub"], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.on("error", () => {
-      // ensureHub reports startup failure after the readiness timeout.
-    });
-    child.unref();
+    return (await probeLocalHub(info, parseHubBaseUrl)).hub;
   }
 
   private async requestJson<T>(
@@ -685,43 +602,4 @@ export class HubClient {
       `Hub request failed with HTTP ${response.status}.`,
     );
   }
-
-  private get binaryMatchPolicy(): HubBinaryMatchPolicy {
-    return this.options.expectedExecutable?.trim()
-      ? (this.options.binaryMatchPolicy ?? "ignore")
-      : "ignore";
-  }
-
-  private getBinaryMismatch(hub: HubLockInfo): { expectedExecutable: string; actualExecutable: string | null } | null {
-    const expected = this.options.expectedExecutable?.trim();
-    if (!expected) return null;
-    const actual = hub.binaryPath?.trim() || null;
-    if (actual && pathsEqual(actual, expected)) return null;
-    return { expectedExecutable: expected, actualExecutable: actual };
-  }
-
-  private async requestMismatchedHubShutdown(
-    hub: HubLockInfo,
-    details: { expectedExecutable: string; actualExecutable: string | null },
-  ): Promise<void> {
-    try {
-      await this.requestJson<{ ok: boolean }>(hub, "/v1/shutdown", { method: "POST" });
-    } catch (error) {
-      throw new HubClientError(
-        "hubMismatchShutdownFailed",
-        "Hub uses a different executable and could not be stopped.",
-        details,
-        error,
-      );
-    }
-  }
-}
-
-function normalizePathForCompare(path: string): string {
-  const normalized = resolvePath(path);
-  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
-}
-
-function pathsEqual(left: string, right: string): boolean {
-  return normalizePathForCompare(left) === normalizePathForCompare(right);
 }

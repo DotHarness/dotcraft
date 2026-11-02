@@ -16,12 +16,14 @@ import {
 } from '@dotcraft/sdk/hub'
 import { resolveBinaryLocation } from './AppServerManager'
 import type { AppSettings, BinarySource } from './settings'
+import type { DesktopHubOperationGate } from './appUpdateRuntime'
 
 export type { HubAppServerResponse, HubCreateSatelliteInviteOptions, HubEvent, HubManagedServiceResponse, HubProject, HubRuntimeToolsRequest, HubSatellite, HubSatelliteInvite, HubStatusResponse } from '@dotcraft/sdk/hub'
 
 export interface DesktopHubPolicyOptions {
   preferDevBuild?: boolean
   requireDevBuild?: boolean
+  operationGate?: DesktopHubOperationGate
 }
 
 /** Keeps the bearer in the main process rather than exposing it to the renderer. */
@@ -43,7 +45,11 @@ export class DesktopHubError extends Error {
 }
 
 export class DesktopHubClient {
-  constructor(private readonly inner: HubClient, private readonly configurationError?: DesktopHubError) {}
+  constructor(
+    private readonly inner: HubClient,
+    private readonly configurationError?: DesktopHubError,
+    private readonly operationGate?: DesktopHubOperationGate
+  ) {}
 
   ensureAppServer(workspacePath: string, options: HubEnsureAppServerOptions = {}): Promise<HubAppServerResponse> {
     return this.run(() => this.inner.ensureAppServer(workspacePath, options))
@@ -87,6 +93,13 @@ export class DesktopHubClient {
 
   getStatus(): Promise<HubStatusResponse> {
     return this.run(() => this.inner.getStatus())
+  }
+
+  getLiveHubIdentity(): Promise<Pick<HubStatusResponse, 'pid' | 'hubVersion' | 'binaryPath' | 'startedAt'> | null> {
+    return this.run(async () => {
+      const hub = await this.inner.tryGetLiveHub()
+      return hub ? { pid: hub.pid, hubVersion: hub.version ?? '', binaryPath: hub.binaryPath, startedAt: hub.startedAt ?? '' } : null
+    })
   }
 
   listSatellites(): Promise<HubSatellite[]> {
@@ -160,7 +173,7 @@ export class DesktopHubClient {
   private async run<T>(operation: () => Promise<T>): Promise<T> {
     if (this.configurationError) throw this.configurationError
     try {
-      return await operation()
+      return await (this.operationGate ? this.operationGate.run(operation) : operation())
     } catch (error) {
       if (error instanceof DesktopHubError) throw error
       if (error instanceof HubClientError) {
@@ -195,7 +208,7 @@ export function createDesktopHubClient(
     executable: resolved.path ?? undefined,
     expectedExecutable: resolved.path ?? undefined,
     binaryMatchPolicy: 'restartIfMismatch'
-  }), configurationError)
+  }), configurationError, policy.operationGate)
 }
 
 export function formatDesktopHubError(message: string, details?: unknown): string {
@@ -225,7 +238,8 @@ function summarizeDetails(details: unknown): string | null {
   for (const key of [
     'error', 'reason', 'lastError', 'stage', 'failureKind', 'exitCode', 'recentStderr',
     'workspacePath', 'craftPath', 'lockPath', 'pid', 'expectedPid',
-    'expectedExecutable', 'actualExecutable'
+    'expectedExecutable', 'actualExecutable', 'elapsedMs', 'budgetMs', 'version', 'binaryPath',
+    'startedAt', 'lastProbe', 'spawnError'
   ]) {
     const value = preview(record[key])
     if (value) parts.push(`${key}: ${value}`)

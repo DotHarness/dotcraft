@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -270,7 +271,9 @@ function startIdleProcess(): ChildProcess {
   return spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
 }
 
-async function writeHubLock(dir: string, lock: { pid: number; apiBaseUrl: string; binaryPath?: string }): Promise<void> {
+async function writeHubLock(dir: string, lock: {
+  pid: number; apiBaseUrl: string; binaryPath?: string; version?: string; startedAt?: string;
+}): Promise<void> {
   await mkdir(join(dir, ".craft", "hub"), { recursive: true });
   await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({ ...lock, token: "hub-token" }), "utf8");
 }
@@ -341,16 +344,34 @@ test("ensureHub reports a previous Hub that never finishes shutting down", async
   const originalFetch = globalThis.fetch;
   const previous = startIdleProcess();
   try {
-    await writeHubLock(dir, { pid: previous.pid!, apiBaseUrl: "http://127.0.0.1:49142" });
+    await writeHubLock(dir, {
+      pid: previous.pid!, apiBaseUrl: "http://127.0.0.1:49142",
+      version: "0.9.10+owner", binaryPath: "/old/dotcraft", startedAt: "2026-11-02T00:00:00Z",
+    });
     globalThis.fetch = (async () => {
-      throw new TypeError("fetch failed");
+      throw Object.assign(new TypeError("fetch failed http://127.0.0.1:49142?token=hub-token"), {
+        cause: { code: "ECONNREFUSED" },
+      });
     }) as typeof fetch;
 
     await assert.rejects(
       new HubClient({ homeDir: dir, hubShutdownTimeoutMs: 300 }).ensureHub(),
-      (error: unknown) => error instanceof HubClientError
-        && error.code === "hubUnavailable"
-        && (error.details as { pid?: number }).pid === previous.pid,
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        assert.equal(error.code, "hubUnavailable");
+        const details = error.details as Record<string, unknown>;
+        assert.equal(details.stage, "owner-wait");
+        assert.equal(details.pid, previous.pid);
+        assert.equal(details.version, "0.9.10+owner");
+        assert.equal(details.binaryPath, "/old/dotcraft");
+        assert.equal(details.startedAt, "2026-11-02T00:00:00Z");
+        assert.equal(details.budgetMs, 300);
+        assert.ok(Number(details.elapsedMs) >= 300);
+        assert.deepEqual(details.lastProbe, { error: { name: "TypeError", code: "ECONNREFUSED" } });
+        assert.ok(!JSON.stringify(error).includes("hub-token"));
+        assert.ok(!JSON.stringify(error).includes("http://"));
+        return true;
+      },
     );
   } finally {
     globalThis.fetch = originalFetch;
@@ -417,6 +438,187 @@ test("ensureHub never reuses a mismatched Hub it asked to stop", async () => {
   } finally {
     globalThis.fetch = originalFetch;
     await stopProcess(previous);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Hub discovery reports the running status version rather than stale lock metadata", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-version-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeHubLock(dir, {
+      pid: process.pid, apiBaseUrl: "http://127.0.0.1:49146", version: "old-build", binaryPath: "/old/path",
+    });
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      hubVersion: "running-build", binaryPath: "/actual/path",
+    }), { status: 200 })) as typeof fetch;
+
+    for (const hub of [await new HubClient({ homeDir: dir }).ensureHub(), await new HubClient({ homeDir: dir }).tryGetLiveHub()]) {
+      assert.equal(hub?.version, "running-build");
+      assert.equal(hub?.binaryPath, "/actual/path");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Hub spawn failures identify the executable error without waiting for readiness", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-spawn-"));
+  try {
+    const executable = join(dir, "missing-dotcraft");
+    await assert.rejects(
+      new HubClient({ homeDir: dir, executable, hubStartupTimeoutMs: 5_000 }).ensureHub(),
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        const details = error.details as Record<string, unknown>;
+        assert.equal(error.code, "hubUnavailable");
+        assert.equal(details.stage, "spawn");
+        assert.equal(details.executable, executable);
+        assert.equal(details.budgetMs, 5_000);
+        assert.equal((details.spawnError as { code?: string }).code, "ENOENT");
+        assert.ok(Number(details.elapsedMs) < 5_000);
+        return true;
+      },
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Hub readiness failures retain HTTP probe status and spawned owner identity", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-ready-"));
+  const originalCwd = process.cwd();
+  const originalFetch = globalThis.fetch;
+  const lockPath = join(dir, ".craft", "hub", "hub.lock");
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, "hub"), FAKE_HUB_SCRIPT, "utf8");
+    process.chdir(dir);
+    process.env.DOTCRAFT_TEST_HUB_LOCK = lockPath;
+    globalThis.fetch = (async () => new Response("", { status: 503 })) as typeof fetch;
+
+    await assert.rejects(
+      new HubClient({ homeDir: dir, executable: process.execPath, hubStartupTimeoutMs: 1_000 }).ensureHub(),
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        const details = error.details as Record<string, unknown>;
+        assert.equal(details.stage, "ready");
+        assert.equal(details.budgetMs, 1_000);
+        assert.ok(Number(details.elapsedMs) >= 1_000);
+        assert.equal(details.pid, details.spawnedPid);
+        assert.deepEqual(details.lastProbe, { httpStatus: 503 });
+        assert.ok(!JSON.stringify(error).includes("hub-token"));
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.chdir(originalCwd);
+    delete process.env.DOTCRAFT_TEST_HUB_LOCK;
+    const replacement = readHubLockFromPath(lockPath);
+    if (replacement) {
+      try { process.kill(replacement.pid); } catch { /* already gone */ }
+    }
+    await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  }
+});
+
+test("Hub readiness failures retain a spawned process's early exit code", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-exit-"));
+  const originalCwd = process.cwd();
+  try {
+    await writeFile(join(dir, "hub"), "process.exit(23)", "utf8");
+    process.chdir(dir);
+    await assert.rejects(
+      new HubClient({ homeDir: dir, executable: process.execPath, hubStartupTimeoutMs: 1_000 }).ensureHub(),
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        const details = error.details as Record<string, unknown>;
+        assert.equal(details.stage, "ready");
+        assert.equal(details.exitCode, 23);
+        assert.equal(typeof details.spawnedPid, "number");
+        return true;
+      },
+    );
+  } finally {
+    process.chdir(originalCwd);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("An incomplete Hub status body cannot exceed the owner wait budget or count as ready", { timeout: 5_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-probe-timeout-"));
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.flushHeaders();
+  });
+  try {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    await writeHubLock(dir, { pid: process.pid, apiBaseUrl: `http://127.0.0.1:${address.port}` });
+    const started = Date.now();
+    await assert.rejects(
+      new HubClient({ homeDir: dir, hubShutdownTimeoutMs: 300 }).ensureHub(),
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        const details = error.details as Record<string, unknown>;
+        assert.equal(details.stage, "owner-wait");
+        assert.equal(details.budgetMs, 300);
+        assert.ok(Number(details.elapsedMs) >= 300);
+        assert.ok(["AbortError", "TimeoutError"].includes(
+          (details.lastProbe as { error: { name: string } }).error.name,
+        ));
+        return true;
+      },
+    );
+    assert.ok(Date.now() - started < 2_000);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("A hanging mismatched Hub shutdown request fails within the shared shutdown budget", { timeout: 5_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-shutdown-timeout-"));
+  const server = createServer((request, response) => {
+    if (request.url === "/v1/status") {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ binaryPath: "/old/dotcraft", hubVersion: "running-old-build" }));
+    }
+  });
+  try {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    await writeHubLock(dir, {
+      pid: process.pid, apiBaseUrl: `http://127.0.0.1:${address.port}`, binaryPath: "/old/dotcraft",
+    });
+    const started = Date.now();
+    await assert.rejects(
+      new HubClient({
+        homeDir: dir, expectedExecutable: "/new/dotcraft",
+        binaryMatchPolicy: "restartIfMismatch", hubShutdownTimeoutMs: 300,
+      }).ensureHub(),
+      (error: unknown) => {
+        assert.ok(error instanceof HubClientError);
+        assert.equal(error.code, "hubMismatchShutdownTimeout");
+        const details = error.details as Record<string, unknown>;
+        assert.equal(details.stage, "mismatch-shutdown");
+        assert.equal(details.budgetMs, 300);
+        assert.equal(details.version, "running-old-build");
+        assert.equal(details.actualExecutable, "/old/dotcraft");
+        assert.equal(details.expectedExecutable, "/new/dotcraft");
+        assert.ok(!JSON.stringify(error).includes("hub-token"));
+        return true;
+      },
+    );
+    assert.ok(Date.now() - started < 2_000);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   }
 });

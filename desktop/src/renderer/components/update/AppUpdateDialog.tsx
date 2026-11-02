@@ -28,7 +28,9 @@ export function AppUpdateDialog({
   const update = state.update
   const downloading = state.status === 'downloading'
   const downloaded = state.status === 'downloaded'
+  const preparing = state.status === 'preparing'
   const failed = state.status === 'error'
+  const installAction = downloaded || (failed && state.retryAction === 'install')
   const error = failed ? state.error : undefined
   const progress = state.progress
   const releaseNotesHtml = useMemo(
@@ -47,11 +49,13 @@ export function AppUpdateDialog({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const primaryLabel = downloaded
-    ? t('update.restart')
+  const primaryLabel = preparing
+    ? t('update.preparing')
     : failed
-      ? t('update.retry')
-      : t('update.download')
+      ? t(installAction ? 'update.retryInstall' : 'update.retry')
+      : downloaded
+        ? t('update.restart')
+        : t('update.download')
 
   return (
     <ModalDialog
@@ -104,8 +108,9 @@ export function AppUpdateDialog({
             <Button
               variant="primary"
               className={styles.primary}
-              onClick={downloaded ? onInstall : onDownload}
-              disabled={!update}
+              onClick={installAction ? onInstall : onDownload}
+              disabled={!update || preparing}
+              loading={preparing}
             >
               {primaryLabel}
             </Button>

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopHubError, type HubEvent, type HubProject } from '../desktopHub'
 import { LocalProjectList } from '../localProjects'
 
@@ -40,6 +40,12 @@ function fakeHub(initial: HubProject[]) {
 }
 
 const paths = (list: LocalProjectList): string[] => list.list().map((entry) => entry.path)
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => { resolve = complete })
+  return { promise, resolve }
+}
 
 describe('LocalProjectList', () => {
   it('re-reads Hub projects on projects.changed and notifies', async () => {
@@ -97,5 +103,178 @@ describe('LocalProjectList', () => {
     await list.refresh()
     expect(paths(list)).toEqual(['/work/a', '/work/b'])
     expect(onChanged).toHaveBeenCalledTimes(1)
+  })
+
+  describe('snapshot recovery', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    })
+
+    it('recovers all projects after a cold fetch failure while SSE stays connected without events', async () => {
+      const projects = Array.from({ length: 7 }, (_, index) => project(`/work/${index}`, `2026-10-0${index + 1}T08:00:00Z`))
+      const fake = fakeHub(projects)
+      fake.hub.listProjects.mockRejectedValueOnce(new Error('Hub is starting'))
+      const onChanged = vi.fn()
+      const list = new LocalProjectList(() => fake.hub, onChanged)
+      list.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(paths(list)).toEqual([])
+      expect(fake.hub.subscribeEvents).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersByTimeAsync(1_999)
+      expect(fake.hub.listProjects).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(list.list()).toHaveLength(7)
+      expect(onChanged).toHaveBeenCalledOnce()
+      expect(fake.hub.subscribeEvents).toHaveBeenCalledOnce()
+      expect(vi.getTimerCount()).toBe(0)
+      list.stop()
+    })
+
+    it('backs off failed snapshots independently and caps the delay until stopped', async () => {
+      const fake = fakeHub([A])
+      fake.hub.listProjects.mockRejectedValue(new Error('Hub unavailable'))
+      const list = new LocalProjectList(() => fake.hub, vi.fn())
+      list.start()
+      await vi.advanceTimersByTimeAsync(0)
+      let attempts = 1
+      for (const delay of [2_000, 5_000, 15_000, 30_000, 30_000]) {
+        await vi.advanceTimersByTimeAsync(delay - 1)
+        expect(fake.hub.listProjects).toHaveBeenCalledTimes(attempts)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(fake.hub.listProjects).toHaveBeenCalledTimes(++attempts)
+      }
+      expect(fake.hub.subscribeEvents).toHaveBeenCalledOnce()
+      list.stop()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(attempts)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('accepts an empty snapshot and cancels a failed-fetch retry after explicit refresh succeeds', async () => {
+      const fake = fakeHub([A, B])
+      const list = new LocalProjectList(() => fake.hub, vi.fn())
+      list.start()
+      await vi.advanceTimersByTimeAsync(0)
+      fake.hub.listProjects.mockRejectedValueOnce(new Error('Hub unavailable'))
+      await expect(list.refresh()).resolves.toBe(false)
+      expect(paths(list)).toEqual(['/work/a', '/work/b'])
+      expect(vi.getTimerCount()).toBe(1)
+
+      fake.setProjects([])
+      await expect(list.refresh()).resolves.toBe(true)
+      expect(paths(list)).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(3)
+      list.stop()
+    })
+
+    it('does not schedule background retries when the list was never started', async () => {
+      const fake = fakeHub([])
+      fake.hub.listProjects.mockRejectedValue(new Error('Hub unavailable'))
+      const list = new LocalProjectList(() => fake.hub, vi.fn())
+      await expect(list.refresh()).resolves.toBe(false)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fake.hub.listProjects).toHaveBeenCalledOnce()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('re-reads when project events arrive during a snapshot instead of losing invalidations', async () => {
+      const fake = fakeHub([A])
+      const list = new LocalProjectList(() => fake.hub, vi.fn())
+      list.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const pending = deferred<HubProject[]>()
+      fake.hub.listProjects.mockImplementationOnce(() => pending.promise)
+      const refreshing = list.refresh()
+      expect(list.refresh()).toBe(refreshing)
+      expect(list.refresh()).toBe(refreshing)
+      fake.setProjects([A, B, C])
+      fake.emit('projects.changed')
+      fake.emit('projects.changed')
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(2)
+      pending.resolve([A])
+      await refreshing
+      expect(paths(list)).toEqual(['/work/a', '/work/b', '/work/c'])
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(3)
+      list.stop()
+    })
+
+    it('ignores an old in-flight lifecycle without disturbing a restarted watcher', async () => {
+      const fake = fakeHub([])
+      const oldSnapshot = deferred<HubProject[]>()
+      const newSnapshot = deferred<HubProject[]>()
+      fake.hub.listProjects.mockImplementationOnce(() => oldSnapshot.promise)
+        .mockImplementationOnce(() => newSnapshot.promise)
+      const onChanged = vi.fn()
+      const list = new LocalProjectList(() => fake.hub, onChanged)
+      list.start()
+      list.start()
+      expect(fake.hub.listProjects).toHaveBeenCalledOnce()
+      list.stop()
+      list.stop()
+      list.start()
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(2)
+      oldSnapshot.resolve([A])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(paths(list)).toEqual([])
+      expect(onChanged).not.toHaveBeenCalled()
+      expect(fake.hub.subscribeEvents).not.toHaveBeenCalled()
+
+      newSnapshot.resolve([B])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(paths(list)).toEqual(['/work/b'])
+      expect(onChanged).toHaveBeenCalledOnce()
+      expect(fake.hub.subscribeEvents).toHaveBeenCalledOnce()
+      const [oldCallback, signal] = fake.hub.subscribeEvents.mock.calls[0]
+      list.stop()
+      expect(signal.aborted).toBe(true)
+      oldCallback({ kind: 'projects.changed', at: new Date().toISOString() })
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(2)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('suppresses requests, publication and retries while the application gate is inactive', async () => {
+      let active = false
+      const fake = fakeHub([A])
+      const onChanged = vi.fn()
+      const list = new LocalProjectList(() => fake.hub, onChanged, { isActive: () => active })
+      list.start()
+      await expect(list.refresh()).resolves.toBe(false)
+      expect(fake.hub.listProjects).not.toHaveBeenCalled()
+      active = true
+      const pending = deferred<HubProject[]>()
+      fake.hub.listProjects.mockImplementationOnce(() => pending.promise)
+      list.start()
+      active = false
+      pending.resolve([A])
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(paths(list)).toEqual([])
+      expect(onChanged).not.toHaveBeenCalled()
+      expect(fake.hub.subscribeEvents).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
+      active = true
+      list.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(paths(list)).toEqual(['/work/a'])
+      fake.hub.listProjects.mockRejectedValueOnce(new Error('Hub unavailable'))
+      await list.refresh()
+      expect(vi.getTimerCount()).toBe(1)
+      const attempts = fake.hub.listProjects.mock.calls.length
+      active = false
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fake.hub.listProjects).toHaveBeenCalledTimes(attempts)
+      expect(vi.getTimerCount()).toBe(0)
+      list.stop()
+    })
   })
 })

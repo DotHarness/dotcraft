@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from '../trayLock'
+import { readTrayLockInfo, requestTrayIdentity, requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from '../trayLock'
 
 describe('trayLock', () => {
   const tempDirs: string[] = []
@@ -92,28 +92,58 @@ describe('trayLock', () => {
     expect(readFileSync(path, 'utf8')).toBe(replacement)
   })
 
-  it('accepts authenticated shutdown requests', async () => {
-    const path = lockPath()
-    const onShutdown = vi.fn()
-    track(await tryAcquireTrayLock(path, { onShutdown }))
+  it('shuts down the captured tray even when discovery is replaced after identity verification', async () => {
+    const pathA = lockPath()
+    const pathB = lockPath()
+    const shutdownA = vi.fn()
+    const shutdownB = vi.fn()
+    track(await tryAcquireTrayLock(pathA, { onShutdown: shutdownA }))
+    track(await tryAcquireTrayLock(pathB, { onShutdown: shutdownB }))
+    const endpointA = readTrayLockInfo(pathA)!.endpoint!
 
-    await expect(requestTrayShutdown(path)).resolves.toBe(true)
+    await expect(requestTrayIdentity(endpointA)).resolves.toEqual({ pid: process.pid, executable: process.execPath })
+    writeFileSync(pathA, readFileSync(pathB))
+    await expect(requestTrayShutdown(endpointA)).resolves.toBe(true)
     await new Promise<void>((resolve) => setImmediate(resolve))
 
-    expect(onShutdown).toHaveBeenCalledOnce()
+    expect(shutdownA).toHaveBeenCalledOnce()
+    expect(shutdownB).not.toHaveBeenCalled()
   })
 
-  it('rejects shutdown when the discovery token is not owned by the server', async () => {
+  it('returns the authenticated server identity without requesting shutdown', async () => {
     const path = lockPath()
     const onShutdown = vi.fn()
     track(await tryAcquireTrayLock(path, { onShutdown }))
-    const lock = JSON.parse(readFileSync(path, 'utf8')) as {
-      endpoint: { token: string }
-    }
-    lock.endpoint.token = 'different-authentication-token'
-    writeFileSync(path, JSON.stringify(lock), 'utf8')
+    const identity = { pid: process.pid, executable: process.execPath }
+    expect(readTrayLockInfo(path)).toMatchObject(identity)
+    const endpoint = readTrayLockInfo(path)!.endpoint!
+    const record = JSON.parse(readFileSync(path, 'utf8'))
+    writeFileSync(path, JSON.stringify({ ...record, pid: 1234, executable: 'C:/fixtures/other.exe' }))
+    await expect(requestTrayIdentity(endpoint)).resolves.toEqual(identity)
+    expect(onShutdown).not.toHaveBeenCalled()
+  })
 
-    await expect(requestTrayShutdown(path)).resolves.toBe(false)
+  it('skips discovery records without valid installation metadata', async () => {
+    const path = lockPath()
+    track(await tryAcquireTrayLock(path))
+    const record = JSON.parse(readFileSync(path, 'utf8'))
+    for (const executable of [undefined, '', 42]) {
+      writeFileSync(path, JSON.stringify({ ...record, executable }))
+      expect(readTrayLockInfo(path)).toBeNull()
+    }
+  })
+
+  it.each(['token', 'protocolVersion'])('rejects identity and shutdown with invalid %s', async (field) => {
+    const path = lockPath()
+    const onShutdown = vi.fn()
+    track(await tryAcquireTrayLock(path, { onShutdown }))
+    const endpoint = {
+      ...readTrayLockInfo(path)!.endpoint!,
+      [field]: field === 'token' ? 'different-authentication-token' : 99
+    }
+
+    await expect(requestTrayIdentity(endpoint)).resolves.toBeNull()
+    await expect(requestTrayShutdown(endpoint)).resolves.toBe(false)
     await new Promise<void>((resolve) => setImmediate(resolve))
 
     expect(onShutdown).not.toHaveBeenCalled()

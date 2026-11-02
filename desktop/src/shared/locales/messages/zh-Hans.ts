@@ -492,6 +492,8 @@ export const MESSAGES_ZH_HANS = {
   'update.download': '下载',
   'update.downloadingPercent': '下载中 {{percent}}%',
   'update.restart': '重启以更新',
+  'update.preparing': '正在准备重启…',
+  'update.retryInstall': '重试安装',
   'update.transferDetail': '{{transferred}} / {{total}} · {{speed}}/s',
   'update.downloadProgressAria': '更新下载进度',
   'update.retry': '重试下载',

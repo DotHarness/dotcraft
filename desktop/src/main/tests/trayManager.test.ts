@@ -3,6 +3,7 @@ import type { HubEvent } from '../desktopHub'
 import type { WorkspaceWindowState } from '../desktopActivation'
 import type { AppSettings } from '../settings'
 import type { WorkspaceLockStatus } from '../workspaceLock'
+import type { TrayLockInfo } from '../trayLock'
 import { existsSync } from 'fs'
 import {
   ensureTrayProcess,
@@ -14,6 +15,7 @@ import {
   showHubNotification,
   showHubNotificationForSettings,
   spawnDesktopWindow,
+  stopTrayProcess,
   trayWorkspaceName
 } from '../trayManager'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
@@ -40,6 +42,7 @@ const trayLockMocks = vi.hoisted(() => {
   return {
     release,
     tryAcquireTrayLock: vi.fn(async () => ({ release })),
+    readTrayLockInfo: vi.fn<() => TrayLockInfo | null>(() => null),
     requestTrayShutdown: vi.fn(async () => false)
   }
 })
@@ -203,6 +206,7 @@ vi.mock('fs', () => ({
 beforeEach(() => {
   settingsMocks.loadSettings.mockReturnValue({})
   trayLockMocks.tryAcquireTrayLock.mockResolvedValue({ release: trayLockMocks.release })
+  trayLockMocks.readTrayLockInfo.mockReturnValue(null)
   trayLockMocks.requestTrayShutdown.mockResolvedValue(false)
   hubClientMocks.getStatus.mockResolvedValue({})
   hubClientMocks.listAppServers.mockResolvedValue([])
@@ -242,6 +246,16 @@ function windowState(focused: boolean): WorkspaceWindowState {
 }
 
 const notificationIcon = expect.stringMatching(/[\\/]icon\.png$/)
+
+it('discovers the tray once before requesting tray-only shutdown', async () => {
+  const endpoint = { host: '127.0.0.1', port: 12345, token: 'fixture-control-token', protocolVersion: 1 }
+  trayLockMocks.readTrayLockInfo.mockReturnValueOnce({ endpoint })
+  trayLockMocks.requestTrayShutdown.mockResolvedValueOnce(true)
+
+  await expect(stopTrayProcess()).resolves.toBe(true)
+  expect(trayLockMocks.readTrayLockInfo).toHaveBeenCalledOnce()
+  expect(trayLockMocks.requestTrayShutdown).toHaveBeenCalledWith(endpoint)
+})
 
 describe('trayManager icon resolution', () => {
   beforeEach(() => {
@@ -501,6 +515,26 @@ describe('trayManager Hub refresh', () => {
 
     expect(workspaceSubmenu()[0]?.label).toBe('No managed workspaces')
     expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+  })
+
+  it('stops tray-only activity without quitting Desktop or restarting subscriptions after an in-flight refresh', async () => {
+    let resolveStatus!: (value: object) => void
+    hubClientMocks.getStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
+    const running = runTrayProcess()
+    await vi.waitFor(() => expect(hubClientMocks.getStatus).toHaveBeenCalledOnce(), { interval: 1 })
+    const options = (trayLockMocks.tryAcquireTrayLock.mock.calls[0] as unknown as [unknown, {
+      onShutdown(): void
+    }])[1]
+    options.onShutdown()
+    electronMocks.triggerBeforeQuit()
+    resolveStatus({})
+    await running
+    expect(recentThreadCatalogMocks.refresh).not.toHaveBeenCalled()
+    expect(hubClientMocks.subscribeEvents).not.toHaveBeenCalled()
+    expect(desktopProcessRegistryMocks.quitRegisteredDesktopProcesses).not.toHaveBeenCalled()
+    expect(hubClientMocks.shutdownHub).not.toHaveBeenCalled()
+    expect(electronMocks.appQuit).toHaveBeenCalledOnce()
+    expect(trayLockMocks.release).toHaveBeenCalledOnce()
   })
 
   it('quits every Desktop process before shutting down Hub and the tray', async () => {
