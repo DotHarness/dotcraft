@@ -167,8 +167,10 @@ context.
 
 The model-visible `SpawnAgent` declaration carries a model choice snapshot, created before a
 thread's first provider request, persisted with its thread configuration, and reused across Turns,
-rebuilds, and cold resumes. A full-history child copies the parent's snapshot; fresh and bounded
-children create their own.
+rebuilds, and cold resumes. Thread configuration updates preserve the existing server-owned snapshot,
+including when changing provider, model, reasoning, speed, or approval policy; updated model choices
+apply to newly initialized snapshots, not existing ones. A full-history child copies the parent's
+snapshot; fresh and bounded children create their own.
 
 - When `SubAgent.Models` is non-empty, the snapshot lists those entries in configured order, skipping
   entries whose provider is not configured or has no usable credentials.

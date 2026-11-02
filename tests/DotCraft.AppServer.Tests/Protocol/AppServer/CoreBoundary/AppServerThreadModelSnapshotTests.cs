@@ -308,6 +308,60 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             profileConfiguration.GetProperty("toolPolicy").GetProperty("deny")[0].GetString());
     }
 
+    [Fact]
+    public async Task ThreadConfigUpdate_PreservesServerOwnedSubAgentModelSnapshot()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
+        await using var agentFactory = CreateAgentFactory(config);
+        var service = new SessionService(
+            agentFactory,
+            agentFactory.CreateAgentForMode(AgentMode.Agent),
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate());
+        var snapshot = new SubAgentModelCatalogSnapshot
+        {
+            ProviderId = "openai",
+            Description = "captured model choices",
+            Models = [new SubAgentModelCatalogItem
+            {
+                Id = "openai/model-a", ProviderId = "openai", Model = "model-a",
+                SupportedReasoningEfforts = [ModelReasoningEffort.Low, ModelReasoningEffort.High],
+                DefaultReasoningEffort = ModelReasoningEffort.Low
+            }]
+        };
+        var thread = await service.CreateThreadAsync(
+            new SessionIdentity { WorkspacePath = _tempDir, UserId = "test", ChannelName = "appserver" },
+            new ThreadConfiguration { SubAgentModelCatalogSnapshot = snapshot });
+        var transport = new InMemoryTransport();
+        var handler = new AppServerRequestHandler(
+            service, new AppServerConnection(), transport,
+            new ModuleRegistryChannelListContributor(new ModuleRegistry()),
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                WorkspaceCraftPath = _craftPath,
+                AppConfigMonitor = new AppConfigMonitor(config)
+            });
+        await InitializeAsync(handler, transport);
+
+        await ExecuteRequestAsync(handler, transport, InMemoryTransport.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id }, id: 10));
+        using var read = await ReadResponseForIdAsync(transport, 10);
+        var clientConfig = System.Text.Json.Nodes.JsonNode.Parse(
+            read.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration").GetRawText())!;
+        clientConfig["approvalPolicy"] = "prompt";
+        await ExecuteRequestAsync(handler, transport, InMemoryTransport.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadConfigUpdate,
+            new { threadId = thread.Id, config = clientConfig }, id: 11));
+        using var response = await ReadResponseForIdAsync(transport, 11);
+        Assert.False(response.RootElement.TryGetProperty("error", out _));
+        Assert.Equal(ApprovalPolicy.Prompt, (await service.GetThreadAsync(thread.Id)).Configuration?.ApprovalPolicy);
+
+        var persisted = Assert.IsType<SessionThread>(await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id));
+        Assert.Equal(ApprovalPolicy.Prompt, persisted.Configuration?.ApprovalPolicy);
+        Assert.Equivalent(snapshot, persisted.Configuration?.SubAgentModelCatalogSnapshot, strict: true);
+    }
+
     private ConfigurationService CreateConfiguration(IAppConfigMonitor monitor, SessionService service)
     {
         var configuration = new ConfigurationService(

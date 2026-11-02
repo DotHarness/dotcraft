@@ -33,6 +33,8 @@ public sealed partial class SessionService
                     config,
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
+                if (previous?.SubAgentModelCatalogSnapshot is { } modelCatalogSnapshot)
+                    thread.Configuration.SubAgentModelCatalogSnapshot = SubAgentModelCatalogSnapshots.Clone(modelCatalogSnapshot);
                 thread.Configuration.MemoryScope = previous?.MemoryScope;
                 thread.Configuration.MemoryStores ??= previous?.MemoryStores;
                 thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
