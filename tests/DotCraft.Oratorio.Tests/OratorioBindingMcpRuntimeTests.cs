@@ -125,6 +125,7 @@ public sealed class OratorioBindingMcpRuntimeTests
             new McpClientOptions { ProtocolVersion = "2025-06-18" });
 
         Assert.Equal("2025-06-18", client.NegotiatedProtocolVersion);
+        Assert.NotNull(client.ServerInfo);
         Assert.Equal("oratorio.board", client.ServerInfo.Name);
         Assert.True(runtime.Promote("binding-tools", bearer, 9));
 

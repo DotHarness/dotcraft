@@ -44,8 +44,9 @@ public sealed class AnthropicAuthenticationTests
             await client.GetResponseAsync([new ChatMessage(ChatRole.User, "Probe.")]);
 
             Assert.NotNull(handler.Headers);
-            Assert.Equal("configured-key", Assert.Single(handler.Headers.GetValues("x-api-key")));
-            Assert.False(handler.Headers.Contains("Authorization"));
+            Assert.Equal("Bearer configured-key", handler.Headers.Authorization?.ToString());
+            Assert.False(handler.Headers.Contains("x-api-key"));
+            Assert.Equal("2026-10-21", Assert.Single(handler.Headers.GetValues("anthropic-version")));
         }
         finally
         {

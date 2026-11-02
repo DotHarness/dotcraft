@@ -31,8 +31,10 @@ public sealed class NativeProviderParityTests
         upstream.MapPost("/{**operation}", async context =>
         {
             requests.Add(JsonNode.Parse(await new StreamReader(context.Request.Body).ReadToEndAsync())!);
-            headers.Add(protocol == ModelProviderProtocols.Anthropic
-                ? context.Request.Headers["x-api-key"].ToString() : context.Request.Headers.Authorization.ToString());
+            headers.Add(context.Request.Headers.Authorization.ToString());
+            Assert.False(context.Request.Headers.ContainsKey("x-api-key"));
+            if (protocol == ModelProviderProtocols.Anthropic)
+                Assert.Equal("2026-10-21", context.Request.Headers["anthropic-version"].ToString());
             context.Response.ContentType = "text/event-stream";
             await context.Response.WriteAsync(protocol switch
             {
@@ -40,6 +42,14 @@ public sealed class NativeProviderParityTests
                 ModelProviderProtocols.OpenAIResponses => ResponsesStream,
                 _ => OpenAIStream
             });
+        });
+        upstream.MapGet("/{**operation}", async context =>
+        {
+            Assert.Equal("Bearer upstream-secret", context.Request.Headers.Authorization.ToString());
+            Assert.False(context.Request.Headers.ContainsKey("x-api-key"));
+            if (protocol == ModelProviderProtocols.Anthropic)
+                Assert.Equal("2026-10-21", context.Request.Headers["anthropic-version"].ToString());
+            await context.Response.WriteAsJsonAsync(new { data = new[] { new { id = "catalog-model" } } });
         });
         await upstream.StartAsync();
         var endpoint = upstream.Urls.Single();
@@ -61,7 +71,7 @@ public sealed class NativeProviderParityTests
         var remote = await ExecuteAsync(runtime with { ApiKey = "", IsRemote = true }, transport);
         Assert.True(JsonNode.DeepEquals(requests[0], requests[1]), $"{requests[0]}\n{requests[1]}");
         Assert.Equal(headers[0], headers[1]);
-        Assert.Equal(protocol == ModelProviderProtocols.Anthropic ? "upstream-secret" : "Bearer upstream-secret", headers[1]);
+        Assert.Equal("Bearer upstream-secret", headers[1]);
         Assert.Equal(direct, remote);
         Assert.Contains("lookup", remote);
         Assert.Contains("value", remote);
@@ -70,6 +80,16 @@ public sealed class NativeProviderParityTests
         Assert.Equal("turn", access.Call.Context.Conversation.TurnId);
         Assert.Equal("test-model", access.Call.Context.Model);
         Assert.Equal(new ProviderHttpUsage(12, 8), access.Call.Usage);
+        if (protocol == ModelProviderProtocols.Anthropic)
+        {
+            var directCatalog = await ((IModelCatalogProvider)new AnthropicClientProvider()).FetchModelsAsync(runtime, default);
+            var remoteCatalog = await ((IModelCatalogProvider)new AnthropicClientProvider(transport))
+                .FetchModelsAsync(runtime with { ApiKey = "", IsRemote = true }, default);
+            Assert.True(directCatalog.Success);
+            Assert.True(remoteCatalog.Success);
+            Assert.Equal("catalog-model", Assert.Single(directCatalog.Models).Id);
+            Assert.Equal("catalog-model", Assert.Single(remoteCatalog.Models).Id);
+        }
         if (protocol == ModelProviderProtocols.OpenAIResponses)
         {
             foreach (var caller in new[] { "environment-a", "environment-b", "environment-a" })

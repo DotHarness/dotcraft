@@ -70,3 +70,7 @@ but cannot mutate providers or start or revoke upstream authentication.
 Provider catalogs optionally advertise `webSearchBackend: "deepseek"` for official DeepSeek API-key providers; its absence disables remote DeepSeek search. This metadata contains no credentials and is carried through the worker's effective provider metadata and AppServer provider list.
 
 `POST tools/search` uses the provider HTTP transport, caller authorization, correlation context, timeout, cancellation, and observers. The service accepts it only for a configured official DeepSeek provider, independently of whether its model protocol is OpenAI or Anthropic. It maps the logical operation to `https://api.deepseek.com/v1/tools/search` and injects the provider's API key using Bearer authentication. Client authorization and Anthropic model authentication headers are never forwarded as search credentials. Search does not require a model, does not execute workspace tools, and never falls back to worker credentials. Other providers cannot use this operation.
+
+## Anthropic upstream contract
+
+Anthropic requests use API version `2026-10-21` and `Authorization: Bearer` authentication, including model catalog requests. The service discards worker credentials and injects its configured upstream credential; remote SDK placeholder credentials never reach the upstream.

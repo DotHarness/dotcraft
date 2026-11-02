@@ -303,7 +303,7 @@ public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
                   "result": {
                     "protocolVersion": {{JsonSerializer.Serialize(protocolVersion)}},
                     "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "mock-http-mcp", "version": "1.0.0" }
+                    "serverInfo": {{(_options.MissingServerInfo ? "null" : "{\"name\":\"mock-http-mcp\",\"version\":\"1.0.0\"}")}}
                   }
                 }
                 """;
@@ -590,6 +590,7 @@ public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
         {
             public string ToolName { get; init; } = "demo_tool";
             public bool SupportsModernDiscovery { get; init; }
+            public bool MissingServerInfo { get; init; }
             public bool ExpireFirstToolCall { get; init; }
             public bool BareStaleToolCall404 { get; init; }
             public bool ExpireFirstToolsList { get; init; }

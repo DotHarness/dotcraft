@@ -209,10 +209,7 @@ internal sealed class ModelServiceProxy(
                     || header.Key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
                     request.Content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
         }
-        if (provider.Backend is null && operation != "tools/search" && provider.Runtime.Protocol == ModelProviderProtocols.Anthropic)
-            request.Headers.TryAddWithoutValidation("x-api-key", token);
-        else
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         if (provider.Authentication?.GetAccountId() is { } account)
             request.Headers.TryAddWithoutValidation("chatgpt-account-id", account);
         using var client = clients.CreateClient("DotCraft.ModelService.Upstream");

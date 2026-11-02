@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using Anthropic;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
@@ -79,8 +80,8 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
                 HttpMethod.Get,
                 new Uri(endpoint.ToString().TrimEnd('/') + "/v1/models?limit=1000"));
             if (!runtime.IsRemote)
-                request.Headers.Add("x-api-key", runtime.ApiKey);
-            request.Headers.Add("anthropic-version", "2023-06-01");
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", runtime.ApiKey);
+            request.Headers.Add("anthropic-version", "2026-10-21");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(runtime.NetworkTimeoutSeconds));
             var httpClient = runtime.IsRemote ? RemoteHttpClient(runtime.ProviderId, endpoint) : SharedHttpClient;
