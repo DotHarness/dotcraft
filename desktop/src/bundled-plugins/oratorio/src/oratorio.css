@@ -288,11 +288,11 @@
 .ora-sync-action { display: inline-flex; align-items: center; gap: 7px; }
 .ora-label-editor { display: grid; width: min(500px, 52vw); max-width: 100%; gap: 5px; }
 .ora-label-editor__pills { display: flex; width: 100%; min-width: 0; min-height: 24px; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.ora-settings-label { display: inline-flex; min-width: 0; max-width: 100%; min-height: 24px; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); background: var(--bg-primary); font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); }
+.ora-settings-label { display: inline-flex; min-width: 0; max-width: 100%; height: 24px; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); background: var(--bg-primary); font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); }
 .ora-settings-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ora-settings-label button { display: inline-grid; width: 24px; height: 24px; margin-right: -6px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--text-dimmed); background: transparent; }
+.ora-settings-label button { display: inline-grid; flex: none; width: 18px; height: 18px; margin-right: -4px; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--text-dimmed); background: transparent; }
 .ora-settings-label button:hover { color: var(--text-primary); background: var(--bg-tertiary); }
-.ora-label-editor__add { display: inline-flex; min-height: 24px; align-items: center; gap: 5px; padding: 0 9px; border: 1px dashed var(--border-active); border-radius: 999px; color: var(--text-secondary); background: transparent; font: inherit; font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); cursor: pointer; }
+.ora-label-editor__add { display: inline-flex; height: 24px; align-items: center; gap: 5px; padding: 0 9px; border: 1px dashed var(--border-active); border-radius: 999px; color: var(--text-secondary); background: transparent; font: inherit; font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); cursor: pointer; }
 .ora-label-editor__add:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 .ora-label-editor__add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ora-label-editor__input { display: inline-flex; width: 132px; height: 24px; align-items: center; overflow: hidden; border: 1px solid var(--accent); border-radius: 999px; background: var(--bg-primary); }
