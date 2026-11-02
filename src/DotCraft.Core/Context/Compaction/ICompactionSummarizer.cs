@@ -21,8 +21,11 @@ public sealed record CompactionSummary(
 /// <summary>A summary, or a machine-readable reason why none is available.</summary>
 public sealed record CompactionSummaryAttempt(CompactionSummary? Result, string? Reason);
 
-/// <summary>The per-pipeline compactors the built-in summarizer delegates to; only the compaction pipeline can supply them.</summary>
-internal sealed record CompactionSummaryHostInputs(PartialCompactor Partial, FullCompactor Full);
+/// <summary>Internal replay inputs supplied by the compaction pipeline to the built-in summarizer.</summary>
+internal sealed record CompactionSummaryHostInputs(PartialCompactor Partial, FullCompactor Full)
+{
+    internal IReadOnlyList<ChatMessage> ReplayHistory { get; init; } = [];
+}
 
 /// <summary>The history the kernel has decided to compact, and the shape of summary it is asking for.</summary>
 public sealed record CompactionSummaryRequest(

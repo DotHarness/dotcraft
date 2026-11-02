@@ -59,6 +59,7 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
                 runtime.Model),
             new Dictionary<Type, object>
             {
+                [typeof(IProviderHistoryRewritePolicy)] = AnthropicHistoryRewritePolicy.Instance,
                 [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
                 [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance,
                 [typeof(IProviderFailureClassifier)] = AnthropicProviderFailureClassifier.Instance

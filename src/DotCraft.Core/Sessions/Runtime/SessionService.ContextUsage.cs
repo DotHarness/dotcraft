@@ -130,34 +130,12 @@ public sealed partial class SessionService
             return null;
         }
 
-        return RebasePromptRequestSnapshotForManualCompaction(
-            template,
-            threadId,
-            currentHistory,
-            estimatedInputTokens,
-            invalidReason);
-    }
-
-    private static PromptRequestSnapshot RebasePromptRequestSnapshotForManualCompaction(
-        PromptRequestSnapshot template,
-        string threadId,
-        IReadOnlyList<ChatMessage> currentHistory,
-        int? estimatedInputTokens,
-        string? invalidReason)
-    {
-        var capturedMessages = MessageGrouper
-            .NormalizeFunctionCallArguments(currentHistory)
-            .Select(message => message.Clone())
-            .ToArray();
-
         return template with
         {
-            Messages = capturedMessages,
-            MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(capturedMessages, capturedMessages.Length),
             ThreadId = threadId,
             TurnId = null,
             EstimatedInputTokens = estimatedInputTokens ?? template.EstimatedInputTokens,
-            SnapshotSource = PromptRequestSnapshotSources.ManualRebased,
+            SnapshotSource = PromptRequestSnapshotSources.ManualInvalid,
             SnapshotInvalidReason = invalidReason
         };
     }

@@ -126,7 +126,7 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
 
     public static TheoryData<Exception, string> ProviderFailures => new()
     {
-        { new InvalidOperationException("provider failed"), "provider failed" },
+        { new InvalidOperationException("provider failed"), "provider_error" },
         { new OperationCanceledException("timeout"), "provider_timeout" },
         { new InvalidOperationException("context_length_exceeded"), MaintenanceForkFallbackReasons.SnapshotTooLarge }
     };

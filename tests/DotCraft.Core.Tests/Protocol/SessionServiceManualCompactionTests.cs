@@ -345,11 +345,11 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     }
 
     [Fact]
-    public async Task CompactThreadAsync_RebasesInvalidSnapshotForManualFork()
+    public async Task CompactThreadAsync_InvalidSnapshotUsesFallbackWithoutRebasing()
     {
         var traceStore = new TraceStore();
         var traceCollector = new TraceCollector(traceStore);
-        var summaryChat = new SummaryChatClient("<summary>rebased summary</summary>");
+        var summaryChat = new SummaryChatClient("<summary>fallback summary</summary>");
         await using var agentFactory = CreateAgentFactory(
             summaryChat,
             traceCollector: traceCollector);
@@ -357,7 +357,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             agentFactory,
             new StreamingReplyChatClient("ok"),
             traceCollector);
-        var thread = await service.CreateThreadAsync(MakeIdentity(), threadId: "thread-rebased-snapshot");
+        var thread = await service.CreateThreadAsync(MakeIdentity(), threadId: "thread-invalid-snapshot");
         var now = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 4; i++)
@@ -385,11 +385,10 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             e => e.Type == TraceEventType.MaintenanceForkRequest);
         using var metadata = JsonDocument.Parse(request.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("agent", root.GetProperty("mode").GetString());
-        Assert.Equal("provider-test", root.GetProperty("providerId").GetString());
-        Assert.Equal("gpt-test", root.GetProperty("modelId").GetString());
-        Assert.Equal("manual_rebased", root.GetProperty("snapshotSource").GetString());
+        Assert.Equal("legacy", root.GetProperty("mode").GetString());
+        Assert.Equal("manual_invalid", root.GetProperty("snapshotSource").GetString());
         Assert.Equal("history_prefix_mismatch", root.GetProperty("snapshotInvalidReason").GetString());
+        Assert.Equal("history_prefix_mismatch:0", root.GetProperty("selectionReason").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("turnId").ValueKind);
     }
 

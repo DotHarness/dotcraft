@@ -28,7 +28,7 @@ public sealed record PartialCompactAttempt(PartialCompactResult? Result, string?
 
 /// <summary>
 /// Summarizes the older portion of a conversation while preserving a tail of
-/// recent API-round groups verbatim.
+/// recent API-round groups for continuation.
 /// </summary>
 public sealed class PartialCompactor
 {
@@ -141,14 +141,14 @@ public sealed class PartialCompactor
         if (messages.Count == 0)
             return PartialCompactAttempt.Unavailable("empty_history");
 
-        messages = ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(messages);
+        var conversation = CompactionHistoryPreparation.Conversation(messages);
 
-        var splitIndex = CalculateSplitIndex(messages, _config);
+        var splitIndex = CalculateSplitIndex(conversation, _config);
         if (splitIndex <= 0)
             return PartialCompactAttempt.Unavailable("no_summarizable_prefix");
 
-        var prefix = messages.Take(splitIndex).ToList();
-        var tail = messages.Skip(splitIndex).ToList();
+        var prefix = conversation.Take(splitIndex).ToList();
+        var tail = conversation.Skip(splitIndex).ToList();
 
         if (prefix.Count == 0)
             return PartialCompactAttempt.Unavailable("no_summarizable_prefix");
@@ -161,26 +161,27 @@ public sealed class PartialCompactor
         var tailTokens = MessageTokenEstimator.Estimate(tail);
 
         string? rawSummary;
-        if (snapshot is not null
-            && _maintenanceForkRunner is not null
-            && TryBuildSnapshotRemainder(snapshot, messages, out var messagesBeforeTask))
+        var selectionReason = CompactionHistoryPreparation.SnapshotFailure(snapshot, messages, _maintenanceForkRunner is not null);
+        try
         {
-            var fork = await RunSnapshotForkAsync(snapshot, splitIndex, tail, messagesBeforeTask, cancellationToken);
-            if (fork.FallbackReason is not null)
+            if (selectionReason is null)
             {
-                if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
-                    rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
+                var remainder = messages.Skip(snapshot!.Messages.Count).ToArray();
+                var boundary = CompactionHistoryPreparation.OriginalBoundary(messages, splitIndex);
+                var fork = await RunSnapshotForkAsync(snapshot, boundary, tail, remainder, cancellationToken);
+                if (fork.FallbackReason is null)
+                    rawSummary = fork.Text;
+                else if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
+                    rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, fork.FallbackReason, cancellationToken);
                 else
                     return PartialCompactAttempt.Unavailable(fork.FallbackReason);
             }
             else
-            {
-                rawSummary = fork.Text;
-            }
+                rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, selectionReason, cancellationToken);
         }
-        else
+        catch (CompactionSummaryException ex)
         {
-            rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
+            return PartialCompactAttempt.Unavailable(ex.Message);
         }
 
         if (string.IsNullOrWhiteSpace(rawSummary))
@@ -196,7 +197,7 @@ public sealed class PartialCompactor
 
         return PartialCompactAttempt.Succeeded(new PartialCompactResult(
             SummarizedPrefix: prefix,
-            PreservedTail: tail,
+            PreservedTail: CompactionHistoryPreparation.Replacement(tail, _chatClient.GetService<IProviderHistoryRewritePolicy>()),
             FormattedSummary: formatted,
             RawSummary: rawSummary,
             PrefixEstimatedTokens: prefixTokens,
@@ -232,20 +233,21 @@ public sealed class PartialCompactor
         PromptRequestSnapshot? snapshot,
         IReadOnlyList<AITool>? fallbackTools,
         string? threadId,
+        string selectionReason,
         CancellationToken cancellationToken)
     {
-        var candidate = paired.ToList();
+        var candidate = CompactionHistoryPreparation.Fallback(paired, _chatClient).ToList();
         var taskMessage = BuildLegacyContextCompactionTaskMessage();
         candidate = CompactionPreflightTrimmer.TrimSummaryInput(
             candidate,
             CompactionPrompts.GetPartialCompactPrompt(CompactionSummaryBudget.ResolveSummaryLimit(_config)),
             _config,
             taskMessage);
-        for (var attempt = 0; attempt <= MaxPromptTooLongRetries; attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             try
             {
-                return await RunLegacySummaryOnceAsync(candidate, snapshot, fallbackTools, threadId, cancellationToken);
+                return await RunLegacySummaryOnceAsync(candidate, snapshot, fallbackTools, threadId, selectionReason, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -257,21 +259,20 @@ public sealed class PartialCompactor
             catch (Exception ex) when (CompactionErrors.IsPromptTooLong(ex))
             {
                 if (attempt == MaxPromptTooLongRetries)
-                    return null;
+                    throw new CompactionSummaryException("provider_context_window_exceeded", ex);
 
                 candidate = CompactionMessageTruncator.TryTruncateOldestToolResult(candidate, out var toolTrimmed)
                     ? toolTrimmed
                     : CompactionMessageTruncator.TruncateOldestGroups(candidate);
                 if (candidate.Count == 0)
-                    return null;
+                    throw new CompactionSummaryException("provider_context_window_exceeded", ex);
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                throw new CompactionSummaryException(CompactionProviderFailure.Reason(_chatClient, ex), ex);
             }
         }
 
-        return null;
     }
 
     private async Task<string?> RunLegacySummaryOnceAsync(
@@ -279,6 +280,7 @@ public sealed class PartialCompactor
         PromptRequestSnapshot? snapshot,
         IReadOnlyList<AITool>? fallbackTools,
         string? threadId,
+        string selectionReason,
         CancellationToken cancellationToken)
     {
         var summaryPrompt = CompactionPrompts.GetPartialCompactPrompt(CompactionSummaryBudget.ResolveSummaryLimit(_config));
@@ -303,7 +305,11 @@ public sealed class PartialCompactor
             extraTailMessageCount: 0,
             tools: SelectLegacyTools(snapshot, fallbackTools),
             baseInstructionsFingerprint: null,
-            toolFingerprint: null);
+            toolFingerprint: null,
+            snapshotSource: snapshot?.SnapshotSource,
+            snapshotInvalidReason: snapshot?.SnapshotInvalidReason,
+            requestPath: "fallback",
+            selectionReason: selectionReason);
 
         try
         {
@@ -339,7 +345,8 @@ public sealed class PartialCompactor
             _traceCollector?.RecordMaintenanceForkResponse(
                 sessionKey,
                 MaintenanceForkTaskKind.ContextCompaction,
-                ex.Message);
+                CompactionProviderFailure.Reason(_chatClient, ex),
+                providerError: ex.Message);
             throw;
         }
     }
@@ -378,26 +385,6 @@ public sealed class PartialCompactor
             : null;
     }
 
-    private static bool TryBuildSnapshotRemainder(
-        PromptRequestSnapshot snapshot,
-        IReadOnlyList<ChatMessage> messages,
-        out IReadOnlyList<ChatMessage> remainder)
-    {
-        remainder = [];
-        if (snapshot.Messages.Count > messages.Count)
-            return false;
-
-        var candidateFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(messages, snapshot.Messages.Count);
-        if (!string.Equals(candidateFingerprint, snapshot.MessageFingerprint, StringComparison.Ordinal))
-            return false;
-
-        remainder = messages
-            .Skip(snapshot.Messages.Count)
-            .Select(message => message.Clone())
-            .ToArray();
-        return true;
-    }
-
     private static string BuildContextCompactionTaskInstructions(
         int splitIndex,
         IReadOnlyList<ChatMessage> tail,
@@ -415,6 +402,7 @@ public sealed class PartialCompactor
 Compaction boundary:
 - Summarize the conversation before message index {splitIndex}.
 - {tailHint}
+- Workspace instruction messages are supplied separately; do not copy them into the summary.
 - Return only the requested handoff summary.
 """;
     }

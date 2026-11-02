@@ -265,7 +265,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     [Fact]
-    public async Task ApiKeyResponses_LocalSummaryFiltersAndReloadsInstructions()
+    public async Task ApiKeyResponses_LocalSummaryReplaysAndReloadsInstructions()
     {
         await using var factory = CreateFactory(oauth: false);
         var service = CreateService(factory);
@@ -278,7 +278,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         await CompactAsync(service, thread.Id);
         Assert.Empty(_provider.Compactions);
         Assert.True(_provider.Requests.Count > requestCount);
-        Assert.All(_provider.Requests.Skip(requestCount), request => Assert.DoesNotContain("blue project", request));
+        Assert.All(_provider.Requests.Skip(requestCount), request => Assert.Contains("blue project", request));
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("continue after summary")]));
         var history = await new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")))
             .LoadModelHistoryAsync(thread.Id, CancellationToken.None);

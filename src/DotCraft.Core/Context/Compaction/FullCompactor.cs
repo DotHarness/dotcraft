@@ -81,32 +81,32 @@ public sealed class FullCompactor
         if (messages.Count == 0)
             return FullCompactAttempt.Unavailable("empty_history");
 
-        var sanitized = SanitizeForSummary(messages);
-        var paired = MessageGrouper.EnsurePairing(sanitized);
+        var conversation = CompactionHistoryPreparation.Conversation(messages);
+        var paired = MessageGrouper.EnsurePairing(conversation);
         if (paired.Count == 0)
             return FullCompactAttempt.Unavailable("no_summarizable_history");
 
         string? rawSummary;
-        if (snapshot is not null
-            && _maintenanceForkRunner is not null
-            && TryBuildSnapshotTail(snapshot, sanitized, out var snapshotTail))
+        var selectionReason = CompactionHistoryPreparation.SnapshotFailure(snapshot, messages, _maintenanceForkRunner is not null);
+        try
         {
-            var fork = await RunSnapshotForkAsync(snapshot, snapshotTail, cancellationToken);
-            if (fork.FallbackReason is not null)
+            if (selectionReason is null)
             {
-                if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
-                    rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
+                var remainder = messages.Skip(snapshot!.Messages.Count).ToArray();
+                var fork = await RunSnapshotForkAsync(snapshot, remainder, cancellationToken);
+                if (fork.FallbackReason is null)
+                    rawSummary = fork.Text;
+                else if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
+                    rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, fork.FallbackReason, cancellationToken);
                 else
                     return FullCompactAttempt.Unavailable(fork.FallbackReason);
             }
             else
-            {
-                rawSummary = fork.Text;
-            }
+                rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, selectionReason, cancellationToken);
         }
-        else
+        catch (CompactionSummaryException ex)
         {
-            rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
+            return FullCompactAttempt.Unavailable(ex.Message);
         }
 
         if (string.IsNullOrWhiteSpace(rawSummary))
@@ -122,7 +122,7 @@ public sealed class FullCompactor
         var replacement = CompactionSummaryMessage.Create(formatted);
 
         return FullCompactAttempt.Succeeded(new FullCompactResult(
-            SummarizedMessages: messages,
+            SummarizedMessages: conversation,
             PreservedTail: [],
             FormattedSummary: formatted,
             RawSummary: rawSummary,
@@ -156,30 +156,21 @@ public sealed class FullCompactor
         PromptRequestSnapshot? snapshot,
         IReadOnlyList<AITool>? fallbackTools,
         string? threadId,
-        CancellationToken cancellationToken)
-    {
-        return await RunLegacySummaryWithRetriesAsync(messages, snapshot, fallbackTools, threadId, cancellationToken);
-    }
-
-    private async Task<string?> RunLegacySummaryWithRetriesAsync(
-        IReadOnlyList<ChatMessage> messages,
-        PromptRequestSnapshot? snapshot,
-        IReadOnlyList<AITool>? fallbackTools,
-        string? threadId,
+        string selectionReason,
         CancellationToken cancellationToken)
     {
         var summaryPrompt = BuildFullContextCompactionTaskInstructions(CompactionSummaryBudget.ResolveSummaryLimit(_config));
         var taskMessage = BuildLegacyContextCompactionTaskMessage();
         var candidate = CompactionPreflightTrimmer.TrimSummaryInput(
-            messages,
+            CompactionHistoryPreparation.Fallback(messages, _chatClient),
             summaryPrompt,
             _config,
             taskMessage);
-        for (var attempt = 0; attempt <= MaxPromptTooLongRetries; attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             try
             {
-                return await RunLegacySummaryOnceAsync(candidate, snapshot, fallbackTools, threadId, cancellationToken);
+                return await RunLegacySummaryOnceAsync(candidate, snapshot, fallbackTools, threadId, selectionReason, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -191,21 +182,20 @@ public sealed class FullCompactor
             catch (Exception ex) when (CompactionErrors.IsPromptTooLong(ex))
             {
                 if (attempt == MaxPromptTooLongRetries)
-                    return null;
+                    throw new CompactionSummaryException("provider_context_window_exceeded", ex);
 
                 candidate = CompactionMessageTruncator.TryTruncateOldestToolResult(candidate, out var toolTrimmed)
                     ? toolTrimmed
                     : CompactionMessageTruncator.TruncateOldestGroups(candidate);
                 if (candidate.Count == 0)
-                    return null;
+                    throw new CompactionSummaryException("provider_context_window_exceeded", ex);
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                throw new CompactionSummaryException(CompactionProviderFailure.Reason(_chatClient, ex), ex);
             }
         }
 
-        return null;
     }
 
     private async Task<string?> RunLegacySummaryOnceAsync(
@@ -213,6 +203,7 @@ public sealed class FullCompactor
         PromptRequestSnapshot? snapshot,
         IReadOnlyList<AITool>? fallbackTools,
         string? threadId,
+        string selectionReason,
         CancellationToken cancellationToken)
     {
         var summaryPrompt = BuildFullContextCompactionTaskInstructions(CompactionSummaryBudget.ResolveSummaryLimit(_config));
@@ -237,7 +228,11 @@ public sealed class FullCompactor
             extraTailMessageCount: 0,
             tools: SelectLegacyTools(snapshot, fallbackTools),
             baseInstructionsFingerprint: null,
-            toolFingerprint: null);
+            toolFingerprint: null,
+            snapshotSource: snapshot?.SnapshotSource,
+            snapshotInvalidReason: snapshot?.SnapshotInvalidReason,
+            requestPath: "fallback",
+            selectionReason: selectionReason);
 
         try
         {
@@ -273,7 +268,8 @@ public sealed class FullCompactor
             _traceCollector?.RecordMaintenanceForkResponse(
                 sessionKey,
                 MaintenanceForkTaskKind.ContextCompaction,
-                ex.Message);
+                CompactionProviderFailure.Reason(_chatClient, ex),
+                providerError: ex.Message);
             throw;
         }
     }
@@ -312,118 +308,6 @@ public sealed class FullCompactor
             : null;
     }
 
-    private static bool TryBuildSnapshotTail(
-        PromptRequestSnapshot snapshot,
-        IReadOnlyList<ChatMessage> messages,
-        out IReadOnlyList<ChatMessage> tail)
-    {
-        tail = [];
-        if (snapshot.Messages.Count > messages.Count)
-            return false;
-
-        for (var i = 0; i < snapshot.Messages.Count; i++)
-        {
-            if (!MessagesEquivalentForPrefix(snapshot.Messages[i], messages[i]))
-                return false;
-        }
-
-        tail = messages
-            .Skip(snapshot.Messages.Count)
-            .Select(message => message.Clone())
-            .ToArray();
-        return true;
-    }
-
-    private static bool MessagesEquivalentForPrefix(ChatMessage left, ChatMessage right)
-    {
-        if (left.Role != right.Role ||
-            !string.Equals(left.AuthorName, right.AuthorName, StringComparison.Ordinal) ||
-            left.Contents.Count != right.Contents.Count)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < left.Contents.Count; i++)
-        {
-            if (!ContentsEquivalentForPrefix(left.Contents[i], right.Contents[i]))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool ContentsEquivalentForPrefix(AIContent left, AIContent right)
-    {
-        if (left.GetType() != right.GetType())
-            return false;
-
-        return left switch
-        {
-            TextContent l when right is TextContent r =>
-                string.Equals(l.Text, r.Text, StringComparison.Ordinal),
-            FunctionCallContent l when right is FunctionCallContent r =>
-                string.Equals(l.CallId, r.CallId, StringComparison.Ordinal)
-                && string.Equals(l.Name, r.Name, StringComparison.Ordinal),
-            FunctionResultContent l when right is FunctionResultContent r =>
-                string.Equals(l.CallId, r.CallId, StringComparison.Ordinal),
-            DataContent l when right is DataContent r =>
-                string.Equals(l.MediaType, r.MediaType, StringComparison.OrdinalIgnoreCase),
-            UriContent l when right is UriContent r =>
-                string.Equals(l.Uri?.ToString(), r.Uri?.ToString(), StringComparison.Ordinal)
-                && string.Equals(l.MediaType, r.MediaType, StringComparison.OrdinalIgnoreCase),
-            _ => string.Equals(left.ToString(), right.ToString(), StringComparison.Ordinal)
-        };
-    }
-
-    private static IReadOnlyList<ChatMessage> SanitizeForSummary(IReadOnlyList<ChatMessage> messages)
-    {
-        messages = ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(messages);
-        var result = new List<ChatMessage>(messages.Count);
-        foreach (var message in messages)
-        {
-            List<AIContent>? contents = null;
-            for (var i = 0; i < message.Contents.Count; i++)
-            {
-                var content = message.Contents[i];
-                if (!ShouldOmitPayload(content))
-                    continue;
-
-                contents ??= new List<AIContent>(message.Contents);
-                contents[i] = new TextContent("[Large binary content omitted during context compaction.]");
-            }
-
-            if (contents is null)
-            {
-                result.Add(message);
-                continue;
-            }
-
-            result.Add(new ChatMessage(message.Role, contents)
-            {
-                AuthorName = message.AuthorName,
-                MessageId = message.MessageId
-            });
-        }
-
-        return result;
-    }
-
-    private static bool ShouldOmitPayload(AIContent content) =>
-        content switch
-        {
-            DataContent dc => IsBinaryMediaType(dc.MediaType),
-            UriContent uc => IsBinaryMediaType(uc.MediaType),
-            _ => false
-        };
-
-    private static bool IsBinaryMediaType(string? mediaType) =>
-        !string.IsNullOrWhiteSpace(mediaType)
-        && (mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-            || mediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
-            || mediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
-            || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-            || mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase));
-
     private static string BuildFullContextCompactionTaskInstructions(int maxOutputTokens)
     {
         var prompt = CompactionPrompts.GetCompactPrompt(maxOutputTokens);
@@ -433,6 +317,7 @@ public sealed class FullCompactor
 Compaction boundary:
 - Summarize the complete conversation visible above.
 - The resulting summary will replace the current model-visible history.
+- Workspace instruction messages are supplied separately; do not copy them into the summary.
 - Return only the requested handoff summary.
 """;
     }

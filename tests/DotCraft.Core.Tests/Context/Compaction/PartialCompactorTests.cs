@@ -315,7 +315,7 @@ public sealed class PartialCompactorTests
 
         var result = await partial.CompactAsync(messages);
         Assert.Null(result.Result);
-        Assert.Equal("summary_unavailable", result.Reason);
+        Assert.Equal("provider_error", result.Reason);
     }
 
     [Fact]

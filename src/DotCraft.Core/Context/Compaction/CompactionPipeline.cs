@@ -75,6 +75,7 @@ public sealed record CompactionThreshold(
 public sealed class CompactionPipeline
 {
     private readonly CompactionConfig _config;
+    private readonly IProviderHistoryRewritePolicy? _historyRewritePolicy;
     private readonly MicroCompactor _micro;
     private readonly IContributionView? _contributions;
     private readonly CompactionSummaryHostInputs _summarizers;
@@ -95,6 +96,7 @@ public sealed class CompactionPipeline
         ILogger? logger = null)
     {
         _config = config;
+        _historyRewritePolicy = summaryChatClient.GetService<IProviderHistoryRewritePolicy>();
         _micro = new MicroCompactor(config, contributions, threadId, logger);
         _contributions = contributions;
         _cacheOptions = cacheOptions;
@@ -574,8 +576,8 @@ public sealed class CompactionPipeline
         var partialResult = partial.Result;
         var summaryMessage = CompactionSummaryMessage.Create(partialResult.FormattedSummary);
         var newHistory = new List<ChatMessage>(1 + partialResult.PreservedTail.Count) { summaryMessage };
-        newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
-            partialResult.PreservedTail));
+        newHistory.AddRange(CompactionHistoryPreparation.Replacement(
+            partialResult.PreservedTail, _historyRewritePolicy));
 
         var afterTokens = AddRequestOverhead(
             MessageTokenEstimator.Estimate(newHistory),
@@ -658,8 +660,8 @@ public sealed class CompactionPipeline
         {
             CompactionSummaryMessage.Create(result.FormattedSummary)
         };
-        newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
-            result.PreservedTail));
+        newHistory.AddRange(CompactionHistoryPreparation.Replacement(
+            result.PreservedTail, _historyRewritePolicy));
 
         var afterTokens = AddRequestOverhead(
             MessageTokenEstimator.Estimate(newHistory),
@@ -686,11 +688,11 @@ public sealed class CompactionPipeline
         IReadOnlyList<AITool>? fallbackTools,
         CancellationToken cancellationToken) =>
         CompactionSummarizerCatalog.Resolve(_contributions, threadId).SummarizeAsync(
-            new CompactionSummaryRequest(scope, history, threadId)
+            new CompactionSummaryRequest(scope, CompactionHistoryPreparation.Conversation(history), threadId)
             {
                 Snapshot = snapshot,
                 FallbackTools = fallbackTools,
-                Host = _summarizers
+                Host = _summarizers with { ReplayHistory = history }
             },
             cancellationToken);
 
