@@ -329,18 +329,15 @@ export function readTrayLockInfo(lockPath = getTrayLockPath()): TrayLockInfo | n
 }
 
 export async function requestTrayIdentity(
-  lockPath = getTrayLockPath()
+  endpoint: TrayControlEndpoint
 ): Promise<{ pid: number; executable: string } | null> {
-  const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
-  const response = endpoint ? await requestTrayControl(endpoint, 'identity') : null
+  const response = await requestTrayControl(endpoint, 'identity')
   return response && typeof response.pid === 'number' && Number.isInteger(response.pid) && response.pid > 0 &&
     typeof response.executable === 'string' && response.executable.trim()
     ? { pid: response.pid, executable: response.executable }
     : null
 }
 
-export async function requestTrayShutdown(lockPath = getTrayLockPath()): Promise<boolean> {
-  const endpoint = endpointFromSnapshot(readLockSnapshot(lockPath))
-  if (!endpoint) return false
+export async function requestTrayShutdown(endpoint: TrayControlEndpoint): Promise<boolean> {
   return await requestTrayControl(endpoint, 'shutdown') != null
 }

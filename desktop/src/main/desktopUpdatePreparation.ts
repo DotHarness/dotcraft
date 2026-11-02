@@ -1,4 +1,5 @@
 import { AppUpdateRuntime } from './appUpdateRuntime'
+import type { AppUpdateLease } from './appUpdateLease'
 import { AppUpdatePreparationError, prepareAppUpdateProcesses } from './appUpdateProcesses'
 
 export interface DesktopUpdatePreparationOptions {
@@ -10,7 +11,7 @@ export interface DesktopUpdatePreparationOptions {
 }
 
 export class DesktopUpdatePreparation {
-  private prepared: { release(): void } | null = null
+  private prepared: AppUpdateLease | null = null
 
   constructor(private readonly options: DesktopUpdatePreparationOptions) {}
 
@@ -38,8 +39,9 @@ export class DesktopUpdatePreparation {
     }
   }
 
-  release(): void {
-    this.prepared?.release()
+  async release(): Promise<void> {
+    const prepared = this.prepared
     this.prepared = null
+    await prepared?.release()
   }
 }

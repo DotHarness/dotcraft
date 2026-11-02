@@ -75,6 +75,8 @@ import { AppUpdateRuntime } from './appUpdateRuntime'
 import { DesktopUpdatePreparation } from './desktopUpdatePreparation'
 import { logDesktopHubFailure, logLiveDesktopHub } from './desktopHubDiagnostics'
 import { waitForAppUpdatePreparation } from './appUpdateLease'
+import { disposeSatellitesHubBridge } from './satellites/satellitesHubBridge'
+import { disposeMobileHubBridge } from './mobile/mobileHubBridge'
 import { UserInputAutoResolutionCoordinator } from './userInputAutoResolution'
 import type {
   ConnectionErrorType,
@@ -303,7 +305,6 @@ let isAppQuitting = false
 const appUpdateRuntime = new AppUpdateRuntime()
 const runtimeIsStopping = (): boolean => isAppQuitting || appUpdateRuntime.isPreparing
 let desktopUpdatePreparation: DesktopUpdatePreparation | null = null
-process.once('exit', () => desktopUpdatePreparation?.release())
 let ipcHandlersRegistered = false
 let finalQuitCleanupDone = false
 let finalQuitCleanupRunning = false
@@ -983,6 +984,8 @@ function getDesktopUpdatePreparation(): DesktopUpdatePreparation {
       ? resolveBinaryLocation({ binarySource: 'bundled' }).path ?? undefined
       : undefined,
     stopBackgroundWork: () => {
+      disposeSatellitesHubBridge()
+      disposeMobileHubBridge()
       localProjects.stop()
       hubEventAbortController?.abort()
       if (secondaryRefreshTimer) clearTimeout(secondaryRefreshTimer)
@@ -3592,7 +3595,7 @@ app.on('open-url', (event, url) => {
 })
 
 app.whenReady().then(async () => {
-  if (app.isPackaged) {
+  if (app.isPackaged && process.platform === 'win32') {
     try {
       await waitForAppUpdatePreparation(process.execPath)
     } catch (error) {

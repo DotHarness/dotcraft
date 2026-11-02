@@ -94,6 +94,26 @@ describe('MobileHubBridge', () => {
     expect(received).toEqual([{ kind: 'stateChanged', status: STATUS }])
   })
 
+  it('does not publish or resubscribe after disposal with a fallback poll in flight', async () => {
+    let complete!: (state: HubMobileState) => void
+    hub.getMobile.mockImplementation(() => new Promise((resolve) => { complete = resolve }))
+    bridge.acquire()
+    bridge.acquire()
+    failStream(new Error('hub unavailable'))
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    bridge.dispose()
+    bridge.dispose()
+    bridge.acquire()
+    complete(HUB_STATE)
+    onHubEvent({ kind: 'mobile.stateChanged', at: '2026-10-03T08:00:00Z', data: HUB_STATE })
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(hub.getMobile).toHaveBeenCalledTimes(1)
+    expect(hub.subscribeEvents).toHaveBeenCalledTimes(1)
+    expect(received).toEqual([])
+  })
+
   it('forwards phone events and ignores the rest of the Hub stream', () => {
     bridge.acquire()
 

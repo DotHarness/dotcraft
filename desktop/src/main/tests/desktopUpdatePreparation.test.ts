@@ -9,7 +9,9 @@ describe('DesktopUpdatePreparation', () => {
   it('quiesces clients before process shutdown and holds the lease through installer handoff', async () => {
     const runtime = new AppUpdateRuntime()
     const steps: string[] = []
-    const release = vi.fn()
+    let finishRelease!: () => void
+    const released = new Promise<void>((resolve) => { finishRelease = resolve })
+    const release = vi.fn(() => released)
     vi.spyOn(processes, 'prepareAppUpdateProcesses').mockImplementation(async ({ quiesce }) => {
       steps.push('process coordination')
       await quiesce(new AbortController().signal)
@@ -26,8 +28,13 @@ describe('DesktopUpdatePreparation', () => {
     await preparation.prepare()
     expect(steps).toEqual(['stop watchers', 'process coordination', 'dispose runtime', 'processes exited'])
     expect(release).not.toHaveBeenCalled()
-    preparation.release()
-    preparation.release()
+    let releaseDone = false
+    const releasing = preparation.release().then(() => { releaseDone = true })
+    await Promise.resolve()
+    expect(releaseDone).toBe(false)
+    finishRelease()
+    await releasing
+    await preparation.release()
     expect(release).toHaveBeenCalledOnce()
   })
 })

@@ -1,64 +1,34 @@
-import { createHash, randomBytes } from 'crypto'
-import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs'
+import { createHash } from 'crypto'
+import net from 'net'
 import { homedir } from 'os'
-import { dirname, join, resolve } from 'path'
-
-const LEASE_LIFETIME_MS = 60_000
-
-interface UpdateLeaseRecord {
-  generation: string
-  pid: number
-  expiresAt: number
-}
+import { win32 } from 'path'
 
 export interface AppUpdateLease {
-  release(): void
+  release(): Promise<void>
 }
 
-function leasePath(desktopExecutable: string, homeDir = homedir()): string {
-  const installation = resolve(dirname(desktopExecutable)).toLowerCase()
-  const key = createHash('sha256').update(installation).digest('hex').slice(0, 24)
-  return join(homeDir, '.craft', 'desktop', 'updates', `${key}.json`)
+function pipeName(desktopExecutable: string, homeDir: string): string {
+  if (process.platform !== 'win32') throw new Error('Desktop update preparation is only supported on Windows.')
+  const installation = win32.resolve(win32.dirname(desktopExecutable)).toLowerCase()
+  const user = win32.resolve(homeDir).toLowerCase()
+  const key = createHash('sha256').update(`${user}\0${installation}`).digest('hex').slice(0, 32)
+  return `\\\\.\\pipe\\dotcraft-update-${key}`
 }
 
-function read(path: string): { record: UpdateLeaseRecord | null; raw: string | null } {
-  let raw: string
-  try { raw = readFileSync(path, 'utf8') }
-  catch { return { record: null, raw: null } }
-  try {
-    const value = JSON.parse(raw) as Partial<UpdateLeaseRecord>
-    if (typeof value.generation !== 'string' || typeof value.pid !== 'number'
-      || !Number.isInteger(value.pid) || value.pid <= 0
-      || typeof value.expiresAt !== 'number' || !Number.isFinite(value.expiresAt)) return { record: null, raw }
-    return { record: value as UpdateLeaseRecord, raw }
-  } catch {
-    return { record: null, raw }
-  }
-}
-
-function removeUnchanged(path: string, raw: string): void {
-  if (read(path).raw !== raw) return
-  try { unlinkSync(path) } catch {}
-}
-
-function ownerAlive(pid: number): boolean {
-  try { process.kill(pid, 0); return true }
-  catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM' }
-}
-
-export async function isAppUpdatePreparing(desktopExecutable: string, homeDir = homedir()): Promise<boolean> {
-  const path = leasePath(desktopExecutable, homeDir)
-  const { record, raw } = read(path)
-  if (raw === null) return false
-  if (!record) {
-    try {
-      if (Date.now() - statSync(path).mtimeMs < 5_000) return true
-    } catch { return false }
-  } else if (record.expiresAt > Date.now() && ownerAlive(record.pid)) {
-    return true
-  }
-  removeUnchanged(path, raw)
-  return false
+function isPreparing(name: string, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(name)
+    socket.once('connect', () => { socket.destroy(); resolve(true) })
+    socket.once('error', (error: NodeJS.ErrnoException) => {
+      socket.destroy()
+      if (error.code === 'ENOENT') resolve(false)
+      else reject(error)
+    })
+    socket.setTimeout(timeoutMs, () => {
+      socket.destroy()
+      reject(new Error('Cannot check whether a Desktop update is being prepared.'))
+    })
+  })
 }
 
 export async function waitForAppUpdatePreparation(
@@ -66,36 +36,34 @@ export async function waitForAppUpdatePreparation(
   homeDir = homedir(),
   timeoutMs = 40_000
 ): Promise<void> {
+  const name = pipeName(desktopExecutable, homeDir)
   const deadline = Date.now() + timeoutMs
-  while (await isAppUpdatePreparing(desktopExecutable, homeDir)) {
-    if (Date.now() >= deadline) throw new Error('Another DotCraft process is preparing an update. Try again when it has finished.')
-    await new Promise((resolve) => setTimeout(resolve, 200))
+  for (;;) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw new Error('Another DotCraft process is preparing an update. Try again when it has finished.')
+    if (!await isPreparing(name, Math.min(1_000, remaining))) return
+    await new Promise((resolve) => setTimeout(resolve, Math.min(100, Math.max(0, deadline - Date.now()))))
   }
 }
 
-export async function acquireAppUpdateLease(
-  identity: { pid: number; executable: string },
-  homeDir = homedir()
-): Promise<AppUpdateLease> {
-  const path = leasePath(identity.executable, homeDir)
-  const record: UpdateLeaseRecord = {
-    generation: randomBytes(16).toString('hex'),
-    pid: identity.pid,
-    expiresAt: Date.now() + LEASE_LIFETIME_MS
-  }
-  mkdirSync(dirname(path), { recursive: true })
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      writeFileSync(path, JSON.stringify(record), { flag: 'wx', mode: 0o600 })
-      return { release: () => {
-        const current = read(path)
-        if (current.record?.generation === record.generation && current.raw) removeUnchanged(path, current.raw)
-      } }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      if (await isAppUpdatePreparing(identity.executable, homeDir))
-        throw new Error('Another DotCraft process is already preparing this installation.')
+export async function acquireAppUpdateLease(desktopExecutable: string, homeDir = homedir()): Promise<AppUpdateLease> {
+  const server = net.createServer((socket) => socket.destroy())
+  const name = pipeName(desktopExecutable, homeDir)
+  await new Promise<void>((resolve, reject) => {
+    const failed = (error: NodeJS.ErrnoException): void => {
+      reject(error.code === 'EADDRINUSE' ? new Error('Another DotCraft process is already preparing this installation.') : error)
     }
+    server.once('error', failed)
+    server.listen(name, () => {
+      server.removeListener('error', failed)
+      resolve()
+    })
+  })
+  server.unref()
+  let releasing: Promise<void> | null = null
+  return {
+    release: () => releasing ??= new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
   }
-  throw new Error('Could not acquire update preparation ownership.')
 }

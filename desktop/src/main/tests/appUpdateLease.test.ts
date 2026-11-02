@@ -1,59 +1,108 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { fork, type ChildProcess } from 'child_process'
+import { randomUUID } from 'crypto'
+import { once } from 'events'
+import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { acquireAppUpdateLease, isAppUpdatePreparing, waitForAppUpdatePreparation, type AppUpdateLease } from '../appUpdateLease'
+import { fileURLToPath } from 'url'
+import { build } from 'esbuild'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { acquireAppUpdateLease, waitForAppUpdatePreparation, type AppUpdateLease } from '../appUpdateLease'
 
-describe('installation preparation lease', () => {
-  const homes: string[] = []
+const executable = 'C:\\fixtures\\install-a\\Desktop.exe'
+
+describe.skipIf(process.platform !== 'win32')('Windows update preparation ownership', () => {
+  let directory: string
+  let worker: string
+  const children: ChildProcess[] = []
   const leases: AppUpdateLease[] = []
-  function fixture() {
-    const home = mkdtempSync(join(tmpdir(), 'dotcraft-update-lease-'))
-    homes.push(home)
-    const identity = { pid: process.pid, executable: process.execPath }
-    return { home, identity }
+
+  beforeAll(async () => {
+    directory = mkdtempSync(join(tmpdir(), 'update-ownership-'))
+    worker = join(directory, 'worker.cjs')
+    await build({
+      stdin: {
+        resolveDir: fileURLToPath(new URL('.', import.meta.url)),
+        contents: `
+          import { acquireAppUpdateLease } from '../appUpdateLease';
+          let lease;
+          process.on('message', async command => {
+            if (command === 'acquire') {
+              try {
+                lease = await acquireAppUpdateLease(process.argv[2], process.argv[3]);
+                process.send('acquired');
+              } catch { process.send('blocked'); }
+            } else if (command === 'release') {
+              await lease.release();
+              lease = null;
+              process.send('released');
+            }
+          });
+          process.send('ready');
+        `
+      },
+      outfile: worker, bundle: true, platform: 'node', format: 'cjs', target: 'node20', logLevel: 'silent'
+    })
+  })
+
+  afterEach(async () => {
+    await Promise.all(leases.splice(0).map((lease) => lease.release()))
+    for (const child of children.splice(0)) {
+      if (child.exitCode !== null || child.signalCode !== null) continue
+      const exited = once(child, 'exit')
+      child.kill()
+      await exited
+    }
+  })
+  afterAll(() => rmSync(directory, { recursive: true, force: true }))
+
+  async function start(home: string): Promise<ChildProcess> {
+    const child = fork(worker, [executable, home], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true })
+    children.push(child)
+    expect((await once(child, 'message'))[0]).toBe('ready')
+    return child
   }
-  afterEach(() => {
-    for (const lease of leases.splice(0)) lease.release()
-    for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true })
+
+  async function send(child: ChildProcess, command: string): Promise<unknown> {
+    const response = once(child, 'message')
+    child.send(command)
+    return (await response)[0]
+  }
+
+  it('grants only one simultaneous process ownership and lets a loser retry after release', async () => {
+    const home = join(tmpdir(), randomUUID())
+    const contenders = await Promise.all([start(home), start(home)])
+    const results = await Promise.all(contenders.map((child) => send(child, 'acquire')))
+    expect(results.filter((result) => result === 'acquired')).toHaveLength(1)
+    expect(results.filter((result) => result === 'blocked')).toHaveLength(1)
+    await expect(waitForAppUpdatePreparation(executable, home, 100)).rejects.toThrow()
+    const winner = results.indexOf('acquired')
+    await send(contenders[winner], 'release')
+    await expect(send(contenders[1 - winner], 'acquire')).resolves.toBe('acquired')
+    await send(contenders[1 - winner], 'release')
+    await expect(waitForAppUpdatePreparation(executable, home, 1_000)).resolves.toBeUndefined()
   })
 
-  it('blocks another preflight for the same installation and releases idempotently', async () => {
-    const f = fixture()
-    const first = await acquireAppUpdateLease(f.identity, f.home)
-    leases.push(first)
-    await expect(isAppUpdatePreparing(process.execPath, f.home)).resolves.toBe(true)
-    await expect(acquireAppUpdateLease(f.identity, f.home)).rejects.toThrow('already preparing')
-    first.release()
-    first.release()
-    await expect(isAppUpdatePreparing(process.execPath, f.home)).resolves.toBe(false)
-    const replacement = await acquireAppUpdateLease(f.identity, f.home)
+  it('recovers ownership immediately after a holder process exits without releasing it', async () => {
+    const home = join(tmpdir(), randomUUID())
+    const child = await start(home)
+    await expect(send(child, 'acquire')).resolves.toBe('acquired')
+    const exited = once(child, 'exit')
+    child.kill()
+    await exited
+    await expect(waitForAppUpdatePreparation(executable, home, 1_000)).resolves.toBeUndefined()
+    const replacement = await acquireAppUpdateLease(executable, home)
     leases.push(replacement)
+    const firstRelease = replacement.release()
+    expect(replacement.release()).toBe(firstRelease)
+    await firstRelease
   })
 
-  it('recovers expired markers instead of permanently blocking future starts', async () => {
-    const f = fixture()
-    const first = await acquireAppUpdateLease(f.identity, f.home)
-    leases.push(first)
-    const directory = join(f.home, '.craft', 'desktop', 'updates')
-    const file = join(directory, readdirSync(directory)[0])
-    const expired = { ...JSON.parse(readFileSync(file, 'utf8')), expiresAt: Date.now() - 1 }
-    writeFileSync(file, JSON.stringify(expired))
-    await expect(isAppUpdatePreparing(process.execPath, f.home)).resolves.toBe(false)
-    const replacement = await acquireAppUpdateLease(f.identity, f.home)
-    leases.push(replacement)
-    first.release()
-    await expect(isAppUpdatePreparing(process.execPath, f.home)).resolves.toBe(true)
-  })
-
-  it('waits for an in-progress update rather than letting a new app start backends', async () => {
-    const f = fixture()
-    const lease = await acquireAppUpdateLease(f.identity, f.home)
-    leases.push(lease)
-    await expect(waitForAppUpdatePreparation(process.execPath, f.home, 1)).rejects.toThrow('preparing an update')
-    const timer = setTimeout(() => lease.release(), 20)
-    try {
-      await expect(waitForAppUpdatePreparation(process.execPath, f.home, 500)).resolves.toBeUndefined()
-    } finally { clearTimeout(timer) }
+  it('keeps different users and installation directories independent', async () => {
+    const home = join(tmpdir(), randomUUID())
+    leases.push(await acquireAppUpdateLease(executable, home))
+    leases.push(await acquireAppUpdateLease('C:\\fixtures\\install-b\\Desktop.exe', home))
+    leases.push(await acquireAppUpdateLease(executable, `${home}-other-user`))
+    await expect(acquireAppUpdateLease(executable, home)).rejects.toThrow()
   })
 })

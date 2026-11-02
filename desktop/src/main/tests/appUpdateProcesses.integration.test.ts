@@ -34,7 +34,7 @@ function options(child: ChildProcess, timeoutMs: number) {
           endpoint: { host: '127.0.0.1', port: 1, token: 'fixture-control', protocolVersion: 1 } }],
         tray: null, hub: null
       }),
-      acquireLease: async () => ({ release: () => {} }),
+      acquireLease: async () => ({ release: async () => {} }),
       identifyDesktop: async () => ({ pid: child.pid!, executable: process.execPath }),
       quitDesktop: async () => { child.send('quit'); return true }
     }
@@ -48,7 +48,7 @@ describe('registered process exit integration', () => {
       const prepared = await prepareAppUpdateProcesses(options(child, 2_000))
       if (child.exitCode === null) await once(child, 'exit')
       expect(child.exitCode).toBe(0)
-      prepared.release()
+      await prepared.release()
     } finally { await closeFixture(child) }
   })
 

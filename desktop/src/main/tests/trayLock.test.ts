@@ -92,15 +92,22 @@ describe('trayLock', () => {
     expect(readFileSync(path, 'utf8')).toBe(replacement)
   })
 
-  it('accepts authenticated shutdown requests', async () => {
-    const path = lockPath()
-    const onShutdown = vi.fn()
-    track(await tryAcquireTrayLock(path, { onShutdown }))
+  it('shuts down the captured tray even when discovery is replaced after identity verification', async () => {
+    const pathA = lockPath()
+    const pathB = lockPath()
+    const shutdownA = vi.fn()
+    const shutdownB = vi.fn()
+    track(await tryAcquireTrayLock(pathA, { onShutdown: shutdownA }))
+    track(await tryAcquireTrayLock(pathB, { onShutdown: shutdownB }))
+    const endpointA = readTrayLockInfo(pathA)!.endpoint!
 
-    await expect(requestTrayShutdown(path)).resolves.toBe(true)
+    await expect(requestTrayIdentity(endpointA)).resolves.toEqual({ pid: process.pid, executable: process.execPath })
+    writeFileSync(pathA, readFileSync(pathB))
+    await expect(requestTrayShutdown(endpointA)).resolves.toBe(true)
     await new Promise<void>((resolve) => setImmediate(resolve))
 
-    expect(onShutdown).toHaveBeenCalledOnce()
+    expect(shutdownA).toHaveBeenCalledOnce()
+    expect(shutdownB).not.toHaveBeenCalled()
   })
 
   it('returns the authenticated server identity without requesting shutdown', async () => {
@@ -109,9 +116,10 @@ describe('trayLock', () => {
     track(await tryAcquireTrayLock(path, { onShutdown }))
     const identity = { pid: process.pid, executable: process.execPath }
     expect(readTrayLockInfo(path)).toMatchObject(identity)
+    const endpoint = readTrayLockInfo(path)!.endpoint!
     const record = JSON.parse(readFileSync(path, 'utf8'))
     writeFileSync(path, JSON.stringify({ ...record, pid: 1234, executable: 'C:/fixtures/other.exe' }))
-    await expect(requestTrayIdentity(path)).resolves.toEqual(identity)
+    await expect(requestTrayIdentity(endpoint)).resolves.toEqual(identity)
     expect(onShutdown).not.toHaveBeenCalled()
   })
 
@@ -129,12 +137,13 @@ describe('trayLock', () => {
     const path = lockPath()
     const onShutdown = vi.fn()
     track(await tryAcquireTrayLock(path, { onShutdown }))
-    const lock = JSON.parse(readFileSync(path, 'utf8'))
-    lock.endpoint[field] = field === 'token' ? 'different-authentication-token' : 99
-    writeFileSync(path, JSON.stringify(lock), 'utf8')
+    const endpoint = {
+      ...readTrayLockInfo(path)!.endpoint!,
+      [field]: field === 'token' ? 'different-authentication-token' : 99
+    }
 
-    await expect(requestTrayIdentity(path)).resolves.toBeNull()
-    await expect(requestTrayShutdown(path)).resolves.toBe(false)
+    await expect(requestTrayIdentity(endpoint)).resolves.toBeNull()
+    await expect(requestTrayShutdown(endpoint)).resolves.toBe(false)
     await new Promise<void>((resolve) => setImmediate(resolve))
 
     expect(onShutdown).not.toHaveBeenCalled()

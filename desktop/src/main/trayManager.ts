@@ -14,7 +14,7 @@ import {
   resolveTaskCompletionNotificationMode,
   type AppSettings
 } from './settings'
-import { requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
+import { readTrayLockInfo, requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
 import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
@@ -640,7 +640,8 @@ export async function runTrayProcess(): Promise<void> {
 }
 
 export async function stopTrayProcess(): Promise<boolean> {
-  return await requestTrayShutdown()
+  const endpoint = readTrayLockInfo()?.endpoint
+  return endpoint ? await requestTrayShutdown(endpoint) : false
 }
 
 export function ensureTrayProcess(settings: AppSettings = loadSettings()): void {

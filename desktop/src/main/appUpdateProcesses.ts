@@ -5,7 +5,7 @@ import {
   getDesktopProcessRegistryDirectory, isProcessAlive, readLiveDesktopRegistrations,
   requestDesktopIdentity, requestDesktopQuit, type DesktopProcessRegistration
 } from './desktopProcessRegistry'
-import { getTrayLockPath, readTrayLockInfo, requestTrayIdentity, requestTrayShutdown, type TrayLockInfo } from './trayLock'
+import { getTrayLockPath, readTrayLockInfo, requestTrayIdentity, requestTrayShutdown, type TrayControlEndpoint, type TrayLockInfo } from './trayLock'
 import { acquireAppUpdateLease, type AppUpdateLease } from './appUpdateLease'
 
 type ProcessIdentity = { pid: number; executable: string }
@@ -19,11 +19,11 @@ interface AppUpdateProcessControls {
 export interface AppUpdateProcessDependencies {
   readControls(): AppUpdateProcessControls
   identifyDesktop(registration: DesktopProcessRegistration): Promise<ProcessIdentity | null>
-  identifyTray(): Promise<ProcessIdentity | null>
+  identifyTray(endpoint: TrayControlEndpoint): Promise<ProcessIdentity | null>
   quitDesktop(registration: DesktopProcessRegistration): Promise<boolean>
-  quitTray(): Promise<boolean>
+  quitTray(endpoint: TrayControlEndpoint): Promise<boolean>
   stopHub(hub: HubLockInfo, signal: AbortSignal): Promise<void>
-  acquireLease(identity: ProcessIdentity): Promise<AppUpdateLease>
+  acquireLease(): Promise<AppUpdateLease>
   isAlive(pid: number): boolean
   now(): number
   delay(ms: number): Promise<void>
@@ -61,9 +61,9 @@ function defaults(options: PrepareAppUpdateProcessesOptions): AppUpdateProcessDe
       hub: readHubLockFromPath(hubLockPath(home))
     }),
     identifyDesktop: (registration) => requestDesktopIdentity(registration.endpoint),
-    identifyTray: () => requestTrayIdentity(trayPath),
+    identifyTray: (endpoint) => requestTrayIdentity(endpoint),
     quitDesktop: (registration) => requestDesktopQuit(registration.endpoint),
-    quitTray: () => requestTrayShutdown(trayPath),
+    quitTray: (endpoint) => requestTrayShutdown(endpoint),
     stopHub: async (hub, signal) => {
       const base = parseHubBaseUrl(hub.apiBaseUrl)
       const response = await fetch(new URL('/v1/status', base), { signal })
@@ -77,7 +77,7 @@ function defaults(options: PrepareAppUpdateProcessesOptions): AppUpdateProcessDe
       })
       if (!stopped.ok) throw new Error(`Hub shutdown failed with HTTP ${stopped.status}.`)
     },
-    acquireLease: (identity) => acquireAppUpdateLease(identity, home),
+    acquireLease: () => acquireAppUpdateLease(options.desktopExecutable, home),
     isAlive: isProcessAlive,
     now: Date.now,
     delay: async (ms) => { await new Promise((resolve) => setTimeout(resolve, ms)) }
@@ -130,9 +130,9 @@ export async function prepareAppUpdateProcesses(options: PrepareAppUpdateProcess
   let lease: AppUpdateLease | null = null
   try {
     lease = await run('lease', async () => {
-      const acquired = await deps.acquireLease({ pid: currentPid, executable: options.desktopExecutable })
+      const acquired = await deps.acquireLease()
       if (controller.signal.aborted || deps.now() >= deadline) {
-        acquired.release()
+        await acquired.release()
         throw timeoutError()
       }
       return acquired
@@ -151,9 +151,9 @@ export async function prepareAppUpdateProcesses(options: PrepareAppUpdateProcess
     const tray = controls.tray
     if (tray?.pid && tray.pid !== currentPid && samePath(tray.executable, options.desktopExecutable)) {
       const target = { pid: tray.pid, executable: tray.executable! }
-      if (await confirmIdentity(target, () => deps.identifyTray())) {
+      if (await confirmIdentity(target, () => deps.identifyTray(tray.endpoint!))) {
         clients.set(target.pid, target)
-        await run('tray-stop', () => deps.quitTray())
+        await run('tray-stop', () => deps.quitTray(tray.endpoint!))
       }
     }
     log('wait-clients', { pids: [...clients.keys()] })
@@ -175,7 +175,7 @@ export async function prepareAppUpdateProcesses(options: PrepareAppUpdateProcess
     return lease
   } catch (error) {
     controller.abort(error)
-    lease?.release()
+    await lease?.release()
     throw error
   } finally {
     clearTimeout(timer)

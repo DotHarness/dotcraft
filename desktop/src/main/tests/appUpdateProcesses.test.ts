@@ -18,7 +18,7 @@ function fixture() {
     tray: { version: 2, pid: 40, executable: desktop, endpoint },
     hub: { pid: 30, binaryPath: runtime, apiBaseUrl: 'http://127.0.0.1:1', token: 'fixture-hub-token' }
   }
-  const release = vi.fn()
+  const release = vi.fn(async () => {})
   const dependencies: AppUpdateProcessDependencies = {
     readControls: vi.fn(() => controls),
     identifyDesktop: vi.fn(async (entry) => ({ pid: entry.pid, executable: entry.executable })),
@@ -47,8 +47,29 @@ describe('update preparation for registered processes', () => {
     expect(f.dependencies.quitDesktop).toHaveBeenCalledWith(f.controls.desktops[1])
     expect(f.alive.has(10)).toBe(true)
     expect(f.release).not.toHaveBeenCalled()
-    prepared.release()
+    await prepared.release()
     expect(f.release).toHaveBeenCalledOnce()
+  })
+
+  it('keeps tray identity and shutdown pinned to the captured endpoint when discovery is replaced', async () => {
+    const f = fixture()
+    const original = f.controls.tray
+    f.dependencies.identifyTray = vi.fn(async (endpoint) => {
+      expect(endpoint).toBe(original.endpoint)
+      f.controls.tray = { ...original, pid: 41, executable: 'D:\\Other\\Desktop.exe',
+        endpoint: { ...original.endpoint, port: 5678, token: 'replacement-control-token' } }
+      f.alive.add(41)
+      return { pid: original.pid, executable: original.executable }
+    })
+    f.dependencies.quitTray = vi.fn(async (endpoint) => {
+      expect(endpoint).toBe(original.endpoint)
+      f.alive.delete(original.pid)
+      return true
+    })
+    await prepareAppUpdateProcesses(f.options)
+    expect(f.dependencies.identifyTray).toHaveBeenCalledOnce()
+    expect(f.dependencies.quitTray).toHaveBeenCalledOnce()
+    expect(f.alive.has(41)).toBe(true)
   })
 
   it('waits for actual client exits after ACKs before requesting Hub shutdown', async () => {
@@ -194,7 +215,7 @@ describe('update preparation for registered processes', () => {
   it('releases a lease acquired after the attempt has timed out', async () => {
     const f = fixture()
     f.options.timeoutMs = 15
-    let acquire!: (lease: { release(): void }) => void
+    let acquire!: (lease: { release(): Promise<void> }) => void
     f.dependencies.acquireLease = vi.fn(() => new Promise((resolve) => { acquire = resolve }))
     await expect(prepareAppUpdateProcesses(f.options)).rejects.toMatchObject({ stage: 'lease' })
     acquire({ release: f.release })

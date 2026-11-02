@@ -29,6 +29,7 @@ function broadcastToWindows(event: SatelliteEvent): void {
 export class SatellitesHubBridge {
   private deps: SatellitesHubBridgeDeps
   private refCount = 0
+  private disposed = false
   private subscription: AbortController | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private readonly events: SatelliteEvent[] = []
@@ -44,6 +45,7 @@ export class SatellitesHubBridge {
   }
 
   acquire(): void {
+    if (this.disposed) return
     this.refCount += 1
     if (this.refCount === 1) this.startSubscription()
   }
@@ -54,6 +56,12 @@ export class SatellitesHubBridge {
     this.subscription?.abort()
     this.subscription = null
     this.stopFallbackPoll()
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.refCount = 0
+    this.release()
   }
 
   /** Caches the latest Hub list so events can carry the machine they name. */
@@ -70,7 +78,7 @@ export class SatellitesHubBridge {
   }
 
   private startSubscription(): void {
-    if (this.subscription) return
+    if (this.disposed || this.refCount === 0 || this.subscription) return
     const controller = new AbortController()
     this.subscription = controller
     this.stopFallbackPoll()
@@ -93,7 +101,7 @@ export class SatellitesHubBridge {
   /** Waits a full interval before its first tick: a failed resubscribe settles
    *  immediately, so an eager tick would spin. */
   private startFallbackPoll(): void {
-    if (this.pollTimer) return
+    if (this.disposed || this.refCount === 0 || this.pollTimer) return
     this.pollTimer = setInterval(() => {
       void this.pollPresence().finally(() => this.startSubscription())
     }, FALLBACK_POLL_INTERVAL_MS)
@@ -112,6 +120,7 @@ export class SatellitesHubBridge {
     } catch {
       return
     }
+    if (this.disposed) return
     const previous = this.hasSnapshot ? new Map(this.snapshot) : null
     this.remember(satellites)
     if (!previous) return
@@ -136,6 +145,7 @@ export class SatellitesHubBridge {
   }
 
   private handleHubEvent(raw: unknown): void {
+    if (this.disposed) return
     const event = parseSatelliteEvent(raw)
     if (!event) return
     void this.publishWithMachine(event)
@@ -147,12 +157,15 @@ export class SatellitesHubBridge {
     const arrival = event.kind === 'joined' || event.kind === 'online'
     if (arrival || (!satellite && event.kind !== 'revoked')) {
       try {
-        this.remember(normalizeSatellites(await this.deps.getHubClient().listSatellites()))
+        const satellites = normalizeSatellites(await this.deps.getHubClient().listSatellites())
+        if (this.disposed) return
+        this.remember(satellites)
         satellite = this.snapshot.get(event.peerId)
       } catch {
         // Presence still fans out without the machine record.
       }
     }
+    if (this.disposed) return
     if (event.kind === 'revoked') this.snapshot.delete(event.peerId)
     if (!satellite) {
       this.publish(event)
@@ -189,4 +202,8 @@ export function getSatellitesHubBridge(deps: SatellitesHubBridgeDeps): Satellite
   if (sharedBridge) sharedBridge.updateDeps(deps)
   else sharedBridge = new SatellitesHubBridge(deps)
   return sharedBridge
+}
+
+export function disposeSatellitesHubBridge(): void {
+  sharedBridge?.dispose()
 }

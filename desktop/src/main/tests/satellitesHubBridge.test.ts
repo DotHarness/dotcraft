@@ -103,6 +103,44 @@ describe('SatellitesHubBridge subscription', () => {
     expect(hub.subscribeCalls).toBe(1)
   })
 
+  it('does not publish or resubscribe when a fallback poll completes after disposal', async () => {
+    let complete!: (satellites: unknown[]) => void
+    hub.client.listSatellites = vi.fn(() => new Promise((resolve) => { complete = resolve }))
+    bridge.remember([])
+    bridge.acquire()
+    bridge.acquire()
+    hub.endStream(new Error('hub unavailable'))
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    bridge.dispose()
+    bridge.dispose()
+    bridge.acquire()
+    complete([{ peerId: 'sat_1', displayName: 'Test PC', online: true }])
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(hub.client.listSatellites).toHaveBeenCalledTimes(1)
+    expect(hub.subscribeCalls).toBe(1)
+    expect(received).toEqual([])
+    expect(bridge.recentActivity()).toEqual([])
+  })
+
+  it.each(['resolve', 'reject'])('ignores event enrichment that settles after disposal: %s', async (outcome) => {
+    let resolve!: (satellites: unknown[]) => void
+    let reject!: (error: Error) => void
+    hub.client.listSatellites = vi.fn(() => new Promise((done, fail) => { resolve = done; reject = fail }))
+    bridge.acquire()
+    hub.emit(satelliteFrame('satellite.online', 'sat_1'))
+    bridge.dispose()
+    if (outcome === 'resolve') resolve([{ peerId: 'sat_1', displayName: 'Test PC', online: true }])
+    else reject(new Error('hub stopped'))
+    hub.emit(satelliteFrame('satellite.joined', 'sat_2'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(hub.client.listSatellites).toHaveBeenCalledTimes(1)
+    expect(received).toEqual([])
+    expect(bridge.recentActivity()).toEqual([])
+  })
+
   it('falls back to polling presence when the stream drops', async () => {
     hub.satellites = [{ peerId: 'sat_1', displayName: 'Ann PC', online: true }]
     bridge.acquire()
