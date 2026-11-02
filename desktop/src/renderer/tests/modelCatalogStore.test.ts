@@ -8,17 +8,13 @@ const appServerListModels = vi.fn()
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
+  const promise = new Promise<T>((res) => { resolve = res })
+  return { promise, resolve }
 }
 
 describe('modelCatalogStore', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     useModelCatalogStore.getState().reset()
     installDesktopApiMock({ appServer: { listModels: appServerListModels } })
   })
@@ -38,7 +34,7 @@ describe('modelCatalogStore', () => {
     await useModelCatalogStore.getState().loadIfNeeded()
 
     expect(appServerListModels).toHaveBeenCalledWith(null)
-    expect(useModelCatalogStore.getState()).toMatchObject({
+    expect(useModelCatalogStore.getState().getCatalog()).toMatchObject({
       status: 'error',
       modelOptions: [],
       modelListUnsupportedEndpoint: true,
@@ -49,7 +45,7 @@ describe('modelCatalogStore', () => {
     await useModelCatalogStore.getState().loadIfNeeded()
 
     expect(appServerListModels).toHaveBeenCalledTimes(2)
-    expect(useModelCatalogStore.getState()).toMatchObject({
+    expect(useModelCatalogStore.getState().getCatalog()).toMatchObject({
       status: 'ready',
       modelOptions: ['gpt-5'],
       modelListUnsupportedEndpoint: false,
@@ -66,22 +62,22 @@ describe('modelCatalogStore', () => {
     })
     const store = useModelCatalogStore.getState()
     await store.loadIfNeeded(false, 'one')
-    expect(useModelCatalogStore.getState().refreshNotice).toBe('usingCachedCatalog')
+    expect(store.getCatalog('one').refreshNotice).toBe('usingCachedCatalog')
     appServerListModels.mockResolvedValue({ success: true, source: 'user', models: [{ id: 'fresh' }] })
     await store.loadIfNeeded(true, 'one')
-    expect(useModelCatalogStore.getState()).toMatchObject({ source: 'user', refreshedAt: undefined, refreshNotice: undefined })
+    expect(store.getCatalog('one')).toMatchObject({ source: 'user', refreshedAt: undefined, refreshNotice: undefined })
 
     const pending = createDeferred<unknown>()
     appServerListModels.mockReturnValueOnce(pending.promise)
     const loading = store.loadIfNeeded(false, 'two')
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'loading', source: undefined, refreshedAt: undefined, refreshNotice: undefined })
+    expect(store.getCatalog('two')).toMatchObject({ status: 'loading', source: undefined, refreshedAt: undefined, refreshNotice: undefined })
     pending.resolve({ success: true, models: [] })
     await loading
-    expect(useModelCatalogStore.getState().source).toBeUndefined()
+    expect(store.getCatalog('two').source).toBeUndefined()
     await store.loadIfNeeded(false, 'one')
-    expect(useModelCatalogStore.getState().source).toBe('user')
+    expect(store.getCatalog('one').source).toBe('user')
     store.reset()
-    expect(useModelCatalogStore.getState()).toMatchObject({ source: undefined, refreshedAt: undefined, refreshNotice: undefined })
+    expect(store.getCatalog('one')).toMatchObject({ source: undefined, refreshedAt: undefined, refreshNotice: undefined })
   })
 
   it('stores thrown model/list errors and keeps loading after a synchronous failure', async () => {
@@ -89,7 +85,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    expect(useModelCatalogStore.getState()).toMatchObject({
+    expect(useModelCatalogStore.getState().getCatalog()).toMatchObject({
       status: 'error',
       modelOptions: [],
       modelListUnsupportedEndpoint: false,
@@ -101,20 +97,20 @@ describe('modelCatalogStore', () => {
     })
 
     await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-a')
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
+    expect(useModelCatalogStore.getState().getCatalog('provider-a')).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
 
     await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-b')
 
     expect(appServerListModels).toHaveBeenCalledTimes(3)
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', requestedProviderId: 'provider-b' })
+    expect(useModelCatalogStore.getState().getCatalog('provider-b')).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
   })
 
   it('keeps a pre-connection model list retryable without surfacing an error', async () => {
     appServerListModels.mockResolvedValueOnce(null)
 
-    await useModelCatalogStore.getState().loadIfNeeded()
+    expect(await useModelCatalogStore.getState().loadIfNeeded()).toBeNull()
 
-    expect(useModelCatalogStore.getState()).toMatchObject({
+    expect(useModelCatalogStore.getState().getCatalog()).toMatchObject({
       status: 'idle',
       models: [],
       modelOptions: [],
@@ -123,75 +119,82 @@ describe('modelCatalogStore', () => {
     })
   })
 
-  it('passes provider id to model/list, reloads when it changes and stores the effective default provider', async () => {
-    appServerListModels
-      .mockResolvedValueOnce({
-        success: true,
-        providerId: 'openai',
-        models: [{ id: 'gpt-5.5' }]
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        models: [{ id: 'claude-sonnet' }]
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        models: [{ id: 'gpt-5' }]
-      })
+  it.each(['explicit', 'default'] as const)('isolates catalogs when the default request starts last and %s completes first', async (completesFirst) => {
+    const pending = { explicit: createDeferred<unknown>(), default: createDeferred<unknown>() }
+    const payloads = {
+      explicit: {
+        success: true, providerId: 'anthropic',
+        models: [{ id: 'claude-opus-5-5', reasoning: {
+          supportsDisable: false, supportedEfforts: [{ effort: 'high' }], defaultEffort: 'high',
+        } }],
+      },
+      default: {
+        success: true, providerId: 'deepseek',
+        models: [{ id: 'deepseek-v4-pro', reasoning: {
+          supportsDisable: true, supportedEfforts: [{ effort: 'max' }], defaultEffort: 'max',
+        } }],
+      },
+    }
+    appServerListModels.mockImplementation((providerId) =>
+      providerId === 'anthropic' ? pending.explicit.promise : pending.default.promise)
+    const store = useModelCatalogStore.getState()
+    const loads = {
+      explicit: store.loadIfNeeded(false, 'anthropic'),
+      default: store.loadIfNeeded(),
+    }
+    const completesSecond = completesFirst === 'explicit' ? 'default' : 'explicit'
 
-    await useModelCatalogStore.getState().loadIfNeeded()
-    expect(appServerListModels).toHaveBeenCalledWith(null)
-    expect(useModelCatalogStore.getState()).toMatchObject({
-      providerId: 'openai',
-      requestedProviderId: null,
-      modelOptions: ['gpt-5.5']
+    pending[completesFirst].resolve(payloads[completesFirst])
+    expect(await loads[completesFirst]).toMatchObject({ providerId: payloads[completesFirst].providerId })
+    expect(store.getCatalog(completesSecond === 'explicit' ? 'anthropic' : null).status).toBe('loading')
+    pending[completesSecond].resolve(payloads[completesSecond])
+    expect(await loads[completesSecond]).toMatchObject({ providerId: payloads[completesSecond].providerId })
+
+    expect(store.getCatalog('anthropic')).toMatchObject({
+      providerId: 'anthropic', modelOptions: ['claude-opus-5-5'],
+      models: [{ id: 'claude-opus-5-5', reasoning: { defaultEffort: 'high', supportsDisable: false } }],
     })
-
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'openrouter')
-
-    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'anthropic-main')
-    expect(appServerListModels).toHaveBeenNthCalledWith(3, 'openrouter')
-    expect(useModelCatalogStore.getState()).toMatchObject({
-      providerId: 'openrouter',
-      modelOptions: ['gpt-5']
+    expect(store.getCatalog()).toMatchObject({
+      providerId: 'deepseek', modelOptions: ['deepseek-v4-pro'],
+      models: [{ id: 'deepseek-v4-pro', reasoning: { defaultEffort: 'max', supportsDisable: true } }],
     })
   })
 
-  it('loads different providers independently and keeps the selected provider visible', async () => {
-    const first = createDeferred<unknown>()
-    const second = createDeferred<unknown>()
-    appServerListModels
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise)
+  it('coalesces and caches provider ids without regard to case or surrounding whitespace', async () => {
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const store = useModelCatalogStore.getState()
+    const first = store.loadIfNeeded(false, ' Anthropic ')
+    const second = store.loadIfNeeded(false, 'ANTHROPIC')
+    expect(appServerListModels).toHaveBeenCalledExactlyOnceWith('anthropic')
+    pending.resolve({ success: true, providerId: 'anthropic', models: [{ id: 'claude' }] })
+    await Promise.all([first, second])
+    await store.loadIfNeeded(false, 'Anthropic')
+    expect(appServerListModels).toHaveBeenCalledTimes(1)
+    expect(store.getCatalog(' ANTHROPIC ').modelOptions).toEqual(['claude'])
+  })
 
-    const defaultLoad = useModelCatalogStore.getState().loadIfNeeded()
-    const providerLoad = useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
-
-    expect(appServerListModels).toHaveBeenCalledTimes(2)
-    first.resolve({
-      success: true,
-      providerId: 'openai',
-      models: [{ id: 'gpt-5' }]
-    })
+  it.each(['pending', 'ready'])('does not seed over a %s concrete provider from a default result', async (concreteStatus) => {
+    const concrete = createDeferred<unknown>()
+    const defaultCatalog = createDeferred<unknown>()
+    appServerListModels.mockImplementation((providerId) => providerId ? concrete.promise : defaultCatalog.promise)
+    const store = useModelCatalogStore.getState()
+    const concreteLoad = store.loadIfNeeded(false, 'one')
+    const defaultLoad = store.loadIfNeeded()
+    if (concreteStatus === 'ready') {
+      concrete.resolve({ success: true, providerId: 'one', models: [{ id: 'concrete' }] })
+      await concreteLoad
+    }
+    defaultCatalog.resolve({ success: true, providerId: 'one', models: [{ id: 'default' }] })
     await defaultLoad
-    await Promise.resolve()
 
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'loading', requestedProviderId: 'anthropic-main' })
-
-    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'anthropic-main')
-    second.resolve({
-      success: true,
-      providerId: 'anthropic-main',
-      models: [{ id: 'claude-sonnet-4-5' }]
-    })
-    await providerLoad
-
-    expect(useModelCatalogStore.getState()).toMatchObject({
-      providerId: 'anthropic-main',
-      requestedProviderId: 'anthropic-main',
-      modelOptions: ['claude-sonnet-4-5']
-    })
+    expect(store.getCatalog('one')).toMatchObject(concreteStatus === 'pending'
+      ? { status: 'loading', modelOptions: [] }
+      : { status: 'ready', modelOptions: ['concrete'] })
+    concrete.resolve({ success: true, providerId: 'one', models: [{ id: 'concrete' }] })
+    await concreteLoad
+    expect(store.getCatalog('one').modelOptions).toEqual(['concrete'])
+    expect(store.getCatalog().modelOptions).toEqual(['default'])
   })
 
   it('keeps reasoning and Fast metadata from model/list, dropping unknown efforts', async () => {
@@ -219,7 +222,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    expect(useModelCatalogStore.getState().models).toEqual([
+    expect(useModelCatalogStore.getState().getCatalog().models).toEqual([
       expect.objectContaining({
         id: 'claude-opus-4-7',
         reasoning: expect.objectContaining({
@@ -244,7 +247,7 @@ describe('modelCatalogStore', () => {
 
     await useModelCatalogStore.getState().loadIfNeeded()
 
-    const models = useModelCatalogStore.getState().models
+    const models = useModelCatalogStore.getState().getCatalog().models
     expect(models.find((model) => model.id === 'opus[1m]')?.displayName).toBe('Opus')
     expect(models.find((model) => model.id === 'haiku')).not.toHaveProperty('displayName')
   })
@@ -256,18 +259,18 @@ describe('modelCatalogStore', () => {
     const store = useModelCatalogStore.getState()
     await store.loadIfNeeded()
     await store.loadIfNeeded(false, 'one')
-    await store.handleConfigChanged(['ProviderPreferences'])
+    store.handleConfigChanged(['ProviderPreferences'])
     await store.loadIfNeeded(false, 'one')
     await store.loadIfNeeded(false, 'two')
     await store.loadIfNeeded(false, 'one')
     expect(appServerListModels).toHaveBeenCalledTimes(2)
-    expect(useModelCatalogStore.getState().modelOptions).toEqual(['one'])
-    await store.handleConfigChanged(['ProviderId'])
+    expect(store.getCatalog('one').modelOptions).toEqual(['one'])
+    store.handleConfigChanged(['ProviderId'])
     await store.loadIfNeeded(false, 'two')
     expect(appServerListModels).toHaveBeenCalledTimes(2)
     await store.loadIfNeeded()
     expect(appServerListModels).toHaveBeenCalledTimes(3)
-    await store.handleConfigChanged(['ProviderId'])
+    store.handleConfigChanged(['ProviderId'])
     await store.loadIfNeeded()
     expect(appServerListModels).toHaveBeenCalledTimes(4)
   })
@@ -283,23 +286,44 @@ describe('modelCatalogStore', () => {
     expect(appServerListModels).toHaveBeenCalledTimes(2)
     refreshed.resolve({ success: true, providerId: 'one', models: [{ id: 'new' }] })
     await Promise.all([first, second])
-    expect(useModelCatalogStore.getState().modelOptions).toEqual(['new'])
-    await store.handleConfigChanged(['providers'])
+    expect(store.getCatalog('one').modelOptions).toEqual(['new'])
+    store.handleConfigChanged(['providers'])
+    expect(store.getCatalog('one').status).toBe('idle')
+    await store.loadIfNeeded(false, 'one')
     expect(appServerListModels).toHaveBeenCalledTimes(3)
   })
 
-  it('discards old connection results after reset, including cached provider aliases', async () => {
+  it('keeps a new same-provider request coalesced when an invalidated request finishes first', async () => {
+    const old = createDeferred<unknown>()
+    const current = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+    const store = useModelCatalogStore.getState()
+    const oldLoad = store.loadIfNeeded(false, 'one')
+    store.reset()
+    const currentLoad = store.loadIfNeeded(false, 'one')
+
+    old.resolve({ success: true, providerId: 'one', models: [{ id: 'stale' }] })
+    expect(await oldLoad).toBeNull()
+    expect(store.getCatalog('one')).toMatchObject({ status: 'loading', modelOptions: [] })
+    const coalesced = store.loadIfNeeded(false, 'ONE')
+    expect(appServerListModels).toHaveBeenCalledTimes(2)
+    current.resolve({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
+    await Promise.all([currentLoad, coalesced])
+    expect(store.getCatalog('one').modelOptions).toEqual(['fresh'])
+  })
+
+  it('does not replace a fresh default catalog or its provider alias with a pre-reset result', async () => {
     const old = createDeferred<unknown>()
     appServerListModels.mockReturnValueOnce(old.promise)
     const store = useModelCatalogStore.getState()
-    const pending = store.loadIfNeeded(false, 'one')
+    const oldLoad = store.loadIfNeeded()
     store.reset()
     appServerListModels.mockResolvedValue({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
-    await store.loadIfNeeded(false, 'one')
+    await store.loadIfNeeded()
     old.resolve({ success: true, providerId: 'one', models: [{ id: 'stale' }] })
-    await pending
-    await store.loadIfNeeded(false, 'one')
-    expect(appServerListModels).toHaveBeenCalledTimes(2)
-    expect(useModelCatalogStore.getState().modelOptions).toEqual(['fresh'])
+
+    expect(await oldLoad).toBeNull()
+    expect(store.getCatalog().modelOptions).toEqual(['fresh'])
+    expect(store.getCatalog('one').modelOptions).toEqual(['fresh'])
   })
 })

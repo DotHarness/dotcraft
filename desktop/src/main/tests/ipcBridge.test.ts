@@ -143,6 +143,7 @@ import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
+import { getForegroundWorkspaceClient, type WorkspaceConnectionRole } from '../workspaceConnectionRouting'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
 type ExecFileCallback = (
@@ -334,6 +335,57 @@ describe('registerIpcHandlers', () => {
     expect(key).toBe('project-a')
     expect(clientA.sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'side-1' }, undefined)
     expect(clientB.sendRequest).not.toHaveBeenCalled()
+  })
+
+  it('routes RPC by foreground ownership without disabling keyed background requests', async () => {
+    const clientA = { sendRequest: vi.fn().mockResolvedValue({}) }
+    const clientB = { sendRequest: vi.fn().mockResolvedValue({}) }
+    const entryA = { client: clientA, role: 'foreground' as WorkspaceConnectionRole }
+    const entryB = { client: clientB, role: 'foreground' as WorkspaceConnectionRole }
+    const connections = new Map([['a', entryA]])
+    let currentKey = 'a'
+    let wireClient: typeof clientA | null = clientA
+    const win = { isDestroyed: () => false }
+    const handlers = registerHandlersForTest('/b', () => getForegroundWorkspaceClient({
+      appQuitting: false, mainWindow: win, wireClient, connection: connections.get(currentKey)
+    }) as never, createIpcCallbacks({
+      getConnectionKey: (client) => client === (clientA as never) ? 'a' : 'b',
+      getConnectionClient: (key) => (connections.get(key)?.client ?? null) as never
+    }))
+    const invoke = (channel: string, ...args: unknown[]) => Promise.resolve(handlers.get(channel)?.({}, ...args))
+    entryA.role = 'secondary'
+    currentKey = 'b'
+    const blocked = await invoke('appserver:send-request', 'config/read', {})
+    expect(() => unwrapAppServerResult(blocked)).toThrow('AppServer is not connected')
+    wireClient = null
+    for (const channel of ['appserver:send-request', 'appserver:send-request-raw']) {
+      const result = await invoke(channel, 'config/value/write', { keyPath: 'ProviderId', value: 'deepseek' })
+      expect(() => unwrapAppServerResult(result)).toThrow('AppServer is not connected')
+    }
+    expect(await invoke('appserver:model-list')).toBeNull()
+    expect(await invoke('appserver:get-connection-key')).toBeNull()
+    expect(clientA.sendRequest).not.toHaveBeenCalled()
+
+    await invoke('appserver:send-connection-request', 'a', 'thread/read', { threadId: 'background-a' })
+    expect(clientA.sendRequest).toHaveBeenCalledWith('thread/read', { threadId: 'background-a' }, undefined)
+    clientA.sendRequest.mockClear()
+
+    connections.set('b', entryB)
+    wireClient = clientB
+    await invoke('appserver:send-request', 'config/read', {})
+    await invoke('appserver:model-list', 'deepseek')
+    expect(clientB.sendRequest).toHaveBeenCalledWith('config/read', {}, undefined)
+    expect(clientB.sendRequest).toHaveBeenCalledWith('model/list', { providerId: 'deepseek' }, 20_000)
+    expect(await invoke('appserver:get-connection-key')).toBe('b')
+    expect(clientA.sendRequest).not.toHaveBeenCalled()
+
+    entryB.role = 'secondary'
+    entryA.role = 'foreground'
+    currentKey = 'a'
+    wireClient = clientA
+    await invoke('appserver:send-request', 'config/read', {})
+    expect(clientA.sendRequest).toHaveBeenCalledOnce()
+    expect(await invoke('appserver:get-connection-key')).toBe('a')
   })
 
   it('recovers each project cache through the originating client when foreground projects switch during list loads', async () => {

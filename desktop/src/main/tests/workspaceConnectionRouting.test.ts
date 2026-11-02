@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   canBridgeRendererInteractiveServerRequest,
+  getForegroundWorkspaceClient,
   getWorkspaceNotificationForeground,
   isRendererInteractiveServerRequest,
   shouldBridgeWorkspaceServerRequest,
@@ -66,6 +67,18 @@ describe('workspace connection routing', () => {
     expect(notificationForeground('thread/status/changed', clientB, roleB)).toBe(false)
     expect(notificationForeground('turn/started', clientB, roleB)).toBeNull()
     expect(bridgesServerRequest(clientB, roleB)).toBe(false)
+  })
+
+  it('returns only the current foreground owner for default renderer requests', () => {
+    const win = { isDestroyed: vi.fn(() => false) }
+    const clientA = { id: 'a' }
+    const clientB = { id: 'b' }
+    const state = { appQuitting: false, mainWindow: win, wireClient: clientA }
+    expect(getForegroundWorkspaceClient({ ...state, connection: undefined })).toBeNull()
+    expect(getForegroundWorkspaceClient({ ...state, connection: { client: clientA, role: 'secondary' } })).toBeNull()
+    expect(getForegroundWorkspaceClient({ ...state, connection: { client: clientB, role: 'foreground' } })).toBeNull()
+    const foreground = { ...state, connection: { client: clientA, role: 'foreground' as const } }
+    expect(getForegroundWorkspaceClient(foreground)).toBe(clientA)
   })
 
   it('allows renderer interactive requests while a workspace connection is secondary', () => {

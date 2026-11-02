@@ -37,6 +37,7 @@ import type { AutomationDefinition, AutomationRun } from './stores/automationsSt
 import { useModelCatalogStore } from './stores/modelCatalogStore'
 import { useConfigStore } from './stores/configStore'
 import { useProvidersStore } from './stores/providersStore'
+import { resetProviderConnectionScope } from './stores/providerConnectionScope'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
@@ -443,9 +444,7 @@ function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   prepareDesktopPluginWorkspaceChange(preserveLocalPlugins)
   useThreadStore.getState().reset()
   useConversationStore.getState().reset()
-  useModelCatalogStore.getState().reset()
-  useConfigStore.getState().reset()
-  useProvidersStore.getState().reset()
+  resetProviderConnectionScope()
   useMcpStore.getState().reset()
   usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
@@ -1624,9 +1623,6 @@ export function App(): JSX.Element {
       if (caps?.automations) {
         void useAutomationsStore.getState().fetchAutomations()
       }
-      if (caps?.modelCatalogManagement) {
-        void useModelCatalogStore.getState().loadIfNeeded(true)
-      }
     }
     if (status === 'disconnected' || status === 'error') {
       threadListReloadGenerationRef.current += 1
@@ -1665,16 +1661,6 @@ export function App(): JSX.Element {
     })
     replaceCurrentAppNavigationLocation()
   }, [activeDesktopPluginView, activeMainView, capabilities?.pluginManagement])
-
-  useEffect(() => {
-    if (status === 'connected' && capabilities?.modelCatalogManagement === true) {
-      void useModelCatalogStore.getState().loadIfNeeded()
-      return
-    }
-    if (status === 'disconnected' || status === 'error') {
-      useModelCatalogStore.getState().reset()
-    }
-  }, [capabilities?.modelCatalogManagement, status])
 
   useEffect(() => {
     // Use empty deps so this effect runs exactly once (on mount) and is cleaned
@@ -2314,7 +2300,7 @@ export function App(): JSX.Element {
               void useHooksStore.getState().fetchHooks()
             }
             if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {
-              void useModelCatalogStore.getState().handleConfigChanged(event.regions)
+              useModelCatalogStore.getState().handleConfigChanged(event.regions)
             }
             if (event.regions.includes('providers') || hasConfigKeyPathChange(event.regions, 'ProviderId')) {
               if (useConnectionStore.getState().capabilities?.providerManagement === true) {

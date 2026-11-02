@@ -16,6 +16,7 @@ import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { Box, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Upload, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
+import { useModelCatalog } from '../../hooks/useModelCatalog'
 import { useProvidersStore } from '../../stores/providersStore'
 import { usePluginStore, type PluginEntry } from '../../stores/pluginStore'
 import type { McpServerOriginWire } from '../../stores/mcpStore'
@@ -890,10 +891,13 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
   const providers = useProvidersStore((s) => s.providers)
-  const models = useModelCatalogStore((s) => s.models)
-  const modelCatalogStatus = useModelCatalogStore((s) => s.status)
-  const modelCatalogError = useModelCatalogStore((s) => s.errorMessage)
-  const effectiveCatalogProviderId = useModelCatalogStore((s) => s.providerId)
+  const selectedProviderId = draft.providerPreference?.providerId ?? null
+  const {
+    models,
+    status: modelCatalogStatus,
+    errorMessage: modelCatalogError,
+    providerId: effectiveCatalogProviderId
+  } = useModelCatalog(selectedProviderId)
   const plugins = usePluginStore((s) => s.plugins)
   const pluginsById = useMemo(() => new Map(plugins.map((plugin) => [plugin.id, plugin])), [plugins])
   const toolOptions = useMemo(() => toolCatalog.map(toolOption), [toolCatalog])
@@ -931,11 +935,6 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
   const memoryOptions = useMemo<SettingsSelectOption<MemoryChoice>[]>(() => MEMORY_OPTIONS
     .map((option) => ({ value: option.value, label: t(option.labelKey), description: t(option.descriptionKey) })), [t])
   const memoryDescription = memoryOptions.find((option) => option.value === draft.memory)?.description
-
-  const selectedProviderId = draft.providerPreference?.providerId ?? null
-  useEffect(() => {
-    void useModelCatalogStore.getState().loadIfNeeded(false, selectedProviderId)
-  }, [selectedProviderId])
 
   const selectedModel = useMemo(
     () => models.find((item) => item.id === draft.providerPreference?.model) ?? null,
@@ -983,8 +982,8 @@ function BuilderView({ route, setDraft, toolCatalog, skillCatalog, mcpServers, v
 
   const selectProvider = useCallback((providerId: string): void => {
     updateProviderPreference((preference) => ({ ...preference, providerId }))
-    void useModelCatalogStore.getState().loadIfNeeded(false, providerId).then(() => {
-      const catalog = useModelCatalogStore.getState()
+    void useModelCatalogStore.getState().loadIfNeeded(false, providerId).then((catalog) => {
+      if (!catalog) return
       const configured = findProviderPreference(workspaceProviderPreferences, providerId)
       const seeded = configured
         ?? createCatalogDefaultPreference(catalog.models[0], catalog.models[0]?.id ?? '')

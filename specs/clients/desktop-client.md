@@ -59,6 +59,8 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 - Exactly one workspace is the foreground workspace at any time. Foreground workspace state owns the composer, active conversation, settings, capabilities, model/provider selection, workspace tools, and server-initiated interactive requests.
 - Additional local workspaces may be connected as secondary workspaces. They may contribute thread-list rows and lightweight runtime indicators but do not own workspace-scoped panels or interactive protocol surfaces until promoted to foreground.
 - Opening or selecting a stopped workspace starts a connection to an AppServer for that workspace, then promotes it to foreground after initialization succeeds. Thread operations remain unavailable until initialization succeeds.
+- Demoting the previous foreground immediately removes its ownership of default renderer RPC. For a stopped target, Desktop publishes `connecting` before the new workspace identity; until the target connection is installed, default requests cannot fall back to a secondary connection. Explicit connection-key requests remain available for background work.
+- Workspace and successful reconnection boundaries invalidate workspace configuration, provider usage and model catalogs before loading target data. Late results from an earlier scope cannot refill these stores; duplicate `connected` status reports do not constitute another reconnection.
 
 ### 3.1.1 Local and Remote AppServer Ownership
 

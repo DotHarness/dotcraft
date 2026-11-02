@@ -1,6 +1,6 @@
 import './setupPluginRuntime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
@@ -129,6 +129,36 @@ describe('InputComposer layout', () => {
         }
       ]
     })
+  })
+
+  it('requests usage for the composer provider even when the workspace default catalog loads later', async () => {
+    const providers = ['anthropicapi', 'deepseek'].map((id) => ({
+      id, displayName: id, protocol: 'openai', authMethod: 'apiKey' as const
+    }))
+    useConnectionStore.setState({
+      status: 'connected', capabilities: { providerManagement: true }
+    })
+    useProvidersStore.setState({ providers, status: 'ready' })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'provider/list') return { providers }
+      if (method === 'provider/auth/usage') return { available: true }
+      return {}
+    })
+    window.api.appServer.listModels = vi.fn().mockResolvedValue({
+      success: true, providerId: 'deepseek', models: [{ id: 'deepseek-v4-pro' }]
+    })
+    renderComposer({ providerId: 'anthropicapi', modelName: 'claude-opus-5-5' })
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
+      'provider/auth/usage', { providerId: 'anthropicapi' }, 30_000
+    ))
+
+    await act(async () => {
+      await useModelCatalogStore.getState().loadIfNeeded()
+    })
+
+    expect(useModelCatalogStore.getState().getCatalog().providerId).toBe('deepseek')
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'provider/auth/usage')
+      .map(([, params]) => params.providerId)).toEqual(['anthropicapi'])
   })
 
   it('cancels Steering after the active turn ends through turn/queue/update', async () => {

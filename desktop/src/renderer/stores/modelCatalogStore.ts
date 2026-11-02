@@ -44,7 +44,7 @@ export interface ModelCatalogItem {
 /** AppServer `model/list` error when the upstream endpoint does not support listing models. */
 const MODEL_LIST_ERROR_ENDPOINT_NOT_SUPPORTED = 'EndpointNotSupported'
 
-interface ModelCatalogState {
+export interface ModelCatalogState {
   source?: string
   refreshedAt?: string
   refreshNotice?: string
@@ -56,8 +56,6 @@ interface ModelCatalogState {
    * this resolves to the workspace-selected provider.
    */
   providerId: string | null
-  /** Provider id used for the last request; null means "workspace default". */
-  requestedProviderId: string | null
   /** True when the server reports that the upstream API does not support model listing. */
   modelListUnsupportedEndpoint: boolean
   errorCode: string | null
@@ -65,15 +63,22 @@ interface ModelCatalogState {
 }
 
 interface ModelCatalogActions {
-  loadIfNeeded(force?: boolean, providerId?: string | null): Promise<void>
-  handleConfigChanged(regions: string[]): Promise<void>
+  loadIfNeeded(force?: boolean, providerId?: string | null): Promise<ModelCatalogState | null>
+  getCatalog(providerId?: string | null): ModelCatalogState
+  handleConfigChanged(regions: string[]): void
   reset(): void
 }
 
-type ModelCatalogStore = ModelCatalogState & ModelCatalogActions
+interface ModelCatalogStore extends ModelCatalogActions {
+  catalogs: ReadonlyMap<string | null, ModelCatalogState>
+  revision: number
+}
 
-const catalogs = new Map<string | null, ModelCatalogState>()
-const inFlightLoads = new Map<string | null, Promise<ModelCatalogState>>()
+const inFlightLoads = new Map<string | null, Promise<ModelCatalogState | null>>()
+
+function catalogKey(providerId?: string | null): string | null {
+  return providerId?.trim().toLowerCase() || null
+}
 
 const initialState: ModelCatalogState = {
   source: undefined,
@@ -83,7 +88,6 @@ const initialState: ModelCatalogState = {
   models: [],
   modelOptions: [],
   providerId: null,
-  requestedProviderId: null,
   modelListUnsupportedEndpoint: false,
   errorCode: null,
   errorMessage: null
@@ -227,7 +231,7 @@ function parseModelListError(payload: unknown): { code: string | null; message: 
 }
 
 async function fetchCatalog(providerId: string | null, refresh = false): Promise<ModelCatalogState> {
-  const state = { ...initialState, providerId, requestedProviderId: providerId }
+  const state = { ...initialState, providerId }
   try {
     const result = refresh ? await window.api.appServer.listModels(providerId, true) : await window.api.appServer.listModels(providerId)
     if (result == null) return state
@@ -249,49 +253,61 @@ async function fetchCatalog(providerId: string | null, refresh = false): Promise
 }
 
 export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
-  ...initialState,
+  catalogs: new Map(),
+  revision: 0,
 
-  async loadIfNeeded(force = false, providerId = null) {
-    const key = providerId?.trim() || null
-    const current = get()
-    if (!force && current.status === 'ready' && current.requestedProviderId === key) return
-    const cached = catalogs.get(key)
-    if (!force && cached) {
-      set({ ...cached, requestedProviderId: key })
-      return
-    }
-    set({ ...initialState, status: 'loading', providerId: key, requestedProviderId: key })
-    let load = inFlightLoads.get(key)
-    if (!load) {
-      load = fetchCatalog(key, force)
-      inFlightLoads.set(key, load)
-    }
-    const result = await load
-    if (inFlightLoads.get(key) !== load) return
-    inFlightLoads.delete(key)
-    if (result.status === 'ready') {
-      catalogs.set(key, result)
-      if (result.providerId) catalogs.set(result.providerId, result)
-      if (catalogs.get(null)?.providerId === result.providerId) catalogs.set(null, result)
-    }
-    if (get().requestedProviderId === key) set(result)
+  getCatalog(providerId = null) {
+    return selectModelCatalog(get(), providerId)
   },
 
-  async handleConfigChanged(regions) {
+  loadIfNeeded(force = false, providerId = null) {
+    const key = catalogKey(providerId)
+    const pending = inFlightLoads.get(key)
+    if (pending) return pending
+    const cached = get().catalogs.get(key)
+    if (!force && cached?.status === 'ready') return Promise.resolve(cached)
+
+    const publish = (snapshot: ModelCatalogState): void => {
+      set((state) => ({ catalogs: new Map(state.catalogs).set(key, snapshot) }))
+    }
+    publish({ ...initialState, status: 'loading', providerId: key })
+    const load = fetchCatalog(key, force).then((result) => {
+      if (inFlightLoads.get(key) !== load) return null
+      publish(result)
+      const effectiveKey = catalogKey(result.providerId)
+      if (key === null && effectiveKey && result.status === 'ready' && !get().catalogs.has(effectiveKey)) {
+        set((state) => ({ catalogs: new Map(state.catalogs).set(effectiveKey, result) }))
+      }
+      return result.status === 'idle' ? null : result
+    }).finally(() => {
+      if (inFlightLoads.get(key) === load) inFlightLoads.delete(key)
+    })
+    inFlightLoads.set(key, load)
+    return load
+  },
+
+  handleConfigChanged(regions) {
     if (regions.includes('providers')) {
-      const providerId = get().requestedProviderId
       get().reset()
-      await get().loadIfNeeded(false, providerId)
     } else if (hasConfigKeyPathChange(regions, 'ProviderId')) {
-      catalogs.delete(null)
       inFlightLoads.delete(null)
-      if (get().requestedProviderId === null) set({ ...initialState })
+      set((state) => {
+        const catalogs = new Map(state.catalogs)
+        catalogs.delete(null)
+        return { catalogs, revision: state.revision + 1 }
+      })
     }
   },
 
   reset() {
-    catalogs.clear()
     inFlightLoads.clear()
-    set({ ...initialState })
+    set((state) => ({ catalogs: new Map(), revision: state.revision + 1 }))
   }
 }))
+
+export function selectModelCatalog(
+  state: Pick<ModelCatalogStore, 'catalogs'>,
+  providerId?: string | null
+): ModelCatalogState {
+  return state.catalogs.get(catalogKey(providerId)) ?? initialState
+}

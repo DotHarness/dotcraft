@@ -110,8 +110,7 @@ function minimalReasoning(capability: ModelReasoningCapability | null | undefine
 
 function reasoningFor(providerId: string | undefined, model: string | undefined): HelperReasoning | null {
   if (!model) return null
-  const catalog = useModelCatalogStore.getState()
-  if (providerId && catalog.providerId && catalog.providerId !== providerId) return null
+  const catalog = useModelCatalogStore.getState().getCatalog(providerId)
   return minimalReasoning(catalog.models.find((item) => item.id === model)?.reasoning)
 }
 

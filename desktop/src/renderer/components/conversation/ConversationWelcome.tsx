@@ -1,4 +1,5 @@
-import { buildReasoningPayload, readReasoningObject, DEFAULT_REASONING_CONFIG, type ResolvedReasoningConfig } from './modelReasoning'
+import { DEFAULT_REASONING_CONFIG } from './modelReasoning'
+import { useWelcomeModelControls } from './useWelcomeModelControls'
 import type { WelcomeDraft } from '../../stores/uiStore'
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import type { ComposerContextRecord } from '../../../shared/composerContext'
@@ -18,7 +19,6 @@ import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
 import { Bot, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useModelCatalogStore, type InferenceSpeedWire } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
@@ -27,7 +27,7 @@ import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stor
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useAppBindingStore } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
-import { readConfigValue, useConfig, useConfigStore } from '../../stores/configStore'
+import { readConfigValue, useConfig } from '../../stores/configStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from '../../hooks/useDelayedFlag'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
@@ -64,7 +64,7 @@ import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
-import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
+import { ModelPicker } from './ModelPicker'
 import { ProviderUsageBadge } from './ProviderUsageBadge'
 import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
@@ -94,20 +94,9 @@ import {
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import {
-  providerPreferenceEdit,
   resolveConcreteApprovalPolicyFromWorkspaceDefault,
   resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
-import {
-  createManualModelPreference,
-  findProviderPreference,
-  readProviderPreferences,
-  type ModelPreference
-} from '../../../shared/modelPreference'
-import {
-  createCatalogDefaultPreference,
-  normalizePreferenceForModel
-} from './PreferenceModelPicker'
 import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
 import { useComposerProvider } from './useComposerProvider'
 
@@ -148,7 +137,8 @@ export function ConversationWelcome({
   )
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const connectionStatus = useConnectionStore((state) => state.status)
-  const provider = useComposerProvider()
+  const workspaceConfig = useConfig()
+  const provider = useComposerProvider(resolveWorkspaceProviderFromConfig(workspaceConfig ?? {}))
   const desktopPluginSurfaceContext = {
     workspacePath: props.workspacePath || null,
     threadId: null,
@@ -214,19 +204,8 @@ function ConversationWelcomeCore({
   }, [identityPath])
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
-  const [modelName, setModelName] = useState<string>('Default')
-  const [providerId, setProviderId] = useState<string>('')
-  const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
-  const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
-  const [modelApplying, setModelApplying] = useState(false)
   const workspaceConfig = useConfig()
   const configuredApprovalDefault = readConfigValue(workspaceConfig, 'Permissions.DefaultApprovalPolicy')
-  const workspaceLlmConfigKey = workspaceConfig == null
-    ? null
-    : JSON.stringify([
-      resolveWorkspaceProviderFromConfig(workspaceConfig),
-      readConfigValue(workspaceConfig, 'ProviderPreferences') ?? null
-    ])
   const [skillCatalogReady, setSkillCatalogReady] = useState(false)
   const sendInFlightRef = useRef(false)
   const skipDraftPersistRef = useRef(false)
@@ -241,10 +220,13 @@ function ConversationWelcomeCore({
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const welcomeDraftStageSeq = useUIStore((s) => s.welcomeDraftStageSeq)
   const hydratedStageSeqRef = useRef(welcomeDraftStageSeq)
-  const workspaceLlmConfigResolvedRef = useRef(false)
-  const workspaceProviderFromConfigRef = useRef<string | null>(null)
-  const workspaceModelFromConfigRef = useRef<string | null>(null)
-  const lastWorkspaceLlmConfigKeyRef = useRef<string | null>(null)
+  const {
+    providerId, modelName, reasoningConfig, speedValue, modelApplying,
+    modelApiAvailable, modelLoading, modelCatalog, modelOptions, modelCatalogStatus,
+    modelListUnsupportedEndpoint, modelCatalogErrorCode, modelCatalogErrorMessage,
+    loadModels, hydrateDraft, handleModelChange, handleProviderChange,
+    handleReasoningChange, handleSpeedChange
+  } = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef })
   const richRef = useRef<RichInputAreaHandle>(null)
   const welcomeContentRef = useRef<HTMLDivElement>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
@@ -268,15 +250,7 @@ function ConversationWelcomeCore({
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const locale = useLocale()
-  const modelCatalog = useModelCatalogStore((s) => s.models)
-  const modelOptions = useModelCatalogStore((s) => s.modelOptions)
-  const modelCatalogStatus = useModelCatalogStore((s) => s.status)
-  const modelListUnsupportedEndpoint = useModelCatalogStore((s) => s.modelListUnsupportedEndpoint)
-  const modelCatalogErrorCode = useModelCatalogStore((s) => s.errorCode)
-  const modelCatalogErrorMessage = useModelCatalogStore((s) => s.errorMessage)
-  const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
-  const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
-  const activeUsageProvider = useProviderSummary(activeCatalogProviderId)
+  const activeUsageProvider = useProviderSummary(providerId)
   const reloadProviders = useProvidersStore((s) => s.reload)
   const providerOptions = useProvidersStore((s) => s.providers)
   const { addThread, setActiveThreadId } = useThreadStore()
@@ -380,11 +354,6 @@ function ConversationWelcomeCore({
     },
     [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, initAvailable, selectedProfileId, t, welcomeMode]
   )
-  const modelApiAvailable =
-    isConnected &&
-    capabilities?.modelCatalogManagement === true &&
-    capabilities?.workspaceConfigManagement === true
-  const modelLoading = modelApiAvailable && modelCatalogStatus === 'loading'
   useEffect(() => {
     if (!canUseAppBinding || !isConnected) return
     void fetchAppBindings(null, false, 'welcome')
@@ -544,85 +513,11 @@ function ConversationWelcomeCore({
       setWelcomeApprovalPolicyDirty(true)
       setWelcomeApprovalPolicy(explicitDraftApprovalPolicy)
     }
-    const useResolvedWorkspacePair = workspaceLlmConfigResolvedRef.current
-    setProviderId(
-      useResolvedWorkspacePair && workspaceProviderFromConfigRef.current != null
-        ? workspaceProviderFromConfigRef.current
-        : (welcomeDraft.providerId?.trim() ?? '')
-    )
-    setModelName(
-      useResolvedWorkspacePair && workspaceModelFromConfigRef.current != null
-        ? workspaceModelFromConfigRef.current
-        : (welcomeDraft.model || 'Default')
-    )
-    setReasoningConfig(readReasoningObject(welcomeDraft.reasoning) ?? DEFAULT_REASONING_CONFIG)
-    if (welcomeDraft.speed != null) setSpeedValue(welcomeDraft.speed === 'fast' ? 'fast' : 'standard')
+    hydrateDraft(welcomeDraft)
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
     setDraftHydrated(true)
   }, [canUseCommandPicker, customCommandStatus, skillCatalogReady, welcomeDraftStageSeq])
-
-  useEffect(() => {
-    if (workspaceLlmConfigKey == null) return
-    const workspacePreferenceChanged =
-      lastWorkspaceLlmConfigKeyRef.current != null && lastWorkspaceLlmConfigKeyRef.current !== workspaceLlmConfigKey
-    lastWorkspaceLlmConfigKeyRef.current = workspaceLlmConfigKey
-    let disposed = false
-    const loadWorkspaceDefaults = async (): Promise<void> => {
-      const hasInitialDraft = initialWelcomeDraftRef.current != null
-      try {
-        const cfg = useConfigStore.getState().config ?? {}
-        const nextProviderId = resolveWorkspaceProviderFromConfig(cfg)
-        // A concrete workspace provider is authoritative even when a draft exists. This keeps
-        // Settings changes from reviving a stale provider/model pair on the Welcome screen.
-        if (!hasInitialDraft || workspacePreferenceChanged || nextProviderId !== '') {
-          let nextPreference = findProviderPreference(
-            readProviderPreferences(readConfigValue(cfg, 'ProviderPreferences')),
-            nextProviderId
-          )
-          workspaceLlmConfigResolvedRef.current = true
-          workspaceProviderFromConfigRef.current = nextProviderId
-          if (nextProviderId) await loadModels(false, nextProviderId)
-          if (disposed) return
-          if (!nextPreference) {
-            const catalogState = useModelCatalogStore.getState()
-            const firstModel = catalogState.models[0]
-            const nextModel = firstModel?.id ?? catalogState.modelOptions[0] ?? ''
-            if (nextModel && nextProviderId) {
-              nextPreference = createCatalogDefaultPreference(firstModel, nextModel)
-              await useConfigStore.getState().write([
-                { keyPath: 'ProviderId', value: nextProviderId },
-                providerPreferenceEdit(nextProviderId, nextPreference)
-              ])
-            }
-          }
-          const resolved = nextPreference ?? createManualModelPreference('')
-          workspaceModelFromConfigRef.current = resolved.model || 'Default'
-          setProviderId(nextProviderId)
-          setModelName(resolved.model || 'Default')
-          setReasoningConfig(resolved.reasoning)
-          setSpeedValue(resolved.speed)
-        }
-      } catch {
-        if (!disposed) {
-          if (!hasInitialDraft || workspacePreferenceChanged) {
-            workspaceLlmConfigResolvedRef.current = true
-            workspaceProviderFromConfigRef.current = ''
-            workspaceModelFromConfigRef.current = 'Default'
-            setProviderId('')
-            setModelName('Default')
-            setReasoningConfig(DEFAULT_REASONING_CONFIG)
-            setSpeedValue('standard')
-          }
-        }
-      }
-    }
-
-    void loadWorkspaceDefaults()
-    return () => {
-      disposed = true
-    }
-  }, [loadModels, workspaceLlmConfigKey])
 
   const contextKey = welcomeScopeKey(draftProjectKey)
   const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
@@ -726,133 +621,6 @@ function ConversationWelcomeCore({
     await window.api.workspace.switch(nextWorkspacePath)
     useUIStore.getState().setWelcomeDraftWorkspace(nextWorkspacePath)
   }, [flushWelcomeDraft, workspacePath])
-
-  const persistWelcomePreference = useCallback(async (
-    nextPreference: ModelPreference,
-    nextProviderId = providerId
-  ): Promise<void> => {
-    if (!workspaceConfig || !nextProviderId.trim() || !nextPreference.model.trim()) return
-    await useConfigStore.getState().write([
-      { keyPath: 'ProviderId', value: nextProviderId },
-      providerPreferenceEdit(nextProviderId, nextPreference)
-    ])
-  }, [providerId, workspaceConfig])
-
-  const handleModelChange = useCallback(
-    async (nextModel: string): Promise<void> => {
-      if (!workspaceConfig || !nextModel || nextModel === 'Default' || nextModel === modelName) return
-      setModelApplying(true)
-      const previousModel = modelName
-      const previousReasoning = reasoningConfig
-      const nextPreference = normalizePreferenceForModel({
-        model: nextModel,
-        reasoning: { ...reasoningConfig },
-        speed: speedValue,
-      }, modelCatalog)
-      setModelName(nextPreference.model)
-      setReasoningConfig(nextPreference.reasoning)
-      try {
-        await persistWelcomePreference(nextPreference)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setModelName(previousModel)
-        setReasoningConfig(previousReasoning)
-        addToast(`Failed to save model: ${msg}`, 'error')
-      } finally {
-        setModelApplying(false)
-      }
-    },
-    [
-      modelCatalog,
-      modelName,
-      persistWelcomePreference,
-      reasoningConfig,
-      speedValue,
-      workspaceConfig
-    ]
-  )
-
-  const handleProviderChange = useCallback(async (nextProviderId: string): Promise<void> => {
-    if (!workspaceConfig || !nextProviderId || nextProviderId === providerId) return
-    setModelApplying(true)
-    const previousProvider = providerId
-    const previousModel = modelName
-    try {
-      await loadModels(false, nextProviderId)
-      const catalogState = useModelCatalogStore.getState()
-      const remembered = findProviderPreference(
-        readProviderPreferences(readConfigValue(workspaceConfig, 'ProviderPreferences')),
-        nextProviderId
-      )
-      const nextPreference = remembered
-        ? normalizePreferenceForModel(remembered, catalogState.models)
-        : createCatalogDefaultPreference(catalogState.models[0], catalogState.modelOptions[0] ?? '')
-      if (!nextPreference.model) {
-        addToast(t('composer.providerModelUnavailable'), 'error')
-        await loadModels(false, previousProvider)
-        return
-      }
-      await persistWelcomePreference(nextPreference, nextProviderId)
-      setProviderId(nextProviderId)
-      setModelName(nextPreference.model)
-      setReasoningConfig(nextPreference.reasoning)
-      setSpeedValue(nextPreference.speed)
-    } catch (err) {
-      setProviderId(previousProvider)
-      setModelName(previousModel)
-      await loadModels(false, previousProvider)
-      addToast(`Failed to switch provider: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    } finally {
-      setModelApplying(false)
-    }
-  }, [loadModels, modelName, persistWelcomePreference, providerId, t, workspaceConfig])
-
-  const handleReasoningChange = useCallback(
-    async (nextReasoning: ReasoningQuickValue): Promise<void> => {
-      if (!workspaceConfig) return
-      const nextPayload = buildReasoningPayload(nextReasoning, reasoningConfig)
-      setModelApplying(true)
-      const previousReasoning = reasoningConfig
-      setReasoningConfig(nextPayload ?? DEFAULT_REASONING_CONFIG)
-      try {
-        const fallback = createCatalogDefaultPreference(
-          modelCatalog.find((item) => item.id === modelName),
-          modelName
-        ).reasoning
-        await persistWelcomePreference({
-          model: modelName,
-          reasoning: nextPayload ?? fallback,
-          speed: speedValue,
-        })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setReasoningConfig(previousReasoning)
-        addToast(`Failed to save thinking: ${msg}`, 'error')
-      } finally {
-        setModelApplying(false)
-      }
-    },
-    [modelCatalog, modelName, persistWelcomePreference, reasoningConfig, speedValue, workspaceConfig]
-  )
-
-  const handleSpeedChange = useCallback(async (nextSpeed: InferenceSpeedWire): Promise<void> => {
-    if (!workspaceConfig || nextSpeed === speedValue) return
-    const previousSpeed = speedValue
-    setModelApplying(true)
-    setSpeedValue(nextSpeed)
-    try {
-      await persistWelcomePreference({
-        model: modelName,
-        reasoning: { ...reasoningConfig },
-        speed: nextSpeed,
-      })
-    } catch (err) {
-      setSpeedValue(previousSpeed)
-      addToast(`Failed to save speed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    } finally {
-      setModelApplying(false)
-    }
-  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, workspaceConfig])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1628,7 +1396,7 @@ function ConversationWelcomeCore({
                             )
                           : null
                       }
-                      disabled={modelApplying}
+                       disabled={modelApplying || !modelApiAvailable || workspaceConfig == null}
                       onChange={(nextModel) => {
                         void handleModelChange(nextModel)
                       }}

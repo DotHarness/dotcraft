@@ -63,7 +63,6 @@ export function ConversationPanel({
   onBeforeSend
 }: ConversationPanelProps): JSX.Element {
   const t = useT()
-  const composerProvider = useComposerProvider()
   const isAgentBuilder = variant === 'agentBuilder'
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread)
@@ -126,6 +125,7 @@ export function ConversationPanel({
     activeThread: activeThread ?? creatingThread ?? openingThread,
     activeThreadId
   })
+  const composerProvider = useComposerProvider(modelControls.providerId)
   const mascotEffectState = resolveComposerMascotEffectState({
     modelName: modelControls.modelName,
     modelCatalog: modelControls.modelCatalog,

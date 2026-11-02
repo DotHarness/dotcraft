@@ -216,6 +216,7 @@ import {
 } from '../shared/workspaceProjectKey'
 import {
   canBridgeRendererInteractiveServerRequest,
+  getForegroundWorkspaceClient,
   getWorkspaceNotificationForeground,
   isCurrentForegroundWorkspaceConnection,
   isRendererInteractiveServerRequest,
@@ -3033,8 +3034,17 @@ function buildCallbacks(): IpcHandlerCallbacks {
   }
 }
 
+function getForegroundWireClient(): DesktopAppServerClient | null {
+  return getForegroundWorkspaceClient({
+    appQuitting: runtimeIsStopping(),
+    mainWindow,
+    wireClient,
+    connection: workspaceConnections.get(activeRemoteProject?.projectId ?? localProjectId(currentWorkspacePath))
+  })
+}
+
 function reregisterIpcForWorkspace(workspacePath: string): void {
-  registerDesktopIpcHandlers(workspacePath, () => wireClient)
+  registerDesktopIpcHandlers(workspacePath, getForegroundWireClient)
   notifyOratorioContextChanged()
 }
 
@@ -3180,6 +3190,10 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
     await teardownRuntime('switch/reconnect before new connect')
   }
 
+  wireClient = null
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    emitConnectionStatus(mainWindow, { status: 'connecting' })
+  }
   currentWorkspacePath = workspacePath
   if (!usingRemoteConnection) {
     ensureWorkspaceActivation(workspacePath)
@@ -3360,8 +3374,6 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
 
   setActiveRemoteProject(null)
   emitCurrentWorkspaceStatus(workspacePath)
-  const win = mainWindow!
-  emitConnectionStatus(win, { status: 'connecting' })
 
   reregisterIpcForWorkspace(workspacePath)
   const hubStartedAt = Date.now()
@@ -3376,7 +3388,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
     await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured))
     return true
   } catch (err) {
-    if (runtimeIsStopping()) return false
+    if (runtimeIsStopping() || currentWorkspacePath !== workspacePath) return false
     logDesktopHubFailure('foreground-connect', err, hubStartedAt, workspacePath)
     const message = err instanceof Error ? err.message : String(err)
     const isBinaryError =
@@ -3747,7 +3759,7 @@ app.whenReady().then(async () => {
   )
   setViewerWorkspaceRoot(workspacePath ?? '')
 
-  registerDesktopIpcHandlers(workspacePath ?? '', () => wireClient)
+  registerDesktopIpcHandlers(workspacePath ?? '', getForegroundWireClient)
 
   if (import.meta.env.DEV) {
     win.loadURL('http://localhost:5173')
