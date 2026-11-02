@@ -33,17 +33,18 @@ public sealed partial class SessionService
             return thread;
         }
 
-        public async Task ArchiveAsync(string threadId, CancellationToken ct)
-        {
-            var root = await owner.GetOrLoadThreadAsync(threadId, ct);
-            ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
-
-            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+        public Task ArchiveAsync(string threadId, CancellationToken ct) =>
+            owner.WithThreadForArchiveAsync(threadId, async (root, loaded, commandCt) =>
             {
-                var thread = await owner.GetOrLoadThreadAsync(id, ct);
-                await ArchiveCoreAsync(thread, ct);
-            }
-        }
+                ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
+                var subtree = await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, commandCt);
+                await ArchiveCoreAsync(root, commandCt, loaded);
+                foreach (var id in subtree.Skip(1))
+                {
+                    await owner.WithThreadForArchiveAsync(id,
+                        (thread, childLoaded, childCt) => ArchiveCoreAsync(thread, childCt, childLoaded), commandCt);
+                }
+            }, ct);
 
         public async Task UnarchiveAsync(string threadId, CancellationToken ct)
         {
@@ -66,7 +67,7 @@ public sealed partial class SessionService
             foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
             {
                 var thread = await owner.GetOrLoadThreadAsync(id, ct);
-                await ArchiveCoreAsync(thread, ct);
+                await ArchiveCoreAsync(thread, ct, loaded: true);
             }
         }
 
@@ -174,7 +175,7 @@ public sealed partial class SessionService
             return result;
         }
 
-        private async Task ArchiveCoreAsync(SessionThread thread, CancellationToken ct)
+        private async Task ArchiveCoreAsync(SessionThread thread, CancellationToken ct, bool loaded)
         {
             if (thread.Status == ThreadStatus.Archived)
                 return;
@@ -189,7 +190,10 @@ public sealed partial class SessionService
                 await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
             await owner.Worktrees.ReleaseOnArchiveAsync(thread, ct);
 
-            await owner.PersistThreadStatusAsync(thread, ct);
+            if (loaded)
+                await owner.PersistThreadStatusAsync(thread, ct);
+            else
+                await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
         }
 

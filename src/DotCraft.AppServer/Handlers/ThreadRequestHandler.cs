@@ -712,7 +712,8 @@ internal sealed partial class ThreadRequestHandler(
     {
         var msg = request.Message;
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
-        var thread = await sessionService.GetThreadAsync(threadId, ct);
+        var thread = sessionService.TryGetLoadedThread(threadId)
+            ?? (await sessionService.ReadThreadSnapshotAsync(threadId, ct)).Thread;
         var previousStatus = thread.Status;
 
         await sessionService.ArchiveThreadAsync(threadId, ct);
