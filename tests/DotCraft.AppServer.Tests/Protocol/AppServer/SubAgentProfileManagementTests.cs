@@ -134,6 +134,20 @@ public sealed class SubAgentProfileManagementTests : IDisposable
             "gpt-x",
             (await ListAsync(harness)).GetProperty("settings").GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
 
+        await File.WriteAllTextAsync(
+            configPath,
+            "{\"SubAgent\":{\"CustomSettings\":{\"keep\":true},\"ProviderPreferences\":{\"anthropic-main\":{\"ProviderId\":\"removed\",\"Model\":\"old\"}}}}");
+        var kept = await UpdateSettingsAsync(harness, new
+        {
+            providerPreferences = new Dictionary<string, object>
+            {
+                ["anthropic-main"] = new { providerId = "removed", model = "old" },
+                ["openai"] = ModelPreferenceRules.CreateManual("gpt-z")
+            }
+        });
+        Assert.Equal("gpt-z", kept.GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
+        Assert.Equal("removed", kept.GetProperty("providerPreferences").GetProperty("anthropic-main").GetProperty("providerId").GetString());
+
         await UpdateSettingsAsync(harness, new JsonObject { ["externalCliSessionResumeEnabled"] = true });
         root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
         Assert.True(root["SubAgent"]!["CustomSettings"]!["keep"]!.GetValue<bool>());

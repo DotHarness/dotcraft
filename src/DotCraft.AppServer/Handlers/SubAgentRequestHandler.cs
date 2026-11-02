@@ -74,7 +74,14 @@ internal sealed class SubAgentRequestHandler(
             foreach (var (providerId, preference) in nextProviderPreferences)
             {
                 if (preference.ProviderId != null && !currentConfig.Providers.ContainsKey(preference.ProviderId))
-                    throw AppServerErrors.InvalidParams($"Model provider '{preference.ProviderId}' is not configured.");
+                {
+                    var previous = SubAgentModelPreference.Find(state.ProviderPreferences, providerId);
+                    if (previous == null
+                        || !string.Equals(previous.ProviderId, preference.ProviderId, StringComparison.OrdinalIgnoreCase)
+                        || !ModelPreferenceRules.ValueEquals(previous.ToModelPreference(), preference.ToModelPreference()))
+                        throw AppServerErrors.InvalidParams($"Model provider '{preference.ProviderId}' is not configured.");
+                    continue;
+                }
                 var targetProviderId = preference.ProviderId ?? providerId;
                 AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
                     currentConfig,
