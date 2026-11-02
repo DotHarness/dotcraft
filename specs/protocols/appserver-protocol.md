@@ -2497,7 +2497,7 @@ Usage facts are recorded once per completed Turn: timestamp, origin channel, roo
 
 #### Cost
 
-A fact's cost is in USD and covers the Turn's own model requests. A request uses the amount its provider reports when one exists (for example OpenRouter); otherwise it is estimated from the merged model catalog's price for the Turn's model (`models.json` `pricing`, overridable in global and workspace `.craft/models.json`): fresh input, cache-read, cache-write, and output tokens at their per-million rates, with cache rates falling back to the input rate. A Turn whose model has no price and whose provider reported no amount has no cost. Tokens reported by external CLI SubAgents are not priced. Costs are estimates: catalog prices are base rates and ignore discounts, tiers, and subscriptions.
+A fact's cost is in USD and covers the Turn's own model requests. A request uses the amount its provider reports when one exists (for example OpenRouter); otherwise it is estimated from the merged model catalog's price for the Turn's model (`models.json` `pricing`, overridable in global and workspace `.craft/models.json`): fresh input, cache-read, cache-write, and output tokens at their per-million rates, with cache rates falling back to the input rate. A Turn whose model has no price and whose provider reported no amount has no cost. Tokens reported by external CLI SubAgents are not priced. Catalog estimates apply the provider-owned service-tier rules in [Model options](../features/model-options.md#43-cost-estimation) per request. Provider-reported amounts, including zero, are never multiplied. Other provider tiers, context tiers, discounts, and subscriptions remain outside catalog estimates.
 
 #### Date ranges
 

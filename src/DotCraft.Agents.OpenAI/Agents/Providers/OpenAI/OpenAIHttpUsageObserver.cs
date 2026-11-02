@@ -7,12 +7,13 @@ public static class OpenAIHttpUsageObserver
 
     public static IProviderHttpUsageObserver CreateAuto() => JsonHttpUsageObserver.CreateAuto(Update);
 
-    private static ProviderHttpUsage Update(ProviderHttpUsage usage, string name, long value) => name switch
+    private static ProviderHttpUsage? Update(ProviderHttpUsage usage, string name, long value) => name switch
     {
         "input_tokens" or "prompt_tokens" => usage with { InputTokens = value },
         "output_tokens" or "completion_tokens" => usage with { OutputTokens = value },
         "cached_tokens" => usage with { CachedInputTokens = value },
+        "cache_write_tokens" => usage with { CacheWriteTokens = value },
         "reasoning_tokens" => usage with { ReasoningTokens = value },
-        _ => usage
+        _ => null
     };
 }

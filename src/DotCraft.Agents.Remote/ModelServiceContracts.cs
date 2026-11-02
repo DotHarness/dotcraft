@@ -27,7 +27,8 @@ public sealed record ModelServiceCatalog(string CallerId, IReadOnlyList<RemoteMo
 public sealed record ModelServiceRequestContext(
     string Model,
     ProviderConversationIdentity? Conversation,
-    string? Operation = null);
+    string? Operation = null,
+    string? RequestedServiceTier = null);
 
 public sealed record ModelServiceError(string Code, string Message);
 

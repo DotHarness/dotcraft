@@ -42,12 +42,14 @@ public sealed class ModelServiceTransportTests
         request.Headers.Authorization = new("Bearer", "sdk-placeholder");
         request.Headers.Add("Cookie", "secret-cookie");
         request.Content.Headers.ContentEncoding.Add("zstd");
+        using var tier = ProviderRequestServiceTierScope.Push("priority");
         using var response = await fixture.ProviderClient.SendAsync(request);
         Assert.Equal(stream, await response.Content.ReadAsStringAsync());
         Assert.Equal("upstream-request", response.Headers.GetValues("x-request-id").Single());
         Assert.Equal("continuation", response.Headers.GetValues("x-codex-turn-state").Single());
         Assert.Equal(1, calls);
         Assert.Equal(new ProviderHttpUsage(12, 8, 4), fixture.Access.Call!.Usage);
+        Assert.Equal("priority", fixture.Access.Call.Context.RequestedServiceTier);
     }
 
     [Fact]
@@ -242,6 +244,108 @@ public sealed class ModelServiceTransportTests
         await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    [Theory]
+    [InlineData("gpt-6-luna", "priority", "fast", false, 2)]
+    [InlineData("gpt-5.5", "priority", "default", true, 2.5)]
+    [InlineData("gpt-5.5", "priority", null, true, 2.5)]
+    public async Task CompletionCostUsesTheSameCalculatorWithTheEffectiveServiceTier(
+        string model, string requestTier, string? responseTier, bool codex, double multiplier)
+    {
+        var terminal = new JsonObject
+        {
+            ["service_tier"] = responseTier,
+            ["usage"] = new JsonObject
+            {
+                ["input_tokens"] = 1_000_000,
+                ["output_tokens"] = 100_000,
+                ["input_tokens_details"] = new JsonObject { ["cached_tokens"] = 200_000, ["cache_write_tokens"] = 100_000 }
+            }
+        };
+        var stream = "data: " + new JsonObject { ["type"] = "response.completed", ["response"] = terminal }.ToJsonString() + "\n\n";
+        await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(stream, Encoding.UTF8, "text/event-stream")
+        }), authMethod: codex ? ModelProviderAuthMethods.ChatGptOAuth : ModelProviderAuthMethods.ApiKey);
+        var runtime = new EffectiveModelRuntime("primary", model, ModelProviderProtocols.OpenAIResponses,
+            "Primary", "", "https://upstream.example/v1", 30, null,
+            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses));
+        using var pipeline = ProviderPipelineOptionsScope.Push(new(runtime, null, null, false, "standard", false, null));
+        using var tier = ProviderRequestServiceTierScope.Push(requestTier);
+
+        using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
+
+        Assert.Equal(stream, await response.Content.ReadAsStringAsync());
+        var call = Assert.IsType<ModelServiceCall>(fixture.Access.Call);
+        Assert.Equal(new ProviderHttpUsage(1_000_000, 100_000, 200_000, 100_000), call.Usage);
+        var pricing = model == "gpt-5.5"
+            ? new ModelPricing(5m, 30m, 0.5m)
+            : new ModelPricing(0.1m, 0.5m, 0.01m, 0.125m);
+        Assert.Equal(ModelCostCalculator.Resolve(pricing, call.Usage, (decimal)multiplier), call.CostUsd);
+        Assert.NotNull(call.CostUsd);
+    }
+
+    [Theory]
+    [InlineData(false, "0")]
+    [InlineData(false, "0.0375")]
+    [InlineData(true, "0")]
+    [InlineData(true, "0.0375")]
+    public async Task ReportedAmountOverridesCatalogAndTierInJsonAndStreams(bool stream, string amount)
+    {
+        var json = "{\"service_tier\":\"priority\",\"usage\":{\"input_tokens\":1000000,\"cost\":" + amount + "}}";
+        var body = stream ? "data: {\"type\":\"response.completed\",\"response\":" + json + "}\n\n" : json;
+        await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, stream ? "text/event-stream" : "application/json")
+        }));
+        var runtime = new EffectiveModelRuntime("primary", "gpt-5.5", ModelProviderProtocols.OpenAIResponses,
+            "Primary", "", "https://upstream.example/v1", 30, null,
+            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses));
+        using var pipeline = ProviderPipelineOptionsScope.Push(new(runtime, null, null, false, "standard", false, null));
+        using var tier = ProviderRequestServiceTierScope.Push("priority");
+
+        using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
+
+        Assert.Equal(body, await response.Content.ReadAsStringAsync());
+        Assert.Equal(decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture), fixture.Access.Call!.CostUsd);
+    }
+
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "chat/completions", "gpt-5.5", 5)]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "chat/completions", "gpt-5.5", 5)]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "responses", "gpt-5.5", 12.5)]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "responses/compact", "gpt-5.5", 12.5)]
+    [InlineData(ModelProviderProtocols.Anthropic, "v1/messages", "claude-opus-5-5", 4)]
+    public async Task CostAdjustmentsFollowTheActualOperationNotTheProviderDefault(string protocol, string operation, string model, double expected)
+    {
+        await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"service_tier\":\"priority\",\"usage\":{\"input_tokens\":1000000}}", Encoding.UTF8, "application/json")
+        }), protocol: protocol);
+        var runtime = new EffectiveModelRuntime("primary", model, protocol, "Primary", "", "https://upstream.example/v1",
+            30, null, ModelProviderCapabilities.ForProtocol(protocol));
+        using var pipeline = ProviderPipelineOptionsScope.Push(new(runtime, null, null, false, "fast", false, null));
+        using var tier = ProviderRequestServiceTierScope.Push("priority");
+
+        using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/" + operation, new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((decimal)expected, fixture.Access.Call!.CostUsd);
+    }
+
+    [Fact]
+    public async Task UnknownPriceRemainsUnknownInsteadOfZero()
+    {
+        await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"usage\":{\"input_tokens\":100}}", Encoding.UTF8, "application/json")
+        }));
+
+        using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
+
+        Assert.NotNull(fixture.Access.Call!.Usage);
+        Assert.Null(fixture.Access.Call.CostUsd);
+    }
+
     private sealed class Fixture(WebApplication app, HttpClient client, Access access, RemoteProviderTransport transport) : IAsyncDisposable
     {
         public Access Access => access;
@@ -249,11 +353,12 @@ public sealed class ModelServiceTransportTests
         public HttpClient ProviderClient { get; } = transport.CreateClient("primary", new Uri("https://upstream.example/v1"));
         public static async Task<Fixture> CreateAsync(Func<HttpRequestMessage, Task<HttpResponseMessage>> send,
             string endpoint = "https://upstream.example/v1", string protocol = ModelProviderProtocols.OpenAIResponses,
-            Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? cancellableSend = null)
+            Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? cancellableSend = null,
+            string authMethod = ModelProviderAuthMethods.ApiKey)
         {
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();
-            var access = new Access { Endpoint = endpoint, Protocol = protocol };
+            var access = new Access { Endpoint = endpoint, Protocol = protocol, AuthMethod = authMethod };
             builder.Services.AddSingleton<IModelServiceAccess>(access);
             builder.Services.AddSingleton<IModelServiceObserver>(access);
             builder.Services.AddDotCraftModelService();
@@ -282,6 +387,7 @@ public sealed class ModelServiceTransportTests
     {
         public string Endpoint { get; init; } = "https://upstream.example/v1";
         public string Protocol { get; init; } = ModelProviderProtocols.OpenAIResponses;
+        public string AuthMethod { get; init; } = ModelProviderAuthMethods.ApiKey;
         public bool Revoked { get; set; }
         public bool ThrowOnUsage { get; set; }
         public ModelServiceCall? Call { get; private set; }
@@ -290,9 +396,9 @@ public sealed class ModelServiceTransportTests
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
                 new(new RemoteModelProvider("primary", "Primary", Protocol,
-                    Endpoint, "apiKey", true, true, new ProviderAuthenticationStatus(true)),
+                    Endpoint, AuthMethod, true, true, new ProviderAuthenticationStatus(true)),
                     new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
-                        Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol)))
+                        Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol), AuthMethod: AuthMethod))
             ]);
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken) => ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)

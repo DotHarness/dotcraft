@@ -208,7 +208,8 @@ public sealed class ChatGptResponsesCompactBackendTests
             """);
         var backend = new ProviderNativeCompactionBackend(
             "openai-responses-compact",
-            new OpenAIResponsesCompactor("gpt-test", useResponsesLite: false, transport),
+            new OpenAIResponsesCompactor("gpt-test", useResponsesLite: false, transport,
+                rawRepresentationClient: new NoopChatClient()),
             tokens => Threshold(tokens));
 
         var result = await backend.ExecuteAsync(
@@ -219,7 +220,15 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "thread_1",
                 100,
                 null,
-                Options: new ChatOptions(),
+                Options: new ChatOptions
+                {
+                    RawRepresentationFactory = _ =>
+                    {
+                        var raw = new CreateResponseOptions();
+                        ResponsesToolSearchMapper.PatchResponseServiceTier(raw, "priority");
+                        return raw;
+                    }
+                },
                 ProviderBridge: bridge),
             CancellationToken.None);
 
@@ -229,6 +238,8 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Equal(["message", "compaction"], replacement.Items.Select(ReadType));
         Assert.Equal(1, replacement.Items[1].GetProperty("future_field").GetProperty("value").GetInt32());
         Assert.Equal(1, transport.CallCount);
+        Assert.Equal("priority", transport.RequestedServiceTier);
+        Assert.Null(ProviderRequestServiceTierScope.Current);
         Assert.Equal(1, bridge.CaptureCount);
     }
 
@@ -716,6 +727,7 @@ public sealed class ChatGptResponsesCompactBackendTests
         public int CallCount { get; private set; }
 
         public ChatGptResponsesCompactRequest? LastRequest { get; private set; }
+        public string? RequestedServiceTier { get; private set; }
 
         public Task<ChatGptResponsesCompactResponse> CompactAsync(
             ChatGptResponsesCompactRequest requestBody,
@@ -723,6 +735,7 @@ public sealed class ChatGptResponsesCompactBackendTests
         {
             CallCount++;
             LastRequest = requestBody;
+            RequestedServiceTier = ProviderRequestServiceTierScope.Current;
             return Task.FromResult(
                 JsonSerializer.Deserialize<ChatGptResponsesCompactResponse>(
                     responseJson,

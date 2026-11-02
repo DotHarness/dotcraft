@@ -33,7 +33,8 @@ public sealed record ModelServiceCall(
     ProviderHttpUsage? Usage,
     DateTimeOffset StartedAt,
     TimeSpan Duration,
-    bool Completed);
+    bool Completed,
+    decimal? CostUsd = null);
 
 public interface IModelServiceObserver
 {

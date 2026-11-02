@@ -12,13 +12,15 @@ public sealed record ProviderHttpUsage(
 public interface IProviderHttpUsageObserver
 {
     ProviderHttpUsage? Usage { get; }
+    decimal? ReportedCostUsd { get; }
+    string? ServiceTier { get; }
     void Append(ReadOnlySpan<byte> bytes);
     void Complete();
 }
 
 public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
 {
-    private readonly Func<ProviderHttpUsage, string, long, ProviderHttpUsage> _update;
+    private readonly Func<ProviderHttpUsage, string, long, ProviderHttpUsage?> _update;
     private bool? _eventStream;
     private byte[] _buffer = new byte[4096];
     private int _length;
@@ -26,21 +28,25 @@ public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
     private JsonReaderState _state;
     private readonly List<string> _path = [];
     private string _property = "";
+    private string? _eventType;
+    private string? _eventServiceTier;
     private bool _failed;
 
-    public JsonHttpUsageObserver(bool eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update)
+    public JsonHttpUsageObserver(bool eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage?> update)
         : this((bool?)eventStream, update) { }
 
-    private JsonHttpUsageObserver(bool? eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update)
+    private JsonHttpUsageObserver(bool? eventStream, Func<ProviderHttpUsage, string, long, ProviderHttpUsage?> update)
     {
         _eventStream = eventStream;
         _update = update;
     }
 
-    public static JsonHttpUsageObserver CreateAuto(Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update) =>
+    public static JsonHttpUsageObserver CreateAuto(Func<ProviderHttpUsage, string, long, ProviderHttpUsage?> update) =>
         new(null, update);
 
     public ProviderHttpUsage? Usage { get; private set; }
+    public decimal? ReportedCostUsd { get; private set; }
+    public string? ServiceTier { get; private set; }
 
     public void Append(ReadOnlySpan<byte> bytes)
     {
@@ -119,6 +125,8 @@ public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
             _state = default;
             _path.Clear();
             _property = "";
+            _eventType = null;
+            _eventServiceTier = null;
         }
         var reader = new Utf8JsonReader(bytes, complete, _state);
         while (reader.Read())
@@ -138,11 +146,30 @@ public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
                     _path.RemoveAt(_path.Count - 1);
                     break;
                 case JsonTokenType.Number:
-                    if (IsUsagePath() && reader.TryGetInt64(out var value))
-                        Usage = _update(Usage ?? new ProviderHttpUsage(), _property, value);
+                    if (_property == "cost" && IsReportedCostPath())
+                    {
+                        if (reader.TryGetDecimal(out var amount) && amount >= 0)
+                            ReportedCostUsd = amount;
+                    }
+                    else if (IsUsagePath() && reader.TryGetInt64(out var value))
+                        Usage = _update(Usage ?? new ProviderHttpUsage(), _property, value) ?? Usage;
+                    break;
+                case JsonTokenType.String:
+                    if (_property == "type" && _path.Count == 1)
+                        _eventType = reader.GetString();
+                    else if (_property == "service_tier" && (_path.Count == 1
+                        || (_path.Count == 2 && _path[1] == "response")))
+                    {
+                        if (reset)
+                            _eventServiceTier = reader.GetString();
+                        else
+                            ServiceTier = reader.GetString();
+                    }
                     break;
             }
         }
+        if (reset && (_eventType is "response.completed" or "response.incomplete"))
+            ServiceTier = _eventServiceTier;
         if (!reset)
         {
             _state = reader.CurrentState;
@@ -152,7 +179,18 @@ public sealed class JsonHttpUsageObserver : IProviderHttpUsageObserver
         }
     }
 
-    private bool IsUsagePath() =>
-        _path.Count >= 2 && (_path[1] == "usage"
-            || (_path.Count >= 3 && (_path[1] is "message" or "response") && _path[2] == "usage"));
+    private bool IsReportedCostPath() =>
+        (_path.Count == 2 && _path[1] == "usage")
+        || (_path.Count == 3 && _path[1] is "response" or "openrouter_metadata" && _path[2] == "usage")
+        || (_path.Count == 4 && _path[1] == "response" && _path[2] == "openrouter_metadata" && _path[3] == "usage");
+
+    private bool IsUsagePath()
+    {
+        var usageDepth = _path.Count >= 2 && _path[1] == "usage" ? 2
+            : _path.Count >= 3 && _path[1] is "message" or "response" && _path[2] == "usage" ? 3
+            : 0;
+        return usageDepth > 0 && (_path.Count == usageDepth
+            || (_path.Count == usageDepth + 1 && _path[^1] is "input_tokens_details"
+                or "prompt_tokens_details" or "output_tokens_details" or "completion_tokens_details"));
+    }
 }

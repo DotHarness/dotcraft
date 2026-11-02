@@ -28,8 +28,10 @@ metadata, and sanitized authentication status. They contain no API keys, OAuth t
 filesystem paths. Workers keep provider request shaping and native history.
 Built-in backends publish each model's supported protocols, limits, reasoning options and prices.
 Workers resolve the model's protocol before inference, and the service validates its operation.
-Thread, root thread, Turn, and request-kind correlation remain explicit. Cache routing identities
-are scoped by the stable caller identity.
+Thread, root thread, Turn, and request-kind correlation remain explicit. The request context also carries
+the service tier selected in the final native request options, so billing does not infer it from a
+thread preference or inspect compressed request bodies. Cache routing identities are scoped by the
+stable caller identity.
 
 Cancellation closes the upstream request. OAuth recovery belongs to the service; model and
 tool-loop retry remain in the runtime. An upstream response is not replayed after streaming starts.
@@ -53,9 +55,17 @@ new refresh tokens are persisted before being used by subsequent requests. Perma
 failures require a new login. Browser interaction remains the responsibility of the calling host.
 
 Service usage is extracted from upstream responses by provider-owned readers. Hosts receive
-normalized token counts with caller and request correlation. Usage-recording failures do not fail
-model responses. Request bodies and credentials are not included in these records. Usage reading
-never alters the forwarded response.
+normalized token counts and nullable decimal USD `CostUsd` with caller and request correlation.
+The service uses an upstream-reported amount, including zero, when present; otherwise it uses the
+built-in model catalog and the shared per-request estimator. Cache read and write rates fall back to
+the input rate, and unknown prices remain unspecified. OpenAI Responses applies the service-tier
+rules in [Model options](../features/model-options.md), using the response tier before the requested
+tier and preserving the Codex `default` echo exception. This adjustment follows the actual
+`responses` or `responses/compact` operation, not the provider's default protocol. Other operations
+receive no inferred Fast multiplier. This price is per HTTP model call, not a Session Turn total.
+
+Usage-recording or cost-estimation failures do not fail model responses. Request bodies and
+credentials are not included in these records. Usage reading never alters the forwarded response.
 
 ## Deployment
 

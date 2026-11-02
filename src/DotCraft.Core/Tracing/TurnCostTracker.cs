@@ -1,91 +1,64 @@
+using DotCraft.Agents;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tracing;
 
-/// <summary>Collects a Turn's model requests so their cost can be resolved once its model is known.</summary>
 internal sealed class TurnCostTracker
 {
     private readonly List<Request> _requests = [];
 
-    public void AddUsage(TokenUsageSnapshot delta, bool isNewRequest)
+    public void AddUsage(TokenUsageSnapshot delta, bool isNewRequest, int? requestIndex = null)
     {
-        if (isNewRequest || _requests.Count == 0)
-            _requests.Add(new Request());
-        _requests[^1].Add(delta);
+        var request = GetRequest(requestIndex, isNewRequest);
+        request.Usage = new ProviderHttpUsage(
+            (request.Usage?.InputTokens ?? 0) + delta.InputTokens,
+            (request.Usage?.OutputTokens ?? 0) + delta.OutputTokens,
+            (request.Usage?.CachedInputTokens ?? 0) + delta.CachedInputTokens,
+            (request.Usage?.CacheWriteTokens ?? 0) + delta.CacheWriteInputTokens);
     }
 
-    /// <summary>Attributes a provider-billed amount to the latest request, which reports it after its usage.</summary>
-    public void AddReportedCost(decimal amount)
+    public void ObserveUpdate(ChatResponseUpdate update, int? requestIndex)
     {
-        if (_requests.Count == 0)
-            _requests.Add(new Request());
-        _requests[^1].Reported = (_requests[^1].Reported ?? 0) + amount;
+        var reported = ProviderReportedCost.TryGet(update.AdditionalProperties);
+        var multiplier = ProviderCostMultiplier.TryGet(update.AdditionalProperties);
+        if (reported is null && multiplier is null)
+            return;
+        var request = GetRequest(requestIndex);
+        if (reported is { } amount)
+            request.Reported = (request.Reported ?? 0) + amount;
+        if (multiplier is { } factor)
+            request.Multiplier = factor;
     }
 
-    /// <summary>Reported amounts where present, otherwise catalog estimates; null when any request cannot be priced.</summary>
     public decimal? Resolve(ModelPricing? pricing)
     {
         if (_requests.Count == 0)
             return null;
-
         decimal total = 0;
         foreach (var request in _requests)
         {
-            if (request.Reported is { } reported)
-            {
-                total += reported;
-                continue;
-            }
-
-            if (Estimate(pricing, request) is not { } estimate)
+            if (ModelCostCalculator.Resolve(pricing, request.Usage, request.Multiplier, request.Reported) is not { } cost)
                 return null;
-            total += estimate;
+            total += cost;
         }
-
         return total;
     }
 
-    private static decimal? Estimate(ModelPricing? pricing, Request request)
+    private Request GetRequest(int? index, bool newRequest = false)
     {
-        if (pricing is null)
-            return null;
-
-        var cacheRead = pricing.CacheReadPerMillion ?? pricing.InputPerMillion;
-        var cacheWrite = pricing.CacheWritePerMillion ?? pricing.InputPerMillion;
-        var fresh = Math.Max(0, request.Input - request.Cached - request.CacheWrite);
-        decimal total = 0;
-        foreach (var (tokens, rate) in new[]
-                 {
-                     (fresh, pricing.InputPerMillion),
-                     (request.Cached, cacheRead),
-                     (request.CacheWrite, cacheWrite),
-                     (request.Output, pricing.OutputPerMillion)
-                 })
-        {
-            if (tokens <= 0)
-                continue;
-            if (rate is not { } perMillion)
-                return null;
-            total += tokens * perMillion;
-        }
-
-        return total / 1_000_000m;
+        if (_requests.Count == 0 || (index.HasValue
+                ? _requests[^1].Index != index
+                : newRequest && _requests[^1].Usage is not null))
+            _requests.Add(new Request(index));
+        return _requests[^1];
     }
 
-    private sealed class Request
+    private sealed class Request(int? index)
     {
-        public long Input { get; private set; }
-        public long Output { get; private set; }
-        public long Cached { get; private set; }
-        public long CacheWrite { get; private set; }
+        public int? Index { get; } = index;
+        public ProviderHttpUsage? Usage { get; set; }
         public decimal? Reported { get; set; }
-
-        public void Add(TokenUsageSnapshot delta)
-        {
-            Input += delta.InputTokens;
-            Output += delta.OutputTokens;
-            Cached += delta.CachedInputTokens;
-            CacheWrite += delta.CacheWriteInputTokens;
-        }
+        public decimal Multiplier { get; set; } = 1m;
     }
 }
