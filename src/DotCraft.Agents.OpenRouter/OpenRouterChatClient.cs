@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Anthropic.Core;
 using Anthropic.Models.Beta.Messages;
 using DotCraft.Configuration;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using OpenAI.Responses;
@@ -20,7 +21,6 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
     OpenRouterRoutingPreferences routing, Action<decimal?> completed) : DelegatingChatClient(inner)
 {
     internal const string ReasoningDetailsKey = "openrouter.reasoning_details";
-    internal const string CostKey = "openrouter.costUsd";
 
     public override async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
@@ -29,9 +29,8 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
             var updates = new List<ChatResponseUpdate>();
             await foreach (var update in GetStreamingResponseAsync(messages, options, cancellationToken).ConfigureAwait(false)) updates.Add(update);
             var response = updates.ToAgentResponse();
-            if (updates.LastOrDefault(update => update.AdditionalProperties?.ContainsKey(CostKey) == true)
-                ?.AdditionalProperties?[CostKey] is decimal cost)
-                (response.AdditionalProperties ??= new())[CostKey] = cost;
+            if (updates.Select(update => ProviderReportedCost.TryGet(update.AdditionalProperties)).LastOrDefault(cost => cost is not null) is { } cost)
+                ProviderReportedCost.Attach(response, cost);
             return response;
         }
         var result = await base.GetResponseAsync(PrepareMessages(messages), Prepare(options), cancellationToken).ConfigureAwait(false);
@@ -42,7 +41,7 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
             AddPlaintextReasoning(message.Contents, plaintext);
             if (metadata.Reasoning.Count > 0) message.Contents.Add(metadata.ReasoningContent());
         }
-        if (metadata.Cost is { } amount) (result.AdditionalProperties ??= new())[CostKey] = amount;
+        if (metadata.Cost is { } amount) ProviderReportedCost.Attach(result, amount);
         completed(metadata.Cost);
         return result;
     }
@@ -63,7 +62,7 @@ internal sealed class OpenRouterChatClient(IChatClient inner, EffectiveModelRunt
         {
             var update = new ChatResponseUpdate { Role = ChatRole.Assistant, MessageId = messageId };
             if (metadata.Reasoning.Count > 0) update.Contents.Add(metadata.ReasoningContent());
-            if (metadata.Cost is { } amount) (update.AdditionalProperties ??= new())[CostKey] = amount;
+            if (metadata.Cost is { } amount) ProviderReportedCost.Attach(update, amount);
             yield return update;
         }
     }

@@ -15,6 +15,16 @@
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
+    "costUsd": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "inputTokens": {
       "type": "integer",
       "minimum": -9007199254740991,

@@ -76,9 +76,12 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
 
         try
         {
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                new Uri(endpoint.ToString().TrimEnd('/') + "/v1/models?limit=1000"));
+            // DeepSeek's Anthropic-compatible API documents model listing only at its shared /models route.
+            var modelsUri = !runtime.IsRemote
+                && ProviderWebSearchBackend.Resolve(runtime.EndPoint, runtime.AuthMethod) == ProviderWebSearchBackend.DeepSeek
+                    ? ProviderWebSearchBackend.DeepSeekModelsEndpoint
+                    : new Uri(endpoint.ToString().TrimEnd('/') + "/v1/models?limit=1000");
+            using var request = new HttpRequestMessage(HttpMethod.Get, modelsUri);
             if (!runtime.IsRemote)
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", runtime.ApiKey);
             request.Headers.Add("anthropic-version", "2026-10-21");

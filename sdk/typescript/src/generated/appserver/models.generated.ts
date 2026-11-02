@@ -5382,6 +5382,7 @@ export interface UsageSummaryResult {
   totalCacheWriteInputTokens?: number;
   totalCachedInputTokens?: number;
   totalContextCompactions?: number;
+  totalCostUsd?: number;
   totalErrors?: number;
   totalFreshInputTokens?: number;
   totalInputTokens?: number;
@@ -5393,11 +5394,13 @@ export interface UsageSummaryResult {
   totalTokens?: number;
   totalToolCalls?: number;
   totalToolDurationMs?: number;
+  unpricedTurns?: number;
   [key: string]: unknown;
 }
 
 export interface UsageThreadGroup {
   cachedInputTokens?: number;
+  costUsd?: number | null;
   inputTokens?: number;
   model?: string | null;
   outputTokens?: number;
@@ -5416,6 +5419,7 @@ export interface UsageThreadParams {
 export interface UsageThreadResult {
   cacheHitRate?: number;
   cachedInputTokens?: number;
+  costUsd?: number | null;
   groups?: UsageThreadGroup[];
   inputTokens?: number;
   outputTokens?: number;
@@ -5429,6 +5433,7 @@ export interface UsageThreadRow {
   archived?: boolean;
   cacheHitRate?: number;
   cachedInputTokens?: number;
+  costUsd?: number | null;
   inputTokens?: number;
   lastActiveAt?: string;
   originChannel?: string;

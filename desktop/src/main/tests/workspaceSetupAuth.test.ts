@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loginSetupChatGpt } from '../workspaceSetup'
+import { loginSetupProvider } from '../workspaceSetup'
 
 const tempRoots: string[] = []
 
@@ -13,7 +13,7 @@ afterEach(async () => {
 describe('setup sign-in bridge', () => {
   it('signs an unsaved provider draft in through stdin and keeps backend failure details', async () => {
     const runBackend = vi.fn().mockResolvedValue({ kind: 'success' })
-    const result = await loginSetupChatGpt({
+    const result = await loginSetupProvider({
       provider: {
         id: ' chatgpt ',
         displayName: 'ChatGPT',
@@ -31,7 +31,7 @@ describe('setup sign-in bridge', () => {
     expect(timeoutMs).toBe(15 * 60_000)
 
     runBackend.mockRejectedValueOnce(new Error('Authorization cancelled'))
-    await expect(loginSetupChatGpt({
+    await expect(loginSetupProvider({
       provider: { id: 'chatgpt', displayName: '', protocol: 'openai-responses', apiKey: '', endPoint: '', authMethod: 'chatgptOAuth' }
     }, { runBackend })).resolves.toEqual({ kind: 'error', errorCode: 'provider_login_failed', errorMessage: 'Authorization cancelled' })
   })
@@ -45,7 +45,7 @@ describe('setup sign-in bridge', () => {
     }))
     const runBackend = vi.fn().mockResolvedValue({ kind: 'success' })
 
-    await loginSetupChatGpt({ providerId: 'subscription' }, { userConfigPath, runBackend })
+    await loginSetupProvider({ providerId: 'subscription' }, { userConfigPath, runBackend })
 
     const [args, stdin] = runBackend.mock.calls[0]
     expect(args).toEqual(['auth', 'login', '--stdin'])

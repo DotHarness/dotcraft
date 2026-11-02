@@ -11,14 +11,16 @@ describe('thread usage popover', () => {
           threadId: 'thread-1',
           turns: 3,
           totalTokens: 300,
+          costUsd: 0.3,
           groups: [
-            { model: 'atlas-4', turns: 1, totalTokens: 100 },
-            { model: 'boreal-mini', turns: 1, totalTokens: 60 },
-            { model: 'atlas-4', turns: 1, totalTokens: 140 }
+            { model: 'atlas-4', turns: 1, totalTokens: 100, costUsd: 0.1 },
+            { model: 'boreal-mini', turns: 1, totalTokens: 60, costUsd: null },
+            { model: 'atlas-4', turns: 1, totalTokens: 140, costUsd: 0.2 }
           ]
         }}
         strings={stringsFor('en')}
         formatTokens={(value) => String(value)}
+        formatCost={(value) => `$${value.toFixed(2)}`}
         style={{}}
       />
     )
@@ -28,6 +30,7 @@ describe('thread usage popover', () => {
       'atlas-4',
       'boreal-mini'
     ])
-    expect(rows[0].querySelector('.token-hud-popover-value')?.textContent).toBe('80% · 240')
+    expect(rows[0].querySelector('.token-hud-popover-value')?.textContent).toBe('80% · 240 · $0.30')
+    expect(rows[1].querySelector('.token-hud-popover-value')?.textContent).toBe('20% · 60')
   })
 })

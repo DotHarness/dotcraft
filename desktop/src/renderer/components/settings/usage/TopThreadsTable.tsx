@@ -1,8 +1,10 @@
 import { useState, type JSX } from 'react'
+import { useLocale } from '../../../contexts/LocaleContext'
 import type { LoadState, UsageRange, UsageThreadWire } from '../../../stores/usageStore'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { formatCompactCount } from '../../../utils/formatCompactCount'
+import { formatUsd } from '../../../utils/formatUsd'
 import { Button } from '../../ui/Button'
 import { Skeleton } from '../../ui/Skeleton'
 import { SettingsGroup } from '../SettingsGroup'
@@ -27,6 +29,7 @@ function openThread(threadId: string): void {
 }
 
 export function TopThreadsTable({ state, range, onRangeChange, formatDateTime, onRetry, t }: TopThreadsTableProps): JSX.Element {
+  const locale = useLocale()
   const [expanded, setExpanded] = useState(false)
   const rows = state.data ?? []
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS)
@@ -52,6 +55,7 @@ export function TopThreadsTable({ state, range, onRangeChange, formatDateTime, o
               <th>{t('settings.usage.threads.col.surface')}</th>
               <th className={styles.numeric}>{t('settings.usage.threads.col.turns')}</th>
               <th className={styles.numeric}>{t('settings.usage.threads.col.tokens')}</th>
+              <th className={styles.numeric}>{t('settings.usage.threads.col.cost')}</th>
               <th className={styles.numeric}>{t('settings.usage.threads.col.cacheHit')}</th>
               <th className={styles.numeric}>{t('settings.usage.threads.col.lastActive')}</th>
             </tr>
@@ -73,6 +77,9 @@ export function TopThreadsTable({ state, range, onRangeChange, formatDateTime, o
                 <td className={styles.numeric}>{thread.turns.toLocaleString()}</td>
                 <td className={styles.numeric} title={thread.totalTokens.toLocaleString()}>
                   {formatCompactCount(thread.totalTokens)}
+                </td>
+                <td className={`${styles.numeric} ${thread.costUsd == null ? styles.threadMeta : ''}`}>
+                  {thread.costUsd == null ? '—' : formatUsd(thread.costUsd, locale)}
                 </td>
                 <td className={styles.numeric}>{`${(thread.cacheHitRate * 100).toFixed(0)}%`}</td>
                 <td className={`${styles.numeric} ${styles.threadMeta}`}>{formatDateTime(thread.lastActiveAt)}</td>

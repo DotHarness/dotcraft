@@ -13,7 +13,6 @@ import {
   useProvidersStore,
   type ProviderSummary
 } from '../../stores/providersStore'
-import { tryNormalizeProviderProtocol } from '../../../shared/providerProtocols'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   shapeChatGptUsageWindows,
@@ -23,7 +22,7 @@ import {
 import { formatBalanceAmount } from '../../utils/providerBalance'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
-import { getProviderProtocolMarkKind } from '../settings/panels/ProviderProtocolIcon'
+import { providerPresetMark } from '../settings/providers/providerPresets'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
 import { OpenRouterUsageBadge } from './OpenRouterUsageBadge'
 
@@ -134,9 +133,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
 
 function providerMarkKind(provider: ProviderSummary): ProviderMarkKind | null {
   if (provider.webSearchBackend === 'deepseek') return 'deepseek'
-  return provider.authMethod === 'chatgptOAuth' || tryNormalizeProviderProtocol(provider.protocol)
-    ? getProviderProtocolMarkKind(provider.protocol)
-    : null
+  return providerPresetMark(provider)
 }
 
 function selectPressuredWindow(windows: ChatGptUsageDisplayWindow[]): ChatGptUsageDisplayWindow | null {

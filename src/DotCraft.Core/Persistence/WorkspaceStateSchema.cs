@@ -375,6 +375,7 @@ internal static class WorkspaceStateSchema
         EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "speed", "TEXT");
+        EnsureColumn(connection, "dashboard_usage_records", "cost_usd", "REAL");
         EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
         EnsureColumn(connection, "trace_session_bindings", "fork_mode", "TEXT");
         EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");

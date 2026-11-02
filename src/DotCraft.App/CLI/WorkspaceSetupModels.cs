@@ -23,6 +23,9 @@ public sealed record WorkspaceSetupProviderDraft
 
     public required string Protocol { get; init; }
 
+    /// <summary>Model backend that owns the provider, such as <c>openrouter</c>; its protocol and method ids are stored as given.</summary>
+    public string? BackendId { get; init; }
+
     public string ApiKey { get; init; } = string.Empty;
 
     public string EndPoint { get; init; } = string.Empty;

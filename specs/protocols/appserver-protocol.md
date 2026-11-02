@@ -2493,7 +2493,11 @@ Params: optional `includeArchived`. Result `{ runs }`.
 
 These methods expose workspace usage analytics (overviews, history charts, tool activity, top threads). Gated by `capabilities.usageTelemetry`, which is `false` when tracing is disabled (the usage fact table and trace store are not written); methods then return `-32601`.
 
-Usage facts are recorded once per completed Turn: timestamp, origin channel, root thread, model, reasoning effort, LLM call count, and token breakdown. Tool calls, skill references, and errors come from persisted trace events. Every aggregate buckets a fact by its own timestamp.
+Usage facts are recorded once per completed Turn: timestamp, origin channel, root thread, model, reasoning effort, LLM call count, token breakdown, and cost. Tool calls, skill references, and errors come from persisted trace events. Every aggregate buckets a fact by its own timestamp.
+
+#### Cost
+
+A fact's cost is in USD and covers the Turn's own model requests. A request uses the amount its provider reports when one exists (for example OpenRouter); otherwise it is estimated from the merged model catalog's price for the Turn's model (`models.json` `pricing`, overridable in global and workspace `.craft/models.json`): fresh input, cache-read, cache-write, and output tokens at their per-million rates, with cache rates falling back to the input rate. A Turn whose model has no price and whose provider reported no amount has no cost. Tokens reported by external CLI SubAgents are not priced. Costs are estimates: catalog prices are base rates and ignore discounts, tiers, and subscriptions.
 
 #### Date ranges
 
@@ -2505,7 +2509,7 @@ The `surface` dimension is the origin channel of the **root** thread: SubAgent f
 
 ### 27A.2 `usage/summary`
 
-Params: the date-range fields (`{}` is lifetime). Result: `sessionCount` (distinct root threads with a completed Turn in range), `totalRequests` (LLM calls over completed Turns), `totalResponses` (response trace events), `totalToolCalls`, `totalErrors` (error and provider-error events), `totalContextCompactions`, token totals (`totalInputTokens`, `totalOutputTokens`, `totalCachedInputTokens`, `totalCacheWriteInputTokens`, `totalFreshInputTokens` = `max(0, input − cached − cacheWrite)`, `totalNonCachedInputTokens` = `max(0, input − cached)`, `totalReasoningOutputTokens`, `totalTokens` = input + output), tool duration total/average/max, and `cacheHitRate` (`cached / input`, `0` without input). Every numeric field is `0` when nothing matches. Period comparison is a client concern.
+Params: the date-range fields (`{}` is lifetime). Result: `sessionCount` (distinct root threads with a completed Turn in range), `totalRequests` (LLM calls over completed Turns), `totalResponses` (response trace events), `totalToolCalls`, `totalErrors` (error and provider-error events), `totalContextCompactions`, token totals (`totalInputTokens`, `totalOutputTokens`, `totalCachedInputTokens`, `totalCacheWriteInputTokens`, `totalFreshInputTokens` = `max(0, input − cached − cacheWrite)`, `totalNonCachedInputTokens` = `max(0, input − cached)`, `totalReasoningOutputTokens`, `totalTokens` = input + output), `totalCostUsd` (sum over priced Turns) and `unpricedTurns` (completed Turns without a cost, so clients can mark the total as partial), tool duration total/average/max, and `cacheHitRate` (`cached / input`, `0` without input). Every numeric field is `0` when nothing matches. Period comparison is a client concern.
 
 ### 27A.3 `usage/history`
 
@@ -2518,13 +2522,14 @@ One metric per local day, optionally broken down by one dimension, in a single s
 | `tokens` | completed Turns | input + output tokens | `none`, `tokenType`, `surface`, `model`, `reasoning`, `speed` |
 | `turns` | completed Turns | 1 per Turn | `none`, `surface`, `model`, `reasoning`, `speed` |
 | `requests` | completed Turns | LLM calls | `none`, `surface`, `model`, `reasoning`, `speed` |
+| `cost` | priced completed Turns | cost in USD | `none`, `surface`, `model`, `reasoning`, `speed` |
 | `toolCalls` | tool-call-completed trace events | 1 per call | `none`, `toolSource`, `tool` |
 | `skillUses` | skill-referenced trace events | 1 per reference | `none`, `skill` |
 | `errors` | error and provider-error trace events | 1 per event | `none`, `surface` |
 
 Other combinations or unknown values return `-32602`.
 
-**Result**: `unit` (`tokens` for the tokens metric, else `count`), effective `groupBy`, `days` (days with data, ascending; clients fill gaps), each with local `date`, `total` across all groups (the share denominator), and `values` (`{ key, value }` descending; empty for `none`), plus `series` (every group's range total, descending; empty for `none`).
+**Result**: `unit` (`tokens` for the tokens metric, `usd` for cost, else `count`), effective `groupBy`, `days` (days with data, ascending; clients fill gaps), each with local `date`, `total` across all groups (the share denominator), and `values` (`{ key, value }` descending; empty for `none`), plus `series` (every group's range total, descending; empty for `none`). Values are numbers; only cost values are fractional. Turns without a cost are left out of the cost metric rather than counted as zero.
 
 Group keys are raw; clients map labels:
 
@@ -2540,11 +2545,11 @@ Groups are ranked by range total; the leading `topLimit` keep their keys on ever
 
 Params: the date-range fields and `limit` (default 5, clamped 1-50). A thread is active in range when its most recent completed Turn falls inside it.
 
-Result `{ threads }`: root threads (SubAgents rolled up) ordered by lifetime `totalTokens`, then `lastActiveAt`, each with `threadId`, `title` (display name, else first user message; omitted when neither exists), `originChannel`, `lastActiveAt`, lifetime `turns` and token totals, `cacheHitRate`, and `archived`.
+Result `{ threads }`: root threads (SubAgents rolled up) ordered by lifetime `totalTokens`, then `lastActiveAt`, each with `threadId`, `title` (display name, else first user message; omitted when neither exists), `originChannel`, `lastActiveAt`, lifetime `turns` and token totals, `cacheHitRate`, `costUsd` (sum over priced Turns; omitted when none is priced), and `archived`.
 
 ### 27A.5 `usage/thread`
 
-Params `threadId` (root thread, required; blank → `-32602`). Result: lifetime `turns`, token totals, and `cacheHitRate` across the thread and its SubAgents, plus `groups`: one entry per distinct model × reasoning effort × speed (dimensions omitted when the Turns carry none), ordered by `totalTokens`; empty without completed Turns.
+Params `threadId` (root thread, required; blank → `-32602`). Result: lifetime `turns`, token totals, `cacheHitRate`, and `costUsd` across the thread and its SubAgents, plus `groups`: one entry per distinct model × reasoning effort × speed (dimensions omitted when the Turns carry none) with its own `costUsd`, ordered by `totalTokens`; empty without completed Turns. `costUsd` follows `usage/threads`.
 
 ### 27A.6 `profile/insights`
 

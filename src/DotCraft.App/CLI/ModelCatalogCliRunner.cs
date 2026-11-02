@@ -46,17 +46,18 @@ public static class ModelCatalogCliRunner
                 providerId = ApplyProviderDraft(config, await input.ReadToEndAsync(cancellationToken));
 
             var auth = new OpenAIAuthManager(new OpenAITokenStore(paths.CraftHomePath));
-            if (config.Providers.TryGetValue(providerId ?? string.Empty, out var provider)
-                && string.Equals(provider.AuthMethod, ModelProviderAuthMethods.ChatGptOAuth, StringComparison.OrdinalIgnoreCase)
-                && !auth.IsAuthenticated)
-            {
-                await writeResult(new { kind = "auth-required" });
-                return 0;
-            }
-
             using var resolver = new ModelBackendResolver(new ModelProviderRegistry([
                 new OpenAIClientProvider(auth), new AnthropicClientProvider()]), new AuthCliRunner.NoContributions(),
                 paths.CraftHomePath, [new OpenRouterBackend()]);
+            if (config.Providers.ContainsKey(providerId ?? string.Empty))
+            {
+                await using var coordinator = new ProviderAuthenticationCoordinator(resolver);
+                if (await coordinator.TryGetAuthenticatedAsync(config, providerId!, cancellationToken) == false)
+                {
+                    await writeResult(new { kind = "auth-required" });
+                    return 0;
+                }
+            }
             var result = await ModelProviderCatalog.FetchAsync(
                 config,
                 resolver,

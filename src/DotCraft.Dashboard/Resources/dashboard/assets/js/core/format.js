@@ -7,6 +7,12 @@ export function formatCount(n) {
   return Number(n).toLocaleString('en-US');
 }
 
+export function formatUsd(value) {
+  if (value == null || Number.isNaN(value)) return DASH;
+  const format = amount => amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return value > 0 && value < 0.01 ? `<${format(0.01)}` : format(value);
+}
+
 export function formatPercent(value, digits = 1) {
   if (value == null || Number.isNaN(value)) return DASH;
   return `${(value * 100).toFixed(digits)}%`;

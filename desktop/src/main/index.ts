@@ -133,7 +133,7 @@ import {
   runWorkspaceSetup,
   initializeWorkspace,
   listSetupModels,
-  loginSetupChatGpt
+  loginSetupProvider
 } from './workspaceSetup'
 import type {
   WorkspaceSetupModelListRequest,
@@ -2889,7 +2889,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
     onListSetupModels: async (request: WorkspaceSetupModelListRequest) => {
       return listSetupModels(request, { settings: sharedSettings })
     },
-    onLoginSetupChatGpt: async (request: WorkspaceSetupModelListRequest) => loginSetupChatGpt(request, { settings: sharedSettings }),
+    onLoginSetupProvider: async (request: WorkspaceSetupModelListRequest) => loginSetupProvider(request, { settings: sharedSettings }),
     onOpenNewWindow: () => {
       openNewProcess()
     },

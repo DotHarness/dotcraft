@@ -78,6 +78,24 @@ public static class ModelCatalog
         return maxInput is { } limit ? Math.Min(window, limit) : window;
     }
 
+    /// <summary>Resolves the merged catalog's USD-per-million price for a model, or null when the model has none.</summary>
+    public static ModelPricing? ResolvePricing(AppConfig config, string? model)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return ResolvePricing(model, CatalogPathForConfig(config.GlobalConfigPath), CatalogPathForConfig(config.WorkspaceConfigPath));
+    }
+
+    internal static ModelPricing? ResolvePricing(
+        string? model,
+        string? globalCatalogPath = null,
+        string? workspaceCatalogPath = null)
+    {
+        var catalog = LoadBuiltInCatalog();
+        MergeFile(catalog, globalCatalogPath);
+        MergeFile(catalog, workspaceCatalogPath);
+        return ResolveModelCapability(model, catalog.Models, static entry => entry.Pricing is not null)?.Value.Pricing;
+    }
+
     public static bool SupportsFast(AppConfig config, string? protocol, string? model)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -154,7 +172,14 @@ public static class ModelCatalog
                     }
                 }
 
-                if (entry.ContextWindow is not null || entry.MaxInputTokens is not null || entry.HasFastDeclaration)
+                if (TryGetProperty(model.Value, "pricing", out var pricingElement)
+                    && TryReadPricing(pricingElement, out var pricing))
+                {
+                    entry.Pricing = pricing;
+                }
+
+                if (entry.ContextWindow is not null || entry.MaxInputTokens is not null || entry.HasFastDeclaration
+                    || entry.Pricing is not null)
                     catalog.Models[model.Name.Trim()] = entry;
             }
         }
@@ -173,7 +198,7 @@ public static class ModelCatalog
             catalog.Models[id] = new ModelData
             {
                 ContextWindow = model.ContextWindow, MaxInputTokens = model.MaxInputTokens,
-                HasFastDeclaration = model.HasFastDeclaration, Fast = fast
+                HasFastDeclaration = model.HasFastDeclaration, Fast = fast, Pricing = model.Pricing
             };
         }
         return catalog;
@@ -307,6 +332,29 @@ public static class ModelCatalog
         return true;
     }
 
+    private static bool TryReadPricing(JsonElement element, out ModelPricing? pricing)
+    {
+        pricing = null;
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
+        var input = ReadPrice(element, "inputPerMillion");
+        var output = ReadPrice(element, "outputPerMillion");
+        if (input is null && output is null)
+            return false;
+
+        pricing = new ModelPricing(input, output, ReadPrice(element, "cacheReadPerMillion"), ReadPrice(element, "cacheWritePerMillion"));
+        return true;
+    }
+
+    private static decimal? ReadPrice(JsonElement root, string propertyName) =>
+        TryGetProperty(root, propertyName, out var element)
+        && element.ValueKind == JsonValueKind.Number
+        && element.TryGetDecimal(out var value)
+        && value >= 0
+            ? value
+            : null;
+
     private static bool TryReadFastCapability(JsonElement element, out FastCapabilityData capability)
     {
         capability = new FastCapabilityData();
@@ -372,6 +420,8 @@ public static class ModelCatalog
                     target.HasFastDeclaration = true;
                     target.Fast = source.Fast?.Clone();
                 }
+                if (source.Pricing is not null)
+                    target.Pricing = source.Pricing;
             }
         }
     }
@@ -386,12 +436,15 @@ public static class ModelCatalog
 
         public FastCapabilityData? Fast { get; set; }
 
+        public ModelPricing? Pricing { get; set; }
+
         public ModelData Clone() => new()
         {
             ContextWindow = ContextWindow,
             MaxInputTokens = MaxInputTokens,
             HasFastDeclaration = HasFastDeclaration,
-            Fast = Fast?.Clone()
+            Fast = Fast?.Clone(),
+            Pricing = Pricing
         };
     }
 

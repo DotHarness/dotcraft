@@ -32,6 +32,7 @@ public sealed record CommandLineArgs
     public string? SetupProviderId { get; init; }
     public string? SetupProviderDisplayName { get; init; }
     public string? SetupProviderProtocol { get; init; }
+    public string? SetupProviderBackendId { get; init; }
     public string? SetupProviderTimeoutSeconds { get; init; }
     public string? SetupAuthMethod { get; init; }
     public bool SaveUserConfig { get; init; }

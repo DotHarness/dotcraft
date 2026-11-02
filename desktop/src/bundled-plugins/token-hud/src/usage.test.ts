@@ -105,7 +105,8 @@ describe('Token HUD usage', () => {
           threadId: params.threadId,
           turns: 3,
           totalTokens: 120,
-          groups: [{ model: 'atlas-4', turns: 3, totalTokens: 120 }]
+          costUsd: 0.42,
+          groups: [{ model: 'atlas-4', turns: 3, totalTokens: 120, costUsd: 0.42 }]
         }
       : { totalTokens: 10, totalInputTokens: 8, cacheHitRate: 0.5 })
     const host = {
@@ -131,7 +132,8 @@ describe('Token HUD usage', () => {
       threadId: 'thread-1',
       turns: 3,
       totalTokens: 120,
-      groups: [{ model: 'atlas-4', turns: 3, totalTokens: 120 }]
+      costUsd: 0.42,
+      groups: [{ model: 'atlas-4', turns: 3, totalTokens: 120, costUsd: 0.42 }]
     })
 
     sessionListener?.({ workspacePath: '/workspace/example', threadId: null, mode: 'agent', busy: false })

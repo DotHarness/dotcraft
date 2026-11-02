@@ -40,16 +40,3 @@ export function normalizeProviderProtocol(value: unknown): DesktopProviderProtoc
 export function defaultProviderEndpoint(protocol: DesktopProviderProtocol): string {
   return protocol === ANTHROPIC_PROTOCOL ? DEFAULT_ANTHROPIC_ENDPOINT : DEFAULT_OPENAI_ENDPOINT
 }
-
-export function providerProtocolLabel(protocol: string): string {
-  switch (protocol) {
-    case OPENAI_RESPONSES_PROTOCOL:
-      return 'OpenAI-Responses'
-    case OPENAI_CHAT_COMPLETIONS_PROTOCOL:
-      return 'OpenAI-Legacy'
-    case ANTHROPIC_PROTOCOL:
-      return 'Anthropic'
-    default:
-      return protocol
-  }
-}

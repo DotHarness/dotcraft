@@ -21569,9 +21569,7 @@
           "type": "string"
         },
         "total": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "type": "number"
         },
         "values": {
           "type": "array",
@@ -21675,9 +21673,7 @@
           "type": "string"
         },
         "total": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "type": "number"
         }
       },
       "additionalProperties": true
@@ -21690,9 +21686,7 @@
           "type": "string"
         },
         "value": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "type": "number"
         }
       },
       "additionalProperties": true
@@ -21782,6 +21776,9 @@
         "totalContextCompactions": {
           "type": "integer"
         },
+        "totalCostUsd": {
+          "type": "number"
+        },
         "totalErrors": {
           "type": "integer"
         },
@@ -21828,6 +21825,9 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "unpricedTurns": {
+          "type": "integer"
         }
       },
       "additionalProperties": true
@@ -21840,6 +21840,16 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "costUsd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "inputTokens": {
           "type": "integer",
@@ -21914,6 +21924,16 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
         },
+        "costUsd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "groups": {
           "type": "array",
           "items": {
@@ -21958,6 +21978,16 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "costUsd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "inputTokens": {
           "type": "integer",

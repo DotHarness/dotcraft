@@ -11,29 +11,33 @@ function seriesColor(index: number): string {
 interface ModelSlice {
   label: string
   totalTokens: number
+  costUsd: number | null
 }
 
 /** The server splits a thread's turns finer than the model; this readout only names the model. */
 function byModel(groups: readonly ThreadUsageGroup[], strings: TokenHudStrings): ModelSlice[] {
-  const totals = new Map<string, number>()
+  const totals = new Map<string, ModelSlice>()
   for (const group of groups) {
     const label = group.model ?? strings.unknownModel
-    totals.set(label, (totals.get(label) ?? 0) + group.totalTokens)
+    const slice = totals.get(label) ?? { label, totalTokens: 0, costUsd: null }
+    slice.totalTokens += group.totalTokens
+    if (group.costUsd !== null) slice.costUsd = (slice.costUsd ?? 0) + group.costUsd
+    totals.set(label, slice)
   }
-  return [...totals]
-    .filter(([, totalTokens]) => totalTokens > 0)
-    .sort(([, a], [, b]) => b - a)
-    .map(([label, totalTokens]) => ({ label, totalTokens }))
+  return [...totals.values()]
+    .filter((slice) => slice.totalTokens > 0)
+    .sort((a, b) => b.totalTokens - a.totalTokens)
 }
 
 interface ThreadUsagePopoverProps {
   usage: ThreadUsageSnapshot | null
   strings: TokenHudStrings
   formatTokens: (value: number) => string
+  formatCost: (value: number) => string
   style: CSSProperties
 }
 
-export function ThreadUsagePopover({ usage, strings, formatTokens, style }: ThreadUsagePopoverProps): JSX.Element {
+export function ThreadUsagePopover({ usage, strings, formatTokens, formatCost, style }: ThreadUsagePopoverProps): JSX.Element {
   const slices = usage === null ? [] : byModel(usage.groups, strings)
   const total = usage?.totalTokens ?? 0
   return (
@@ -58,12 +62,14 @@ export function ThreadUsagePopover({ usage, strings, formatTokens, style }: Thre
                 <span className="token-hud-popover-label">{slice.label}</span>
                 <span className="token-hud-popover-value">
                   {`${Math.round((slice.totalTokens / total) * 100)}% · ${formatTokens(slice.totalTokens)}`}
+                  {slice.costUsd === null ? '' : ` · ${formatCost(slice.costUsd)}`}
                 </span>
               </li>
             ))}
           </ul>
           <div className="token-hud-popover-footer">
             {`${formatTokens(total)} ${strings.total} · ${usage.turns} ${strings.turnsUnit}`}
+            {usage.costUsd === null ? '' : ` · ${formatCost(usage.costUsd)}`}
           </div>
         </>
       )}

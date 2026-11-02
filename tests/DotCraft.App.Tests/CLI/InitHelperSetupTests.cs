@@ -298,6 +298,39 @@ public sealed class InitHelperSetupTests : IDisposable
     }
 
     [Fact]
+    public void RunSetup_CreateBackendProvider_KeepsBackendProtocolAndMethod()
+    {
+        var craftPath = Path.Combine(tempRoot, ".craft");
+        var globalConfigPath = Path.Combine(tempRoot, "user", ".craft", "config.json");
+
+        var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
+        {
+            ApiKey = "",
+            EndPoint = "",
+            Model = "anthropic/claude-sonnet-4.5",
+            ProviderMode = WorkspaceSetupProviderMode.Create,
+            Provider = new WorkspaceSetupProviderDraft
+            {
+                Id = "openrouter",
+                DisplayName = "OpenRouter",
+                BackendId = "openrouter",
+                Protocol = "auto",
+                AuthMethod = "openrouterOAuth",
+                EndPoint = "https://openrouter.ai/api/v1"
+            }
+        }, globalConfigPath);
+
+        Assert.Equal(0, result);
+
+        var provider = JsonNode.Parse(File.ReadAllText(globalConfigPath))!["Providers"]!["openrouter"]!.AsObject();
+        Assert.Equal("openrouter", provider["BackendId"]?.GetValue<string>());
+        Assert.Equal("auto", provider["Protocol"]?.GetValue<string>());
+        Assert.Equal("openrouterOAuth", provider["AuthMethod"]?.GetValue<string>());
+        Assert.Equal("https://openrouter.ai/api/v1", provider["EndPoint"]?.GetValue<string>());
+        Assert.DoesNotContain("ApiKey", provider.Select(p => p.Key));
+    }
+
+    [Fact]
     public void RunSetup_CreateProviderAsDefault_OmitsWorkspaceProviderAndModelOverrides()
     {
         var craftPath = Path.Combine(tempRoot, ".craft");

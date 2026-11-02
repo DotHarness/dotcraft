@@ -2575,6 +2575,36 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
     }
 
     [Fact]
+    public async Task SubmitInputAsync_RecordsProviderReportedCostOnUsageFact()
+    {
+        static ChatResponseUpdate Cost(decimal amount)
+        {
+            var update = new ChatResponseUpdate { Role = ChatRole.Assistant };
+            ProviderReportedCost.Attach(update, amount);
+            return update;
+        }
+
+        IChatClient chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]),
+            UsageUpdate(requestIndex: 1, input: 1_000, output: 10, cachedInput: 0),
+            Cost(0.0125m),
+            UsageUpdate(requestIndex: 2, input: 2_000, output: 20, cachedInput: 0),
+            Cost(0.025m)
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var tokenUsageStore = new TokenUsageStore();
+        var svc = CreateService(agentFactory, chatClient, tokenUsageStore);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var summary = Assert.Single(tokenUsageStore.GetSourceSummaries());
+        Assert.Equal(0.0375, summary.TotalCostUsd!.Value, 6);
+        Assert.Equal(0, summary.UnpricedRequestCount);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_BaseInstructionDriftKeepsProviderAnchorForAutoCompactDecision()
     {
         const string oldInstructions = "stable memory";

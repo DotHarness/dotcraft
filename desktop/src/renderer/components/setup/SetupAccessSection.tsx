@@ -1,31 +1,33 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Check, Plug } from 'lucide-react'
-import {
-  ANTHROPIC_PROTOCOL,
-  defaultProviderEndpoint,
-  DESKTOP_PROVIDER_PROTOCOLS,
-  OPENAI_RESPONSES_PROTOCOL
-} from '../../../shared/providerProtocols'
+import { Check } from 'lucide-react'
 import type {
   WorkspaceSetupProviderDraft,
-  WorkspaceSetupProviderProtocol,
   WorkspaceSetupProviderSummary
 } from '../../../preload/api.d'
+import type { DesktopProviderProtocol } from '../../../shared/providerProtocols'
 import { useT } from '../../contexts/LocaleContext'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
 import { SecretInput } from '../channels/FormShared'
+import { ProviderPresetMark } from '../settings/providers/ProviderPresetMark'
+import {
+  apiFormatOptions,
+  findProviderPreset,
+  presetConnection,
+  providerPresetAuth,
+  providerPresetIdFor,
+  type ProviderPreset,
+  type ProviderPresetId
+} from '../settings/providers/providerPresets'
+import { SegmentedControl } from '../settings/ui/SegmentedControl'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
-import { DisclosureChevron } from '../ui/DisclosureChevron'
+import { DisclosureButton } from '../ui/DisclosureButton'
 import { Input } from '../ui/Input'
-import { ProviderMark } from '../ui/ProviderMark'
 
-export type SetupConnectionKind = 'chatgpt' | 'openai' | 'anthropic' | 'other'
-export type SetupAccessChoice = SetupConnectionKind | `saved:${string}`
+export type SetupAccessChoice = ProviderPresetId | `saved:${string}`
 export type SetupSignInState = { phase: 'idle' } | { phase: 'pending' } | { phase: 'signedIn' } | { phase: 'failed'; message: string }
 export interface SetupConnection { draft: WorkspaceSetupProviderDraft; timeout: string; idEdited: boolean; advanced: boolean }
 export type SetupConnectionPatch = Partial<Omit<SetupConnection, 'draft'>> & { draft?: Partial<WorkspaceSetupProviderDraft> }
-
-const CONNECTION_KINDS: SetupConnectionKind[] = ['chatgpt', 'openai', 'anthropic', 'other']
+export type SetupConnections = Partial<Record<ProviderPresetId, SetupConnection>>
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -46,55 +48,41 @@ function derivedProviderId(connection: SetupConnection, providers: WorkspaceSetu
   return uniqueProviderId(connection.draft.displayName || 'provider', providers)
 }
 
-export function initialConnections(providers: WorkspaceSetupProviderSummary[]): Record<SetupConnectionKind, SetupConnection> {
-  const make = (draft: WorkspaceSetupProviderDraft): SetupConnection => ({ draft, timeout: '', idEdited: false, advanced: false })
-  return {
-    chatgpt: make({
-      id: uniqueProviderId('chatgpt', providers),
-      displayName: 'ChatGPT',
-      protocol: OPENAI_RESPONSES_PROTOCOL,
+export function isSavedChoice(choice: SetupAccessChoice): choice is `saved:${string}` {
+  return choice.startsWith('saved:')
+}
+
+export function initialConnections(
+  presets: readonly ProviderPreset[],
+  providers: WorkspaceSetupProviderSummary[]
+): SetupConnections {
+  return Object.fromEntries(presets.map((preset) => {
+    const connection = presetConnection(preset)
+    const draft: WorkspaceSetupProviderDraft = {
+      id: preset.defaultId ? uniqueProviderId(preset.defaultId, providers) : '',
+      displayName: preset.defaultDisplayName,
+      protocol: connection.protocol,
+      backendId: connection.backendId,
       apiKey: '',
-      endPoint: defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL),
+      endPoint: connection.endPoint,
       networkTimeoutSeconds: null,
-      authMethod: 'chatgptOAuth'
-    }),
-    openai: make({
-      id: uniqueProviderId('openai', providers),
-      displayName: 'OpenAI',
-      protocol: OPENAI_RESPONSES_PROTOCOL,
-      apiKey: '',
-      endPoint: defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL),
-      networkTimeoutSeconds: null,
-      authMethod: 'apiKey'
-    }),
-    anthropic: make({
-      id: uniqueProviderId('anthropic', providers),
-      displayName: 'Anthropic',
-      protocol: ANTHROPIC_PROTOCOL,
-      apiKey: '',
-      endPoint: defaultProviderEndpoint(ANTHROPIC_PROTOCOL),
-      networkTimeoutSeconds: null,
-      authMethod: 'apiKey'
-    }),
-    other: make({
-      id: '',
-      displayName: '',
-      protocol: OPENAI_RESPONSES_PROTOCOL,
-      apiKey: '',
-      endPoint: '',
-      networkTimeoutSeconds: null,
-      authMethod: 'apiKey'
-    })
-  }
+      authMethod: connection.authMethod
+    }
+    return [preset.id, { draft, timeout: '', idEdited: false, advanced: false }]
+  }))
+}
+
+export function setupAuthMode(preset: ProviderPreset, connection: SetupConnection): ProviderPreset['auth'][number]['mode'] {
+  return providerPresetAuth(preset, connection.draft.authMethod ?? '').mode
 }
 
 export function finalDraft(
-  kind: SetupConnectionKind,
+  preset: ProviderPreset,
   connection: SetupConnection,
   providers: WorkspaceSetupProviderSummary[]
 ): WorkspaceSetupProviderDraft {
   const { draft } = connection
-  const id = kind === 'other' && !connection.idEdited ? derivedProviderId(connection, providers) : draft.id.trim()
+  const id = preset.id === 'custom' && !connection.idEdited ? derivedProviderId(connection, providers) : draft.id.trim()
   return {
     ...draft,
     id,
@@ -105,13 +93,13 @@ export function finalDraft(
   }
 }
 
-export function connectionValid(kind: SetupConnectionKind, connection: SetupConnection, signIn: SetupSignInState): boolean {
+export function connectionValid(preset: ProviderPreset, connection: SetupConnection, signIn: SetupSignInState): boolean {
   const { draft } = connection
   if (!timeoutValid(connection.timeout)) return false
   if (connection.idEdited && !draft.id.trim()) return false
-  if (kind === 'chatgpt') return signIn.phase === 'signedIn'
+  if (setupAuthMode(preset, connection) === 'signIn') return signIn.phase === 'signedIn'
   if (!isHttpUrl(draft.endPoint)) return false
-  if (kind === 'other') return draft.displayName.trim().length > 0
+  if (preset.id === 'custom') return draft.displayName.trim().length > 0
   return draft.apiKey.trim().length > 0
 }
 
@@ -153,15 +141,16 @@ export function SetupChoiceRow({
   )
 }
 
-function KindMark({ kind }: { kind: 'openai' | 'anthropic' | 'other' }): JSX.Element {
+function PresetMark({ preset }: { preset: ProviderPreset | null }): JSX.Element {
   return (
     <span className="workspace-setup__mark">
-      {kind === 'other' ? <Plug size={16} strokeWidth={1.8} /> : <ProviderMark kind={kind} size={16} />}
+      <ProviderPresetMark mark={preset?.mark ?? null} />
     </span>
   )
 }
 
 export function SetupAccessSection({
+  presets,
   providers,
   defaultProviderId,
   access,
@@ -172,129 +161,174 @@ export function SetupAccessSection({
   onSelect,
   onUpdate
 }: {
+  presets: readonly ProviderPreset[]
   providers: WorkspaceSetupProviderSummary[]
   defaultProviderId: string | null
   access: SetupAccessChoice
   showMore: boolean
-  connections: Record<SetupConnectionKind, SetupConnection>
+  connections: SetupConnections
   signIn: SetupSignInState
-  onShowMore(): void
+  onShowMore(expanded: boolean): void
   onSelect(choice: SetupAccessChoice): void
-  onUpdate(kind: SetupConnectionKind, partial: SetupConnectionPatch): void
+  onUpdate(preset: ProviderPresetId, partial: SetupConnectionPatch): void
 }): JSX.Element {
   const t = useT()
+  const hasSaved = providers.length > 0
+  const choices = (
+    <div className="workspace-setup__group" role="radiogroup" aria-label={t('setupWizard.access.add')}>
+      {presets.map((preset) => {
+        const connection = connections[preset.id]
+        return (
+          <SetupChoiceRow
+            key={preset.id}
+            selected={access === preset.id}
+            mark={<PresetMark preset={preset} />}
+            title={preset.label}
+            hint={preset.hint}
+            onSelect={() => onSelect(preset.id)}
+          >
+            {connection && (
+              <PresetConnectionBody
+                preset={preset}
+                connection={connection}
+                providers={providers}
+                signIn={signIn}
+                onUpdate={(partial) => onUpdate(preset.id, partial)}
+              />
+            )}
+          </SetupChoiceRow>
+        )
+      })}
+    </div>
+  )
   return (
     <div className="workspace-setup__stack">
-      {providers.length > 0 && (
+      {hasSaved && (
         <section>
           <h2 className="workspace-setup__group-label">{t('setupWizard.access.saved')}</h2>
           <div className="workspace-setup__group" role="radiogroup" aria-label={t('setupWizard.access.saved')}>
-            {providers.map((provider) => (
-              <SetupChoiceRow
-                key={provider.id}
-                selected={access === `saved:${provider.id}`}
-                mark={<KindMark kind={provider.protocol === ANTHROPIC_PROTOCOL ? 'anthropic' : 'openai'} />}
-                title={provider.displayName}
-                hint={provider.authMethod === 'chatgptOAuth' ? t('setupWizard.access.savedSignIn') : t('setupWizard.access.savedKey')}
-                aside={provider.id === defaultProviderId
-                  ? <span className="workspace-setup__tag">{t('setupWizard.access.savedDefault')}</span>
-                  : undefined}
-                onSelect={() => onSelect(`saved:${provider.id}`)}
-              />
-            ))}
+            {providers.map((provider) => {
+              const preset = findProviderPreset(presets, providerPresetIdFor(provider))
+              const auth = preset ? providerPresetAuth(preset, provider.authMethod ?? '') : null
+              return (
+                <SetupChoiceRow
+                  key={provider.id}
+                  selected={access === `saved:${provider.id}`}
+                  mark={<PresetMark preset={preset} />}
+                  title={provider.displayName}
+                  hint={[preset?.label ?? provider.backendId, auth?.label].filter(Boolean).join(' · ')}
+                  aside={provider.id === defaultProviderId
+                    ? <span className="workspace-setup__tag">{t('setupWizard.access.savedDefault')}</span>
+                    : undefined}
+                  onSelect={() => onSelect(`saved:${provider.id}`)}
+                />
+              )
+            })}
           </div>
         </section>
       )}
-      {showMore ? (
-        <section>
-          {providers.length > 0 && <h2 className="workspace-setup__group-label">{t('setupWizard.access.add')}</h2>}
-          <div className="workspace-setup__group" role="radiogroup" aria-label={t('setupWizard.access.add')}>
-            {CONNECTION_KINDS.map((kind) => (
-              <SetupChoiceRow
-                key={kind}
-                selected={access === kind}
-                mark={<KindMark kind={kind === 'chatgpt' ? 'openai' : kind} />}
-                title={t(`setupWizard.access.${kind}`)}
-                hint={t(`setupWizard.access.${kind}Hint`)}
-                onSelect={() => onSelect(kind)}
-              >
-                {kind === 'chatgpt'
-                  ? <ChatGptSignInStatus signIn={signIn} />
-                  : (
-                      <ConnectionFields
-                        kind={kind}
-                        connection={connections[kind]}
-                        providers={providers}
-                        onUpdate={(partial) => onUpdate(kind, partial)}
-                      />
-                    )}
-              </SetupChoiceRow>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <button type="button" className="workspace-setup__more" onClick={onShowMore}>
-          <DisclosureChevron expanded={false} />
-          {t('setupWizard.access.addMore')}
-        </button>
-      )}
+      {hasSaved
+        ? (
+            <section className="workspace-setup__disclosure">
+              <DisclosureButton expanded={showMore} onClick={() => onShowMore(!showMore)}>
+                {t('setupWizard.access.add')}
+              </DisclosureButton>
+              {showMore && choices}
+            </section>
+          )
+        : choices}
     </div>
   )
 }
 
-function ChatGptSignInStatus({ signIn }: { signIn: SetupSignInState }): JSX.Element {
+function PresetConnectionBody({
+  preset,
+  connection,
+  providers,
+  signIn,
+  onUpdate
+}: {
+  preset: ProviderPreset
+  connection: SetupConnection
+  providers: WorkspaceSetupProviderSummary[]
+  signIn: SetupSignInState
+  onUpdate(partial: SetupConnectionPatch): void
+}): JSX.Element {
+  const t = useT()
+  const auth = providerPresetAuth(preset, connection.draft.authMethod ?? '')
+  return (
+    <div className="workspace-setup__fields">
+      {preset.auth.length > 1 && (
+        <div>
+          <SegmentedControl
+            value={auth.method}
+            ariaLabel={t('providerPreset.authMethod')}
+            options={preset.auth.map((item) => ({ value: item.method, label: item.label }))}
+            onChange={(authMethod) => onUpdate({ draft: { authMethod, apiKey: '' } })}
+          />
+        </div>
+      )}
+      {auth.mode === 'signIn'
+        ? <SignInStatus signIn={signIn} />
+        : <ConnectionFields preset={preset} connection={connection} providers={providers} onUpdate={onUpdate} />}
+    </div>
+  )
+}
+
+function SignInStatus({ signIn }: { signIn: SetupSignInState }): JSX.Element {
   const t = useT()
   if (signIn.phase === 'signedIn') {
     return (
       <div className="workspace-setup__status" data-level="success">
         <Check size={14} strokeWidth={2.4} aria-hidden="true" />
-        {t('setupWizard.access.chatgptSignedIn')}
+        {t('setupWizard.access.signedIn')}
       </div>
     )
   }
   if (signIn.phase === 'failed') {
     return (
       <div className="workspace-setup__status" data-level="error" role="alert">
-        {t('setupWizard.access.chatgptFailed', { error: signIn.message })}
+        {t('setupWizard.access.signInFailed', { error: signIn.message })}
       </div>
     )
   }
   return (
     <div className="workspace-setup__status">
-      {signIn.phase === 'pending' ? t('setupWizard.access.chatgptWaiting') : t('setupWizard.access.chatgptBody')}
+      {signIn.phase === 'pending' ? t('setupWizard.access.signInWaiting') : t('setupWizard.access.signInBody')}
     </div>
   )
 }
 
 function ConnectionFields({
-  kind,
+  preset,
   connection,
   providers,
   onUpdate
 }: {
-  kind: Exclude<SetupConnectionKind, 'chatgpt'>
+  preset: ProviderPreset
   connection: SetupConnection
   providers: WorkspaceSetupProviderSummary[]
   onUpdate(partial: SetupConnectionPatch): void
 }): JSX.Element {
   const t = useT()
   const { draft } = connection
+  const custom = preset.id === 'custom'
   const endpointInvalid = draft.endPoint.trim().length > 0 && !isHttpUrl(draft.endPoint)
-  const shownId = kind === 'other' && !connection.idEdited ? derivedProviderId(connection, providers) : draft.id
+  const shownId = custom && !connection.idEdited ? derivedProviderId(connection, providers) : draft.id
   const endpointField = (
     <Field label={t('setupWizard.field.endpoint')} error={endpointInvalid ? t('setupWizard.validation.endpoint') : null}>
       <Input
         value={draft.endPoint}
         invalid={endpointInvalid}
-        placeholder={kind === 'other' ? 'https://' : defaultProviderEndpoint(draft.protocol)}
+        placeholder={custom ? 'https://' : preset.endPoint}
         onChange={(event) => onUpdate({ draft: { endPoint: event.target.value } })}
         mono
       />
     </Field>
   )
   return (
-    <div className="workspace-setup__fields">
-      {kind === 'other' && (
+    <>
+      {custom && (
         <>
           <div className="workspace-setup__field-pair">
             <Field label={t('setupWizard.field.name')}>
@@ -304,40 +338,34 @@ function ConnectionFields({
                 onChange={(event) => onUpdate({ draft: { displayName: event.target.value } })}
               />
             </Field>
-            <Field label={t('setupWizard.field.format')}>
-              <SettingsSelect<WorkspaceSetupProviderProtocol>
-                value={draft.protocol}
-                ariaLabel={t('setupWizard.field.format')}
+            <Field label={t('providerPreset.apiFormat')}>
+              <SettingsSelect<DesktopProviderProtocol>
+                value={draft.protocol as DesktopProviderProtocol}
+                ariaLabel={t('providerPreset.apiFormat')}
                 style={{ width: '100%' }}
                 onValueChange={(protocol) => onUpdate({ draft: { protocol } })}
-                options={DESKTOP_PROVIDER_PROTOCOLS.map((protocol) => ({ value: protocol, label: t(`setupWizard.format.${protocol}`) }))}
+                options={apiFormatOptions(t)}
               />
             </Field>
           </div>
           {endpointField}
         </>
       )}
-      <Field label={kind === 'other' ? t('setupWizard.field.apiKeyOptional') : t('setupWizard.field.apiKey')}>
+      <Field label={custom ? t('setupWizard.field.apiKeyOptional') : t('setupWizard.field.apiKey')}>
         <SecretInput
           value={draft.apiKey}
           ariaLabel={t('setupWizard.field.apiKey')}
-          placeholder={kind === 'anthropic' ? 'sk-ant-…' : 'sk-…'}
+          placeholder={preset.id === 'anthropic' ? 'sk-ant-…' : 'sk-…'}
           onChange={(apiKey) => onUpdate({ draft: { apiKey } })}
           mono
         />
       </Field>
-      <button
-        type="button"
-        className="workspace-setup__more"
-        aria-expanded={connection.advanced}
-        onClick={() => onUpdate({ advanced: !connection.advanced })}
-      >
-        <DisclosureChevron expanded={connection.advanced} />
+      <DisclosureButton expanded={connection.advanced} onClick={() => onUpdate({ advanced: !connection.advanced })}>
         {t('setupWizard.field.advanced')}
-      </button>
+      </DisclosureButton>
       {connection.advanced && (
         <>
-          {kind !== 'other' && endpointField}
+          {!custom && endpointField}
           <div className="workspace-setup__field-pair">
             <Field label={t('setupWizard.field.timeout')}>
               <Input
@@ -361,7 +389,7 @@ function ConnectionFields({
           </div>
         </>
       )}
-    </div>
+    </>
   )
 }
 

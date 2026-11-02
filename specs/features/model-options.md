@@ -56,12 +56,13 @@ because output tokens are reserved inside it. The built-in value comes from the 
 provider entry on models.dev; input caps that only a gateway applies are not synchronized.
 
 Optional global and workspace `.craft/models.json` files override the built-in catalog in that order.
-Model entries may independently declare `contextWindow`, `maxInputTokens`, and Fast routing selectors, and matching uses
+Model entries may independently declare `contextWindow`, `maxInputTokens`, `pricing`, and Fast routing selectors, and matching uses
 the most specific model prefix or namespaced suffix that declares the requested capability. More
 specific model keys therefore override family prefixes without changing the matching schema. Fast
 selectors constrain normalized protocols; `fast: null` explicitly disables an inherited Fast
-declaration. Invalid declarations are ignored. Provider request adapters and
-`model/list` resolve capabilities through the same merged catalog.
+declaration. A declared `pricing` object replaces the inherited price as a whole. Invalid declarations
+are ignored. Provider request adapters, `model/list`, and usage cost estimates resolve capabilities
+through the same merged catalog.
 
 Catalog freshness is server-owned. AppServer serves `model/list` from a provider-identity cache and
 keeps returning the last catalog fetched with the same credentials when a refresh fails, so a client

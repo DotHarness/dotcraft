@@ -95,6 +95,7 @@ public static partial class DotCraftCommandLine
         var providerId = StringOption("--provider-id", "Provider id to use or create.");
         var providerDisplayName = StringOption("--provider-display-name", "Display name for a new provider.");
         var providerProtocol = StringOption("--provider-protocol", "Protocol for a new provider.");
+        var providerBackendId = StringOption("--provider-backend-id", "Model backend for a new provider.");
         var providerTimeout = StringOption("--provider-timeout-seconds", "Positive provider network timeout in seconds.");
         var authMethod = StringOption("--auth-method", "Authentication method for a new provider.");
         var saveUserConfig = Flag("--save-user-config", "Save the provider selection as the user default.");
@@ -111,6 +112,7 @@ public static partial class DotCraftCommandLine
             providerId,
             providerDisplayName,
             providerProtocol,
+            providerBackendId,
             providerTimeout,
             authMethod,
             saveUserConfig,
@@ -129,6 +131,7 @@ public static partial class DotCraftCommandLine
             SetupProviderId = parseResult.GetValue(providerId),
             SetupProviderDisplayName = parseResult.GetValue(providerDisplayName),
             SetupProviderProtocol = parseResult.GetValue(providerProtocol),
+            SetupProviderBackendId = parseResult.GetValue(providerBackendId),
             SetupProviderTimeoutSeconds = parseResult.GetValue(providerTimeout),
             SetupAuthMethod = parseResult.GetValue(authMethod),
             SaveUserConfig = parseResult.GetValue(saveUserConfig),

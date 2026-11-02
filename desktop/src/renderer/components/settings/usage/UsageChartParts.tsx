@@ -127,6 +127,7 @@ interface ChartTooltipProps {
   labelFor: (key: string) => string
   totalLabel: string
   formatDate: (date: string) => string
+  formatValue?: (value: number) => string
 }
 
 /** Rendered by recharts, which injects `active` and `payload` for the hovered day. */
@@ -136,7 +137,8 @@ export function ChartTooltip({
   series,
   labelFor,
   totalLabel,
-  formatDate
+  formatDate,
+  formatValue = (value) => value.toLocaleString()
 }: ChartTooltipProps): JSX.Element | null {
   const point = payload?.[0]?.payload
   if (!active || !point) return null
@@ -149,12 +151,12 @@ export function ChartTooltip({
             <span className={styles.legendSwatch} style={{ background: entry.color }} />
             {labelFor(entry.key)}
           </span>
-          <span className={styles.tooltipValue}>{(point.values[entry.key] ?? 0).toLocaleString()}</span>
+          <span className={styles.tooltipValue}>{formatValue(point.values[entry.key] ?? 0)}</span>
         </div>
       ))}
       <div className={`${styles.tooltipRow} ${styles.tooltipRowTotal}`}>
         <span className={styles.tooltipRowLabel}>{totalLabel}</span>
-        <span className={styles.tooltipValue}>{point.total.toLocaleString()}</span>
+        <span className={styles.tooltipValue}>{formatValue(point.total)}</span>
       </div>
     </div>
   )

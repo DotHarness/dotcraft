@@ -1,18 +1,16 @@
-import {
-  tryNormalizeProviderProtocol,
-  type DesktopProviderProtocol
-} from './providerProtocols'
+import { tryNormalizeProviderProtocol } from './providerProtocols'
 
 export type InitialWorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
-export type InitialWorkspaceProviderProtocol = DesktopProviderProtocol
 
 export interface InitialWorkspaceProviderSummary {
   id: string
   displayName: string
-  protocol: InitialWorkspaceProviderProtocol
+  protocol: string
+  backendId?: string
   hasApiKey: boolean
   endPoint: string
   networkTimeoutSeconds?: number | null
+  authMethod?: string
 }
 
 export interface InitialWorkspaceUserConfigDefaults {
@@ -153,7 +151,10 @@ function normalizeProviderSummary(value: unknown): InitialWorkspaceProviderSumma
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
   const raw = value as Record<string, unknown>
-  const protocol = tryNormalizeProviderProtocol(raw.protocol)
+  const backendId = typeof raw.backendId === 'string' && raw.backendId ? raw.backendId : undefined
+  const protocol = backendId
+    ? typeof raw.protocol === 'string' ? raw.protocol : null
+    : tryNormalizeProviderProtocol(raw.protocol)
   if (
     typeof raw.id !== 'string' ||
     typeof raw.displayName !== 'string' ||
@@ -167,9 +168,11 @@ function normalizeProviderSummary(value: unknown): InitialWorkspaceProviderSumma
     id: raw.id,
     displayName: raw.displayName,
     protocol,
+    ...(backendId ? { backendId } : {}),
     hasApiKey: raw.hasApiKey === true,
     endPoint: raw.endPoint
   }
+  if (typeof raw.authMethod === 'string') provider.authMethod = raw.authMethod
 
   if (typeof raw.networkTimeoutSeconds === 'number' || raw.networkTimeoutSeconds === null) {
     provider.networkTimeoutSeconds = raw.networkTimeoutSeconds

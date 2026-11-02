@@ -30,6 +30,7 @@ public enum UsageMetric
     Tokens,
     Turns,
     Requests,
+    Cost,
     ToolCalls,
     SkillUses,
     Errors
@@ -60,6 +61,7 @@ public static class UsageAnalyticsNames
     public const string TokenTypeOutput = "output";
 
     public const string UnitTokens = "tokens";
+    public const string UnitUsd = "usd";
     public const string UnitCount = "count";
 
     private static readonly (string Wire, UsageMetric Metric)[] Metrics =
@@ -67,6 +69,7 @@ public static class UsageAnalyticsNames
         ("tokens", UsageMetric.Tokens),
         ("turns", UsageMetric.Turns),
         ("requests", UsageMetric.Requests),
+        ("cost", UsageMetric.Cost),
         ("toolCalls", UsageMetric.ToolCalls),
         ("skillUses", UsageMetric.SkillUses),
         ("errors", UsageMetric.Errors)
@@ -128,9 +131,10 @@ public static class UsageAnalyticsNames
     {
         UsageDimension.None => true,
         UsageDimension.TokenType => metric == UsageMetric.Tokens,
-        UsageDimension.Surface => metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests or UsageMetric.Errors,
+        UsageDimension.Surface => metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests or UsageMetric.Cost
+            or UsageMetric.Errors,
         UsageDimension.Model or UsageDimension.Reasoning or UsageDimension.Speed =>
-            metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests,
+            metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests or UsageMetric.Cost,
         UsageDimension.ToolSource or UsageDimension.Tool => metric == UsageMetric.ToolCalls,
         UsageDimension.Skill => metric == UsageMetric.SkillUses,
         _ => false
@@ -147,11 +151,11 @@ public sealed record UsageHistoryQuery(
     public const int MaxTopLimit = 20;
 }
 
-public sealed record UsageHistoryValue(string Key, long Value);
+public sealed record UsageHistoryValue(string Key, double Value);
 
-public sealed record UsageHistoryDay(DateOnly Date, long Total, IReadOnlyList<UsageHistoryValue> Values);
+public sealed record UsageHistoryDay(DateOnly Date, double Total, IReadOnlyList<UsageHistoryValue> Values);
 
-public sealed record UsageHistorySeriesTotal(string Key, long Total);
+public sealed record UsageHistorySeriesTotal(string Key, double Total);
 
 public sealed record UsageHistory(
     string Unit,
@@ -169,6 +173,7 @@ public sealed record UsageThreadUsage(
     long InputTokens,
     long OutputTokens,
     long CachedInputTokens,
+    double? CostUsd,
     bool Archived)
 {
     public long TotalTokens => InputTokens + OutputTokens;
@@ -184,7 +189,8 @@ public sealed record UsageThreadBreakdownGroup(
     int Turns,
     long InputTokens,
     long OutputTokens,
-    long CachedInputTokens)
+    long CachedInputTokens,
+    double? CostUsd)
 {
     public long TotalTokens => InputTokens + OutputTokens;
 }
@@ -195,6 +201,7 @@ public sealed record UsageThreadBreakdown(
     long InputTokens,
     long OutputTokens,
     long CachedInputTokens,
+    double? CostUsd,
     IReadOnlyList<UsageThreadBreakdownGroup> Groups)
 {
     public long TotalTokens => InputTokens + OutputTokens;
@@ -230,6 +237,10 @@ public sealed class UsageAnalyticsSummary
     public long TotalCacheWriteInputTokens { get; init; }
 
     public long TotalReasoningOutputTokens { get; init; }
+
+    public double TotalCostUsd { get; init; }
+
+    public int UnpricedTurns { get; init; }
 
     public long TotalFreshInputTokens => Math.Max(0, TotalInputTokens - TotalCachedInputTokens - TotalCacheWriteInputTokens);
 

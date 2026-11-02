@@ -3,6 +3,7 @@ import { addLocalDays, localDayKey, localTzOffsetMinutes } from '../utils/localD
 
 export type UsageRange = '7d' | '30d'
 export type UsageHistoryGroup = 'surface' | 'model' | 'tokenType'
+export type UsageHistoryMetric = 'tokens' | 'cost'
 export type UsageSection = 'history' | 'activity' | 'threads'
 
 export const USAGE_RANGE_DAYS: Record<UsageRange, number> = { '7d': 7, '30d': 30 }
@@ -25,7 +26,7 @@ export interface UsageHistorySeriesWire {
 
 /** Matches AppServer UsageHistoryResult wire DTO (spec §27A.3). */
 export interface UsageHistoryWire {
-  unit: 'tokens' | 'count'
+  unit: 'tokens' | 'usd' | 'count'
   groupBy: string
   days: UsageHistoryDayWire[]
   series: UsageHistorySeriesWire[]
@@ -43,7 +44,14 @@ export interface UsageThreadWire {
   outputTokens: number
   cachedInputTokens: number
   cacheHitRate: number
+  /** Omitted when none of the thread's turns could be priced. */
+  costUsd?: number | null
   archived: boolean
+}
+
+export interface UsageCostSummaryWire {
+  totalCostUsd: number
+  unpricedTurns: number
 }
 
 export interface LoadState<T> {
@@ -75,18 +83,21 @@ export function usageWindow(range: UsageRange, now = new Date()): UsageWindow {
 interface UsageStoreState {
   ranges: Record<UsageSection, UsageRange>
   historyGroup: UsageHistoryGroup
+  historyMetric: UsageHistoryMetric
   history: LoadState<UsageHistoryWire>
+  costSummary: LoadState<UsageCostSummaryWire>
   toolCalls: LoadState<UsageHistoryWire>
   skillUses: LoadState<UsageHistoryWire>
   threads: LoadState<UsageThreadWire[]>
 
   setRange(section: UsageSection, range: UsageRange): void
   setHistoryGroup(group: UsageHistoryGroup): void
+  setHistoryMetric(metric: UsageHistoryMetric): void
   load(section?: UsageSection): Promise<void>
   reset(): void
 }
 
-type SectionKey = 'history' | 'toolCalls' | 'skillUses' | 'threads'
+type SectionKey = 'history' | 'costSummary' | 'toolCalls' | 'skillUses' | 'threads'
 
 async function request<T>(method: string, params: object): Promise<T> {
   return (await window.api.appServer.sendRequest(
@@ -95,11 +106,13 @@ async function request<T>(method: string, params: object): Promise<T> {
   )) as T
 }
 
-function initialState(): Pick<UsageStoreState, 'ranges' | 'historyGroup' | SectionKey> {
+function initialState(): Pick<UsageStoreState, 'ranges' | 'historyGroup' | 'historyMetric' | SectionKey> {
   return {
     ranges: { history: '7d', activity: '7d', threads: '7d' },
     historyGroup: 'surface',
+    historyMetric: 'tokens',
     history: idle(),
+    costSummary: idle(),
     toolCalls: idle(),
     skillUses: idle(),
     threads: idle()
@@ -126,13 +139,19 @@ export const useUsageStore = create<UsageStoreState>((set, get) => {
 
   function loadSection(section: UsageSection): Promise<void> {
     generation[section] += 1
-    const { ranges, historyGroup } = get()
+    const { ranges, historyGroup, historyMetric } = get()
     const window = usageWindow(ranges[section])
     switch (section) {
       case 'history':
-        return track('history', 'history', () =>
-          request<UsageHistoryWire>('usage/history', { metric: 'tokens', groupBy: historyGroup, ...window })
-        )
+        return Promise.all([
+          track('history', 'history', () =>
+            request<UsageHistoryWire>('usage/history', { metric: historyMetric, groupBy: historyGroup, ...window })
+          ),
+          track('history', 'costSummary', async () => {
+            const result = await request<Partial<UsageCostSummaryWire>>('usage/summary', window)
+            return { totalCostUsd: result?.totalCostUsd ?? 0, unpricedTurns: result?.unpricedTurns ?? 0 }
+          })
+        ]).then(() => undefined)
       case 'activity':
         return Promise.all([
           track('activity', 'toolCalls', () =>
@@ -162,6 +181,14 @@ export const useUsageStore = create<UsageStoreState>((set, get) => {
     setHistoryGroup(group) {
       if (get().historyGroup === group) return
       set({ historyGroup: group })
+      void loadSection('history')
+    },
+
+    setHistoryMetric(metric) {
+      const state = get()
+      if (state.historyMetric === metric) return
+      const historyGroup = metric === 'cost' && state.historyGroup === 'tokenType' ? 'model' : state.historyGroup
+      set({ historyMetric: metric, historyGroup, history: idle() })
       void loadSection('history')
     },
 

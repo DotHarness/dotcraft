@@ -44,7 +44,7 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         Assert.Equal(new DateOnly(2026, 5, 30), first.Date);
         Assert.Equal(187, first.Total);
         Assert.Equal(
-            new[] { ("a", 110L), ("b", 55L), (UsageAnalyticsNames.OtherKey, 22L) },
+            new[] { ("a", 110d), ("b", 55d), (UsageAnalyticsNames.OtherKey, 22d) },
             first.Values.Select(value => (value.Key, value.Value)).ToArray());
 
         var second = history.Days[1];
@@ -53,7 +53,7 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         Assert.Equal(UsageAnalyticsNames.OtherKey, Assert.Single(second.Values).Key);
 
         Assert.Equal(
-            new[] { ("a", 110L), ("b", 55L), (UsageAnalyticsNames.OtherKey, 24L) },
+            new[] { ("a", 110d), ("b", 55d), (UsageAnalyticsNames.OtherKey, 24d) },
             history.Series.Select(series => (series.Key, series.Total)).ToArray());
     }
 
@@ -230,6 +230,53 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         Assert.Equal(22, child.TotalTokens);
     }
 
+    [Fact]
+    public void Summary_SumsPricedTurnsAndCountsUnpricedOnes()
+    {
+        RecordTurn("t1", "2026-05-30T08:00:00Z", input: 100, output: 10, cost: 0.25m);
+        RecordTurn("t1", "2026-05-30T09:00:00Z", input: 100, output: 10, cost: 0.5m);
+        RecordTurn("t2", "2026-05-30T10:00:00Z", input: 100, output: 10);
+
+        var summary = _service.GetSummary(UsageDateRange.Create(null, null, 0));
+
+        Assert.Equal(0.75, summary.TotalCostUsd, 6);
+        Assert.Equal(1, summary.UnpricedTurns);
+    }
+
+    [Fact]
+    public void History_Cost_GroupsPricedTurnsOnly()
+    {
+        RecordTurn("t1", "2026-05-30T08:00:00Z", input: 10, output: 1, model: "priced", cost: 0.125m);
+        RecordTurn("t1", "2026-05-30T09:00:00Z", input: 10, output: 1, model: "priced", cost: 0.25m);
+        RecordTurn("t1", "2026-05-30T10:00:00Z", input: 10, output: 1, model: "local");
+
+        var history = _service.GetHistory(new UsageHistoryQuery(
+            UsageMetric.Cost,
+            UsageDimension.Model,
+            UsageDateRange.Create(null, null, 0),
+            UsageHistoryQuery.DefaultTopLimit));
+
+        Assert.Equal(UsageAnalyticsNames.UnitUsd, history.Unit);
+        var day = Assert.Single(history.Days);
+        Assert.Equal(0.375, day.Total, 6);
+        Assert.Equal("priced", Assert.Single(history.Series).Key);
+    }
+
+    [Fact]
+    public void ThreadUsage_ReportsCostOnlyForPricedGroups()
+    {
+        RecordTurn("root", "2026-05-30T08:00:00Z", input: 100, output: 10, model: "priced", rootThreadId: "root", cost: 1.5m);
+        RecordTurn("child", "2026-05-30T09:00:00Z", input: 20, output: 2, model: "local", source: "subagent", rootThreadId: "root");
+
+        var usage = _service.GetThreadUsage("root");
+        var thread = Assert.Single(_service.GetTopThreads(UsageDateRange.Create(null, null, 0), limit: 5));
+
+        Assert.Equal(1.5, usage.CostUsd);
+        Assert.Equal(1.5, usage.Groups.Single(group => group.Model == "priced").CostUsd);
+        Assert.Null(usage.Groups.Single(group => group.Model == "local").CostUsd);
+        Assert.Equal(1.5, thread.CostUsd);
+    }
+
     private void RecordTurn(
         string threadId,
         string completedAtUtc,
@@ -242,7 +289,8 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         string? rootThreadId = null,
         int llmCalls = 1,
         string? reasoning = null,
-        string? speed = null)
+        string? speed = null,
+        decimal? cost = null)
     {
         _facts.Record(new TokenUsageRecord
         {
@@ -262,7 +310,8 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
             InputTokens = input,
             OutputTokens = output,
             CachedInputTokens = cached,
-            CacheWriteInputTokens = cacheWrite
+            CacheWriteInputTokens = cacheWrite,
+            CostUsd = cost
         });
     }
 

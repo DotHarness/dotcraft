@@ -47,6 +47,8 @@ internal sealed class UsageRequestHandler(
             TotalFreshInputTokens = s.TotalFreshInputTokens,
             TotalNonCachedInputTokens = s.TotalNonCachedInputTokens,
             TotalReasoningOutputTokens = s.TotalReasoningOutputTokens,
+            TotalCostUsd = s.TotalCostUsd,
+            UnpricedTurns = s.UnpricedTurns,
             TotalToolDurationMs = s.TotalToolDurationMs,
             AvgToolDurationMs = s.AvgToolDurationMs,
             MaxToolDurationMs = s.MaxToolDurationMs,
@@ -65,11 +67,11 @@ internal sealed class UsageRequestHandler(
 
         var metricName = p.Metric.IsSet ? p.Metric.Value : null;
         if (!UsageAnalyticsNames.TryParseMetric(metricName, out var metric))
-            throw AppServerErrors.InvalidParams("'metric' must be one of tokens, turns, requests, toolCalls, skillUses, errors.");
+            throw AppServerErrors.InvalidParams("'metric' must be one of tokens, turns, requests, cost, toolCalls, skillUses, errors.");
 
         var groupByName = p.GroupBy.IsSet ? p.GroupBy.Value : null;
         if (!UsageAnalyticsNames.TryParseDimension(groupByName, out var groupBy))
-            throw AppServerErrors.InvalidParams("'groupBy' must be one of none, tokenType, surface, model, toolSource, tool, skill.");
+            throw AppServerErrors.InvalidParams("'groupBy' must be one of none, tokenType, surface, model, reasoning, speed, toolSource, tool, skill.");
         if (!UsageAnalyticsNames.IsSupported(metric, groupBy))
             throw AppServerErrors.InvalidParams($"'{metricName}' cannot be grouped by '{groupByName}'.");
 
@@ -126,6 +128,7 @@ internal sealed class UsageRequestHandler(
                     OutputTokens = thread.OutputTokens,
                     CachedInputTokens = thread.CachedInputTokens,
                     CacheHitRate = thread.CacheHitRate,
+                    CostUsd = OptionalCost(thread.CostUsd),
                     Archived = thread.Archived
                 })
                 .ToList()
@@ -152,6 +155,7 @@ internal sealed class UsageRequestHandler(
             OutputTokens = usage.OutputTokens,
             CachedInputTokens = usage.CachedInputTokens,
             CacheHitRate = usage.CacheHitRate,
+            CostUsd = OptionalCost(usage.CostUsd),
             Groups = usage.Groups
                 .Select(group => new Contract.UsageThreadGroup
                 {
@@ -162,7 +166,8 @@ internal sealed class UsageRequestHandler(
                     TotalTokens = group.TotalTokens,
                     InputTokens = group.InputTokens,
                     OutputTokens = group.OutputTokens,
-                    CachedInputTokens = group.CachedInputTokens
+                    CachedInputTokens = group.CachedInputTokens,
+                    CostUsd = OptionalCost(group.CostUsd)
                 })
                 .ToList()
         }));
@@ -170,6 +175,9 @@ internal sealed class UsageRequestHandler(
 
     private static Protocol.Optional<string?> OptionalText(string? value) =>
         string.IsNullOrEmpty(value) ? default : Protocol.Optional<string?>.FromValue(value);
+
+    private static Protocol.Optional<double?> OptionalCost(double? value) =>
+        value is null ? default : Protocol.Optional<double?>.FromValue(value);
 
     private async Task<AppServerTypedResult<Contract.ProfileInsightsResult>> HandleProfileInsightsAsync(
         AppServerTypedRequest<Contract.ProfileInsightsParams> request,

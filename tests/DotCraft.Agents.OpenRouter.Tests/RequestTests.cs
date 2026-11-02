@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Anthropic.Models.Beta.Messages;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using OpenAI.Responses;
@@ -49,7 +50,7 @@ public sealed class RequestTests
         using var pipeline = ProviderPipelineOptionsScope.Push(new(runtime, null, null, true, "standard", true, "5m"));
         var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], options);
         Assert.Equal("ok", response.Text);
-        Assert.False(response.AdditionalProperties?.ContainsKey("openrouter.costUsd") == true);
+        Assert.False(response.AdditionalProperties?.ContainsKey(ProviderReportedCost.Key) == true);
         var request = await captured;
         Assert.Equal(path, request.Path);
         Assert.Equal("Bearer test-key", request.Authorization);

@@ -401,6 +401,20 @@ describe('SettingsView', () => {
     })
   })
 
+  it('saves the endpoint of the preset a saved provider switches to', async () => {
+    enableProviderManagement()
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider Anthropic' }))
+    await chooseValueIn(await screen.findByRole('combobox', { name: 'Provider' }), 'deepseek')
+    appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Update provider' }))
+
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+      edits: [{ keyPath: 'Providers.anthropic-main', value: { EndPoint: 'https://api.deepseek.com/anthropic' }, mergeStrategy: 'upsert' }]
+    }, 20_000))
+  })
+
   it('restores each provider remembered model when switching back and forth', async () => {
     enableProviderManagement()
     renderView()

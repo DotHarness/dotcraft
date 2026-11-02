@@ -93,7 +93,7 @@ import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
 import { ChatsFolderRow } from './panels/ChatsFolderRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
-import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
+import { ProviderIdentityIcon } from './providers/ProviderIdentityIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageView } from './usage/UsageView'
 import { ProfilePanel } from './panels/ProfilePanel'
@@ -645,7 +645,7 @@ export function SettingsView({
   function startCreateProvider(): void {
     providerEditorIdRef.current = '__new__'
     setProviderEditorId('__new__')
-    setProviderDraft(createProviderDraft())
+    setProviderDraft(createProviderDraft(providers))
     setProviderTestResult(null)
   }
 
@@ -2056,7 +2056,7 @@ export function SettingsView({
                             >
                               <ActionTooltip label={providerDetails(provider, providerBackends, t)}>
                                 <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-                                  <ProviderProtocolIcon protocol={provider.protocol} backendId={provider.backendId} size={30} />
+                                  <ProviderIdentityIcon provider={provider} size={30} />
                                 </span>
                               </ActionTooltip>
                               <div style={{ flex: 1, minWidth: 0 }}>

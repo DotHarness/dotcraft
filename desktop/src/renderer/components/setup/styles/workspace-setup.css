@@ -453,28 +453,10 @@
   gap: 12px;
 }
 
-.workspace-setup__more {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 6px 4px 2px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--type-secondary-size);
-  cursor: pointer;
-}
-
-.workspace-setup__more:hover {
-  color: var(--text-primary);
-}
-
-.workspace-setup__more:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
+.workspace-setup__disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .workspace-setup__status {

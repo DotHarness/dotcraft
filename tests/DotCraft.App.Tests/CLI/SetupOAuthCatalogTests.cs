@@ -45,6 +45,30 @@ public sealed class SetupOAuthCatalogTests
     }
 
     [Fact]
+    public async Task ModelCatalog_ReportsSignedOutBackendSignIn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dotcraft-catalog", Guid.NewGuid().ToString("N"));
+        var paths = HubPaths.Resolve(root);
+        Directory.CreateDirectory(paths.CraftHomePath);
+        try
+        {
+            await File.WriteAllTextAsync(paths.GlobalConfigPath,
+                """{"Providers":{"openrouter":{"BackendId":"openrouter","Protocol":"auto","AuthMethod":"openrouterOAuth"}}}""");
+            JsonElement result = default;
+            var exitCode = await ModelCatalogCliRunner.RunAsync(
+                new CommandLineArgs { Mode = CommandLineArgs.RunMode.ModelCatalog, SetupProviderId = "openrouter" },
+                CancellationToken.None, paths, new StringReader(""), value =>
+                {
+                    result = JsonSerializer.SerializeToElement(value);
+                    return Task.CompletedTask;
+                });
+            Assert.Equal(0, exitCode);
+            Assert.Equal("auth-required", result.GetProperty("kind").GetString());
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public void Setup_SavesChatGptProviderOnFinalSubmission()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-setup-oauth", Guid.NewGuid().ToString("N"));

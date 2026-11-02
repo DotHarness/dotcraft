@@ -43,6 +43,12 @@ export function formatTokensPerSecond(value: number): string {
   return value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10)
 }
 
+/** A cost too small to show a cent reads as "<$0.01" rather than "$0.00". */
+export function formatCost(value: number, locale?: string): string {
+  const format = new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return value > 0 && value < 0.01 ? `<${format.format(0.01)}` : format.format(value)
+}
+
 export function formatLatency(ms: number): string {
   const seconds = Math.max(0, ms) / 1000
   return `${seconds < 10 ? Math.round(seconds * 10) / 10 : Math.round(seconds)}s`
@@ -119,6 +125,7 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.tr
             usage={usage.threadUsage ?? null}
             strings={strings}
             formatTokens={formatTokens}
+            formatCost={(value) => formatCost(value, host.environment.locale)}
             style={{ right: popover.right, bottom: popover.bottom }}
           />,
           document.body

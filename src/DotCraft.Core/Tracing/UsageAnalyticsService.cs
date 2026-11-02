@@ -25,8 +25,9 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
     {
         using var connection = _stateRuntime.OpenConnection();
 
-        int threadCount, requests;
+        int threadCount, requests, unpricedTurns;
         long input, output, cached, cacheWrite, reasoning;
+        double cost;
         using (var command = connection.CreateCommand())
         {
             var sql = new StringBuilder("""
@@ -37,7 +38,9 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     COALESCE(SUM(output_tokens), 0),
                     COALESCE(SUM(cached_input_tokens), 0),
                     COALESCE(SUM(cache_write_input_tokens), 0),
-                    COALESCE(SUM(reasoning_output_tokens), 0)
+                    COALESCE(SUM(reasoning_output_tokens), 0),
+                    COALESCE(SUM(cost_usd), 0),
+                    COALESCE(SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END), 0)
                 FROM dashboard_usage_records
                 """);
             AppendRange(sql, command, range, "timestamp", hasWhere: false);
@@ -52,6 +55,8 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
             cached = ReadInt64(reader, 4);
             cacheWrite = ReadInt64(reader, 5);
             reasoning = ReadInt64(reader, 6);
+            cost = ReadDouble(reader, 7);
+            unpricedTurns = ReadInt32(reader, 8);
         }
 
         int responses, toolCalls, errors, compactions;
@@ -95,7 +100,9 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
             TotalOutputTokens = output,
             TotalCachedInputTokens = cached,
             TotalCacheWriteInputTokens = cacheWrite,
-            TotalReasoningOutputTokens = reasoning
+            TotalReasoningOutputTokens = reasoning,
+            TotalCostUsd = cost,
+            UnpricedTurns = unpricedTurns
         };
     }
 
@@ -106,7 +113,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         if (!UsageAnalyticsNames.IsSupported(query.Metric, query.GroupBy))
             throw new ArgumentException($"Metric '{query.Metric}' cannot be grouped by '{query.GroupBy}'.", nameof(query));
 
-        var facts = query.Metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests
+        var facts = query.Metric is UsageMetric.Tokens or UsageMetric.Turns or UsageMetric.Requests or UsageMetric.Cost
             ? ReadTurnFacts(query)
             : ReadTraceFacts(query);
 
@@ -118,7 +125,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         limit = Math.Clamp(limit, 1, 50);
         using var connection = _stateRuntime.OpenConnection();
 
-        var rows = new List<(string ThreadId, int Turns, long Input, long Output, long Cached, DateTimeOffset LastActiveAt, string OwnOrigin)>();
+        var rows = new List<(string ThreadId, int Turns, long Input, long Output, long Cached, DateTimeOffset LastActiveAt, string OwnOrigin, double? Cost)>();
         using (var command = connection.CreateCommand())
         {
             var sql = new StringBuilder("""
@@ -129,7 +136,8 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     COALESCE(SUM(output_tokens), 0),
                     COALESCE(SUM(cached_input_tokens), 0),
                     MAX(timestamp),
-                    COALESCE(MAX(CASE WHEN thread_id = root_thread_id THEN source_id END), MIN(source_id))
+                    COALESCE(MAX(CASE WHEN thread_id = root_thread_id THEN source_id END), MIN(source_id)),
+                    SUM(cost_usd)
                 FROM dashboard_usage_records
                 WHERE root_thread_id IS NOT NULL
                 GROUP BY root_thread_id
@@ -149,7 +157,8 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     ReadInt64(reader, 3),
                     ReadInt64(reader, 4),
                     ParseTimestamp(reader.GetString(5)),
-                    reader.IsDBNull(6) ? string.Empty : reader.GetString(6)));
+                    reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                    ReadOptionalDouble(reader, 7)));
             }
         }
 
@@ -167,6 +176,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     row.Input,
                     row.Output,
                     row.Cached,
+                    row.Cost,
                     meta.Archived);
             })
             .ToList();
@@ -185,7 +195,8 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                 COUNT(*),
                 COALESCE(SUM(input_tokens), 0),
                 COALESCE(SUM(output_tokens), 0),
-                COALESCE(SUM(cached_input_tokens), 0)
+                COALESCE(SUM(cached_input_tokens), 0),
+                SUM(cost_usd)
             FROM dashboard_usage_records
             WHERE root_thread_id = $thread_id
             GROUP BY model, reasoning_effort, speed
@@ -204,19 +215,22 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                 ReadInt32(reader, 3),
                 ReadInt64(reader, 4),
                 ReadInt64(reader, 5),
-                ReadInt64(reader, 6)));
+                ReadInt64(reader, 6),
+                ReadOptionalDouble(reader, 7)));
         }
 
+        var priced = groups.Where(group => group.CostUsd is not null).ToList();
         return new UsageThreadBreakdown(
             threadId,
             groups.Sum(group => group.Turns),
             groups.Sum(group => group.InputTokens),
             groups.Sum(group => group.OutputTokens),
             groups.Sum(group => group.CachedInputTokens),
+            priced.Count == 0 ? null : priced.Sum(group => group.CostUsd!.Value),
             groups);
     }
 
-    private List<(DateOnly Day, string Key, long Value)> ReadTurnFacts(UsageHistoryQuery query)
+    private List<(DateOnly Day, string Key, double Value)> ReadTurnFacts(UsageHistoryQuery query)
     {
         using var connection = _stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
@@ -231,18 +245,22 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                 d.model,
                 COALESCE(t.origin_channel, d.source_id),
                 d.reasoning_effort,
-                d.speed
+                d.speed,
+                d.cost_usd
             FROM dashboard_usage_records d
             LEFT JOIN threads t ON t.thread_id = d.root_thread_id
             """);
         AppendRange(sql, command, query.Range, "d.timestamp", hasWhere: false);
         command.CommandText = sql.ToString();
 
-        var facts = new List<(DateOnly, string, long)>();
+        var facts = new List<(DateOnly, string, double)>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             var day = query.Range.LocalDayOf(ParseTimestamp(reader.GetString(0)));
+            var cost = ReadOptionalDouble(reader, 10);
+            if (query.Metric == UsageMetric.Cost && cost is null)
+                continue;
             var input = ReadInt64(reader, 1);
             var output = ReadInt64(reader, 2);
             var cached = ReadInt64(reader, 3);
@@ -274,6 +292,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
             {
                 UsageMetric.Tokens => input + output,
                 UsageMetric.Requests => llmCalls,
+                UsageMetric.Cost => cost!.Value,
                 _ => 1
             };
             facts.Add((day, key, value));
@@ -282,7 +301,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         return facts;
     }
 
-    private List<(DateOnly Day, string Key, long Value)> ReadTraceFacts(UsageHistoryQuery query)
+    private List<(DateOnly Day, string Key, double Value)> ReadTraceFacts(UsageHistoryQuery query)
     {
         using var connection = _stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
@@ -306,7 +325,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         AppendRange(sql, command, query.Range, "e.timestamp", hasWhere: true);
         command.CommandText = sql.ToString();
 
-        var facts = new List<(DateOnly, string, long)>();
+        var facts = new List<(DateOnly, string, double)>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -324,9 +343,14 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         return facts;
     }
 
-    private static UsageHistory Fold(UsageHistoryQuery query, List<(DateOnly Day, string Key, long Value)> facts)
+    private static UsageHistory Fold(UsageHistoryQuery query, List<(DateOnly Day, string Key, double Value)> facts)
     {
-        var unit = query.Metric == UsageMetric.Tokens ? UsageAnalyticsNames.UnitTokens : UsageAnalyticsNames.UnitCount;
+        var unit = query.Metric switch
+        {
+            UsageMetric.Tokens => UsageAnalyticsNames.UnitTokens,
+            UsageMetric.Cost => UsageAnalyticsNames.UnitUsd,
+            _ => UsageAnalyticsNames.UnitCount
+        };
         if (query.GroupBy == UsageDimension.None)
         {
             var plainDays = facts
@@ -446,6 +470,12 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
 
     private static int ReadInt32(DbDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? 0 : Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static double ReadDouble(DbDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? 0 : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static double? ReadOptionalDouble(DbDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 
     private static long ReadInt64(DbDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? 0 : (long)Math.Round(Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture));

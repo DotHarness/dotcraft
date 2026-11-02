@@ -4,7 +4,8 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { PreferenceModelPicker } from '../conversation/PreferenceModelPicker'
 import { Button } from '../ui/Button'
-import { ProviderMark } from '../ui/ProviderMark'
+import type { ProviderMarkKind } from '../ui/ProviderMark'
+import { ProviderPresetMark } from '../settings/providers/ProviderPresetMark'
 import type { SetupSignInState } from './SetupAccessSection'
 
 export interface SetupModelCatalog {
@@ -18,6 +19,7 @@ export function SetupModelSection({
   catalog,
   preference,
   savedNeedsSignIn,
+  savedMark,
   savedSignIn,
   onSignIn,
   onRetry,
@@ -27,6 +29,7 @@ export function SetupModelSection({
   catalog: SetupModelCatalog
   preference: ModelPreference
   savedNeedsSignIn: boolean
+  savedMark: ProviderMarkKind | null
   savedSignIn: SetupSignInState
   onSignIn(): void
   onRetry(): void
@@ -40,12 +43,12 @@ export function SetupModelSection({
     <div className="workspace-setup__stack">
       {catalog.status === 'auth-required' && savedNeedsSignIn && (
         <div className="workspace-setup__notice" data-level="info">
-          <ProviderMark kind="openai" size={18} />
+          <ProviderPresetMark mark={savedMark} size={18} />
           <div className="workspace-setup__notice-text">
             <div className="workspace-setup__notice-body" role={savedSignIn.phase === 'failed' ? 'alert' : undefined}>
               {savedSignIn.phase === 'failed'
-                ? t('setupWizard.access.chatgptFailed', { error: savedSignIn.message })
-                : t('setupWizard.model.signInNeeded')}
+                ? t('setupWizard.access.signInFailed', { error: savedSignIn.message })
+                : t('setupWizard.model.signInNeeded', { provider: providerName })}
             </div>
           </div>
           <Button size="sm" variant="secondary" loading={savedSignIn.phase === 'pending'} onClick={onSignIn}>

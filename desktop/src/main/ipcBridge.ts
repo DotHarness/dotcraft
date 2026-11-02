@@ -771,7 +771,7 @@ export interface IpcHandlerCallbacks {
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
-  onLoginSetupChatGpt?: (request: WorkspaceSetupModelListRequest) => Promise<WorkspaceSetupSignInResult>
+  onLoginSetupProvider?: (request: WorkspaceSetupModelListRequest) => Promise<WorkspaceSetupSignInResult>
   onOpenNewWindow: () => void
   onRestartManagedAppServer: () => Promise<void>
   onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
@@ -1566,9 +1566,9 @@ export function registerIpcHandlers(
     }
   )
 
-  handleSafe('workspace:login-setup-chatgpt', async (_event, request: WorkspaceSetupModelListRequest) => {
-    if (!callbacks?.onLoginSetupChatGpt) return { kind: 'error' } satisfies WorkspaceSetupSignInResult
-    return callbacks.onLoginSetupChatGpt(request)
+  handleSafe('workspace:login-setup-provider', async (_event, request: WorkspaceSetupModelListRequest) => {
+    if (!callbacks?.onLoginSetupProvider) return { kind: 'error' } satisfies WorkspaceSetupSignInResult
+    return callbacks.onLoginSetupProvider(request)
   })
 
   handleSafe('workspace:open-new-window', () => {
@@ -2459,7 +2459,7 @@ export function unregisterIpcHandlers(options: { preserveDesktopPluginModules?: 
   ipcMain.removeHandler('workspace:get-status')
   ipcMain.removeHandler('workspace:run-setup')
   ipcMain.removeHandler('workspace:list-setup-models')
-  ipcMain.removeHandler('workspace:login-setup-chatgpt')
+  ipcMain.removeHandler('workspace:login-setup-provider')
   ipcMain.removeHandler('workspace:open-new-window')
   ipcMain.removeHandler('workspace:check-lock')
   ipcMain.removeHandler('workspace:save-image-to-temp')

@@ -4,11 +4,11 @@ import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
 import { ActionTooltip } from '../../../ui/ActionTooltip'
 import { PillSwitch } from '../../../ui/PillSwitch'
-import { ProviderMark } from '../../../ui/ProviderMark'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect, type SettingsSelectOption } from '../../ui/SettingsSelect'
-import { getProviderProtocolMarkKind } from '../ProviderProtocolIcon'
+import { ProviderPresetMark } from '../../providers/ProviderPresetMark'
+import { providerPresetMark } from '../../providers/providerPresets'
 import { canProviderCreateImages, resolveImageGenerationTrouble } from './imageGenerationModel'
 import styles from './ImageGenerationSettingsGroup.module.css'
 
@@ -54,7 +54,7 @@ export function ImageGenerationSettingsGroup({
       return {
         value: provider.id,
         label: provider.displayName,
-        icon: <ProviderMark kind={getProviderProtocolMarkKind(provider.protocol)} size={15} />,
+        icon: <ProviderPresetMark mark={providerPresetMark(provider)} size={15} />,
         disabled: !eligible,
         description: eligible ? undefined : cantCreate
       }

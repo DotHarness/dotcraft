@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Persistence;
 using DotCraft.Sessions;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -32,13 +33,13 @@ public sealed class ReasoningReplayTests
         {
             var updates = new List<ChatResponseUpdate>();
             await foreach (var update in client.GetStreamingResponseAsync(initial, options)) updates.Add(update);
-            Assert.Contains(updates, update => update.AdditionalProperties?.GetValueOrDefault("openrouter.costUsd") is decimal cost && cost == 0.00001m);
+            Assert.Contains(updates, update => update.AdditionalProperties?.GetValueOrDefault(ProviderReportedCost.Key) is decimal cost && cost == 0.00001m);
             response = updates.ToAgentResponse();
         }
         else
         {
             response = await client.GetResponseAsync(initial, options);
-            Assert.Equal(0.00001m, response.AdditionalProperties!["openrouter.costUsd"]);
+            Assert.Equal(0.00001m, response.AdditionalProperties![ProviderReportedCost.Key]);
         }
         await first;
         var restored = await ColdHistoryAsync(response.Messages);

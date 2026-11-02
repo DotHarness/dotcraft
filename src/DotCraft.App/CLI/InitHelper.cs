@@ -155,7 +155,8 @@ public static class InitHelper
     private static WorkspaceSetupProviderDraft NormalizeProviderDraft(WorkspaceSetupProviderDraft draft)
     {
         var id = NormalizeProviderId(draft.Id);
-        var protocol = NormalizeProviderProtocol(draft.Protocol);
+        var backendId = string.IsNullOrWhiteSpace(draft.BackendId) ? null : draft.BackendId.Trim();
+        var protocol = backendId != null ? draft.Protocol.Trim() : NormalizeProviderProtocol(draft.Protocol);
         ValidateProviderEndpoint(protocol, draft.EndPoint);
         if (draft.NetworkTimeoutSeconds is <= 0)
             throw new ArgumentException("Provider network timeout must be greater than zero.");
@@ -163,6 +164,7 @@ public static class InitHelper
         return draft with
         {
             Id = id,
+            BackendId = backendId,
             Protocol = protocol,
             DisplayName = string.IsNullOrWhiteSpace(draft.DisplayName) ? id : draft.DisplayName.Trim(),
             ApiKey = draft.ApiKey.Trim(),
@@ -173,6 +175,12 @@ public static class InitHelper
     private static void SaveProviderDraft(JsonObject globalNode, WorkspaceSetupProviderDraft draft)
     {
         var providers = GetOrCreateObject(globalNode, "Providers");
+        if (draft.BackendId != null)
+        {
+            providers[draft.Id] = BackendProviderNode(draft);
+            return;
+        }
+
         var providerNode = new JsonObject
         {
             ["DisplayName"] = draft.DisplayName,
@@ -192,6 +200,26 @@ public static class InitHelper
         }
 
         providers[draft.Id] = providerNode;
+    }
+
+    private static JsonObject BackendProviderNode(WorkspaceSetupProviderDraft draft)
+    {
+        var node = new JsonObject
+        {
+            ["DisplayName"] = draft.DisplayName,
+            ["BackendId"] = draft.BackendId
+        };
+        if (!string.IsNullOrWhiteSpace(draft.Protocol))
+            node["Protocol"] = draft.Protocol;
+        if (!string.IsNullOrWhiteSpace(draft.AuthMethod))
+            node["AuthMethod"] = draft.AuthMethod;
+        if (!string.IsNullOrWhiteSpace(draft.ApiKey))
+            node["ApiKey"] = draft.ApiKey;
+        if (!string.IsNullOrWhiteSpace(draft.EndPoint))
+            node["EndPoint"] = draft.EndPoint;
+        if (draft.NetworkTimeoutSeconds is int timeout)
+            node["NetworkTimeoutSeconds"] = timeout;
+        return node;
     }
 
     private static void ApplyProviderAwareWorkspaceSelection(

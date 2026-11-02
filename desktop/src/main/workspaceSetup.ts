@@ -146,6 +146,10 @@ function readConfigString(
   return { present: true, value: typeof value === 'string' ? value.trim() : '' }
 }
 
+function normalizeBuiltInAuthMethod(value: string | undefined): 'apiKey' | 'chatgptOAuth' {
+  return value?.toLowerCase() === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey'
+}
+
 function normalizeOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -166,13 +170,18 @@ function readExplicitProviders(config: Record<string, unknown>): WorkspaceSetupP
       const provider = rawProvider as Record<string, unknown>
       const displayName = normalizeOptionalString(getConfigValueCaseInsensitive(provider, 'DisplayName')) ?? id
       const apiKey = normalizeOptionalString(getConfigValueCaseInsensitive(provider, 'ApiKey'))
+      const backendId = normalizeOptionalString(getConfigValueCaseInsensitive(provider, 'BackendId'))
+      const protocol = getConfigValueCaseInsensitive(provider, 'Protocol')
+      const authMethod = normalizeOptionalString(getConfigValueCaseInsensitive(provider, 'AuthMethod'))
       return {
         id,
         displayName,
-        protocol: normalizeProviderProtocol(getConfigValueCaseInsensitive(provider, 'Protocol')),
+        protocol: backendId ? normalizeOptionalString(protocol) ?? '' : normalizeProviderProtocol(protocol),
+        ...(backendId ? { backendId } : {}),
         hasApiKey: apiKey != null,
         endPoint: normalizeOptionalString(getConfigValueCaseInsensitive(provider, 'EndPoint')) ?? '',
-        networkTimeoutSeconds: normalizeOptionalNumber(getConfigValueCaseInsensitive(provider, 'NetworkTimeoutSeconds'))
+        networkTimeoutSeconds: normalizeOptionalNumber(getConfigValueCaseInsensitive(provider, 'NetworkTimeoutSeconds')),
+        authMethod: backendId ? authMethod ?? 'apiKey' : normalizeBuiltInAuthMethod(authMethod)
       }
     })
     .filter((provider): provider is WorkspaceSetupProviderSummary => provider != null)
@@ -262,14 +271,16 @@ function normalizeProviderForModelList(
   options?: { userConfigPath?: string }
 ): WorkspaceSetupProviderDraft | null {
   if ('provider' in request) {
+    const backendId = request.provider.backendId?.trim() || null
     return {
       ...request.provider,
       id: request.provider.id.trim(),
       displayName: request.provider.displayName.trim(),
-      protocol: normalizeProviderProtocol(request.provider.protocol),
+      backendId,
+      protocol: backendId ? request.provider.protocol.trim() : normalizeProviderProtocol(request.provider.protocol),
       apiKey: request.provider.apiKey.trim(),
       endPoint: request.provider.endPoint.trim(),
-      authMethod: request.provider.authMethod === 'chatgptOAuth' ? 'chatgptOAuth' : 'apiKey'
+      authMethod: backendId ? request.provider.authMethod?.trim() || 'apiKey' : normalizeBuiltInAuthMethod(request.provider.authMethod)
     }
   }
 
@@ -289,16 +300,15 @@ function normalizeProviderForModelList(
     rawProvider != null && typeof rawProvider === 'object' && !Array.isArray(rawProvider)
       ? rawProvider as Record<string, unknown>
       : {}
-  const authMethodValue = normalizeOptionalString(getConfigValueCaseInsensitive(rawProviderRecord, 'AuthMethod'))
-  const authMethod = authMethodValue?.toLowerCase() === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey'
   return {
     id: provider.id,
     displayName: provider.displayName,
     protocol: provider.protocol,
+    backendId: provider.backendId ?? null,
     apiKey: normalizeOptionalString(getConfigValueCaseInsensitive(rawProviderRecord, 'ApiKey')) ?? '',
     endPoint: provider.endPoint,
     networkTimeoutSeconds: provider.networkTimeoutSeconds,
-    authMethod
+    authMethod: provider.authMethod
   }
 }
 
@@ -325,7 +335,7 @@ export async function listSetupModels(
   return normalizeSetupModelListResult(result)
 }
 
-export async function loginSetupChatGpt(
+export async function loginSetupProvider(
   request: WorkspaceSetupModelListRequest,
   options?: {
     userConfigPath?: string
@@ -488,14 +498,16 @@ function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): voi
   if (!provider) {
     throw new Error('Provider draft is required.')
   }
+  const backendId = provider.backendId?.trim()
   args.push(
     '--provider-id',
     provider.id.trim(),
     '--provider-display-name',
     provider.displayName.trim() || provider.id.trim(),
     '--provider-protocol',
-    normalizeProviderProtocol(provider.protocol)
+    backendId ? provider.protocol.trim() : normalizeProviderProtocol(provider.protocol)
   )
+  if (backendId) args.push('--provider-backend-id', backendId)
   if (provider.endPoint.trim()) {
     args.push('--endpoint', provider.endPoint.trim())
   }
@@ -505,7 +517,7 @@ function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): voi
   if (provider.networkTimeoutSeconds != null) {
     args.push('--provider-timeout-seconds', String(provider.networkTimeoutSeconds))
   }
-  if (provider.authMethod && provider.authMethod !== 'apiKey') {
+  if (provider.authMethod && (backendId || provider.authMethod !== 'apiKey')) {
     args.push('--auth-method', provider.authMethod)
   }
 }

@@ -196,6 +196,7 @@ public sealed partial class SessionService
             var mainTraceUsageBaseline = 0;
             long inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, cacheWriteInputTokens = 0, reasoningOutputTokens = 0;
             var llmCallCount = 0;
+            var turnCost = new TurnCostTracker();
             var retiredResourcesReleased = false;
             Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
             Dictionary<int, string>? streamingToolNameByIndex = null;
@@ -1395,6 +1396,8 @@ public sealed partial class SessionService
                         var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(chatResponseUpdate);
                         if (updateRequestIndex.HasValue)
                             currentUsageRequestIndex = updateRequestIndex;
+                        if (ProviderReportedCost.TryGet(chatResponseUpdate.AdditionalProperties) is { } reportedCost)
+                            turnCost.AddReportedCost(reportedCost);
 
                         foreach (var responseContent in update.Contents)
                         {
@@ -1725,6 +1728,7 @@ public sealed partial class SessionService
                                             || delta.ReasoningOutputTokens > 0)
                                         {
                                             llmCallCount += usageDelta.LlmCallDelta;
+                                            turnCost.AddUsage(delta, usageDelta.IsNewRequest);
                                             inputTokens += delta.InputTokens;
                                             outputTokens += delta.OutputTokens;
                                             cachedInputTokens += delta.CachedInputTokens;
@@ -1935,7 +1939,7 @@ public sealed partial class SessionService
                     turn.CompletedAt = DateTimeOffset.UtcNow;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
                 });
-                RecordTurnTokenUsage(thread, turn);
+                RecordTurnTokenUsage(thread, turn, turnCost);
                 RecordTurnDurationTrace(threadId, turn);
                 await PersistCurrentTurnCommitAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);

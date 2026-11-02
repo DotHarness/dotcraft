@@ -15,12 +15,14 @@ export interface ThreadUsageGroup {
   readonly model: string | null
   readonly turns: number
   readonly totalTokens: number
+  readonly costUsd: number | null
 }
 
 export interface ThreadUsageSnapshot {
   readonly threadId: string
   readonly turns: number
   readonly totalTokens: number
+  readonly costUsd: number | null
   readonly groups: readonly ThreadUsageGroup[]
 }
 
@@ -205,17 +207,19 @@ function toSessionTotals(value: unknown): SessionTotals | null {
 }
 
 function toThreadUsage(result: unknown): ThreadUsageSnapshot | null {
-  const value = result as { threadId?: unknown; turns?: unknown; totalTokens?: unknown; groups?: unknown } | null
+  const value = result as { threadId?: unknown; turns?: unknown; totalTokens?: unknown; costUsd?: unknown; groups?: unknown } | null
   if (!value || typeof value.threadId !== 'string') return null
   const groups = Array.isArray(value.groups) ? value.groups : []
   return {
     threadId: value.threadId,
     turns: numberOrNull(value.turns) ?? 0,
     totalTokens: numberOrNull(value.totalTokens) ?? 0,
+    costUsd: numberOrNull(value.costUsd),
     groups: groups.map((group: Record<string, unknown>) => ({
       model: textOrNull(group?.model),
       turns: numberOrNull(group?.turns) ?? 0,
-      totalTokens: numberOrNull(group?.totalTokens) ?? 0
+      totalTokens: numberOrNull(group?.totalTokens) ?? 0,
+      costUsd: numberOrNull(group?.costUsd)
     }))
   }
 }

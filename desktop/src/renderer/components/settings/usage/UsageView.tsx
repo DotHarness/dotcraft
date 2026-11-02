@@ -20,12 +20,15 @@ export function UsageView({ dashboardUrl }: { dashboardUrl: string | null }): JS
   const capable = useConnectionStore((s) => s.capabilities?.usageTelemetry === true)
   const ranges = useUsageStore((s) => s.ranges)
   const historyGroup = useUsageStore((s) => s.historyGroup)
+  const historyMetric = useUsageStore((s) => s.historyMetric)
   const history = useUsageStore((s) => s.history)
+  const costSummary = useUsageStore((s) => s.costSummary)
   const toolCalls = useUsageStore((s) => s.toolCalls)
   const skillUses = useUsageStore((s) => s.skillUses)
   const threads = useUsageStore((s) => s.threads)
   const setRange = useUsageStore((s) => s.setRange)
   const setHistoryGroup = useUsageStore((s) => s.setHistoryGroup)
+  const setHistoryMetric = useUsageStore((s) => s.setHistoryMetric)
   const load = useUsageStore((s) => s.load)
   const plugins = usePluginStore((s) => s.plugins)
 
@@ -64,6 +67,9 @@ export function UsageView({ dashboardUrl }: { dashboardUrl: string | null }): JS
         <div className={styles.sections}>
           <UsageHistoryChart
             state={history}
+            costSummary={costSummary}
+            metric={historyMetric}
+            onMetricChange={setHistoryMetric}
             group={historyGroup}
             onGroupChange={setHistoryGroup}
             range={ranges.history}

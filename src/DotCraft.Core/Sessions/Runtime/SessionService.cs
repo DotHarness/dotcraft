@@ -1436,7 +1436,7 @@ public sealed partial class SessionService(
             commandCt => ThreadQueue.TryStartNextAsync(threadId, commandCt),
             ct);
 
-    private void RecordTurnTokenUsage(SessionThread thread, SessionTurn turn)
+    private void RecordTurnTokenUsage(SessionThread thread, SessionTurn turn, TurnCostTracker cost)
     {
         if (tokenUsageStore == null || turn.TokenUsage == null || string.IsNullOrWhiteSpace(turn.OriginChannel))
             return;
@@ -1453,6 +1453,7 @@ public sealed partial class SessionService(
         var hasGroupContext = !string.IsNullOrWhiteSpace(initiator?.GroupId);
         var lastResponse = traceCollector?.GetLastResponseModel(thread.Id);
         var rootThreadId = thread.Source?.SubAgent?.RootThreadId;
+        var config = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
 
         tokenUsageStore.Record(new TokenUsageRecord
         {
@@ -1476,7 +1477,8 @@ public sealed partial class SessionService(
             CachedInputTokens = turn.TokenUsage.CachedInputTokens,
             CacheWriteInputTokens = turn.TokenUsage.CacheWriteInputTokens,
             ReasoningOutputTokens = turn.TokenUsage.ReasoningOutputTokens,
-            LlmCallCount = turn.TokenUsage.LlmCallCount
+            LlmCallCount = turn.TokenUsage.LlmCallCount,
+            CostUsd = cost.Resolve(ModelCatalog.ResolvePricing(config, lastResponse?.ModelId))
         });
     }
 

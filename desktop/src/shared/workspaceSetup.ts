@@ -4,12 +4,16 @@ import type { DesktopProviderProtocol } from './providerProtocols'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
-export type ProviderAuthMethod = 'apiKey' | 'chatgptOAuth'
+
+/** Built-in methods are `apiKey` and `chatgptOAuth`; backend providers use their backend's method ids. */
+export type ProviderAuthMethod = string
 
 export interface WorkspaceSetupProviderSummary {
   id: string
   displayName: string
-  protocol: WorkspaceSetupProviderProtocol
+  /** A built-in API format, or the backend's own protocol id when `backendId` is set. */
+  protocol: string
+  backendId?: string
   hasApiKey: boolean
   endPoint: string
   networkTimeoutSeconds?: number | null
@@ -50,7 +54,8 @@ export interface WorkspaceStatusPayload {
 export interface WorkspaceSetupProviderDraft {
   id: string
   displayName: string
-  protocol: WorkspaceSetupProviderProtocol
+  protocol: string
+  backendId?: string | null
   apiKey: string
   endPoint: string
   networkTimeoutSeconds?: number | null

@@ -1,7 +1,6 @@
 import { useEffect, useState, type Dispatch, type JSX, type SetStateAction } from 'react'
 import type { JsonValue, ProviderRoutingListResult } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
-import { Input } from '../../ui/Input'
 import { Select } from '../../ui/Select'
 import { TokenPicker, type TokenPickerOption } from '../../ui/TokenPicker'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
@@ -52,11 +51,6 @@ export function OpenRouterFields({ draft, setDraft, provider }: {
       ]}
       onValueChange={(protocol) => setDraft((current) => ({ ...current, protocol }))}
     />} />
-    {draft.authMethod !== 'apiKey' && <SettingsRow label={t('settings.llm.field.endpoint')} control={<Input
-      value={draft.endPoint}
-      placeholder="https://openrouter.ai/api/v1"
-      onChange={(event) => setDraft((current) => ({ ...current, endPoint: event.target.value }))}
-    />} />}
     {(['order', 'only', 'ignore'] as const).map((name) => <SettingsRow key={name}
       label={t(`settings.llm.openrouter.${name}`)} description={name === 'order' ? t('settings.llm.openrouter.providerOrderHint') : undefined}
       control={<TokenPicker values={Array.isArray(settings[name]) ? settings[name] as string[] : []} options={suppliers}

@@ -1,6 +1,6 @@
 import { onAction } from '../core/actions.js';
 import { fetchJson } from '../core/api.js';
-import { formatCount, formatPercent, formatRelative, humanizeKey } from '../core/format.js';
+import { formatCount, formatPercent, formatRelative, formatUsd, humanizeKey } from '../core/format.js';
 import { emptyState, esc, iconButton, loadingPanel, panelHeader, sectionHeading, segmented, statGrid, statTile } from '../core/html.js';
 import { panelElement, registerPanel } from '../core/navigation.js';
 import { horizontalBars, tokenMixBar } from './charts.js';
@@ -25,6 +25,15 @@ function kindKey(kind) {
   return String(kind || '').toLowerCase();
 }
 
+function unpricedNote(count) {
+  return count > 0 ? `Estimate; excludes ${formatCount(count)} unpriced ${count === 1 ? 'turn' : 'turns'}` : 'Estimate from list prices';
+}
+
+function costCell(cost, unpriced) {
+  if (cost == null) return `<span class="dash-dim" data-tooltip="${esc('No known price')}">${formatUsd(null)}</span>`;
+  return `<span data-tooltip="${esc(unpricedNote(unpriced))}">${formatUsd(cost)}${unpriced > 0 ? '*' : ''}</span>`;
+}
+
 function breakdownTable(title, entries, relatedLabel) {
   if (!entries.length) {
     return `<div class="dash-breakdown"><h3 class="dash-subheading">${esc(title)}</h3><p class="dash-dim dash-small">Nothing recorded yet.</p></div>`;
@@ -35,6 +44,7 @@ function breakdownTable(title, entries, relatedLabel) {
       <div class="dash-table__head" role="row">
         <span role="columnheader">Name</span>
         <span role="columnheader" class="dash-col-num">Total</span>
+        <span role="columnheader" class="dash-col-num">Cost</span>
         <span role="columnheader" class="dash-col-num dash-col--opt1">Input</span>
         <span role="columnheader" class="dash-col-num dash-col--opt2">Fresh</span>
         <span role="columnheader" class="dash-col-num">Cached</span>
@@ -47,6 +57,7 @@ function breakdownTable(title, entries, relatedLabel) {
       ${entries.map(entry => `<div class="dash-table__row" role="row">
         <span role="cell" class="dash-usage-name"><span class="dash-truncate" title="${esc(entry.id)}">${esc(entry.label || entry.id)}</span></span>
         <span role="cell" class="dash-col-num dash-num dash-strong">${formatCount(entry.totalTokens)}</span>
+        <span role="cell" class="dash-col-num dash-num">${costCell(entry.totalCostUsd, entry.unpricedRequestCount)}</span>
         <span role="cell" class="dash-col-num dash-num dash-col--opt1">${formatCount(entry.totalInputTokens)}</span>
         <span role="cell" class="dash-col-num dash-num dash-col--opt2">${formatCount(entry.totalFreshInputTokens)}</span>
         <span role="cell" class="dash-col-num dash-num">${formatPercent(entry.cacheHitRate, 0)}</span>
@@ -74,12 +85,13 @@ function body() {
   const sum = pick => sources.reduce((total, source) => total + (pick(source) || 0), 0);
   const input = sum(s => s.totalInputTokens);
   const cached = sum(s => s.totalCachedInputTokens);
+  const priced = sources.some(source => source.totalCostUsd != null);
   const visible = filter === 'all' ? sources : sources.filter(source => source.sourceId === filter);
   return `${statGrid('Totals', [
     statTile('Total tokens', formatCount(sum(s => s.totalTokens))),
+    statTile('Estimated cost', costCell(priced ? sum(s => s.totalCostUsd) : null, sum(s => s.unpricedRequestCount))),
     statTile('Served from cache', formatPercent(input ? cached / input : 0)),
-    statTile('Model calls', formatCount(sum(s => s.llmCallCount))),
-    statTile('Sources', formatCount(sources.length))
+    statTile('Model calls', formatCount(sum(s => s.llmCallCount)))
   ])}
   <div class="dash-chart-pair">
     ${tokenMixBar('Where tokens went', [
@@ -91,7 +103,9 @@ function body() {
     ${horizontalBars('Tokens by source', sources.map(source => ({
       label: sourceLabel(source.sourceId),
       value: source.totalTokens,
-      detail: `${formatPercent(source.cacheHitRate, 0)} cached`
+      detail: source.totalCostUsd == null
+        ? `${formatPercent(source.cacheHitRate, 0)} cached`
+        : `${formatPercent(source.cacheHitRate, 0)} cached, ${formatUsd(source.totalCostUsd)}`
     })))}
   </div>
   <div class="dash-filter-bar dash-filter-bar--inline">

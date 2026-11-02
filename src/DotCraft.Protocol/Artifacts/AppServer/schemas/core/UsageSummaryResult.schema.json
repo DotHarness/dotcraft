@@ -31,6 +31,9 @@
     "totalContextCompactions": {
       "type": "integer"
     },
+    "totalCostUsd": {
+      "type": "number"
+    },
     "totalErrors": {
       "type": "integer"
     },
@@ -77,6 +80,9 @@
       "type": "integer",
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
+    },
+    "unpricedTurns": {
+      "type": "integer"
     }
   },
   "additionalProperties": true

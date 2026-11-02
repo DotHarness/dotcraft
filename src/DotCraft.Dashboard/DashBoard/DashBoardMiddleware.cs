@@ -332,6 +332,8 @@ public static class DashBoardMiddleware
                     cacheHitRate = summary.CacheHitRate,
                     totalTokens = summary.TotalTokens,
                     llmCallCount = summary.LlmCallCount,
+                    totalCostUsd = summary.TotalCostUsd,
+                    unpricedRequestCount = summary.UnpricedRequestCount,
                     lastActiveAt = summary.LastActiveAt.ToString("o")
                 });
                 return Results.Json(summaries, JsonOptions);
@@ -356,6 +358,8 @@ public static class DashBoardMiddleware
                     cacheHitRate = entry.CacheHitRate,
                     totalTokens = entry.TotalTokens,
                     llmCallCount = entry.LlmCallCount,
+                    totalCostUsd = entry.TotalCostUsd,
+                    unpricedRequestCount = entry.UnpricedRequestCount,
                     lastActiveAt = entry.LastActiveAt.ToString("o")
                 });
                 return Results.Json(entries, JsonOptions);
@@ -380,6 +384,8 @@ public static class DashBoardMiddleware
                     cacheHitRate = entry.CacheHitRate,
                     totalTokens = entry.TotalTokens,
                     llmCallCount = entry.LlmCallCount,
+                    totalCostUsd = entry.TotalCostUsd,
+                    unpricedRequestCount = entry.UnpricedRequestCount,
                     lastActiveAt = entry.LastActiveAt.ToString("o")
                 });
                 return Results.Json(entries, JsonOptions);

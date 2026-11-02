@@ -26409,12 +26409,10 @@
         },
         {
           "name": "total",
-          "type": "integer",
+          "type": "number",
           "required": false,
           "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "const": null
         },
         {
           "name": "values",
@@ -26535,12 +26533,10 @@
         },
         {
           "name": "total",
-          "type": "integer",
+          "type": "number",
           "required": false,
           "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "const": null
         }
       ],
       "variants": []
@@ -26562,12 +26558,10 @@
         },
         {
           "name": "value",
-          "type": "integer",
+          "type": "number",
           "required": false,
           "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
+          "const": null
         }
       ],
       "variants": []
@@ -26693,6 +26687,13 @@
           "const": null
         },
         {
+          "name": "totalCostUsd",
+          "type": "number",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "totalErrors",
           "type": "integer",
           "required": false,
@@ -26782,6 +26783,13 @@
           "const": null,
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        {
+          "name": "unpricedTurns",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -26802,6 +26810,13 @@
           "const": null,
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        {
+          "name": "costUsd",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
         },
         {
           "name": "inputTokens",
@@ -26904,6 +26919,13 @@
           "maximum": 9007199254740991
         },
         {
+          "name": "costUsd",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "groups",
           "type": "array<core.UsageThreadGroup>",
           "required": false,
@@ -26984,6 +27006,13 @@
           "const": null,
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        {
+          "name": "costUsd",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
         },
         {
           "name": "inputTokens",

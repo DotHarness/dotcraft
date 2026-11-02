@@ -97,7 +97,8 @@ internal static class AuthCliRunner
                         AnsiConsole.MarkupLine($"[red]{FallbackText.AuthLoginFailed(state.ErrorMessage ?? state.ErrorCode ?? string.Empty).EscapeMarkup()}[/]");
                         return 1;
                 }
-                if (state.Prompt is { } prompt && state.PromptId is { } promptId && promptId != answered)
+                // Standard input carried the provider draft, so prompts wait for the browser callback instead.
+                if (!args.AuthReadStdin && state.Prompt is { } prompt && state.PromptId is { } promptId && promptId != answered)
                 {
                     answered = promptId;
                     state = await AnswerPromptAsync(auth, state, prompt, promptId, owner, states.Reader, ct);

@@ -87,7 +87,8 @@ describe('getWorkspaceStatus', () => {
           protocol: 'openai-responses',
           hasApiKey: true,
           endPoint: '',
-          networkTimeoutSeconds: null
+          networkTimeoutSeconds: null,
+          authMethod: 'apiKey'
         }
       ]
     })
@@ -165,6 +166,12 @@ describe('getWorkspaceStatus', () => {
             ApiKey: 'sk-ant',
             EndPoint: 'https://api.anthropic.com',
             NetworkTimeoutSeconds: 120
+          },
+          openrouter: {
+            DisplayName: 'OpenRouter',
+            BackendId: 'openrouter',
+            Protocol: 'auto',
+            AuthMethod: 'openrouterOAuth'
           }
         }
       }),
@@ -187,7 +194,8 @@ describe('getWorkspaceStatus', () => {
           protocol: 'anthropic',
           hasApiKey: true,
           endPoint: 'https://api.anthropic.com',
-          networkTimeoutSeconds: 120
+          networkTimeoutSeconds: 120,
+          authMethod: 'apiKey'
         },
         {
           id: 'openai',
@@ -195,7 +203,8 @@ describe('getWorkspaceStatus', () => {
           protocol: 'openai-chat-completions',
           hasApiKey: true,
           endPoint: 'https://hidden.example/v1',
-          networkTimeoutSeconds: null
+          networkTimeoutSeconds: null,
+          authMethod: 'apiKey'
         },
         {
           id: 'openai-responses',
@@ -203,7 +212,18 @@ describe('getWorkspaceStatus', () => {
           protocol: 'openai-responses',
           hasApiKey: true,
           endPoint: '',
-          networkTimeoutSeconds: null
+          networkTimeoutSeconds: null,
+          authMethod: 'apiKey'
+        },
+        {
+          id: 'openrouter',
+          displayName: 'OpenRouter',
+          protocol: 'auto',
+          backendId: 'openrouter',
+          hasApiKey: false,
+          endPoint: '',
+          networkTimeoutSeconds: null,
+          authMethod: 'openrouterOAuth'
         }
       ]
     })
@@ -283,6 +303,28 @@ describe('listSetupModels', () => {
       id: 'openai-main',
       protocol: 'openai-responses',
       apiKey: 'test-api-key'
+    })
+  })
+
+  it('keeps the backend protocol and method of a backend draft', async () => {
+    const runBackend = vi.fn().mockResolvedValue({ kind: 'success', models: [] })
+
+    await listSetupModels({
+      provider: {
+        id: 'openrouter',
+        displayName: 'OpenRouter',
+        backendId: 'openrouter',
+        protocol: 'auto',
+        endPoint: 'https://openrouter.ai/api/v1',
+        apiKey: '',
+        authMethod: 'openrouterOAuth'
+      }
+    }, { runBackend })
+
+    expect(JSON.parse(runBackend.mock.calls[0][1])).toMatchObject({
+      backendId: 'openrouter',
+      protocol: 'auto',
+      authMethod: 'openrouterOAuth'
     })
   })
 

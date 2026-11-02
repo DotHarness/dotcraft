@@ -134,15 +134,21 @@ internal static class DotCraftApplication
 
                 var providerMode = ResolveSetupProviderMode(cliArgs);
                 WorkspaceSetupRequest request;
-                var providerProtocol = string.IsNullOrWhiteSpace(cliArgs.SetupProviderProtocol)
-                    ? ModelProviderProtocols.OpenAI
-                    : ModelProviderProtocols.Normalize(cliArgs.SetupProviderProtocol);
+                var providerBackendId = string.IsNullOrWhiteSpace(cliArgs.SetupProviderBackendId)
+                    ? null
+                    : cliArgs.SetupProviderBackendId.Trim();
+                var providerProtocol = providerBackendId != null
+                    ? cliArgs.SetupProviderProtocol?.Trim() ?? string.Empty
+                    : string.IsNullOrWhiteSpace(cliArgs.SetupProviderProtocol)
+                        ? ModelProviderProtocols.OpenAI
+                        : ModelProviderProtocols.Normalize(cliArgs.SetupProviderProtocol);
                 var providerId = cliArgs.SetupProviderId?.Trim() ?? string.Empty;
                 if (providerMode == WorkspaceSetupProviderMode.Create && string.IsNullOrWhiteSpace(providerId))
                 {
-                    providerId = string.Equals(providerProtocol, ModelProviderProtocols.Anthropic, StringComparison.OrdinalIgnoreCase)
-                        ? "anthropic"
-                        : "openai";
+                    providerId = providerBackendId
+                        ?? (string.Equals(providerProtocol, ModelProviderProtocols.Anthropic, StringComparison.OrdinalIgnoreCase)
+                            ? "anthropic"
+                            : "openai");
                 }
 
                 var preference = string.IsNullOrWhiteSpace(cliArgs.SetupPreferenceJson)
@@ -164,6 +170,7 @@ internal static class DotCraftApplication
                             Id = providerId,
                             DisplayName = cliArgs.SetupProviderDisplayName?.Trim() ?? string.Empty,
                             Protocol = providerProtocol,
+                            BackendId = providerBackendId,
                             ApiKey = cliArgs.SetupApiKey?.Trim() ?? string.Empty,
                             EndPoint = cliArgs.SetupEndPoint?.Trim() ?? string.Empty,
                             NetworkTimeoutSeconds = ParseProviderTimeout(cliArgs.SetupProviderTimeoutSeconds),

@@ -1,26 +1,36 @@
 import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
 import type { MessageKey } from '../../../../shared/locales'
 import {
-  ANTHROPIC_PROTOCOL,
   defaultProviderEndpoint,
   normalizeProviderProtocol,
   OPENAI_CHAT_COMPLETIONS_PROTOCOL,
   OPENAI_RESPONSES_PROTOCOL,
-  providerProtocolLabel,
   tryNormalizeProviderProtocol,
+  DEFAULT_OPENAI_ENDPOINT,
   type DesktopProviderProtocol
 } from '../../../../shared/providerProtocols'
+import { slugProviderId, uniqueProviderId } from '../../../utils/providerId'
 import type { ProviderFields } from '../providerConfigWrites'
 import type { ProviderInfoWire } from '../providerInfo'
+import {
+  API_KEY_METHOD,
+  backendAuthMode,
+  CHATGPT_METHOD,
+  isOfficialEndpoint,
+  presetConnection,
+  providerPresetIdFor,
+  sameEndpoint,
+  type ProviderConnectionMode,
+  type ProviderPreset,
+  type ProviderPresetId
+} from './providerPresets'
 
-export const API_KEY_METHOD = 'apiKey'
-export const CHATGPT_METHOD = 'chatgptOAuth'
-const CHATGPT_CONNECTION = 'chatgpt'
-const BACKEND_CONNECTION_PREFIX = 'backend:'
 const STORED_API_KEY = '********'
 
 export interface ProviderDraft {
   backendSettings?: Record<string, import('@dotcraft/sdk/contracts').JsonValue>
+  /** Editor-only: the preset the user chose, so overriding an endpoint does not move the provider to another preset. */
+  preset: ProviderPresetId
   id: string
   displayName: string
   protocol: string
@@ -35,29 +45,17 @@ export interface ProviderDraft {
 
 export type ProviderEditorId = string | '__new__' | null
 
-export type ProviderConnectionMode = 'apiKey' | 'signIn' | 'none'
-
-export interface ProviderConnectionOption {
-  value: string
-  label: string
-  description?: string
-  disabled?: boolean
-  mode: ProviderConnectionMode
-  protocol: string
-  backendId: string | null
-  authMethod: string
-}
-
 type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string
 
-export function createProviderDraft(): ProviderDraft {
+export function createProviderDraft(providers: ReadonlyArray<{ id: string }> = []): ProviderDraft {
   return withDefaultImageGenerationSupport({
-    id: '',
-    displayName: '',
+    preset: 'openai',
+    id: uniqueProviderId('openai', providers),
+    displayName: 'OpenAI',
     protocol: OPENAI_RESPONSES_PROTOCOL,
     backendId: null,
     apiKey: '',
-    endPoint: defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL),
+    endPoint: DEFAULT_OPENAI_ENDPOINT,
     networkTimeoutSeconds: '',
     authMethod: API_KEY_METHOD,
     supportsImageGeneration: false,
@@ -67,6 +65,7 @@ export function createProviderDraft(): ProviderDraft {
 
 export function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft {
   return {
+    preset: providerPresetIdFor(provider),
     id: provider.id,
     backendSettings: provider.backendSettings,
     displayName: provider.displayName,
@@ -82,96 +81,67 @@ export function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft
   }
 }
 
-export function providerConnectionOptions(
-  backends: readonly ProviderBackendInfo[],
-  t: Translate
-): ProviderConnectionOption[] {
-  const apiKey = (protocol: DesktopProviderProtocol, label: MessageKey): ProviderConnectionOption => ({
-    value: protocol, label: t(label), mode: 'apiKey', protocol, backendId: null, authMethod: API_KEY_METHOD
-  })
-  return [
-    apiKey(OPENAI_RESPONSES_PROTOCOL, 'settings.llm.connectionType.openaiResponses'),
-    apiKey(OPENAI_CHAT_COMPLETIONS_PROTOCOL, 'settings.llm.connectionType.openaiLegacy'),
-    apiKey(ANTHROPIC_PROTOCOL, 'settings.llm.connectionType.anthropic'),
-    {
-      value: CHATGPT_CONNECTION,
-      label: t('settings.llm.connectionType.chatgpt'),
-      mode: 'signIn',
-      protocol: OPENAI_RESPONSES_PROTOCOL,
-      backendId: null,
-      authMethod: CHATGPT_METHOD
-    },
-    ...backends.flatMap((backend) => {
-      const methods = backend.authenticationMethods.length > 0 ? backend.authenticationMethods : [null]
-      return methods.map((method): ProviderConnectionOption => ({
-        value: backendConnectionValue(backend.id, method?.id ?? ''),
-        label: backend.id === 'openrouter' ? `OpenRouter · ${t(method?.kind === 'apiKey' ? 'settings.llm.field.apiKey' : 'settings.llm.signIn.signIn')}`
-          : method && methods.length > 1 ? `${backend.displayName} · ${method.displayName}` : backend.displayName,
-        mode: backend.id === 'openrouter' && method?.kind === 'apiKey' ? 'apiKey' : method && method.kind !== 'ambient' ? 'signIn' : 'none',
-        protocol: backend.defaultProtocol,
-        backendId: backend.id,
-        authMethod: method?.id ?? ''
-      }))
-    })
-  ]
+export interface ProviderPresetNaming {
+  previous: ProviderPreset | null
+  providers: ReadonlyArray<{ id: string }>
 }
 
-export function providerConnectionValue(draft: Pick<ProviderDraft, 'backendId' | 'protocol' | 'authMethod'>): string {
-  if (draft.backendId) return backendConnectionValue(draft.backendId, draft.authMethod)
-  if (draft.authMethod === CHATGPT_METHOD) return CHATGPT_CONNECTION
-  return normalizeProviderProtocol(draft.protocol)
-}
-
-export function selectedProviderConnection(
-  draft: Pick<ProviderDraft, 'backendId' | 'protocol' | 'authMethod'>,
-  options: readonly ProviderConnectionOption[]
-): ProviderConnectionOption | null {
-  const value = providerConnectionValue(draft)
-  return options.find((option) => option.value === value) ?? null
-}
-
-export function applyProviderConnection(draft: ProviderDraft, option: ProviderConnectionOption): ProviderDraft {
-  if (option.backendId) {
-    return {
-      ...draft,
-      backendId: option.backendId,
-      protocol: option.protocol,
-      authMethod: option.authMethod,
-      apiKey: '',
-      endPoint: option.backendId === 'openrouter' ? 'https://openrouter.ai/api/v1' : '',
-      backendSettings: {}
-    }
-  }
-  const protocol = normalizeProviderProtocol(option.protocol)
-  const previousProtocol = draft.backendId ? null : tryNormalizeProviderProtocol(draft.protocol)
-  const endPoint = option.mode === 'signIn'
-    ? ''
-    : !previousProtocol || !draft.endPoint || draft.endPoint === defaultProviderEndpoint(previousProtocol)
-      ? defaultProviderEndpoint(protocol)
-      : draft.endPoint
-  return withDefaultImageGenerationSupport({
+/** Switches the draft to a preset; `naming` renames a new provider whose id and name still follow the previous preset. */
+export function applyProviderPreset(
+  draft: ProviderDraft,
+  preset: ProviderPreset,
+  naming: ProviderPresetNaming | null
+): ProviderDraft {
+  const connection = presetConnection(preset)
+  const custom = preset.id === 'custom'
+  const wasBuiltInKey = !draft.backendId && draft.authMethod === API_KEY_METHOD
+  const next: ProviderDraft = {
     ...draft,
-    backendId: null,
-    protocol,
-    endPoint,
-    authMethod: option.authMethod,
-    apiKey: option.mode === 'signIn' ? '' : draft.apiKey
-  })
+    preset: preset.id,
+    backendId: connection.backendId,
+    protocol: custom ? tryNormalizeProviderProtocol(draft.backendId ? '' : draft.protocol) ?? connection.protocol : connection.protocol,
+    authMethod: connection.authMethod,
+    endPoint: custom
+      ? draft.backendId || isOfficialEndpoint(draft.endPoint) ? '' : draft.endPoint
+      : connection.endPoint,
+    apiKey: wasBuiltInKey && !preset.backendId && connection.authMethod === API_KEY_METHOD ? draft.apiKey : '',
+    backendSettings: preset.backendId ? {} : draft.backendSettings
+  }
+  return withDefaultImageGenerationSupport(naming ? renameForPreset(next, draft, preset, naming) : next)
+}
+
+function renameForPreset(next: ProviderDraft, draft: ProviderDraft, preset: ProviderPreset, naming: ProviderPresetNaming): ProviderDraft {
+  const previous = naming.previous
+  const displayName = draft.displayName.trim()
+  const id = draft.id.trim()
+  const nameFollowsPreset = !displayName || displayName === previous?.defaultDisplayName
+  const idFollowsPreset = !id || (nameFollowsPreset && (id === slugProviderId(displayName) ||
+    (previous?.defaultId ? id === uniqueProviderId(previous.defaultId, naming.providers) : false)))
+  return {
+    ...next,
+    displayName: nameFollowsPreset ? preset.defaultDisplayName : draft.displayName,
+    id: idFollowsPreset ? preset.defaultId ? uniqueProviderId(preset.defaultId, naming.providers) : '' : draft.id
+  }
+}
+
+export function applyProviderAuthMethod(draft: ProviderDraft, preset: ProviderPreset, method: string): ProviderDraft {
+  const connection = presetConnection(preset, method)
+  if (connection.authMethod === draft.authMethod) return draft
+  return { ...draft, authMethod: connection.authMethod, apiKey: '' }
+}
+
+export function applyProviderApiFormat(draft: ProviderDraft, protocol: DesktopProviderProtocol): ProviderDraft {
+  return withDefaultImageGenerationSupport({ ...draft, protocol })
 }
 
 export function providerConnectionMode(
-  draft: Pick<ProviderDraft, 'backendId' | 'protocol' | 'authMethod'>,
+  draft: Pick<ProviderDraft, 'backendId' | 'authMethod'>,
   backends: readonly ProviderBackendInfo[]
 ): ProviderConnectionMode {
   if (!draft.backendId) return draft.authMethod === CHATGPT_METHOD ? 'signIn' : 'apiKey'
   const backend = backends.find((candidate) => candidate.id === draft.backendId)
   if (!backend) return 'signIn'
-  const method = backend.authenticationMethods.find((candidate) => candidate.id === draft.authMethod)
-  return backend.id === 'openrouter' && method?.kind === 'apiKey' ? 'apiKey' : method && method.kind !== 'ambient' ? 'signIn' : 'none'
-}
-
-function backendConnectionValue(backendId: string, method: string): string {
-  return `${BACKEND_CONNECTION_PREFIX}${backendId}:${method}`
+  return backendAuthMode(backend.id, backend.authenticationMethods.find((candidate) => candidate.id === draft.authMethod))
 }
 
 export function canConfigureImageGeneration(draft: Pick<ProviderDraft, 'backendId' | 'protocol' | 'authMethod'>): boolean {
@@ -238,8 +208,13 @@ export function providerDetails(
   t: Translate
 ): string {
   const backend = provider.backendId ? backends?.find((candidate) => candidate.id === provider.backendId) : null
+  const preset = providerPresetIdFor(provider)
   return [
-    provider.backendId ? backend?.displayName ?? provider.backendId : providerProtocolLabel(provider.protocol),
+    provider.backendId
+      ? backend?.displayName ?? provider.backendId
+      : preset === 'custom'
+        ? t(`providerPreset.format.${normalizeProviderProtocol(provider.protocol)}`)
+        : t(`providerPreset.${preset as 'chatgpt' | 'openai' | 'anthropic' | 'deepseek'}`),
     provider.endPoint.trim() || null,
     provider.managedBy === 'modelService' && provider.isAuthenticated ? t('settings.llm.managedByService') : null
   ].filter(Boolean).join(' · ')
@@ -254,20 +229,7 @@ function defaultImageGenerationSupport(draft: Pick<ProviderDraft, 'backendId' | 
   if (draft.authMethod === CHATGPT_METHOD) return true
   const protocol = tryNormalizeProviderProtocol(draft.protocol)
   if (!protocol || !isOpenAIFamilyProtocol(protocol)) return false
-  return isOfficialOpenAIEndpoint(draft.endPoint.trim() || defaultProviderEndpoint(protocol))
-}
-
-function isOfficialOpenAIEndpoint(endpoint: string): boolean {
-  try {
-    const candidate = new URL(endpoint)
-    const official = new URL(defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL))
-    return candidate.protocol.toLowerCase() === official.protocol.toLowerCase() &&
-      candidate.hostname.toLowerCase() === official.hostname.toLowerCase() &&
-      candidate.port === official.port &&
-      candidate.pathname.replace(/\/+$/, '').toLowerCase() === official.pathname.replace(/\/+$/, '').toLowerCase()
-  } catch {
-    return false
-  }
+  return sameEndpoint(draft.endPoint.trim() || defaultProviderEndpoint(protocol), DEFAULT_OPENAI_ENDPOINT)
 }
 
 export function draftBuiltInProtocol(draft: Pick<ProviderDraft, 'protocol'>): DesktopProviderProtocol {

@@ -6287,9 +6287,8 @@ public sealed class UsageHistoryDay : ExtensibleJsonObject
     public Optional<string> Date { get; init; }
 
     [JsonPropertyName("total")]
-    [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<long> Total { get; init; }
+    public Optional<double> Total { get; init; }
 
     [JsonPropertyName("values")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6352,9 +6351,8 @@ public sealed class UsageHistorySeries : ExtensibleJsonObject
     public Optional<string> Key { get; init; }
 
     [JsonPropertyName("total")]
-    [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<long> Total { get; init; }
+    public Optional<double> Total { get; init; }
 
 }
 
@@ -6365,9 +6363,8 @@ public sealed class UsageHistoryValue : ExtensibleJsonObject
     public Optional<string> Key { get; init; }
 
     [JsonPropertyName("value")]
-    [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<long> Value { get; init; }
+    public Optional<double> Value { get; init; }
 
 }
 
@@ -6420,6 +6417,10 @@ public sealed class UsageSummaryResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int> TotalContextCompactions { get; init; }
 
+    [JsonPropertyName("totalCostUsd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double> TotalCostUsd { get; init; }
+
     [JsonPropertyName("totalErrors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int> TotalErrors { get; init; }
@@ -6471,6 +6472,10 @@ public sealed class UsageSummaryResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> TotalToolDurationMs { get; init; }
 
+    [JsonPropertyName("unpricedTurns")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> UnpricedTurns { get; init; }
+
 }
 
 public sealed class UsageThreadGroup : ExtensibleJsonObject
@@ -6479,6 +6484,10 @@ public sealed class UsageThreadGroup : ExtensibleJsonObject
     [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("costUsd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double?> CostUsd { get; init; }
 
     [JsonPropertyName("inputTokens")]
     [JsonSafeInteger]
@@ -6532,6 +6541,10 @@ public sealed class UsageThreadResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> CachedInputTokens { get; init; }
 
+    [JsonPropertyName("costUsd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double?> CostUsd { get; init; }
+
     [JsonPropertyName("groups")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<UsageThreadGroup>> Groups { get; init; }
@@ -6575,6 +6588,10 @@ public sealed class UsageThreadRow : ExtensibleJsonObject
     [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("costUsd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double?> CostUsd { get; init; }
 
     [JsonPropertyName("inputTokens")]
     [JsonSafeInteger]

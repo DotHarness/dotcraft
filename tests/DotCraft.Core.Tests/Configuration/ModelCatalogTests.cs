@@ -357,6 +357,23 @@ public sealed class ModelCatalogTests : IDisposable
         Assert.False(ModelCatalog.SupportsFast("claude-code", "claude-opus-5-5"));
     }
 
+    [Fact]
+    public void ResolvePricing_MatchesVendorPrefixedIdsAndAppliesOverrides()
+    {
+        var workspacePath = WriteCatalog("workspace", """
+            {
+              "models": {
+                "local-coder": { "pricing": { "inputPerMillion": 0.5, "outputPerMillion": 2 } },
+                "claude-fable-5": { "pricing": { "inputPerMillion": 1, "outputPerMillion": 5 } }
+              }
+            }
+            """);
+
+        Assert.Equal(new ModelPricing(0.5m, 2m), ModelCatalog.ResolvePricing("local-coder-v2", workspaceCatalogPath: workspacePath));
+        Assert.Equal(new ModelPricing(1m, 5m), ModelCatalog.ResolvePricing("anthropic/claude-fable-5", workspaceCatalogPath: workspacePath));
+        Assert.Null(ModelCatalog.ResolvePricing("unpriced-model", workspaceCatalogPath: workspacePath));
+    }
+
     private string WriteConfig(string directoryName, string json)
     {
         var directory = Path.Combine(_root, directoryName);

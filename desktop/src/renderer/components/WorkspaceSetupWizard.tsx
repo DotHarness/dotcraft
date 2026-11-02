@@ -16,13 +16,22 @@ import {
   connectionValid,
   finalDraft,
   initialConnections,
+  isSavedChoice,
   SetupAccessSection,
+  setupAuthMode,
   type SetupAccessChoice,
-  type SetupConnection,
-  type SetupConnectionKind,
+  type SetupConnections,
   type SetupConnectionPatch,
   type SetupSignInState
 } from './setup/SetupAccessSection'
+import {
+  BUILT_IN_BACKENDS,
+  findProviderPreset,
+  providerPresetAuth,
+  providerPresetIdFor,
+  providerPresets,
+  type ProviderPresetId
+} from './settings/providers/providerPresets'
 import { SetupModelSection, type SetupModelCatalog } from './setup/SetupModelSection'
 import { SetupLanguageSection } from './setup/SetupLanguageSection'
 import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
@@ -70,10 +79,12 @@ export function WorkspaceSetupWizard({
   const [section, setSection] = useState<SectionId>('language')
   const [visited, setVisited] = useState<ReadonlySet<SectionId>>(() => new Set(['language']))
   const defaultSaved = providers.find((provider) => provider.id === defaults?.providerId?.trim()) ?? providers[0]
-  const [access, setAccess] = useState<SetupAccessChoice>(defaultSaved ? `saved:${defaultSaved.id}` : 'chatgpt')
+  const presets = useMemo(() => providerPresets(BUILT_IN_BACKENDS, t), [t])
+  const defaultChoice: SetupAccessChoice = defaultSaved ? `saved:${defaultSaved.id}` : 'chatgpt'
+  const [access, setAccess] = useState<SetupAccessChoice>(defaultChoice)
   const [showMore, setShowMore] = useState(providers.length === 0)
-  const [connections, setConnections] = useState<Record<SetupConnectionKind, SetupConnection>>(() => initialConnections(providers))
-  const [signIn, setSignIn] = useState<SetupSignInState>({ phase: 'idle' })
+  const [connections, setConnections] = useState<SetupConnections>(() => initialConnections(presets, providers))
+  const [signIns, setSignIns] = useState<Record<string, SetupSignInState>>({})
   const [savedSignIn, setSavedSignIn] = useState<SetupSignInState>({ phase: 'idle' })
   const [catalog, setCatalog] = useState<SetupModelCatalog | null>(null)
   const [catalogNonce, setCatalogNonce] = useState(0)
@@ -83,14 +94,22 @@ export function WorkspaceSetupWizard({
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' })
   const requestGeneration = useRef(0)
 
-  const savedProvider = access.startsWith('saved:') ? providers.find((provider) => `saved:${provider.id}` === access) ?? null : null
-  const newKind: SetupConnectionKind | null = savedProvider ? null : (access as SetupConnectionKind)
-  const accessValid = savedProvider != null || (newKind != null && connectionValid(newKind, connections[newKind], signIn))
+  const savedProvider = isSavedChoice(access) ? providers.find((provider) => `saved:${provider.id}` === access) ?? null : null
+  const savedPreset = savedProvider ? findProviderPreset(presets, providerPresetIdFor(savedProvider)) : null
+  const savedNeedsSignIn = savedPreset != null && savedProvider != null &&
+    providerPresetAuth(savedPreset, savedProvider.authMethod ?? '').mode === 'signIn'
+  const newPreset = savedProvider || isSavedChoice(access) ? null : findProviderPreset(presets, access)
+  const newConnection = newPreset ? connections[newPreset.id] ?? null : null
+  const signInKey = newPreset && newConnection ? `${newPreset.id}:${newConnection.draft.authMethod ?? ''}` : ''
+  const signIn: SetupSignInState = signIns[signInKey] ?? { phase: 'idle' }
+  const newNeedsSignIn = newPreset != null && newConnection != null && setupAuthMode(newPreset, newConnection) === 'signIn'
+  const accessValid = savedProvider != null ||
+    (newPreset != null && newConnection != null && connectionValid(newPreset, newConnection, signIn))
   const listRequest = useMemo<WorkspaceSetupModelListRequest | null>(() => {
     if (savedProvider) return { providerId: savedProvider.id }
-    if (newKind && accessValid) return { provider: finalDraft(newKind, connections[newKind], providers) }
+    if (newPreset && newConnection && accessValid) return { provider: finalDraft(newPreset, newConnection, providers) }
     return null
-  }, [accessValid, connections, newKind, providers, savedProvider])
+  }, [accessValid, newConnection, newPreset, providers, savedProvider])
   const listKey = listRequest ? `${JSON.stringify(listRequest)}#${catalogNonce}` : ''
   const modelReady = catalog?.key === listKey && catalog.status !== 'loading'
   const modelValid = preference.model.trim().length > 0 && modelReady
@@ -135,21 +154,26 @@ export function WorkspaceSetupWizard({
     setVisited((current) => new Set([...current, ...sections.slice(0, sections.indexOf(id) + 1)]))
   }, [])
 
-  function updateConnection(kind: SetupConnectionKind, partial: SetupConnectionPatch): void {
-    setConnections((current) => ({
-      ...current,
-      [kind]: {
-        ...current[kind],
-        ...partial,
-        draft: { ...current[kind].draft, ...(partial.draft ?? {}) }
+  function updateConnection(presetId: ProviderPresetId, partial: SetupConnectionPatch): void {
+    setConnections((current) => {
+      const existing = current[presetId]
+      if (!existing) return current
+      return {
+        ...current,
+        [presetId]: { ...existing, ...partial, draft: { ...existing.draft, ...(partial.draft ?? {}) } }
       }
-    }))
+    })
   }
 
-  async function loginChatGpt(request: WorkspaceSetupModelListRequest, setState: (state: SetupSignInState) => void): Promise<boolean> {
+  function toggleMore(expanded: boolean): void {
+    setShowMore(expanded)
+    if (!expanded && !isSavedChoice(access)) setAccess(defaultChoice)
+  }
+
+  async function loginProvider(request: WorkspaceSetupModelListRequest, setState: (state: SetupSignInState) => void): Promise<boolean> {
     setState({ phase: 'pending' })
     try {
-      const result = await window.api.workspace.loginSetupChatGpt(request)
+      const result = await window.api.workspace.loginSetupProvider(request)
       if (result.kind === 'success') {
         setState({ phase: 'signedIn' })
         return true
@@ -162,13 +186,15 @@ export function WorkspaceSetupWizard({
   }
 
   async function signInNewConnection(): Promise<void> {
-    if (signIn.phase === 'pending') return
-    if (await loginChatGpt({ provider: finalDraft('chatgpt', connections.chatgpt, providers) }, setSignIn)) goTo('model')
+    if (!newPreset || !newConnection || signIn.phase === 'pending') return
+    const key = signInKey
+    const setState = (state: SetupSignInState): void => setSignIns((current) => ({ ...current, [key]: state }))
+    if (await loginProvider({ provider: finalDraft(newPreset, newConnection, providers) }, setState)) goTo('model')
   }
 
   async function signInSavedProvider(): Promise<void> {
     if (!savedProvider || savedSignIn.phase === 'pending') return
-    if (await loginChatGpt({ providerId: savedProvider.id }, setSavedSignIn)) setCatalogNonce((value) => value + 1)
+    if (await loginProvider({ providerId: savedProvider.id }, setSavedSignIn)) setCatalogNonce((value) => value + 1)
   }
 
   async function changeLocale(next: AppLocale): Promise<void> {
@@ -188,8 +214,8 @@ export function WorkspaceSetupWizard({
       preference: cloneModelPreference(preference)
     }
     if (savedProvider) return { ...base, providerMode: 'existing', providerId: savedProvider.id }
-    const kind = newKind ?? 'chatgpt'
-    return { ...base, providerMode: 'create', provider: finalDraft(kind, connections[kind], providers) }
+    if (!newPreset || !newConnection) throw new Error('Choose how DotCraft reaches a model.')
+    return { ...base, providerMode: 'create', provider: finalDraft(newPreset, newConnection, providers) }
   }
 
   async function create(): Promise<void> {
@@ -216,7 +242,7 @@ export function WorkspaceSetupWizard({
     goTo(sections[sectionIndex - 1])
   }
 
-  const needsChatGptSignIn = section === 'access' && newKind === 'chatgpt' && signIn.phase !== 'signedIn'
+  const needsSignIn = section === 'access' && newNeedsSignIn && signIn.phase !== 'signedIn'
   const primary = isLast
     ? {
         label: submit.phase === 'submitting' ? t('setupWizard.action.finishing') : t('setupWizard.action.finish'),
@@ -224,20 +250,16 @@ export function WorkspaceSetupWizard({
         loading: submit.phase === 'submitting',
         run: () => { void create() }
       }
-    : needsChatGptSignIn
+    : needsSignIn
       ? { label: t('setupWizard.action.signIn'), disabled: false, loading: signIn.phase === 'pending', run: () => { void signInNewConnection() } }
       : { label: t('setupWizard.action.continue'), disabled: !validity[section], loading: false, run: () => goTo(sections[sectionIndex + 1]) }
 
   const languageName = SUPPORTED_LOCALES.find((item) => item.value === locale)?.nativeName ?? locale
   const accessValue = savedProvider
     ? savedProvider.displayName
-    : newKind === 'chatgpt'
-      ? signIn.phase === 'signedIn' ? t('setupWizard.value.chatgpt') : null
-      : accessValid && newKind
-        ? newKind === 'other'
-          ? connections.other.draft.displayName.trim() || t('setupWizard.value.other')
-          : t(newKind === 'openai' ? 'setupWizard.value.openai' : 'setupWizard.value.anthropic')
-        : null
+    : accessValid && newPreset && newConnection
+      ? newPreset.id === 'custom' ? newConnection.draft.displayName.trim() || newPreset.label : newPreset.label
+      : null
   const selectedModel = catalog?.models.find((item) => item.id === preference.model) ?? null
   const reasoningLabel = selectedModel?.reasoning
     ? preference.reasoning.enabled ? t(`composer.reasoning.${preference.reasoning.effort}`) : t('composer.reasoning.off')
@@ -308,13 +330,14 @@ export function WorkspaceSetupWizard({
             )}
             {section === 'access' && (
               <SetupAccessSection
+                presets={presets}
                 providers={providers}
                 defaultProviderId={defaultSaved?.id ?? null}
                 access={access}
-                showMore={showMore || newKind != null}
+                showMore={showMore}
                 connections={connections}
                 signIn={signIn}
-                onShowMore={() => setShowMore(true)}
+                onShowMore={toggleMore}
                 onSelect={setAccess}
                 onUpdate={updateConnection}
               />
@@ -324,7 +347,8 @@ export function WorkspaceSetupWizard({
                 providerName={savedProvider?.displayName ?? accessValue ?? ''}
                 catalog={catalog?.key === listKey ? catalog : { key: listKey, status: 'loading', models: [] }}
                 preference={preference}
-                savedNeedsSignIn={savedProvider?.authMethod === 'chatgptOAuth'}
+                savedNeedsSignIn={savedNeedsSignIn}
+                savedMark={savedPreset?.mark ?? null}
                 savedSignIn={savedSignIn}
                 onSignIn={() => { void signInSavedProvider() }}
                 onRetry={() => setCatalogNonce((value) => value + 1)}

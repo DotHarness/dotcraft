@@ -1,8 +1,9 @@
 import { useState, type Dispatch, type JSX, type SetStateAction } from 'react'
 import { ListChecks, TestTube2 } from 'lucide-react'
 import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
+import type { DesktopProviderProtocol } from '../../../../shared/providerProtocols'
 import { useT } from '../../../contexts/LocaleContext'
-import { slugProviderId, uniqueProviderId } from '../../../utils/providerId'
+import { slugProviderId } from '../../../utils/providerId'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
@@ -11,19 +12,28 @@ import { StatusIndicator, type StatusTone } from '../../ui/StatusIndicator'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { settingsHintStyle, settingsSectionLabelStyle as sectionLabelStyle } from '../settingsTypography'
 import { Select, type SelectOption } from '../../ui/Select'
+import { SegmentedControl } from '../ui/SegmentedControl'
 import type { ProviderInfoWire } from '../providerInfo'
-import { ProviderKeyFields } from './ProviderKeyFields'
+import { ProviderEndpointRow, ProviderKeyFields } from './ProviderKeyFields'
+import { ProviderPresetMark } from './ProviderPresetMark'
 import { ProviderSignIn } from './ProviderSignIn'
 import {
-  applyProviderConnection,
+  applyProviderApiFormat,
+  applyProviderAuthMethod,
+  applyProviderPreset,
   canConfigureImageGeneration,
-  CHATGPT_METHOD,
+  draftBuiltInProtocol,
   providerConnectionMode,
-  providerConnectionOptions,
-  providerConnectionValue,
-  selectedProviderConnection,
   type ProviderDraft
 } from './providerDraft'
+import {
+  apiFormatOptions,
+  findProviderPreset,
+  OPENROUTER_BACKEND_ID,
+  providerPresetAuth,
+  providerPresets,
+  type ProviderPresetId
+} from './providerPresets'
 import styles from './ProviderEditor.module.css'
 import { OpenRouterFields } from './OpenRouterFields'
 
@@ -78,28 +88,41 @@ export function ProviderEditor({
   const t = useT()
   const [signingIn, setSigningIn] = useState(false)
   const knownBackends = backends ?? []
-  const connectionOptions = providerConnectionOptions(knownBackends, t)
-  const connection = selectedProviderConnection(draft, connectionOptions)
+  const presets = providerPresets(knownBackends, t)
+  const preset = findProviderPreset(presets, draft.preset)
+  const auth = preset ? providerPresetAuth(preset, draft.authMethod) : null
   const connectionMode = providerConnectionMode(draft, knownBackends)
-  const backendUnavailable = draft.backendId !== null && backends !== null && connection === null
-  const selectOptions: SelectOption[] = connectionOptions.map(({ value, label, description }) => ({ value, label, description }))
-  if (!connection && draft.backendId) {
-    selectOptions.push({
-      value: providerConnectionValue(draft),
+  const backendUnavailable = draft.backendId !== null && backends !== null && preset === null
+  const presetOptions: SelectOption[] = presets.map((item) => ({
+    value: item.id,
+    label: item.label,
+    description: item.hint,
+    icon: <ProviderPresetMark mark={item.mark} />
+  }))
+  if (!preset && draft.backendId) {
+    presetOptions.push({
+      value: draft.preset,
       label: draft.backendId,
       description: t('settings.llm.providerBackendUnavailable'),
+      icon: <ProviderPresetMark mark={null} />,
       disabled: true
     })
   }
+  const authOptions = preset?.auth.map((item) => ({ value: item.method, label: item.label })) ?? []
+  const endpointInAdvanced = draft.preset !== 'custom' && Boolean(preset?.endPoint)
 
-  function selectConnection(value: string): void {
-    const option = connectionOptions.find((candidate) => candidate.value === value)
-    if (!option) return
-    setDraft((current) => {
-      const updated = applyProviderConnection(current, option)
-      if (option.authMethod !== CHATGPT_METHOD || current.id.trim() || current.displayName.trim()) return updated
-      return { ...updated, displayName: 'ChatGPT', id: uniqueProviderId('chatgpt', providers) }
-    })
+  function selectPreset(value: string): void {
+    const next = findProviderPreset(presets, value as ProviderPresetId)
+    if (!next) return
+    setDraft((current) => applyProviderPreset(
+      current,
+      next,
+      isNew ? { previous: findProviderPreset(presets, current.preset), providers } : null
+    ))
+  }
+
+  function selectAuthMethod(method: string): void {
+    if (preset) setDraft((current) => applyProviderAuthMethod(current, preset, method))
   }
 
   return (
@@ -117,7 +140,7 @@ export function ProviderEditor({
               onChange={(e) => setDraft((current) => ({ ...current, id: slugProviderId(e.target.value) }))}
               readOnly={!isNew}
               mono
-              placeholder="anthropic"
+              placeholder={preset?.defaultId || 'my-provider'}
             />
             <div className={styles.hint} style={settingsHintStyle(false)}>
               {isNew ? t('settings.llm.field.idNewHint') : t('settings.llm.field.idEditHint')}
@@ -135,10 +158,12 @@ export function ProviderEditor({
                 setDraft((current) => ({
                   ...current,
                   displayName,
-                  id: isNew ? (current.id || slugProviderId(displayName)) : current.id
+                  id: isNew && (!current.id || current.id === slugProviderId(current.displayName))
+                    ? slugProviderId(displayName)
+                    : current.id
                 }))
               }}
-              placeholder="Anthropic"
+              placeholder={preset?.defaultDisplayName || t('setupWizard.field.namePlaceholder')}
             />
           </div>
         </div>
@@ -146,17 +171,54 @@ export function ProviderEditor({
 
       <SettingsGroup>
         <SettingsRow
-          label={t('settings.llm.connectionType')}
-          description={t('settings.llm.connectionTypeHint')}
+          label={t('providerPreset.provider')}
+          description={preset?.hint}
           control={
             <Select
-              value={providerConnectionValue(draft)}
-              ariaLabel={t('settings.llm.connectionType')}
-              options={selectOptions}
-              onValueChange={selectConnection}
+              value={draft.preset}
+              ariaLabel={t('providerPreset.provider')}
+              options={presetOptions}
+              menuMinWidth={320}
+              menuAlign="end"
+              onValueChange={selectPreset}
             />
           }
         />
+        {authOptions.length > 1 && auth && (
+          <SettingsRow
+            label={t('providerPreset.authMethod')}
+            control={authOptions.length <= 3
+              ? (
+                  <SegmentedControl
+                    value={auth.method}
+                    ariaLabel={t('providerPreset.authMethod')}
+                    options={authOptions}
+                    onChange={selectAuthMethod}
+                  />
+                )
+              : (
+                  <Select
+                    value={auth.method}
+                    ariaLabel={t('providerPreset.authMethod')}
+                    options={authOptions}
+                    onValueChange={selectAuthMethod}
+                  />
+                )}
+          />
+        )}
+        {draft.preset === 'custom' && (
+          <SettingsRow
+            label={t('providerPreset.apiFormat')}
+            control={
+              <Select<DesktopProviderProtocol>
+                value={draftBuiltInProtocol(draft)}
+                ariaLabel={t('providerPreset.apiFormat')}
+                options={apiFormatOptions(t)}
+                onValueChange={(protocol) => setDraft((current) => applyProviderApiFormat(current, protocol))}
+              />
+            }
+          />
+        )}
       </SettingsGroup>
 
       {connectionMode === 'signIn' && (
@@ -164,7 +226,7 @@ export function ProviderEditor({
           <ProviderSignIn
             providerId={savedProvider?.id ?? null}
             method={draft.authMethod}
-            title={connection?.label ?? draft.backendId ?? ''}
+            title={preset ? auth && preset.auth.length > 1 ? `${preset.label} · ${auth.label}` : preset.label : draft.backendId ?? ''}
             hint={t(draft.backendId ? 'settings.llm.signIn.hintBackend' : 'settings.llm.signIn.hintChatGpt')}
             unavailable={backendUnavailable}
             disabled={!managementEnabled || saving}
@@ -176,11 +238,17 @@ export function ProviderEditor({
         </SettingsGroup>
       )}
       {connectionMode === 'apiKey' && (
-        <ProviderKeyFields draft={draft} setDraft={setDraft} savedProvider={savedProvider} />
+        <ProviderKeyFields
+          draft={draft}
+          setDraft={setDraft}
+          savedProvider={savedProvider}
+          showEndpoint={draft.preset === 'custom'}
+        />
       )}
-      {draft.backendId === 'openrouter' && <OpenRouterFields draft={draft} setDraft={setDraft} provider={savedProvider} />}
+      {draft.backendId === OPENROUTER_BACKEND_ID && <OpenRouterFields draft={draft} setDraft={setDraft} provider={savedProvider} />}
 
       <SettingsGroup title={t('settings.group.advanced')}>
+        {endpointInAdvanced && <ProviderEndpointRow draft={draft} setDraft={setDraft} />}
         <SettingsRow
           label={t('settings.llm.field.timeout')}
           description={t('settings.llm.field.timeoutHint')}
