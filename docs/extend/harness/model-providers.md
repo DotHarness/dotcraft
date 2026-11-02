@@ -189,4 +189,4 @@ app.MapDotCraftModelService();
 await app.RunAsync();
 ```
 
-Service registration creates no workspace, Session, or tools. Implement `IModelServiceObserver` to receive completion and normalized usage. Observer failures do not change model responses. For database subscriptions, bind one `OpenAIAuthManager` per credential identity and implement `IOpenAITokenStore`, including atomic `TryReplace` for rotation.
+Service registration creates no workspace, Session, or tools. Implement `IModelServiceObserver` to receive completion, normalized usage, and nullable decimal `ModelServiceCall.CostUsd` for each HTTP call. The amount uses provider-reported USD when available, including zero, and otherwise estimates from the built-in model catalog with OpenAI service-tier pricing. A missing amount means the call could not be priced. Observer failures do not change model responses. For database subscriptions, bind one `OpenAIAuthManager` per credential identity and implement `IOpenAITokenStore`, including atomic `TryReplace` for rotation.

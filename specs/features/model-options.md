@@ -49,7 +49,8 @@ records for model IDs, protocols, limits, reasoning options and prices.
 Generic entries may carry `pricing` and `pricingProvider` for first-party base rates in USD per
 million input, output, cache-read and cache-write tokens. `pricingSource` and `pricingCapturedAt`
 identify their source and freshness. These estimates describe standard service at the base context
-tier. Unknown prices remain unspecified.
+tier. Unknown prices remain unspecified. Per-request service-tier adjustments are provider-owned and
+shared by runtime usage and the model service; they do not add model-catalog price fields.
 
 An entry may also declare `maxInputTokens` when the model accepts less input than its context window
 because output tokens are reserved inside it. The built-in value comes from the model's first-party
@@ -249,6 +250,16 @@ the active model advertises Fast.
 Catalog-matched Anthropic-protocol models use the Anthropic Fast request shape regardless of endpoint.
 Capacity, access, and rate-limit failures remain Fast through retries and fail normally;
 DotCraft does not silently retry as Standard.
+
+### 4.3 Cost estimation
+
+OpenAI Responses estimates use the response `service_tier`, falling back to the actual request tier.
+`priority` and `fast` multiply all token costs by 2, or 2.5 for the exact model ID `gpt-5.5`;
+`flex` multiplies them by 0.5. Other or missing tiers use 1. ChatGPT OAuth/Codex preserves a
+requested `priority` or `flex` when the response echoes `default`; its `fast` response tier uses 1.
+The provider resolves this adjustment for both runtime and model-service requests. Reported amounts,
+including zero, always take precedence and are never multiplied. Other protocols, including
+Anthropic Fast, retain base-price estimation without inferred multipliers.
 
 ## 5. Context Window
 

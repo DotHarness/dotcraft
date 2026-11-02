@@ -9,7 +9,7 @@ public static class AnthropicHttpUsageObserver
     private static IProviderHttpUsageObserver CreateObserver(bool? eventStream)
     {
         long input = 0, cacheRead = 0, cacheWrite = 0;
-        Func<ProviderHttpUsage, string, long, ProviderHttpUsage> update = (usage, name, value) =>
+        Func<ProviderHttpUsage, string, long, ProviderHttpUsage?> update = (usage, name, value) =>
         {
             switch (name)
             {
@@ -17,6 +17,7 @@ public static class AnthropicHttpUsageObserver
                 case "cache_read_input_tokens": cacheRead = value; break;
                 case "cache_creation_input_tokens": cacheWrite = value; break;
                 case "output_tokens": usage = usage with { OutputTokens = value }; break;
+                default: return null;
             }
             return usage with
             {

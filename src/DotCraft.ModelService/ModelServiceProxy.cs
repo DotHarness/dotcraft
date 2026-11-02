@@ -169,8 +169,22 @@ internal sealed class ModelServiceProxy(
         finally
         {
             usage ??= reader?.Usage;
+            decimal? costUsd = null;
+            try
+            {
+                var multiplier = operation is "responses" or "responses/compact"
+                    ? OpenAIServiceTierPricing.GetMultiplier(requestContext.Model, requestContext.RequestedServiceTier,
+                        reader?.ServiceTier, provider.Runtime.IsChatGptOAuth)
+                    : 1m;
+                costUsd = ModelCostCalculator.Resolve(ModelCatalog.ResolvePricing(new AppConfig(), requestContext.Model),
+                    usage, multiplier, reader?.ReportedCostUsd);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Model service cost estimation failed.");
+            }
             var call = new ModelServiceCall(caller, providerId, requestContext, context.Response.StatusCode,
-                usage, started, DateTimeOffset.UtcNow - started, completed);
+                usage, started, DateTimeOffset.UtcNow - started, completed, costUsd);
             foreach (var observer in observers)
             {
                 try { await observer.OnCompletedAsync(call, CancellationToken.None).ConfigureAwait(false); }

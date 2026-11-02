@@ -101,6 +101,7 @@ internal sealed class OpenAIResponsesCompactor(
             useResponsesLite,
             rawRepresentationClient,
             installationId);
+        using var serviceTierScope = ProviderRequestServiceTierScope.Push(body.ServiceTier);
         var response = await transport.CompactAsync(body, cancellationToken).ConfigureAwait(false);
         var output = ResponsesCompactionHistory.Build(input.Items, ValidateOutput(response).Single());
         var estimatedTokensAfter = OpenAIResponsesNativeTokenEstimator.Estimate(output, [], options);

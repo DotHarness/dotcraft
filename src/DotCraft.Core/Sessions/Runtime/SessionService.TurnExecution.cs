@@ -1396,8 +1396,7 @@ public sealed partial class SessionService
                         var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(chatResponseUpdate);
                         if (updateRequestIndex.HasValue)
                             currentUsageRequestIndex = updateRequestIndex;
-                        if (ProviderReportedCost.TryGet(chatResponseUpdate.AdditionalProperties) is { } reportedCost)
-                            turnCost.AddReportedCost(reportedCost);
+                        turnCost.ObserveUpdate(chatResponseUpdate, currentUsageRequestIndex);
 
                         foreach (var responseContent in update.Contents)
                         {
@@ -1728,7 +1727,7 @@ public sealed partial class SessionService
                                             || delta.ReasoningOutputTokens > 0)
                                         {
                                             llmCallCount += usageDelta.LlmCallDelta;
-                                            turnCost.AddUsage(delta, usageDelta.IsNewRequest);
+                                            turnCost.AddUsage(delta, usageDelta.IsNewRequest, currentUsageRequestIndex);
                                             inputTokens += delta.InputTokens;
                                             outputTokens += delta.OutputTokens;
                                             cachedInputTokens += delta.CachedInputTokens;

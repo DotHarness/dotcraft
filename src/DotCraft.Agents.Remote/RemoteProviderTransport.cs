@@ -65,7 +65,8 @@ public sealed class RemoteProviderTransport : IProviderHttpTransport, IDisposabl
         var context = new ModelServiceRequestContext(
             ProviderPipelineOptionsScope.Current?.Runtime.Model ?? string.Empty,
             ProviderRequestContextScope.Current?.CurrentIdentity,
-            relative.Split('?')[0]);
+            relative.Split('?')[0],
+            ProviderRequestServiceTierScope.Current);
         request.Headers.TryAddWithoutValidation(ModelServiceProtocol.ContextHeader,
             Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(context, Json)));
         request.Content = original.Content;

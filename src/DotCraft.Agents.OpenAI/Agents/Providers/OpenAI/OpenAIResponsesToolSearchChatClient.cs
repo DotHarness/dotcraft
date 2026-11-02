@@ -5,7 +5,7 @@ using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 
-#pragma warning disable OPENAI001, MAAI001, MEAI001
+#pragma warning disable OPENAI001, MAAI001, MEAI001, SCME0001
 
 namespace DotCraft.Agents;
 
@@ -118,6 +118,10 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             this,
             cancellationToken);
         var responseOptions = preparedResponse.Options;
+        responseOptions.Patch.TryGetValue("$.service_tier"u8, out string? requestedTier);
+        using var serviceTierScope = ProviderRequestServiceTierScope.Push(requestedTier);
+        var isCodex = ProviderPipelineOptionsScope.Current?.Runtime.IsChatGptOAuth == true;
+        var costMultiplier = OpenAIServiceTierPricing.GetMultiplier(_model, requestedTier, null, isCodex);
         var traceCollector = _diagnostics
             ?? requestContext?.Diagnostics
             ?? CurrentDiagnosticsLocal.Value;
@@ -140,8 +144,20 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                            .AsChatResponseUpdatesAsync(responseOptions, cancellationToken)
                            .ConfigureAwait(false))
         {
-            if (update.RawRepresentation is StreamingResponseCompletedUpdate
-                { Response.Usage.InputTokenDetails.CacheWriteTokenCount: { } cacheWrite })
+            var terminalResponse = update.RawRepresentation switch
+            {
+                StreamingResponseCompletedUpdate completed => completed.Response,
+                StreamingResponseIncompleteUpdate incomplete => incomplete.Response,
+                _ => null
+            };
+            if (terminalResponse?.Usage is not null && !update.Contents.OfType<UsageContent>().Any())
+                update.Contents.Add(new UsageContent(terminalResponse.AsChatResponse(responseOptions).Usage!));
+            if (terminalResponse is not null)
+                costMultiplier = OpenAIServiceTierPricing.GetMultiplier(
+                    _model, requestedTier, terminalResponse.ServiceTier?.ToString(), isCodex);
+            if (terminalResponse is not null || update.Contents.OfType<UsageContent>().Any())
+                ProviderCostMultiplier.Attach(update, costMultiplier);
+            if (terminalResponse?.Usage?.InputTokenDetails?.CacheWriteTokenCount is { } cacheWrite)
             {
                 foreach (var usage in update.Contents.OfType<UsageContent>())
                 {
