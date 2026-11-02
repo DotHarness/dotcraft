@@ -43,15 +43,28 @@ internal sealed class ResponsesReasoningStream
             if (!state.HasText)
             {
                 var native = (JsonObject)state.Envelope["item"]!;
-                var text = string.Concat(new[] { "summary", "content" }
+                var text = string.Join("\n\n", new[] { "summary", "content" }
                     .SelectMany(key => (native[key] as JsonArray ?? []).OfType<JsonObject>())
-                    .Select(part => part["text"]?.GetValue<string>()));
+                    .Select(part => part["text"]?.GetValue<string>())
+                    .Where(text => !string.IsNullOrEmpty(text)));
                 update.Contents.OfType<TextReasoningContent>().First().Text = text;
             }
         }
 
+        (string Field, int Index)? textPart = update.RawRepresentation switch
+        {
+            StreamingResponseReasoningSummaryTextDeltaUpdate delta => ("summary", delta.SummaryIndex),
+            StreamingResponseReasoningTextDeltaUpdate delta => ("content", delta.ContentIndex),
+            _ => null
+        };
         foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
         {
+            if (!string.IsNullOrEmpty(reasoning.Text) && textPart is { } part)
+            {
+                if (state.LastTextPart is { } previous && previous != part)
+                    reasoning.Text = "\n\n" + reasoning.Text;
+                state.LastTextPart = part;
+            }
             state.HasText |= !string.IsNullOrEmpty(reasoning.Text);
             reasoning.AdditionalProperties ??= new AdditionalPropertiesDictionary();
             reasoning.AdditionalProperties[ResponsesReasoningMetadata.Key] = state.Envelope;
@@ -125,6 +138,7 @@ internal sealed class ResponsesReasoningStream
         public JsonObject Envelope { get; } = ResponsesReasoningMetadata.CreateEnvelope();
         public string Group { get; } = Guid.NewGuid().ToString("N");
         public bool HasText { get; set; }
+        public (string Field, int Index)? LastTextPart { get; set; }
     }
 
     private static bool TryGetReasoningEvent(

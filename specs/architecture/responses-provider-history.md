@@ -177,6 +177,13 @@ completed native item. Agent aggregation preserves provider-declared content gro
 reasoning items remain separate even when neither has encrypted content. Group identity is internal
 metadata, not a ChatMessage ID. Completion does not repeat text already emitted as deltas.
 
+The neutral reasoning text preserves native part boundaries: deltas within one part concatenate
+unchanged, while different non-empty parts are separated by `\n\n`. A part is identified by its
+field (`summary` or `content`) and native part index. Empty deltas and part lifecycle events do not
+emit separators. When no non-empty delta was emitted, completion projects the non-empty summary
+parts followed by content parts with the same separators. These separators affect only the neutral
+text, never the native replay envelope or encrypted content.
+
 When rebuilding neutral history, the mapper prefers this envelope, then an available native raw
 reasoning item, then encrypted content. Invalid or unsupported envelopes fail with
 `responses_reasoning_metadata_invalid` instead of silently losing replay data. Text without a known

@@ -15,17 +15,17 @@ namespace DotCraft.Tests.Agents;
 public sealed partial class OpenAIResponsesToolSearchChatClientTests
 {
     [Theory]
-    [InlineData(false, false, true)]
-    [InlineData(true, true, true)]
+    [InlineData(false, false, true, "")]
+    [InlineData(true, true, true, "brief\n\nchecking inputs")]
     public async Task ReasoningReplay_PreservesNativeFieldsThroughStreamingAndPersistence(
-        bool plain, bool summary, bool encrypted)
+        bool plain, bool summary, bool encrypted, string expectedText)
     {
         var native = ReasoningItem("rs_replay", plain, summary, encrypted);
         var transport = new FakeToolSearchTransport(ReasoningEvents(native, 0));
         using var client = CreateClient(new FakeChatClient(new ChatResponse([])), transport);
         var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "inspect")]);
         var content = Assert.Single(Assert.Single(response.Messages).Contents.OfType<TextReasoningContent>());
-        Assert.Equal((summary ? "brief" : "") + (plain ? "checking inputs" : ""), content.Text);
+        Assert.Equal(expectedText, content.Text);
         Assert.Equal(encrypted ? "opaque" : null, content.ProtectedData);
 
         var codec = new ModelHistoryCodec();

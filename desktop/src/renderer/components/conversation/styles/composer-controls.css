@@ -20,6 +20,10 @@
   transition: background-color 120ms ease, color 120ms ease;
 }
 
+.dc-composer-pill > svg {
+  flex-shrink: 0;
+}
+
 .dc-composer-icon-control:hover:not(:disabled),
 .dc-composer-pill:hover:not(:disabled) {
   background: var(--sidebar-control-hover);
