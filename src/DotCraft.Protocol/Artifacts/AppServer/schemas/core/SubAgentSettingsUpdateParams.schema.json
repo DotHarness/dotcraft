@@ -19,7 +19,7 @@
         {
           "type": "object",
           "additionalProperties": {
-            "$ref": "./ModelPreference.schema.json"
+            "$ref": "./SubAgentModelPreference.schema.json"
           }
         },
         {

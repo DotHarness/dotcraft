@@ -118,7 +118,7 @@ public sealed class CoreToolSource(
             config,
             context.EffectiveProviderId,
             context.EffectiveMainModel);
-        var subAgentPreference = ModelPreferenceRules.Find(
+        var subAgentPreference = SubAgentModelPreference.Find(
             config.SubAgent.ProviderPreferences,
             mainRuntime.ProviderId);
         var subAgentCoordinator = new SubAgentCoordinator(
@@ -138,6 +138,7 @@ public sealed class CoreToolSource(
             appConfig: config,
             maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents,
             modelCatalogSnapshot: context.SubAgentModelCatalogSnapshot,
+            inheritedProviderId: mainRuntime.ProviderId,
             inheritedModel: context.EffectiveMainModel);
         tools.AddRange(GeneratedToolFunctions.All(agentTools));
 

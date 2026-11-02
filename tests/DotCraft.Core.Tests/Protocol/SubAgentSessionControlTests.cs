@@ -625,7 +625,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
                 ForkTurns = forkTurns,
-                SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
+                SubAgentPreference = SubAgentModelPreference.From(null, ModelPreferenceRules.CreateManual("subagent-model")),
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
             waitForCompletion: false,
@@ -657,7 +657,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
                         Model = "role-model"
                     }
                 ],
-                SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
+                SubAgentPreference = SubAgentModelPreference.From(null, ModelPreferenceRules.CreateManual("subagent-model")),
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
             waitForCompletion: false,
@@ -707,7 +707,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
                         Model = "role-model"
                     }
                 ],
-                SubAgentPreference = new ModelPreference
+                SubAgentPreference = new SubAgentModelPreference
                 {
                     Model = "subagent-model",
                     Reasoning = new AppConfig.ReasoningConfig
@@ -762,7 +762,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
                         Model = "role-model"
                     }
                 ],
-                SubAgentPreference = new ModelPreference
+                SubAgentPreference = new SubAgentModelPreference
                 {
                     Model = "subagent-model",
                 Reasoning = new AppConfig.ReasoningConfig { Effort = ModelReasoningEffort.Low }

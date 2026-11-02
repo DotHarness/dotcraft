@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-29 |
+| **Date** | 2026-11-02 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -36,7 +36,9 @@ lines, and wire DTOs belong to their owning specifications.
 | **Runtime** | The execution engine selected by the profile: native or external CLI. |
 | **Spawn edge** | Durable parent-child metadata containing ancestry, path, role, profile, runtime, capabilities, and open/closed state. |
 | **Fork mode** | The `forkTurns` selection that determines which parent history and runtime bindings enter the child. |
-| **Default preference** | The complete provider-scoped model preference selected before role and invocation-specific overrides. |
+| **Model selection** | A provider id plus a complete model preference: model, reasoning, and speed. |
+| **Default preference** | The model selection, keyed by the parent's provider, applied before role and invocation-specific overrides. |
+| **Model choices** | The configured model selections a caller may name for fresh and bounded native children. |
 | **Invocation override** | A caller-authorized model or reasoning change that applies only to one fresh or bounded native child. |
 
 `taskName` is the stable path identity and contains only lowercase ASCII letters, digits, or
@@ -140,8 +142,8 @@ callers queue a later task.
 | `forkTurns` | Context behavior | Native model behavior | Runtime binding behavior |
 |-------------|------------------|-----------------------|--------------------------|
 | `all` or omitted | Copies the parent's provider-visible history unchanged. | Inherits the parent's complete preference. Overrides are disabled. | Snapshots eligible direct-parent tool and client bindings. |
-| `none` | Starts without parent conversation Turns. | Resolves a fresh-child preference and permits authorized overrides. | Does not inherit parent runtime bindings. |
-| Positive integer | Copies the selected trailing stable Turns and active user input. | Resolves a bounded-child preference and permits authorized overrides. | Does not inherit parent runtime bindings. |
+| `none` | Starts without parent conversation Turns. | Resolves a fresh-child selection, possibly on another provider, and permits authorized overrides. | Does not inherit parent runtime bindings. |
+| Positive integer | Copies the selected trailing stable Turns and active user input. | Resolves a bounded-child selection, possibly on another provider, and permits authorized overrides. | Does not inherit parent runtime bindings. |
 
 A native full-history fork keeps the parent's prompt-cache prefix, so its first request reads the
 parent's cached history instead of paying for it again. Before the first child sampling, it copies
@@ -163,43 +165,63 @@ independent prefix, and do not inherit client-owned dynamic tools, browser trans
 full-history-only bindings. External runtimes receive the selected parent Turns as rendered prompt
 context.
 
-The model-visible `SpawnAgent` declaration carries a bounded provider model catalog snapshot, created
-before a thread's first provider request, persisted with its thread configuration, and reused across
-Turns, rebuilds, and cold resumes. A full-history child copies the parent's snapshot; fresh and bounded
-children create their own. Entries are case-insensitively deduplicated in provider order and capped at
-five. If catalog loading fails, `SpawnAgent` stays available with an empty override set: omitted
-override fields use the configured model, and explicit overrides fail.
+The model-visible `SpawnAgent` declaration carries a model choice snapshot, created before a
+thread's first provider request, persisted with its thread configuration, and reused across Turns,
+rebuilds, and cold resumes. A full-history child copies the parent's snapshot; fresh and bounded
+children create their own.
+
+- When `SubAgent.Models` is non-empty, the snapshot lists those entries in configured order, skipping
+  entries whose provider is not configured or has no usable credentials.
+- Otherwise it lists the first five entries of the thread provider's catalog, case-insensitively
+  deduplicated in provider order.
+
+Each entry is named `<providerId>/<modelId>` and carries the reasoning efforts the model's catalog
+reports. Provider ids cannot contain `/`, and callers match names against the snapshot exactly, so a
+model id containing `/` stays unambiguous. A provider whose catalog fails to load keeps its configured
+entries without reasoning efforts. When the snapshot is empty, `SpawnAgent` stays available: omitted
+override fields use the default preference, and explicit overrides fail.
 
 ## 6. Native model resolution
 
-Model resolution operates on a complete provider-scoped preference: model, reasoning configuration,
-and inference speed. The parent provider remains authoritative; spawning never switches providers.
+Model resolution operates on a complete model selection. A full-history child always runs on the
+parent's provider; a fresh or bounded child may run on any configured provider.
 
 ### 6.1 Full-history children
 
-For `forkTurns=all`, the child inherits the parent's complete captured preference and ignores
+For `forkTurns=all`, the child inherits the parent's complete captured selection and ignores
 `SubAgent.ProviderPreferences`, the role model, and invocation overrides, keeping the materialized
-context and the child model configuration aligned.
+context, the prompt-cache prefix, and the child model configuration aligned.
 
 ### 6.2 Fresh and bounded children
 
 For `forkTurns=none` or a positive integer, Session Core applies this order:
 
-1. Start from the parent's complete captured preference.
+1. Start from the parent's complete captured selection.
 2. Apply the caller-resolved default preference. The standard `SpawnAgent` path uses
-   `SubAgent.ProviderPreferences[parentProviderId]`; a missing entry inherits the parent. A
-   module-managed caller may retain the parent preference when its feature contract requires.
-3. Apply `role.Model`, when configured.
-4. Apply an authorized invocation override: an explicit model takes precedence over `role.Model`; an
-   explicit effort takes precedence over inherited effort.
-5. Normalize the complete preference against the final model's catalog capabilities.
+   `SubAgent.ProviderPreferences[parentProviderId]`; its `providerId` defaults to the key, and a missing
+   entry inherits the parent. A module-managed caller may retain the parent selection when its feature
+   contract requires.
+3. Apply `role.Model`, when configured, on `role.ProviderId` or else the parent's provider.
+4. Apply an authorized invocation override: an explicit snapshot entry replaces the provider and model
+   chosen so far; an explicit effort takes precedence over inherited effort.
+5. Normalize the complete preference against the final model's catalog capabilities on the final
+   provider.
 
-An invocation model changes only the model; an invocation effort enables reasoning at that effort.
-Neither resets other selections; normalization repairs only selections the final model does not
-support.
+Step 2 replaces the whole selection. When step 3 or 4 changes the provider, reasoning and speed start
+from the target model's catalog defaults instead of carrying selections across providers. An
+invocation model changes only the provider and model; an invocation effort enables reasoning at that
+effort. Normalization repairs only selections the final model does not support.
+
+Before creating the child, Session Core resolves the final provider. A provider that is not configured
+or has no usable credentials rejects the spawn with a stable error naming the provider, and no child
+is created.
+
+A bounded child on another protocol materializes its selected Turns from provider-neutral history,
+as a [protocol switch](../architecture/model-runtime.md#9-lifecycle-contract) does; provider-native
+reasoning payloads from the parent do not carry over.
 
 `SpawnAgent` accepts optional `model` and `reasoningEffort` arguments, valid only for fresh and bounded
-native children and required to match the calling thread's catalog snapshot. Full-history children
+native children. `model` must name an entry of the calling thread's snapshot. Full-history children
 reject either argument. Unknown models and provider rejection follow normal Turn failure.
 
 ## 7. Role, tools, and approval policy
@@ -211,7 +233,7 @@ A role may define:
 
 - instructions and whether they replace normal SubAgent guidance;
 - thread mode;
-- a model default for fresh and bounded native children;
+- a model default, optionally on another provider, for fresh and bounded native children;
 - tool allow and deny lists;
 - shell access of `none`, `readOnly`, or `full` (default), where `readOnly` admits exactly the
   commands the read-only classifier in [Shell Command Safety](../architecture/shell-command-safety.md)
@@ -359,7 +381,8 @@ The parent owns the complete descendant subtree:
 - direct archive or deletion of a child is invalid; callers close it through SubAgent control.
 
 Provider, role, and SubAgent default changes may invalidate cached child agents but never replace the
-model of a running request. Existing children keep their captured configuration.
+model of a running request. Existing children keep their captured provider and configuration; when that
+provider is later removed or loses its credentials, the child's next Turn fails like any other thread's.
 
 ## 10. Progress and observability
 

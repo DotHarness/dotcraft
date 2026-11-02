@@ -87,7 +87,7 @@ public sealed class SubAgentSpawnOptions
 
     public IReadOnlyList<SubAgentRoleConfig>? RoleConfigs { get; set; }
 
-    public ModelPreference? SubAgentPreference { get; set; }
+    public SubAgentModelPreference? SubAgentPreference { get; set; }
 
     /// <summary>
     /// Gets or sets the model selection applied to this invocation only.
@@ -121,6 +121,9 @@ public sealed class SubAgentSpawnOptions
 /// </summary>
 public sealed class SubAgentInvocationModelOverride
 {
+    /// <summary>Gets the provider of <see cref="Model"/>; null means the provider resolved before the override.</summary>
+    public string? ProviderId { get; init; }
+
     /// <summary>Gets the optional model identifier.</summary>
     public string? Model { get; init; }
 

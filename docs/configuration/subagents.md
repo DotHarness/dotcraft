@@ -8,7 +8,8 @@ For the concept and everyday use, read [Subagents](../guide/subagents).
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
 | `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root thread's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
-| `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
+| `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. An entry's optional `ProviderId` runs fresh and bounded subagents on another provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
+| `SubAgent.Models` | Up to eight `{ ProviderId, Model }` entries the main Agent may pick per task for fresh and bounded subagents. Empty offers models from the current provider | `[]` |
 | `SubAgent.EnableExternalCliSessionResume` | Allows external CLI profiles that support resume to reuse saved external sessions | `false` |
 | `SubAgent.DisabledProfiles` | Subagent profile names hidden and disabled for this workspace | `[]` |
 | `SubAgent.Roles` | Workspace-defined subagent roles. Entries with built-in names override built-in roles | `[]` |
@@ -49,6 +50,7 @@ Fields inside each `SubAgent.Roles` entry:
 | `Instructions` | Role instructions delivered as the subagent thread's role context message |
 | `Mode` | Optional mode override |
 | `Model` | Optional model override |
+| `ProviderId` | Provider for `Model`; defaults to the parent thread's provider |
 | `OverrideBasePrompt` | Replaces the base prompt with `Instructions`; by default instructions are appended |
 
 ## External CLI profiles

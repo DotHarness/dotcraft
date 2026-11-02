@@ -73,12 +73,21 @@ internal sealed class SubAgentRequestHandler(
                 Path.Combine(workspaceCraftPath!, "config.json"));
             foreach (var (providerId, preference) in nextProviderPreferences)
             {
+                if (preference.ProviderId != null && !currentConfig.Providers.ContainsKey(preference.ProviderId))
+                {
+                    var previous = SubAgentModelPreference.Find(state.ProviderPreferences, providerId);
+                    if (previous == null
+                        || !string.Equals(previous.ProviderId, preference.ProviderId, StringComparison.OrdinalIgnoreCase)
+                        || !ModelPreferenceRules.ValueEquals(previous.ToModelPreference(), preference.ToModelPreference()))
+                        throw AppServerErrors.InvalidParams($"Model provider '{preference.ProviderId}' is not configured.");
+                    continue;
+                }
+                var targetProviderId = preference.ProviderId ?? providerId;
                 AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
                     currentConfig,
-                    providerId,
+                    targetProviderId,
                     preference.Model,
                     preference.Reasoning);
-
             }
         }
 
@@ -499,10 +508,10 @@ internal sealed class SubAgentRequestHandler(
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
-    private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
-        IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
+    private static Dictionary<string, SubAgentModelPreference> NormalizeProviderPreferences(
+        IReadOnlyDictionary<string, SubAgentModelPreference>? providerPreferences)
     {
-        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        var result = new Dictionary<string, SubAgentModelPreference>(StringComparer.Ordinal);
         if (providerPreferences == null)
             return result;
         foreach (var (rawProviderId, rawPreference) in providerPreferences)
@@ -515,8 +524,10 @@ internal sealed class SubAgentRequestHandler(
             {
                 throw AppServerErrors.InvalidParams($"'providerPreferences.{rawProviderId}.model' is required.");
             }
-            var preference = ModelPreferenceRules.Clone(rawPreference);
+            var preference = rawPreference.Clone();
             preference.Model = preference.Model.Trim();
+            if (string.Equals(preference.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+                preference.ProviderId = null;
             result[providerId] = preference;
         }
 

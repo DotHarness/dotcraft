@@ -7,7 +7,6 @@ import type { ModelPreference, ModelPreferenceReasoningEffort } from '../../../s
 
 interface ProviderModelSummaryProps {
   main: ModelPreference | null
-  subAgent?: ModelPreference
   mainLabel?: string
 }
 
@@ -20,9 +19,9 @@ const reasoningLabelKeys: Record<ModelPreferenceReasoningEffort, MessageKey> = {
   ultra: 'composer.reasoning.ultra'
 }
 
-export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderModelSummaryProps): JSX.Element | null {
+export function ProviderModelSummary({ main, mainLabel }: ProviderModelSummaryProps): JSX.Element | null {
   const t = useT()
-  if (!main && !subAgent) return null
+  if (!main) return null
 
   const reasoningLabel = (preference: ModelPreference): string | null =>
     preference.reasoning.enabled ? t(reasoningLabelKeys[preference.reasoning.effort]) : null
@@ -50,8 +49,7 @@ export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderMode
 
   return (
     <div className={styles.row}>
-      {main && preferenceClause(mainLabel ?? t('settings.llm.providerSummaryMain'), main)}
-      {subAgent && preferenceClause(t('settings.llm.providerSummarySubAgent'), subAgent)}
+      {preferenceClause(mainLabel ?? t('settings.llm.providerSummaryMain'), main)}
     </div>
   )
 }

@@ -33,11 +33,10 @@ public static partial class ModelProviderResolver
         string effectiveMainProviderId,
         string effectiveMainModel)
     {
-        var model = ModelPreferenceRules.Find(
-                config.SubAgent.ProviderPreferences,
-                effectiveMainProviderId)?.Model
-            ?? effectiveMainModel;
-        return ResolveMain(config, effectiveMainProviderId, model);
+        var preference = SubAgentModelPreference.Find(config.SubAgent.ProviderPreferences, effectiveMainProviderId);
+        return preference == null
+            ? ResolveMain(config, effectiveMainProviderId, effectiveMainModel)
+            : ResolveMain(config, preference.ProviderId, preference.Model);
     }
 
     internal static string? ResolveConfiguredModel(AppConfig config, string? providerId = null)
@@ -62,24 +61,19 @@ public static partial class ModelProviderResolver
         return ModelPreferenceRules.Normalize(config, runtime.ProviderId, preference);
     }
 
-    /// <summary>
-    /// Resolves a native SubAgent preference, inheriting the complete parent preference when absent.
-    /// </summary>
-    public static ModelPreference ResolveSubAgentPreference(
-        AppConfig config,
-        string effectiveMainProviderId,
-        ModelPreference parentPreference,
-        string? roleModel = null)
+    /// <summary>ChatGPT sign-in is only checked at request time, so it counts as usable here.</summary>
+    public static bool IsProviderUsable(AppConfig config, string? providerId)
     {
         ArgumentNullException.ThrowIfNull(config);
-        ArgumentNullException.ThrowIfNull(parentPreference);
-        var preference = ModelPreferenceRules.Find(
-                config.SubAgent.ProviderPreferences,
-                effectiveMainProviderId)
-            ?? ModelPreferenceRules.Clone(parentPreference);
-        if (!string.IsNullOrWhiteSpace(roleModel))
-            preference.Model = roleModel.Trim();
-        return ModelPreferenceRules.Normalize(config, effectiveMainProviderId, preference);
+        var id = NormalizeProviderId(providerId);
+        if (id == null || !config.Providers.TryGetValue(id, out var provider))
+            return false;
+        if (provider.RemoteAuthentication != null)
+            return provider.RemoteAuthentication.IsAuthenticated;
+        if (!string.IsNullOrWhiteSpace(provider.BackendId))
+            return true;
+        return ModelProviderAuthMethods.Normalize(provider.AuthMethod ?? ModelProviderAuthMethods.ApiKey) == ModelProviderAuthMethods.ChatGptOAuth
+            || !string.IsNullOrWhiteSpace(provider.ApiKey);
     }
 
     public static EffectiveModelRuntime ResolveProvider(AppConfig config, string? providerIdOverride = null)

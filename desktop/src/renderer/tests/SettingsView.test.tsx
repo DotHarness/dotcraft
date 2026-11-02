@@ -391,6 +391,7 @@ describe('SettingsView', () => {
     })
     appServerSendRequest.mockClear()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Providers' }))
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
 
     await waitFor(() => {
@@ -405,6 +406,7 @@ describe('SettingsView', () => {
     enableProviderManagement()
     renderView()
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit provider Anthropic' }))
     await chooseValueIn(await screen.findByRole('combobox', { name: 'Provider' }), 'deepseek')
     appServerSendRequest.mockClear()
@@ -428,6 +430,7 @@ describe('SettingsView', () => {
 
     // Switch to Anthropic: its model is not deepseek, so it falls back to the first listed model.
     appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Providers' }))
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
     await waitFor(() => {
       expectBatchWrite({

@@ -49,6 +49,11 @@ public static class ConfigurationSubsystems
         configuration.RegisterValidator(ProviderConfiguration.KeyPath, (previous, candidate) =>
             ProviderConfiguration.ValidateProviders(previous, candidate)
             ?? ProviderConfiguration.ValidateSelection(previous, candidate, monitor.Current));
+        configuration.RegisterValidator("SubAgent.Models", (previous, candidate) =>
+            SubAgentModelChoiceRules.Validate(
+                previous.SubAgent.Models,
+                candidate.SubAgent.Models,
+                providerId => candidate.Providers.ContainsKey(providerId) || monitor.Current.Providers.ContainsKey(providerId)));
         configuration.RegisterValidator("ProviderId", (previous, candidate) =>
             ProviderConfiguration.ValidateSelection(previous, candidate, monitor.Current));
     }

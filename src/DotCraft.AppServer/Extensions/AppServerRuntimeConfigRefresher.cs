@@ -24,8 +24,13 @@ internal sealed class AppServerRuntimeConfigRefresher(
             EnableExternalCliSessionResume = mergedConfig.SubAgent.EnableExternalCliSessionResume,
             ProviderPreferences = mergedConfig.SubAgent.ProviderPreferences.ToDictionary(
                 pair => pair.Key,
-                pair => ModelPreferenceRules.Clone(pair.Value),
+                pair => pair.Value.Clone(),
                 StringComparer.OrdinalIgnoreCase),
+            Models = [.. mergedConfig.SubAgent.Models.Select(choice => new SubAgentModelChoice
+            {
+                ProviderId = choice.ProviderId,
+                Model = choice.Model
+            })],
             MaxDepth = mergedConfig.SubAgent.MaxDepth,
             MaxConcurrentSubAgents = mergedConfig.SubAgent.MaxConcurrentSubAgents,
             Roles = [.. mergedConfig.SubAgent.Roles.Select(role => role.Clone())]

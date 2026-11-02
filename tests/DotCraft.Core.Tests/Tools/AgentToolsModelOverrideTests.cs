@@ -82,14 +82,16 @@ public sealed class AgentToolsModelOverrideTests : IDisposable
                 [
                     new SubAgentModelCatalogItem
                     {
-                        Id = "child-model",
+                        Id = "openai/child-model",
+                        ProviderId = "openai",
+                        Model = "child-model",
                         SupportedReasoningEfforts = [ModelReasoningEffort.Low]
                     }
                 ]
             });
 
         await tools.SpawnAgent("inspect code", "inspect", forkTurns: forkTurns,
-            model: "child-model", reasoningEffort: "low");
+            model: "openai/child-model", reasoningEffort: "low");
 
         var child = await GetChildAsync(context);
         Assert.Equal("child-model", child.Configuration?.Model);

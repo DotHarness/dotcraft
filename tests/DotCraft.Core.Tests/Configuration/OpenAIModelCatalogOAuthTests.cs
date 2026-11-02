@@ -155,7 +155,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             openAIClientProvider: provider);
 
         var config = OAuthConfig("main-model");
-        config.SubAgent.ProviderPreferences["chatgpt"] = new ModelPreference { Model = "subagent-model" };
+        config.SubAgent.ProviderPreferences["chatgpt"] = new SubAgentModelPreference { Model = "subagent-model" };
         var registry = new ChatClientRegistry(provider);
 
         var main = registry.ResolveMainRuntime(config);

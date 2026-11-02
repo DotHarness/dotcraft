@@ -954,11 +954,14 @@ public sealed partial class AppConfig
         public bool EnableExternalCliSessionResume { get; set; }
 
         /// <summary>
-        /// Complete native SubAgent preference keyed by provider id.
+        /// Complete native SubAgent preference keyed by the parent's provider id.
         /// A missing entry inherits the current thread's effective MainAgent preference.
         /// </summary>
         [ConfigField(Ignore = true)]
-        public Dictionary<string, ModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, SubAgentModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        [ConfigField(Hint = "JSON array of { ProviderId, Model } that SpawnAgent may name for fresh or bounded native SubAgents", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public List<SubAgentModelChoice> Models { get; set; } = [];
 
         /// <summary>
         /// Maximum allowed depth for session-backed SubAgent spawning. The first child has depth 1.

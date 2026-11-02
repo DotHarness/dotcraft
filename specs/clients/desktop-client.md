@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.10 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-31 |
+| **Date** | 2026-11-02 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -825,7 +825,9 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Personal providers, including [model backend](../architecture/model-backend-plugins.md) instances, are listed together with `provider/list` and created, edited, tested (`provider/test`, with no hidden chat requests), and deleted from Settings. An instance whose backend is unavailable stays listed with that problem and keeps its configuration.
 - The provider editor writes `Providers.<id>` in the user layer with `config/batchWrite`: an untouched API key is sent as `***` or omitted, delete writes `null`, and per-provider toggles write `Providers.<id>.<Field>`. It rejects ids that already exist and passes the layer's `expectedVersion` to avoid overwriting concurrent edits. `openai` is an ordinary provider id; the server rejects deleting the selected provider.
 - Provider credentials and endpoints are personal; workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry. Each preference holds model, reasoning, and speed, and a workspace record atomically overrides the personal one for that provider.
-- Main and Subagent model settings use the shared picker. Subagent can inherit (removing its provider-specific record) or be customized starting from the main preference.
+- The page has two tabs: **Models** holds the workspace main and Subagent models, Subagent model choices, image generation, and web search; **Providers** holds the provider list, where a row also selects the workspace provider, and the New provider action. The provider editor replaces both tabs while open.
+- Main and Subagent model settings use the shared picker, each preceded by a provider choice. Subagent can inherit (removing its record for the selected main provider) or be customized starting from the main preference; a customized Subagent model chooses its provider before its model, and a notice with a way to set the provider up follows it when that provider is missing or signed out.
+- Subagent model choices edit `SubAgent.Models` as an ordered list of provider and model pairs, added from a provider and model choice and removed per row. A row whose provider is missing or signed out carries a warning status indicator naming that trouble.
 - Unsupported model listing remains recoverable with manual entry.
 - Web search chooses `Tools.Web.SearchProvider` and shows only the settings that service uses: `Auto` and `Exa` the write-only `Tools.Web.ExaApiKey`, `Bing` and `ChatGPT` nothing, and `DeepSeek` its credential source followed by either a provider choice or the write-only `Tools.Web.DeepSeekApiKey`. The provider choice appears only when more than one DeepSeek provider exists; with none, the row offers switching to a key. `ChatGPT` can be chosen only while a ChatGPT-subscription provider is signed in. Changes take effect from the next turn.
 

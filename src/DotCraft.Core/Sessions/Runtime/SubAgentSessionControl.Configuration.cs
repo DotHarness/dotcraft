@@ -9,7 +9,7 @@ public static partial class SubAgentSessionControl
     private static ThreadConfiguration ApplyRoleToChildConfiguration(
         ThreadConfiguration? parentConfiguration,
         SubAgentRoleConfig role,
-        ModelPreference? nativeSubAgentPreference,
+        SubAgentModelPreference? nativeSubAgentPreference,
         SubAgentInvocationModelOverride? invocationModelOverride,
         AppConfig? runtimeConfig,
         bool isNativeRuntime,
@@ -27,22 +27,25 @@ public static partial class SubAgentSessionControl
             child.Mode = role.Mode.Trim();
         if (runtimeConfig != null)
         {
-            var providerId = child.ProviderId ?? runtimeConfig.ProviderId;
-            var parentPreference = new ModelPreference
+            var parentProviderId = child.ProviderId ?? runtimeConfig.ProviderId;
+            var providerId = parentProviderId;
+            var preference = new ModelPreference
             {
                 Model = child.Model ?? string.Empty,
                 Reasoning = ThreadConfigurationCloner.CloneNullableReasoningConfig(child.Reasoning) ?? new AppConfig.ReasoningConfig(),
                 Speed = child.Speed ?? InferenceSpeed.Standard,
             };
-            var preference = nativeSubAgentPreference == null
-                ? parentPreference
-                : ModelPreferenceRules.Clone(nativeSubAgentPreference);
+            if (nativeSubAgentPreference != null)
+            {
+                providerId = nativeSubAgentPreference.ProviderId ?? parentProviderId;
+                preference = nativeSubAgentPreference.ToModelPreference();
+            }
             if ((!isNativeRuntime || !inheritsFullHistory) && !string.IsNullOrWhiteSpace(role.Model))
-                preference.Model = role.Model.Trim();
+                SelectModel(runtimeConfig, ref providerId, preference, role.ProviderId ?? parentProviderId, role.Model);
             if (invocationModelOverride != null)
             {
                 if (!string.IsNullOrWhiteSpace(invocationModelOverride.Model))
-                    preference.Model = invocationModelOverride.Model.Trim();
+                    SelectModel(runtimeConfig, ref providerId, preference, invocationModelOverride.ProviderId ?? providerId, invocationModelOverride.Model);
                 if (invocationModelOverride.Effort is { } effort)
                 {
                     preference.Reasoning.Enabled = true;
@@ -50,6 +53,7 @@ public static partial class SubAgentSessionControl
                 }
             }
             preference = ModelPreferenceRules.Normalize(runtimeConfig, providerId, preference);
+            child.ProviderId = providerId;
             child.Model = preference.Model;
             child.Reasoning = ThreadConfigurationCloner.CloneNullableReasoningConfig(preference.Reasoning);
             child.Speed = preference.Speed;
@@ -66,6 +70,25 @@ public static partial class SubAgentSessionControl
             ApplyAgentControlPolicy(child, role, childDepth, maxDepth);
         }
         return child;
+    }
+
+    private static void SelectModel(
+        AppConfig config,
+        ref string? providerId,
+        ModelPreference preference,
+        string? targetProviderId,
+        string model)
+    {
+        if (string.Equals(targetProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+        {
+            preference.Model = model.Trim();
+            return;
+        }
+        var defaults = ModelPreferenceRules.CreateDefault(config, targetProviderId ?? string.Empty, model);
+        providerId = targetProviderId;
+        preference.Model = defaults.Model;
+        preference.Reasoning = defaults.Reasoning;
+        preference.Speed = defaults.Speed;
     }
 
     private static void ApplyAgentControlPolicy(

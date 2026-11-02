@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-02 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -109,6 +109,7 @@ Semantic rules registered by the runtime:
 
 - `Dreams.Interval` must be positive.
 - Each `ProviderPreferences` entry the write changes must name a model, and when its provider and model resolve, its reasoning selection must be supported by that model. The write never rewrites a preference; a preference that becomes unsupported later, for example after a catalog change, is normalized when a thread captures it.
+- `SubAgent.Models` holds at most eight entries, each with a non-empty `ProviderId` and `Model`, no two equal case-insensitively, and each entry the write adds names a provider defined in the candidate configuration or managed by the remote model service. Entries whose provider is later removed stay stored and are skipped at use ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)).
 - The provider rules of §5.5.
 
 Option sets are declared on the field: `Permissions.DefaultApprovalPolicy` accepts `default` and `autoApprove`, and enum fields such as `Tools.CodeMode.Mode` accept their member names case-insensitively.

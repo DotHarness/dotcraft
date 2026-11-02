@@ -21,7 +21,7 @@ public sealed class SubAgentModelCatalogSnapshotTests
             CancellationToken.None);
 
         Assert.Equal(
-            ["model-c", "model-a", "model-b", "model-d", "model-e"],
+            ["openai/model-c", "openai/model-a", "openai/model-b", "openai/model-d", "openai/model-e"],
             snapshot.Models.Select(static model => model.Id));
         Assert.Contains("model-c", snapshot.Description, StringComparison.Ordinal);
         Assert.DoesNotContain("model-f", snapshot.Description, StringComparison.Ordinal);
@@ -65,20 +65,23 @@ public sealed class SubAgentModelCatalogSnapshotTests
         var snapshot = Snapshot(
             new SubAgentModelCatalogItem
             {
-                Id = "model-a",
+                Id = "openai/model-a",
+                ProviderId = "openai",
+                Model = "model-a",
                 SupportedReasoningEfforts = [ModelReasoningEffort.Low, ModelReasoningEffort.High],
                 DefaultReasoningEffort = ModelReasoningEffort.High
             });
 
         var resolved = Assert.IsType<SubAgentInvocationModelOverride>(
-            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "MODEL-A", "high"));
+            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "OPENAI/MODEL-A", "high"));
 
+        Assert.Equal("openai", resolved.ProviderId);
         Assert.Equal("model-a", resolved.Model);
         Assert.Equal(ModelReasoningEffort.High, resolved.Effort);
         Assert.Throws<InvalidOperationException>(() =>
-            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-a", "medium"));
+            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "openai/model-a", "medium"));
         Assert.Throws<InvalidOperationException>(() =>
-            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-a", "999"));
+            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "openai/model-a", "999"));
         Assert.Throws<InvalidOperationException>(() =>
             SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-b", null));
     }

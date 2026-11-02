@@ -12613,38 +12613,6 @@
       "variants": []
     },
     {
-      "id": "core.ModelPreference",
-      "name": "ModelPreference",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ModelPreference.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "model",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "reasoning",
-          "type": "core.ReasoningConfig",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "speed",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ModelPricingInfo",
       "name": "ModelPricingInfo",
       "module": "core",
@@ -19490,6 +19458,45 @@
       "variants": []
     },
     {
+      "id": "core.SubAgentModelPreference",
+      "name": "SubAgentModelPreference",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentModelPreference.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "reasoning",
+          "type": "core.ReasoningConfig",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "speed",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.SubAgentProfileDiagnostic",
       "name": "SubAgentProfileDiagnostic",
       "module": "core",
@@ -20119,7 +20126,7 @@
         },
         {
           "name": "providerPreferences",
-          "type": "map<core.ModelPreference>",
+          "type": "map<core.SubAgentModelPreference>",
           "required": false,
           "nullable": true,
           "const": null
@@ -20144,7 +20151,7 @@
         },
         {
           "name": "providerPreferences",
-          "type": "map<core.ModelPreference>",
+          "type": "map<core.SubAgentModelPreference>",
           "required": false,
           "nullable": true,
           "const": null

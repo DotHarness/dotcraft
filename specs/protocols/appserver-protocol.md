@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.10 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-29 |
+| **Date** | 2026-11-02 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -2155,13 +2155,13 @@ A server-authoritative read/write path for workspace SubAgent profile configurat
 Result `{ defaultName, settings, profiles }`: built-in profiles plus workspace custom profiles.
 
 - `settings.externalCliSessionResumeEnabled`: whether external CLI profiles that support resume may reuse saved external session ids.
-- `settings.providerPreferences`: complete native SubAgent preferences keyed by provider id; a missing entry inherits the parent thread's complete preference.
+- `settings.providerPreferences`: complete native SubAgent model selections keyed by the parent's provider id; a missing entry inherits the parent thread's complete preference. Each record carries `model`, `reasoning`, `speed`, and an optional `providerId` naming the provider the SubAgent runs on, which defaults to the key.
 
 ### 24.5 `subagent/settings/update`
 
 Params: `externalCliSessionResumeEnabled`, `providerPreferences`, or both (at least one required).
 
-- `providerPreferences` replaces the whole workspace map (`{}` clears it). Each record is normalized as a unit; an invalid model, reasoning, or speed rejects the request without writing.
+- `providerPreferences` replaces the whole workspace map (`{}` clears it). Each record is normalized as a unit against its target provider; an unconfigured `providerId` or an invalid model, reasoning, or speed rejects the request without writing.
 - The resume toggle affects only profiles whose effective definition supports resume. Changing these settings never deletes saved external session ids.
 
 ### 24.6 `subagent/profiles/setEnabled`

@@ -14,22 +14,6 @@ export interface ModelPreference {
 
 export type ProviderPreferences = Record<string, ModelPreference>
 
-export function toContractModelPreference(preference: ModelPreference): ContractModelPreference {
-  return {
-    model: preference.model,
-    reasoning: { ...preference.reasoning },
-    speed: preference.speed,
-  }
-}
-
-export function toContractProviderPreferences(
-  preferences: ProviderPreferences
-): Record<string, ContractModelPreference> {
-  return Object.fromEntries(
-    Object.entries(preferences).map(([providerId, preference]) => [providerId, toContractModelPreference(preference)])
-  )
-}
-
 export function createManualModelPreference(model: string): ModelPreference {
   return {
     model: model.trim(),
@@ -142,4 +126,3 @@ function readEnum<const T extends readonly string[]>(
   if (!value) return null
   return values.find((candidate) => candidate.toLowerCase() === value.toLowerCase()) ?? null
 }
-import type { ModelPreference as ContractModelPreference } from '@dotcraft/sdk/contracts'

@@ -1,16 +1,15 @@
 import type { JSX } from 'react'
-import { TriangleAlert } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
 import { ActionTooltip } from '../../../ui/ActionTooltip'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsTroubleNotice } from '../../SettingsTroubleNotice'
 import { SettingsSelect, type SettingsSelectOption } from '../../ui/SettingsSelect'
 import { ProviderPresetMark } from '../../providers/ProviderPresetMark'
 import { providerPresetMark } from '../../providers/providerPresets'
 import { canProviderCreateImages, resolveImageGenerationTrouble } from './imageGenerationModel'
-import styles from './ImageGenerationSettingsGroup.module.css'
 
 const SELECT_ID = 'settings-image-generation-provider'
 
@@ -109,24 +108,14 @@ export function ImageGenerationSettingsGroup({
       />
       {trouble && (
         <SettingsRow>
-          <div className={styles.notice} role="status">
-            <TriangleAlert size={20} aria-hidden="true" />
-            <div className={styles.title}>
-              {trouble.kind === 'none'
-                ? t('settings.llm.imageGeneration.none')
-                : t('settings.llm.imageGeneration.providerCantCreate', {
-                  name: trouble.provider?.displayName ?? trouble.providerId
-                })}
-              {troubleAction && (
-                <>
-                  {' '}
-                  <button type="button" className={styles.link} onClick={troubleAction.run}>
-                    {troubleAction.label}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          <SettingsTroubleNotice
+            message={trouble.kind === 'none'
+              ? t('settings.llm.imageGeneration.none')
+              : t('settings.llm.imageGeneration.providerCantCreate', {
+                name: trouble.provider?.displayName ?? trouble.providerId
+              })}
+            action={troubleAction || undefined}
+          />
         </SettingsRow>
       )}
     </SettingsGroup>

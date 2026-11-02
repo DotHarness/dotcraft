@@ -233,7 +233,7 @@ public sealed class ModelThreadTitleGeneratorTests
         var provider = new RecordingModelProvider(client);
         var registry = new ChatClientRegistry(provider);
         var config = AppConfigTestFactory.CreateOpenAI(model: "main-model");
-        config.SubAgent.ProviderPreferences[config.ProviderId] = new ModelPreference { Model = "title-model" };
+        config.SubAgent.ProviderPreferences[config.ProviderId] = new SubAgentModelPreference { Model = "title-model" };
         var generator = new ModelThreadTitleGenerator(registry, () => config);
         var longPrompt = string.Concat(Enumerable.Repeat("修复登录流程 ", 200));
 

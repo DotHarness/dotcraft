@@ -1,9 +1,9 @@
 export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
 export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
 import {
+  cloneModelPreference,
   findProviderPreference,
   readProviderPreferences,
-  toContractModelPreference,
   type ModelPreference
 } from '../../shared/modelPreference'
 import { configKeyPath, type ConfigEdit } from '../stores/configStore'
@@ -74,5 +74,5 @@ export function resolveConcreteApprovalPolicyFromConfig(config: Record<string, u
 }
 
 export function providerPreferenceEdit(providerId: string, preference: ModelPreference): ConfigEdit {
-  return { keyPath: configKeyPath('ProviderPreferences', providerId), value: toContractModelPreference(preference) }
+  return { keyPath: configKeyPath('ProviderPreferences', providerId), value: cloneModelPreference(preference) }
 }

@@ -8,10 +8,8 @@ import {
   createProviderDraft,
   isStoredApiKey,
   providerConnectionMode,
-  providerDetails,
   providerDraftFromInfo,
   providerFieldsFromDraft,
-  providerProblem,
   providerUsable,
   type ProviderDraft,
   type ProviderEditorId
@@ -19,10 +17,8 @@ import {
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Hand,
-  Image as ImageIcon,
   MessageCircle,
   OctagonAlert,
-  Pencil,
   Plus,
   Trash2
 } from 'lucide-react'
@@ -54,7 +50,6 @@ import {
 import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettingsWorkspaceConfigChangeEffects'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -82,10 +77,13 @@ import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
 import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
 import { WebSearchSettingsGroup } from './panels/webSearch/WebSearchSettingsGroup'
-import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
 import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
 import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptRow'
+import { SubAgentDefaultModelField } from './panels/subAgentModels/SubAgentDefaultModelField'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { ProviderListGroup } from './providers/ProviderListGroup'
+import { ProviderSelect } from './providers/ProviderSelect'
+import { SubAgentModelChoicesGroup } from './panels/subAgentModels/SubAgentModelChoicesGroup'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { NewTaskBehaviorRow } from './panels/NewTaskBehaviorRow'
@@ -93,12 +91,10 @@ import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
 import { ChatsFolderRow } from './panels/ChatsFolderRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
-import { ProviderIdentityIcon } from './providers/ProviderIdentityIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageView } from './usage/UsageView'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
-import { ProviderModelSummary } from './ProviderModelSummary'
 import { McpPanel } from './panels/McpPanel'
 import { McpServerEditor } from './panels/mcp/McpServerEditor'
 import { isPluginManagedMcpServer, McpServerList } from './panels/mcp/McpServerList'
@@ -133,10 +129,7 @@ import {
   createManualModelPreference,
   findProviderPreference,
   readProviderPreferences,
-  setProviderPreference,
-  toContractProviderPreferences,
-  type ModelPreference,
-  type ProviderPreferences
+  type ModelPreference
 } from '../../../shared/modelPreference'
 import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
 import {
@@ -207,24 +200,6 @@ function cardStyle(): CSSProperties {
     borderRadius: '10px',
     background: 'var(--bg-secondary)',
     padding: '14px 16px'
-  }
-}
-
-function providerRowStyle(active: boolean): CSSProperties {
-  return {
-    ...cardStyle(),
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '16px',
-    cursor: 'pointer',
-    textAlign: 'left',
-    background: active
-      ? 'color-mix(in srgb, var(--accent) 8%, var(--bg-secondary))'
-      : 'var(--bg-secondary)',
-    borderColor: active
-      ? 'color-mix(in srgb, var(--accent) 45%, var(--border-default))'
-      : 'var(--border-default)'
   }
 }
 
@@ -315,6 +290,7 @@ export function SettingsView({
   const providerEditorIdRef = useRef(providerEditorId)
   providerEditorIdRef.current = providerEditorId
   const [selectedProviderId, setSelectedProviderId] = useState('')
+  const [llmSegment, setLlmSegment] = useState<'models' | 'providers'>('models')
   const selectedProviderIdRef = useRef('')
   const [workspacePreference, setWorkspacePreference] = useState<ModelPreference>(
     () => createManualModelPreference('')
@@ -330,11 +306,6 @@ export function SettingsView({
   const [workspaceManualModelDraft, setWorkspaceManualModelDraft] = useState('')
   const [applyingWorkspaceProvider, setApplyingWorkspaceProvider] = useState(false)
   const [applyingWorkspaceModel, setApplyingWorkspaceModel] = useState(false)
-  const [subAgentPreference, setSubAgentPreference] = useState<ModelPreference | null>(null)
-  const [subAgentManualModelDraft, setSubAgentManualModelDraft] = useState('')
-  const [subAgentProviderPreferences, setSubAgentProviderPreferences] = useState<ProviderPreferences>({})
-  const subAgentProviderPreferencesRef = useRef<ProviderPreferences>({})
-  const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
   const [skillsRestartPending, setSkillsRestartPending] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -408,9 +379,6 @@ export function SettingsView({
       : null
   const providerEditorIsNew = providerEditorId === '__new__'
   const providerEditingEnabled = providerManagementEnabled && configManagementEnabled && !providersManagedRemotely
-  const providersCountLabel = providers.length === 1
-    ? t('settings.llm.providersCount.one', { count: providers.length })
-    : t('settings.llm.providersCount.other', { count: providers.length })
   const selectedProviderMissing =
     selectedProviderId.trim() !== '' &&
     !providersLoading &&
@@ -472,33 +440,6 @@ export function SettingsView({
       return false
     } finally {
       setProvidersLoading(false)
-    }
-  }
-
-  async function reloadSubAgentModelMemory(): Promise<void> {
-    if (!providerManagementEnabled || !subAgentEnabled) {
-      setSubAgentPreference(null)
-      setSubAgentManualModelDraft('')
-      subAgentProviderPreferencesRef.current = {}
-      setSubAgentProviderPreferences({})
-      return
-    }
-    try {
-      const result = (await window.api.appServer.sendRequest(
-        'subagent/profiles/list',
-        {}
-      )) as { settings?: { providerPreferences?: ProviderPreferences | null } }
-      const nextProviderPreferences = readProviderPreferences(result.settings?.providerPreferences)
-      const activeProviderId = selectedProviderIdRef.current.trim()
-      const preference = activeProviderId
-        ? findProviderPreference(nextProviderPreferences, activeProviderId)
-        : null
-      setSubAgentPreference(preference)
-      setSubAgentManualModelDraft(preference?.model ?? '')
-      subAgentProviderPreferencesRef.current = nextProviderPreferences
-      setSubAgentProviderPreferences(nextProviderPreferences)
-    } catch {
-      // Non-fatal: the native model editor simply falls back to inherit.
     }
   }
 
@@ -580,21 +521,6 @@ export function SettingsView({
     if (!providerManagementEnabled) return
     void reloadProviders()
   }, [providerManagementEnabled])
-
-  useEffect(() => {
-    if (!providerManagementEnabled || !subAgentEnabled) return
-    void reloadSubAgentModelMemory()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerManagementEnabled, subAgentEnabled, subAgentRefreshTick])
-
-  useEffect(() => {
-    if (!subAgentEnabled) return
-    const preference = selectedProviderId
-      ? findProviderPreference(subAgentProviderPreferences, selectedProviderId)
-      : null
-    setSubAgentPreference(preference)
-    setSubAgentManualModelDraft(preference?.model ?? '')
-  }, [selectedProviderId, subAgentEnabled, subAgentProviderPreferences])
 
   useEffect(() => {
     if (!providerManagementEnabled || workspaceConfigChangeSeq === 0) return
@@ -698,15 +624,6 @@ export function SettingsView({
       }
       setWorkspacePreference(nextPreference)
       setWorkspaceManualModelDraft(nextPreference.model)
-
-      if (subAgentEnabled) {
-        const nextSubPreference = findProviderPreference(
-          subAgentProviderPreferencesRef.current,
-          normalized
-        )
-        setSubAgentPreference(nextSubPreference)
-        setSubAgentManualModelDraft(nextSubPreference?.model ?? '')
-      }
     } catch (err) {
       selectedProviderIdRef.current = previousProviderId
       setSelectedProviderId(previousProviderId)
@@ -751,83 +668,6 @@ export function SettingsView({
     setWorkspacePreference(normalized)
     setWorkspaceManualModelDraft(normalized.model)
     await persistWorkspacePreference(normalized, previousPreference)
-  }
-
-  async function persistSubAgentPreference(
-    nextPreference: ModelPreference | null,
-    previousPreference: ModelPreference | null
-  ): Promise<void> {
-    setApplyingSubAgentModel(true)
-    try {
-      const activeProviderId = selectedProviderIdRef.current.trim()
-      const normalized = nextPreference == null ? null : cloneModelPreference(nextPreference)
-      if (normalized) normalized.model = normalized.model.trim()
-      const nextSubProviderPreferences = setProviderPreference(
-        subAgentProviderPreferencesRef.current,
-        activeProviderId,
-        normalized
-      )
-      await window.api.appServer.sendRequest('subagent/settings/update', {
-        providerPreferences: toContractProviderPreferences(nextSubProviderPreferences)
-      }, 20_000)
-      setSubAgentPreference(normalized)
-      setSubAgentManualModelDraft(normalized?.model ?? '')
-      subAgentProviderPreferencesRef.current = nextSubProviderPreferences
-      setSubAgentProviderPreferences(nextSubProviderPreferences)
-    } catch (err) {
-      setSubAgentPreference(previousPreference)
-      setSubAgentManualModelDraft(previousPreference?.model ?? '')
-      addToast(t('settings.llm.toast.saveSubAgentModelFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-    } finally {
-      setApplyingSubAgentModel(false)
-    }
-  }
-
-  async function handleSubAgentPreferenceChange(nextPreference: ModelPreference): Promise<void> {
-    if (applyingSubAgentModel) return
-    const previousPreference = subAgentPreference == null
-      ? null
-      : cloneModelPreference(subAgentPreference)
-    const normalized = normalizePreferenceForModel(nextPreference, providerModelCatalog)
-    setSubAgentPreference(normalized)
-    setSubAgentManualModelDraft(normalized.model)
-    await persistSubAgentPreference(normalized, previousPreference)
-  }
-
-  async function handleSubAgentInheritanceChange(custom: boolean): Promise<void> {
-    if (applyingSubAgentModel) return
-    const previousPreference = subAgentPreference == null
-      ? null
-      : cloneModelPreference(subAgentPreference)
-    const nextPreference = custom ? cloneModelPreference(workspacePreference) : null
-    setSubAgentPreference(nextPreference)
-    setSubAgentManualModelDraft(nextPreference?.model ?? '')
-    await persistSubAgentPreference(nextPreference, previousPreference)
-  }
-
-  async function handleSubAgentManualModelCommit(): Promise<void> {
-    const normalized = subAgentManualModelDraft.trim()
-    const persistedPreference = findProviderPreference(
-      subAgentProviderPreferencesRef.current,
-      selectedProviderIdRef.current
-    )
-    if (normalized === (persistedPreference?.model ?? '') || applyingSubAgentModel) {
-      setSubAgentManualModelDraft(persistedPreference?.model ?? '')
-      return
-    }
-
-    if (!normalized) return
-    const previousPreference = subAgentPreference == null
-      ? null
-      : cloneModelPreference(subAgentPreference)
-    const nextPreference = {
-      ...cloneModelPreference(subAgentPreference ?? workspacePreference),
-      model: normalized
-    }
-    setSubAgentPreference(nextPreference)
-    await persistSubAgentPreference(nextPreference, previousPreference)
   }
 
   async function handleWorkspaceManualModelCommit(): Promise<void> {
@@ -1869,18 +1709,6 @@ export function SettingsView({
                       />
                     )
                   }
-                  action={
-                    providerEditorId === null ? (
-                      <Button
-                        variant="primary"
-                        onClick={startCreateProvider}
-                        disabled={!providerEditingEnabled}
-                        iconLeft={<Plus size={14} aria-hidden="true" />}
-                      >
-                        {t('settings.llm.addProvider')}
-                      </Button>
-                    ) : undefined
-                  }
                 >
 
                 {!providerManagementEnabled && (
@@ -1894,6 +1722,20 @@ export function SettingsView({
                 )}
 
                 {providerManagementEnabled && providerEditorId === null && (
+                  <div>
+                    <SegmentedControl
+                      ariaLabel={t('settings.llm.title')}
+                      value={llmSegment}
+                      options={[
+                        { value: 'models', label: t('settings.llm.segments.models') },
+                        { value: 'providers', label: t('settings.llm.segments.providers') }
+                      ]}
+                      onChange={setLlmSegment}
+                    />
+                  </div>
+                )}
+
+                {providerManagementEnabled && providerEditorId === null && llmSegment === 'models' && (
                   <>
                     <SettingsGroup
                       title={t('settings.llm.workspaceTitle')}
@@ -1904,27 +1746,42 @@ export function SettingsView({
                           <label htmlFor="settings-provider-model" style={sectionLabelStyle()}>
                             {t('settings.llm.workspaceModel')}
                           </label>
-                          <PreferenceModelPicker
-                            preference={workspacePreference}
-                            models={providerModelCatalog}
-                            loading={providerModelLoading}
-                            disabled={applyingWorkspaceModel || applyingWorkspaceProvider}
-                            errorMessage={providerModelError || null}
-                            manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
-                            onRetry={() => void reloadProviderPreferences(selectedProviderId)}
-                            onChange={(next) => {
-                              if (providerModelCatalog.length === 0) {
-                                setWorkspacePreference(next)
-                                setWorkspaceManualModelDraft(next.model)
-                              } else {
-                                void handleWorkspacePreferenceChange(next)
-                              }
-                            }}
-                            onManualCommit={() => void handleWorkspaceManualModelCommit()}
-                            inputId="settings-provider-model"
-                            inputAriaLabel={t('settings.llm.workspaceModel')}
-                            placeholder={t('settings.llm.workspaceModelPlaceholder')}
-                          />
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                            <ProviderSelect
+                              id="settings-workspace-provider"
+                              value={selectedProviderId}
+                              providers={providers}
+                              disabled={applyingWorkspaceProvider || providersLoading}
+                              ariaLabel={t('settings.llm.workspaceProvider')}
+                              style={{ width: 200, flexShrink: 0 }}
+                              onValueChange={(providerId) => {
+                                if (providerId !== selectedProviderId) void handleWorkspaceProviderChange(providerId)
+                              }}
+                            />
+                            <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                              <PreferenceModelPicker
+                                preference={workspacePreference}
+                                models={providerModelCatalog}
+                                loading={providerModelLoading}
+                                disabled={applyingWorkspaceModel || applyingWorkspaceProvider}
+                                errorMessage={providerModelError || null}
+                                manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
+                                onRetry={() => void reloadProviderPreferences(selectedProviderId)}
+                                onChange={(next) => {
+                                  if (providerModelCatalog.length === 0) {
+                                    setWorkspacePreference(next)
+                                    setWorkspaceManualModelDraft(next.model)
+                                  } else {
+                                    void handleWorkspacePreferenceChange(next)
+                                  }
+                                }}
+                                onManualCommit={() => void handleWorkspaceManualModelCommit()}
+                                inputId="settings-provider-model"
+                                inputAriaLabel={t('settings.llm.workspaceModel')}
+                                placeholder={t('settings.llm.workspaceModelPlaceholder')}
+                              />
+                            </div>
+                          </div>
                         </div>
                         {providerModelError && (
                           <div style={{ ...settingsHintStyle(false), color: 'var(--warning)' }}>
@@ -1932,63 +1789,21 @@ export function SettingsView({
                           </div>
                         )}
                         {subAgentEnabled && selectedProviderId && (
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              minHeight: '18px',
-                              gap: '12px',
-                              marginBottom: '7px'
-                            }}>
-                              <label htmlFor="settings-subagent-model" style={{ ...sectionLabelStyle(), marginBottom: 0 }}>
-                                {t('settings.llm.subAgentModelTitle')}
-                              </label>
-                              <SegmentedControl<'inherit' | 'custom'>
-                                value={subAgentPreference == null ? 'inherit' : 'custom'}
-                                options={[
-                                  { value: 'inherit', label: t('settings.llm.subAgentPreferenceInherit') },
-                                  { value: 'custom', label: t('settings.llm.subAgentPreferenceCustom') }
-                                ]}
-                                onChange={(mode) => void handleSubAgentInheritanceChange(mode === 'custom')}
-                                disabled={
-                                  applyingSubAgentModel
-                                  || applyingWorkspaceProvider
-                                  || providerModelLoading
-                                  || workspacePreference.model.trim() === ''
-                                }
-                                ariaLabel={t('settings.llm.subAgentPreferenceAria')}
-                              />
-                            </div>
-                            <PreferenceModelPicker
-                              preference={subAgentPreference ?? workspacePreference}
-                              models={providerModelCatalog}
-                              loading={providerModelLoading}
-                              disabled={
-                                applyingSubAgentModel
-                                || applyingWorkspaceProvider
-                                || subAgentPreference == null
-                              }
-                              errorMessage={providerModelError || null}
-                              manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
-                              onRetry={() => void reloadProviderPreferences(selectedProviderId)}
-                              onChange={(next) => {
-                                if (providerModelCatalog.length === 0) {
-                                  setSubAgentPreference(next)
-                                  setSubAgentManualModelDraft(next.model)
-                                } else {
-                                  void handleSubAgentPreferenceChange(next)
-                                }
-                              }}
-                              onManualCommit={() => void handleSubAgentManualModelCommit()}
-                              inputId="settings-subagent-model"
-                              inputAriaLabel={t('settings.llm.subAgentModelTitle')}
-                              placeholder={t('settings.llm.subAgentModelPlaceholder')}
-                            />
-                          </div>
+                          <SubAgentDefaultModelField
+                            mainProviderId={selectedProviderId}
+                            mainPreference={workspacePreference}
+                            providers={providers}
+                            disabled={applyingWorkspaceProvider || providerModelLoading}
+                            refreshKey={subAgentRefreshTick}
+                            onEditProvider={providerEditingEnabled ? startEditProvider : undefined}
+                          />
                         )}
                       </div>
                     </SettingsGroup>
+
+                    {subAgentEnabled && (
+                      <SubAgentModelChoicesGroup providers={providers} mainProviderId={selectedProviderId} />
+                    )}
 
                     <ImageGenerationSettingsGroup
                       providers={providers}
@@ -2000,134 +1815,23 @@ export function SettingsView({
 
                     <WebSearchSettingsGroup providers={providers} providersLoading={providersLoading} />
 
-                    <SettingsGroup
-                      title={t('settings.llm.providersTitle')}
-                      description={providersLoading ? t('settings.llm.providersLoading') : providersCountLabel}
-                      flush
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {providersLoading && (
-                          <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>
-                            {t('settings.llm.providersLoading')}
-                          </div>
-                        )}
-
-                        {!providersLoading && providers.length === 0 && (
-                          <div style={{ padding: '8px 0' }}>
-                            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                              {t('settings.llm.emptyProvidersTitle')}
-                            </div>
-                            <div style={settingsPlaceholderStyle()}>
-                              {t('settings.llm.emptyProvidersHint')}
-                            </div>
-                          </div>
-                        )}
-
-                        {!providersLoading && providers.map((provider) => {
-                          const active = provider.id === selectedProviderId
-                          const rememberedMainAgentPreference = active
-                            ? workspacePreference
-                            : findProviderPreference(configProviderPreferences, provider.id)
-                          const rememberedSubAgentPreference = active
-                            ? subAgentPreference
-                            : findProviderPreference(subAgentProviderPreferences, provider.id)
-                          return (
-                            <div
-                              key={provider.id}
-                              role="button"
-                              tabIndex={0}
-                              aria-label={t('settings.llm.useProviderAria', { name: provider.displayName })}
-                              aria-pressed={active}
-                              aria-disabled={applyingWorkspaceProvider || undefined}
-                              onClick={() => {
-                                if (!active && !applyingWorkspaceProvider) {
-                                  void handleWorkspaceProviderChange(provider.id)
-                                }
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault()
-                                  if (!active && !applyingWorkspaceProvider) {
-                                    void handleWorkspaceProviderChange(provider.id)
-                                  }
-                                }
-                              }}
-                              style={providerRowStyle(active)}
-                            >
-                              <ActionTooltip label={providerDetails(provider, providerBackends, t)}>
-                                <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-                                  <ProviderIdentityIcon provider={provider} size={30} />
-                                </span>
-                              </ActionTooltip>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                  <div style={{
-                                    flexShrink: 0,
-                                    maxWidth: '60%',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    fontSize: '15px',
-                                    fontWeight: 600,
-                                    color: 'var(--text-primary)'
-                                  }}>
-                                    {provider.displayName}
-                                  </div>
-                                  {canProviderCreateImages(provider) && (
-                                    <ActionTooltip label={t('settings.llm.imageGeneration.createsImages')}>
-                                      <span
-                                        role="img"
-                                        aria-label={t('settings.llm.imageGeneration.createsImages')}
-                                        style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--text-dimmed)' }}
-                                      >
-                                        <ImageIcon aria-hidden size={14} strokeWidth={1.75} />
-                                      </span>
-                                    </ActionTooltip>
-                                  )}
-                                  {providerProblem(provider, providerBackends, t) && (
-                                    <span style={{
-                                      flex: 1,
-                                      minWidth: 0,
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap',
-                                      fontSize: '12px',
-                                      color: 'var(--warning-text)'
-                                    }}>
-                                      {providerProblem(provider, providerBackends, t)}
-                                    </span>
-                                  )}
-                                </div>
-                                {rememberedMainAgentPreference || rememberedSubAgentPreference ? (
-                                  <ProviderModelSummary
-                                    main={rememberedMainAgentPreference}
-                                    subAgent={rememberedSubAgentPreference ?? undefined}
-                                  />
-                                ) : (
-                                  <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-                                    {t('settings.llm.providerSummaryNoModel')}
-                                  </div>
-                                )}
-                              </div>
-                              <span
-                                onClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                                style={{ flexShrink: 0, display: 'inline-flex' }}
-                              >
-                                <IconButton
-                                  icon={<Pencil size={15} />}
-                                  label={t('settings.llm.editProviderAria', { name: provider.displayName })}
-                                  tooltipLabel={t('settings.llm.editTitle')}
-                                  disabled={!providerEditingEnabled}
-                                  onClick={() => startEditProvider(provider)}
-                                />
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </SettingsGroup>
                   </>
+                )}
+
+                {providerManagementEnabled && providerEditorId === null && llmSegment === 'providers' && (
+                  <ProviderListGroup
+                    providers={providers}
+                    providersLoading={providersLoading}
+                    providerBackends={providerBackends}
+                    selectedProviderId={selectedProviderId}
+                    workspacePreference={workspacePreference}
+                    providerPreferences={configProviderPreferences}
+                    applying={applyingWorkspaceProvider}
+                    editingEnabled={providerEditingEnabled}
+                    onUse={(providerId) => void handleWorkspaceProviderChange(providerId)}
+                    onEdit={startEditProvider}
+                    onAdd={startCreateProvider}
+                  />
                 )}
 
                 {providerManagementEnabled && providerEditorId !== null && (

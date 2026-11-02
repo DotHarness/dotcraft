@@ -14,10 +14,11 @@ public sealed class AgentTools(
     SubAgentCoordinator? subAgentCoordinator = null,
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
     int maxSubAgentDepth = 1,
-    ModelPreference? subAgentPreference = null,
+    SubAgentModelPreference? subAgentPreference = null,
     AppConfig? appConfig = null,
     int maxConcurrentSubAgents = 16,
     SubAgentModelCatalogSnapshot? modelCatalogSnapshot = null,
+    string? inheritedProviderId = null,
     string? inheritedModel = null)
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
@@ -58,14 +59,13 @@ public sealed class AgentTools(
                 ProfileName = profile,
                 WorkingDirectory = workingDirectory,
                 RoleConfigs = subAgentRoles?.ToArray(),
-                SubAgentPreference = subAgentPreference == null
-                    ? null
-                    : ModelPreferenceRules.Clone(subAgentPreference),
+                SubAgentPreference = subAgentPreference?.Clone(),
                 RuntimeConfig = appConfig,
                 InvocationModelOverride = SubAgentModelCatalogSnapshots.ResolveInvocationOverride(
                     modelCatalogSnapshot,
                     model,
                     reasoningEffort,
+                    inheritedProviderId,
                     inheritedModel),
                 InvocationModelCatalogSnapshot = modelCatalogSnapshot,
                 MaxDepth = maxSubAgentDepth,

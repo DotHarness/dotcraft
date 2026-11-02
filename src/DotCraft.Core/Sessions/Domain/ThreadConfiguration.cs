@@ -273,8 +273,12 @@ public sealed class SubAgentModelCatalogSnapshot
 /// <summary>One model override advertised to a thread.</summary>
 public sealed class SubAgentModelCatalogItem
 {
-    /// <summary>Gets or sets the provider model identifier.</summary>
+    /// <summary>Gets or sets the model-visible name, <c>providerId/modelId</c>.</summary>
     public string Id { get; set; } = string.Empty;
+
+    public string ProviderId { get; set; } = string.Empty;
+
+    public string Model { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the supported reasoning efforts known to DotCraft.</summary>
     public List<ModelReasoningEffort> SupportedReasoningEfforts { get; set; } = [];
