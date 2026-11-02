@@ -238,7 +238,7 @@ public sealed class MaintenanceForkRunner(
         {
             var fallbackReason = CompactionErrors.IsPromptTooLong(ex)
                 ? MaintenanceForkFallbackReasons.SnapshotTooLarge
-                : ex.Message;
+                : CompactionProviderFailure.Reason(chatClient, ex);
             traceCollector?.RecordMaintenanceForkResponse(
                 sessionKey,
                 task.Kind,

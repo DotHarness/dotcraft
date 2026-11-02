@@ -166,5 +166,5 @@ internal static class PromptRequestSnapshotSources
 {
     public const string Captured = "captured";
     public const string ManualValid = "manual_valid";
-    public const string ManualRebased = "manual_rebased";
+    public const string ManualInvalid = "manual_invalid";
 }

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Context.Compaction;
 
@@ -13,7 +12,6 @@ internal sealed class LocalSummaryCompactionBackend(CompactionPipeline pipeline)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        request = Prepare(request);
         var result = request.Trigger switch
         {
             CompactionTrigger.Auto => await pipeline.TryAutoCompactHistoryAsync(
@@ -49,25 +47,4 @@ internal sealed class LocalSummaryCompactionBackend(CompactionPipeline pipeline)
             : null;
         return new CompactionExecutionResult(result.Status, Id, replacement);
     }
-
-    private static CompactionExecutionRequest Prepare(CompactionExecutionRequest request)
-    {
-        var history = WithoutInstructions(request.NeutralHistory);
-        var snapshot = request.PromptSnapshot;
-        if (snapshot is not null && snapshot.Messages.Any(AgentInstructionsHistory.IsInstructions))
-        {
-            var messages = WithoutInstructions(snapshot.Messages);
-            snapshot = snapshot with
-            {
-                Messages = messages,
-                MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(messages, messages.Count)
-            };
-        }
-
-        return request with { NeutralHistory = history, PromptSnapshot = snapshot };
-    }
-
-    private static List<ChatMessage> WithoutInstructions(IEnumerable<ChatMessage> history) =>
-        history.Where(static message => !AgentInstructionsHistory.IsInstructions(message))
-            .Select(static message => message.Clone()).ToList();
 }

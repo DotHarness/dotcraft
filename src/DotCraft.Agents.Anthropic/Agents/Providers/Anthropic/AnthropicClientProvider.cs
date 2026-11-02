@@ -53,16 +53,19 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
             client,
             runtime.Model,
             runtime.MaxOutputTokens);
+        var services = new Dictionary<Type, object>
+        {
+            [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
+            [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance,
+            [typeof(IProviderFailureClassifier)] = AnthropicProviderFailureClassifier.Instance
+        };
+        if (contentAdapter?.HasReasoningHistory != true)
+            services[typeof(IProviderHistoryRewritePolicy)] = AnthropicHistoryRewritePolicy.Instance;
         return new ProviderServiceChatClient(
             new AnthropicPromptCachingChatClient(
                 new AnthropicFastModeChatClient(new AnthropicProviderContentChatClient(client), runtime),
                 runtime.Model),
-            new Dictionary<Type, object>
-            {
-                [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
-                [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance,
-                [typeof(IProviderFailureClassifier)] = AnthropicProviderFailureClassifier.Instance
-            });
+            services);
     }
 
     async Task<ModelCatalogResult> IModelCatalogProvider.FetchModelsAsync(

@@ -142,6 +142,23 @@ the active Responses provider-history generation.
 
 ### Local summary contract
 
+Snapshot validation and replay use the unmodified provider-visible history, including images and
+instruction messages. A valid snapshot keeps its system, tools and message prefix; only the
+maintenance task is appended. Instruction messages are excluded from the summary's coverage and
+replacement history, not removed from the replayed prefix. Image descriptions, binary omission and
+input trimming apply only when constructing a non-cache summary request or a successful replacement.
+
+Providers may expose `IProviderHistoryRewritePolicy` to prepare history whose prefix changes.
+Anthropic providers without a reasoning-history adapter remove thinking and redacted-thinking,
+including their native replay containers, from non-cache summary input and retained replacement
+history. Providers with a reasoning-history adapter retain reasoning for tool continuation.
+Preparation never mutates the source history or snapshot. Other providers retain their existing behavior.
+
+Maintenance traces record the chosen path and why a snapshot was not used, with only mismatch
+positions and fingerprints rather than message content. Provider failures preserve a classified
+reason (`provider_bad_request` for HTTP 400); `summary_unavailable` denotes a response with no usable
+summary. Details remain in maintenance traces, and failed attempts never install replacement history.
+
 The synthetic handoff summary is installed with the User role, establishing an input boundary before
 the retained tail rather than impersonating an Assistant response that lacks provider-required
 reasoning.

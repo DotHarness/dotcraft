@@ -50,7 +50,7 @@ public static class CompactionSummarizerCatalog
             if (request.Scope == CompactionSummaryScope.Full)
             {
                 var full = await host.Full.CompactAsync(
-                    request.History,
+                    host.ReplayHistory,
                     request.Snapshot,
                     request.ThreadId,
                     request.FallbackTools,
@@ -63,7 +63,7 @@ public static class CompactionSummarizerCatalog
             }
 
             var partial = await host.Partial.CompactAsync(
-                request.History,
+                host.ReplayHistory,
                 request.Snapshot,
                 request.ThreadId,
                 request.FallbackTools,
