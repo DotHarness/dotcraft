@@ -556,10 +556,7 @@ public sealed partial class SessionService(
 
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
-        await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => ThreadLifecycle.ArchiveAsync(threadId, commandCt),
-            ct);
+        await ThreadLifecycle.ArchiveAsync(threadId, ct);
         McpAppTransientContexts?.ClearThread(threadId);
         await DeleteSideChatsAsync(threadId, ct);
     }

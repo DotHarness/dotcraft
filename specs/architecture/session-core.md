@@ -424,7 +424,7 @@ Notices are persisted through the normal rollout path, survive reload and paged 
 
 - `CreateThread(identity)` → `Active`. Session Core assigns the id and sets `CreatedAt` and `LastActiveAt`.
 - `ResumeThread(threadId)` keeps an Active thread Active. Any compatible adapter may resume it; Archived threads cannot be resumed. An unloaded thread is loaded from rollout (state and model history), a runtime agent session is constructed, and `LastActiveAt` updates.
-- `Active` → `Archived` on explicit request or archival policy. Archived threads are read-only: listable and inspectable, not resumable. Archiving a parent archives its SubAgent subtree.
+- `Active` → `Archived` on explicit request or archival policy. Archived threads are read-only: listable and inspectable, not resumable. Archiving a parent archives its SubAgent subtree. Archive reads only headers and subtree relationships for unloaded threads; it does not hydrate model history, recover interrupted Turns or orphaned commands, or create execution runtimes. Already-loaded threads retain their runtime cleanup and command serialization.
 - `Archived` → `Active` on explicit restore, which restores the SubAgent subtree.
 
 Invariants:
@@ -891,7 +891,7 @@ Record application:
 - `thread_rolled_back` removes the visible Turn tail and its Items.
 - Model-history, compaction, and provider-history records contribute no rows; only their outer envelope is read to advance the checkpoint, and provider-history item JSON is never decoded, stored, searched, logged, or exposed. Malformed provider history never makes display pages unavailable.
 
-Persistent forks project their own rollout and share no rows with the source. Archive and unarchive update only the projected path. Permanent deletion cascades all rows. Ephemeral threads have no paged history.
+Persistent forks project their own rollout and share no rows with the source. Archive and unarchive move the rollout and project its status and path without rebuilding existing Turn, Item, or attachment rows. Cold archive appends the existing status-change record without reading history or diffing Turns; projection repair remains available when its checkpoint is missing or stale. Permanent deletion cascades all rows. Ephemeral threads have no paged history.
 
 Projection state is created and repaired on demand, not by a startup scan. A missing state row triggers a streaming rebuild; a valid checkpoint behind the file length scans only the complete suffix; a changed path, shortened file, invalid record boundary, or invalid projected JSON clears and rebuilds that thread. Repair runs under the per-thread gate, publishes one transaction, and retries the query.
 
