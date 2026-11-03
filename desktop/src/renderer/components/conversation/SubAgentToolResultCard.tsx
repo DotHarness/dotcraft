@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import { MessageSquare } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { SubAgentChild } from '../../stores/subAgentStore'
 import { findSubAgentChild, type SubAgentLookupSources } from '../../utils/subAgentIdentity'
@@ -13,6 +14,8 @@ interface SubAgentToolDisplay {
   titleKey: string
   name: string
   identified: boolean
+  /** A sent message is the parent's action, so it takes a message glyph instead of the child's avatar. */
+  sent: boolean
   meta: string
   prompt: string | null
   child: SubAgentChild | null
@@ -35,7 +38,7 @@ export function SubAgentToolResultCard({
   const title = (
     <span style={subAgentResultContentStyle}>
       <span>
-        {display.identified && (
+        {display.identified && !display.sent && (
           <span className="dc-subagent-marks" aria-hidden>
             <span className="dc-subagent-mark">
               <RobotAvatar name={display.name} size={16} />
@@ -69,6 +72,7 @@ export function SubAgentToolResultCard({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       expandable={hasMessage}
+      icon={display.sent ? { icon: MessageSquare } : undefined}
       title={title}
     >
       <div
@@ -163,6 +167,7 @@ export function getSubAgentToolDisplay(
     titleKey,
     name: label,
     identified: resolvedName != null,
+    sent: operation === 'sendMessage' && !failed,
     meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
     child: matchedChild,

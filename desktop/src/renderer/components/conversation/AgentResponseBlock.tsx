@@ -738,7 +738,8 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   const plan = resolveCoreFallbackPlan(item)
   if (plan?.family === 'todo') return false
   if (plan?.family === 'subagent') {
-    if (plan.options.operation !== 'spawn' && !isToolExecutionFailure(item)) return false
+    const operation = plan.options.operation
+    if (operation !== 'spawn' && operation !== 'sendMessage' && !isToolExecutionFailure(item)) return false
   }
   return (
     (item.type !== 'userMessage' || item.deliveryMode === 'guidance')
