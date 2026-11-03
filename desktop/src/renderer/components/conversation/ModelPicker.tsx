@@ -558,7 +558,7 @@ export function ModelPicker({
                   fill="currentColor"
                   style={{
                     flexShrink: 0,
-                    color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
+                    color: disabled && triggerVariant === 'composer' ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
                   }}
                 />
               )}
@@ -566,7 +566,7 @@ export function ModelPicker({
                 className={css.modelLabel}
                 style={{
                   ...ellipsisStyle,
-                  color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
+                  color: disabled && triggerVariant === 'composer' ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
                 }}
               >
                 {modelLabel}
@@ -575,7 +575,7 @@ export function ModelPicker({
                 className={css.reasoningLabel}
                 style={{
                   flexShrink: 0,
-                  color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-text)',
+                  color: disabled && triggerVariant === 'composer' ? 'var(--composer-footer-muted)' : 'var(--composer-footer-text)',
                   fontWeight: 'var(--type-ui-weight)'
                 }}
               >
@@ -583,7 +583,7 @@ export function ModelPicker({
               </span>
             </span>
           )}
-          {interactive && (
+          {(interactive || triggerVariant === 'field') && (
             <ChevronDown
               className={css.chevron}
               aria-hidden

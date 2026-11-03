@@ -63,7 +63,7 @@ export function SubAgentDefaultModelField({
   const current = findSubAgentSelection(selections, mainProviderId)
   const custom = current != null || pendingProviderId != null
   const targetProviderId = pendingProviderId ?? current?.providerId ?? mainProviderId
-  const catalog = useModelCatalog(targetProviderId, custom)
+  const catalog = useModelCatalog(targetProviderId)
   const catalogLoading = custom && (catalog.status === 'loading' || catalog.status === 'idle')
   const manualFallback = custom && !catalogLoading && catalog.models.length === 0
   const shown = pendingProviderId != null
@@ -184,7 +184,7 @@ export function SubAgentDefaultModelField({
         <div className={styles.modelPicker}>
           <PreferenceModelPicker
             preference={preference}
-            models={custom ? catalog.models : []}
+            models={catalog.models}
             loading={catalogLoading}
             disabled={busy || !custom}
             errorMessage={custom ? catalog.errorMessage : null}
