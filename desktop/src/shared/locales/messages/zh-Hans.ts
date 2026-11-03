@@ -796,7 +796,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.sourceControl.provider.none': '无',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.none.description': '该工作区不使用源代码控制集成。',
   'settings.sourceControl.connectionMode.label': '连接方式',
   'settings.sourceControl.connectionMode.hint': '使用 P4CONFIG 文件，或手动填写连接参数。',
   'settings.sourceControl.connectionMode.p4config': 'P4CONFIG',

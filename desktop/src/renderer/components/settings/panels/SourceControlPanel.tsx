@@ -7,7 +7,7 @@ import type { MessageKey } from '../../../../shared/locales'
 import { normalizeConfigChangedPayload } from '../../../utils/configChanged'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
-import { settingsDescriptionStyle, settingsPlaceholderStyle } from '../settingsTypography'
+import { settingsPlaceholderStyle } from '../settingsTypography'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
@@ -393,13 +393,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 t={t}
               />
             </SettingsRow>
-            {provider === 'none' && (
-              <SettingsRow>
-                <div style={settingsDescriptionStyle(false)}>
-                  {t('settings.sourceControl.none.description')}
-                </div>
-              </SettingsRow>
-            )}
           </SettingsGroup>
 
           {isPerforce && (

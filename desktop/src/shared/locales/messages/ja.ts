@@ -708,7 +708,6 @@ export const MESSAGES_JA = {
   'settings.sourceControl.provider.none': 'なし',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.none.description': 'このワークスペースはソース管理統合を使用しません。',
   'settings.sourceControl.connectionMode.label': '接続',
   'settings.sourceControl.connectionMode.hint': 'P4CONFIG ファイルを使用するか、接続パラメーターを手動で入力します。',
   'settings.sourceControl.connectionMode.p4config': 'P4CONFIG',

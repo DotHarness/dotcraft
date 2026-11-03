@@ -708,7 +708,6 @@ export const MESSAGES_FR = {
   'settings.sourceControl.provider.none': "Aucun",
   'settings.sourceControl.provider.git': "Git",
   'settings.sourceControl.provider.perforce': "Perforce",
-  'settings.sourceControl.none.description': "Cet espace de travail n'utilise pas d'intégration de gestion de code.",
   'settings.sourceControl.connectionMode.label': "Connexion",
   'settings.sourceControl.connectionMode.hint': "Utilisez un fichier P4CONFIG ou saisissez les paramètres de connexion manuellement.",
   'settings.sourceControl.connectionMode.p4config': "P4CONFIG",

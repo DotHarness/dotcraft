@@ -708,7 +708,6 @@ export const MESSAGES_KO = {
   'settings.sourceControl.provider.none': '없음',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.none.description': '이 작업 공간은 소스 제어 통합을 사용하지 않습니다.',
   'settings.sourceControl.connectionMode.label': '연결',
   'settings.sourceControl.connectionMode.hint': 'P4CONFIG 파일을 사용하거나 연결 매개변수를 직접 입력합니다.',
   'settings.sourceControl.connectionMode.p4config': 'P4CONFIG',
