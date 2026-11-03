@@ -107,8 +107,6 @@ import { reloadVisualizationsReferencedBy } from './components/conversation/visu
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { handleBrowserEvent } from './utils/browserEventHandler'
-import { conversationRenderPaused } from './utils/conversationRenderPause'
-import { onDesktopPetPresentationChange } from './components/desktopPet/petPresentation'
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
@@ -692,10 +690,6 @@ export function App(): JSX.Element {
   const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
   const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => Promise<boolean>) | null>(null)
   const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
-  const deferredActiveConversationRef = useRef<{
-    threadId: string
-    count: number
-  } | null>(null)
   const activeThreadSnapshotReconcileInFlightRef = useRef<{
     threadId: string
     scope: string
@@ -729,62 +723,17 @@ export function App(): JSX.Element {
     return threadId != null && threadRestoreGateRef.current?.threadId === threadId
   }, [])
 
-  const isConversationRenderPaused = useCallback((): boolean => {
-    return conversationRenderPaused(windowVisibilityStateRef.current)
-  }, [])
-
-  const markActiveConversationDeferred = useCallback((threadId: string): void => {
-    const current = deferredActiveConversationRef.current
-    deferredActiveConversationRef.current = {
-      threadId,
-      count: current?.threadId === threadId ? current.count + 1 : 1
-    }
-  }, [])
-
-  const clearDeferredActiveConversation = useCallback((threadId?: string): void => {
-    const current = deferredActiveConversationRef.current
-    if (!current) return
-    if (threadId != null && current.threadId !== threadId) return
-    deferredActiveConversationRef.current = null
-  }, [])
-
-  const hasDeferredActiveConversation = useCallback((): boolean => {
-    const activeId = useThreadStore.getState().activeThreadId
-    const current = deferredActiveConversationRef.current
-    return activeId != null && current?.threadId === activeId && current.count > 0
-  }, [])
-
-  const reconcileDeferredActiveConversation = useCallback((reason: string): void => {
-    if (!hasDeferredActiveConversation()) return
-    void reconcileActiveThreadSnapshotRef.current?.(reason)
-  }, [hasDeferredActiveConversation])
-
   const requestActiveConversationReconcile = useCallback((
     threadId: string | null,
     reason: string
   ): void => {
     if (!threadId || useThreadStore.getState().activeThreadId !== threadId) return
-    if (isConversationRenderPaused()) {
-      markActiveConversationDeferred(threadId)
-      return
-    }
     void reconcileActiveThreadSnapshotRef.current?.(reason)
-  }, [isConversationRenderPaused, markActiveConversationDeferred])
-
-  const shouldDeferActiveConversationUpdate = useCallback((
-    threadId: string | null | undefined
-  ): boolean => {
-    if (!threadId) return false
-    if (useThreadStore.getState().activeThreadId !== threadId) return false
-    if (!isConversationRenderPaused()) return false
-    markActiveConversationDeferred(threadId)
-    return true
-  }, [isConversationRenderPaused, markActiveConversationDeferred])
+  }, [])
 
   const activateParkedInteractiveRequests = useCallback((threadId: string): boolean => {
     if (useThreadStore.getState().activeThreadId !== threadId) return false
-    if (isThreadRestoreGated(threadId) || isConversationRenderPaused()) return false
-    if (hasDeferredActiveConversation()) return false
+    if (isThreadRestoreGated(threadId)) return false
 
     const threadStore = useThreadStore.getState()
     const parkedApprovals = threadStore.consumeParkedApprovals(threadId)
@@ -799,38 +748,18 @@ export function App(): JSX.Element {
       )
     }
     return parkedApprovals.length > 0 || parkedUserInput != null
-  }, [hasDeferredActiveConversation, isConversationRenderPaused, isThreadRestoreGated])
+  }, [isThreadRestoreGated])
 
   useEffect(() => {
-    const handleForegrounded = (): void => {
-      if (!isConversationRenderPaused()) {
-        reconcileDeferredActiveConversation('window-foregrounded')
-      }
-    }
     const applyVisibilityState = (state: WindowVisibilityState): void => {
-      const wasPaused = isConversationRenderPaused()
       windowVisibilityStateRef.current = state
-      if (wasPaused && !isConversationRenderPaused()) {
-        reconcileDeferredActiveConversation('window-visibility-restored')
-      }
     }
-
     const unsubscribeVisibility = window.api.window.onVisibilityChanged?.(applyVisibilityState)
     void window.api.window.getVisibilityState?.()
       .then(applyVisibilityState)
       .catch(() => undefined)
-    const unsubscribePet = onDesktopPetPresentationChange((presenting) => {
-      if (presenting) reconcileDeferredActiveConversation('desktop-pet-detached')
-    })
-    document.addEventListener('visibilitychange', handleForegrounded)
-    window.addEventListener('focus', handleForegrounded)
-    return () => {
-      unsubscribeVisibility?.()
-      unsubscribePet()
-      document.removeEventListener('visibilitychange', handleForegrounded)
-      window.removeEventListener('focus', handleForegrounded)
-    }
-  }, [isConversationRenderPaused, reconcileDeferredActiveConversation])
+    return () => unsubscribeVisibility?.()
+  }, [])
 
   const lastSeenWhatsNewVersionRef = useRef<string | undefined>(undefined)
 
@@ -1709,11 +1638,7 @@ export function App(): JSX.Element {
                 conversation: useConversationStore.getState(),
                 runtime: runtimeSnapshot
               })) {
-                if (isConversationRenderPaused()) {
-                  markActiveConversationDeferred(threadId)
-                } else {
-                  void reconcileActiveThreadSnapshotRef.current?.('statusChanged')
-                }
+                void reconcileActiveThreadSnapshotRef.current?.('statusChanged')
               }
             }
             break
@@ -1733,7 +1658,7 @@ export function App(): JSX.Element {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
             const conversation = conversationFor(startedThreadId)
-            if (conversation && !shouldDeferActiveConversationUpdate(startedThreadId)) {
+            if (conversation) {
               conversation.onTurnStarted(rawTurn)
             }
 
@@ -1744,7 +1669,7 @@ export function App(): JSX.Element {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const completedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
             const conversation = conversationFor(completedThreadId)
-            if (conversation && !shouldDeferActiveConversationUpdate(completedThreadId)) {
+            if (conversation) {
               conversation.onTurnCompleted(rawTurn)
             }
             // Fallback: poll thread/read if sidebar still has no displayName (e.g. missed thread/renamed).
@@ -1804,7 +1729,7 @@ export function App(): JSX.Element {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onAgentMessageDelta(delta)
             }
 
@@ -1815,7 +1740,7 @@ export function App(): JSX.Element {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onReasoningDelta(delta)
             }
 
@@ -1825,7 +1750,7 @@ export function App(): JSX.Element {
           case 'item/commandExecution/terminalInteraction': {
             const tid = (p.threadId as string | undefined) ?? ''
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onTerminalInteraction({
                 turnId: p.turnId as string | undefined,
                 itemId: p.itemId as string | undefined,
@@ -1845,7 +1770,7 @@ export function App(): JSX.Element {
               delta: (p.delta as string | undefined)
             }
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onCommandExecutionDelta(params)
             }
 
@@ -1865,7 +1790,7 @@ export function App(): JSX.Element {
               delta: (p.delta as string | undefined)
             }
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onTerminalEvent(params)
             }
 
@@ -1875,7 +1800,7 @@ export function App(): JSX.Element {
           case 'item/toolCall/argumentsDelta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const conversation = conversationFor(tid)
-            if (conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (conversation) {
               conversation.onToolCallArgumentsDelta({
                 threadId: (p.threadId as string | undefined),
                 turnId: (p.turnId as string | undefined),
@@ -1892,7 +1817,7 @@ export function App(): JSX.Element {
             const tid = (p.threadId as string | undefined) ?? ''
             const progress = normalizeRemoteFileTransferProgress(p.progress)
             const conversation = conversationFor(tid)
-            if (progress && conversation && !shouldDeferActiveConversationUpdate(tid)) {
+            if (progress && conversation) {
               conversation.onToolExecutionProgress({
                 turnId: p.turnId as string | undefined,
                 itemId: p.itemId as string | undefined,
@@ -1906,7 +1831,7 @@ export function App(): JSX.Element {
           case 'item/completed': {
             const tid = (p.threadId as string | undefined) ?? ''
             const conversation = conversationFor(tid)
-            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
+            if (!conversation) break
             conversation.onItemCompleted(p)
             if (!isActiveConversation(tid)) break
             const rawItem = p.item as Record<string, unknown> | undefined
@@ -1935,7 +1860,7 @@ export function App(): JSX.Element {
             if (petFind) showFindToast(petFind)
             const tid = (p.threadId as string | undefined) ?? ''
             const conversation = conversationFor(tid)
-            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
+            if (!conversation) break
             const totalInput = typeof p.totalInputTokens === 'number' ? (p.totalInputTokens as number) : null
             const totalOutput = typeof p.totalOutputTokens === 'number' ? (p.totalOutputTokens as number) : null
             const contextUsage = typeof p.contextUsage === 'object' && p.contextUsage !== null
@@ -2027,7 +1952,7 @@ export function App(): JSX.Element {
           case 'turn/diff/updated': {
             const tid = (p.threadId as string | undefined) ?? ''
             const conversation = tid ? conversationFor(tid) : null
-            if (!conversation || shouldDeferActiveConversationUpdate(tid)) break
+            if (!conversation) break
             conversation.onTurnDiffUpdated({
               turnId: (p.turnId as string | undefined) ?? '',
               diff: typeof p.diff === 'string' ? p.diff : ''
@@ -2199,8 +2124,6 @@ export function App(): JSX.Element {
           threadId !== activeThreadId
           || !getThreadConversation(threadId)
           || isThreadRestoreGated(threadId)
-          || isConversationRenderPaused()
-          || hasDeferredActiveConversation()
         )) {
           useThreadStore.getState().parkApproval(threadId, {
             bridgeId,
@@ -2208,7 +2131,6 @@ export function App(): JSX.Element {
             rawParams: p
           })
           if (threadId === activeThreadId) {
-            markActiveConversationDeferred(threadId)
             requestActiveConversationReconcile(threadId, 'parked-approval-request')
           }
           return
@@ -2225,8 +2147,6 @@ export function App(): JSX.Element {
           threadId !== activeThreadId
           || !getThreadConversation(threadId)
           || isThreadRestoreGated(threadId)
-          || isConversationRenderPaused()
-          || hasDeferredActiveConversation()
         )) {
           useThreadStore.getState().parkUserInput(threadId, {
             bridgeId,
@@ -2234,7 +2154,6 @@ export function App(): JSX.Element {
             rawParams: p
           })
           if (threadId === activeThreadId) {
-            markActiveConversationDeferred(threadId)
             requestActiveConversationReconcile(threadId, 'parked-user-input-request')
           }
           return
@@ -2919,7 +2838,6 @@ export function App(): JSX.Element {
       : null
 
     openThreadState(curr)
-    clearDeferredActiveConversation()
 
     // Keep or release the previous thread only when genuinely switching (not StrictMode remount)
     if (leftWarm) {
@@ -2997,7 +2915,6 @@ export function App(): JSX.Element {
               preserveExistingRealtime: true,
               realtimeScopeThreadId: requestedId
             })
-            clearDeferredActiveConversation(requestedId)
             if (res.thread.plan) {
               useConversationStore.getState().onPlanUpdated(res.thread.plan)
             }
@@ -3057,7 +2974,6 @@ export function App(): JSX.Element {
     activateParkedInteractiveRequests,
     beginThreadRestoreGate,
     clearThreadRestoreGate,
-    clearDeferredActiveConversation,
     ensureThreadSubscribed,
     getThreadSubscriptionTarget,
     isThreadRestoreGated,
@@ -3116,7 +3032,6 @@ export function App(): JSX.Element {
         preserveExistingRealtime: true,
         realtimeScopeThreadId: requestedId
       })
-      clearDeferredActiveConversation(requestedId)
       if (thread.plan) {
         useConversationStore.getState().onPlanUpdated(thread.plan)
       }
@@ -3214,7 +3129,6 @@ export function App(): JSX.Element {
     let refreshInFlight = false
     const refreshActiveThreadMetadata = async (): Promise<void> => {
       if (refreshInFlight) return
-      if (isConversationRenderPaused()) return
       // Nobody is reading a blurred window; the interval keeps ticking and resumes on focus.
       if (!windowVisibilityStateRef.current.focused) return
       if (useThreadStore.getState().activeThreadLoadError?.threadId === activeThreadId) return
@@ -3258,7 +3172,7 @@ export function App(): JSX.Element {
       disposed = true
       window.clearInterval(timer)
     }
-  }, [activeThreadId, applyActiveThreadSnapshot, isConversationRenderPaused, reconcileActiveThreadSnapshot, status])
+  }, [activeThreadId, applyActiveThreadSnapshot, reconcileActiveThreadSnapshot, status])
 
   const isFatalError = isFatalConnectionError(status, errorType)
   const showErrorScreen = isFatalError || launchErrorScreenVisible

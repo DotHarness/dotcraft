@@ -40,7 +40,7 @@ export function useTypewriterReveal(targetText: string, enabled: boolean): strin
       lastTsRef.current = null
     }
 
-    if (!animate) {
+    if (!animate || document.hidden) {
       cancel()
       revealedRef.current = total
       setRevealed(total)

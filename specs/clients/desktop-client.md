@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-11-02 |
+| **Date** | 2026-11-03 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -321,7 +321,7 @@ Selecting a thread opens a new restore generation and clears the previous one. T
 Pending approval and user-input requests belong to the active turn and survive ordinary navigation.
 
 - Switching away is not a decline, cancel, empty answer, or dismissal.
-- A request that arrives while its thread is not the active fully-restored thread, or while conversation updates are paused or unreconciled, is parked on its thread. Parked requests activate when the thread is reopened warm, or otherwise after the current generation's header and head-page hydration complete.
+- A request that arrives while its thread is not the active fully-restored thread is parked on its thread. Parked requests activate when the thread is reopened warm, or otherwise after the current generation's header and head-page hydration complete.
 - Requests are matched by logical identity `method + threadId + turnId + requestId`; a fresh JSON-RPC envelope id does not make a new request. A replay restores the actionable composer once, without duplicate cards, queue entries, or decisions.
 - Multiple pending approvals for one turn form a queue; the next becomes actionable only after the prior is submitted or resolved.
 - Local submission state belongs to one logical request and never leaks to another.
@@ -334,11 +334,12 @@ Desktop receives thread truth through durable header/history reads and realtime 
 - A stale header or page never regresses newer realtime state. Merging preserves observed terminal evidence for the same item or call: completed tool executions and results, resolved approvals, completed user-input responses, final agent messages, and terminal turn status. A tool with terminal evidence never returns to "awaiting result".
 - A terminal turn state clears running and waiting indicators even if the local view still showed live tools or composers.
 - `thread/status/changed` is a summary signal, not conversation history. Desktop uses it as a reconciliation trigger: if the server says the active thread is idle while Desktop still shows activity, Desktop reloads the header and newest pages.
-- An active thread with a parked request keeps retrying head-page reconciliation on foreground, reconnect, and metadata refresh; a failed read keeps the request parked and never synthesizes a response.
+- An active thread with a parked request keeps retrying head-page reconciliation on reconnect and metadata refresh; a failed read keeps the request parked and never synthesizes a response.
 - If completion notifications are missed after a response, the next reconcile restores completed tools, final output, and terminal state without the user switching away.
 - Subagent token counts sum the child's turn `tokenUsage` and rise with `thread/tokenUsage/updated`; they never decrease. Subagent elapsed time derives from `runtime.activeTurnStartedAt` and shows unknown when unavailable.
 - Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
 - Reconciliation is scoped to the active foreground thread and workspace.
+- Conversation updates apply whether or not the window is visible; showing a hidden or minimized window reads nothing.
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface
 
@@ -1186,7 +1187,6 @@ Desktop pet mode presents the composer mascot and its existing conversation on t
 - The pet carries the source composer's work states and effects; idle behavior never replaces a work state, stays within the display, and is suppressed during interaction and under reduced motion.
 - Quick Chat is the pet's only composer: it shares the source editor's draft and submission behavior, never returns to the main window on send, and never lets late updates replace newer typing. Its single control sends, steers or queues into a running turn per the follow-up preference, stops the turn when the draft is empty, or dictates when there is nothing to stop.
 - One activity pill shows the source thread's status (needs input over blocked over ready over running), its name, and one derived status line, never the conversation itself. Ready persists until seen; dismissal is remembered per turn.
-- While the pet presents a thread, the hidden main window keeps conversation state current so approvals and completions reach the pill.
 - The pill may relay a pending tool approval with the composer's decision options, sent through the Desktop decision path, which stays the only resolver; the relay is refused unless the displayed request is still pending. User-input requests and plan confirmation return to the main window.
 - A plugin replacement of `composer.mascot` keeps its own character and opts out of the drag transfer.
 

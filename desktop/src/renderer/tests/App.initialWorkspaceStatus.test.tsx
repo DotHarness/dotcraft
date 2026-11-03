@@ -1163,12 +1163,21 @@ describe('App initial workspace status bootstrap', () => {
     expect(useThreadStore.getState().threadList.map((thread) => thread.id)).not.toContain('thread-secondary')
   })
 
-  it('defers active conversation deltas while hidden and reconciles once when restored', async () => {
+  it('keeps applying active conversation updates while hidden and reads nothing on restore', async () => {
     const threadId = 'thread-hidden'
     let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+    let serverRequestHandler: ((payload: {
+      bridgeId: string
+      method: string
+      params?: unknown
+    }) => void) | undefined
     let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
     const onNotification = vi.fn((handler: typeof notificationHandler) => {
       notificationHandler = handler
+      return vi.fn()
+    })
+    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+      serverRequestHandler = handler
       return vi.fn()
     })
     const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
@@ -1190,6 +1199,7 @@ describe('App initial workspace status bootstrap', () => {
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
       onNotification,
+      onServerRequest,
       onWindowVisibilityChanged,
       settingsGet: vi.fn().mockResolvedValue({}),
       modulesList: vi.fn().mockResolvedValue([]),
@@ -1216,192 +1226,6 @@ describe('App initial workspace status bootstrap', () => {
         method: 'item/agentMessage/delta',
         params: { threadId, delta: 'hidden output' }
       })
-      notificationHandler?.({
-        method: 'item/commandExecution/outputDelta',
-        params: { threadId, turnId: 'turn-1', itemId: 'item-1', delta: 'line 1' }
-      })
-    })
-
-    expect(agentDeltaSpy).not.toHaveBeenCalled()
-    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
-
-    await act(async () => {
-      visibilityHandler?.({ minimized: false, visible: true, focused: true })
-    })
-
-    await waitFor(() => {
-      const fullReads = appServerSendRequest.mock.calls.filter((call) => {
-        const params = call[1] as { includeTurns?: boolean } | undefined
-        return call[0] === 'thread/read' && params?.includeTurns === true
-      })
-      expect(fullReads).toHaveLength(1)
-    })
-  })
-
-  it('retains a parked request after a failed restore and activates it after retry', async () => {
-    const threadId = 'thread-input-restore-retry'
-    let retryMode = false
-    let reconcileAttempts = 0
-    let serverRequestHandler: ((payload: {
-      bridgeId: string
-      method: string
-      params?: unknown
-    }) => void) | undefined
-    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
-    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
-      serverRequestHandler = handler
-      return vi.fn()
-    })
-    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
-      visibilityHandler = handler
-      return vi.fn()
-    })
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const appServerSendRequest = vi.fn((
-      method: string,
-      params?: { threadId?: string; includeTurns?: boolean }
-    ): Promise<unknown> => {
-      if (method === 'thread/read') {
-        if (retryMode && params?.includeTurns === true) {
-          reconcileAttempts += 1
-          if (reconcileAttempts === 1) return Promise.reject(new Error('temporary read failure'))
-          const thread = makeThread(threadId, readyWorkspaceStatus.workspacePath)
-          thread.turns = [{
-            id: 'turn-retry',
-            threadId,
-            status: 'waitingInput',
-            createdAt: '2026-06-07T00:00:00.000Z',
-            items: [{ id: 'item-retry', type: 'agentMessage', status: 'completed', text: 'Restored after retry' }]
-          }]
-          return Promise.resolve({ thread })
-        }
-        return Promise.resolve({
-          thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath)
-        })
-      }
-      if (method === 'thread/list') {
-        return Promise.resolve({ data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] })
-      }
-      return Promise.resolve({})
-    })
-    installApi(readyWorkspaceStatus, {
-      appServerSendRequest,
-      onServerRequest,
-      onWindowVisibilityChanged,
-      settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({})
-    })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
-    useThreadStore.getState().setActiveThreadId(threadId)
-
-    renderApp()
-    await waitFor(() => expect(serverRequestHandler).toBeDefined())
-    await flushPromises()
-    retryMode = true
-
-    await act(async () => {
-      visibilityHandler?.({ minimized: true, visible: false, focused: false })
-      serverRequestHandler?.({
-        bridgeId: 'bridge-input-retry',
-        method: 'item/tool/requestUserInput',
-        params: {
-          threadId,
-          turnId: 'turn-retry',
-          requestId: 'request-retry',
-          isBlocking: false,
-          questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
-        }
-      })
-      visibilityHandler?.({ minimized: false, visible: true, focused: true })
-    })
-
-    await waitFor(() => expect(reconcileAttempts).toBe(1))
-    expect(useConversationStore.getState().pendingUserInput).toBeNull()
-    expect(useThreadStore.getState().parkedUserInputs.has(threadId)).toBe(true)
-
-    await act(async () => {
-      visibilityHandler?.({ minimized: true, visible: false, focused: false })
-      visibilityHandler?.({ minimized: false, visible: true, focused: true })
-    })
-
-    await waitFor(() => {
-      expect(reconcileAttempts).toBe(2)
-      expect(useConversationStore.getState().turns[0]?.items[0]?.text).toBe('Restored after retry')
-      expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-retry')
-    })
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('thread/read reconcile failed'),
-      expect.any(Error)
-    )
-  })
-
-  it('reconciles a pending approval after the window returns', async () => {
-    const threadId = 'thread-approval-hidden'
-    let approvalPending = false
-    let serverRequestHandler: ((payload: {
-      bridgeId: string
-      method: string
-      params?: unknown
-    }) => void) | undefined
-    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
-    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
-      serverRequestHandler = handler
-      return vi.fn()
-    })
-    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
-      visibilityHandler = handler
-      return vi.fn()
-    })
-    const appServerSendRequest = vi.fn(async (
-      method: string,
-      params?: { threadId?: string }
-    ) => {
-      if (method === 'thread/read') {
-        const thread = makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath)
-        if (approvalPending) {
-          thread.turns = [{
-            id: 'turn-approval',
-            threadId,
-            status: 'waitingApproval',
-            createdAt: '2026-06-07T00:00:00.000Z',
-            items: [{
-              id: 'item-preface',
-              type: 'agentMessage',
-              status: 'completed',
-              text: 'Approval context'
-            }]
-          }]
-        }
-        return { thread }
-      }
-      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
-      return {}
-    })
-    installApi(readyWorkspaceStatus, {
-      appServerSendRequest,
-      onServerRequest,
-      onWindowVisibilityChanged,
-      settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({})
-    })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
-    useThreadStore.getState().setActiveThreadId(threadId)
-
-    renderApp()
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
-        threadId,
-        includeTurns: true
-      })
-    })
-    await flushPromises()
-    appServerSendRequest.mockClear()
-    approvalPending = true
-
-    await act(async () => {
-      visibilityHandler?.({ minimized: true, visible: false, focused: false })
       serverRequestHandler?.({
         bridgeId: 'bridge-approval-hidden',
         method: 'item/approval/request',
@@ -1418,142 +1242,18 @@ describe('App initial workspace status bootstrap', () => {
       })
     })
 
-    expect(useConversationStore.getState().pendingApproval).toBeNull()
-    expect(useThreadStore.getState().parkedApprovals.get(threadId)?.[0]?.bridgeId)
-      .toBe('bridge-approval-hidden')
-    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
+    expect(agentDeltaSpy).toHaveBeenCalledWith('hidden output')
+    expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('bridge-approval-hidden')
+    expect(useThreadStore.getState().parkedApprovals.has(threadId)).toBe(false)
+    appServerSendRequest.mockClear()
 
     await act(async () => {
       visibilityHandler?.({ minimized: false, visible: true, focused: true })
-    })
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
-        threadId,
-        includeTurns: true
-      })
-    })
-    expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('bridge-approval-hidden')
-  })
-
-  it('discards an in-flight snapshot and reads again before activating a parked request', async () => {
-    const threadId = 'thread-input-generation'
-    const staleRead = createDeferred<{ thread: Thread }>()
-    const latestRead = createDeferred<{ thread: Thread }>()
-    let holdReconcile = false
-    let heldReadCount = 0
-    let serverRequestHandler: ((payload: {
-      bridgeId: string
-      method: string
-      params?: unknown
-    }) => void) | undefined
-    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
-    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
-    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
-      serverRequestHandler = handler
-      return vi.fn()
-    })
-    const onNotification = vi.fn((handler: typeof notificationHandler) => {
-      notificationHandler = handler
-      return vi.fn()
-    })
-    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
-      visibilityHandler = handler
-      return vi.fn()
-    })
-    const appServerSendRequest = vi.fn((
-      method: string,
-      params?: { threadId?: string; includeTurns?: boolean }
-    ): Promise<unknown> => {
-      if (method === 'thread/read') {
-        if (holdReconcile && params?.includeTurns === true) {
-          heldReadCount += 1
-          return heldReadCount === 1 ? staleRead.promise : latestRead.promise
-        }
-        return Promise.resolve({
-          thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath)
-        })
-      }
-      if (method === 'thread/list') {
-        return Promise.resolve({ data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] })
-      }
-      return Promise.resolve({})
-    })
-    installApi(readyWorkspaceStatus, {
-      appServerSendRequest,
-      onServerRequest,
-      onNotification,
-      onWindowVisibilityChanged,
-      settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({})
-    })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
-    useThreadStore.getState().setActiveThreadId(threadId)
-
-    renderApp()
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
-        threadId,
-        includeTurns: true
-      })
+      window.dispatchEvent(new Event('focus'))
     })
     await flushPromises()
-    appServerSendRequest.mockClear()
-    holdReconcile = true
 
-    await act(async () => {
-      visibilityHandler?.({ minimized: true, visible: false, focused: false })
-      notificationHandler?.({
-        method: 'item/agentMessage/delta',
-        params: { threadId, delta: 'missed while hidden' }
-      })
-      visibilityHandler?.({ minimized: false, visible: true, focused: true })
-    })
-    await waitFor(() => expect(heldReadCount).toBe(1))
-
-    await act(async () => {
-      serverRequestHandler?.({
-        bridgeId: 'bridge-input-generation',
-        method: 'item/tool/requestUserInput',
-        params: {
-          threadId,
-          turnId: 'turn-generation',
-          requestId: 'request-generation',
-          isBlocking: false,
-          questions: [{ id: 'confirm', question: 'Continue?', options: [{ label: 'Yes' }] }]
-        }
-      })
-    })
-    expect(useConversationStore.getState().pendingUserInput).toBeNull()
-    expect(useThreadStore.getState().parkedUserInputs.has(threadId)).toBe(true)
-
-    staleRead.resolve({
-      thread: makeThread(threadId, readyWorkspaceStatus.workspacePath, 'Stale snapshot')
-    })
-    await waitFor(() => expect(heldReadCount).toBe(2))
-    expect(useConversationStore.getState().pendingUserInput).toBeNull()
-    expect(useThreadStore.getState().parkedUserInputs.has(threadId)).toBe(true)
-
-    const latestThread = makeThread(threadId, readyWorkspaceStatus.workspacePath, 'Latest snapshot')
-    latestThread.turns = [{
-      id: 'turn-generation',
-      threadId,
-      status: 'waitingInput',
-      createdAt: '2026-06-07T00:00:00.000Z',
-      items: [{
-        id: 'item-preface',
-        type: 'agentMessage',
-        status: 'completed',
-        text: 'Latest restored preface'
-      }]
-    }]
-    latestRead.resolve({ thread: latestThread })
-
-    await waitFor(() => {
-      expect(useConversationStore.getState().turns[0]?.items[0]?.text).toBe('Latest restored preface')
-      expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-generation')
-    })
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
   })
 
   it('does not let an initial thread restore snapshot release a request that arrived mid-read', async () => {
