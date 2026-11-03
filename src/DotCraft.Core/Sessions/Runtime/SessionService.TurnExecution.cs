@@ -1408,7 +1408,7 @@ public sealed partial class SessionService
 
                                 case TextReasoningContent reasoning:
                                     if (ReasoningContentHelper.TryGetText(reasoning, out var rText))
-                                        itemProjector.AppendReasoning(rText);
+                                        itemProjector.AppendReasoning(rText, AgentResponseAggregation.Group(reasoning));
                                     break;
 
                                 case ToolCallArgumentsDeltaContent toolArgsDelta:

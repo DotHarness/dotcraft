@@ -19,6 +19,7 @@ public sealed partial class SessionService
         private SessionItem? _reasoning;
         private string _agentText = string.Empty;
         private string _reasoningText = string.Empty;
+        private string? _reasoningGroup;
         private int _agentDeltaIndex;
 
         public string AgentText => _agentText;
@@ -64,7 +65,7 @@ public sealed partial class SessionService
             channel.EmitItemDelta(_agentMessage, new AgentMessageDelta { TextDelta = chunk });
         }
 
-        public void AppendReasoning(string text)
+        public void AppendReasoning(string text, string? group = null)
         {
             FinalizeAgentMessage();
             if (_reasoning == null)
@@ -82,6 +83,10 @@ public sealed partial class SessionService
                 channel.EmitItemStarted(_reasoning);
             }
 
+            // Provider reasoning items stream into one item, so their texts are separated like parts within one.
+            if (group != null && _reasoningGroup != null && group != _reasoningGroup && _reasoningText.Length > 0)
+                text = "\n\n" + text;
+            _reasoningGroup = group ?? _reasoningGroup;
             _reasoningText += text;
             channel.EmitItemDelta(_reasoning, new ReasoningContentDelta { TextDelta = text });
         }
@@ -110,6 +115,7 @@ public sealed partial class SessionService
             channel.EmitItemCompleted(_reasoning);
             _reasoning = null;
             _reasoningText = string.Empty;
+            _reasoningGroup = null;
         }
     }
 }

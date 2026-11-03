@@ -181,7 +181,9 @@ The neutral reasoning text preserves native part boundaries: deltas within one p
 unchanged, while different non-empty parts are separated by `\n\n`. A part is identified by its
 field (`summary` or `content`) and native part index. Empty deltas and part lifecycle events do not
 emit separators. When no non-empty delta was emitted, completion projects the non-empty summary
-parts followed by content parts with the same separators. These separators affect only the neutral
+parts followed by content parts with the same separators. When adjacent reasoning items stream into
+one Session `ReasoningContent` item, Session Core separates their non-empty texts with `\n\n` too,
+keyed by the reasoning group. These separators affect only the neutral
 text, never the native replay envelope or encrypted content.
 
 When rebuilding neutral history, the mapper prefers this envelope, then an available native raw

@@ -69,7 +69,7 @@ internal static class AgentResponseAggregation
         return copy;
     }
 
-    private static string? Group(AIContent content) =>
+    internal static string? Group(AIContent content) =>
         content.AdditionalProperties?.TryGetValue(ReasoningGroupKey, out var value) == true
             ? value as string
             : null;

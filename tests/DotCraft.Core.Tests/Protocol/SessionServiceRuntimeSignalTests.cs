@@ -2447,6 +2447,34 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
     }
 
     [Fact]
+    public async Task SubmitInputAsync_AdjacentReasoningGroups_SeparatesTheirText()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [Grouped("**Reviewing ", "a")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [Grouped("helpers**", "a")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [Grouped("**Preparing fixture**", "b")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var reasoning = Assert.Single(Assert.Single(loaded!.Turns).Items, item => item.Type == ItemType.ReasoningContent);
+        Assert.Equal("**Reviewing helpers**\n\n**Preparing fixture**", Assert.IsType<ReasoningContentPayload>(reasoning.Payload).Text);
+        Assert.Equal(
+            "**Reviewing helpers**\n\n**Preparing fixture**",
+            string.Concat(events.Select(e => e.ReasoningDeltaPayload?.TextDelta)));
+
+        static TextReasoningContent Grouped(string text, string group) => new(text)
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary { [AgentResponseAggregation.ReasoningGroupKey] = group }
+        };
+    }
+
+    [Fact]
     public async Task SubAgentEdgeChanges_InvokeGraphChangedBroadcastHook()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
