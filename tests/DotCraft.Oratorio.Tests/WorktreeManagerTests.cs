@@ -76,9 +76,9 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_GitHubPullRequestFetchesExactCommitWithResolvedCredential_WhenLocalShaIsMissing()
+    public async Task PrepareAsync_GitHubPullRequestFetchesExactCommitWithResolvedCredential_WhenLocalShaIsMissingAndRefIsStale()
     {
-        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
+        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: true);
         try
         {
             Assert.False(await GitSucceedsAsync(repository.CheckoutPath, ["cat-file", "-e", $"{repository.ExpectedHeadSha}^{{commit}}"]));
@@ -92,7 +92,7 @@ public sealed class WorktreeManagerTests
                 "github",
                 "pr:example-owner/oratorio#184",
                 "example-owner/oratorio",
-                "feature/review-target",
+                "review-target",
                 repository.ExpectedHeadSha,
                 repository.CheckoutPath), CancellationToken.None);
 
@@ -100,6 +100,8 @@ public sealed class WorktreeManagerTests
             Assert.Equal(repository.ExpectedHeadSha, result.BaseRef);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
             Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal(repository.MismatchedHeadSha, (await GitAsync(Path.Combine(repository.Root, "remote.git"),
+                ["rev-parse", "refs/pull/184/head"])).Trim());
         }
         finally
         {
@@ -161,35 +163,6 @@ public sealed class WorktreeManagerTests
             Assert.Equal(repository.ExpectedHeadSha, result.BaseRef);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
             Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
-        }
-        finally
-        {
-            DeleteDirectory(repository.Root);
-        }
-    }
-
-    [Fact]
-    public async Task PrepareAsync_FetchesExactCommit_WhenPullRequestRefIsStale()
-    {
-        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: true);
-        try
-        {
-            Assert.False(await GitSucceedsAsync(repository.CheckoutPath, ["cat-file", "-e", $"{repository.ExpectedHeadSha}^{{commit}}"]));
-            var manager = CreateManager(repository.Root);
-            var result = await manager.PrepareAsync(new WorktreePrepareRequest(
-                "run-stale-pr-ref",
-                "item-stale-pr-ref",
-                "github",
-                "pr:example-owner/oratorio#184",
-                "example-owner/oratorio",
-                "review-target",
-                repository.ExpectedHeadSha,
-                repository.CheckoutPath), CancellationToken.None);
-
-            Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
-            Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
-            Assert.Equal(repository.MismatchedHeadSha, (await GitAsync(Path.Combine(repository.Root, "remote.git"),
-                ["rev-parse", "refs/pull/184/head"])).Trim());
         }
         finally
         {
@@ -288,24 +261,25 @@ public sealed class WorktreeManagerTests
         var checkoutPath = Path.Combine(root, "checkout");
         Directory.CreateDirectory(sourcePath);
 
-        await GitAsync(sourcePath, ["init"]);
-        await GitAsync(sourcePath, ["config", "user.email", "oratorio-tests@example.test"]);
-        await GitAsync(sourcePath, ["config", "user.name", "Oratorio Tests"]);
+        await GitAsync(sourcePath, ["init", "--initial-branch=main"]);
         await File.WriteAllTextAsync(Path.Combine(sourcePath, "README.md"), "base\n");
         await GitAsync(sourcePath, ["add", "README.md"]);
         await GitAsync(sourcePath, ["commit", "-m", "Initial commit"]);
-        await GitAsync(sourcePath, ["branch", "-M", "main"]);
 
         await GitAsync(sourcePath, ["checkout", "-b", "review-target"]);
         await File.WriteAllTextAsync(Path.Combine(sourcePath, "README.md"), "base\nreview target\n");
         await GitAsync(sourcePath, ["commit", "-am", "Review target"]);
         var expectedHeadSha = (await GitAsync(sourcePath, ["rev-parse", "HEAD"])).Trim();
 
-        await GitAsync(sourcePath, ["checkout", "main"]);
-        await GitAsync(sourcePath, ["checkout", "-b", "different-review-target"]);
-        await File.WriteAllTextAsync(Path.Combine(sourcePath, "README.md"), "base\ndifferent review target\n");
-        await GitAsync(sourcePath, ["commit", "-am", "Different review target"]);
-        var mismatchedHeadSha = (await GitAsync(sourcePath, ["rev-parse", "HEAD"])).Trim();
+        string? mismatchedHeadSha = null;
+        if (mismatchReviewRef)
+        {
+            await GitAsync(sourcePath, ["checkout", "main"]);
+            await GitAsync(sourcePath, ["checkout", "-b", "different-review-target"]);
+            await File.WriteAllTextAsync(Path.Combine(sourcePath, "README.md"), "base\ndifferent review target\n");
+            await GitAsync(sourcePath, ["commit", "-am", "Different review target"]);
+            mismatchedHeadSha = (await GitAsync(sourcePath, ["rev-parse", "HEAD"])).Trim();
+        }
 
         await GitAsync(root, ["init", "--bare", remotePath]);
         await GitAsync(sourcePath, ["remote", "add", "origin", remotePath]);
@@ -313,7 +287,7 @@ public sealed class WorktreeManagerTests
         if (pushReviewRef)
         {
             await GitAsync(sourcePath, ["push", "origin", "review-target"]);
-            var reviewSha = mismatchReviewRef ? mismatchedHeadSha : expectedHeadSha;
+            var reviewSha = mismatchedHeadSha ?? expectedHeadSha;
             await GitAsync(sourcePath, ["push", "origin", $"{reviewSha}:{reviewRef}"]);
         }
 
@@ -331,6 +305,10 @@ public sealed class WorktreeManagerTests
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        startInfo.Environment["GIT_AUTHOR_NAME"] = "Oratorio Tests";
+        startInfo.Environment["GIT_AUTHOR_EMAIL"] = "oratorio-tests@example.test";
+        startInfo.Environment["GIT_COMMITTER_NAME"] = "Oratorio Tests";
+        startInfo.Environment["GIT_COMMITTER_EMAIL"] = "oratorio-tests@example.test";
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
@@ -386,5 +364,5 @@ public sealed class WorktreeManagerTests
         string Root,
         string CheckoutPath,
         string ExpectedHeadSha,
-        string MismatchedHeadSha);
+        string? MismatchedHeadSha);
 }
