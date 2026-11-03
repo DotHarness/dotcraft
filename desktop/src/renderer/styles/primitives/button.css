@@ -79,6 +79,9 @@
   border-color: var(--text-primary);
   color: var(--bg-primary);
   font-weight: 600;
+  --shortcut-bg: color-mix(in srgb, var(--bg-primary) 10%, transparent);
+  --shortcut-border: color-mix(in srgb, var(--bg-primary) 24%, transparent);
+  --shortcut-text: color-mix(in srgb, var(--bg-primary) 72%, var(--text-primary));
 }
 .dc-button[data-variant="primary"]:hover:not(:disabled):not([data-disabled="true"]) {
   background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));

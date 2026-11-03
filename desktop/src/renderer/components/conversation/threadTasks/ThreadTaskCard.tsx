@@ -167,7 +167,7 @@ export function ThreadTaskOfferCard({ task }: { task: ThreadTask }): JSX.Element
               </Button>
               <Button variant="primary" size="sm" disabled={busy} onClick={() => { void answer('newThread') }}>
                 {t('threadActionCard.untitled')}
-                <ShortcutBadge shortcut={OFFER_NEW_CHAT} tone="onAccent" />
+                <ShortcutBadge shortcut={OFFER_NEW_CHAT} />
               </Button>
             </span>
           </div>
