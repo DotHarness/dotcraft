@@ -12,30 +12,16 @@ public sealed class ProtocolArtifactTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
     private static readonly Lazy<ContractIr> CompleteIr = new(() => ContractIrBuilder.Build(RepositoryRoot));
-    private static readonly Lazy<IReadOnlyDictionary<string, string>> StableArtifacts = new(() => ProtocolArtifactGenerator.Build(RepositoryRoot));
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> RepositoryArtifacts = new(() => ProtocolArtifactGenerator.BuildRepositoryArtifacts(RepositoryRoot));
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> StableArtifacts = new(() =>
+        RepositoryArtifacts.Value
+            .Where(pair => pair.Key.StartsWith(ProtocolArtifactGenerator.PackageRelativePath + "/", StringComparison.Ordinal))
+            .ToDictionary(pair => pair.Key[(ProtocolArtifactGenerator.PackageRelativePath.Length + 1)..], pair => pair.Value, StringComparer.Ordinal));
 
     [Fact]
-    public void Artifact_Generation_Is_Byte_Deterministic()
+    public void Repository_Artifacts_Are_Byte_Deterministic_And_Use_Relative_Paths()
     {
-        var first = StableArtifacts.Value;
-        var second = ProtocolArtifactGenerator.Build(RepositoryRoot);
-
-        Assert.Equal(first.Keys, second.Keys);
-        foreach (var path in first.Keys)
-        {
-            Assert.Equal(first[path], second[path]);
-            Assert.DoesNotContain(RepositoryRoot, first[path], StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain('\\', path);
-        }
-
-        using var manifest = JsonDocument.Parse(first["appserver.manifest.json"]);
-        Assert.False(manifest.RootElement.TryGetProperty("generatedAt", out _));
-    }
-
-    [Fact]
-    public void Sdk_Bindings_Are_Deterministic_And_Use_Repository_Relative_Paths()
-    {
-        var first = ProtocolArtifactGenerator.BuildRepositoryArtifacts(RepositoryRoot);
+        var first = RepositoryArtifacts.Value;
         var second = ProtocolArtifactGenerator.BuildRepositoryArtifacts(RepositoryRoot);
 
         Assert.Equal(first.Keys, second.Keys);
@@ -48,6 +34,9 @@ public sealed class ProtocolArtifactTests
             Assert.DoesNotContain(RepositoryRoot, pair.Value, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain('\\', pair.Key);
         });
+
+        using var manifest = JsonDocument.Parse(first[$"{ProtocolArtifactGenerator.PackageRelativePath}/appserver.manifest.json"]);
+        Assert.False(manifest.RootElement.TryGetProperty("generatedAt", out _));
     }
 
     [Fact]
@@ -246,7 +235,12 @@ public sealed class ProtocolArtifactTests
                 ProtocolArtifactGenerator.PackageRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Assert.False(Directory.Exists(packageRoot));
 
-            ProtocolArtifactGenerator.Generate(temporaryRoot);
+            foreach (var artifact in RepositoryArtifacts.Value)
+            {
+                var path = Path.Combine(temporaryRoot, artifact.Key.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, artifact.Value);
+            }
             var obsoletePath = Path.Combine(packageRoot, "obsolete.json");
             File.WriteAllText(obsoletePath, "{}");
             var manifestPath = Path.Combine(packageRoot, "appserver.manifest.json");
