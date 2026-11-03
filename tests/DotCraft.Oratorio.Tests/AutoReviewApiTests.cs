@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
@@ -22,7 +23,7 @@ public sealed class AutoReviewApiTests
     {
         var fakeGitHub = new FakeGitHubApiClient();
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(new OratorioAutomationOptions());
-        await using var app = new TestOratorioApp(services =>
+        await using var app = CreateApp(services =>
         {
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
@@ -57,7 +58,7 @@ public sealed class AutoReviewApiTests
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
             new OratorioAutomationOptions { AutoReviewRepositories = [configuredRepository] });
-        await using var app = new TestOratorioApp(services =>
+        await using var app = CreateApp(services =>
         {
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
@@ -98,7 +99,7 @@ public sealed class AutoReviewApiTests
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
             new OratorioAutomationOptions { AutoReviewRepositories = [configuredRepository] });
-        await using var app = new TestOratorioApp(services =>
+        await using var app = CreateApp(services =>
         {
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
@@ -157,7 +158,7 @@ public sealed class AutoReviewApiTests
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Success);
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
             new OratorioAutomationOptions { AutoReviewRepositories = ["example-owner/oratorio"] });
-        await using var app = new TestOratorioApp(
+        await using var app = CreateApp(
             services =>
             {
                 services.RemoveAll<IGitHubApiClient>();
@@ -207,7 +208,7 @@ public sealed class AutoReviewApiTests
         fakeAppServer.ScriptedOutcomes.Enqueue(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
             new OratorioAutomationOptions { AutoReviewRepositories = ["example-owner/oratorio"] });
-        await using var app = new TestOratorioApp(
+        await using var app = CreateApp(
             services =>
             {
                 services.RemoveAll<IGitHubApiClient>();
@@ -239,6 +240,11 @@ public sealed class AutoReviewApiTests
 
         MoveDefaultPullRequestHead(fakeGitHub, "def456", DateTimeOffset.UtcNow.AddMinutes(1));
         await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        await WaitForItemByIdAsync(
+            client,
+            pr.ItemId!,
+            x => x.Runs.Any(run => run.Attempt == 2 && run.Status == RunStatus.Cancelled));
+        await DispatchAutoReviewAsync(app);
 
         var reviewed = await WaitForItemByIdAsync(
             client,
@@ -268,7 +274,7 @@ public sealed class AutoReviewApiTests
         var clock = new MutableClock(DateTimeOffset.Parse("2026-05-03T00:00:00Z"));
         var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
             new OratorioAutomationOptions { AutoReviewRepositories = [configuredRepository] });
-        await using var app = new TestOratorioApp(services =>
+        await using var app = CreateApp(services =>
         {
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(fakeGitHub);
@@ -312,4 +318,15 @@ public sealed class AutoReviewApiTests
         Assert.Contains(reviewed.SourceWrites, x => x.Kind == SourceWriteKind.CheckRun && x.Intent == "reviewGateComplete" && x.HeadSha == "def456");
         Assert.DoesNotContain(reviewed.SourceWrites, x => x.DecisionId is not null);
     }
+
+    private static TestOratorioApp CreateApp(
+        Action<IServiceCollection> configureServices,
+        IReadOnlyDictionary<string, string?>? settings = null) =>
+        new(services =>
+        {
+            services.Remove(services.Single(descriptor =>
+                descriptor.ServiceType == typeof(IHostedService) &&
+                descriptor.ImplementationType == typeof(AutoReviewDispatchWorker)));
+            configureServices(services);
+        }, settings);
 }

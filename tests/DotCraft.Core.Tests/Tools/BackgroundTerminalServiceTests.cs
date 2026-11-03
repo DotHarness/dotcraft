@@ -74,10 +74,20 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     [Fact]
     public async Task StartAsync_BackgroundCommand_CanBeReadAfterCompletionAndKeepsBackgroundReason()
     {
+        var releasePath = Path.Combine(_tempDir, "release-background-command");
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Service.TerminalEvent += terminalEvent =>
+        {
+            if (terminalEvent.EventType == "completed" && terminalEvent.Terminal.ThreadId == "thread_reason")
+                completion.TrySetResult();
+        };
+
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_reason",
-            Command = DelayedEchoCommand("done"),
+            Command = OperatingSystem.IsWindows()
+                ? $"while (-not (Test-Path -LiteralPath {QuotePowerShell(releasePath)})) {{ Start-Sleep -Milliseconds 20 }}; Write-Output 'done'"
+                : $"until [ -f {QuoteBash(releasePath)} ]; do sleep 0.02; done; echo done",
             WorkingDirectory = _tempDir,
             RunInBackground = true,
             YieldTimeMs = 100,
@@ -87,7 +97,9 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         Assert.Equal(BackgroundTerminalStatus.Running, started.Status);
         Assert.False(string.IsNullOrWhiteSpace(started.SessionId));
 
-        var completed = await Service.ReadAsync(started.SessionId, waitMs: 5000, maxOutputChars: 1000);
+        await File.WriteAllTextAsync(releasePath, "");
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        var completed = await Service.ReadAsync(started.SessionId, maxOutputChars: 1000);
         Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
         Assert.Contains("done", completed.Output);
 

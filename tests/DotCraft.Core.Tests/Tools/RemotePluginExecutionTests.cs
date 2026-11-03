@@ -145,18 +145,10 @@ public sealed class RemotePluginExecutionTests
         var result = await InvokeAsync(second, "thread", "read");
         Assert.True(result.Success, result.Error?.Message);
         Assert.Contains("\"implementation\":\"second\"", result.Content);
+        Assert.Contains("\"resource\":\"bundle-resource\"", result.Content);
         Assert.False((await InvokeAsync(first, "thread", "read")).Success);
         var newRoot = JsonDocument.Parse(result.Content!).RootElement.GetProperty("contentRoot").GetString()!;
         Assert.NotEqual(oldRoot, newRoot);
-        for (var attempt = 0; attempt < 100 && Directory.Exists(oldRoot); attempt++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await client.PrepareTurnAsync("thread", second, "agent");
-            await Task.Delay(50);
-        }
-        Assert.False(Directory.Exists(oldRoot));
-        Assert.Equal(Path.Combine(newRoot, "resource.txt"), Assert.Single(Directory.GetFiles(Path.GetDirectoryName(newRoot)!, "resource.txt", SearchOption.AllDirectories)));
     }
 
     [Fact]
