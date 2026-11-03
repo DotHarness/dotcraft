@@ -73,7 +73,7 @@ public sealed partial class SubAgentSessionControlTests
     {
         var context = await CreateContextAsync(new ThreadConfiguration { ProviderId = "openai", Model = "parent-model" });
         var config = TwoProviderConfig();
-        config.Providers["anthropic"].ApiKey = null;
+        config.Providers["anthropic"].ApiKey = string.Empty;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => SubAgentSessionControl.SpawnAgentAsync(
             context,

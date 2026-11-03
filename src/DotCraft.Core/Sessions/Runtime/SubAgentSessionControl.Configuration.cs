@@ -74,9 +74,9 @@ public static partial class SubAgentSessionControl
 
     private static void SelectModel(
         AppConfig config,
-        ref string? providerId,
+        ref string providerId,
         ModelPreference preference,
-        string? targetProviderId,
+        string targetProviderId,
         string model)
     {
         if (string.Equals(targetProviderId, providerId, StringComparison.OrdinalIgnoreCase))
@@ -84,7 +84,7 @@ public static partial class SubAgentSessionControl
             preference.Model = model.Trim();
             return;
         }
-        var defaults = ModelPreferenceRules.CreateDefault(config, targetProviderId ?? string.Empty, model);
+        var defaults = ModelPreferenceRules.CreateDefault(config, targetProviderId, model);
         providerId = targetProviderId;
         preference.Model = defaults.Model;
         preference.Reasoning = defaults.Reasoning;
