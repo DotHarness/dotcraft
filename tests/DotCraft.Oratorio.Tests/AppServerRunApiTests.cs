@@ -731,6 +731,7 @@ public sealed class AppServerRunApiTests
         Assert.Equal(Assert.Single(answered.DiscussionTurns).ThreadId, Assert.Single(implemented.Runs).ThreadId);
         Assert.Equal("local/m1", harness.Worktrees.PrepareRequests[0].FetchBaseBranch);
         Assert.Contains("-> implementation", harness.AppServer.TurnPrompts[^1]);
+        Assert.Contains(task.Item.Description!, harness.AppServer.TurnPrompts[0]);
     }
 
     [Fact]

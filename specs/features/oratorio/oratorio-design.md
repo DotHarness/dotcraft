@@ -709,8 +709,8 @@ head of its base branch: a local task's base branch when set, otherwise the
 repository's remote default branch as GitHub or GitLab reports it. Idle
 independent discussions refresh that target before resuming. Active
 conversations and implementation threads keep their execution context. The base
-checkout is never switched or pulled. Issue context includes its title, body,
-URL and discussion history. See GitHub Mentions §11 for intake, failure and
+checkout is never switched or pulled. Every question on an issue or local task
+includes its title, body, URL and discussion history. See GitHub Mentions §11 for intake, failure and
 publication rules.
 
 Ask agent from Desktop is allowed whenever the item is not archived. With an
