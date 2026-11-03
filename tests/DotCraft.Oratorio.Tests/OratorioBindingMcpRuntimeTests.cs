@@ -152,6 +152,7 @@ public sealed class OratorioBindingMcpRuntimeTests
         var created = await CallAsync(client, OratorioDynamicToolCatalog.CreateBoardTaskName, new
         {
             title = "MCP registry task",
+            repository = "example-owner/oratorio",
             labels = new[] { "sdk" }
         });
         Assert.False(created.IsError);

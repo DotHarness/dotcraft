@@ -255,7 +255,7 @@ public sealed class OratorioApiTests
         var editResponse = await PatchRawAsync(
             client,
             $"/api/v1/items/id/{created.Item.ItemId}",
-            new UpdateItemRequest("Cannot edit", "Active.", null, null, null, null));
+            new UpdateItemRequest("Cannot edit", "Active.", "example-owner/oratorio", null, null, null));
         Assert.Equal(HttpStatusCode.Conflict, editResponse.StatusCode);
         var editError = await editResponse.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
         Assert.Equal("invalidTransition", editError?.Error.Code);
@@ -264,6 +264,26 @@ public sealed class OratorioApiTests
         Assert.Equal(HttpStatusCode.Conflict, archiveResponse.StatusCode);
         var archiveError = await archiveResponse.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
         Assert.Equal("invalidTransition", archiveError?.Error.Code);
+    }
+
+    [Fact]
+    public async Task LocalTask_CreateAndEditRequireRepository()
+    {
+        await using var app = new TestOratorioApp();
+        var client = app.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/local-tasks",
+            new CreateLocalTaskRequest("No repository", "Body.", " ", null, null, []),
+            JsonOptions);
+        Assert.Equal(HttpStatusCode.BadRequest, createResponse.StatusCode);
+
+        var created = await CreateLocalTaskAsync(client);
+        var editResponse = await PatchRawAsync(
+            client,
+            $"/api/v1/items/id/{created.Item.ItemId}",
+            new UpdateItemRequest("Still a task", "Body.", null, null, null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, editResponse.StatusCode);
     }
 
     [Fact]

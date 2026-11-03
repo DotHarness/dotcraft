@@ -23,7 +23,7 @@ export const oratorioClient = {
   task(taskId: string): Promise<ItemDetailResponse> {
     return request('GET', `/api/v1/tasks/${encodeURIComponent(taskId)}`)
   },
-  createLocalTask(body: { title: string; description: string; repository?: string; labels: string[]; assignee?: string; branch?: string }): Promise<{ item: ItemSummaryDto }> {
+  createLocalTask(body: { title: string; description: string; repository: string; labels: string[]; assignee?: string; branch?: string }): Promise<{ item: ItemSummaryDto }> {
     return request('POST', '/api/v1/local-tasks', { ...body })
   },
   reorder(body: Body): Promise<{ tasks: ItemSummaryDto[] }> { return request('POST', '/api/v1/tasks/reorder', body) },

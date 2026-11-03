@@ -78,7 +78,7 @@ function mapColumn(status: ItemSummaryDto['taskStatus'], state: ItemState): Task
 function capabilitiesFor(state: ItemState): TaskCapabilities {
   if (state === 'discovered') return { dispatch: true, implement: true, autoTarget: true, reviewOnly: true }
   if (state === 'dispatching' || state === 'running') return { cancelRun: true }
-  if (state === 'failed') return { retry: true }
+  if (state === 'failed') return { retry: true, archive: true }
   if (state === 'awaitingReview') return { decide: true, reReview: true }
   if (state === 'archived') return { reopen: true }
   return { archive: true, reReview: state === 'approved' }

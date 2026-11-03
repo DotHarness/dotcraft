@@ -58,14 +58,58 @@ public sealed class ImplementationAutoDispatchTests
         Assert.Equal(RunDispatchTrigger.AutoImplementation, run.DispatchTrigger);
     }
 
-    private static OratorioItem LocalTask(string externalId, string? labelsJson, DateTimeOffset updatedAt) =>
+    [Fact]
+    public async Task AutoDispatch_ReachesMappedItemBehindManyUnmappedItems()
+    {
+        var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(new OratorioAutomationOptions
+        {
+            AutoDispatchEnabled = true,
+            AutoDispatchAllowLabels = ["oratorio:auto"]
+        });
+        await using var app = new TestOratorioApp(services =>
+        {
+            services.RemoveAll<IDotCraftAppServerProcessManager>();
+            services.RemoveAll<IDotCraftAppServerClientFactory>();
+            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
+            services.AddSingleton<IDotCraftAppServerClientFactory>(new FakeAppServerClientFactory(FakeAppServerOutcome.Hold));
+            services.RemoveAll<IOptionsMonitor<OratorioAutomationOptions>>();
+            services.AddSingleton<IOptionsMonitor<OratorioAutomationOptions>>(automation);
+        });
+
+        string mappedItemId;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            var createdAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+            for (var index = 1; index <= 20; index++)
+            {
+                db.Items.Add(LocalTask($"task:unmapped-{index}", "[\"oratorio:auto\"]", createdAt.AddMinutes(index), "example-owner/unmapped"));
+            }
+
+            var mapped = LocalTask("task:mapped", "[\"oratorio:auto\"]", createdAt.AddDays(1));
+            db.Items.Add(mapped);
+            mappedItemId = mapped.ItemId;
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = app.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ImplementationAutoDispatchService>().DispatchEligibleAsync(CancellationToken.None);
+        }
+
+        using var verifyScope = app.Services.CreateScope();
+        var run = Assert.Single(await verifyScope.ServiceProvider.GetRequiredService<OratorioDbContext>().Runs.AsNoTracking().ToListAsync());
+        Assert.Equal(mappedItemId, run.ItemId);
+    }
+
+    private static OratorioItem LocalTask(string externalId, string? labelsJson, DateTimeOffset updatedAt, string repository = "example-owner/oratorio") =>
         new()
         {
             Source = "local",
             ExternalId = externalId,
             Kind = ItemKind.LocalTask,
             Title = externalId,
-            Repository = "example-owner/oratorio",
+            Repository = repository,
             LabelsJson = labelsJson,
             SourceState = SourceState.Open,
             CreatedAt = updatedAt,

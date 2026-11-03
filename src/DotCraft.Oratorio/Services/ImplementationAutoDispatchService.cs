@@ -4,12 +4,14 @@ using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Domain;
+using DotCraft.Oratorio.Integrations;
 
 namespace DotCraft.Oratorio.Services;
 
 public sealed class ImplementationAutoDispatchService(
     OratorioDbContext db,
     OratorioService oratorio,
+    IDotCraftWorkspaceResolver workspaceResolver,
     IOptionsMonitor<OratorioAutomationOptions> options,
     ILogger<ImplementationAutoDispatchService> logger)
 {
@@ -24,10 +26,10 @@ public sealed class ImplementationAutoDispatchService(
         var candidates = await db.Items.AsNoTracking()
             .Where(x => x.State == ItemState.Discovered && (x.Kind == ItemKind.LocalTask || (x.Source == "github" || x.Source == "gitlab") && x.Kind == ItemKind.Issue))
             .OrderBy(x => x.UpdatedAt)
-            .Select(x => new { x.Source, x.ExternalId, x.LabelsJson })
+            .Select(x => new { x.Source, x.ExternalId, x.LabelsJson, x.Repository })
             .ToListAsync(ct);
 
-        foreach (var item in candidates.Where(x => IsEligible(x.LabelsJson, policy)).Take(20))
+        foreach (var item in candidates.Where(x => IsEligible(x.LabelsJson, policy) && HasWorkspace(x.Repository)).Take(20))
         {
             try
             {
@@ -48,6 +50,19 @@ public sealed class ImplementationAutoDispatchService(
             {
                 logger.LogDebug("Skipped auto-dispatch for {Source} {ExternalId}: {Code}.", item.Source, item.ExternalId, ex.Code);
             }
+        }
+    }
+
+    private bool HasWorkspace(string? repository)
+    {
+        try
+        {
+            _ = workspaceResolver.ResolveWorkspacePath(repository);
+            return true;
+        }
+        catch (DotCraftWorkspaceResolutionException)
+        {
+            return false;
         }
     }
 

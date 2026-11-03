@@ -168,7 +168,7 @@ public sealed class ImplementationDraftApiTests
     }
 
     [Fact]
-    public async Task LocalTaskDispatch_MissingRepositoryWorkspaceFails()
+    public async Task LocalTaskDispatch_MissingRepositoryWorkspaceIsRejectedBeforeQueueing()
     {
         var fakeGitHub = new FakeGitHubApiClient();
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitImplementationDraft);
@@ -187,17 +187,19 @@ public sealed class ImplementationDraftApiTests
                 ["Oratorio:GitHub:Repositories:0"] = null
             });
         var client = app.CreateClient();
-        var task = await CreateLocalTaskAsync(client, repository: null);
+        var task = await CreateLocalTaskAsync(client, repository: "example-owner/unmapped");
 
-        await PostAsync<ItemDetailResponse>(
-            client,
+        var response = await client.PostAsJsonAsync(
             $"/api/v1/items/id/{task.Item.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Implement this local task.", null, null, "implementation", DeliveryPolicy.ManualDelivery));
+            new DispatchRequest("appServer", "Implement this local task.", null, null, "implementation", DeliveryPolicy.ManualDelivery),
+            JsonOptions);
 
-        var failed = await WaitForItemByIdAsync(client, task.Item.ItemId, x => x.Item.State == ItemState.Failed);
-
-        Assert.Empty(failed.ImplementationDrafts);
-        Assert.Contains("No repository workspace is configured", failed.Item.LatestSummary);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
+        Assert.Equal("workspaceMappingMissing", error?.Error.Code);
+        var detail = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/items/id/{task.Item.ItemId}", JsonOptions);
+        Assert.Equal(ItemState.Discovered, detail!.Item.State);
+        Assert.Empty(detail.Runs);
     }
 
     [Fact]

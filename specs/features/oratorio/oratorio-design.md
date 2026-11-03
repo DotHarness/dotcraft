@@ -388,11 +388,17 @@ Oratorio-local tasks are first-class Oratorio records, separate from DotCraft
 built-in Automations tasks. They support:
 
 - an operator-written title and body;
-- optional repository, base branch, labels and workspace;
+- a required repository, chosen from the connected projects that have a
+  DotCraft workspace, and an optional base branch and labels;
 - comments, rounds, decisions and timeline history;
 - dispatch to DotCraft AppServer or the mock runner;
 - approve, request changes, reject and reopen;
-- edit, archive and reopen only while no run is dispatching or running.
+- edit, archive and reopen only while no run is dispatching or running,
+  including after a failed run.
+
+A local task runs in its repository's DotCraft workspace. An AppServer dispatch
+whose repository has no workspace mapping is rejected before a run is queued,
+and the task stays in To do; automatic dispatch skips it.
 
 The backend assigns each local task a short stable identity; identity is never
 derived from the title, since titles are editable. Archived local tasks are

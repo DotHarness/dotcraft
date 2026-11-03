@@ -24,6 +24,10 @@ describe('Oratorio contract mapping', () => {
     }))).toMatchObject({ shortId: 'DEF-42', sourceLabel: '#42', syncedAt: '2026-08-09T11:55:00Z', updatedAt: '2026-08-09T11:50:00Z' })
   })
 
+  it('lets a failed task be archived as well as retried', () => {
+    expect(mapItemSummary(summary({ state: 'failed' })).capabilities).toEqual({ retry: true, archive: true })
+  })
+
   it('maps source identity without exposing the raw external id', () => {
     for (const { source, kind, externalId, expected } of [
       { source: 'github', kind: 'issue', externalId: 'issue:sample-org/widget-service#6', expected: '#6' },

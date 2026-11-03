@@ -313,7 +313,7 @@ export function OratorioBoard({
           }}
         />
       ) : null}
-      {newTaskOpen ? <NewLocalTaskDialog tasks={taskItems} onCancel={() => setNewTaskOpen(false)} onCreate={(draft) => {
+      {newTaskOpen ? <NewLocalTaskDialog tasks={taskItems} onCancel={() => setNewTaskOpen(false)} onOpenSettings={() => { setNewTaskOpen(false); onOpenSettings() }} onCreate={(draft) => {
         if (!onCreateTask) return
         void onCreateTask(draft).then((task) => {
           setTaskItems((items) => [task, ...items.filter((item) => item.id !== task.id)])

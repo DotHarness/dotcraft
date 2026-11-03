@@ -790,7 +790,8 @@ public sealed class CreateBoardTaskToolArgs
 {
     public required string Title { get; init; }
     public string? Description { get; init; }
-    public string? Repository { get; init; }
+    [Description("Connected project the task runs in, such as owner/repo. GetSourceSetup lists projects and their workspaces.")]
+    public required string Repository { get; init; }
     public string? Assignee { get; init; }
     public string? Branch { get; init; }
     public IReadOnlyList<string>? Labels { get; init; }
