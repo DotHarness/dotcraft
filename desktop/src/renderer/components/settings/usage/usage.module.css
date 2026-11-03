@@ -81,6 +81,21 @@
   min-width: 0;
 }
 
+.historyLegend {
+  min-width: 0;
+  height: var(--type-secondary-line-height);
+}
+
+.historyLegend .legend {
+  flex-wrap: nowrap;
+}
+
+.historyLegend .legendLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .legendSwatch {
   width: 10px;
   height: 10px;

@@ -90,7 +90,7 @@ export function ChartLegend({
       {series.map((entry) => (
         <span key={entry.key} className={styles.legendItem}>
           <span className={styles.legendSwatch} style={{ background: entry.color }} />
-          <span>{labelFor(entry.key)}</span>
+          <span className={styles.legendLabel} title={labelFor(entry.key)}>{labelFor(entry.key)}</span>
         </span>
       ))}
     </div>

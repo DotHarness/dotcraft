@@ -3,6 +3,7 @@ import type { CSSProperties, JSX } from 'react'
 export interface SegmentedOption<T extends string> {
   value: T
   label: string
+  disabled?: boolean
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -28,16 +29,17 @@ export function SegmentedControl<T extends string>({
     <div role="group" aria-label={ariaLabel} style={trackStyle}>
       {options.map((option) => {
         const active = option.value === value
+        const unavailable = disabled || option.disabled === true
         return (
           <button
             key={option.value}
             type="button"
             aria-pressed={active}
-            disabled={disabled}
+            disabled={unavailable}
             onClick={() => {
-              if (!active && !disabled) onChange(option.value)
+              if (!active && !unavailable) onChange(option.value)
             }}
-            style={segmentStyle(active, disabled)}
+            style={segmentStyle(active, unavailable)}
           >
             {option.label}
           </button>

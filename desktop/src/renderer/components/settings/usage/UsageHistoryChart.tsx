@@ -86,7 +86,7 @@ export function UsageHistoryChart({
   const groupOptions: SegmentedOption<UsageHistoryGroup>[] = [
     { value: 'surface', label: t('settings.usage.history.group.surface') },
     { value: 'model', label: t('settings.usage.history.group.model') },
-    ...(cost ? [] : [{ value: 'tokenType' as const, label: t('settings.usage.history.group.tokenType') }])
+    { value: 'tokenType', label: t('settings.usage.history.group.tokenType'), disabled: cost }
   ]
 
   let body: JSX.Element
@@ -117,7 +117,7 @@ export function UsageHistoryChart({
               tick={AXIS_TICK}
               axisLine={false}
               tickLine={false}
-              width={cost ? 52 : 44}
+              width={56}
               allowDecimals={cost}
             />
             <Tooltip
@@ -167,8 +167,10 @@ export function UsageHistoryChart({
           <span className={styles.heroLabel}>{cost ? t('settings.usage.stat.estimatedCost') : t('settings.usage.stat.totalTokens')}</span>
           <span className={styles.heroValue}>{heroValue}</span>
         </div>
-        {body}
-        {state.data && total > 0 && <ChartLegend series={series} labelFor={labelFor} />}
+        <div className={styles.chart}>{body}</div>
+        <div className={styles.historyLegend}>
+          {state.data && total > 0 && <ChartLegend series={series} labelFor={labelFor} />}
+        </div>
       </div>
     </SettingsGroup>
   )
