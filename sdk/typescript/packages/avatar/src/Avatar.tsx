@@ -10,6 +10,7 @@ import { SkinOverlay, SkinPaintSurface, skinPaint } from './SkinDecorations.js'
 import { useMotionEnvironment, useOnscreen, useTransitionPause } from './environment.js'
 import { useGesture } from './useGesture.js'
 import { useEventReplay } from './useEventReplay.js'
+import { useWorkStory } from './useWorkStory.js'
 
 export type SizeTier = 'compact' | 'standard' | 'full'
 export function sizeTier(size: number): SizeTier { return size <= 20 ? 'compact' : size < 44 ? 'standard' : 'full' }
@@ -63,6 +64,7 @@ export function AppearanceAvatar({ appearance, state = 'idle', size = 44, motion
   }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence])
 
   const pose = animated ? displayed : state
+  useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible)
   const effects = compact ? 'off' : tier === 'full' && animated ? 'live' : 'static'
   const classes = [
     'dca-rig',

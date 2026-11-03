@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-04 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system: the equipment slots an avatar exposes, the item
@@ -176,6 +176,28 @@ JSON tuple so any sample in a batch can be replayed.
 The avatar exposes `data-size-tier` and `data-effects` (`off`, `static`, `live`) so styles gate
 effects without JavaScript. Reduced motion, paused, and offscreen states pause or disable effects
 like all other avatar motion.
+
+### 8.1 Working Story
+
+While an avatar holds the `working` pose at standard or full size with motion on, it plays one
+looping working story around its laptop. The story keeps its own clock: it does not follow which
+items the agent runs, and leaving the pose ends it at once.
+
+- The laptop stays on the lap. Scenes vary only the hands, gaze, body, and antenna: typing, focused
+  typing, a pause with the hands off the keys while the eyes drift up and the antenna glows, and a
+  short antenna flash before typing resumes.
+- The face keeps the operator expression. Arms only swing outward from the shoulder, so the story
+  never raises a hand to the head or carries a prop across the screen.
+- Scene changes are authored transitions on one continuous timeline whose last frame matches its
+  first. Motion between keys follows smooth curves without flat holds.
+- The story starts after the laptop is revealed, so a short turn shows only the opening typing
+  loop. On leaving the pose its parts blend back within 160 ms while the props retract.
+- Hosts add no outer loop while the story plays; the composer keeps only its placement and event
+  motion.
+
+The package drives the story with the Web Animations API from a single exported timeline and applies
+the avatar's motion-off, reduced-motion, paused, and offscreen rules to it. The design catalog
+reviews the same timeline.
 
 ## 9. Effects
 

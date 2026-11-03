@@ -302,9 +302,11 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
     ? 'composer-mascot-sleep-breathe'
     : dragOver
       ? 'composer-mascot-eager'
-      : baseExpression === 'operator' && light === 'default'
-        ? 'composer-mascot-think'
-        : 'composer-mascot-breathe'
+      : semanticAvatarPose === 'working'
+        ? null
+        : baseExpression === 'operator' && light === 'default'
+          ? 'composer-mascot-think'
+          : 'composer-mascot-breathe'
 
   const rootClassName =
     [
@@ -378,7 +380,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
           }}
         >
           <div className={shotClass ? `composer-mascot-lift ${shotClass}` : 'composer-mascot-lift'}>
-            <div className={`composer-mascot-body ${loopClass}`}>
+            <div className={loopClass ? `composer-mascot-body ${loopClass}` : 'composer-mascot-body'}>
               <div
                 className="composer-mascot-jelly composer-mascot-trail"
                 style={{ pointerEvents: 'auto', cursor: hasMenu ? 'context-menu' : undefined }}
