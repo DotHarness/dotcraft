@@ -49,7 +49,7 @@ public sealed class AppServerConfig
 
 /// <summary>
 /// Configuration for the AppServer WebSocket listener (appserver-protocol.md §15).
-/// Only used when <see cref="AppServerConfig.Mode"/> is <see cref="AppServerMode.StdioAndWebSocket"/>.
+/// Used by both WebSocket-only and combined stdio/WebSocket modes.
 /// </summary>
 [ConfigSection("AppServer.WebSocket", DisplayName = "AppServer > WebSocket", Order = 181)]
 public sealed class WebSocketServerConfig
@@ -61,9 +61,9 @@ public sealed class WebSocketServerConfig
     public string Host { get; set; } = "127.0.0.1";
 
     /// <summary>
-    /// The TCP port to listen on. Defaults to <c>9100</c>.
+    /// The TCP port to listen on. Defaults to <c>9100</c>; <c>0</c> assigns an ephemeral port.
     /// </summary>
-    [ConfigField(Min = 1, Max = 65535)]
+    [ConfigField(Min = 0, Max = 65535)]
     public int Port { get; set; } = 9100;
 
     /// <summary>

@@ -1316,6 +1316,8 @@ The upgrade endpoint is `ws://HOST:PORT/ws`. The same HTTP server serves health 
 
 The default listen address is `127.0.0.1`. Binding to a non-loopback interface must be configured explicitly and requires authentication.
 
+Port `0` requests an ephemeral port assigned atomically by the listener. In both WebSocket-only and combined stdio/WebSocket mode, the server publishes the bound endpoint in `appserver.lock` under `endpoints.appServerWebSocket` after the listener starts, preserving the owner's original `startedAt`. An ephemeral endpoint is omitted until binding succeeds; `:0` is never advertised. Combined mode publishes the actual endpoint before processing the stdio `initialize` handshake, so a successful handshake lets the launcher read it without polling. An explicitly configured nonzero port is never substituted if binding fails. Managed WebSocket channel subprocesses still require a configured nonzero port because their startup endpoint is resolved before the listener starts.
+
 ### 15.3 Connection Lifecycle
 
 Each connection starts unauthenticated and uninitialized with fresh state, performs the standard handshake ([Section 3.1](#31-handshake)), and on close (either side) has all of its thread subscriptions cancelled.

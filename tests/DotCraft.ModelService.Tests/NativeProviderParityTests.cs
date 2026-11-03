@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
@@ -75,11 +76,13 @@ public sealed class NativeProviderParityTests
         Assert.Equal(direct, remote);
         Assert.Contains("lookup", remote);
         Assert.Contains("value", remote);
-        Assert.Equal("child", access.Call!.Context.Conversation!.CurrentThreadId);
-        Assert.Equal("root", access.Call.Context.Conversation.RootThreadId);
-        Assert.Equal("turn", access.Call.Context.Conversation.TurnId);
-        Assert.Equal("test-model", access.Call.Context.Model);
-        Assert.Equal(new ProviderHttpUsage(12, 8), access.Call.Usage);
+        var call = await access.ReadCallAsync();
+        var conversation = Assert.IsType<ProviderConversationIdentity>(call.Context.Conversation);
+        Assert.Equal("child", conversation.CurrentThreadId);
+        Assert.Equal("root", conversation.RootThreadId);
+        Assert.Equal("turn", conversation.TurnId);
+        Assert.Equal("test-model", call.Context.Model);
+        Assert.Equal(new ProviderHttpUsage(12, 8), call.Usage);
         if (protocol == ModelProviderProtocols.Anthropic)
         {
             var directCatalog = await ((IModelCatalogProvider)new AnthropicClientProvider()).FetchModelsAsync(runtime, default);
@@ -93,10 +96,13 @@ public sealed class NativeProviderParityTests
         if (protocol == ModelProviderProtocols.OpenAIResponses)
         {
             foreach (var caller in new[] { "environment-a", "environment-b", "environment-a" })
+            {
                 await ExecuteAsync(runtime with { ApiKey = "", IsRemote = true, CallerNamespace = caller }, transport, "root");
+                call = await access.ReadCallAsync();
+                Assert.Equal("root", Assert.IsType<ProviderConversationIdentity>(call.Context.Conversation).RootThreadId);
+            }
             Assert.NotEqual(requests[2]["prompt_cache_key"]!.GetValue<string>(), requests[3]["prompt_cache_key"]!.GetValue<string>());
             Assert.Equal(requests[2]["prompt_cache_key"]!.GetValue<string>(), requests[4]["prompt_cache_key"]!.GetValue<string>());
-            Assert.Equal("root", access.Call.Context.Conversation!.RootThreadId);
         }
     }
 
@@ -136,7 +142,9 @@ public sealed class NativeProviderParityTests
 
     private sealed class Access(EffectiveModelRuntime runtime) : IModelServiceAccess, IModelServiceObserver
     {
-        public ModelServiceCall? Call { get; private set; }
+        private readonly Channel<ModelServiceCall> _calls = Channel.CreateUnbounded<ModelServiceCall>();
+        public Task<ModelServiceCall> ReadCallAsync() =>
+            _calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         public ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken) =>
             ValueTask.FromResult<ModelServiceCaller?>(new("test"));
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
@@ -146,7 +154,7 @@ public sealed class NativeProviderParityTests
             ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)
         {
-            Call = call;
+            _calls.Writer.TryWrite(call);
             return ValueTask.CompletedTask;
         }
     }

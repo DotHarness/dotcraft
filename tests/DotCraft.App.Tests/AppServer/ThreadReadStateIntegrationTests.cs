@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.AppServer;
 using DotCraft.CLI;
@@ -124,23 +122,16 @@ public sealed class ThreadReadStateIntegrationTests
 
     private static async Task<RunningServer> StartAsync(string workspace, string profile, CancellationToken ct)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        var process = await AppServerProcess.StartAsync(
-            dotcraftBin: typeof(AppServerHost).Assembly.Location,
-            workspacePath: workspace,
-            listenUrl: $"ws+stdio://127.0.0.1:{port}",
-            environmentVariables: new Dictionary<string, string?>
-            {
-                ["HOME"] = profile,
-                ["USERPROFILE"] = profile,
-                ["DOTCRAFT_MANAGED_APP_SERVER"] = "0"
-            },
-            createNoWindow: true,
-            ct: ct);
-        return new RunningServer(process, new Uri($"ws://127.0.0.1:{port}/ws"));
+        var process = await WebSocketAppServerTestHost.StartAsync(workspace, profile, ct);
+        try
+        {
+            return new RunningServer(process, WebSocketAppServerTestHost.ReadEndpoint(workspace, process));
+        }
+        catch
+        {
+            await process.DisposeAsync();
+            throw;
+        }
     }
 
     private static async Task<JsonDocument> ListAsync(AppServerWireClient wire, object identity, CancellationToken ct) =>

@@ -38,7 +38,7 @@ public sealed class OratorioManagedServiceTests
             Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", service.AccessToken);
             using var created = await http.PostAsJsonAsync(service.Endpoint + "/api/v1/local-tasks",
-                new { title = "Persisted task" }, timeout.Token);
+                new { title = "Persisted task", repository = "example-owner/oratorio" }, timeout.Token);
             created.EnsureSuccessStatusCode();
             var task = await created.Content.ReadFromJsonAsync<JsonElement>(timeout.Token);
             var taskId = task.GetProperty("item").GetProperty("itemId").GetString();
@@ -52,6 +52,7 @@ public sealed class OratorioManagedServiceTests
             var persisted = await http.GetFromJsonAsync<JsonElement>(
                 restarted.Endpoint + "/api/v1/items/id/" + taskId, timeout.Token);
             Assert.Equal("Persisted task", persisted.GetProperty("item").GetProperty("title").GetString());
+            Assert.Equal("example-owner/oratorio", persisted.GetProperty("item").GetProperty("repository").GetString());
             Assert.True(original.HasExited);
 
             using var replacement = Process.GetProcessById(restarted.Pid!.Value);

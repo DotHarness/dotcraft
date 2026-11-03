@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.AppServer;
 using DotCraft.CLI;
@@ -34,23 +32,8 @@ public sealed class ThreadDeletionBroadcastIntegrationTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         try
         {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            listener.Stop();
-            await using var server = await AppServerProcess.StartAsync(
-                dotcraftBin: typeof(AppServerHost).Assembly.Location,
-                workspacePath: workspace,
-                listenUrl: $"ws+stdio://127.0.0.1:{port}",
-                environmentVariables: new Dictionary<string, string?>
-                {
-                    ["HOME"] = profile,
-                    ["USERPROFILE"] = profile,
-                    ["DOTCRAFT_MANAGED_APP_SERVER"] = "0"
-                },
-                createNoWindow: true,
-                ct: deadline.Token);
-            var endpoint = new Uri($"ws://127.0.0.1:{port}/ws");
+            await using var server = await WebSocketAppServerTestHost.StartAsync(workspace, profile, deadline.Token);
+            var endpoint = WebSocketAppServerTestHost.ReadEndpoint(workspace, server);
             await using var observer = await WebSocketClientConnection.ConnectAsync(endpoint, ct: deadline.Token);
             await using var optedOut = await WebSocketClientConnection.ConnectAsync(endpoint, ct: deadline.Token);
             using var observerInit = await observer.Wire.InitializeAsync(ct: deadline.Token);

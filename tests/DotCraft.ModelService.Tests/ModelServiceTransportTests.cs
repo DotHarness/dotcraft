@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
@@ -48,8 +49,9 @@ public sealed class ModelServiceTransportTests
         Assert.Equal("upstream-request", response.Headers.GetValues("x-request-id").Single());
         Assert.Equal("continuation", response.Headers.GetValues("x-codex-turn-state").Single());
         Assert.Equal(1, calls);
-        Assert.Equal(new ProviderHttpUsage(12, 8, 4), fixture.Access.Call!.Usage);
-        Assert.Equal("priority", fixture.Access.Call.Context.RequestedServiceTier);
+        var call = await fixture.Access.ReadCallAsync();
+        Assert.Equal(new ProviderHttpUsage(12, 8, 4), call.Usage);
+        Assert.Equal("priority", call.Context.RequestedServiceTier);
     }
 
     [Fact]
@@ -66,9 +68,9 @@ public sealed class ModelServiceTransportTests
         using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
-        Assert.NotNull(fixture.Access.Call);
-        Assert.True(fixture.Access.Call.Completed);
-        Assert.Equal(new ProviderHttpUsage(2400, 120, 1800, ReasoningTokens: 64), fixture.Access.Call.Usage);
+        var call = await fixture.Access.ReadCallAsync();
+        Assert.True(call.Completed);
+        Assert.Equal(new ProviderHttpUsage(2400, 120, 1800, ReasoningTokens: 64), call.Usage);
     }
 
     [Theory]
@@ -111,11 +113,13 @@ public sealed class ModelServiceTransportTests
         var images = (IProviderImageGeneration)provider;
         Assert.Equal(new byte[] { 1, 2, 3 }, (await images.GenerateImageAsync(
             runtime, new ProviderImageRequest("image-model", "draw", false, [], "turn"), default)).Image);
+        Assert.Equal("images/generations", (await fixture.Access.ReadCallAsync()).Context.Operation);
         Assert.Equal(new byte[] { 1, 2, 3 }, (await images.GenerateImageAsync(
             runtime, new ProviderImageRequest("image-model", "edit", false, ["data:image/png;base64,AQID"], "turn"), default)).Image);
         Assert.Equal(["/v1/images/generations", "/v1/images/edits"], operations);
-        Assert.Equal("image-model", fixture.Access.Call!.Context.Model);
-        Assert.Equal("images/edits", fixture.Access.Call.Context.Operation);
+        var call = await fixture.Access.ReadCallAsync();
+        Assert.Equal("image-model", call.Context.Model);
+        Assert.Equal("images/edits", call.Context.Operation);
     }
 
     [Fact]
@@ -142,7 +146,7 @@ public sealed class ModelServiceTransportTests
         Assert.Equal("found", result.Output);
         Assert.Equal("/v1/alpha/search", path);
         Assert.False(string.IsNullOrEmpty(userAgent));
-        Assert.Equal("alpha/search", fixture.Access.Call!.Context.Operation);
+        Assert.Equal("alpha/search", (await fixture.Access.ReadCallAsync()).Context.Operation);
     }
 
     [Fact]
@@ -206,7 +210,7 @@ public sealed class ModelServiceTransportTests
         using var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("https://api.deepseek.com/v1/tools/search", path);
-        Assert.Equal("tools/search", fixture.Access.Call!.Context.Operation);
+        Assert.Equal("tools/search", (await fixture.Access.ReadCallAsync()).Context.Operation);
         var description = ModelServiceProviderCatalog.Describe(
             (await fixture.Access.GetProvidersAsync(new ModelServiceCaller("stack-a"), default))[0], []);
         Assert.Equal("deepseek", description.WebSearchBackend);
@@ -275,7 +279,7 @@ public sealed class ModelServiceTransportTests
         using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
 
         Assert.Equal(stream, await response.Content.ReadAsStringAsync());
-        var call = Assert.IsType<ModelServiceCall>(fixture.Access.Call);
+        var call = await fixture.Access.ReadCallAsync();
         Assert.Equal(new ProviderHttpUsage(1_000_000, 100_000, 200_000, 100_000), call.Usage);
         var pricing = model == "gpt-5.5"
             ? new ModelPricing(5m, 30m, 0.5m)
@@ -306,7 +310,7 @@ public sealed class ModelServiceTransportTests
         using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
 
         Assert.Equal(body, await response.Content.ReadAsStringAsync());
-        Assert.Equal(decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture), fixture.Access.Call!.CostUsd);
+        Assert.Equal(decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture), (await fixture.Access.ReadCallAsync()).CostUsd);
     }
 
     [Theory]
@@ -329,7 +333,7 @@ public sealed class ModelServiceTransportTests
         using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/" + operation, new StringContent("{}"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal((decimal)expected, fixture.Access.Call!.CostUsd);
+        Assert.Equal((decimal)expected, (await fixture.Access.ReadCallAsync()).CostUsd);
     }
 
     [Fact]
@@ -342,8 +346,9 @@ public sealed class ModelServiceTransportTests
 
         using var response = await fixture.ProviderClient.PostAsync("https://upstream.example/v1/responses", new StringContent("{}"));
 
-        Assert.NotNull(fixture.Access.Call!.Usage);
-        Assert.Null(fixture.Access.Call.CostUsd);
+        var call = await fixture.Access.ReadCallAsync();
+        Assert.NotNull(call.Usage);
+        Assert.Null(call.CostUsd);
     }
 
     private sealed class Fixture(WebApplication app, HttpClient client, Access access, RemoteProviderTransport transport) : IAsyncDisposable
@@ -390,7 +395,9 @@ public sealed class ModelServiceTransportTests
         public string AuthMethod { get; init; } = ModelProviderAuthMethods.ApiKey;
         public bool Revoked { get; set; }
         public bool ThrowOnUsage { get; set; }
-        public ModelServiceCall? Call { get; private set; }
+        private readonly Channel<ModelServiceCall> _calls = Channel.CreateUnbounded<ModelServiceCall>();
+        public Task<ModelServiceCall> ReadCallAsync() =>
+            _calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         public ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken) =>
             ValueTask.FromResult(!Revoked && context.Request.Headers.Authorization == "Bearer caller-secret" ? new ModelServiceCaller("stack-a") : null);
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
@@ -403,7 +410,7 @@ public sealed class ModelServiceTransportTests
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken) => ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)
         {
-            Call = call;
+            _calls.Writer.TryWrite(call);
             if (ThrowOnUsage)
                 throw new IOException("Usage store unavailable.");
             return ValueTask.CompletedTask;

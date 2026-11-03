@@ -40,7 +40,17 @@ public sealed partial class AppServerHost
                 AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
             }
 
-            workspaceLock.Publish(CreateLockInfo(appServerConfig));
+            var lockInfo = CreateLockInfo(appServerConfig);
+            workspaceLock.Publish(lockInfo);
+
+            void PublishWebSocketEndpoint(string endpoint)
+            {
+                var endpoints = new Dictionary<string, string>(lockInfo.Endpoints, StringComparer.OrdinalIgnoreCase)
+                {
+                    ["appServerWebSocket"] = endpoint
+                };
+                workspaceLock.Publish(lockInfo with { Endpoints = endpoints });
+            }
 
             var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
             var runtimeStarted = false;
@@ -78,11 +88,11 @@ public sealed partial class AppServerHost
                 switch (appServerConfig.Mode)
                 {
                     case AppServerMode.WebSocket:
-                        await RunWebSocketOnlyAsync(appServerConfig.WebSocket, cancellationToken);
+                        await RunWebSocketOnlyAsync(appServerConfig.WebSocket, PublishWebSocketEndpoint, cancellationToken);
                         break;
 
                     case AppServerMode.StdioAndWebSocket:
-                        await RunStdioWithWebSocketAsync(appServerConfig.WebSocket, cancellationToken);
+                        await RunStdioWithWebSocketAsync(appServerConfig.WebSocket, PublishWebSocketEndpoint, cancellationToken);
                         break;
 
                     default:
