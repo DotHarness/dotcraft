@@ -197,7 +197,7 @@ A client that displays multiple workspaces routes each notification with the wor
 | Protocol event | UX behavior |
 |---------------|-------------|
 | `item/started` | New agent work becomes visible in the current thread. |
-| `item/agentMessage/delta` | Agent text streams incrementally. |
+| `item/agentMessage/delta` | Agent text streams incrementally at a steady pace, each newly revealed word fading in. Unfinished inline Markdown at the tail never shows raw markers: an open code span or emphasis renders closed, and a partial link or image is held back until it completes. |
 | `item/reasoning/delta` | Updates the working line's title; the reasoning body is shown only when the user enables thinking content. |
 | `item/toolCall/argumentsDelta` | Tool argument construction streams. Known built-in tools show a bespoke running label and, where useful, a progressive preview; unknown tools (including MCP and module tools) show a generic placeholder without raw argument JSON. |
 | `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Shell output and status merge by `threadId + callId` into the matching shell tool row. |

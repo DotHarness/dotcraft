@@ -14,12 +14,15 @@ import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
 import { tableCellMinWidths } from './markdownTable'
 import { mathSyntax } from './mathSyntax'
 import { copySelectionWithMathSource } from './mathCopy'
+import { rehypeStreamingFade } from './streamingFade'
+import { repairStreamingMarkdown } from './streamingMarkdown'
 
 interface MarkdownRendererProps {
   content: string
   linkMode?: 'conversation' | 'external'
   containOverflow?: boolean
   enableMermaid?: boolean
+  streaming?: boolean
 }
 
 /** Memoized to avoid re-rendering finalized messages in the turn history. Spec §10.3.3. */
@@ -27,13 +30,16 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   linkMode = 'conversation',
   containOverflow = false,
-  enableMermaid = true
+  enableMermaid = true,
+  streaming = false
 }: MarkdownRendererProps): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const rehypePlugins = useKatexPlugins()
+  const basePlugins = useKatexPlugins()
+  const rehypePlugins = useMemo(() => streaming ? [...basePlugins, rehypeStreamingFade] : basePlugins, [basePlugins, streaming])
+  const markdown = useMemo(() => streaming ? repairStreamingMarkdown(content) : content, [content, streaming])
 
   const customComponents = useMemo<Components>(() => ({
     ...baseComponents,
@@ -71,7 +77,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         components={customComponents}
         urlTransform={markdownUrlTransform}
       >
-        {content}
+        {markdown}
       </ReactMarkdown>
     </div>
   )

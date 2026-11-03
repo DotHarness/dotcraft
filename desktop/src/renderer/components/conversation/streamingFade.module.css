@@ -1,0 +1,13 @@
+.fade {
+  animation: streaming-fade-in 700ms cubic-bezier(0.37, 0.55, 0.86, 0.88) both;
+}
+
+@keyframes streaming-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
