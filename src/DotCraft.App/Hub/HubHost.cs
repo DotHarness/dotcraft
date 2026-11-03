@@ -509,6 +509,12 @@ public sealed class HubHost : IDotCraftHost
         }
 
         _eventBus?.Publish("hub.stopping", data: new { pid = Environment.ProcessId });
+        if (_satellites is not null)
+        {
+            await _satellites.DisposeAsync();
+            _satellites = null;
+        }
+
         if (_app is not null)
         {
             await _app.StopAsync(CancellationToken.None);
@@ -529,12 +535,6 @@ public sealed class HubHost : IDotCraftHost
         await Task.WhenAll(
             registry?.DisposeAsync().AsTask() ?? Task.CompletedTask,
             serviceRegistry?.DisposeAsync().AsTask() ?? Task.CompletedTask);
-
-        if (_satellites is not null)
-        {
-            await _satellites.DisposeAsync();
-            _satellites = null;
-        }
 
         _lockFile?.DeleteAfterDispose();
         _lockFile = null;
