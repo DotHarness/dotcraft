@@ -569,6 +569,11 @@ describe('App initial workspace status bootstrap', () => {
       expect(state.threadList.map((thread) => thread.id)).toEqual(['thread-b'])
       expect(state.threadListProjectKey).toBe('c:/sample/workspace-b')
     })
+    for (const workspacePath of [readyWorkspaceStatus.workspacePath, workspaceBStatus.workspacePath]) {
+      expect(appServerSendRequest.mock.calls.filter(([method, params]) =>
+        method === 'thread/list' && params?.identity?.workspacePath === workspacePath
+      )).toHaveLength(1)
+    }
   })
 
   it('reloads when workspace status changes before the projects payload settles', async () => {

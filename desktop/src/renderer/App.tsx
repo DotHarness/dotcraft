@@ -5,7 +5,8 @@ import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
 import { initConnectionStore, useConnectionStore } from './stores/connectionStore'
-import { readStateMark, useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
+import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
+import { canReloadForegroundThreadList, currentForegroundThreadListKey, useForegroundThreadList } from './hooks/useForegroundThreadList'
 import {
   getThreadConversation,
   selectLatestCreatePlanTurnId,
@@ -50,7 +51,8 @@ import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
 import { useTurnBookmarkStore } from './stores/turnBookmarkStore'
 import { bootstrapSatellites } from './stores/satellitesStore'
-import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
+import { useGitStore } from './stores/gitStore'
+import { useWorkspaceReadinessTiming } from './hooks/useWorkspaceReadinessTiming'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
 import {
   replaceCurrentAppNavigationLocation,
@@ -97,7 +99,7 @@ import {
   type McpElicitationResponse
 } from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
-import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
+import type { ContextUsageSnapshotWire, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
@@ -111,7 +113,6 @@ import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseO
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
-import { withReadStates } from './utils/threadReadState'
 import { reloadThreadAfterRollback } from './utils/threadRollback'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
@@ -368,28 +369,6 @@ function normalizeWorkspacePathForPinnedLookup(path: string): string {
   return normalizeWorkspaceProjectKey(path)
 }
 
-function resolvePinnedThreadIdsForWorkspace(
-  pinnedByWorkspace: Record<string, string[]> | undefined,
-  workspacePath: string
-): string[] {
-  if (!pinnedByWorkspace) return []
-  const exact = pinnedByWorkspace[workspacePath]
-  if (Array.isArray(exact)) return exact
-
-  const normalizedWorkspacePath = normalizeWorkspacePathForPinnedLookup(workspacePath)
-  const match = Object.entries(pinnedByWorkspace).find(
-    ([candidate]) => normalizeWorkspacePathForPinnedLookup(candidate) === normalizedWorkspacePath
-  )
-  return match?.[1] ?? []
-}
-
-function currentForegroundThreadListKey(
-  activeProjectKey: string | null | undefined,
-  protocolWorkspacePath: string | null | undefined
-): string {
-  return normalizeWorkspaceProjectKey(activeProjectKey || protocolWorkspacePath || '')
-}
-
 function resolveActiveProjectKey(
   foregroundProjectId: string | null | undefined,
   remoteProjectId: string | null | undefined,
@@ -417,16 +396,6 @@ function currentForegroundThreadListIdentityKey(
   return `${projectKey}\u0000${protocolKey}`
 }
 
-function canReloadForegroundThreadList(
-  activeProjectKey: string | null | undefined,
-  protocolWorkspacePath: string | null | undefined
-): boolean {
-  const protocolKey = normalizeWorkspaceProjectKey(protocolWorkspacePath)
-  if (!protocolKey) return false
-  const projectKey = normalizeWorkspaceProjectKey(activeProjectKey)
-  if (!projectKey || projectKey.startsWith('remote:')) return true
-  return projectKey === protocolKey
-}
 
 const THREAD_NOT_FOUND = -32010
 
@@ -677,19 +646,6 @@ export function App(): JSX.Element {
   const displayWorkspaceName = foregroundIsChat
     ? translate(locale, 'chatsRail.title')
     : workspaceName
-  const mainWorkspaceGitPathKey =
-    workspaceStatus.status === 'ready' && !remoteWorkspaceActive && !foregroundIsChat
-      ? normalizeGitPathKey(workspacePath)
-      : ''
-  const mainWorkspaceGitStatus = useGitStore((s) =>
-    mainWorkspaceGitPathKey ? s.branchesByPath[mainWorkspaceGitPathKey]?.status : undefined
-  )
-  const mainWorkspaceGitSettled =
-    remoteWorkspaceActive ||
-    workspaceStatus.status !== 'ready' ||
-    !workspacePath ||
-    foregroundIsChat ||
-    isGitBranchProbeSettled(mainWorkspaceGitStatus)
   const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
   remoteWorkspaceActiveRef.current = remoteWorkspaceActive
   const [chromeSettingsOpenSeq, setChromeSettingsOpenSeq] = useState(0)
@@ -716,11 +672,6 @@ export function App(): JSX.Element {
   const pendingRestartApplyingKey = usePendingRestartStore((s) => s.applyingKey)
   const applyPendingRestart = usePendingRestartStore((s) => s.apply)
   const ignorePendingRestart = usePendingRestartStore((s) => s.ignore)
-  const {
-    setThreadList,
-    setLoading
-  } = useThreadStore()
-
   const workspacePathRef = useRef(initialWorkspacePath)
   const protocolWorkspacePathRef = useRef(initialProtocolWorkspacePath)
   const setupWorkspaceStatusSnapshotRef = useRef<WorkspaceStatusPayload | null>(
@@ -738,7 +689,6 @@ export function App(): JSX.Element {
   const addProject = useAddProjectFlow()
   const beginAddProjectRef = useRef(addProject.beginCreate)
   beginAddProjectRef.current = addProject.beginCreate
-  const threadListReloadGenerationRef = useRef(0)
   const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
   const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => Promise<boolean>) | null>(null)
   const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
@@ -755,11 +705,6 @@ export function App(): JSX.Element {
   const scheduledActiveThreadReconcileTimerRef = useRef<number | null>(null)
   const threadRestoreGateRef = useRef<{ threadId: string; token: number } | null>(null)
   const threadRestoreGateTokenRef = useRef(0)
-  const threadListRetryRef = useRef<{ key: string; attempts: number; timer: number | null }>({
-    key: '',
-    attempts: 0,
-    timer: null
-  })
   const pendingAutoWhatsNewRef = useRef<{
     releases: WhatsNewRelease[]
     markSeenVersion?: string
@@ -909,91 +854,7 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const reloadThreadList = useCallback(async () => {
-    const requestGeneration = ++threadListReloadGenerationRef.current
-    const path = protocolWorkspacePathRef.current
-    if (!canReloadForegroundThreadList(activeProjectKeyRef.current, path)) {
-      return
-    }
-    const requestProtocolWorkspaceKey = normalizeWorkspaceProjectKey(path)
-    const projectKey = currentForegroundThreadListKey(activeProjectKeyRef.current, path)
-    const isCurrentRequest = (): boolean =>
-      requestGeneration === threadListReloadGenerationRef.current &&
-      projectKey === currentForegroundThreadListKey(activeProjectKeyRef.current, protocolWorkspacePathRef.current) &&
-      requestProtocolWorkspaceKey === normalizeWorkspaceProjectKey(protocolWorkspacePathRef.current)
-    const identity: SessionIdentity = {
-      channelName: 'dotcraft-desktop',
-      userId: 'local',
-      channelContext: `workspace:${path}`,
-      workspacePath: path
-    }
-    setLoading(true)
-    try {
-      const settings = await window.api.settings.get()
-      if (!isCurrentRequest()) return
-      const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
-      const requestedAtMark = readStateMark()
-      const result = await window.api.appServer.sendRequest('thread/list', params)
-      if (!isCurrentRequest()) return
-      const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
-      const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates, requestedAtMark), projectKey)
-      if (threadListRetryRef.current.timer != null) {
-        window.clearTimeout(threadListRetryRef.current.timer)
-      }
-      threadListRetryRef.current = { key: '', attempts: 0, timer: null }
-      threadStore.hydratePinnedThreadIds(
-        projectKey,
-        resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
-      )
-      threadStore.prunePinnedThreadIds()
-      useTurnBookmarkStore.getState().hydrate(settings.turnBookmarksByThread)
-      const pendingProjectThreadOpen = useUIStore.getState().consumePendingProjectThreadOpen(
-        projectKey,
-        useThreadStore.getState().threadList.map((thread) => thread.id)
-      )
-      if (pendingProjectThreadOpen) {
-        useUIStore.getState().setActiveMainView('conversation')
-        useThreadStore.getState().setActiveThreadId(pendingProjectThreadOpen.threadId)
-      }
-    } catch (err: unknown) {
-      if (!isCurrentRequest()) return
-      console.error('Failed to load thread list:', err)
-      const currentThreadListProjectKey = useThreadStore.getState().threadListProjectKey
-      if (currentThreadListProjectKey !== projectKey) {
-        setThreadList([], projectKey)
-      }
-      const retryKey = `${projectKey}\u0000${requestProtocolWorkspaceKey}`
-      const retry = threadListRetryRef.current
-      if (retry.key !== retryKey) {
-        if (retry.timer != null) window.clearTimeout(retry.timer)
-        threadListRetryRef.current = { key: retryKey, attempts: 0, timer: null }
-      }
-      const nextRetry = threadListRetryRef.current
-      if (nextRetry.attempts < 3 && nextRetry.timer == null) {
-        nextRetry.attempts += 1
-        nextRetry.timer = window.setTimeout(() => {
-          nextRetry.timer = null
-          void reloadThreadList()
-        }, 1200)
-      } else if (nextRetry.attempts >= 3) {
-        useUIStore.getState().clearPendingProjectThreadOpen(projectKey)
-      }
-    } finally {
-      if (isCurrentRequest()) {
-        setLoading(false)
-      }
-    }
-  }, [setThreadList, setLoading])
-
-  useEffect(() => {
-    return () => {
-      if (threadListRetryRef.current.timer != null) {
-        window.clearTimeout(threadListRetryRef.current.timer)
-        threadListRetryRef.current.timer = null
-      }
-    }
-  }, [])
+  const { reloadThreadList, invalidateThreadList, loadedProjectKey } = useForegroundThreadList(activeProjectKeyRef, protocolWorkspacePathRef)
 
   useEffect(() => {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
@@ -1523,7 +1384,8 @@ export function App(): JSX.Element {
       workspaceLaunchTransition.phase !== 'preparing'
     ) return
 
-    if (workspaceStatus.status === 'ready' && status === 'connected' && mainWorkspaceGitSettled) {
+    if (workspaceStatus.status === 'ready' && status === 'connected') {
+      performance.mark('app:workspace-main-reveal', { detail: { workspacePath } })
       const centerRect = centeredLaunchLogoRect()
       setWorkspaceLaunchTransition({
         ...workspaceLaunchTransition,
@@ -1534,10 +1396,10 @@ export function App(): JSX.Element {
       })
     }
   }, [
-    mainWorkspaceGitSettled,
     setupLogoAnchorNode,
     status,
     workspaceLaunchTransition,
+    workspacePath,
     workspaceStatus.status
   ])
 
@@ -1600,16 +1462,17 @@ export function App(): JSX.Element {
     if (nextIdentityKey === previousIdentityKey) return
 
     prevForegroundThreadListIdentityKeyRef.current = nextIdentityKey
-    threadListReloadGenerationRef.current += 1
+    invalidateThreadList()
     resetWorkspaceScopedRendererState(!remoteWorkspaceActive)
     if (
       status === 'connected' &&
+      prevStatusRef.current === 'connected' &&
       nextKey &&
       canReloadForegroundThreadList(activeProjectKey, protocolWorkspacePath)
     ) {
       void reloadThreadList()
     }
-  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, protocolWorkspacePath, reloadThreadList, remoteWorkspaceActive, status])
+  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, invalidateThreadList, protocolWorkspacePath, reloadThreadList, remoteWorkspaceActive, status])
 
   useEffect(() => {
     if (status === 'connected' && prevStatusRef.current !== 'connected') {
@@ -1625,12 +1488,12 @@ export function App(): JSX.Element {
       }
     }
     if (status === 'disconnected' || status === 'error') {
-      threadListReloadGenerationRef.current += 1
+      invalidateThreadList()
       resetWorkspaceScopedRendererState()
     }
 
     prevStatusRef.current = status
-  }, [status, reloadThreadList])
+  }, [status, reloadThreadList, invalidateThreadList])
 
   useEffect(() => {
     if (status !== 'connected' || capabilities?.pluginManagement !== true) return
@@ -2639,6 +2502,7 @@ export function App(): JSX.Element {
   const releaseWarmThreadRef = useRef<(threadId: string) => void>(() => {})
   const activeThreadHeaderRef = useRef<Thread | null>(null)
   const { activeThreadId, activeThread, threadList, threadListProjectKey } = useThreadStore()
+  useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
   if (activeThread && activeThread.id === activeThreadId) activeThreadHeaderRef.current = activeThread
   const activeThreadSubscriptionScope =
     status === 'connected'

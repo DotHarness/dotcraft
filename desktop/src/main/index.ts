@@ -214,6 +214,7 @@ import {
   normalizeWorkspaceProjectKey,
   sameWorkspaceProjectKey
 } from '../shared/workspaceProjectKey'
+import { startWorkspaceConnectionTiming } from './workspaceConnectionTiming'
 import {
   canBridgeRendererInteractiveServerRequest,
   getForegroundWorkspaceClient,
@@ -2057,6 +2058,7 @@ interface RemoteConnectionDiagnostic {
 }
 
 interface ConnectViaWebSocketOptions {
+  onReady?: () => void
   autoReconnect?: boolean
   initializeTimeoutMs?: number | null
   initialDisconnectIsError?: boolean
@@ -2447,11 +2449,12 @@ async function connectViaWebSocket(
     if (workspaceActivation) {
       publishWorkspaceActivation(workspaceActivation.handle.endpoint)
     }
-    void refreshConnectionThreadList(entry)
     if (entry.role === 'secondary') {
+      void refreshConnectionThreadList(entry)
       return
     }
     if (!isCurrentForegroundClient()) return
+    if (!connectedOnce) options.onReady?.()
     connectedOnce = true
     clearActiveRemoteReconnectTimer()
     activeRemoteReconnectAttempt = 0
@@ -3132,6 +3135,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   if (runtimeIsStopping()) {
     return false
   }
+  const recordConnectionTiming = startWorkspaceConnectionTiming(workspacePath)
   const remoteIdx = process.argv.indexOf('--remote')
   const launchedWithRemoteUrl = hasRemoteEndpointArg()
   const connectionMode = resolveConnectionMode(sharedSettings)
@@ -3167,6 +3171,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
     const existingConnection = getWorkspaceConnection(workspacePath)
     if (existingConnection?.connected) {
       promoteWorkspaceConnection(existingConnection)
+      recordConnectionTiming('connection-ready', 'existing-connection')
       void refreshSecondaryWorkspaceConnections()
       return true
     }
@@ -3383,9 +3388,12 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
       ?? hubClient.ensureAppServer(workspacePath, { runtimeTools: resolveDotCraftRuntimeTools() }))
     if (currentWorkspacePath !== workspacePath || runtimeIsStopping()) return false
 
+    recordConnectionTiming('hub-ready', 'ensure-and-connect')
     startHubEventSubscription(workspacePath, hubClient)
     logLiveDesktopHub(hubClient)
-    await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured))
+    await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured), {
+      onReady: () => recordConnectionTiming('connection-ready', 'ensure-and-connect')
+    })
     return true
   } catch (err) {
     if (runtimeIsStopping() || currentWorkspacePath !== workspacePath) return false

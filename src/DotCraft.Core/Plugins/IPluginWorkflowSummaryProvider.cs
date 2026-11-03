@@ -3,7 +3,7 @@ namespace DotCraft.Plugins;
 /// <summary>Provides safe workflow metadata for plugin inspection surfaces.</summary>
 public interface IPluginWorkflowSummaryProvider
 {
-    IReadOnlyList<PluginWorkflowSummary> ListForPlugin(string pluginId);
+    IReadOnlyList<PluginWorkflowSummary> ListForPlugin(DiscoveredPlugin plugin);
 }
 
 public sealed record PluginWorkflowSummary(

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotCraft.Workspaces;
 using DotCraft.Agents;
 using DotCraft.Commands.Custom;
@@ -102,7 +103,8 @@ public static class ServiceRegistration
             return clients;
         });
         services.AddSingleton(paths);
-        services.TryAddSingleton(_ => new PluginDiscoveryService(paths));
+        services.TryAddSingleton(sp => new PluginDiscoveryService(paths,
+            logger: sp.GetService<ILogger<PluginDiscoveryService>>()));
         services.TryAddSingleton<PluginConfigStore>();
         services.AddSingleton(_ => new WorkspaceStateDatabase(dataPath));
         services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
@@ -113,10 +115,15 @@ public static class ServiceRegistration
                 sp.GetService<ILoggerFactory>()?.CreateLogger<BackgroundTerminalService>()));
         services.AddSingleton(_ => new MemoryStore(dataPath));
         services.AddSingleton(_ => new ApprovalStore(dataPath));
-        services.AddSingleton(_ =>
+        services.AddSingleton(sp =>
         {
+            var timer = Stopwatch.StartNew();
             var skillsLoader = new SkillsLoader(paths, config.Skills.IncludeSharedSkills);
-            PluginRuntimeConfigurator.ConfigureSkillsLoader(skillsLoader, config, paths);
+            PluginRuntimeConfigurator.ConfigureSkillsLoader(skillsLoader, config, paths,
+                logger: sp.GetService<ILogger<PluginDiscoveryService>>());
+            sp.GetService<ILogger<WorkspaceRuntime>>()?.LogInformation(
+                "Startup stage {Stage} completed in {ElapsedMs}ms",
+                "di-skills-and-plugin-discovery", timer.Elapsed.TotalMilliseconds);
             return skillsLoader;
         });
         services.AddSingleton(_ => new CustomCommandLoader(paths));
@@ -137,10 +144,15 @@ public static class ServiceRegistration
         services.AddSingleton<IToolSource, WorktreeToolSource>();
         services.AddSingleton<VisualizationAssetStore>();
 
-        services.AddSingleton(_ =>
+        services.AddSingleton(sp =>
         {
+            var timer = Stopwatch.StartNew();
             var hooksLoader = new HooksLoader(paths);
-            return new HookRunner(hooksLoader.Discover(config, workspacePath), workspacePath);
+            var runner = new HookRunner(hooksLoader.Discover(config, workspacePath), workspacePath);
+            sp.GetService<ILogger<WorkspaceRuntime>>()?.LogInformation(
+                "Startup stage {Stage} completed in {ElapsedMs}ms",
+                "di-hooks-and-plugin-discovery", timer.Elapsed.TotalMilliseconds);
+            return runner;
         });
 
         services.AddSingleton(sp =>
@@ -258,6 +270,8 @@ internal static class ServiceProviderExtensions
 {
     internal static async Task InitializeServicesAsync(this IServiceProvider provider)
     {
+        var timer = Stopwatch.StartNew();
+        var logger = provider.GetService<ILogger<WorkspaceRuntime>>();
         var config = provider.GetRequiredService<AppConfig>();
         var paths = provider.GetRequiredService<DotCraftPaths>();
         var loggerFactory = provider.GetService<ILoggerFactory>();
@@ -274,22 +288,27 @@ internal static class ServiceProviderExtensions
                 hookDiagnosticsLogger?.LogDebug("{HookDiagnostic}", message);
             }
         };
+        LogStage("services-hooks");
         var mcpManager = provider.GetRequiredService<McpClientManager>();
         var lspManager = provider.GetRequiredService<LspServerManager>();
         var effectiveMcpServers = PluginMcpServerResolver.LoadEffectiveServers(
             config,
             paths,
-            out var pluginMcpDiagnostics);
+            out var pluginMcpDiagnostics,
+            logger: loggerFactory?.CreateLogger<PluginDiscoveryService>());
         PluginDiagnosticsLogger.Write(
             pluginMcpDiagnostics,
             loggerFactory?.CreateLogger("DotCraft.Plugins"));
 
+        LogStage("services-mcp-discovery");
         if (effectiveMcpServers.Count > 0)
         {
             await mcpManager.ConnectAsync(effectiveMcpServers);
         }
 
+        LogStage("services-mcp-connect-scheduling");
         await lspManager.InitializeAsync();
+        LogStage("services-lsp-initialize");
 
         if (provider.GetService<ModelProviderRegistry>() is { } modelProviders)
         {
@@ -298,6 +317,14 @@ internal static class ServiceProviderExtensions
                          .OfType<IProviderLifecycle>()
                          .Distinct())
                 lifecycle.Start();
+        }
+        LogStage("services-provider-protocols");
+
+        void LogStage(string stage)
+        {
+            logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+                stage, timer.Elapsed.TotalMilliseconds);
+            timer.Restart();
         }
     }
 

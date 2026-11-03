@@ -13,7 +13,7 @@ public static class PluginRuntimeConfigurator
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         ILogger? logger = null)
     {
-        var discovery = new PluginDiscoveryService(paths, builtInPluginSourceRoots)
+        var discovery = new PluginDiscoveryService(paths, builtInPluginSourceRoots, logger)
             .DiscoverAll(config, paths.WorkspacePath, paths.Data.RootPath);
         ConfigureSkills(skillsLoader, config, discovery);
         PluginDiagnosticsLogger.Write(discovery.Diagnostics, logger);
@@ -32,7 +32,8 @@ public static class PluginRuntimeConfigurator
         var discovery = new PluginDiscoveryService(
                 userDataPath == null ? null : Path.Combine(userDataPath, "plugins"),
                 builtInPluginSourceRoots,
-                userDataPath)
+                userDataPath,
+                logger)
             .DiscoverAll(config, workspacePath, botPath);
         ConfigureSkills(skillsLoader, config, discovery);
         PluginDiagnosticsLogger.Write(discovery.Diagnostics, logger);

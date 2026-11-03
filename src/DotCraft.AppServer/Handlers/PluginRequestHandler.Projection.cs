@@ -96,7 +96,7 @@ internal sealed partial class PluginRequestHandler
             LspServers = lspSummaries.TryGetValue(manifest.Id, out var lspServers)
                 ? lspServers.Select(MapPluginLspServerToWire).ToList()
                 : Array.Empty<Contract.PluginLspServerInfo>(),
-            Workflows = workflowSummaryProvider?.ListForPlugin(manifest.Id)
+            Workflows = workflowSummaryProvider?.ListForPlugin(plugin)
                 .Select(static workflow => new Contract.PluginWorkflowInfo
                 {
                     Name = workflow.Name,

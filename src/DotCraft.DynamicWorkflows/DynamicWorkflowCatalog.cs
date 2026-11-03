@@ -57,14 +57,14 @@ public sealed class DynamicWorkflowCatalog(
         return List().FirstOrDefault(item => PathsEqual(item.ScriptPath, full));
     }
 
-    public IReadOnlyList<PluginWorkflowSummary> ListForPlugin(string pluginId)
+    public IReadOnlyList<PluginWorkflowSummary> ListForPlugin(DiscoveredPlugin plugin)
     {
+        if (!plugin.Installed || plugin.Manifest.WorkflowsPath is not { } root)
+            return [];
+
         var definitions = new Dictionary<string, DynamicWorkflowDefinition>(StringComparer.OrdinalIgnoreCase);
         var diagnostics = new List<string>();
-        var plugin = pluginDiscovery.DiscoverAll(config, workspacePath, dataPath).Plugins
-            .FirstOrDefault(item => item.Installed && string.Equals(item.Manifest.Id, pluginId, StringComparison.OrdinalIgnoreCase));
-        if (plugin?.Manifest.WorkflowsPath is { } root)
-            AddScope(root, "plugin", plugin.Manifest.Id, definitions, diagnostics);
+        AddScope(root, "plugin", plugin.Manifest.Id, definitions, diagnostics);
         return definitions.Values
             .Select(static item => new PluginWorkflowSummary(item.Name, item.Command, item.Description, item.WhenToUse))
             .ToArray();
