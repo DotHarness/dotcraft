@@ -3,12 +3,14 @@ import { FileText, X } from 'lucide-react'
 import type { ComposerFileAttachment, ImageAttachment } from '../../types/conversation'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { AttachmentRemoveButton } from './AttachmentRemoveButton'
 import { ImageLightbox } from './ImageLightbox'
+import { imageContextMenuEntries } from './imagePreview/imageActions'
 
 interface AttachmentStripProps {
   images: ImageAttachment[]
@@ -75,13 +77,16 @@ export function AttachmentStrip({
   removeFileLabel = 'Remove file'
 }: AttachmentStripProps): JSX.Element | null {
   const t = useT()
+  const locale = useLocale()
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
+  const [imageMenu, setImageMenu] = useState<{ position: ContextMenuPosition; index: number } | null>(null)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   if (images.length === 0 && files.length === 0 && !hasContextAttachments) return null
 
   const canOpenFileAttachment = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
+  const menuImage = imageMenu ? images[imageMenu.index] : undefined
 
   return (
     <>
@@ -94,6 +99,11 @@ export function AttachmentStrip({
                   <button
                     type="button"
                     onClick={() => setPreviewIndex(idx)}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setImageMenu({ position: { x: event.clientX, y: event.clientY }, index: idx })
+                    }}
                     aria-label={t('conversation.previewImageAttachmentAria', { file: img.fileName })}
                     style={imageThumbnailButtonStyle}
                   >
@@ -170,6 +180,16 @@ export function AttachmentStrip({
           images={images.map((img) => ({ key: img.tempPath, src: img.dataUrl, title: img.fileName }))}
           initialIndex={previewIndex}
           onClose={() => setPreviewIndex(null)}
+        />
+      )}
+      {imageMenu && menuImage && (
+        <ContextMenu
+          items={imageContextMenuEntries(
+            { key: menuImage.tempPath, src: menuImage.dataUrl, title: menuImage.fileName },
+            { t, locale, allowAddToChat: false, onOpen: () => setPreviewIndex(imageMenu.index) }
+          )}
+          position={imageMenu.position}
+          onClose={() => setImageMenu(null)}
         />
       )}
     </>

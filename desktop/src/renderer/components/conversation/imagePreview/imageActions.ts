@@ -115,11 +115,13 @@ function revealImageLabel(t: Translate): string {
 
 export function imageContextMenuEntries(
   image: GalleryImage,
-  { t, locale, onOpen }: { t: Translate; locale: string; onOpen?: () => void }
+  { t, locale, onOpen, allowAddToChat = true }: { t: Translate; locale: string; onOpen?: () => void; allowAddToChat?: boolean }
 ): ContextMenuEntry[] {
   const entries: ContextMenuEntry[] = []
   if (onOpen) entries.push({ label: t('conversation.image.open'), onClick: onOpen })
-  entries.push({ label: t('conversation.image.addToChat'), onClick: () => { void addImageToChat(image, t) } })
+  if (allowAddToChat) {
+    entries.push({ label: t('conversation.image.addToChat'), onClick: () => { void addImageToChat(image, t) } })
+  }
   if (canCopyImages()) {
     entries.push({ label: t('conversation.copyImage'), onClick: () => { void copyImage(image, t) } })
   }
