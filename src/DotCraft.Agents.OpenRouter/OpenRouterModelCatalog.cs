@@ -31,7 +31,7 @@ public static class OpenRouterModelCatalog
             var known = supportsReasoning && (reasoning is not { HasSupportedEfforts: true, Mandatory: not null } || upstreamDefault is null)
                 ? ModelThinkingAdapterCatalog.ResolveReasoningCapability("anthropic", null, id) : null;
             if (known?.Models.Count == 0) known = null;
-            var efforts = (reasoning?.SupportedEfforts ?? []).Select(ParseEffort).OfType<ProviderReasoningEffort>().Distinct().ToArray();
+            var efforts = (reasoning?.SupportedEfforts ?? []).Select(ParseEffort).OfType<ProviderReasoningEffort>().Distinct().OrderBy(effort => effort).ToArray();
             if (supportsReasoning && reasoning is not { HasSupportedEfforts: true })
                 efforts = known?.SupportedEfforts.Select(e => e.Effort).ToArray() ?? [];
             if (supportsReasoning && reasoning is { HasSupportedEfforts: true, SupportedEfforts: null })

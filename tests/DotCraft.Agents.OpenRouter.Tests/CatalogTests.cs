@@ -94,6 +94,22 @@ public sealed class CatalogTests
         Assert.False(model.Reasoning.SupportsDisable);
     }
 
+    [Theory]
+    [InlineData("""["max","xhigh","high","medium","low"]""")]
+    [InlineData("""["medium","max","low","high","xhigh","low","minimal","unknown"]""")]
+    public void ReasoningEffortsAreNormalizedToAscendingIntensityWithoutChangingDefaults(string efforts)
+    {
+        var json = JsonNode.Parse(Catalog)!;
+        json["data"]![0]!["reasoning"]!["supported_efforts"] = JsonNode.Parse(efforts);
+        var reasoning = Assert.Single(OpenRouterModelCatalog.Read(json.ToJsonString())).Reasoning!;
+        Assert.Equal(
+            [ProviderReasoningEffort.Low, ProviderReasoningEffort.Medium, ProviderReasoningEffort.High,
+                ProviderReasoningEffort.ExtraHigh, ProviderReasoningEffort.Max],
+            reasoning.SupportedEfforts);
+        Assert.Equal(ProviderReasoningEffort.ExtraHigh, reasoning.DefaultEffort);
+        Assert.Equal(ProviderReasoningEffort.ExtraHigh, reasoning.UpstreamDefaultEffort);
+    }
+
     [Fact]
     public async Task MissingUsagePermissionIsUnavailableRatherThanZero()
     {

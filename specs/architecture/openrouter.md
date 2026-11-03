@@ -28,6 +28,9 @@ maintenance tasks and ModelService use the same resolved description.
 The shared built-in catalog includes text-output models with tool support, retaining image inputs,
 protocols, context and output limits, reasoning options and prices. Model records govern routing
 and capabilities. Official metadata takes precedence over local compatibility rules.
+Supported reasoning efforts are deduplicated and normalized to ascending intensity
+(`low`, `medium`, `high`, `xhigh`, `max`), regardless of upstream array order. Sorting
+preserves advertised defaults and the existing model-specific default rules.
 
 Online refresh reads `/models` and applies the key's available models through `/models/user`.
 Successful refreshes replace the catalog. The last successful cache or built-in catalog supplies
