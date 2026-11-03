@@ -241,6 +241,7 @@ public sealed class HubHostTests : IDisposable
         using var firstDoc = JsonDocument.Parse(firstBody);
         var firstRoot = firstDoc.RootElement;
         var firstPid = firstRoot.GetProperty("pid").GetInt32();
+        using var managedProcess = Process.GetProcessById(firstPid);
         Assert.Equal("running", firstRoot.GetProperty("state").GetString());
         Assert.True(firstRoot.GetProperty("startedByHub").GetBoolean());
         Assert.StartsWith("ws://127.0.0.1:", firstRoot.GetProperty("endpoints").GetProperty("appServerWebSocket").GetString());
@@ -266,7 +267,7 @@ public sealed class HubHostTests : IDisposable
         using var stop = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/stop", new { workspacePath = workspace.WorkspacePath });
         var stopResponse = await http.SendAsync(stop, cts.Token);
         stopResponse.EnsureSuccessStatusCode();
-        await WaitForFileDeletedAsync(Path.Combine(workspace.BotPath, "appserver.lock"), cts.Token);
+        await managedProcess.WaitForExitAsync(cts.Token);
         Assert.Empty(new HubAppServerRegistryStore(paths.AppServersRegistryPath).Load());
 
         using var listRequest = new HttpRequestMessage(HttpMethod.Get, $"{info.ApiBaseUrl}/v1/appservers");
@@ -295,19 +296,6 @@ public sealed class HubHostTests : IDisposable
             var info = HubLockFile.TryRead(lockFilePath);
             if (info is not null)
                 return info;
-
-            await Task.Delay(50, ct);
-        }
-
-        throw new OperationCanceledException(ct);
-    }
-
-    private static async Task WaitForFileDeletedAsync(string path, CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            if (!File.Exists(path))
-                return;
 
             await Task.Delay(50, ct);
         }

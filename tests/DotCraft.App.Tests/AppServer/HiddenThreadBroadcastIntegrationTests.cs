@@ -45,7 +45,8 @@ public sealed class HiddenThreadBroadcastIntegrationTests
                 environmentVariables: new Dictionary<string, string?>
                 {
                     ["HOME"] = profile,
-                    ["USERPROFILE"] = profile
+                    ["USERPROFILE"] = profile,
+                    ["DOTCRAFT_MANAGED_APP_SERVER"] = "0"
                 },
                 createNoWindow: true,
                 ct: deadline.Token);
