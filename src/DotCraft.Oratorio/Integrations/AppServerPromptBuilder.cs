@@ -78,7 +78,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTrac
             : null;
         var isPullRequestReview = run.Purpose == RunPurpose.ReviewAnalysis && item.Source is "github" or "gitlab" && item.Kind == ItemKind.PullRequest;
         var headSha = isPullRequestReview ? run.TargetHeadSha : item.HeadSha;
-        var stateInput = await threadState.DescribeAsync(item, headSha, reusedThreadId, ct);
+        var stateInput = await threadState.DescribeAsync(item, run.Purpose, headSha, reusedThreadId, ct);
         var priorOpenFindings = isPullRequestReview ? stateInput.State.OpenFindings : [];
         var isImplementationRun = run.Purpose == RunPurpose.Implementation &&
             item.Kind is ItemKind.Issue or ItemKind.LocalTask;
@@ -283,7 +283,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTrac
         };
 
         var contextJson = JsonSerializer.Serialize(context, JsonOptions);
-        var runtimeAdditionalContext = BuildThreadRuntimeAdditionalContext(run.Purpose, item.Kind, item.Source);
+        var runtimeAdditionalContext = BuildThreadRuntimeAdditionalContext(item.Kind, item.Source);
         var prompt = new StringBuilder();
         if (incremental)
         {
@@ -481,12 +481,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTrac
         }
     }
 
-    /// <summary>
-    /// A draft page ships only when a run on this thread can reach the matching tool, so the page set
-    /// is a function of the tool set and stays stable for as long as the thread is reused.
-    /// </summary>
     public static IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> BuildThreadRuntimeAdditionalContext(
-        RunPurpose purpose,
         ItemKind itemKind,
         string? source)
     {
@@ -499,7 +494,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTrac
         {
             entries["oratorio.reviewDraft"] = RuntimeEntry(BuildReviewDraftRuntimeContext());
         }
-        if (OratorioDynamicToolCatalog.SupportsImplementationDraft(purpose, itemKind, source))
+        if (OratorioDynamicToolCatalog.SupportsImplementationDraft(itemKind, source))
         {
             entries["oratorio.implementationDraft"] = RuntimeEntry(ImplementationDraftInstructions);
         }

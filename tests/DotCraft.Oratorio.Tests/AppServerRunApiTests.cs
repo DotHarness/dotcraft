@@ -707,20 +707,30 @@ public sealed class AppServerRunApiTests
     }
 
     [Fact]
-    public async Task AgentDiscussionTurn_RequiresCompatibleCompletedThread()
+    public async Task AgentDiscussionTurn_StartsThreadForNewTaskThatImplementationReuses()
     {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var task = await CreateLocalTaskAsync(client, "Ask too early", repository: "example-owner/oratorio");
+        var harness = new GitHubQuestionHarness(FakeAppServerOutcome.SubmitDiscussionReply);
+        await using var app = harness.App;
+        var task = await CreateLocalTaskAsync(harness.Client, "Ask before implementing");
+        var itemId = task.Item.ItemId;
 
-        var response = await client.PostAsJsonAsync(
-            $"/api/v1/items/id/{task.Item.ItemId}/discussion-turns",
-            new DiscussionTurnRequest("Can you answer without a base thread?", null, null),
-            JsonOptions);
+        await PostAsync<ItemDetailResponse>(
+            harness.Client,
+            $"/api/v1/items/id/{itemId}/discussion-turns",
+            new DiscussionTurnRequest("How would you approach this?", null, null));
+        var answered = await WaitForItemByIdAsync(harness.Client, itemId, x => x.DiscussionTurns.Any(t => t.Status == DiscussionTurnStatus.Succeeded));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
-        Assert.Equal("noCompatibleDiscussionThread", error?.Error.Code);
+        harness.AppServer.Outcome = FakeAppServerOutcome.SubmitImplementationDraft;
+        await PostAsync<ItemDetailResponse>(
+            harness.Client,
+            $"/api/v1/items/id/{itemId}/dispatch",
+            new DispatchRequest("appServer", "Implement it.", null, null, "implementation", DeliveryPolicy.ManualDelivery));
+        var implemented = await WaitForItemByIdAsync(harness.Client, itemId, x => x.Runs.Any(r => r.Status == RunStatus.Succeeded));
+
+        Assert.Equal(1, harness.AppServer.StartThreadCount);
+        Assert.Equal(Assert.Single(answered.DiscussionTurns).ThreadId, Assert.Single(implemented.Runs).ThreadId);
+        Assert.Equal("local/m1", harness.Worktrees.PrepareRequests[0].FetchBaseBranch);
+        Assert.Contains("-> implementation", harness.AppServer.TurnPrompts[^1]);
     }
 
     [Fact]

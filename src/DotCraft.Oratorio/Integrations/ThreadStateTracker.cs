@@ -11,9 +11,9 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<ThreadStateInput> DescribeAsync(OratorioItem item, string? headSha, string? threadId, CancellationToken ct)
+    public async Task<ThreadStateInput> DescribeAsync(OratorioItem item, RunPurpose workMode, string? headSha, string? threadId, CancellationToken ct)
     {
-        var current = await LoadCurrentAsync(item, headSha, ct);
+        var current = await LoadCurrentAsync(item, workMode, headSha, ct);
         var told = string.IsNullOrWhiteSpace(threadId)
             ? null
             : await db.ThreadStates.AsNoTracking().FirstOrDefaultAsync(x => x.ThreadId == threadId, ct);
@@ -31,6 +31,7 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
         }
 
         record.ItemId = state.ItemId;
+        record.WorkMode = state.WorkMode;
         record.HeadSha = state.HeadSha;
         record.BaseSha = state.BaseSha;
         record.SourceState = state.SourceState;
@@ -40,7 +41,7 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<ItemThreadState> LoadCurrentAsync(OratorioItem item, string? headSha, CancellationToken ct)
+    private async Task<ItemThreadState> LoadCurrentAsync(OratorioItem item, RunPurpose workMode, string? headSha, CancellationToken ct)
     {
         var findings = await db.ReviewDraftComments.AsNoTracking()
             .Where(c =>
@@ -55,7 +56,7 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
             .ToListAsync(ct);
         if (item.Kind != ItemKind.PullRequest)
         {
-            return new ItemThreadState(item.ItemId, null, null, null, null, findings);
+            return new ItemThreadState(item.ItemId, workMode, null, null, null, null, findings);
         }
 
         var snapshots = await db.SourceSnapshots.AsNoTracking()
@@ -64,12 +65,13 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
             .Take(20)
             .ToListAsync(ct);
         var baseSha = AppServerPromptBuilder.ResolveReviewDiffTarget(item, headSha, snapshots)?.BaseSha;
-        return new ItemThreadState(item.ItemId, headSha, baseSha, item.SourceState, item.IsDraft, findings);
+        return new ItemThreadState(item.ItemId, workMode, headSha, baseSha, item.SourceState, item.IsDraft, findings);
     }
 
     private static ItemThreadState ToState(OratorioThreadState record) =>
         new(
             record.ItemId,
+            record.WorkMode,
             record.HeadSha,
             record.BaseSha,
             record.SourceState,
@@ -78,7 +80,7 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
 
     private static string? RenderFull(ItemThreadState current)
     {
-        var lines = new List<string>();
+        var lines = new List<string> { $"- Work mode: {FormatWorkMode(current.WorkMode)}" };
         if (current.HeadSha is not null)
         {
             lines.Add($"- Head: {current.HeadSha}");
@@ -107,6 +109,10 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
     private static string? RenderChanges(ItemThreadState told, ItemThreadState current)
     {
         var lines = new List<string>();
+        if (told.WorkMode != current.WorkMode)
+        {
+            lines.Add($"- Work mode: {FormatWorkMode(told.WorkMode)} -> {FormatWorkMode(current.WorkMode)}");
+        }
         if (!string.Equals(told.HeadSha, current.HeadSha, StringComparison.OrdinalIgnoreCase))
         {
             lines.Add($"- Head: {told.HeadSha ?? "none"} -> {current.HeadSha ?? "none"}");
@@ -162,6 +168,11 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
     private static string FormatFinding(ThreadStateFinding finding) =>
         $"  - [{finding.FindingId}] {finding.Severity} {finding.Title} ({finding.Path}:{finding.Line})";
 
+    private static string FormatWorkMode(RunPurpose workMode) =>
+        workMode == RunPurpose.Implementation
+            ? "implementation (edit the work branch and submit an implementation draft)"
+            : "read-only analysis (do not edit files or submit an implementation draft)";
+
     private static string FormatState(SourceState? state) =>
         state?.ToString().ToLowerInvariant() ?? "none";
 
@@ -176,6 +187,7 @@ public sealed class ThreadStateTracker(OratorioDbContext db, IClock clock)
 
 public sealed record ItemThreadState(
     string ItemId,
+    RunPurpose WorkMode,
     string? HeadSha,
     string? BaseSha,
     SourceState? SourceState,

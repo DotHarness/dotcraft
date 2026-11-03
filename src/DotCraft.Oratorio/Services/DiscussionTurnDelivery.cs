@@ -80,13 +80,7 @@ public sealed class DiscussionTurnDelivery(
                 return;
             }
 
-            if (turn.OriginProvider == DiscussionTurnService.GitHubOrigin && turn.Item.Kind is ItemKind.PullRequest or ItemKind.Issue)
-            {
-                await StartThreadAsync(turn, question, ct);
-                return;
-            }
-
-            await FailAsync(turn, "noCompatibleDiscussionThread", "No conversation thread with the Oratorio discussion reply tool is available.");
+            await StartThreadAsync(turn, question, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -114,7 +108,7 @@ public sealed class DiscussionTurnDelivery(
         ActiveRunThread bound,
         CancellationToken ct)
     {
-        var state = await threadState.DescribeAsync(turn.Item!, turn.Item!.HeadSha, bound.ThreadId, ct);
+        var state = await threadState.DescribeAsync(turn.Item!, run.Purpose, turn.Item!.HeadSha, bound.ThreadId, ct);
         var prompt = DiscussionTurnPrompt.Build(turn, question, state.Section, runActive: true, reviewTarget: null);
         var context = run.PromptContextJson is null ? null : ConversationThreadContext.Reduce(run.PromptContextJson);
         await MarkDeliveringAsync(turn, bound.ThreadId, run.AppServerEndpoint, run.RunId, context, ct);
@@ -164,10 +158,9 @@ public sealed class DiscussionTurnDelivery(
         try
         {
             var threadId = turn.ThreadId;
-            var toolSet = dynamicTools.CreateDiscussionToolSet();
+            var toolSet = dynamicTools.CreateDiscussionToolSet(turn.Item.Kind, turn.Item.Source);
             BindDiscussionTools(client, () => threadId, toolSet.AllowedLocalNames);
-            var purpose = turn.ThreadContextJson is null ? RunPurpose.ReviewAnalysis : ConversationThreadContext.Purpose(turn.ThreadContextJson);
-            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, turn.Item.Kind, turn.Item.Source);
+            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(turn.Item.Kind, turn.Item.Source);
             await client.ResumeThreadAsync(threadId, toolSet.Declarations, guidance, ct);
             await client.SubscribeThreadAsync(threadId, ct);
             var session = new DiscussionThreadSession(client, threadId);
@@ -209,14 +202,14 @@ public sealed class DiscussionTurnDelivery(
             }
 
             string? workspaceSection = null;
-            if (DiscussionWorkspacePreparer.IsIndependentIssue(turn, thread.ContextJson) &&
+            if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson) &&
                 session.ActiveTurnId is null && !await session.Client.HasBackgroundWorkAsync(session.ThreadId, ct))
             {
                 var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
-                workspaceSection = DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace);
+                workspaceSection = DiscussionWorkspacePreparer.DescribeIndependentWorkspace(workspace);
             }
 
-            var state = await threadState.DescribeAsync(turn.Item!, turn.Item!.HeadSha, session.ThreadId, ct);
+            var state = await threadState.DescribeAsync(turn.Item!, RunPurpose.ReviewAnalysis, turn.Item!.HeadSha, session.ThreadId, ct);
             var prompt = DiscussionTurnPrompt.Build(turn, question, state.Section, runActive: false, reviewTarget: workspaceSection);
             await MarkDeliveringAsync(turn, session.ThreadId, thread.AppServerEndpoint, null, ConversationThreadContext.Reduce(thread.ContextJson), ct);
             session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
@@ -276,10 +269,10 @@ public sealed class DiscussionTurnDelivery(
             }
 
             string? workspaceSection = null;
-            if (DiscussionWorkspacePreparer.IsIndependentIssue(turn, thread.ContextJson))
+            if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson))
             {
                 var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
-                workspaceSection = DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace);
+                workspaceSection = DiscussionWorkspacePreparer.DescribeIndependentWorkspace(workspace);
             }
             else if (turn.Item!.Kind == ItemKind.PullRequest &&
                 ConversationThreadContext.Purpose(thread.ContextJson) == RunPurpose.ReviewAnalysis &&
@@ -288,12 +281,9 @@ public sealed class DiscussionTurnDelivery(
                 await workspaces.PrepareAsync(turn, baseWorkspacePath, ct);
             }
 
-            var toolSet = dynamicTools.CreateDiscussionToolSet();
+            var toolSet = dynamicTools.CreateDiscussionToolSet(turn.Item!.Kind, turn.Item.Source);
             BindDiscussionTools(client, () => thread.ThreadId, toolSet.AllowedLocalNames);
-            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(
-                ConversationThreadContext.Purpose(thread.ContextJson),
-                turn.Item!.Kind,
-                turn.Item.Source);
+            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(turn.Item.Kind, turn.Item.Source);
             await client.ResumeThreadAsync(thread.ThreadId, toolSet.Declarations, guidance, ct);
             await client.SubscribeThreadAsync(thread.ThreadId, ct);
             await BeginSessionAsync(
@@ -331,16 +321,16 @@ public sealed class DiscussionTurnDelivery(
                 return;
             }
 
-            var tools = dynamicTools.CreateRunToolSet(RunPurpose.ReviewAnalysis, item.Kind, item.Source);
-            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(RunPurpose.ReviewAnalysis, item.Kind, item.Source);
+            var tools = dynamicTools.CreateDiscussionToolSet(item.Kind, item.Source);
+            var guidance = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(item.Kind, item.Source);
             string? threadId = null;
-            BindDiscussionTools(client, () => threadId, dynamicTools.CreateDiscussionToolSet().AllowedLocalNames);
+            BindDiscussionTools(client, () => threadId, tools.AllowedLocalNames);
             threadId = await threadStarter.StartThreadAsync(client, item.Title, baseWorkspacePath, workspace.Path, tools, guidance, ct);
             await client.SubscribeThreadAsync(threadId, ct);
             var context = ConversationThreadContext.Create(RunPurpose.ReviewAnalysis, workspace.Path, workspace.BasePath, tools.QualifiedIds);
-            var reviewTarget = item.Kind == ItemKind.Issue
-                ? DiscussionWorkspacePreparer.DescribeIssueWorkspace(workspace)
-                : await promptBuilder.BuildReviewTargetAsync(item, item.HeadSha, workspace, ct);
+            var reviewTarget = item.Kind == ItemKind.PullRequest
+                ? await promptBuilder.BuildReviewTargetAsync(item, item.HeadSha, workspace, ct)
+                : DiscussionWorkspacePreparer.DescribeIndependentWorkspace(workspace);
             await BeginSessionAsync(
                 new DiscussionThreadSession(client, threadId),
                 turn,
@@ -369,7 +359,7 @@ public sealed class DiscussionTurnDelivery(
         string? reviewTarget,
         CancellationToken ct)
     {
-        var state = await threadState.DescribeAsync(turn.Item!, turn.Item!.HeadSha, reviewTarget is null ? session.ThreadId : null, ct);
+        var state = await threadState.DescribeAsync(turn.Item!, RunPurpose.ReviewAnalysis, turn.Item!.HeadSha, reviewTarget is null ? session.ThreadId : null, ct);
         var prompt = DiscussionTurnPrompt.Build(turn, question, state.Section, runActive: false, reviewTarget);
         await MarkDeliveringAsync(turn, session.ThreadId, endpoint, null, threadContextJson, ct);
         session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;

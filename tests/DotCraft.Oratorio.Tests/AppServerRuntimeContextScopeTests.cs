@@ -16,15 +16,14 @@ public sealed class AppServerRuntimeContextScopeTests
         new(NullLogger<OratorioDynamicToolCatalog>.Instance);
 
     [Fact]
-    public void RuntimeContext_ShipsSharedPagesAndOnlyTheDraftPagesWhoseToolIsExposed()
+    public void RuntimeContext_ShipsSharedPagesAndOnlyTheDraftPagesWhoseToolIsDeclared()
     {
         var catalog = Catalog();
-        foreach (var purpose in new[] { RunPurpose.ReviewAnalysis, RunPurpose.Implementation })
         foreach (var kind in new[] { ItemKind.PullRequest, ItemKind.Issue, ItemKind.LocalTask })
         foreach (var source in new string?[] { "github", "gitlab", "local", null })
         {
-            var tools = catalog.CreateRunToolSet(purpose, kind, source).AllowedLocalNames;
-            var pages = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, kind, source);
+            var tools = catalog.CreateRunToolSet(RunPurpose.Implementation, kind, source).AllowedLocalNames;
+            var pages = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(kind, source);
 
             Assert.Contains("oratorio.runContract", pages.Keys);
             Assert.Contains("oratorio.discussionTurn", pages.Keys);
@@ -37,25 +36,9 @@ public sealed class AppServerRuntimeContextScopeTests
     [Fact]
     public void RuntimeContext_DropsTheReviewContractForItemsThatCanNeverSubmitOne()
     {
-        var localTask = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(
-            RunPurpose.Implementation, ItemKind.LocalTask, "local");
+        var localTask = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(ItemKind.LocalTask, "local");
 
         Assert.DoesNotContain("oratorio.reviewDraft", localTask.Keys);
         Assert.Contains("oratorio.implementationDraft", localTask.Keys);
-    }
-
-    [Fact]
-    public void RuntimeContext_IsStableAcrossPurposesWhenTheToolSetIs()
-    {
-        var catalog = Catalog();
-        var review = catalog.CreateRunToolSet(RunPurpose.ReviewAnalysis, ItemKind.PullRequest, "github");
-        var implementation = catalog.CreateRunToolSet(RunPurpose.Implementation, ItemKind.PullRequest, "github");
-        Assert.Equal(review.QualifiedIds, implementation.QualifiedIds);
-
-        Assert.Equal(
-            AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(
-                RunPurpose.ReviewAnalysis, ItemKind.PullRequest, "github").Keys,
-            AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(
-                RunPurpose.Implementation, ItemKind.PullRequest, "github").Keys);
     }
 }

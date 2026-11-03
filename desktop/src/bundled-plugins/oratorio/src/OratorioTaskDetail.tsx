@@ -283,7 +283,7 @@ function Activity(props: PartProps) {
   function addComment(): void {
     const body = comment.trim()
     if (!body || busy) return
-    void mutate('comment', oratorioClient.addComment(task.id, body, task.round), t('toastCommentAdded')).then((saved) => { if (saved) setComment('') })
+    void mutate('comment', oratorioClient.addComment(task.id, body, task.round || undefined), t('toastCommentAdded')).then((saved) => { if (saved) setComment('') })
   }
 
   return <section className="ora-activity" aria-label={t('sectionActivity')}>
@@ -297,7 +297,7 @@ function Activity(props: PartProps) {
       onSubmit={addComment}
       actions={<>
         <Button variant="secondary" size="sm" disabled={!comment.trim()} loading={busy === 'comment'} onClick={addComment}>{t('addComment')}</Button>
-        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy} loading={busy === 'ask'} onClick={() => { const body = comment.trim(); void mutate('ask', oratorioClient.askAgent(task.id, body, task.round), t('toastDiscussionStarted')).then((saved) => { if (saved) setComment('') }) }}>{t('askAgent')}</Button>
+        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy} loading={busy === 'ask'} onClick={() => { const body = comment.trim(); void mutate('ask', oratorioClient.askAgent(task.id, body, task.round || undefined), t('toastDiscussionStarted')).then((saved) => { if (saved) setComment('') }) }}>{t('askAgent')}</Button>
       </>}
     />
   </section>

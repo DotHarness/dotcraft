@@ -128,7 +128,7 @@ public sealed class GitHubIssueQuestionTests
         Assert.Equal("trunk", request.FetchBaseBranch);
         Assert.Null(request.HeadSha);
         Assert.Equal(1, harness.GitHub.GetRepositoryCallCount);
-        Assert.False(harness.AppServer.LastThreadStartRequest!.DynamicTools!.ContainsTool("oratorio_run", "SubmitImplementationDraft"));
+        Assert.True(harness.AppServer.LastThreadStartRequest!.DynamicTools!.ContainsTool("oratorio_run", "SubmitImplementationDraft"));
         Assert.Contains(harness.GitHub.Issues[0].Title, harness.AppServer.TurnPrompts[0]);
         Assert.Contains(harness.GitHub.Issues[0].Body!, harness.AppServer.TurnPrompts[0]);
         Assert.Contains(harness.GitHub.IssueSourceComments[0].Body, harness.AppServer.TurnPrompts[0]);

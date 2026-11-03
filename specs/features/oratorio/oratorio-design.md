@@ -699,22 +699,25 @@ dispatched:
 - while a turn is running on the thread, whether a run's turn or another
   Discussion Turn's, the question is steered into that turn;
 - otherwise it starts a new turn on the thread;
-- a source-originated question on a pull request that has no thread yet starts
-  the thread as its first review round would, at the current head, and asks the
-  agent to answer only.
+- a question on an item that has no thread yet starts the item's thread and
+  asks the agent to answer only: a pull or merge request at its current head,
+  as its first review round would; an issue or local task as an independent
+  discussion.
 
-An independent GitHub issue discussion starts at the remote default branch's
-latest head in the item's managed worktree. Idle independent discussions refresh
-that target before resuming. Active conversations and implementation threads keep
-their execution context. The base checkout is never switched or pulled. Issue
-context includes its title, body, URL and discussion history. See GitHub Mentions
-§11 for intake, failure and publication rules.
+An independent discussion starts in the item's managed worktree at the latest
+head of its base branch: a local task's base branch when set, otherwise the
+repository's remote default branch as GitHub or GitLab reports it. Idle
+independent discussions refresh that target before resuming. Active
+conversations and implementation threads keep their execution context. The base
+checkout is never switched or pulled. Issue context includes its title, body,
+URL and discussion history. See GitHub Mentions §11 for intake, failure and
+publication rules.
 
-Ask agent from Desktop is allowed only when the item is not archived and either
-has a conversation thread that carries the discussion reply tool or has an
-active AppServer run, whose thread the question is delivered into. Otherwise
-Oratorio rejects the request with a stable reason. A question steered into a run leaves
-that run's contract unchanged: a review run must still submit its draft.
+Ask agent from Desktop is allowed whenever the item is not archived. With an
+active AppServer run the question is delivered into the run's thread; otherwise
+it goes to the item's thread, which it starts when none exists. A question
+steered into a run leaves that run's contract unchanged: a review run must
+still submit its draft.
 
 Discussion Turns of one item are answered in the order received. An item has at
 most one Discussion Turn that is waiting to be delivered; the next one waits
@@ -918,8 +921,15 @@ Thread reuse:
 
 - The item's conversation thread is the latest thread a successful AppServer
   run or a Discussion Turn left for it. Oratorio reuses it when it used compact
-  prompts, the workspace is the same, and the required run tools match exactly.
+  prompts, the workspace is the same, and the declared tools match exactly.
   Otherwise it starts a new compact-prompt thread and records why.
+- One thread carries an item through discussion, review and implementation.
+  Every thread declares the full tool set the item can use, whatever the work
+  of its first turn, so the declarations and guidance stay stable across modes.
+  Each turn allows only its work mode's tools: discussion turns reply and
+  resolve findings, review runs add the review draft, and implementation runs
+  add the implementation draft. A call outside the current mode fails with a
+  stable reason.
 - A reused thread still gets a new turn and a new run.
 - New threads receive the full compact context. Reused threads receive only the
   incremental request, new feedback, thread state changes and required
@@ -927,9 +937,12 @@ Thread reuse:
 
 Thread state:
 
-- Oratorio records, per thread, the item state it last told the agent: for a
-  pull or merge request the head and base commits, the source state (open,
-  closed, merged), the draft flag and the set of open published findings.
+- Oratorio records, per thread, the item state it last told the agent: the
+  work mode (read-only analysis or implementation), for a pull or merge request
+  the head and base commits, the source state (open, closed, merged) and the
+  draft flag, and the set of open published findings. Discussion turns outside
+  a run are read-only analysis; a question steered into a run takes the run's
+  mode.
 - Before each input it sends on a thread — a run's turn, a Discussion Turn or a
   steered question — Oratorio compares the current state with that record and
   adds only the facts that changed. An unchanged state adds nothing; a new
@@ -941,7 +954,7 @@ Thread state:
 - Re-review runs use ordinary review prompts. On a reused thread the
   incremental input names the old and new head commits and asks the agent to
   review the latest head, focusing on new changes when useful.
-- Before a turn on a reused thread, Oratorio resumes the thread with the run's
+- Before a turn on a reused thread, Oratorio resumes the thread with the item's
   tools and the same guidance version. If tools cannot be rebound, it starts a
   fresh thread instead of reusing a stale callback; if guidance cannot be
   accepted, the run fails. Threads from an older guidance version are not

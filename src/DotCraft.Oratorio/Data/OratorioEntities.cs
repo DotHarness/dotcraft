@@ -291,6 +291,7 @@ public sealed class OratorioThreadState
 {
     public string ThreadId { get; set; } = "";
     public string ItemId { get; set; } = "";
+    public RunPurpose WorkMode { get; set; }
     public string? HeadSha { get; set; }
     public string? BaseSha { get; set; }
     public SourceState? SourceState { get; set; }

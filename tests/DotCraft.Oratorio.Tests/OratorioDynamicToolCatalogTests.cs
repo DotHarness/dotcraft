@@ -56,32 +56,29 @@ public sealed class OratorioDynamicToolCatalogTests
     }
 
     [Fact]
-    public void Tool_selection_matrix_keeps_declarations_prompt_ids_and_allowlist_in_sync()
+    public void Tool_selection_matrix_declares_item_tools_and_allows_the_work_mode()
     {
-        var normal = _catalog.CreateRunToolSet(RunPurpose.ReviewAnalysis, ItemKind.Issue, "github");
-        AssertSet(normal,
+        var issueTools = new[]
+        {
             OratorioDynamicToolCatalog.SubmitDiscussionReplyName,
             OratorioDynamicToolCatalog.ResolveReviewFindingName,
-            OratorioDynamicToolCatalog.SubmitFollowUpDraftName);
+            OratorioDynamicToolCatalog.SubmitFollowUpDraftName,
+            OratorioDynamicToolCatalog.SubmitImplementationDraftName
+        };
+        var analysis = _catalog.CreateRunToolSet(RunPurpose.ReviewAnalysis, ItemKind.Issue, "github");
+        AssertSet(analysis, issueTools, issueTools[..3]);
+        AssertSet(_catalog.CreateRunToolSet(RunPurpose.Implementation, ItemKind.Issue, "github"), issueTools, issueTools);
+        AssertSet(_catalog.CreateDiscussionToolSet(ItemKind.Issue, "github"), issueTools, issueTools[..2]);
 
         var review = _catalog.CreateRunToolSet(RunPurpose.ReviewAnalysis, ItemKind.PullRequest, "gitlab");
-        AssertSet(review,
+        string[] reviewTools =
+        [
             OratorioDynamicToolCatalog.SubmitDiscussionReplyName,
             OratorioDynamicToolCatalog.ResolveReviewFindingName,
             OratorioDynamicToolCatalog.SubmitFollowUpDraftName,
-            OratorioDynamicToolCatalog.SubmitReviewDraftName);
-
-        var implementation = _catalog.CreateRunToolSet(RunPurpose.Implementation, ItemKind.LocalTask, "local");
-        AssertSet(implementation,
-            OratorioDynamicToolCatalog.SubmitDiscussionReplyName,
-            OratorioDynamicToolCatalog.ResolveReviewFindingName,
-            OratorioDynamicToolCatalog.SubmitFollowUpDraftName,
-            OratorioDynamicToolCatalog.SubmitImplementationDraftName);
-
-        AssertSet(
-            _catalog.CreateDiscussionToolSet(),
-            OratorioDynamicToolCatalog.SubmitDiscussionReplyName,
-            OratorioDynamicToolCatalog.ResolveReviewFindingName);
+            OratorioDynamicToolCatalog.SubmitReviewDraftName
+        ];
+        AssertSet(review, reviewTools, reviewTools);
     }
 
     [Theory]
@@ -150,13 +147,13 @@ public sealed class OratorioDynamicToolCatalogTests
             ? required.EnumerateArray().Select(x => x.GetString()!).ToArray()
             : [];
 
-    private static void AssertSet(OratorioDynamicToolSet set, params string[] expected)
+    private static void AssertSet(OratorioDynamicToolSet set, string[] declared, string[] allowed)
     {
-        Assert.Equal(expected.Order(StringComparer.Ordinal), set.AllowedLocalNames.Order(StringComparer.Ordinal));
+        Assert.Equal(allowed.Order(StringComparer.Ordinal), set.AllowedLocalNames.Order(StringComparer.Ordinal));
         Assert.Equal(
-            expected.Select(x => $"{OratorioDynamicToolCatalog.Namespace}.{x}").Order(StringComparer.Ordinal),
+            declared.Select(x => $"{OratorioDynamicToolCatalog.Namespace}.{x}").Order(StringComparer.Ordinal),
             set.QualifiedIds);
-        Assert.Equal(expected.Order(StringComparer.Ordinal), Flatten(set.Declarations).Order(StringComparer.Ordinal));
+        Assert.Equal(declared.Order(StringComparer.Ordinal), Flatten(set.Declarations).Order(StringComparer.Ordinal));
     }
 
     private static IEnumerable<string> Flatten(IEnumerable<RuntimeDynamicToolDeclaration> declarations) =>

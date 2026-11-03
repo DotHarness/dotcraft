@@ -737,6 +737,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.HasKey(x => x.ThreadId);
         entity.Property(x => x.ThreadId).HasColumnName("thread_id");
         entity.Property(x => x.ItemId).HasColumnName("item_id").IsRequired();
+        entity.Property(x => x.WorkMode).HasColumnName("work_mode").HasConversion<string>();
         entity.Property(x => x.HeadSha).HasColumnName("head_sha");
         entity.Property(x => x.BaseSha).HasColumnName("base_sha");
         entity.Property(x => x.SourceState).HasColumnName("source_state").HasConversion<string>();
