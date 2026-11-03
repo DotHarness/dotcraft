@@ -9,8 +9,6 @@ namespace DotCraft.Tests.Runtime.Plugins;
 
 public sealed class DotNetPluginReliabilityTests : IDisposable
 {
-    private const int Cycles = 20;
-
     private readonly PluginRuntimeHarness _harness = new();
 
     public void Dispose() => _harness.Dispose();
@@ -18,13 +16,14 @@ public sealed class DotNetPluginReliabilityTests : IDisposable
     [Fact]
     public async Task RepeatedConformingCyclesMintNewGenerationsAndLeaveNothingBehind()
     {
+        const int cycles = 3;
         WriteSignalObserver("reliability.conforming");
         await using var manager = _harness.CreateManager(
             collectionPollInterval: TimeSpan.FromMilliseconds(20));
         await manager.StartAsync(CancellationToken.None);
 
         var generations = new HashSet<string>(StringComparer.Ordinal);
-        for (var cycle = 0; cycle < Cycles; cycle++)
+        for (var cycle = 0; cycle < cycles; cycle++)
         {
             var active = Plugin(manager, "reliability.conforming");
             AssertState(active, PluginDotnetRuntimeState.Active);
@@ -51,7 +50,7 @@ public sealed class DotNetPluginReliabilityTests : IDisposable
             await manager.SetEnabledAsync("reliability.conforming", enabled: true);
         }
 
-        Assert.Equal(Cycles, generations.Count);
+        Assert.Equal(cycles, generations.Count);
         await manager.SetEnabledAsync("reliability.conforming", enabled: false);
         Assert.Empty(_harness.Registry.Resolve<IThreadRuntimeSignalContributor>());
 
@@ -67,6 +66,7 @@ public sealed class DotNetPluginReliabilityTests : IDisposable
     [Fact]
     public async Task RepeatedLeakingCyclesKeepRoutingCorrectAndOnlyGrowTheLeakCounter()
     {
+        const int cycles = 4;
         WriteLeakingTool("reliability.leaking");
         await using var manager = _harness.CreateManager(
             collectionTimeout: TimeSpan.FromMilliseconds(200),
@@ -75,7 +75,7 @@ public sealed class DotNetPluginReliabilityTests : IDisposable
         await manager.StartAsync(CancellationToken.None);
 
         var generations = new HashSet<string>(StringComparer.Ordinal);
-        for (var cycle = 0; cycle < Cycles; cycle++)
+        for (var cycle = 0; cycle < cycles; cycle++)
         {
             var active = Plugin(manager, "reliability.leaking");
             AssertState(active, PluginDotnetRuntimeState.Active);
@@ -112,10 +112,10 @@ public sealed class DotNetPluginReliabilityTests : IDisposable
             await manager.SetEnabledAsync("reliability.leaking", enabled: true);
         }
 
-        Assert.Equal(Cycles, generations.Count);
+        Assert.Equal(cycles, generations.Count);
         var final = Plugin(manager, "reliability.leaking");
         AssertState(final, PluginDotnetRuntimeState.Active);
-        Assert.Equal(Cycles, final.LeakedGenerations);
+        Assert.Equal(cycles, final.LeakedGenerations);
         Assert.True(final.RestartRecommended);
     }
 

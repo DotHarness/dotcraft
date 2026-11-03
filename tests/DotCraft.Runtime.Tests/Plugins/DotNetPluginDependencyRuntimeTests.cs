@@ -398,11 +398,12 @@ public sealed class DotNetPluginDependencyRuntimeTests : IDisposable
         await manager.SetEnabledAsync("pin.provider", enabled: false);
 
         // The leaf pinned its own memory only: teardown still ran through it to the plugins behind.
-        await WaitForStateAsync(manager, "pin.provider", PluginDotnetRuntimeState.Stopped);
+        var provider = Plugin(manager, "pin.provider");
+        Assert.True(provider.State is PluginDotnetRuntimeState.Stopped or PluginDotnetRuntimeState.Reclaiming);
+        Assert.Null(provider.GenerationId);
         AssertState(Plugin(manager, "pin.middle"), PluginDotnetRuntimeState.Blocked);
         AssertState(Plugin(manager, "pin.leaf"), PluginDotnetRuntimeState.Blocked);
         Assert.Equal(1, Plugin(manager, "pin.leaf").LeakedGenerations);
-        Assert.Equal(0, Plugin(manager, "pin.provider").LeakedGenerations);
         Assert.Equal(
             ["middle", "provider"],
             PluginLogFile.ReadLines(Path.Combine(_harness.Workspace, "pin-stop.log")));

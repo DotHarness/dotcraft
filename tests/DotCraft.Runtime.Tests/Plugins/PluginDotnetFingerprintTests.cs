@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Runtime;
 using Xunit;
-using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 
@@ -14,21 +13,7 @@ public sealed class PluginDotnetFingerprintTests : IDisposable
     [Fact]
     public void Compute_ExcludesDesktopContentAndDeclaration()
     {
-        WritePluginBundle(
-            _root,
-            "fingerprint.desktop",
-            "Fingerprint.Plugin",
-            """
-            using System.Threading;
-            using System.Threading.Tasks;
-            using DotCraft.Plugins;
-            namespace Fingerprint;
-            public sealed class Plugin : IDotCraftPlugin
-            {
-                public ValueTask ActivateAsync(IPluginActivationContext context, CancellationToken cancellationToken)
-                    => ValueTask.CompletedTask;
-            }
-            """);
+        WriteFingerprintBundle("fingerprint.desktop");
         var executionFingerprint = PluginDotnetFingerprint.Compute(_root);
         var contentFingerprint = PluginBundleFingerprint.Compute(_root);
 
@@ -44,21 +29,7 @@ public sealed class PluginDotnetFingerprintTests : IDisposable
     [Fact]
     public void Compute_IncludesDotnetManifestContractAndNonDesktopContent()
     {
-        WritePluginBundle(
-            _root,
-            "fingerprint.dotnet",
-            "Fingerprint.Plugin",
-            """
-            using System.Threading;
-            using System.Threading.Tasks;
-            using DotCraft.Plugins;
-            namespace Fingerprint;
-            public sealed class Plugin : IDotCraftPlugin
-            {
-                public ValueTask ActivateAsync(IPluginActivationContext context, CancellationToken cancellationToken)
-                    => ValueTask.CompletedTask;
-            }
-            """);
+        WriteFingerprintBundle("fingerprint.dotnet");
         var original = PluginDotnetFingerprint.Compute(_root);
         var manifestPath = Path.Combine(_root, ".craft-plugin", "plugin.json");
         var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
@@ -70,6 +41,30 @@ public sealed class PluginDotnetFingerprintTests : IDisposable
 
         File.WriteAllText(Path.Combine(_root, "runtime-data.txt"), "runtime-visible");
         Assert.NotEqual(versionChanged, PluginDotnetFingerprint.Compute(_root));
+    }
+
+    private void WriteFingerprintBundle(string id)
+    {
+        var manifestRoot = Path.Combine(_root, ".craft-plugin");
+        var dotnetRoot = Path.Combine(_root, "dotnet");
+        Directory.CreateDirectory(manifestRoot);
+        Directory.CreateDirectory(dotnetRoot);
+        File.WriteAllBytes(Path.Combine(dotnetRoot, "Plugin.dll"), [1, 2, 3, 4]);
+        File.WriteAllText(Path.Combine(manifestRoot, "plugin.json"), $$"""
+            {
+              "schemaVersion": 1,
+              "id": "{{id}}",
+              "version": "1.0.0",
+              "displayName": "{{id}}",
+              "capabilities": ["dotnet"],
+              "dotnet": {
+                "minHostVersion": "0.0.0",
+                "entryAssembly": "./dotnet/Plugin.dll",
+                "entryType": "Fingerprint.Plugin",
+                "exportedApiAssemblies": []
+              }
+            }
+            """);
     }
 
     public void Dispose()
