@@ -675,7 +675,6 @@ export const MESSAGES_EN = {
   'settings.sourceControl.provider.none': 'None',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.git.description': 'This workspace uses Git. Existing Git actions remain available.',
   'settings.sourceControl.none.description': 'This workspace does not use source control integration.',
   'settings.sourceControl.connectionMode.label': 'Connection',
   'settings.sourceControl.connectionMode.hint': 'Use a P4CONFIG file or enter connection parameters manually.',

@@ -708,7 +708,6 @@ export const MESSAGES_ES = {
   'settings.sourceControl.provider.none': 'Ninguno',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.git.description': 'Este espacio de trabajo usa Git. Las acciones de Git existentes siguen disponibles.',
   'settings.sourceControl.none.description': 'Este espacio de trabajo no usa integración de control de código.',
   'settings.sourceControl.connectionMode.label': 'Conexión',
   'settings.sourceControl.connectionMode.hint': 'Usa un archivo P4CONFIG o introduce los parámetros de conexión manualmente.',

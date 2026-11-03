@@ -393,13 +393,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 t={t}
               />
             </SettingsRow>
-            {provider === 'git' && (
-              <SettingsRow>
-                <div style={settingsDescriptionStyle(false)}>
-                  {t('settings.sourceControl.git.description')}
-                </div>
-              </SettingsRow>
-            )}
             {provider === 'none' && (
               <SettingsRow>
                 <div style={settingsDescriptionStyle(false)}>

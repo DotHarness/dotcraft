@@ -708,7 +708,6 @@ export const MESSAGES_DE = {
   'settings.sourceControl.provider.none': 'Keiner',
   'settings.sourceControl.provider.git': 'Git',
   'settings.sourceControl.provider.perforce': 'Perforce',
-  'settings.sourceControl.git.description': 'Dieser Arbeitsbereich verwendet Git. Vorhandene Git-Aktionen bleiben verfügbar.',
   'settings.sourceControl.none.description': 'Dieser Arbeitsbereich verwendet keine Versionsverwaltungsintegration.',
   'settings.sourceControl.connectionMode.label': 'Verbindung',
   'settings.sourceControl.connectionMode.hint': 'Verwende eine P4CONFIG-Datei oder gib die Verbindungsparameter manuell ein.',
