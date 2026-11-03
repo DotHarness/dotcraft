@@ -44,7 +44,7 @@ public sealed class ImplementationAutoDispatchService(
                     RunDispatchTrigger.AutoImplementation,
                     ct);
             }
-            catch (OratorioApiException ex) when (ex.Code is "activeRunExists" or "invalidTransition")
+            catch (OratorioApiException ex) when (ex.Code is "activeRunExists" or "invalidTransition" or "workspaceMappingMissing")
             {
                 logger.LogDebug("Skipped auto-dispatch for {Source} {ExternalId}: {Code}.", item.Source, item.ExternalId, ex.Code);
             }

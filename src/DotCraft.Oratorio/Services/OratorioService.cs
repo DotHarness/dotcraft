@@ -23,6 +23,7 @@ public sealed class OratorioService(
     FollowUpDraftService followUpDraftService,
     TaskBoardPlacementService taskBoardPlacement,
     IAppServerRunCoordinator appServerRunCoordinator,
+    IDotCraftWorkspaceResolver workspaceResolver,
     BoardEventHub boardEvents)
 {
     private static readonly RunStatus[] ActiveRunStatuses = [RunStatus.Queued, RunStatus.Dispatching, RunStatus.Running];
@@ -515,6 +516,7 @@ public sealed class OratorioService(
     public async Task<ItemDetailResponse> CreateLocalTaskAsync(CreateLocalTaskRequest request, CancellationToken ct)
     {
         ValidateRequired(request.Title, "title");
+        ValidateRequired(request.Repository, "repository");
         var now = clock.UtcNow;
         var item = new OratorioItem
         {
@@ -543,6 +545,7 @@ public sealed class OratorioService(
     public async Task<ItemDetailResponse> UpdateItemByIdAsync(string itemId, UpdateItemRequest request, CancellationToken ct)
     {
         ValidateRequired(request.Title, "title");
+        ValidateRequired(request.Repository, "repository");
         var item = await GetItemByIdAsync(itemId, tracking: true, ct);
         EnsureLocalTask(item, "edit");
         EnsureNotActive(item, "edit");
@@ -1038,6 +1041,11 @@ public sealed class OratorioService(
                 new Dictionary<string, object?> { ["mode"] = runnerKind });
         }
 
+        if (runnerKind == "appServer")
+        {
+            EnsureWorkspaceConfigured(item);
+        }
+
         db.Runs.Add(run);
         item.State = ItemState.Dispatching;
         item.CheckState = CheckState.Pending;
@@ -1257,6 +1265,18 @@ public sealed class OratorioService(
         Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
             ? parsed
             : throw OratorioApiException.Validation($"Invalid {typeof(TEnum).Name} value.", new Dictionary<string, object?> { ["value"] = value });
+
+    private void EnsureWorkspaceConfigured(OratorioItem item)
+    {
+        try
+        {
+            _ = workspaceResolver.ResolveWorkspacePath(item.Repository);
+        }
+        catch (DotCraftWorkspaceResolutionException ex)
+        {
+            throw OratorioApiException.Conflict(ex.Code, ex.Message);
+        }
+    }
 
     private static void ValidateRequired(string? value, string field)
     {

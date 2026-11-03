@@ -23,7 +23,7 @@ Use `ListBoardItems` to scan the board. Filter by state, source, repository, ass
 
 Use `GetBoardItem` before making claims about one item or before queuing work against it. Prefer item ids or short ids from Oratorio results. Do not invent ids.
 
-Use `CreateBoardTask` when the user clearly wants a durable Oratorio task. Create concise titles and useful descriptions. Include repository, branch, assignee, and labels only when known or explicitly requested.
+Use `CreateBoardTask` when the user clearly wants a durable Oratorio task. Create concise titles and useful descriptions. Every task needs a repository: use the connected project the user names, check `GetSourceSetup` for projects with a workspace when unsure, and ask when more than one fits. Include branch, assignee, and labels only when known or explicitly requested.
 
 Use `QueueReviewRound` when the user wants Oratorio to start a review-analysis round for an existing board item. Include a short note describing the requested focus.
 
