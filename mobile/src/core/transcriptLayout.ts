@@ -41,6 +41,15 @@ function lastIndex(entries: TranscriptEntry[], test: (entry: TranscriptEntry) =>
   return -1
 }
 
+function replyIndex(body: TranscriptEntry[], completed: boolean): number {
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    const entry = body[index]
+    if (entry.kind === 'assistant' && (entry.phase === 'final' || (completed && entry.phase === null))) return index
+    if (completed && entry.kind !== 'user' && entry.kind !== 'notice' && entry.kind !== 'divider') return -1
+  }
+  return -1
+}
+
 export function showsWork(entry: TranscriptEntry): boolean {
   switch (entry.kind) {
     case 'tool':
@@ -75,10 +84,7 @@ export function layoutTurn(
     ? [{ kind: 'thinking', id: `thinking-${turnId}`, working: true, heading }]
     : []
   const completed = !running && turn?.status === 'completed'
-  const final =
-    turn?.status === 'failed'
-      ? -1
-      : lastIndex(body, (entry) => entry.kind === 'assistant' && (entry.phase === 'final' || (completed && entry.phase === null)))
+  const final = turn?.status === 'failed' ? -1 : replyIndex(body, completed)
   if (completed) {
     const footer = lastIndex(body, (entry) => entry.kind === 'assistant')
     if (footer >= 0) body[footer] = { ...(body[footer] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true, changes }

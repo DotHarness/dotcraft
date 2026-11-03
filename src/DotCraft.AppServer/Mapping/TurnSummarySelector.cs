@@ -14,6 +14,9 @@ internal static class TurnSummarySelector
         IReadOnlyList<SessionWireItem> items,
         IReadOnlyList<Contract.ThreadSummaryTool> summaryTools)
     {
+        if (!EndsWithReply(items))
+            return items;
+
         var keptCalls = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in items)
         {
@@ -41,6 +44,18 @@ internal static class TurnSummarySelector
             ItemType.ToolResult => item.Payload is ToolResultPayload result && keptCalls.Contains(result.CallId),
             _ => false
         });
+    }
+
+    private static bool EndsWithReply(IReadOnlyList<SessionWireItem> items)
+    {
+        for (var i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i].Type == ItemType.AgentMessage)
+                return true;
+            if (items[i].Type is not (ItemType.UserMessage or ItemType.SystemNotice))
+                return false;
+        }
+        return false;
     }
 
     private static bool Named(IReadOnlyList<Contract.ThreadSummaryTool> tools, string? ns, string name) =>

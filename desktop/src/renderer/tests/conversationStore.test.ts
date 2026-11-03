@@ -179,6 +179,31 @@ describe('turn lifecycle', () => {
     expect(s().streamingMessageLastDeltaAt).toBe(secondDeltaAt)
   })
 
+  it('gives a summarized turn its full items without resetting the live turn', () => {
+    vi.useFakeTimers()
+    s().setTurns([
+      makeTurn({ id: 'turn-old', status: 'completed', summary: { itemCount: 3 }, items: [
+        { id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.' }
+      ] }),
+      makeTurn({ id: 'turn-live' })
+    ])
+    s().onItemStarted({ turnId: 'turn-live', item: { id: 'live-message', type: 'agentMessage' } })
+    s().onAgentMessageDelta('Still going')
+    vi.advanceTimersByTime(16)
+
+    s().replaceTurnItems('turn-old', [
+      { id: 'read', type: 'toolCall', status: 'completed', toolCallId: 'call-1', toolName: 'ReadFile' },
+      { id: 'read-result', type: 'toolResult', status: 'completed', toolCallId: 'call-1', result: 'contents' },
+      { id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.' }
+    ])
+
+    const old = s().turns.find((turn) => turn.id === 'turn-old')!
+    expect(old.summary).toBeUndefined()
+    expect(old.items[0]).toMatchObject({ result: 'contents', success: true })
+    expect(s().streamingMessage).toBe('Still going')
+    expect(s().activeTurnId).toBe('turn-live')
+  })
+
   it('onItemCompleted upserts repeated error notifications by item id', () => {
     s().onTurnStarted(makeTurn())
     const errorItem = {

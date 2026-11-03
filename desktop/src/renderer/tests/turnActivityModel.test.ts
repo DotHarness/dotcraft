@@ -30,6 +30,16 @@ describe('turn activity lifecycle', () => {
     expect(getTurnActivityState({ ...turn, status: 'failed' }, [final], false).status).toBeNull()
   })
 
+  it('does not take an unphased message followed by work as the reply of a completed turn', () => {
+    const progress = { ...commentary, phase: undefined }
+    const tool: ConversationItem = { id: 'read', type: 'toolCall', status: 'completed', toolName: 'ReadFile', createdAt: finalStart }
+    const notice: ConversationItem = { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'guidance', createdAt: end }
+    const completed = { ...turn, status: 'completed' as const, completedAt: end }
+
+    expect(getTurnActivityState(completed, [progress, tool], false)).toMatchObject({ status: 'worked', finalIndex: -1, completedAt: end })
+    expect(getTurnActivityState(completed, [tool, progress, notice], false).finalIndex).toBe(1)
+  })
+
   it('does not invent elapsed time for missing, invalid or reversed timestamps', () => {
     expect(getActivityElapsedMs(undefined, end)).toBeUndefined()
     expect(getActivityElapsedMs(start, undefined)).toBeUndefined()

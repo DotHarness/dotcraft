@@ -45,6 +45,27 @@ public sealed partial class AppServerThreadLifecycleTests
     }
 
     [Fact]
+    public async Task ThreadTurnsList_Summary_KeepsEveryItemWhenWorkFollowsTheLastMessage()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(thread, "turn_001", "keep going");
+        var turn = Assert.Single(thread.Turns);
+        AddItem(turn, "progress", ItemType.AgentMessage, new AgentMessagePayload { Text = "Continuing with the tests." });
+        AddToolPair(turn, "read", "ReadFile", null, structuredContent: null);
+        AddItem(turn, "reasoning", ItemType.ReasoningContent, new ReasoningContentPayload { Text = "waiting" });
+        AddItem(turn, "notice", ItemType.UserMessage, new UserMessagePayload { Text = "Background command finished" });
+        await _h.Service.SeedThreadAsync(thread);
+
+        var summary = (await ListTurnsAsync(new { threadId = thread.Id, itemsView = "summary" })).GetProperty("data")[0];
+
+        Assert.Equal("summary", summary.GetProperty("itemsView").GetString());
+        Assert.Equal(
+            ["turn_001_user", "progress", "read_call", "read_result", "reasoning", "notice"],
+            summary.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetString()!));
+        Assert.Equal(summary.GetProperty("items").GetArrayLength(), summary.GetProperty("itemCount").GetInt32());
+    }
+
+    [Fact]
     public async Task ThreadTurnsList_Summary_RejectsInvalidViews()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);

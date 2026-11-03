@@ -361,6 +361,8 @@ interface ConversationState {
 interface ConversationActions {
   /** Load full turn history from thread/read */
   setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
+  /** Gives a summarized Turn all of its Items without touching live state. */
+  replaceTurnItems(turnId: string, items: ConversationItem[]): void
   onTurnStarted(rawTurn: Record<string, unknown>): void
   onTurnCompleted(rawTurn: Record<string, unknown>): void
   onTurnFailed(rawTurn: Record<string, unknown>, error: string): void
@@ -981,6 +983,61 @@ function mergeExistingRealtimeTurn(
   }
 }
 
+function mergeToolCallResults(turn: ConversationTurn): ConversationTurn {
+  const resultByCallId = new Map<string, ConversationItem>()
+  const commandExecutionByCallId = new Map<string, ConversationItem>()
+  const toolExecutionByCallId = new Map<string, ConversationItem>()
+  for (const item of turn.items) {
+    if (item.type === 'toolResult' && item.toolCallId) {
+      resultByCallId.set(item.toolCallId, item)
+    }
+    if (item.type === 'commandExecution' && item.toolCallId) {
+      commandExecutionByCallId.set(item.toolCallId, item)
+    }
+    if (item.type === 'toolExecution' && item.toolCallId) {
+      toolExecutionByCallId.set(item.toolCallId, item)
+    }
+  }
+  if (resultByCallId.size === 0 && commandExecutionByCallId.size === 0 && toolExecutionByCallId.size === 0) return turn
+
+  const mergedItems = turn.items.map((item) => {
+    if (item.type !== 'toolCall') return item
+    const resultItem = resultByCallId.get(item.toolCallId ?? '')
+    const commandExecution = commandExecutionByCallId.get(item.toolCallId ?? '')
+    const toolExecution = toolExecutionByCallId.get(item.toolCallId ?? '')
+    if (!resultItem) {
+      const mergedWithToolExecution = toolExecution
+        ? mergeToolExecutionIntoToolCall(item, toolExecution)
+        : item
+      return commandExecution
+        ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
+        : mergedWithToolExecution
+    }
+
+    const resultText = resultItem.result ?? ''
+    const success = resultItem.success !== false
+    const startMs = item.createdAt ? new Date(item.createdAt).getTime() : 0
+    const endMs = resultItem.completedAt ? new Date(resultItem.completedAt).getTime() : startMs
+
+    const merged: ConversationItem = {
+      ...item,
+      result: resultText,
+      structuredResult: resultItem.structuredResult ?? item.structuredResult,
+      success,
+      duration: endMs - startMs,
+      completedAt: resultItem.completedAt
+    }
+    const mergedWithToolExecution = toolExecution
+      ? mergeToolExecutionIntoToolCall(merged, toolExecution)
+      : merged
+    return commandExecution
+      ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
+      : mergedWithToolExecution
+  })
+
+  return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
+}
+
 function turnThreadIds(turns: ConversationTurn[]): Set<string> {
   const ids = new Set<string>()
   for (const turn of turns) {
@@ -1451,6 +1508,18 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
       ...createInitialState(),
       ...workspace,
 
+      replaceTurnItems(turnId, items) {
+        set((state) => {
+          if (!state.turns.some((turn) => turn.id === turnId && turn.summary)) return state
+          const turns = attachTerminalInputs(state.turns.map((turn) =>
+            turn.id === turnId ? mergeToolCallResults({ ...turn, items, summary: undefined }) : turn))
+          return {
+            turns,
+            ...refreshTurnFileChanges(turns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
+          }
+        })
+      },
+
       setTurns(turns, options = {}) {
         if (options.preserveExistingRealtime) {
           conversationTextDeltaBuffer.flush()
@@ -1468,60 +1537,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
           return wireTurnToConversationTurn(t)
         })
 
-        const rehydratedTurns = attachTerminalInputs(converted.map((turn) => {
-          const resultByCallId = new Map<string, ConversationItem>()
-          const commandExecutionByCallId = new Map<string, ConversationItem>()
-          const toolExecutionByCallId = new Map<string, ConversationItem>()
-          for (const item of turn.items) {
-            if (item.type === 'toolResult' && item.toolCallId) {
-              resultByCallId.set(item.toolCallId, item)
-            }
-            if (item.type === 'commandExecution' && item.toolCallId) {
-              commandExecutionByCallId.set(item.toolCallId, item)
-            }
-            if (item.type === 'toolExecution' && item.toolCallId) {
-              toolExecutionByCallId.set(item.toolCallId, item)
-            }
-          }
-          if (resultByCallId.size === 0 && commandExecutionByCallId.size === 0 && toolExecutionByCallId.size === 0) return turn
-
-          const mergedItems = turn.items.map((item) => {
-            if (item.type !== 'toolCall') return item
-            const resultItem = resultByCallId.get(item.toolCallId ?? '')
-            const commandExecution = commandExecutionByCallId.get(item.toolCallId ?? '')
-            const toolExecution = toolExecutionByCallId.get(item.toolCallId ?? '')
-            if (!resultItem) {
-              const mergedWithToolExecution = toolExecution
-                ? mergeToolExecutionIntoToolCall(item, toolExecution)
-                : item
-              return commandExecution
-                ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
-                : mergedWithToolExecution
-            }
-
-            const resultText = resultItem.result ?? ''
-            const success = resultItem.success !== false
-            const startMs = item.createdAt ? new Date(item.createdAt).getTime() : 0
-            const endMs = resultItem.completedAt ? new Date(resultItem.completedAt).getTime() : startMs
-
-            const merged: ConversationItem = {
-              ...item,
-              result: resultText,
-              structuredResult: resultItem.structuredResult ?? item.structuredResult,
-              success,
-              duration: endMs - startMs,
-              completedAt: resultItem.completedAt
-            }
-            const mergedWithToolExecution = toolExecution
-              ? mergeToolExecutionIntoToolCall(merged, toolExecution)
-              : merged
-            return commandExecution
-              ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
-              : mergedWithToolExecution
-          })
-
-          return { ...turn, items: mergedItems.filter((item) => item.type !== 'toolExecution') }
-        }))
+        const rehydratedTurns = attachTerminalInputs(converted.map(mergeToolCallResults))
 
         // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
         // that had an active turn or is waiting on a user decision), restore active state.

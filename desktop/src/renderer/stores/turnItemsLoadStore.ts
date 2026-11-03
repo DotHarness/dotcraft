@@ -29,14 +29,7 @@ export function loadTurnItems(threadId: string, turnId: string): Promise<void> {
   const load = readTurnItems(requestAppServer, threadId, turnId)
     .then((rawItems) => {
       setStatus(turnId, null)
-      const conversation = getThreadConversation(threadId)
-      const turns = conversation?.getState().turns
-      if (!conversation || !turns?.some((turn) => turn.id === turnId && turn.summary)) return
-      const items = rawItems.map(wireItemToConversationItem)
-      conversation.getState().setTurns(
-        turns.map((turn) => turn.id === turnId ? { ...turn, items, summary: undefined } : turn),
-        { preserveExistingRealtime: true, realtimeScopeThreadId: threadId }
-      )
+      getThreadConversation(threadId)?.getState().replaceTurnItems(turnId, rawItems.map(wireItemToConversationItem))
     })
     .catch(() => setStatus(turnId, 'failed'))
     .finally(() => inFlight.delete(turnId))

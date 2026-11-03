@@ -170,6 +170,8 @@ function anchorScroll(element: HTMLElement): void {
     for (const type of ['wheel', 'touchstart', 'keydown']) container.removeEventListener(type, stop)
   }
   const step = (): void => {
+    // A detached header measures at 0 and would drag the transcript to its start.
+    if (!element.isConnected) return stop()
     container.scrollTop += element.getBoundingClientRect().top - top
     if (performance.now() < end) frame = requestAnimationFrame(step)
     else stop()

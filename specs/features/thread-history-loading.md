@@ -48,7 +48,7 @@ A completed Turn renders as its user message, a folded "Worked for" process, the
 - `items`: the Turn's summary Items in stored order, each identical to the Item `thread/items/list` returns for this connection;
 - `itemCount`: the number of Items `thread/items/list` returns for the Turn on this connection, so a client knows whether the summary omitted any.
 
-The summary of a Turn is every Item that is one of:
+A Turn ends with a reply when it has an `agentMessage` followed only by `userMessage` and `systemNotice` Items. Clients fold work only before such a reply, so the summary of a Turn that does not end with one is all of its Items. Otherwise the summary of a Turn is every Item that is one of:
 
 1. a `userMessage`, `agentMessage`, `error`, or `systemNotice`;
 2. an `imageGeneration` in a terminal status;
@@ -79,7 +79,7 @@ Both clients follow these rules for the conversation transcript.
 2. Only a completed Turn folds its work, so only a completed Turn renders from its summary. A running, waiting, failed, or cancelled Turn in the page is read in full with Turn-scoped `thread/items/list` before it renders, and a live one then follows notifications.
 3. Older pages are read with `itemsView: "summary"`.
 4. A summary Turn renders its user message, activity boundary and duration, pinned results, file changes (including the changes card of a Turn without a reply), and final reply exactly as the fully loaded Turn would. Its activity boundary is expandable when `itemCount` exceeds the number of summary Items.
-5. Opening the folded process of a summary Turn reads all its Items with Turn-scoped `thread/items/list`. The process shows a loading state until the Items arrive; on failure it shows the error with a retry and the summary stays in place. The Turn then stays fully loaded while the thread's history is held, and its Items take the Turn's place in the transcript.
+5. Opening the folded process of a summary Turn reads all its Items with Turn-scoped `thread/items/list`. The process shows a loading state until the Items arrive; on failure it shows the error with a retry and the summary stays in place. The Turn then stays fully loaded while the thread's history is held, and its Items take the Turn's place in the transcript without changing any other Turn or the live Turn's streaming state.
 6. Revealing an Item that is not in any loaded Turn loads the full Items of summary Turns, newest first, before reading older pages.
 7. Live notifications for a summary Turn merge by stable id and never mark it fully loaded. A Turn that starts after the thread opened is fully loaded.
 8. Thread-wide derivations treat a summary Turn as known by its summary: file changes and citations come from summary Items.

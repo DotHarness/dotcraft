@@ -89,6 +89,16 @@ describe('turn layout', () => {
     expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({ copy: false })
   })
 
+  it('does not take an unphased message followed by work as the reply of a finished turn', () => {
+    const items = [
+      item('userMessage', { text: 'Keep going' }),
+      item('agentMessage', { text: 'Continuing with the tests.' }),
+      ...read('a.ts', 'c1'),
+    ]
+    const activity = buildTranscript(history(items, 'completed')).find((entry) => entry.kind === 'activity')
+    expect(activity).toMatchObject({ status: 'worked', endedAt: '2026-10-04T08:01:00Z', children: [] })
+  })
+
   it('ends a running turn with one active row for its trailing run and one Thinking status that keeps the latest reasoning title', () => {
     const items = [
       item('userMessage', { text: 'Check the build' }),
