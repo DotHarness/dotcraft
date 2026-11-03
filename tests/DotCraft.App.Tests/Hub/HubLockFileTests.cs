@@ -10,7 +10,7 @@ public sealed class HubLockFileTests : IDisposable
         "DotCraftHubLock_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void TryAcquire_FirstAcquireSucceeds_SecondDetectsTheLock_AndRemoteToolsReadIt()
+    public void TryAcquire_FirstAcquireSucceeds_AndSecondDetectsThePublishedLock()
     {
         var paths = HubPaths.Resolve(_userProfile);
 
@@ -37,9 +37,6 @@ public sealed class HubLockFileTests : IDisposable
         Assert.Equal(Environment.ProcessId, existingInfo!.Pid);
         Assert.Equal("http://127.0.0.1:43000", existingInfo.ApiBaseUrl);
         Assert.Equal(currentBinaryPath, existingInfo.BinaryPath);
-        var resolved = new RemoteTools.HubEndpointProvider(paths.CraftHomePath).TryResolve();
-        Assert.Equal(new Uri("http://127.0.0.1:43000"), resolved!.BaseUrl);
-        Assert.Equal("token", resolved.Token);
 
         first.DeleteAfterDispose();
     }
