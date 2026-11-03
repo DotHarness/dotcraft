@@ -85,3 +85,17 @@ button.dc-ref[disabled] {
   margin: 0 4px;
   max-width: var(--inline-reference-max-width);
 }
+
+.dc-ref-message {
+  max-width: 100%;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.dc-action-tooltip-anchor.dc-message-link-tooltip {
+  display: inline-block;
+  max-width: 100%;
+}

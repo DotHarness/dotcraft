@@ -26,6 +26,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { FileRefChip } from './FileRefChip'
+import { InlineReferenceLink } from './InlineReferenceLink'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
 
@@ -52,7 +53,7 @@ interface UserMessageBlockProps {
 }
 
 /**
- * Plain text only — no Markdown except local file links. `@relative/path` tokens (from
+ * Plain text only — no Markdown except local file links and web links. `@relative/path` tokens (from
  * RichInputArea) and `[label](path)` file links render as compact file chips.
  */
 export function UserMessageBlock({
@@ -364,6 +365,21 @@ export function UserMessageBlock({
                   activeThreadId={activeThreadId}
                   remoteWorkspaceActive={remoteWorkspaceActive}
                 />
+              ) : seg.type === 'urlRef' ? (
+                <InlineReferenceLink
+                  key={`u-${idx}-${seg.url}`}
+                  href={seg.url}
+                  workspacePath={workspacePath}
+                  remoteWorkspaceActive={remoteWorkspaceActive}
+                  activeThreadId={activeThreadId}
+                  linkMode="conversation"
+                  labelMode="verbatim"
+                  enablePreview={false}
+                  variant="message"
+                  t={t}
+                >
+                  {seg.label}
+                </InlineReferenceLink>
               ) : seg.type === 'commandRef' ? (
                 <CommandRefChip key={`c-${idx}-${seg.commandText}`} commandText={seg.commandText} />
               ) : seg.type === 'threadRef' ? (

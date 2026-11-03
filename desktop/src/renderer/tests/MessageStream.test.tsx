@@ -51,6 +51,33 @@ describe('MessageStream', () => {
     vi.useRealTimers()
   })
 
+  it('renders a web URL in a user message as a browser link', () => {
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-1',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        items: [{
+          id: 'u1',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'See https://example.com/docs.',
+          createdAt: new Date().toISOString()
+        }]
+      }],
+      turnStatus: 'idle',
+      activeTurnId: null
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    const link = screen.getByRole('link', { name: 'https://example.com/docs' })
+    expect(link).toHaveAttribute('href', 'https://example.com/docs')
+    expect(link).toHaveAttribute('data-inline-reference-kind', 'browser')
+  })
+
   it('sends inline edited text by rolling back before turn/start', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/rollback') {

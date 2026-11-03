@@ -1132,7 +1132,7 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - External local files are served only after a user-triggered exact-file authorization, which never extends to the parent directory or siblings.
 - Local file links accept one-based `:line`, `:line:column`, `:start-end`, and `#Lstart-Lend` positions. Model guidance teaches one form: standalone Markdown links with an optional one-based `:line`, preferring direct paths over URIs. Every explicit click is a new navigation, applied after loading and scroll restoration; returning to a tab restores its reading position instead. Positions are bounded to the document; Markdown line navigation switches to source mode through the normal save/review guard.
 - A navigated line or range is highlighted separately from selection with an empty caret at the start, without changing the document or undo history, and clears on edits or deliberate caret movement.
-- User messages stay plain text, except that a Markdown link to a local file renders as a file reference chip that opens at its position.
+- User messages stay plain text, except that a Markdown link to a local file renders as a file reference chip that opens at its position, and an explicit `http`/`https` URL or a Markdown link to an `http`/`https`, `mailto`, or `tel` target renders as a link reference chip that opens it. A bare URL keeps its original text, a Markdown link keeps its label, and both remain selectable.
 - Conversation references stay selectable; selecting their text never opens a viewer, and copying across them does not insert line breaks.
 
 **Forge references**

@@ -26,6 +26,9 @@ export function InlineReferenceLink({
   remoteWorkspaceActive,
   activeThreadId,
   linkMode,
+  labelMode = 'short',
+  enablePreview = true,
+  variant = 'reference',
   t,
   ...props
 }: AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -33,15 +36,18 @@ export function InlineReferenceLink({
   remoteWorkspaceActive: boolean
   activeThreadId: string | null
   linkMode: 'conversation' | 'external'
+  labelMode?: 'short' | 'verbatim'
+  enablePreview?: boolean
+  variant?: 'reference' | 'message'
   t: (key: string, vars?: Record<string, string | number>) => string
 }): JSX.Element {
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null } | null>(null)
   const presentation = useMemo(
-    () => getInlineReferencePresentation(href, workspacePath, extractText(children), t),
-    [children, href, t, workspacePath]
+    () => getInlineReferencePresentation(href, workspacePath, extractText(children), labelMode, t),
+    [children, href, labelMode, t, workspacePath]
   )
   const forgeTarget = useMemo(() => (linkMode === 'conversation' ? parseForgeRefUrl(href) : null), [href, linkMode])
-  const previewed = linkMode === 'conversation' && !forgeTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
+  const previewed = enablePreview && linkMode === 'conversation' && !forgeTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
 
   async function openLink(target: string, event: MouseEvent<HTMLElement>): Promise<void> {
     if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
@@ -91,10 +97,10 @@ export function InlineReferenceLink({
   }
 
   const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
-  const anchorClassName = `dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`
+  const anchorClassName = `dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}${variant === 'message' ? ' dc-ref-message' : ''}`
   const anchorStyle = {
-    margin: '0 4px',
-    maxWidth: 'min(100%, var(--inline-reference-max-width))',
+    ...(variant === 'message' ? {} : { margin: '0 4px' }),
+    maxWidth: variant === 'message' ? '100%' : 'min(100%, var(--inline-reference-max-width))',
     cursor: href ? 'pointer' : 'default'
   }
   const anchorContent = (
@@ -135,7 +141,13 @@ export function InlineReferenceLink({
       {presentation.title && !forgeTarget && !previewed ? (
         <ActionTooltip
           label={presentation.title}
-          wrapperClassName={linkMode === 'conversation' ? 'dc-conversation-reference-tooltip' : undefined}
+          wrapperClassName={
+            variant === 'message'
+              ? 'dc-message-link-tooltip'
+              : linkMode === 'conversation'
+                ? 'dc-conversation-reference-tooltip'
+                : undefined
+          }
           openDelayMs={REFERENCE_TOOLTIP_DELAY_MS}
         >
           {anchor}
@@ -185,6 +197,7 @@ function getInlineReferencePresentation(
   href: string | undefined,
   workspacePath: string,
   childrenText: string,
+  labelMode: 'short' | 'verbatim',
   t: (key: string, vars?: Record<string, string | number>) => string
 ): { kind: InlineReferenceKind; label: string; title: string; absolutePath?: string; location?: OpenTargetLocation | null } {
   const rawHref = href?.trim() ?? ''
@@ -208,7 +221,7 @@ function getInlineReferencePresentation(
   if (resolution.kind === 'browser') {
     return {
       kind: 'browser',
-      label: hasCustomLabel ? childLabel : shortenUrlForDisplay(resolution.url),
+      label: hasCustomLabel ? childLabel : labelMode === 'verbatim' ? rawHref : shortenUrlForDisplay(resolution.url),
       title: rawHref || resolution.url
     }
   }
@@ -216,7 +229,7 @@ function getInlineReferencePresentation(
   if (resolution.kind === 'external') {
     return {
       kind: 'external',
-      label: hasCustomLabel ? childLabel : shortenUrlForDisplay(resolution.url),
+      label: hasCustomLabel ? childLabel : labelMode === 'verbatim' ? rawHref : shortenUrlForDisplay(resolution.url),
       title: rawHref || resolution.url
     }
   }

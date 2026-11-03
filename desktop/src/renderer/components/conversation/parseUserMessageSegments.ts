@@ -5,29 +5,91 @@ import { serializeSkillMarker } from './richInputSerialization'
 
 export type UserMessageSegment =
   | { type: 'text'; value: string }
+  | { type: 'urlRef'; url: string; label: string }
   | { type: 'fileRef'; relativePath: string; targetPath?: string }
   | { type: 'commandRef'; commandText: string }
   | { type: 'skillRef'; skillName: string }
   | { type: 'threadRef'; threadId: string; title: string }
 
 interface Match {
-  type: 'file' | 'command' | 'skill'
+  type: 'file' | 'url' | 'command' | 'skill'
   start: number
   end: number
   value: string
   targetPath?: string
+  url?: string
+  label?: string
 }
 
-function findNextMarkdownFileLink(text: string, from: number): Match | null {
-  const pattern = /(?<!!)\[[^\]\n]+\]\(([^\s()]+)\)/g
+function findNextMarkdownLink(text: string, from: number): Match | null {
+  const pattern = /(?<!!)\[([^\]\n]+)\]\(([^\s()]+)\)/g
   pattern.lastIndex = from
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    const target = match[1]!
+    const target = match[2]!
     if (/^[#?]/.test(target)) continue
     const resolution = resolveConversationLink({ target, workspacePath: '' })
     if (resolution.kind === 'file') {
       return { type: 'file', start: match.index, end: pattern.lastIndex, value: resolution.absolutePath, targetPath: target }
     }
+    if (resolution.kind === 'browser' || resolution.kind === 'external') {
+      return { type: 'url', start: match.index, end: pattern.lastIndex, value: target, url: resolution.url, label: match[1]! }
+    }
+  }
+  return null
+}
+
+const URL_STOP = /[\s<>"'`\u2013\u2014\u2018\u2019\u201c\u201d\u2026\u3000-\u303f\uff00-\uffef]|\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}|\p{Extended_Pictographic}/u
+const URL_TRAILING = /[.,;:!?'"\u2026\u3001\u3002\uff0c\uff1a\uff1b\uff01\uff1f]/
+
+function trimUrl(value: string): string {
+  let end = value.length
+  while (end > 0) {
+    const char = value[end - 1]!
+    if (URL_TRAILING.test(char) || hasUnmatchedCloser(value, end, char)) {
+      end -= 1
+      continue
+    }
+    break
+  }
+  return value.slice(0, end)
+}
+
+function hasUnmatchedCloser(value: string, end: number, char: string): boolean {
+  const opener = char === ')' ? '(' : char === ']' ? '[' : char === '}' ? '{' : ''
+  if (!opener) return false
+  let open = 0
+  let close = 0
+  for (let index = 0; index < end; index += 1) {
+    if (value[index] === opener) open += 1
+    else if (value[index] === char) close += 1
+  }
+  return close > open
+}
+
+function findNextUrl(text: string, from: number): Match | null {
+  const pattern = /https?:\/\//gi
+  pattern.lastIndex = from
+  for (let start = pattern.exec(text); start; start = pattern.exec(text)) {
+    if (start.index > 0 && /[A-Za-z0-9]/.test(text[start.index - 1]!)) {
+      pattern.lastIndex = start.index + 1
+      continue
+    }
+    let end = start.index + start[0].length
+    while (end < text.length) {
+      const char = String.fromCodePoint(text.codePointAt(end)!)
+      if (URL_STOP.test(char)) break
+      end += char.length
+    }
+    const value = trimUrl(text.slice(start.index, end))
+    if (value.length <= start[0].length) {
+      pattern.lastIndex = start.index + 1
+      continue
+    }
+    const resolution = resolveConversationLink({ target: value, workspacePath: '' })
+    if (resolution.kind === 'browser' || resolution.kind === 'external') {
+      return { type: 'url', start: start.index, end: start.index + value.length, value, url: resolution.url }
+    }
+    pattern.lastIndex = start.index + 1
   }
   return null
 }
@@ -88,8 +150,8 @@ function findNextSkillRef(text: string, from: number): Match | null {
 }
 
 /**
- * Splits user message text into plain text, @fileRef and Markdown file link segments, slash-command
- * fallback segments, skill marker segments, and thread mentions.
+ * Splits user message text into plain text, URL links, @fileRef and Markdown file link segments,
+ * slash-command fallback segments, skill marker segments, and thread mentions.
  */
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   return splitThreadMentions(text).flatMap((piece): UserMessageSegment[] => piece.type === 'thread'
@@ -103,7 +165,7 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
   let cursor = 0
 
   while (cursor < source.length) {
-    const next = [findNextMarkdownFileLink(source, cursor), findNextFileRef(source, cursor), findNextCommandRef(source, cursor), findNextSkillRef(source, cursor)]
+    const next = [findNextMarkdownLink(source, cursor), findNextUrl(source, cursor), findNextFileRef(source, cursor), findNextCommandRef(source, cursor), findNextSkillRef(source, cursor)]
       .filter((candidate): candidate is Match => candidate != null)
       .sort((a, b) => a.start - b.start)[0]
 
@@ -120,6 +182,8 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
 
     if (next.type === 'file') {
       out.push({ type: 'fileRef', relativePath: next.value, ...(next.targetPath ? { targetPath: next.targetPath } : {}) })
+    } else if (next.type === 'url') {
+      out.push({ type: 'urlRef', url: next.url!, label: next.label ?? next.value })
     } else if (next.type === 'command') {
       out.push({ type: 'commandRef', commandText: next.value })
     } else {

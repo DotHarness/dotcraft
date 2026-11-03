@@ -66,8 +66,48 @@ describe('parseUserMessageSegments Markdown file links', () => {
     ])
   })
 
-  it('keeps web links, images and bare paths literal', () => {
-    for (const text of ['[docs](https://example.com/a.md)', '[mail](mailto:me@example.com)', '![shot](shot.png)', 'notes.md:2']) {
+  it('keeps images and bare paths literal', () => {
+    for (const text of ['![shot](shot.png)', 'notes.md:2']) {
+      expect(parseUserMessageSegments(text)).toEqual([{ type: 'text', value: text }])
+    }
+  })
+})
+
+describe('parseUserMessageSegments web links', () => {
+  it('turns a bare URL into a link that keeps the surrounding text', () => {
+    expect(parseUserMessageSegments('See https://example.com/docs.')).toEqual([
+      { type: 'text', value: 'See ' },
+      { type: 'urlRef', url: 'https://example.com/docs', label: 'https://example.com/docs' },
+      { type: 'text', value: '.' }
+    ])
+  })
+
+  it('keeps balanced parentheses in the URL and leaves the sentence parenthesis outside', () => {
+    expect(parseUserMessageSegments('(https://en.wikipedia.org/wiki/Foo_(bar))')).toEqual([
+      { type: 'text', value: '(' },
+      { type: 'urlRef', url: 'https://en.wikipedia.org/wiki/Foo_(bar)', label: 'https://en.wikipedia.org/wiki/Foo_(bar)' },
+      { type: 'text', value: ')' }
+    ])
+  })
+
+  it('stops at adjacent CJK text', () => {
+    expect(parseUserMessageSegments('看https://example.com然后')).toEqual([
+      { type: 'text', value: '看' },
+      { type: 'urlRef', url: 'https://example.com/', label: 'https://example.com' },
+      { type: 'text', value: '然后' }
+    ])
+  })
+
+  it('turns Markdown web and mail links into labeled links', () => {
+    expect(parseUserMessageSegments('[docs](https://example.com/a.md) [mail](mailto:me@example.com)')).toEqual([
+      { type: 'urlRef', url: 'https://example.com/a.md', label: 'docs' },
+      { type: 'text', value: ' ' },
+      { type: 'urlRef', url: 'mailto:me@example.com', label: 'mail' }
+    ])
+  })
+
+  it('keeps unsupported schemes literal', () => {
+    for (const text of ['javascript:alert(1)', 'ftp://example.com/file']) {
       expect(parseUserMessageSegments(text)).toEqual([{ type: 'text', value: text }])
     }
   })
