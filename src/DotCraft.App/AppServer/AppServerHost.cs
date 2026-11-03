@@ -45,7 +45,7 @@ namespace DotCraft.AppServer;
 /// additionally starts a WebSocket listener that accepts multiple concurrent connections,
 /// each with an isolated <see cref="AppServerConnection"/> sharing the same session service.
 /// </summary>
-public sealed class AppServerHost(
+public sealed partial class AppServerHost(
     WorkspaceRuntime runtime,
     ExternalChannelRegistry? externalChannelRegistry = null) : IDotCraftHost
 {
@@ -80,123 +80,6 @@ public sealed class AppServerHost(
 
     private IReadOnlyList<IAppServerProtocolExtension> ProtocolExtensions =>
         runtime.Services.GetServices<IAppServerProtocolExtension>().ToArray();
-
-    public async Task RunAsync(CancellationToken cancellationToken = default)
-    {
-        using var moduleScope = _logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["Module"] = "AppServer"
-        });
-        var appServerConfig = runtime.Config.GetSection<AppServerConfig>("AppServer");
-        if (!AppServerWorkspaceLock.TryAcquire(runtime.Paths, out var workspaceLock, out var existingLock))
-        {
-            var owner = existingLock is null
-                ? "another live process"
-                : $"pid {existingLock.Pid}";
-            throw new InvalidOperationException(
-                $"DotCraft AppServer workspace lock is already held by {owner}: {AppServerWorkspaceLock.GetLockFilePath(runtime.Paths.Data.RootPath)}");
-        }
-
-        if (workspaceLock is null)
-            throw new InvalidOperationException("AppServer workspace lock acquisition returned no lock file.");
-
-        try
-        {
-            if (existingLock is not null)
-            {
-                _logger.LogInformation("Recovered stale AppServer workspace lock");
-                AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
-            }
-
-            workspaceLock.Publish(CreateLockInfo(appServerConfig));
-
-            var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
-            var runtimeStarted = false;
-            var runtimeEventsCleanupRequired = false;
-
-            try
-            {
-                await runtime.StartAsync(moduleRegistry, cancellationToken);
-                runtimeStarted = true;
-                _appServerFeature = _services.GetService<IWorkspaceRuntimeAppServerFeatureFactory>()?.Create(_services);
-                if (_appServerFeature != null)
-                {
-                    _appServerFeature.AutomationUpdated += BroadcastAutomationUpdated;
-                    _appServerFeature.AutomationRunUpdated += BroadcastAutomationRunUpdated;
-                    await _appServerFeature.StartAsync(
-                        new WorkspaceRuntimeAppServerFeatureContext(
-                            _services,
-                            runtime.Config,
-                            runtime.Paths,
-                            moduleRegistry,
-                            runtime.SessionService,
-                            runtime.DreamsService,
-                            emitBackgroundJobResult: OnBackgroundJobResultProduced),
-                        cancellationToken);
-                }
-
-                runtimeEventsCleanupRequired = true;
-                SubscribeRuntimeEvents();
-                StartPluginRegistrySync(cancellationToken);
-
-                switch (appServerConfig.Mode)
-                {
-                    case AppServerMode.WebSocket:
-                        await RunWebSocketOnlyAsync(appServerConfig.WebSocket, cancellationToken);
-                        break;
-
-                    case AppServerMode.StdioAndWebSocket:
-                        await RunStdioWithWebSocketAsync(appServerConfig.WebSocket, cancellationToken);
-                        break;
-
-                    default:
-                        await RunStdioOnlyAsync(cancellationToken);
-                        break;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    if (runtimeEventsCleanupRequired)
-                        UnsubscribeRuntimeEvents();
-                }
-                finally
-                {
-                    try
-                    {
-                        if (_appServerFeature != null)
-                        {
-                            var feature = _appServerFeature;
-                            _appServerFeature = null;
-                            feature.AutomationUpdated -= BroadcastAutomationUpdated;
-                            feature.AutomationRunUpdated -= BroadcastAutomationRunUpdated;
-                            try
-                            {
-                                await feature.StopAsync(CancellationToken.None);
-                            }
-                            finally
-                            {
-                                await feature.DisposeAsync();
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        if (runtimeStarted)
-                            await runtime.StopAsync(CancellationToken.None);
-                    }
-                }
-            }
-        }
-        finally
-        {
-            workspaceLock.DeleteAfterDispose();
-        }
-
-        AnsiConsole.MarkupLine("[grey][[AppServer]][/] AppServer stopped");
-        _logger.LogInformation("AppServer stopped");
-    }
 
     private AppServerLockInfo CreateLockInfo(AppServerConfig appServerConfig)
         => new(
@@ -398,6 +281,7 @@ public sealed class AppServerHost(
 
         AnsiConsole.MarkupLine("[green][[AppServer]][/] DotCraft AppServer started (stdio JSON-RPC 2.0)");
         _logger.LogInformation("AppServer started with stdio transport");
+        LogStartupStage("stdio-transport-ready");
 
         try
         {
@@ -434,6 +318,8 @@ public sealed class AppServerHost(
             $"[green][[AppServer]][/] DotCraft AppServer started (WebSocket at ws://{wsConfig.Host}:{wsConfig.Port}/ws)");
         _logger.LogInformation("AppServer started with WebSocket transport at {Host}:{Port}", wsConfig.Host, wsConfig.Port);
 
+        using var readyRegistration = wsApp.Lifetime.ApplicationStarted.Register(
+            () => LogStartupStage("websocket-transport-ready"));
         await wsApp.RunAsync(wsUrl);
     }
 
@@ -464,6 +350,7 @@ public sealed class AppServerHost(
 
         AnsiConsole.MarkupLine("[green][[AppServer]][/] DotCraft AppServer started (stdio + WebSocket)");
         _logger.LogInformation("AppServer started with stdio and WebSocket transports");
+        LogStartupStage("stdio-and-websocket-transports-ready");
 
         try
         {

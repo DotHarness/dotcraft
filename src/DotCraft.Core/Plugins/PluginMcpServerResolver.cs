@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using Microsoft.Extensions.Logging;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using DotCraft.Workspaces;
@@ -19,10 +20,11 @@ public static class PluginMcpServerResolver
     public static IReadOnlyList<McpServerConfig> LoadEffectiveServers(
         AppConfig config,
         DotCraftPaths paths,
-        out IReadOnlyList<PluginDiagnostic> diagnostics)
+        out IReadOnlyList<PluginDiagnostic> diagnostics,
+        ILogger? logger = null)
     {
         var allDiagnostics = new List<PluginDiagnostic>();
-        var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
+        var discovery = new PluginDiscoveryService(paths, logger: logger).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
         var pluginServers = discovery.Plugins
             .SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics))

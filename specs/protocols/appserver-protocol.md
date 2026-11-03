@@ -1416,6 +1416,8 @@ Only `workspace` skills and `user` skills under the user-data `skills/` root are
 
 Returns discovered plugins, including disabled installed plugins and installable catalog entries (bundled or from configured marketplaces). Params: `includeDisabled` (default `true`; `false` yields a partial view). Result: `plugins`, `diagnostics`, `snapshotRevision`, `workspacePath` (the server's absolute workspace path, used with the client's remote source identity for Desktop module grants and cache ownership; never authorizes reading that path on the client), and, with `capabilities.pluginMarketplaces`, `marketplaces`.
 
+Each response projects plugin metadata and workflow summaries from the same discovery result. Each new request discovers the current plugin state.
+
 `MarketplaceInfo`: `name` (from the marketplace document), optional `displayName`, `sourceType` (`git`, `local`, `archive`), resolved `source`, `ref` and `sparsePaths` (git only), `marketplacePath`, materialized `root`, `lastUpdated`, `revision`, `removable` (`false` for the host-provided default marketplace), and `pluginIds` in marketplace order. Plugins contributed by a marketplace carry `marketplaceName`, kept while the DotCraft-managed install remains; bundled, workspace-local, and user-owned plugins omit it.
 
 #### `plugin/view`

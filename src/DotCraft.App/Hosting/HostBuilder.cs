@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotCraft.Workspaces;
 using DotCraft.Modules;
 using DotCraft.Configuration;
@@ -89,6 +90,7 @@ public sealed class HostBuilder
     /// <returns>A tuple containing the service provider and the host.</returns>
     public (ServiceProvider Provider, IDotCraftHost Host) Build(IServiceCollection services)
     {
+        var startupTimer = Stopwatch.StartNew();
         var paths = RequirePaths(services);
 
         // Select primary module
@@ -118,6 +120,8 @@ public sealed class HostBuilder
 
         var startupLogger = provider.GetService<ILoggerFactory>()?.CreateLogger<HostBuilder>();
         startupLogger?.LogInformation("Primary module: {ModuleName}", primaryModule.Name);
+        startupLogger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+            "module-services-and-provider-build", startupTimer.Elapsed.TotalMilliseconds);
         var additionalModuleNames = composedModules
             .Where(module => !ReferenceEquals(module, primaryModule))
             .Select(module => module.Name)
@@ -128,7 +132,10 @@ public sealed class HostBuilder
                 string.Join(", ", additionalModuleNames));
 
         // Create host
+        startupTimer.Restart();
         var host = CreateHost(provider, primaryModule, paths);
+        startupLogger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+            "host-di-graph", startupTimer.Elapsed.TotalMilliseconds);
 
         return (provider, host);
     }

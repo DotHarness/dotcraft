@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotCraft.Agents;
 using DotCraft.Automations;
 using DotCraft.Channels;
@@ -48,6 +49,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             throw new InvalidOperationException("AppServer workspace runtime feature has already been started.");
 
         _context = context;
+        var startupTimer = Stopwatch.StartNew();
         try
         {
             _channelRunner = _channelRunnerFactory?.Create(
@@ -61,6 +63,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 await _channelRunner.StartWebPoolAsync();
             }
 
+            LogStartupStage(startupTimer, "feature-dashboard-and-channels");
             _automationRuntime = _automationRuntimeFactory?.Create(services);
             if (_automationRuntime != null)
             {
@@ -69,21 +72,31 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 await _automationRuntime.StartAsync(context, ct);
             }
 
+            LogStartupStage(startupTimer, "feature-automation");
             _dynamicWorkflowService = services.GetService<IDynamicWorkflowService>();
             if (_dynamicWorkflowService != null)
                 await _dynamicWorkflowService.StartAsync(ct);
 
+            LogStartupStage(startupTimer, "feature-workflow-recovery");
             _sessionImportSync = services.GetService<SessionImportSyncRuntime>();
             _sessionImportSync?.Start();
 
             _channelRunner?.BeginChannelLoops(ct);
             _started = true;
+            LogStartupStage(startupTimer, "feature-imports-and-channel-loops");
         }
         catch
         {
             await StopAsync(ct);
             throw;
         }
+    }
+
+    private void LogStartupStage(Stopwatch timer, string stage)
+    {
+        _logger.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+            stage, timer.Elapsed.TotalMilliseconds);
+        timer.Restart();
     }
 
     public async Task StopAsync(CancellationToken ct = default)

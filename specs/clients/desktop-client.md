@@ -86,6 +86,9 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 
 - After connection becomes `connected`, the client loads server capabilities, the thread list for the active workspace identity, and capability-gated surfaces such as skills, automations, or the model catalog.
 - If no thread exists, the client presents an empty ready state that allows starting a new conversation.
+- The renderer owns the full foreground `thread/list` load. Its completed request also updates Main's existing project-summary cache; on connection readiness, Main starts its own list load only for secondary connections. Settings and the foreground list are requested concurrently, with workspace and request-generation guards retained for late responses and retries.
+- Main content becomes visible after protocol initialization and workspace readiness. Git controls load branch data independently, and page-code prefetch uses delayed idle scheduling.
+- Startup diagnostics record local ensure, protocol initialization, foreground list, and selected-content data readiness separately. Diagnostics contain stage, workspace identity and elapsed time; transport URLs, tokens and conversation contents are excluded.
 
 ### 3.4 Reconnection
 

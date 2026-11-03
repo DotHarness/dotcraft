@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Configuration;
@@ -12,7 +14,8 @@ public sealed class BuiltInPluginDeployer(
     string pluginsPath,
     IReadOnlyList<string>? sourceRoots = null,
     AppConfig.PluginsConfig? pluginsConfig = null,
-    string? userDataPath = null)
+    string? userDataPath = null,
+    ILogger? logger = null)
 {
     public const string MarkerFile = ".builtin";
 
@@ -47,10 +50,13 @@ public sealed class BuiltInPluginDeployer(
         var identity = Path.GetFullPath(pluginsPath);
         if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
         using var mutex = new Mutex(false, "DotCraft.PluginDeploy." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
+        var timer = Stopwatch.StartNew();
         try { mutex.WaitOne(); }
         catch (AbandonedMutexException) { }
         try
         {
+            logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+                "plugin-deploy-mutex-wait", timer.Elapsed.TotalMilliseconds);
             return DeployCoreLocked(targetPluginIds);
         }
         finally
@@ -61,12 +67,19 @@ public sealed class BuiltInPluginDeployer(
 
     private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(IReadOnlySet<string>? targetPluginIds)
     {
+        var timer = Stopwatch.StartNew();
+        var fingerprintMs = 0d;
+        var replaceMs = 0d;
+        var fingerprintCount = 0;
+        var replaceCount = 0;
         var diagnostics = new List<PluginDiagnostic>();
         var sources = BuiltInPluginSourceResolver.Discover(
             sourceRoots,
             diagnostics,
             pluginsConfig,
             userDataPath);
+        logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+            "plugin-deploy-source-discovery", timer.Elapsed.TotalMilliseconds);
         var pending = targetPluginIds == null
             ? null
             : new HashSet<string>(targetPluginIds, StringComparer.OrdinalIgnoreCase);
@@ -90,14 +103,20 @@ public sealed class BuiltInPluginDeployer(
                 continue;
             }
 
+            timer.Restart();
             var markerText = BuildMarkerText(source.PluginRoot);
+            fingerprintMs += timer.Elapsed.TotalMilliseconds;
+            fingerprintCount++;
             if (File.Exists(markerPath)
                 && string.Equals(File.ReadAllText(markerPath).Trim(), markerText, StringComparison.Ordinal))
             {
                 continue;
             }
 
+            timer.Restart();
             ReplacePluginDirectory(source.PluginRoot, pluginDir, markerText);
+            replaceMs += timer.Elapsed.TotalMilliseconds;
+            replaceCount++;
         }
 
         foreach (var missing in (pending ?? []).OrderBy(id => id, StringComparer.Ordinal))
@@ -108,6 +127,12 @@ public sealed class BuiltInPluginDeployer(
                 missing));
         }
 
+        logger?.LogInformation(
+            "Startup stage {Stage} completed in {ElapsedMs}ms across {Count} plugins",
+            "plugin-deploy-fingerprint", fingerprintMs, fingerprintCount);
+        logger?.LogInformation(
+            "Startup stage {Stage} completed in {ElapsedMs}ms across {Count} plugins",
+            "plugin-deploy-replace", replaceMs, replaceCount);
         return diagnostics;
     }
 

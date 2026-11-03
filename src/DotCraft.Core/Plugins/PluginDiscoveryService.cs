@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using DotCraft.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Plugins;
 
@@ -43,17 +45,20 @@ public sealed record PluginDiscoveryResult(
 public sealed class PluginDiscoveryService(
     string? userGlobalPluginsPath = null,
     IReadOnlyList<string>? builtInPluginSourceRoots = null,
-    string? craftHome = null)
+    string? craftHome = null,
+    ILogger? logger = null)
 {
     private const string RemovedBrowserUsePluginId = "browser-use";
 
     public PluginDiscoveryService(
         DotCraft.Workspaces.DotCraftPaths paths,
-        IReadOnlyList<string>? builtInPluginSourceRoots = null)
+        IReadOnlyList<string>? builtInPluginSourceRoots = null,
+        ILogger? logger = null)
         : this(
             paths.UserData.ResolveOrNull("plugins"),
             builtInPluginSourceRoots,
-            paths.UserData.RootPath)
+            paths.UserData.RootPath,
+            logger)
     {
     }
 
@@ -73,8 +78,10 @@ public sealed class PluginDiscoveryService(
     /// </summary>
     public PluginDiscoveryResult DiscoverAll(AppConfig config, string workspacePath, string botPath)
     {
+        var timer = Stopwatch.StartNew();
         var diagnostics = new List<PluginDiagnostic>();
         RefreshManagedBuiltInPlugins(config, diagnostics);
+        LogStage("plugin-managed-built-in-refresh");
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
         var discovered = new List<DiscoveredPlugin>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -129,6 +136,7 @@ public sealed class PluginDiscoveryService(
                 Removable: removable));
         }
 
+        LogStage("plugin-local-manifests");
         var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins, craftHome).Discover();
         diagnostics.AddRange(builtInDiscovery.Diagnostics);
         foreach (var builtIn in builtInDiscovery.Plugins)
@@ -151,9 +159,19 @@ public sealed class PluginDiscoveryService(
             }
         }
 
-        return new PluginDiscoveryResult(
+        LogStage("plugin-built-in-catalog");
+        var result = new PluginDiscoveryResult(
             PluginDependencyCatalogProjection.Attach(discovered),
             PluginDiagnostic.Deduplicate(diagnostics));
+        LogStage("plugin-dependency-projection");
+        return result;
+
+        void LogStage(string stage)
+        {
+            logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+                stage, timer.Elapsed.TotalMilliseconds);
+            timer.Restart();
+        }
     }
 
     private void RefreshManagedBuiltInPlugins(
@@ -186,7 +204,8 @@ public sealed class PluginDiscoveryService(
                 userGlobalPluginsPath,
                 builtInPluginSourceRoots,
                 config.Plugins,
-                craftHome)
+                craftHome,
+                logger)
             .DeployPlugins(managed));
     }
 
