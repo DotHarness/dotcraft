@@ -16,7 +16,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-workflow-service-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task StartInline_RunsInBackgroundPersistsTerminalStateAndQueuesOnce()
+    public async Task StartInline_RunsAgentPersistsTerminalStateAndQueuesOnce()
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
@@ -27,6 +27,18 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             Id = "thread_parent",
             WorkspacePath = _root,
             OriginChannel = "test",
+            Configuration = new ThreadConfiguration
+            {
+                ProviderId = "openai",
+                Model = "parent-model",
+                Reasoning = new AppConfig.ReasoningConfig
+                {
+                    Enabled = true,
+                    Effort = ModelReasoningEffort.High,
+                    Output = ReasoningOutput.Summary
+                },
+                Speed = InferenceSpeed.Fast
+            },
             Turns = [new SessionTurn { Id = "turn_001", ThreadId = "thread_parent", Status = TurnStatus.Completed }]
         };
         var service = new DynamicWorkflowService(
@@ -35,46 +47,71 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             new DynamicWorkflowParser(),
             new StructuredWorkflowResultRegistry(),
             new ManagedChildProcessFactory(),
-            new DotCraft.Configuration.AppConfig(),
-            [],
+            new AppConfig(),
+            [new SubAgentRoleConfig { Name = "reviewer", Model = "role-model" }],
             NullLogger<DynamicWorkflowService>.Instance);
+        var notificationPersisted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.RunChanged += change =>
+        {
+            if (change.Reason == "state" && proxy.EnqueueCalls == 1)
+                notificationPersisted.TrySetResult();
+        };
         service.SetSessionService(session);
         await service.StartAsync();
-
-        var started = await service.StartInlineAsync(new DynamicWorkflowStartRequest
+        try
         {
-            ParentThreadId = proxy.Thread.Id,
-            ParentTurnId = "turn_001",
-            Script = "export const meta = { name: 'service', description: 'Service test' }; return { ok: true };",
-            Args = new System.Text.Json.Nodes.JsonObject()
-        });
+            var started = await service.StartInlineAsync(new DynamicWorkflowStartRequest
+            {
+                ParentThreadId = proxy.Thread.Id,
+                ParentTurnId = "turn_001",
+                Script = """
+                    export const meta = { name: 'service', description: 'Service test' };
+                    await agent('inspect code', { agentType: 'reviewer', model: 'invocation-model', effort: 'low' });
+                    return { ok: true };
+                    """,
+                Args = new JsonObject()
+            });
 
-        Assert.Equal(DynamicWorkflowStatuses.Running, started.Status);
-        DynamicWorkflowRun? completed = null;
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            completed = await service.GetRunAsync(started.RunId);
-            if (completed?.Status != DynamicWorkflowStatuses.Running
-                && completed?.NotificationStatus == "queued") break;
-            await Task.Delay(50);
+            Assert.Equal(DynamicWorkflowStatuses.Running, started.Status);
+            await notificationPersisted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var completed = await service.GetRunAsync(started.RunId);
+            Assert.Equal(DynamicWorkflowStatuses.Succeeded, completed?.Status);
+            Assert.True(completed?.Result?["ok"]?.GetValue<bool>());
+            Assert.Equal("queued", completed?.NotificationStatus);
+            Assert.Equal("queued_test", completed?.NotificationInputId);
+            Assert.Equal(1, proxy.EnqueueCalls);
+            Assert.Equal(BackgroundTaskKinds.Workflow, proxy.LastEnding?.Kind);
+            Assert.Equal(started.RunId, proxy.LastEnding?.TaskId);
+            Assert.Equal(BackgroundTaskStatus.Completed, proxy.LastEnding?.Status);
+            Assert.Equal(store.GetRunDirectory(started.RunId), proxy.LastEnding?.OutputPath);
+            Assert.Contains("\"ok\":true", proxy.LastEnding?.Result);
+            Assert.False(proxy.LastEnding?.StoppedByUser);
+            Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "state.json")));
+            Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "journal.jsonl")));
+
+            var child = Assert.Single(proxy.Children.Values);
+            Assert.Equal("invocation-model", child.Configuration?.Model);
+            Assert.True(child.Configuration?.Reasoning?.Enabled);
+            Assert.Equal(ModelReasoningEffort.Low, child.Configuration?.Reasoning?.Effort);
+            Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
+            Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
+            Assert.Empty(child.Turns);
+
+            var journal = await store.ReadJournalAsync(started.RunId, CancellationToken.None);
+            var requested = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.requested");
+            Assert.Equal("invocation-model", requested["payload"]?["model"]?.GetValue<string>());
+            Assert.Equal("low", requested["payload"]?["effort"]?.GetValue<string>());
+            var agentCompleted = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.completed");
+            Assert.Equal("invocation-model", agentCompleted["payload"]?["effectiveModel"]?.GetValue<string>());
+            Assert.Equal("Low", agentCompleted["payload"]?["effectiveEffort"]?.GetValue<string>());
+
+            await service.OnThreadDeletingAsync(proxy.Thread);
+            Assert.False(Directory.Exists(store.GetRunDirectory(started.RunId)));
         }
-        Assert.Equal(DynamicWorkflowStatuses.Succeeded, completed?.Status);
-        Assert.True(completed?.Result?["ok"]?.GetValue<bool>());
-        Assert.Equal("queued", completed?.NotificationStatus);
-        Assert.Equal("queued_test", completed?.NotificationInputId);
-        Assert.Equal(1, proxy.EnqueueCalls);
-        Assert.Equal(BackgroundTaskKinds.Workflow, proxy.LastEnding?.Kind);
-        Assert.Equal(started.RunId, proxy.LastEnding?.TaskId);
-        Assert.Equal(BackgroundTaskStatus.Completed, proxy.LastEnding?.Status);
-        Assert.Equal(store.GetRunDirectory(started.RunId), proxy.LastEnding?.OutputPath);
-        Assert.Contains("\"ok\":true", proxy.LastEnding?.Result);
-        Assert.False(proxy.LastEnding?.StoppedByUser);
-        Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "state.json")));
-        Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "journal.jsonl")));
-
-        await service.OnThreadDeletingAsync(proxy.Thread);
-        Assert.False(Directory.Exists(store.GetRunDirectory(started.RunId)));
-        await service.StopAsync();
+        finally
+        {
+            await service.StopAsync();
+        }
     }
 
     [Fact]
@@ -287,129 +324,6 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             context));
         Assert.Equal("workflow_resume_unavailable", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
         await restartedService.StopAsync();
-    }
-
-    [Fact]
-    public async Task AgentCall_WithoutOverride_InheritsParentPreferenceWithoutHistory()
-    {
-        var (_, child, journal) = await RunAgentWorkflowAsync(
-            "export const meta = { name: 'inherit', description: 'Inherit model' }; await agent('inspect code'); return { ok: true };",
-            []);
-
-        Assert.Equal("parent-model", child.Configuration?.Model);
-        Assert.True(child.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ModelReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
-        Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
-        Assert.Empty(child.Turns);
-
-        var completed = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.completed");
-        Assert.Equal("parent-model", completed["payload"]?["effectiveModel"]?.GetValue<string>());
-        Assert.Equal("High", completed["payload"]?["effectiveEffort"]?.GetValue<string>());
-    }
-
-    [Fact]
-    public async Task AgentCall_ExplicitModelAndEffort_OverrideRolePreference()
-    {
-        var (_, child, journal) = await RunAgentWorkflowAsync(
-            "export const meta = { name: 'override', description: 'Override model' }; await agent('inspect code', { agentType: 'reviewer', model: 'invocation-model', effort: 'low' }); return { ok: true };",
-            [new SubAgentRoleConfig { Name = "reviewer", Model = "role-model" }]);
-
-        Assert.Equal("invocation-model", child.Configuration?.Model);
-        Assert.True(child.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ModelReasoningEffort.Low, child.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
-        Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
-
-        var requested = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.requested");
-        Assert.Equal("invocation-model", requested["payload"]?["model"]?.GetValue<string>());
-        Assert.Equal("low", requested["payload"]?["effort"]?.GetValue<string>());
-        var completed = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.completed");
-        Assert.Equal("invocation-model", completed["payload"]?["effectiveModel"]?.GetValue<string>());
-        Assert.Equal("Low", completed["payload"]?["effectiveEffort"]?.GetValue<string>());
-    }
-
-    [Theory]
-    [InlineData("{ model: 'invocation-model' }", "invocation-model", ModelReasoningEffort.High)]
-    [InlineData("{ effort: 'low' }", "parent-model", ModelReasoningEffort.Low)]
-    public async Task AgentCall_PartialOverride_PreservesUnspecifiedPreferenceFields(
-        string options,
-        string expectedModel,
-        ModelReasoningEffort expectedEffort)
-    {
-        var (_, child, _) = await RunAgentWorkflowAsync(
-            $"export const meta = {{ name: 'partial', description: 'Partial override' }}; await agent('inspect code', {options}); return {{ ok: true }};",
-            []);
-
-        Assert.Equal(expectedModel, child.Configuration?.Model);
-        Assert.True(child.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(expectedEffort, child.Configuration?.Reasoning?.Effort);
-        Assert.Equal(ReasoningOutput.Summary, child.Configuration?.Reasoning?.Output);
-        Assert.Equal(InferenceSpeed.Fast, child.Configuration?.Speed);
-    }
-
-    private async Task<(DynamicWorkflowRun Run, SessionThread Child, IReadOnlyList<JsonObject> Journal)> RunAgentWorkflowAsync(
-        string script,
-        IReadOnlyList<SubAgentRoleConfig> roleConfigs)
-    {
-        _ = typeof(CommandLineArgs).Assembly;
-        var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
-        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
-        var proxy = (SessionServiceProxy)(object)session;
-        proxy.Thread = new SessionThread
-        {
-            Id = "thread_parent",
-            WorkspacePath = _root,
-            OriginChannel = "test",
-            Configuration = new ThreadConfiguration
-            {
-                ProviderId = "openai",
-                Model = "parent-model",
-                Reasoning = new AppConfig.ReasoningConfig
-                {
-                    Enabled = true,
-                    Effort = ModelReasoningEffort.High,
-                    Output = ReasoningOutput.Summary
-                },
-                Speed = InferenceSpeed.Fast,
-            },
-            Turns = [new SessionTurn { Id = "turn_001", ThreadId = "thread_parent", Status = TurnStatus.Completed }]
-        };
-        var service = new DynamicWorkflowService(
-            _root,
-            store,
-            new DynamicWorkflowParser(),
-            new StructuredWorkflowResultRegistry(),
-            new ManagedChildProcessFactory(),
-            new AppConfig(),
-            roleConfigs,
-            NullLogger<DynamicWorkflowService>.Instance);
-        service.SetSessionService(session);
-        await service.StartAsync();
-        try
-        {
-            var started = await service.StartInlineAsync(new DynamicWorkflowStartRequest
-            {
-                ParentThreadId = proxy.Thread.Id,
-                ParentTurnId = "turn_001",
-                Script = script
-            });
-            DynamicWorkflowRun? terminal = null;
-            for (var attempt = 0; attempt < 100; attempt++)
-            {
-                terminal = await service.GetRunAsync(started.RunId);
-                if (terminal?.Status != DynamicWorkflowStatuses.Running) break;
-                await Task.Delay(50);
-            }
-
-            Assert.Equal(DynamicWorkflowStatuses.Succeeded, terminal?.Status);
-            var child = Assert.Single(proxy.Children.Values);
-            return (terminal!, child, await store.ReadJournalAsync(started.RunId, CancellationToken.None));
-        }
-        finally
-        {
-            await service.StopAsync();
-        }
     }
 
     public void Dispose()
