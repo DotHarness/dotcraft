@@ -9,13 +9,13 @@ public sealed class IssueDiscussionContext(OratorioDbContext db)
 {
     public async Task<string?> DescribeAsync(OratorioDiscussionTurn turn, CancellationToken ct)
     {
-        if (turn.Item is not { Kind: ItemKind.Issue, Source: "github" } item)
+        if (turn.Item is not { Kind: not ItemKind.PullRequest } item)
         {
             return null;
         }
 
         var context = new StringBuilder();
-        context.AppendLine("GitHub issue context:");
+        context.AppendLine("Task context:");
         context.AppendLine($"- Title: {item.Title}");
         context.AppendLine($"- Source: {item.ExternalId}");
         context.AppendLine($"- URL: {item.ExternalUrl}");

@@ -52,19 +52,6 @@ public sealed class DiscussionTurnService(
         }
 
         var thread = await threads.FindDiscussionThreadAsync(item.ItemId, ct);
-        var hasActiveRun = await db.Runs.AnyAsync(x =>
-            x.ItemId == item.ItemId &&
-            x.RunnerKind == "appServer" &&
-            (x.Status == RunStatus.Queued || x.Status == RunStatus.Dispatching || x.Status == RunStatus.Running),
-            ct);
-        if (thread is null && !hasActiveRun)
-        {
-            throw OratorioApiException.Conflict(
-                "noCompatibleDiscussionThread",
-                "Ask agent requires a conversation thread with the Oratorio discussion reply tool.",
-                new Dictionary<string, object?> { ["itemId"] = item.ItemId });
-        }
-
         var round = request.RoundNumber is not null
             ? await FindRoundByNumberAsync(item.ItemId, request.RoundNumber.Value, ct)
             : await FindCurrentRoundAsync(item, ct);

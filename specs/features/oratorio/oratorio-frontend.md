@@ -216,9 +216,8 @@ streams, never stored, and cleared when the run ends.
 
 The Discussion composer closes Activity with separate `Add comment` and `Ask
 Oratorio` actions. `Add comment` records internal operator feedback. `Ask
-Oratorio` starts an Agent Discussion Turn only when the task has a
-conversation thread or an active run, and no Discussion Turn is waiting to be
-delivered. Agent replies are signed
+Oratorio` starts an Agent Discussion Turn whenever no Discussion Turn is
+waiting to be delivered, including on a task that has never run. Agent replies are signed
 `Oratorio`, the operator's own comments carry their Profile avatar, and
 comments imported from the provider keep their author. Questions asked from the
 provider show their provider author, and their replies link to the published

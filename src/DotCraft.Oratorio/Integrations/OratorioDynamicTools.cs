@@ -36,10 +36,6 @@ public sealed record OratorioDynamicToolSet(
     IReadOnlySet<string> AllowedLocalNames,
     IReadOnlyList<string> QualifiedIds);
 
-/// <summary>
-/// The single source of truth for Oratorio tool identity, generated schemas, declarations,
-/// surface allowlists, and registry dispatch.
-/// </summary>
 public sealed class OratorioDynamicToolCatalog
 {
     public const string Namespace = "oratorio_run";
@@ -114,22 +110,25 @@ public sealed class OratorioDynamicToolCatalog
     public IReadOnlyList<DynamicToolDescriptor> Descriptors =>
         _descriptors.Values.OrderBy(x => x.Order).ThenBy(x => x.LocalName, StringComparer.Ordinal).ToArray();
 
-    public OratorioDynamicToolSet CreateDiscussionToolSet() =>
-        CreateSet(SubmitDiscussionReplyName, ResolveReviewFindingName);
+    public OratorioDynamicToolSet CreateDiscussionToolSet(ItemKind itemKind, string? source) =>
+        CreateSet(ItemToolNames(itemKind, source), [SubmitDiscussionReplyName, ResolveReviewFindingName]);
 
-    /// <summary>
-    /// Instruction pages are gated on the same predicates as the tools, so the model is never taught
-    /// a tool the turn does not expose.
-    /// </summary>
+    public OratorioDynamicToolSet CreateRunToolSet(RunPurpose purpose, ItemKind itemKind, string? source)
+    {
+        var declared = ItemToolNames(itemKind, source);
+        return CreateSet(declared, declared
+            .Where(name => name != SubmitImplementationDraftName || purpose == RunPurpose.Implementation)
+            .ToArray());
+    }
+
     public static bool SupportsReviewDraft(ItemKind itemKind, string? source) =>
         itemKind == ItemKind.PullRequest && source is "github" or "gitlab";
 
-    public static bool SupportsImplementationDraft(RunPurpose purpose, ItemKind itemKind, string? source) =>
-        purpose == RunPurpose.Implementation
-        && (itemKind == ItemKind.LocalTask
-            || itemKind == ItemKind.Issue && source is "github" or "gitlab");
+    public static bool SupportsImplementationDraft(ItemKind itemKind, string? source) =>
+        itemKind == ItemKind.LocalTask
+        || itemKind == ItemKind.Issue && source is "github" or "gitlab";
 
-    public OratorioDynamicToolSet CreateRunToolSet(RunPurpose purpose, ItemKind itemKind, string? source)
+    private static string[] ItemToolNames(ItemKind itemKind, string? source)
     {
         var names = new List<string>
         {
@@ -141,12 +140,12 @@ public sealed class OratorioDynamicToolCatalog
         {
             names.Add(SubmitReviewDraftName);
         }
-        if (SupportsImplementationDraft(purpose, itemKind, source))
+        if (SupportsImplementationDraft(itemKind, source))
         {
             names.Add(SubmitImplementationDraftName);
         }
 
-        return CreateSet(names.ToArray());
+        return names.ToArray();
     }
 
     public async Task<DynamicToolCallResult> InvokeAsync(
@@ -162,7 +161,7 @@ public sealed class OratorioDynamicToolCatalog
         }
         if (!allowlist.Contains(call.Tool))
         {
-            return Failure("UnsupportedTool", $"The Oratorio tool '{call.Tool}' is not allowed on this surface.");
+            return Failure("UnsupportedTool", $"The Oratorio tool '{call.Tool}' is not allowed on this surface or in the current work mode.");
         }
         if (!string.IsNullOrWhiteSpace(context.ExpectedThreadId) &&
             !string.Equals(context.ExpectedThreadId, call.ThreadId, StringComparison.Ordinal))
@@ -247,16 +246,16 @@ public sealed class OratorioDynamicToolCatalog
         return null;
     }
 
-    private OratorioDynamicToolSet CreateSet(params string[] localNames)
+    private OratorioDynamicToolSet CreateSet(string[] declaredNames, string[] allowedNames)
     {
-        IReadOnlyList<DynamicToolDescriptor> descriptors = SelectDescriptors(localNames);
+        IReadOnlyList<DynamicToolDescriptor> descriptors = SelectDescriptors(declaredNames);
         IReadOnlyList<RuntimeDynamicToolDeclaration> declarations =
             RuntimeDynamicToolDeclarationBuilder.Build(
                 descriptors,
                 NamespaceDescriptions);
         return new(
             declarations,
-            localNames.ToHashSet(StringComparer.Ordinal),
+            allowedNames.ToHashSet(StringComparer.Ordinal),
             descriptors.Select(x => x.QualifiedName).Order(StringComparer.Ordinal).ToArray());
     }
 
