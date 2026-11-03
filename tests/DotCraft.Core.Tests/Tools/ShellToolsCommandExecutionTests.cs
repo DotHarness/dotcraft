@@ -238,7 +238,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
     public async Task WriteStdin_PollingAHandedBackCommand_ReportsTheInteractionOnItsItem()
     {
         const string callId = "call_exec_poll";
-        var command = OperatingSystem.IsWindows() ? "Start-Sleep -Milliseconds 1500" : "sleep 1.5";
+        const string command = "echo poll";
         var turn = CreateTurn();
         var pending = CreatePendingCommandExecution(turn, callId, command, _tempDir);
         var interactions = new List<(string TurnId, string CallId, CommandExecutionTerminalInteraction Interaction)>();
@@ -255,8 +255,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             Source = "host",
             Item = pending
         });
-        await using var terminals = new BackgroundTerminalService(_tempDir, new AppConfig.ShellBackgroundConfig());
-        var tools = new ShellTools(_tempDir, terminals, timeoutSeconds: 30);
+        var terminals = new FakeBackgroundTerminalService("") { Status = BackgroundTerminalStatus.Running };
+        var tools = new ShellTools(_tempDir, terminals);
         using var _ = CommandExecutionRuntimeScope.Set(context);
 
         await tools.Exec(command, yieldTimeMs: 100);
@@ -269,9 +269,11 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal(sessionId, polled.Interaction.SessionId);
         Assert.Equal(string.Empty, polled.Interaction.Stdin);
 
-        await tools.WriteStdin(sessionId, yieldTimeMs: 5000);
         await tools.WriteStdin(sessionId, yieldTimeMs: 100);
-        Assert.Single(interactions);
+        Assert.Equal(2, interactions.Count);
+        terminals.Complete();
+        await tools.WriteStdin(sessionId, yieldTimeMs: 100);
+        Assert.Equal(2, interactions.Count);
     }
 
     private SessionTurn CreateTurn() => new()
@@ -337,6 +339,17 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
         public List<BackgroundTerminalStartRequest> StartRequests { get; } = [];
 
+        public string Status { get; set; } = exitCode == 0 ? BackgroundTerminalStatus.Completed : BackgroundTerminalStatus.Failed;
+
+        private BackgroundTerminalSnapshot _snapshot = new();
+
+        public void Complete()
+        {
+            Status = BackgroundTerminalStatus.Completed;
+            _snapshot = _snapshot with { Status = Status, ExitCode = exitCode, CompletedAt = DateTimeOffset.UtcNow };
+            TerminalEvent?.Invoke(new BackgroundTerminalEvent { EventType = "completed", Terminal = _snapshot });
+        }
+
         public Task<BackgroundTerminalSnapshot> StartAsync(
             BackgroundTerminalStartRequest request,
             CancellationToken ct = default)
@@ -367,7 +380,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
                     Delta = outputDelta
                 });
             }
-            return Task.FromResult(new BackgroundTerminalSnapshot
+            _snapshot = new BackgroundTerminalSnapshot
             {
                 SessionId = "term_test",
                 ThreadId = request.ThreadId,
@@ -376,16 +389,17 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
                 Command = request.Command,
                 WorkingDirectory = request.WorkingDirectory,
                 Source = request.Source,
-                Status = exitCode == 0 ? BackgroundTerminalStatus.Completed : BackgroundTerminalStatus.Failed,
+                Status = Status,
                 Output = output,
                 OutputPath = Path.Combine(request.WorkingDirectory, "term_test.log"),
-                ExitCode = exitCode,
+                ExitCode = Status == BackgroundTerminalStatus.Running ? null : exitCode,
                 StartedAt = DateTimeOffset.UtcNow,
-                CompletedAt = DateTimeOffset.UtcNow,
+                CompletedAt = Status == BackgroundTerminalStatus.Running ? null : DateTimeOffset.UtcNow,
                 WallTimeMs = 1,
                 OriginalOutputChars = output.Length,
                 Truncated = false
-            });
+            };
+            return Task.FromResult(_snapshot);
         }
 
         public ShellStdinSession? GetStdinSession(string sessionId) => null;
@@ -397,14 +411,14 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             int? maxOutputChars = null,
             Regex? waitFor = null,
             CancellationToken ct = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(_snapshot);
 
         public Task<BackgroundTerminalSnapshot> ReadAsync(
             string sessionId,
             int waitMs = 0,
             int? maxOutputChars = null,
             CancellationToken ct = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(_snapshot);
 
         public Task<BackgroundTerminalSnapshot> WriteStdinAsync(
             string sessionId,

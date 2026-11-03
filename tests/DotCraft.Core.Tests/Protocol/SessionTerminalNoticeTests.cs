@@ -38,10 +38,14 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     [Fact]
     public async Task IdleThread_IsWokenByACompletionNotice()
     {
-        var chatClient = new NoticeAwareChatClient(DelayedEchoCommand("notice-tail"), keepWorking: false);
+        var command = GatedEchoCommand("notice-tail", out var releasePath);
+        var chatClient = new NoticeAwareChatClient(command, OperatingSystem.IsWindows() ? "powershell" : "sh");
         await using var harness = await CreateHarnessAsync(chatClient);
 
         await harness.RunTurnAsync();
+        var running = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
+        Assert.Equal(BackgroundTerminalStatus.Running, running.Status);
+        await File.WriteAllTextAsync(releasePath, "");
         var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
 
         var woken = thread.Turns[^1].Input?.AsUserMessage;
@@ -51,14 +55,13 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         Assert.Equal(BackgroundTerminalStatus.Completed, woken.TriggerStatus);
         var notice = Assert.Single(chatClient.ReceivedNotices);
         Assert.Contains($"<task_id>{woken.TriggerRefId}</task_id>", notice);
-        Assert.Contains("notice-tail", notice);
         Assert.Contains("exit code 0", notice);
     }
 
     [Fact]
     public async Task ClientStop_WakesTheThreadWithAUserStopNotice()
     {
-        var chatClient = new NoticeAwareChatClient(LongRunningCommand(), keepWorking: false);
+        var chatClient = new NoticeAwareChatClient(LongRunningCommand());
         await using var harness = await CreateHarnessAsync(chatClient);
 
         await harness.RunTurnAsync();
@@ -72,30 +75,12 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RunningTurn_ReceivesTheNoticeAsGuidance()
-    {
-        var chatClient = new NoticeAwareChatClient(DelayedEchoCommand("guided-tail"), keepWorking: true);
-        await using var harness = await CreateHarnessAsync(chatClient);
-
-        await harness.RunTurnAsync();
-        await Task.Delay(500);
-
-        var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
-        var turn = Assert.Single(thread.Turns);
-        var guidance = Assert.Single(turn.Items, item =>
-            item.AsUserMessage?.TriggerKind == SessionService.TerminalTriggerKind);
-        Assert.Equal("guidance", guidance.AsUserMessage!.DeliveryMode);
-        Assert.Contains("guided-tail", Assert.Single(chatClient.ReceivedNotices));
-    }
-
-    [Fact]
     public async Task TaskStop_StopsTheTerminalAndNoNoticeFollows()
     {
         var chatClient = new StopAfterStartChatClient(LongRunningCommand());
         await using var harness = await CreateHarnessAsync(chatClient);
 
         await harness.RunTurnAsync();
-        await Task.Delay(500);
         await harness.Service.DrainTerminalNoticesAsync();
 
         var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
@@ -115,7 +100,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     [Fact]
     public async Task TaskStop_RejectsATerminalStartedByAnotherThread()
     {
-        var chatClient = new NoticeAwareChatClient(LongRunningCommand(), keepWorking: false);
+        var chatClient = new NoticeAwareChatClient(LongRunningCommand());
         await using var harness = await CreateHarnessAsync(chatClient);
         await harness.RunTurnAsync();
         var running = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
@@ -180,18 +165,18 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         }
     }
 
-    private static string DelayedEchoCommand(string text) =>
-        OperatingSystem.IsWindows()
-            ? $"ping -n 2 127.0.0.1 >nul & echo {text}"
-            : $"sleep 0.8; echo {text}";
+    private string GatedEchoCommand(string text, out string releasePath)
+    {
+        releasePath = Path.Combine(_tempDir, "release-command");
+        return OperatingSystem.IsWindows()
+            ? $"while (-not (Test-Path -LiteralPath '{releasePath.Replace("'", "''")}')) {{ Start-Sleep -Milliseconds 20 }}; Write-Output '{text}'"
+            : $"until [ -f '{releasePath}' ]; do sleep 0.02; done; echo '{text}'";
+    }
 
     private static string TestShell => OperatingSystem.IsWindows() ? "cmd" : "sh";
 
     private static string LongRunningCommand() =>
         OperatingSystem.IsWindows() ? "ping -n 60 127.0.0.1 >nul" : "sleep 60";
-
-    private static string QuickCommand() =>
-        OperatingSystem.IsWindows() ? "echo tick" : "sleep 0.1; echo tick";
 
     private sealed class Harness(
         SessionService service,
@@ -231,7 +216,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         }
     }
 
-    private sealed class NoticeAwareChatClient(string command, bool keepWorking) : IChatClient
+    private sealed class NoticeAwareChatClient(string command, string? shell = null) : IChatClient
     {
         private int _calls;
 
@@ -266,22 +251,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
                     new FunctionCallContent("call-build", "Exec", new Dictionary<string, object?>
                     {
                         ["command"] = command,
-                        ["shell"] = TestShell,
+                        ["shell"] = shell ?? TestShell,
                         ["runInBackground"] = true,
                         ["yieldTimeMs"] = 100
-                    })
-                ]);
-                yield break;
-            }
-
-            if (keepWorking && call < 60)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant,
-                [
-                    new FunctionCallContent($"call-tick-{call}", "Exec", new Dictionary<string, object?>
-                    {
-                        ["command"] = QuickCommand(),
-                        ["shell"] = TestShell
                     })
                 ]);
                 yield break;

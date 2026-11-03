@@ -24,7 +24,6 @@ public sealed partial class SubAgentSessionControlTests
             CancellationToken.None);
 
         var stopped = await Tasks().StopAsync(Caller(context), "inspect");
-        await Task.Delay(200);
 
         Assert.Equal("/root/inspect", stopped.TaskId);
         Assert.Equal(BackgroundTaskKinds.Agent, stopped.Kind);
@@ -46,7 +45,7 @@ public sealed partial class SubAgentSessionControlTests
     }
 
     [Fact]
-    public async Task TaskStop_WaitsForASlowExternalCancellationBeforeReportingStopped()
+    public async Task TaskStop_DrainsExternalCancellationBeforeReportingStopped()
     {
         var cancellationGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
@@ -65,14 +64,13 @@ public sealed partial class SubAgentSessionControlTests
             CancellationToken.None);
 
         var stopping = Tasks().StopAsync(Caller(context), "inspect");
-        await Task.Delay(TimeSpan.FromSeconds(6));
+        await runtime.CancellationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.False(stopping.IsCompleted);
         Assert.Equal(BackgroundTaskStatus.Running, (await Tasks().FindAsync(Caller(context), "inspect")).Status);
 
         cancellationGate.SetResult();
         var stopped = await stopping;
-        await Task.Delay(200);
 
         Assert.Equal(BackgroundTaskStatus.Stopped, stopped.Status);
         Assert.Empty(_sessionService.TaskEndings);

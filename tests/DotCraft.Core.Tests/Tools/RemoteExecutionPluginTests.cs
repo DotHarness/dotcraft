@@ -52,6 +52,7 @@ public sealed class RemoteExecutionPluginTests
         Assert.DoesNotContain("dispose:first", lines);
         Assert.Contains("\"running\":true", (await Invoke(second, "read")).Content);
         await second.DisposeAsync();
+        await fixture.WaitAsync(() => PluginLogFile.ReadLines(log).Contains("dispose:first"), TimeSpan.FromSeconds(10));
         Assert.Contains("release:" + bThread, PluginLogFile.ReadLines(log));
         Assert.Contains("dispose:first", PluginLogFile.ReadLines(log));
     }

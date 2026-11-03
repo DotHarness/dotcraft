@@ -2009,6 +2009,8 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
 
         public TaskCompletionSource? CancellationGate { get; init; }
 
+        public TaskCompletionSource CancellationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public SubAgentLaunchContext? LastLaunchContext { get; private set; }
 
         public SubAgentTaskRequest? LastRequest { get; private set; }
@@ -2052,6 +2054,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             }
             catch (OperationCanceledException) when (CancellationGate != null)
             {
+                CancellationStarted.TrySetResult();
                 await CancellationGate.Task;
                 throw;
             }

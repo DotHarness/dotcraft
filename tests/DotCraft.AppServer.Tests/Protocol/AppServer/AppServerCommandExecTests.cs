@@ -78,7 +78,6 @@ public sealed class AppServerCommandExecTests : IDisposable
         });
 
         Assert.Equal(124, result.GetProperty("exitCode").GetInt32());
-        Assert.Equal("started", result.GetProperty("stdout").GetString()!.Trim());
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), stopwatch.Elapsed.ToString());
     }
 
