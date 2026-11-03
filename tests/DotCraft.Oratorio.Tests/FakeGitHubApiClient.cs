@@ -95,7 +95,7 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
     public List<string> WriteOperations { get; } = [];
     public Dictionary<string, List<GitHubIssue>> IssuesByRepository { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<GitHubPullRequest>> PullRequestsByRepository { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public Dictionary<string, TimeSpan> ListIssueDelays { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, Task> ListIssueGates { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> CancelingIssueRepositories { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<DateTimeOffset?>> IssueSinceArguments { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<GitHubListState>> IssueStateArguments { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -214,9 +214,9 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
 
     public async Task<IReadOnlyList<GitHubIssue>> ListIssuesAsync(GitHubRepositoryRef repository, GitHubListState state, DateTimeOffset? since, CancellationToken ct)
     {
-        if (ListIssueDelays.TryGetValue(repository.FullName, out var delay))
+        if (ListIssueGates.TryGetValue(repository.FullName, out var gate))
         {
-            await Task.Delay(delay, ct);
+            await gate.WaitAsync(ct);
         }
 
         if (CancelingIssueRepositories.Contains(repository.FullName))

@@ -189,7 +189,6 @@ public sealed class AutoReviewApiTests
         Assert.All(failed.Runs.Where(x => x.RunnerKind == "appServer"), x => Assert.Equal("reviewDraftRequired", x.ErrorCode));
 
         await DispatchAutoReviewAsync(app);
-        await Task.Delay(1200);
         await DispatchAutoReviewAsync(app);
         var afterRescan = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/items/id/{pr.ItemId}", JsonOptions);
 

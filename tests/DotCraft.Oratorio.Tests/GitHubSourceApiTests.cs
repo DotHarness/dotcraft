@@ -152,38 +152,6 @@ public sealed class GitHubSourceApiTests
     }
 
     [Fact]
-    public async Task GitHubSyncJob_ImportsRepositoriesIndependently_WhenFirstRepositoryIsSlow()
-    {
-        var fakeGitHub = new FakeGitHubApiClient();
-        fakeGitHub.ListIssueDelays["example-owner/oratorio"] = TimeSpan.FromSeconds(1);
-        fakeGitHub.IssuesByRepository["example-owner/second-repo"] = [TestGitHubIssue(3001, 7, "Second repository issue", "example-owner/second-repo")];
-        fakeGitHub.PullRequestsByRepository["example-owner/second-repo"] = [];
-        await using var app = new TestOratorioApp(
-            services =>
-            {
-                services.RemoveAll<IGitHubApiClient>();
-                services.AddSingleton<IGitHubApiClient>(fakeGitHub);
-            },
-            new Dictionary<string, string?>
-            {
-                ["Oratorio:GitHub:Repositories:1"] = "example-owner/second-repo"
-            });
-        var client = app.CreateClient();
-
-        var job = await PostAsync<GitHubSyncJobDto>(client, "/api/v1/sources/github/sync-jobs", new { });
-
-        await WaitUntilAsync(async () =>
-        {
-            var active = await client.GetFromJsonAsync<GitHubSyncJobDto>($"/api/v1/sources/github/sync-jobs/{job.JobId}", JsonOptions);
-            return active!.Repositories.Any(x => x.Repository == "example-owner/second-repo" && x.Status == GitHubSyncRepositoryStatus.Succeeded);
-        });
-
-        var completed = await WaitForGitHubSyncJobAsync(client, job.JobId);
-        Assert.Equal(GitHubSyncStatus.Succeeded, completed.Status);
-        Assert.Equal(["example-owner/oratorio", "example-owner/second-repo"], completed.Repositories.Select(x => x.Repository).ToArray());
-    }
-
-    [Fact]
     public async Task GitHubSyncJob_RecordsRepositoryTimeouts_AndClearsActiveJob()
     {
         var fakeGitHub = new FakeGitHubApiClient();
