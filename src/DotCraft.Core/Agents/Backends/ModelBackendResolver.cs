@@ -31,6 +31,8 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         }
     }
 
+    internal IContributionView Contributions => contributions;
+
     public IReadOnlyList<ModelBackendDescriptor> GetBackends() =>
         officialBackends.Values.Select(backend => backend.Descriptor)
             .Concat(contributions.Resolve<IModelBackendSource>().Where(source => !officialBackends.ContainsKey(source.Backend.Descriptor.Id)).Select(source => source.Backend.Descriptor))

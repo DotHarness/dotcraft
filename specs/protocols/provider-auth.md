@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.2 |
+| Version | 0.10.0 |
 | Status | Living |
-| Date | 2026-10-20 |
+| Date | 2026-11-04 |
 
 Provider authentication signs a configured provider in and out and reports its account state and
 usage. One Core coordinator serves built-in providers and [model backends](../architecture/model-backend-plugins.md);
@@ -86,7 +86,7 @@ and carries no account metadata.
 
 `provider/auth/usage` takes `providerId` and returns `available`, `fetchedAt`, `planType`,
 `primary` and `secondary` windows (`usedPercent`, `windowSeconds`, `resetAt`), `credits`
-(`hasCredits`, `unlimited`, `balance`), `balances` and `limitReachedKind`. A provider without usage
+(`hasCredits`, `unlimited`, `balance`), `balances`, `limitReachedKind` and `pluginId`. A provider without usage
 returns `available: false`. `provider/auth/usage/updated` carries `providerId` and the same fields; the
 host sends one for each configured provider whose usage changed after polling, login or logout.
 
@@ -96,6 +96,19 @@ official DeepSeek API reports its DeepSeek account balance this way; `limitReach
 `balance` when DeepSeek reports the balance insufficient for calls. The host reads the balance on
 request with the provider's key, reuses a result for up to 30 seconds, and does not poll, so clients
 request usage again after a turn completes. A failed balance read returns `available: false`.
+
+Plugins report usage for other built-in API-key providers through `IProviderUsageSource`. The host
+asks sources only for a local provider without a backend, ChatGPT sign-in or DeepSeek endpoint and
+with a configured key. Each source receives the provider id, protocol, endpoint and key, and either
+returns a snapshot or declines with null. The host asks sources in contribution order and returns the
+first snapshot. A source that throws or exceeds 15 seconds is skipped. Sources own their caching and
+refresh behavior. The host sets `pluginId` to the plugin that contributed the snapshot; clients
+may present that plugin's icon with the usage. Other usage omits `pluginId`.
+
+Usage with `labels.scope` `apiKey` reports spending of the configured key in `labels.currency`:
+`values.usage` is the amount spent, and optional `values.limit`, `values.limit_remaining` and
+`values.last_request_cost` give the key's limit, the amount left and the last request's cost. Clients
+refresh such usage after a turn completes and show the remaining limit, else the amount spent.
 
 ## Model service
 

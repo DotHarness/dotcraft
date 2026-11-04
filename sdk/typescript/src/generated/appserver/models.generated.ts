@@ -3127,6 +3127,7 @@ export interface ProviderAuthUsageResult {
   labels?: Record<string, string> | null;
   limitReachedKind?: string | null;
   planType?: string | null;
+  pluginId?: string | null;
   primary?: ProviderAuthUsageWindow | null;
   secondary?: ProviderAuthUsageWindow | null;
   values?: Record<string, number> | null;
@@ -3140,6 +3141,7 @@ export interface ProviderAuthUsageUpdatedNotification {
   fetchedAt?: string | null;
   limitReachedKind?: string | null;
   planType?: string | null;
+  pluginId?: string | null;
   primary?: ProviderAuthUsageWindow | null;
   providerId: string;
   secondary?: ProviderAuthUsageWindow | null;

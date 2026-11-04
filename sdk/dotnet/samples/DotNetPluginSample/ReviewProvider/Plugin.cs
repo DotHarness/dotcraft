@@ -39,6 +39,7 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
         AddPromptContributions(context, service, settings, journal);
         AddPipelineContributions(context, journal);
         context.Contributions.Add<IModelBackendSource>(new ReviewModelBackend());
+        context.Contributions.Add<IProviderUsageSource>(new ReviewUsageSource());
         AddToolContributions(context, service, settings, journal);
         AddSessionContributions(context, service, journal);
 

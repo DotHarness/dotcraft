@@ -5,7 +5,6 @@ import {
   type CSSProperties,
   type JSX
 } from 'react'
-import { Plug } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
@@ -24,14 +23,18 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { providerPresetMark } from '../settings/providers/providerPresets'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
-import { OpenRouterUsageBadge } from './OpenRouterUsageBadge'
+import { ApiKeyUsageBadge } from './ApiKeyUsageBadge'
+import { PluginUsageIcon } from './PluginUsageIcon'
 
 interface ProviderUsageBadgeProps {
   provider: ProviderSummary | null
 }
 
 export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
-  return provider?.backendId === 'openrouter' ? <OpenRouterUsageBadge provider={provider} /> : <ProviderQuotaUsageBadge provider={provider} />
+  const usage = useProviderUsage(provider?.id ?? null)
+  if (provider?.backendId === 'openrouter') return <ApiKeyUsageBadge provider={provider} markKind="openrouter" />
+  if (provider && usage?.available && usage.labels?.scope === 'apiKey') return <ApiKeyUsageBadge provider={provider} markKind={null} />
+  return <ProviderQuotaUsageBadge provider={provider} />
 }
 
 function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
@@ -87,7 +90,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
       ? t('composer.balanceBadge.insufficient')
       : t('composer.balanceBadge.tooltip', { amount: balanceText })
     : formatUsageTooltipLabel(displayWindows, t)
-  const markKind = providerMarkKind(provider)
+  const markKind = usage.pluginId ? null : providerMarkKind(provider)
 
   const ariaParts = [[label, planName].filter(Boolean).join(' ')]
   if (balanceMode) ariaParts.push(tooltipLabel)
@@ -106,7 +109,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
     >
       {markKind
         ? <ProviderMark kind={markKind} size={14} style={iconStyle()} />
-        : <Plug size={14} style={iconStyle()} aria-hidden />}
+        : <PluginUsageIcon pluginId={usage.pluginId} size={14} style={iconStyle()} />}
       {balanceMode ? (
         <span style={balanceTextStyle(insufficientBalance)} aria-hidden>{balanceText}</span>
       ) : (

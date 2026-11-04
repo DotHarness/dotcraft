@@ -15352,6 +15352,13 @@
           "const": null
         },
         {
+          "name": "pluginId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "primary",
           "type": "core.ProviderAuthUsageWindow",
           "required": false,
@@ -15420,6 +15427,13 @@
         },
         {
           "name": "planType",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "pluginId",
           "type": "string",
           "required": false,
           "nullable": true,

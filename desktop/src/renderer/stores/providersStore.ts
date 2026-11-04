@@ -41,6 +41,7 @@ export interface ProviderUsageSnapshot {
   balances: ProviderUsageBalance[] | null
   limitReachedKind: string | null
   fetchedAt: string | null
+  pluginId: string | null
 }
 
 interface ProvidersState {
@@ -76,7 +77,7 @@ function parseUsage(raw: unknown): ProviderUsageSnapshot | null {
   if (!raw || typeof raw !== 'object') return null
   const obj = raw as Record<string, unknown>
   if (obj.available === false) {
-    return { available: false, planType: null, primary: null, secondary: null, credits: null, balances: null, limitReachedKind: null, fetchedAt: null }
+    return { available: false, planType: null, primary: null, secondary: null, credits: null, balances: null, limitReachedKind: null, fetchedAt: null, pluginId: null }
   }
   return {
     available: obj.available === true,
@@ -90,7 +91,8 @@ function parseUsage(raw: unknown): ProviderUsageSnapshot | null {
     limitReachedKind: typeof obj.limitReachedKind === 'string' && obj.limitReachedKind.trim() !== ''
       ? obj.limitReachedKind
       : null,
-    fetchedAt: typeof obj.fetchedAt === 'string' ? obj.fetchedAt : null
+    fetchedAt: typeof obj.fetchedAt === 'string' ? obj.fetchedAt : null,
+    pluginId: typeof obj.pluginId === 'string' ? obj.pluginId : null
   }
 }
 

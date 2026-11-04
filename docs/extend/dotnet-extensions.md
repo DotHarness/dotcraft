@@ -207,6 +207,20 @@ AppServer clients drive the same flow through the `provider/auth/*` methods.
 See the [backend contract](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)
 for request, authentication and lifetime requirements.
 
+## Report provider usage
+
+Implement `IProviderUsageSource` and register it during activation to report account usage for a
+built-in API-key provider, such as an internal gateway that DotCraft has no backend for. The host
+calls `ReadUsageAsync` with the provider id, protocol, endpoint and key. Return `null` for a
+provider the source does not recognize. Cache your own upstream reads.
+
+To report what the key has spent, return `labels` `scope: "apiKey"` and `currency: "USD"` with
+`values` `usage`, `limit` and `limit_remaining`. Desktop shows the remaining amount in the
+Composer status row with the plugin's `composerIcon` and refreshes it after each turn.
+
+See [provider usage](https://github.com/DotHarness/dotcraft/blob/main/specs/protocols/provider-auth.md#usage)
+for which providers reach a source and how results are chosen.
+
 ## Write typed tools
 
 Plugin tools use the same generated method wrappers as built-in tools. Keep workspace configuration and services in constructors; let the generator handle JSON parameters and defaults. `AIFunctionToolSource` supplies registrations, and the host assigns the plugin's `PluginNative` identity and generation lifetime. You do not need to implement `IToolRuntime` or parse `JsonObject` by hand for ordinary typed tools.

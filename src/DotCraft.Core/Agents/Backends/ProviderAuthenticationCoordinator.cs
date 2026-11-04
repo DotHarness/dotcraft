@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 
 namespace DotCraft.Agents;
 
@@ -16,6 +17,8 @@ public sealed class ProviderAuthenticationCoordinator(
     ModelBackendResolver resolver, HttpClient? balanceClient = null, TimeProvider? time = null) : IAsyncDisposable
 {
     private static readonly HttpClient DefaultBalanceClient = new();
+    private static readonly TimeSpan UsageSourceTimeout = TimeSpan.FromSeconds(15);
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly DeepSeekBalanceReader _deepSeekBalance = new(balanceClient ?? DefaultBalanceClient, time ?? TimeProvider.System);
     private const string ChatGptInstanceKey = ModelProviderAuthMethods.ChatGptOAuth;
     private static readonly ProviderAuthenticationMethod ApiKeyMethod = new(ModelProviderAuthMethods.ApiKey, "API key", "apiKey");
@@ -135,13 +138,32 @@ public sealed class ProviderAuthenticationCoordinator(
         var runtime = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
         if (string.IsNullOrWhiteSpace(runtime.BackendId) && !runtime.IsChatGptOAuth)
         {
-            return runtime.WebSearchBackend == ProviderWebSearchBackend.DeepSeek && !runtime.IsRemote
-                && !string.IsNullOrWhiteSpace(runtime.ApiKey)
-                ? await _deepSeekBalance.ReadAsync(runtime.ApiKey.Trim(), ct).ConfigureAwait(false)
-                : null;
+            if (runtime.IsRemote || string.IsNullOrWhiteSpace(runtime.ApiKey))
+                return null;
+            var apiKey = runtime.ApiKey.Trim();
+            return runtime.WebSearchBackend == ProviderWebSearchBackend.DeepSeek
+                ? await _deepSeekBalance.ReadAsync(apiKey, ct).ConfigureAwait(false)
+                : await ReadContributedUsageAsync(
+                    new ProviderUsageRequest(runtime.ProviderId, runtime.Protocol, runtime.EndPoint, apiKey), ct)
+                    .ConfigureAwait(false);
         }
         var usage = resolver.Resolve(runtime).GetService(typeof(IProviderUsageReader)) as IProviderUsageReader;
         return usage is null ? null : await usage.ReadAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<ProviderUsageSnapshot?> ReadContributedUsageAsync(ProviderUsageRequest request, CancellationToken ct)
+    {
+        foreach (var entry in resolver.Contributions.ResolveEntries<IProviderUsageSource>())
+        {
+            using var timeout = new CancellationTokenSource(UsageSourceTimeout, _time);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+            ProviderUsageSnapshot? usage;
+            try { usage = await entry.Contribution.ReadUsageAsync(request, linked.Token).WaitAsync(linked.Token).ConfigureAwait(false); }
+            catch (Exception) when (!ct.IsCancellationRequested) { continue; }
+            if (usage is not null)
+                return usage with { PluginId = entry.Origin.Kind == ContributionOriginKind.Plugin ? entry.Origin.Name : null };
+        }
+        return null;
     }
 
     public void CancelOwner(string owner)

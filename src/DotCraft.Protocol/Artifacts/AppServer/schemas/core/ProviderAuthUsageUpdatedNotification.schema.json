@@ -61,6 +61,16 @@
         }
       ]
     },
+    "pluginId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "primary": {
       "anyOf": [
         {

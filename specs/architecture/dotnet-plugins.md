@@ -184,6 +184,7 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Compaction | `ICompactableToolPolicy` | A, B | Per compaction |
 | Model pipeline | `IChatMiddleware` | A, B | Materialized; returned client is host-gated, including streams |
 | Model backend | `IModelBackendSource` | A | Workspace-only unique backend ID; factories, clients and supported capabilities are gated; see [Model backend plugins](model-backend-plugins.md) |
+| Model usage | `IProviderUsageSource` | A | Per usage read, first snapshot wins; see [Provider authentication](../protocols/provider-auth.md#usage) |
 | Tools | `IToolSource` | A | Materialized through the §8 projection |
 | Tools | `IToolPolicyEvaluator`, `IToolApprovalEvaluator` | A, B | Per dispatch, first denial wins |
 | Tools | `IToolInvocationRecorder` | A, B | Per dispatch, contained fan-out |

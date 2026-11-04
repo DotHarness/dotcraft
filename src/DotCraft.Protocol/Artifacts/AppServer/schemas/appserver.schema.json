@@ -12212,6 +12212,16 @@
             }
           ]
         },
+        "pluginId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "primary": {
           "anyOf": [
             {
@@ -12303,6 +12313,16 @@
           ]
         },
         "planType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pluginId": {
           "anyOf": [
             {
               "type": "string"

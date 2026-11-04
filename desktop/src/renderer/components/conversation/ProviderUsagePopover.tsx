@@ -3,6 +3,7 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ProviderUsageBalance, ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
 import { formatBalanceAmount } from '../../utils/providerBalance'
 import { OpenRouterUsageRows } from './OpenRouterUsageRows'
+import { PluginUsageIcon } from './PluginUsageIcon'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import styles from './ProviderUsagePopover.module.css'
 import { formatPlanName } from '../../utils/chatgptPlan'
@@ -25,7 +26,7 @@ export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePo
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
   const heading = <div className={styles.identity}>
-    {markKind && <ProviderMark kind={markKind} size={18} />}
+    {markKind ? <ProviderMark kind={markKind} size={18} /> : usage?.pluginId ? <PluginUsageIcon pluginId={usage.pluginId} size={18} /> : null}
     <span style={titleStyle()}>{title}{usage?.planType ? <span style={planNameStyle()}> {formatPlanName(usage.planType)}</span> : null}</span>
   </div>
 
