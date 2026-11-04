@@ -89,7 +89,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   streamingReasoning = '',
   isRunning = false,
   isLastTurn = false,
-  isLastVisibleTurn = isLastTurn,
+  isLastVisibleTurn = false,
   showWorkingLine = false,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
