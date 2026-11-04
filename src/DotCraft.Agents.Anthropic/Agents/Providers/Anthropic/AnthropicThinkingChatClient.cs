@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using Anthropic.Core;
+using Anthropic.Models.Beta;
 using Anthropic.Models.Messages;
 using Anthropic.Services;
 using DotCraft.Configuration;
@@ -10,6 +12,8 @@ using AnthropicBetaOutputConfig = Anthropic.Models.Beta.Messages.BetaOutputConfi
 using AnthropicBetaThinkingConfigAdaptive = Anthropic.Models.Beta.Messages.BetaThinkingConfigAdaptive;
 using AnthropicBetaThinkingConfigDisabled = Anthropic.Models.Beta.Messages.BetaThinkingConfigDisabled;
 using AnthropicBetaThinkingConfigParam = Anthropic.Models.Beta.Messages.BetaThinkingConfigParam;
+using AnthropicBetaThinkingBlockBinding = Anthropic.Models.Beta.Messages.BetaThinkingBlockBinding;
+using AnthropicBetaThinkingPrefixMismatchBehavior = Anthropic.Models.Beta.Messages.BetaThinkingPrefixMismatchBehavior;
 using AnthropicDisplay = Anthropic.Models.Messages.Display;
 using AnthropicEffort = Anthropic.Models.Messages.Effort;
 using AnthropicMessageCreateParams = Anthropic.Models.Messages.MessageCreateParams;
@@ -28,6 +32,7 @@ internal sealed class AnthropicThinkingChatClient(
 {
     private const string FromReasoningEffort = "fromReasoningEffort";
     private const string FromReasoningOutput = "fromReasoningOutput";
+    private const string ThinkingBindingBetaHeader = "thinking-binding-controls-2026-08-01";
 
     private readonly ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData? _adapter = adapter;
     private readonly ReasoningOptions? _defaultReasoning = defaultReasoning;
@@ -144,13 +149,22 @@ internal sealed class AnthropicThinkingChatClient(
         ProviderReasoningEffort? effort)
     {
         var thinking = CreateBetaThinking(adapter, reasoning);
+        var betas = existing?.Betas;
+        if (thinking is not null && thinking.TryPickAdaptive(out var adaptive) && adaptive.BlockBinding is not null)
+        {
+            betas = (betas ?? [])
+                .Append((ApiEnum<string, AnthropicBeta>)ThinkingBindingBetaHeader)
+                .DistinctBy(static beta => beta.Raw(), StringComparer.Ordinal)
+                .ToArray();
+        }
         var outputConfig = CreateBetaOutputConfig(existing?.OutputConfig, adapter, reasoning, effort);
         if (existing != null)
         {
             return new AnthropicBetaMessageCreateParams(existing)
             {
                 Thinking = thinking ?? existing.Thinking,
-                OutputConfig = outputConfig ?? existing.OutputConfig
+                OutputConfig = outputConfig ?? existing.OutputConfig,
+                Betas = betas
             };
         }
 
@@ -161,7 +175,8 @@ internal sealed class AnthropicThinkingChatClient(
             MaxTokens = options.MaxOutputTokens is > 0 ? options.MaxOutputTokens.Value : _defaultMaxOutputTokens,
             Messages = [],
             Thinking = thinking,
-            OutputConfig = outputConfig
+            OutputConfig = outputConfig,
+            Betas = betas
         };
     }
 
@@ -217,9 +232,18 @@ internal sealed class AnthropicThinkingChatClient(
         if (string.Equals(type, "adaptive", StringComparison.OrdinalIgnoreCase))
         {
             var display = ResolveBetaDisplay(adapter.ThinkingDisplay, reasoning);
-            return display.HasValue
+            var adaptive = display.HasValue
                 ? new AnthropicBetaThinkingConfigAdaptive { Display = display.Value }
                 : new AnthropicBetaThinkingConfigAdaptive();
+            return adapter.SupportsThinkingBlockBinding == true
+                ? adaptive with
+                {
+                    BlockBinding = new AnthropicBetaThinkingBlockBinding
+                    {
+                        PrefixMismatchBehavior = AnthropicBetaThinkingPrefixMismatchBehavior.DropBlock
+                    }
+                }
+                : adaptive;
         }
 
         if (string.Equals(type, "disabled", StringComparison.OrdinalIgnoreCase))

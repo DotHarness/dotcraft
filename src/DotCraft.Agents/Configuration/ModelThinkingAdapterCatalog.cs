@@ -34,7 +34,10 @@ public static class ModelThinkingAdapterCatalog
         MergeFile(catalog, globalCatalogPath);
         MergeFile(catalog, workspaceCatalogPath);
 
-        return catalog.AnthropicThinking.Resolve(endpoint, model);
+        var adapter = catalog.AnthropicThinking.Resolve(endpoint, model);
+        if (adapter is not null)
+            adapter.SupportsThinkingBlockBinding ??= AnthropicThinkingBindingSupport.IsVerified(endpoint, model);
+        return adapter;
     }
 
     public static AnthropicMessageContentAdapterData? ResolveAnthropicMessageContentAdapter(
@@ -98,6 +101,9 @@ public static class ModelThinkingAdapterCatalog
                 {
                     adapter.ThinkingType = ReadString(thinkingElement, "type");
                     adapter.ThinkingDisplay = ReadString(thinkingElement, "display");
+                    if (TryGetProperty(thinkingElement, "supportsBlockBinding", out var bindingSupport)
+                        && bindingSupport.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                        adapter.SupportsThinkingBlockBinding = bindingSupport.GetBoolean();
                 }
 
                 if (TryGetProperty(adapterElement, "outputConfig", out var outputConfigElement)
@@ -508,6 +514,8 @@ public static class ModelThinkingAdapterCatalog
         public string? ThinkingType { get; set; }
 
         public string? ThinkingDisplay { get; set; }
+
+        public bool? SupportsThinkingBlockBinding { get; set; }
 
         public string? OutputConfigEffort { get; set; }
 
