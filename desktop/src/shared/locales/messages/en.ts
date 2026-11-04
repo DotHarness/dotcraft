@@ -4948,6 +4948,8 @@ export const MESSAGES_EN = {
   'settings.browserUse.links.localHint': "Where localhost and loopback addresses open, such as a local dev server.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "Default browser",
+  'settings.browserUse.links.favicons': "Site icons",
+  'settings.browserUse.links.faviconsHint': "Show each website's icon beside its links.",
   'settings.browserUse.links.saveFailed': "Failed to save link preference: {{error}}",
   'forgeRef.error.github.notInstalled': 'Install the GitHub CLI to preview pull requests and issues.',
   'forgeRef.error.github.auth': 'GitHub CLI isn’t signed in. Run gh auth login.',

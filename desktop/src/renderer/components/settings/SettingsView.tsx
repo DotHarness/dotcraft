@@ -2,7 +2,7 @@ import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
 import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserLinkSettings } from './BrowserLinkSettings'
-import { useLinkOpenPreferencesStore } from '../../stores/linkOpenPreferencesStore'
+import { useLinkPreferencesStore } from '../../stores/linkPreferencesStore'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { BrowserUseDomainDialog } from './BrowserUseDomainDialog'
 import { ProviderEditor, type ProviderTestResultWire } from './providers/ProviderEditor'
@@ -979,7 +979,7 @@ export function SettingsView({
         setShowInMenuBar(isMac ? s.showInMenuBar !== false : false)
         setShowThinkingContent(s.showThinkingContent === true)
         useComposerPreferencesStore.getState().hydrate(s)
-        useLinkOpenPreferencesStore.getState().hydrate(s)
+        useLinkPreferencesStore.getState().hydrate(s)
         setBrowserUseApprovalMode((s.browserUse?.approvalMode ?? 'alwaysAsk') as BrowserUseApprovalMode)
         setBrowserUseBlockedDomains([...(s.browserUse?.blockedDomains ?? [])])
         setBrowserUseAllowedDomains([...(s.browserUse?.allowedDomains ?? [])])

@@ -4807,6 +4807,8 @@ export const MESSAGES_JA = {
   'settings.browserUse.links.localHint': "localhost やループバックアドレス（ローカル開発サーバーなど）の開く場所。",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "既定のブラウザ",
+  'settings.browserUse.links.favicons': "サイトのアイコン",
+  'settings.browserUse.links.faviconsHint': "リンクの横に Web サイトのアイコンを表示します。",
   'settings.browserUse.links.saveFailed': "リンクの設定を保存できませんでした: {{error}}",
   'forgeRef.error.github.notInstalled': 'プルリクエストと Issue をプレビューするには GitHub CLI をインストールしてください。',
   'forgeRef.error.github.auth': 'GitHub CLI にサインインしていません。gh auth login を実行してください。',

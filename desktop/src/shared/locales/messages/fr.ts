@@ -4808,6 +4808,8 @@ export const MESSAGES_FR = {
   'settings.browserUse.links.localHint': "Où s’ouvrent localhost et les adresses de bouclage, comme un serveur de développement local.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "Navigateur par défaut",
+  'settings.browserUse.links.favicons': "Icônes des sites",
+  'settings.browserUse.links.faviconsHint': "Affiche l’icône de chaque site web à côté de ses liens.",
   'settings.browserUse.links.saveFailed': "Impossible d’enregistrer la préférence de liens : {{error}}",
   'forgeRef.error.github.notInstalled': 'Installez GitHub CLI pour prévisualiser les pull requests et les issues.',
   'forgeRef.error.github.auth': 'GitHub CLI n’est pas connecté. Exécutez gh auth login.',

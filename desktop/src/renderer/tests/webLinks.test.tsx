@@ -5,7 +5,7 @@ import { MarkdownRenderer } from '../components/conversation/MarkdownRenderer'
 import { droppedWebLink } from '../components/conversation/composerLinkDrop'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
-import { useLinkOpenPreferencesStore } from '../stores/linkOpenPreferencesStore'
+import { useLinkPreferencesStore } from '../stores/linkPreferencesStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -42,7 +42,7 @@ describe('web links', () => {
   beforeEach(() => {
     openExternal.mockReset().mockResolvedValue(undefined)
     clipboardWriteText.mockReset().mockResolvedValue(undefined)
-    useLinkOpenPreferencesStore.setState({ preferences: { web: 'inAppBrowser', local: 'inAppBrowser' } })
+    useLinkPreferencesStore.setState({ preferences: { web: 'inAppBrowser', local: 'inAppBrowser', favicons: true } })
     useConversationStore.getState().reset()
     useConversationStore.setState({ workspacePath: 'F:/workspace' })
     useThreadStore.setState({ activeThreadId: 'thread-1' })
@@ -51,7 +51,7 @@ describe('web links', () => {
   })
 
   it('opens web and local links where their preferences point', () => {
-    useLinkOpenPreferencesStore.setState({ preferences: { web: 'systemBrowser', local: 'inAppBrowser' } })
+    useLinkPreferencesStore.setState({ preferences: { web: 'systemBrowser', local: 'inAppBrowser', favicons: true } })
     renderMarkdown('[site](https://example.com/docs) and [dev](http://localhost:5230/?page=about)')
 
     fireEvent.click(link('site'), { detail: 1 })
@@ -112,6 +112,16 @@ describe('web links', () => {
     expect(screen.queryByRole('menuitem', { name: 'New browser tab' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy address' }))
     expect(clipboardWriteText).toHaveBeenCalledWith('team@example.com')
+  })
+
+  it('requests site icons only for public hosts and only while enabled', () => {
+    const iconSources = (): string[] => Array.from(document.querySelectorAll('a img')).map((img) => img.getAttribute('src') ?? '')
+    renderMarkdown('[site](https://example.com/docs) [dev](http://localhost:5230/) [lan](http://192.168.1.4/) [mail](mailto:team@example.com)')
+    expect(iconSources()).toHaveLength(1)
+    expect(iconSources()[0]).toContain(encodeURIComponent('https://example.com'))
+
+    act(() => { useLinkPreferencesStore.setState({ preferences: { web: 'inAppBrowser', local: 'inAppBrowser', favicons: false } }) })
+    expect(iconSources()).toHaveLength(0)
   })
 
   it('reads a dragged web link but not dropped files', () => {

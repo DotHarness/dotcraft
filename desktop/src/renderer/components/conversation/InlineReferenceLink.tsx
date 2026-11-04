@@ -1,5 +1,5 @@
 import { useMemo, useState, type AnchorHTMLAttributes, type MouseEvent } from 'react'
-import { Copy, Globe, Link2 } from 'lucide-react'
+import { Copy, Link2, Mail } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
@@ -12,6 +12,7 @@ import { resolveConversationLink, type LinkNavigationHint } from '../../../share
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { useLinkContextMenu } from './LinkContextMenu'
+import { LinkFavicon } from './LinkFavicon'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { extractText } from './markdownText'
 import { ForgeReferenceChip } from './forgeReferences/ForgeReferenceChip'
@@ -121,7 +122,7 @@ export function InlineReferenceLink({
     ...props
   }
 
-  const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
+  const ExternalIcon = menuUrl?.startsWith('mailto:') ? Mail : Link2
   const anchorClassName = `dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}${variant === 'message' ? ' dc-ref-message' : ''}`
   const anchorStyle = {
     ...(variant === 'message' ? {} : { margin: '0 4px' }),
@@ -132,7 +133,9 @@ export function InlineReferenceLink({
     <>
       {presentation.kind === 'file'
         ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} style={{ display: 'inline-block' }} />
-        : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden />}
+        : presentation.kind === 'browser' && menuUrl
+          ? <LinkFavicon url={menuUrl} />
+          : <ExternalIcon size={12} strokeWidth={2.1} aria-hidden />}
       <span>{presentation.label}</span>
     </>
   )

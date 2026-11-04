@@ -5,18 +5,19 @@ export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never
 export type FollowUpQueueMode = 'queue' | 'steer'
 export type LinkOpenTarget = 'inAppBrowser' | 'systemBrowser'
 
-export interface LinkOpenPreferences {
+export interface LinkPreferences {
   web: LinkOpenTarget
   local: LinkOpenTarget
+  favicons: boolean
 }
 
-export const DEFAULT_LINK_OPEN_PREFERENCES: LinkOpenPreferences = { web: 'inAppBrowser', local: 'inAppBrowser' }
+export const DEFAULT_LINK_PREFERENCES: LinkPreferences = { web: 'inAppBrowser', local: 'inAppBrowser', favicons: true }
 
 function normalizeLinkOpenTarget(value: unknown): LinkOpenTarget {
   return value === 'systemBrowser' ? 'systemBrowser' : 'inAppBrowser'
 }
 
-export function normalizeLinkOpenPreferences(value: unknown): LinkOpenPreferences {
-  const source = value != null && typeof value === 'object' ? value as Partial<Record<keyof LinkOpenPreferences, unknown>> : {}
-  return { web: normalizeLinkOpenTarget(source.web), local: normalizeLinkOpenTarget(source.local) }
+export function normalizeLinkPreferences(value: unknown): LinkPreferences {
+  const source = value != null && typeof value === 'object' ? value as Partial<Record<keyof LinkPreferences, unknown>> : {}
+  return { web: normalizeLinkOpenTarget(source.web), local: normalizeLinkOpenTarget(source.local), favicons: source.favicons !== false }
 }

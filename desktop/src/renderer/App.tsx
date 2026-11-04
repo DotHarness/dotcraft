@@ -16,7 +16,7 @@ import {
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
-import { useLinkOpenPreferencesStore } from './stores/linkOpenPreferencesStore'
+import { useLinkPreferencesStore } from './stores/linkPreferencesStore'
 import { useSidebarThreadOrderStore } from './stores/sidebarThreadOrderStore'
 import { useSidebarDestinationsStore } from './stores/sidebarDestinationsStore'
 import { hydrateSummaryPinned } from './components/conversation/summary/view'
@@ -1108,7 +1108,7 @@ export function App(): JSX.Element {
         applyTheme(resolveTheme(s.theme))
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
         useComposerPreferencesStore.getState().hydrate(s)
-        useLinkOpenPreferencesStore.getState().hydrate(s)
+        useLinkPreferencesStore.getState().hydrate(s)
         usePetStore.getState().hydrate(s)
         useSidebarThreadOrderStore.getState().hydrate(s)
         useSidebarDestinationsStore.getState().hydrate(s)

@@ -3726,7 +3726,7 @@ app.whenReady().then(async () => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            `default-src 'self' dotcraft-viewer: dotcraft-plugin:; script-src 'self' dotcraft-plugin:; style-src 'self' 'unsafe-inline' dotcraft-plugin:; img-src 'self' data: blob: file: dotcraft-viewer: dotcraft-plugin:; font-src 'self' data: dotcraft-plugin:; connect-src 'self' dotcraft-viewer:; frame-src 'self' ${MCP_APP_SANDBOX_SCHEME}:`
+            `default-src 'self' dotcraft-viewer: dotcraft-plugin:; script-src 'self' dotcraft-plugin:; style-src 'self' 'unsafe-inline' dotcraft-plugin:; img-src 'self' data: blob: file: dotcraft-viewer: dotcraft-plugin: https://t0.gstatic.com; font-src 'self' data: dotcraft-plugin:; connect-src 'self' dotcraft-viewer:; frame-src 'self' ${MCP_APP_SANDBOX_SCHEME}:`
           ]
         }
       })

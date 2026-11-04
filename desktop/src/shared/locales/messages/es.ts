@@ -4808,6 +4808,8 @@ export const MESSAGES_ES = {
   'settings.browserUse.links.localHint': "Dónde se abren localhost y las direcciones de bucle invertido, como un servidor de desarrollo local.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "Navegador predeterminado",
+  'settings.browserUse.links.favicons': "Iconos de sitios",
+  'settings.browserUse.links.faviconsHint': "Muestra el icono de cada sitio web junto a sus enlaces.",
   'settings.browserUse.links.saveFailed': "No se pudo guardar la preferencia de enlaces: {{error}}",
   'forgeRef.error.github.notInstalled': 'Instala GitHub CLI para previsualizar pull requests e issues.',
   'forgeRef.error.github.auth': 'GitHub CLI no tiene la sesión iniciada. Ejecuta gh auth login.',

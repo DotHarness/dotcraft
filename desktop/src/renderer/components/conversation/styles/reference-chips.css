@@ -41,6 +41,33 @@
   height: 14px;
 }
 
+.dc-ref > .dc-ref-favicon {
+  position: relative;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -0.17em;
+}
+
+.dc-ref-favicon > svg {
+  display: block;
+}
+
+.dc-ref-favicon > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  object-fit: contain;
+  opacity: 0;
+}
+
+.dc-ref-favicon > img[data-loaded] {
+  opacity: 1;
+}
+
 .dc-ref-file,
 .dc-ref-command,
 .dc-ref-automation,

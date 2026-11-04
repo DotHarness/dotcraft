@@ -38,10 +38,10 @@ import type {
   BrowserUseApprovalMode,
   ConnectionMode,
   FollowUpQueueMode,
-  LinkOpenPreferences,
+  LinkPreferences,
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
-import { normalizeLinkOpenPreferences } from '../shared/desktopSettings'
+import { normalizeLinkPreferences } from '../shared/desktopSettings'
 export type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -150,7 +150,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   openTargetPreferences?: OpenTargetPreferences
   projectActionPreferences?: Record<string, ProjectActionPreferences>
   browserUse?: BrowserUseSettings
-  linkOpenPreferences?: LinkOpenPreferences
+  linkPreferences?: LinkPreferences
   computerUse?: ComputerUseSettings
   notifications?: NotificationSettings
   profile?: ProfileSettings
@@ -605,7 +605,7 @@ export function loadSettings(): AppSettings {
       raw.openTargetPreferences = normalizeOpenTargetPreferences(raw.openTargetPreferences)
       raw.projectActionPreferences = normalizeProjectActionPreferences(raw.projectActionPreferences)
       raw.browserUse = normalizeBrowserUseSettings(raw)
-      raw.linkOpenPreferences = normalizeLinkOpenPreferences(raw.linkOpenPreferences)
+      raw.linkPreferences = normalizeLinkPreferences(raw.linkPreferences)
       raw.computerUse = normalizeComputerUseSettings(raw)
       raw.notifications = normalizeNotificationSettings(raw)
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
@@ -672,7 +672,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.openTargetPreferences = normalizeOpenTargetPreferences(settings.openTargetPreferences)
     settings.projectActionPreferences = normalizeProjectActionPreferences(settings.projectActionPreferences)
     settings.browserUse = normalizeBrowserUseSettings(settings)
-    settings.linkOpenPreferences = normalizeLinkOpenPreferences(settings.linkOpenPreferences)
+    settings.linkPreferences = normalizeLinkPreferences(settings.linkPreferences)
     settings.computerUse = normalizeComputerUseSettings(settings)
     settings.notifications = normalizeNotificationSettings(settings)
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)

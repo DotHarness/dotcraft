@@ -15,17 +15,15 @@ function isIpLiteral(hostname: string): boolean {
   return host.includes(':') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
 }
 
+export function isPublicHostname(hostname: string): boolean {
+  return !LOCAL_HOST.test(hostname) && !isIpLiteral(hostname)
+}
+
 export function isPreviewableUrl(url: string | undefined | null): boolean {
   if (!url) return false
   try {
     const parsed = new URL(url)
-    return (
-      parsed.protocol === 'https:' &&
-      !parsed.username &&
-      !parsed.password &&
-      !LOCAL_HOST.test(parsed.hostname) &&
-      !isIpLiteral(parsed.hostname)
-    )
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password && isPublicHostname(parsed.hostname)
   } catch {
     return false
   }

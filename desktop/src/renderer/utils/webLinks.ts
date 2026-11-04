@@ -1,6 +1,6 @@
 import type { LinkOpenTarget } from '../../shared/desktopSettings'
-import { bareHostname } from '../../shared/linkPreviews'
-import { useLinkOpenPreferencesStore } from '../stores/linkOpenPreferencesStore'
+import { bareHostname, isPublicHostname } from '../../shared/linkPreviews'
+import { useLinkPreferencesStore } from '../stores/linkPreferencesStore'
 import { addToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -22,6 +22,12 @@ export function isWebUrl(url: string): boolean {
   return /^https?:\/\//i.test(url.trim())
 }
 
+export function siteFaviconUrl(url: string): string | null {
+  const { hostname, origin } = new URL(url)
+  if (!hostname.includes('.') || !isPublicHostname(hostname)) return null
+  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(origin)}&size=32&drop_404_icon=true`
+}
+
 export function linkClickDestination(event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; button: number }): WebLinkDestination {
   if (event.shiftKey) return 'systemBrowser'
   if (event.ctrlKey || event.metaKey || event.button === 1) return 'newBrowserTab'
@@ -29,7 +35,7 @@ export function linkClickDestination(event: { ctrlKey: boolean; metaKey: boolean
 }
 
 function preferredLinkOpenTarget(url: string): LinkOpenTarget {
-  const preferences = useLinkOpenPreferencesStore.getState().preferences
+  const preferences = useLinkPreferencesStore.getState().preferences
   return isLocalWebUrl(url) ? preferences.local : preferences.web
 }
 

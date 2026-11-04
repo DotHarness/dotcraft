@@ -4807,6 +4807,8 @@ export const MESSAGES_DE = {
   'settings.browserUse.links.localHint': "Wo localhost und Loopback-Adressen geöffnet werden, etwa ein lokaler Entwicklungsserver.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "Standardbrowser",
+  'settings.browserUse.links.favicons': "Website-Symbole",
+  'settings.browserUse.links.faviconsHint': "Zeigt das Symbol jeder Website neben ihren Links an.",
   'settings.browserUse.links.saveFailed': "Link-Einstellung konnte nicht gespeichert werden: {{error}}",
   'forgeRef.error.github.notInstalled': 'Installieren Sie die GitHub CLI, um Pull Requests und Issues in der Vorschau anzuzeigen.',
   'forgeRef.error.github.auth': 'Die GitHub CLI ist nicht angemeldet. Führen Sie gh auth login aus.',

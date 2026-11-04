@@ -4876,6 +4876,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.browserUse.links.localHint': "localhost 等本机地址（如本地开发服务器）的打开位置。",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "默认浏览器",
+  'settings.browserUse.links.favicons': "网站图标",
+  'settings.browserUse.links.faviconsHint': "在链接旁显示网站图标。",
   'settings.browserUse.links.saveFailed': "无法保存链接偏好：{{error}}",
   'forgeRef.error.github.notInstalled': '安装 GitHub CLI 后即可预览拉取请求和 issue。',
   'forgeRef.error.github.auth': 'GitHub CLI 未登录，请运行 gh auth login。',

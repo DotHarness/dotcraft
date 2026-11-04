@@ -1370,7 +1370,9 @@ adds a 1px dashed underline offset 2px. A composer pill instead reveals its
 neutral remove affordance in the same fixed icon slot, swapping on opacity, so
 hover never changes chip width, baseline, caret, or surrounding text. Inert
 references do not react to hover. Use vector icons, not font-dependent Unicode
-glyphs.
+glyphs. A web link is the one exception: its icon slot shows the site's 12px icon,
+with the globe until it loads and whenever it is unavailable, and a mail link uses
+the envelope.
 
 The tint is not a per-type code. Everything that goes somewhere carries one
 reference colour (`--ref-base`) and lets the icon name the type; skills, a

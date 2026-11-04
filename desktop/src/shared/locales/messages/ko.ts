@@ -4807,6 +4807,8 @@ export const MESSAGES_KO = {
   'settings.browserUse.links.localHint': "localhost 및 루프백 주소(예: 로컬 개발 서버)가 열리는 위치입니다.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
   'settings.browserUse.links.systemBrowser': "기본 브라우저",
+  'settings.browserUse.links.favicons': "사이트 아이콘",
+  'settings.browserUse.links.faviconsHint': "링크 옆에 웹사이트 아이콘을 표시합니다.",
   'settings.browserUse.links.saveFailed': "링크 설정을 저장하지 못했습니다: {{error}}",
   'forgeRef.error.github.notInstalled': 'GitHub CLI를 설치하면 풀 리퀘스트와 이슈를 미리 볼 수 있습니다.',
   'forgeRef.error.github.auth': 'GitHub CLI에 로그인되어 있지 않습니다. gh auth login을 실행하세요.',
