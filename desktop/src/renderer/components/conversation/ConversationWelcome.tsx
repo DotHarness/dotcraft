@@ -18,6 +18,7 @@ import {
 import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
 import { Bot, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
+import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -816,7 +817,7 @@ function ConversationWelcomeCore({
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, submittedContexts)
-      if (!isWorktreeCreationCancelled(err)) addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(t('goal.toast.updateFailed', { error: describeAppServerError(locale, err) }), 'error')
       return false
     } finally {
       sendInFlightRef.current = false
@@ -827,6 +828,7 @@ function ConversationWelcomeCore({
     clearWelcomeDraft,
     connectionStatus,
     draftProjectKey,
+    locale,
     modelLoading,
     openOrDetachCreatedThread,
     showGoalUnavailable,
@@ -964,7 +966,7 @@ function ConversationWelcomeCore({
       if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, inputContexts)
-      if (!isWorktreeCreationCancelled(err)) addToast(err instanceof Error ? err.message : String(err), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(describeAppServerError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
@@ -984,6 +986,7 @@ function ConversationWelcomeCore({
     executeWelcomeGoalCommand,
     goalComposeMode,
     createGoalBackedThread,
+    locale,
     remoteWorkspace,
     t
   ])

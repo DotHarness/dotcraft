@@ -269,10 +269,9 @@ public sealed partial class AppServerHost(
 
     private async Task RunStdioOnlyAsync(CancellationToken cancellationToken)
     {
-        await using var transport = StdioTransport.CreateStdio();
-        transport.Start();
-
         var connection = new AppServerConnection();
+        await using var transport = StdioTransport.CreateStdio(_logger, connection.ConnectionId);
+        transport.Start();
         _activeTransports.TryAdd(transport, connection);
 
         var handler = CreateRequestHandler(transport, connection);
@@ -303,8 +302,6 @@ public sealed partial class AppServerHost(
         }
     }
 
-    private static readonly SemaphoreSlim RequestGate = new(32, 32);
-
     private static async Task RunLoopAsync(
         IAppServerTransport transport,
         AppServerConnection connection,
@@ -320,61 +317,9 @@ public sealed partial class AppServerHost(
         ILogger logger,
         CancellationToken ct)
     {
-        using var connectionScope = logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["ConnectionId"] = Guid.NewGuid().ToString("N"),
-            ["Transport"] = transport.GetType().Name
-        });
-        while (!ct.IsCancellationRequested)
-        {
-            AppServerIncomingMessage? msg;
-            try
-            {
-                msg = await transport.ReadMessageAsync(ct);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+        await AppServerRequestDispatcher.RunAsync(transport, connection, handler, logger, ct);
 
-            if (msg == null)
-                break; // EOF — client disconnected
-
-            if (msg.IsNotification)
-            {
-                HandleNotification(msg, handler);
-                continue;
-            }
-
-            if (!msg.IsRequest)
-                continue; // Ignore unexpected responses (approval responses are routed by transport)
-
-            if (!await RequestGate.WaitAsync(0, ct))
-            {
-                var overloadErr = AppServerErrors.ServerOverloaded().ToError();
-                await transport.WriteMessageAsync(
-                    AppServerRequestHandler.BuildErrorResponse(msg.Id, overloadErr), ct);
-                continue;
-            }
-
-            // Process each request concurrently so turn/interrupt can be handled while
-            // a long-running turn/start is streaming events.
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await ProcessRequestAsync(transport, handler, connection, msg, logger, ct);
-                }
-                finally
-                {
-                    RequestGate.Release();
-                }
-            }, ct);
-        }
-
-        // Clean up connection-scoped capabilities when the client disconnects.
         // Active persisted turns are drained independently by the request handler.
-        connection.MarkClosed();
         connection.CancelAllSubscriptions();
         wireAcpProxy?.UnbindTransport(transport);
         wireNodeReplProxy?.UnbindTransport(transport);
@@ -423,79 +368,6 @@ public sealed partial class AppServerHost(
         {
             logger.LogDebug(ex, "Skipped capability cleanup refresh while thread {ThreadId} is being deleted.", threadId);
         }
-    }
-
-    private static async Task ProcessRequestAsync(
-        IAppServerTransport transport,
-        AppServerRequestHandler handler,
-        AppServerConnection connection,
-        AppServerIncomingMessage msg,
-        ILogger logger,
-        CancellationToken ct)
-    {
-        using var requestScope = logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["RequestMethod"] = msg.Method,
-            ["RequestId"] = msg.Id?.ToString()
-        });
-        var previousTransport = AppServerRequestContext.CurrentTransport;
-        var previousConnection = AppServerRequestContext.CurrentConnection;
-        var previousMethod = AppServerRequestContext.CurrentMethod;
-        var previousCapabilities = SessionClientCapabilitiesScope.Current;
-        AppServerRequestContext.CurrentTransport = transport;
-        AppServerRequestContext.CurrentConnection = connection;
-        AppServerRequestContext.CurrentMethod = msg.Method;
-        SessionClientCapabilitiesScope.Current = new SessionClientCapabilities(
-            connection.SupportsCommandExecutionStreaming,
-            connection.SupportsToolExecutionLifecycle);
-        try
-        {
-            object? result;
-            try
-            {
-                result = await handler.HandleRequestAsync(msg, ct);
-            }
-            catch (AppServerException ex)
-            {
-                if (ex.Code == AppServerErrors.InternalErrorCode)
-                    logger.LogWarning(ex, "AppServer request failed with a protocol error");
-                else
-                    logger.LogDebug("AppServer request returned protocol error {ErrorCode}: {ErrorMessage}", ex.Code, ex.Message);
-                await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, ex.ToError()), ct);
-                return;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                // The connection is closing — no response can be delivered.
-                return;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Unhandled AppServer request failure");
-                var internalErr = AppServerErrors.InternalError(ex.Message).ToError();
-                await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, internalErr), ct);
-                return;
-            }
-
-            // null result means the handler already sent the response inline (turn/start)
-            if (result != null)
-            {
-                await transport.WriteMessageAsync(
-                    AppServerRequestHandler.BuildResponse(msg.Id, result), ct);
-            }
-        }
-        finally
-        {
-            AppServerRequestContext.CurrentTransport = previousTransport;
-            AppServerRequestContext.CurrentConnection = previousConnection;
-            AppServerRequestContext.CurrentMethod = previousMethod;
-            SessionClientCapabilitiesScope.Current = previousCapabilities;
-        }
-    }
-
-    private static void HandleNotification(AppServerIncomingMessage msg, AppServerRequestHandler handler)
-    {
-        handler.HandleNotification(msg);
     }
 
     public async ValueTask DisposeAsync()

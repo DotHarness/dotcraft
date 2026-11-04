@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
@@ -24,9 +27,11 @@ public sealed class WebSocketTransport : IAppServerTransport
     // Pending server-initiated requests awaiting a client response (approval flow)
     private readonly ConcurrentDictionary<int, TaskCompletionSource<AppServerIncomingMessage>> _pendingClientRequests = new();
 
-    // Queue of client-initiated messages (requests + notifications) for the host loop
-    private readonly ConcurrentQueue<AppServerIncomingMessage> _incomingQueue = new();
-    private readonly SemaphoreSlim _incomingSemaphore = new(0);
+    private const int IncomingCapacity = 128;
+    private readonly Channel<AppServerIncomingMessage> _incoming =
+        Channel.CreateBounded<AppServerIncomingMessage>(IncomingCapacity);
+    private readonly ILogger _logger;
+    private readonly Guid _connectionId;
 
     private Task? _readerLoop;
     private readonly CancellationTokenSource _disposeCts = new();
@@ -47,8 +52,10 @@ public sealed class WebSocketTransport : IAppServerTransport
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public WebSocketTransport(WebSocket socket)
+    public WebSocketTransport(WebSocket socket, ILogger? logger = null, Guid connectionId = default)
     {
+        _logger = logger ?? NullLogger.Instance;
+        _connectionId = connectionId;
         _socket = socket;
     }
 
@@ -83,11 +90,10 @@ public sealed class WebSocketTransport : IAppServerTransport
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         try
         {
-            await _incomingSemaphore.WaitAsync(linked.Token);
-            if (_incomingQueue.TryDequeue(out var msg))
-                return msg;
+            return await _incoming.Reader.ReadAsync(linked.Token);
         }
         catch (OperationCanceledException) { }
+        catch (ChannelClosedException) { }
 
         return null;
     }
@@ -232,9 +238,18 @@ public sealed class WebSocketTransport : IAppServerTransport
                     }
                 }
 
-                // Enqueue client-initiated messages for the host's main loop
-                _incomingQueue.Enqueue(msg);
-                _incomingSemaphore.Release();
+                if (!msg.IsRequest)
+                {
+                    await _incoming.Writer.WriteAsync(msg, ct);
+                }
+                else if (!_incoming.Writer.TryWrite(msg))
+                {
+                    _logger.LogWarning(
+                        "AppServer incoming buffer full: {RequestMethod} ({RequestId}), connection {ConnectionId}, transport {Transport}, capacity {Capacity}",
+                        msg.Method, msg.Id, _connectionId, nameof(WebSocketTransport), IncomingCapacity);
+                    await WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(
+                        msg.Id, AppServerErrors.ServerOverloaded().ToError()), ct);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -247,8 +262,7 @@ public sealed class WebSocketTransport : IAppServerTransport
             foreach (var tcs in _pendingClientRequests.Values)
                 tcs.TrySetCanceled();
 
-            // Release the semaphore so any blocked ReadMessageAsync returns null
-            _incomingSemaphore.Release();
+            _incoming.Writer.TryComplete();
         }
     }
 
@@ -307,6 +321,5 @@ public sealed class WebSocketTransport : IAppServerTransport
 
         _disposeCts.Dispose();
         _writeLock.Dispose();
-        _incomingSemaphore.Dispose();
     }
 }
