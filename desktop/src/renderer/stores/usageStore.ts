@@ -188,7 +188,7 @@ export const useUsageStore = create<UsageStoreState>((set, get) => {
       const state = get()
       if (state.historyMetric === metric) return
       const historyGroup = metric === 'cost' && state.historyGroup === 'tokenType' ? 'model' : state.historyGroup
-      set({ historyMetric: metric, historyGroup, history: idle() })
+      set({ historyMetric: metric, historyGroup })
       void loadSection('history')
     },
 

@@ -6,15 +6,17 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 afterEach(() => useUsageStore.getState().reset())
 
-it('switches history to cost without a token-type breakdown and loads the unpriced turn count', async () => {
+it('switches history to cost without a token-type breakdown, keeping the token chart until cost arrives', async () => {
   const sendRequest = vi.fn(async (method: string) => {
     if (method === 'usage/summary') return { totalCostUsd: 1.25, unpricedTurns: 3 }
     return { unit: 'usd', groupBy: 'model', days: [], series: [] }
   })
   installDesktopApiMock({ appServer: { sendRequest } })
-  useUsageStore.setState({ historyGroup: 'tokenType' })
+  const tokens = { unit: 'tokens' as const, groupBy: 'tokenType', days: [], series: [] }
+  useUsageStore.setState({ historyGroup: 'tokenType', history: { data: tokens, loading: false, error: null } })
 
   useUsageStore.getState().setHistoryMetric('cost')
+  expect(useUsageStore.getState().history).toMatchObject({ data: tokens, loading: true })
 
   await vi.waitFor(() => expect(useUsageStore.getState().costSummary.data).toEqual({ totalCostUsd: 1.25, unpricedTurns: 3 }))
   const state = useUsageStore.getState()

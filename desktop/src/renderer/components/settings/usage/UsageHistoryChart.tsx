@@ -64,11 +64,12 @@ export function UsageHistoryChart({
   t
 }: UsageHistoryChartProps): JSX.Element {
   const locale = useLocale()
-  const cost = metric === 'cost'
+  const cost = state.data ? state.data.unit === 'usd' : metric === 'cost'
+  const shownGroup = (state.data?.groupBy as UsageHistoryGroup | undefined) ?? group
   const series = useMemo(() => buildChartSeries(state.data), [state.data])
   const points = useMemo(() => buildChartPoints(state.data, dayKeys, series), [state.data, dayKeys, series])
   const total = useMemo(() => points.reduce((sum, point) => sum + point.total, 0), [points])
-  const labelFor = (key: string): string => usageKeyLabel(t, group, key, pluginName)
+  const labelFor = (key: string): string => usageKeyLabel(t, shownGroup, key, pluginName)
   const formatValue = cost ? (value: number) => formatUsd(value, locale) : (value: number) => value.toLocaleString(locale)
   const formatAxis = cost ? (value: number) => formatCompactUsd(value, locale) : formatCompactCount
   const unpricedTurns = costSummary.data?.unpricedTurns ?? 0
@@ -86,7 +87,7 @@ export function UsageHistoryChart({
   const groupOptions: SegmentedOption<UsageHistoryGroup>[] = [
     { value: 'surface', label: t('settings.usage.history.group.surface') },
     { value: 'model', label: t('settings.usage.history.group.model') },
-    { value: 'tokenType', label: t('settings.usage.history.group.tokenType'), disabled: cost }
+    { value: 'tokenType', label: t('settings.usage.history.group.tokenType'), disabled: metric === 'cost' }
   ]
 
   let body: JSX.Element
@@ -158,7 +159,7 @@ export function UsageHistoryChart({
       framed={false}
       style={SECTION_STYLE}
     >
-      <div className={`${styles.frame} ${styles.card}`}>
+      <div className={`${styles.frame} ${styles.card}`} aria-busy={state.loading}>
         <div className={styles.cardHeader}>
           <SegmentedControl value={metric} options={metricOptions} onChange={onMetricChange} ariaLabel={t('settings.usage.history.metricLabel')} />
           <SegmentedControl value={group} options={groupOptions} onChange={onGroupChange} ariaLabel={t('settings.usage.history.groupLabel')} />
