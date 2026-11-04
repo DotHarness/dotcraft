@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { spawn, type IPty } from '@lydell/node-pty'
 import { composeShellCommandLine, resolveShellCommand } from './terminalShell'
+import type { TerminalResizeMark, TerminalScreenSizes } from './terminalScreen'
 import type {
   TerminalAttachResult,
   TerminalCreateResult,
@@ -10,21 +11,39 @@ import type {
 const TERMINAL_DATA_CHANNEL = 'viewer:terminal:data'
 const TERMINAL_EXIT_CHANNEL = 'viewer:terminal:exit'
 const MAX_BUFFER_CHARS = 1_000_000
+const MAX_SIZE_MARKS = 64
 
 interface TerminalTabRuntime {
   tabId: string
   threadId: string
+  title?: string
   cwd: string
   shell: string
   pid: number
   proc: IPty | null
   buffer: string
+  outputTrimmed: boolean
+  outputChars: number
+  sizes: TerminalResizeMark[]
+  order: number
+  outputWaiters: Set<(event: TerminalWaitResult) => void>
   exited?: TerminalExitState
 }
+
+export interface TerminalTabSnapshot extends TerminalScreenSizes {
+  tabId: string
+  title?: string
+  cwd: string
+  output: string
+  outputTrimmed: boolean
+}
+
+export type TerminalWaitResult = 'output' | 'exit' | 'gone' | 'timeout'
 
 export interface TerminalSpawnParams {
   tabId: string
   threadId: string
+  title?: string
   cwd: string
   cols: number
   rows: number
@@ -38,6 +57,21 @@ interface WindowRuntime {
 function trimBuffer(input: string): string {
   if (input.length <= MAX_BUFFER_CHARS) return input
   return input.slice(input.length - MAX_BUFFER_CHARS)
+}
+
+function screenSizes(tab: TerminalTabRuntime): TerminalScreenSizes {
+  const marks = tab.sizes.map((mark) => ({
+    ...mark,
+    at: Math.max(0, tab.buffer.length - (tab.outputChars - mark.at))
+  }))
+  const start = Math.max(0, marks.findLastIndex((mark) => mark.at === 0))
+  return { cols: marks[start].cols, rows: marks[start].rows, resizes: marks.slice(start + 1) }
+}
+
+function notifyWaiters(tab: TerminalTabRuntime, event: TerminalWaitResult): void {
+  const waiters = [...tab.outputWaiters]
+  tab.outputWaiters.clear()
+  for (const waiter of waiters) waiter(event)
 }
 
 function describe(tab: TerminalTabRuntime): TerminalCreateResult {
@@ -59,6 +93,7 @@ function emitTerminalExit(
 
 export class ViewerTerminalManager {
   private readonly byWindowId = new Map<number, WindowRuntime>()
+  private nextOrder = 0
 
   createTab(win: BrowserWindow, params: TerminalSpawnParams): TerminalCreateResult {
     const existing = this.getTab(win, params.tabId)
@@ -66,8 +101,9 @@ export class ViewerTerminalManager {
   }
 
   restartTab(win: BrowserWindow, params: TerminalSpawnParams & { command: string }): TerminalCreateResult {
+    const order = this.getTab(win, params.tabId)?.order
     this.destroyTab(win, params.tabId)
-    const tab = this.spawnTab(win, params)
+    const tab = this.spawnTab(win, params, order)
     tab.proc?.write(`${composeShellCommandLine(tab.shell, tab.cwd, params.command)}\r`)
     return describe(tab)
   }
@@ -96,7 +132,50 @@ export class ViewerTerminalManager {
   resize(win: BrowserWindow, params: { tabId: string; cols: number; rows: number }): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab?.proc) return
-    tab.proc.resize(Math.max(2, Math.round(params.cols)), Math.max(2, Math.round(params.rows)))
+    const cols = Math.max(2, Math.round(params.cols))
+    const rows = Math.max(2, Math.round(params.rows))
+    tab.proc.resize(cols, rows)
+    if (tab.sizes.at(-1)?.at === tab.outputChars) tab.sizes.pop()
+    tab.sizes.push({ at: tab.outputChars, cols, rows })
+    if (tab.sizes.length > MAX_SIZE_MARKS) tab.sizes.shift()
+  }
+
+  threadTabs(win: BrowserWindow, threadId: string): TerminalTabSnapshot[] {
+    const tabs = [...(this.byWindowId.get(win.id)?.tabs.values() ?? [])]
+    return tabs
+      .filter((tab) => tab.threadId === threadId && tab.proc !== null)
+      .sort((a, b) => a.order - b.order)
+      .map((tab) => ({
+        tabId: tab.tabId,
+        ...(tab.title ? { title: tab.title } : {}),
+        cwd: tab.cwd,
+        ...screenSizes(tab),
+        output: tab.buffer,
+        outputTrimmed: tab.outputTrimmed
+      }))
+  }
+
+  rebindThread(win: BrowserWindow, fromThreadId: string, toThreadId: string): void {
+    for (const tab of this.byWindowId.get(win.id)?.tabs.values() ?? []) {
+      if (tab.threadId === fromThreadId) tab.threadId = toThreadId
+    }
+  }
+
+  waitForOutput(win: BrowserWindow, tabId: string, timeoutMs: number): Promise<TerminalWaitResult> {
+    const tab = this.getTab(win, tabId)
+    if (!tab) return Promise.resolve('gone')
+    if (!tab.proc) return Promise.resolve('exit')
+    return new Promise((resolve) => {
+      const waiter = (event: TerminalWaitResult): void => {
+        clearTimeout(timer)
+        resolve(event)
+      }
+      const timer = setTimeout(() => {
+        tab.outputWaiters.delete(waiter)
+        resolve('timeout')
+      }, timeoutMs)
+      tab.outputWaiters.add(waiter)
+    })
   }
 
   destroyTab(win: BrowserWindow, tabId: string): void {
@@ -111,6 +190,7 @@ export class ViewerTerminalManager {
     } catch {
     }
     runtime.tabs.delete(tabId)
+    notifyWaiters(tab, 'gone')
   }
 
   destroyThread(win: BrowserWindow, threadId: string): void {
@@ -133,23 +213,31 @@ export class ViewerTerminalManager {
     this.byWindowId.delete(win.id)
   }
 
-  private spawnTab(win: BrowserWindow, params: TerminalSpawnParams): TerminalTabRuntime {
+  private spawnTab(win: BrowserWindow, params: TerminalSpawnParams, order = this.nextOrder++): TerminalTabRuntime {
     const { shell, args } = resolveShellCommand()
+    const cols = Math.max(2, Math.round(params.cols))
+    const rows = Math.max(2, Math.round(params.rows))
     const proc = spawn(shell, args, {
       name: 'xterm-256color',
-      cols: Math.max(2, Math.round(params.cols)),
-      rows: Math.max(2, Math.round(params.rows)),
+      cols,
+      rows,
       cwd: params.cwd,
       env: { ...process.env, ...params.env } as Record<string, string>
     })
     const tab: TerminalTabRuntime = {
       tabId: params.tabId,
       threadId: params.threadId,
+      title: params.title,
       cwd: params.cwd,
       shell,
       pid: proc.pid,
       proc,
-      buffer: ''
+      buffer: '',
+      outputTrimmed: false,
+      outputChars: 0,
+      sizes: [{ at: 0, cols, rows }],
+      order,
+      outputWaiters: new Set()
     }
     this.ensureWindowRuntime(win).tabs.set(params.tabId, tab)
     this.bindPtyEvents(win, tab, proc)
@@ -171,13 +259,18 @@ export class ViewerTerminalManager {
   private bindPtyEvents(win: BrowserWindow, tab: TerminalTabRuntime, proc: IPty): void {
     proc.onData((data) => {
       if (tab.proc !== proc) return
-      tab.buffer = trimBuffer(`${tab.buffer}${data}`)
+      const output = `${tab.buffer}${data}`
+      tab.buffer = trimBuffer(output)
+      if (tab.buffer.length < output.length) tab.outputTrimmed = true
+      tab.outputChars += data.length
       emitTerminalData(win, { tabId: tab.tabId, data })
+      notifyWaiters(tab, 'output')
     })
     proc.onExit(({ exitCode, signal }) => {
       if (tab.proc !== proc) return
       tab.exited = { code: exitCode, signal: signal ?? null }
       tab.proc = null
+      notifyWaiters(tab, 'exit')
       emitTerminalExit(win, {
         tabId: tab.tabId,
         code: exitCode,

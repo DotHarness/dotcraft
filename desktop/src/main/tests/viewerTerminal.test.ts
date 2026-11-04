@@ -215,4 +215,92 @@ describe('ViewerTerminalManager', () => {
     expect(env.DOTCRAFT_WORKTREE_PATH).toBe('C:\\repo')
     expect(env.PATH ?? env.Path).toBe(process.env.PATH ?? process.env.Path)
   })
+
+  it('lists only the thread\'s tabs, keeping a restarted tab in its place', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    spawnMock.mockReset().mockImplementation(() => createMockPty())
+    const spawn = (tabId: string, threadId: string): void => {
+      manager.createTab(win, { tabId, threadId, cwd: 'C:\\repo', cols: 80, rows: 24 })
+    }
+
+    spawn('first', 'thread-1')
+    spawn('other-thread', 'thread-2')
+    spawn('second', 'thread-1')
+    manager.restartTab(win, { tabId: 'first', threadId: 'thread-1', cwd: 'C:\\repo', cols: 100, rows: 30, command: 'npm test' })
+    manager.resize(win, { tabId: 'second', cols: 132, rows: 50 })
+
+    const tabs = manager.threadTabs(win, 'thread-1')
+    expect(tabs.map((tab) => tab.tabId)).toEqual(['first', 'second'])
+    expect(tabs[0]).toMatchObject({ cols: 100, rows: 30 })
+    expect(tabs[1]).toMatchObject({ cols: 132, rows: 50 })
+  })
+
+  it('reports size changes at their place in the retained output', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    manager.createTab(win, { tabId: 'tab-1', threadId: 'thread-1', cwd: 'C:\\repo', cols: 80, rows: 24 })
+
+    onDataHandler?.('abc')
+    manager.resize(win, { tabId: 'tab-1', cols: 100, rows: 30 })
+    onDataHandler?.('def')
+
+    expect(manager.threadTabs(win, 'thread-1')[0]).toMatchObject({
+      cols: 80,
+      rows: 24,
+      resizes: [{ at: 3, cols: 100, rows: 30 }]
+    })
+
+    onDataHandler?.('x'.repeat(1_000_000))
+
+    expect(manager.threadTabs(win, 'thread-1')[0]).toMatchObject({ cols: 100, rows: 30, resizes: [] })
+  })
+
+  it('moves tabs to the thread they are handed to', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    manager.createTab(win, { tabId: 'tab-1', threadId: 'welcome:/workspace', cwd: 'C:\\repo', cols: 80, rows: 24 })
+
+    manager.rebindThread(win, 'welcome:/workspace', 'thread-1')
+
+    expect(manager.threadTabs(win, 'welcome:/workspace')).toEqual([])
+    expect(manager.threadTabs(win, 'thread-1').map((tab) => tab.tabId)).toEqual(['tab-1'])
+  })
+
+  it('stops listing a tab once its shell exits', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    manager.createTab(win, { tabId: 'tab-1', threadId: 'thread-1', cwd: 'C:\\repo', cols: 80, rows: 24 })
+
+    onExitHandler?.({ exitCode: 1, signal: null })
+
+    expect(manager.threadTabs(win, 'thread-1')).toEqual([])
+  })
+
+  it('resolves output waits on new output, exit, removal, or timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const manager = new ViewerTerminalManager()
+      const win = createMockWindow()
+      manager.createTab(win, { tabId: 'tab-1', threadId: 'thread-1', cwd: 'C:\\repo', cols: 80, rows: 24 })
+
+      const output = manager.waitForOutput(win, 'tab-1', 5_000)
+      onDataHandler?.('ready\r\n')
+      await expect(output).resolves.toBe('output')
+
+      const timedOut = manager.waitForOutput(win, 'tab-1', 5_000)
+      vi.advanceTimersByTime(5_000)
+      await expect(timedOut).resolves.toBe('timeout')
+
+      const exited = manager.waitForOutput(win, 'tab-1', 5_000)
+      onExitHandler?.({ exitCode: 1, signal: null })
+      await expect(exited).resolves.toBe('exit')
+      await expect(manager.waitForOutput(win, 'tab-1', 5_000)).resolves.toBe('exit')
+
+      manager.destroyTab(win, 'tab-1')
+      await expect(manager.waitForOutput(win, 'tab-1', 5_000)).resolves.toBe('gone')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

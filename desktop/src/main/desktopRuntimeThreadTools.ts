@@ -1,4 +1,11 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
+import {
+  listTerminalTabsTool,
+  listTerminalTabsToolDefinition,
+  readTerminalTool,
+  readTerminalToolDefinition,
+  type DesktopTerminalHost
+} from './desktopTerminalTools'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection } from './threadTasks/childThreads'
 import {
@@ -50,6 +57,7 @@ interface DesktopThreadFunctionAuthoring {
   inputSchema: JsonObject
   outputSchema?: JsonObject
   display?: { title?: string; subtitle?: string }
+  deferLoading?: boolean
 }
 
 export interface AppServerRequestClient {
@@ -61,6 +69,7 @@ export interface DesktopAppServerRequestOptions {
   settingsHost?: DesktopThreadToolSettingsHost
   createChatFolder?: (firstMessage: string) => Promise<string>
   tasks?: DesktopThreadTasks
+  terminals?: DesktopTerminalHost
 }
 
 export interface DesktopThreadToolSettingsHost {
@@ -119,7 +128,9 @@ const TOOL_NAMES = new Set([
   'SendMessageToThread',
   'SetThreadTitle',
   'SetThreadArchived',
-  'SetThreadPinned'
+  'SetThreadPinned',
+  'ReadTerminal',
+  'ListTerminalTabs'
 ])
 
 const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
@@ -300,7 +311,9 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         }
       },
       display: { title: 'Pin thread', subtitle: 'Desktop' }
-    }
+    },
+    readTerminalToolDefinition,
+    listTerminalTabsToolDefinition
   ]
 
   return [
@@ -310,8 +323,8 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       description: 'Desktop thread management tools.',
       tools: functions.map(({ namespace: _namespace, outputSchema: _outputSchema, display: _display, ...tool }) => ({
         type: 'function',
-        ...tool,
-        deferLoading: true
+        deferLoading: true,
+        ...tool
       }))
     }
   ]
@@ -440,6 +453,10 @@ export async function handleDesktopRuntimeThreadToolCall(
         return await setThreadArchivedTool(client, args)
       case 'SetThreadPinned':
         return await setThreadPinnedTool(client, args, workspacePath, options.settingsHost)
+      case 'ReadTerminal':
+        return await readTerminalTool(options.terminals, p.threadId, p.arguments)
+      case 'ListTerminalTabs':
+        return listTerminalTabsTool(options.terminals, p.threadId)
       default:
         return fail('UnsupportedTool', `Desktop tool '${p.tool}' is not supported.`)
     }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.10.2 |
 | **Status** | Living |
-| **Date** | 2026-11-03 |
+| **Date** | 2026-11-05 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -649,8 +649,8 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`. No other model-visible aliases exist.
-- They are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery.
+- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
+- They are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` is always loaded.
 - Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, plus the rules for starting other chats: how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call.
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
@@ -660,12 +660,14 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - Tools call ordinary AppServer methods. `SetThreadPinned` only updates Desktop settings; proposals and offers are Desktop-local state.
 - `ListThreads` calls `thread/list` with optional `query`, `limit` (default 20, max 100), `cursor`, and `includeArchived`, returning a page summary with `nextCursor` and `totalMatched`.
 - Historical tools follow [Thread Context Retrieval](../features/thread-context-retrieval.md): `ReadThread` returns summary or metadata-only Turns with bounded body/context previews, never assembling all Item pages. `SearchThreadMessages` finds message occurrences; `ListThreadItems` discovers IDs in one Turn page; `ReadThreadItem` reads one complete model-safe Item. Results remain JSON text with mirrored structured client data, not a Runtime Dynamic output-schema extension. Source and CodeMode size limits still apply.
+- `ReadTerminal` reads the calling thread's own viewer terminals without approval and runs nothing. Omitting `tabId` reads the primary terminal, the thread's earliest tab with a running shell. A tab with no running shell, including one whose shell exited, fails with `TerminalNotFound`. `ListTerminalTabs` returns each readable tab's `tabId`, `title`, and `cwd`. Terminals opened on Welcome belong to the thread its first message creates.
+- The retained terminal output is replayed into a terminal emulator, applying the tab's size changes in order and handling line feeds as the visible terminal does, so results are rendered lines rather than escape sequences. A read returns the last `lines` (default 200, max 1000). `offsetLines` pages back and `grep` returns numbered case-insensitive matches with two lines of context; both state the line range covered and whether older output was not kept. `waitForOutputMs` (max 30000) first waits for new output or exit and says when none arrived. Oversized results keep their end and mark the trimmed start.
 - `SendMessageToThread` sends a turn without stealing focus. If the target is running, waiting, or in blocking maintenance, it uses `turn/enqueue`, or fails as busy when unavailable.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`; visible state updates through normal broadcasts.
 - `SetThreadPinned` rejects archived and subagent threads when pinning and updates the project-scoped pin preference so the sidebar updates immediately.
 - Optional `reasoningEffort` on send is applied through thread configuration (`thread/config/update`) and affects queued and future Turns, not the active Turn. Unsupported options fail rather than being ignored.
 - Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, or `CreateThread` shows an offer. Background-changed threads update sidebar indicators without forcing navigation.
-- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, or `AppServerRequestFailed`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
+- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, `AppServerRequestFailed`, or `TerminalNotFound`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
 
 **Starting chats: `CreateThread`**
 

@@ -26,10 +26,12 @@ function lineComment(id: string): DiffAnnotationContext {
 
 describe('handOffWelcomePanel', () => {
   const rebindThread = vi.fn(async () => undefined)
+  const rebindTerminalThread = vi.fn(async () => undefined)
 
   beforeEach(() => {
     rebindThread.mockClear()
-    installDesktopApiMock({ workspace: { viewer: { browser: { rebindThread } } } })
+    rebindTerminalThread.mockClear()
+    installDesktopApiMock({ workspace: { viewer: { browser: { rebindThread }, terminal: { rebindThread: rebindTerminalThread } } } })
     useThreadStore.setState({ activeThreadId: null })
     useViewerTabStore.setState({
       byThread: new Map(),
@@ -64,6 +66,7 @@ describe('handOffWelcomePanel', () => {
     expect(viewerState.getThreadState(THREAD).tabs.map((tab) => tab.id)).toEqual([browserTabId, terminalTabId])
     expect(viewerState.getThreadState(THREAD).activeTabId).toBe(terminalTabId)
     expect(rebindThread).toHaveBeenCalledWith({ fromThreadId: WELCOME, toThreadId: THREAD })
+    expect(rebindTerminalThread).toHaveBeenCalledWith({ fromThreadId: WELCOME, toThreadId: THREAD })
     expect(useLineCommentDraftStore.getState().getDrafts(THREAD).map((draft) => draft.id)).toEqual(['draft-1'])
     expect(useComposerContextStore.getState().getContexts(THREAD).map((context) => context.id)).toEqual(['saved-1'])
 
