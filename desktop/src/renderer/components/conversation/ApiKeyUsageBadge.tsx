@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useProviderUsage, useProvidersStore, type ProviderSummary } from '../../stores/providersStore'
+import { formatSpendAmount } from '../../utils/providerBalance'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { PluginUsageIcon } from './PluginUsageIcon'
@@ -16,9 +17,7 @@ export function ApiKeyUsageBadge({ provider, markKind }: { provider: ProviderSum
   const root = useRef<HTMLDivElement>(null)
   const remaining = usage?.values?.limit_remaining
   const amount = remaining ?? usage?.values?.usage
-  const formatted = amount != null ? new Intl.NumberFormat(locale, {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 6
-  }).format(amount) : null
+  const formatted = amount != null ? formatSpendAmount(amount, usage?.labels?.currency, locale) : null
   const suffix = t(remaining != null ? 'settings.llm.openrouter.left' : 'settings.llm.openrouter.used')
   const label = formatted ? `${formatted} ${suffix}` : t('settings.llm.openrouter.usage')
 
