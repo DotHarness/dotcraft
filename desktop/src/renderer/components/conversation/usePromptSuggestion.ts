@@ -3,6 +3,7 @@ import { useConfigValue } from '../../stores/configStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../../utils/promptSuggestion'
+import { hasTurnResponseContent } from '../../utils/turnPresentation'
 
 interface PromptSuggestionOptions {
   threadId: string
@@ -18,6 +19,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   const enabled = useConfigValue('PromptSuggestions.Enabled') === true
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const turns = useConversationStore((state) => state.turns)
+  const turnDiffs = useConversationStore((state) => state.turnDiffs)
   const turnStatus = useConversationStore((state) => state.turnStatus)
   const queuedCount = useConversationStore((state) => state.queuedInputs.length)
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
@@ -59,6 +61,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
     if (!wasRunning || turnStatus !== 'idle') return
     const lastTurn = turns.at(-1)
     if (lastTurn?.status !== 'completed' || requestedTurns.current.has(lastTurn.id)) return
+    if (!hasTurnResponseContent(lastTurn, (turnDiffs.get(lastTurn.id)?.files.length ?? 0) > 0)) return
     requestedTurns.current.add(lastTurn.id)
     if (!enabled || !canSuggest || !visibleRef.current || activeThreadId !== threadId || queuedCount > 0) return
 
@@ -77,7 +80,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
         logPromptSuggestion({ ...diagnostic, outcome: 'stale' })
       }
     })
-  }, [activeThreadId, canSuggest, dismiss, enabled, queuedCount, threadId, turnStatus, turns])
+  }, [activeThreadId, canSuggest, dismiss, enabled, queuedCount, threadId, turnStatus, turns, turnDiffs])
 
   useEffect(() => dismiss, [dismiss, threadId])
 

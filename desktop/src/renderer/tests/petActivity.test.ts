@@ -87,8 +87,18 @@ describe('derivePetActivity', () => {
       .toMatchObject({ status: 'review', line: 'Done: 3 files changed', lineTone: 'success', turnId: 'turn-1' })
     expect(derivePetActivity(input({ turns, readTurnId: 'turn-1' })))
       .toMatchObject({ status: 'idle', line: 'Done: 3 files changed', lineTone: 'neutral' })
-    expect(derivePetActivity(input({ turns: [turn('completed', [])] })).line).toBe('Ready')
+    expect(derivePetActivity(input({ turns: [turn('completed', [])] })).status).toBe('idle')
     expect(derivePetActivity(input({ turns: [turn('cancelled', [])] }))).toMatchObject({ status: 'idle', line: 'Stopped' })
+  })
+  it('does not mark an empty notification or its previous turn as a new result', () => {
+    const reply = turn('completed', [item({ type: 'agentMessage', text: 'Done.' })])
+    const notice = turn('completed', [item({
+      type: 'userMessage', deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed', text: 'Background command finished'
+    })], { id: 'turn-notice' })
+
+    expect(derivePetActivity(input({ turns: [reply, notice], readTurnId: reply.id })))
+      .toMatchObject({ status: 'idle', turnId: notice.id })
+    expect(derivePetActivity(input({ turns: [reply, notice] })).status).toBe('idle')
   })
   it('only offers Stop for a real, uninterrupted active turn, and reports an interruption in flight', () => {
     expect(derivePetActivity(running([]))).toMatchObject({ canStop: true })

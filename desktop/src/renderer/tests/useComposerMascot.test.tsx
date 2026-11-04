@@ -263,7 +263,7 @@ describe('useComposerMascot turn completion', () => {
   }
 
   function finishTurn(items: ConversationItem[]): void {
-    useConversationStore.setState({ turnStatus: 'running', turns: [turn('inProgress', items)] })
+    useConversationStore.setState({ turnStatus: 'running', turns: [turn('running', items)] })
     renderHarness()
     act(() => {
       useConversationStore.setState({ turnStatus: 'idle', turns: [turn('completed', items)] })
@@ -271,7 +271,7 @@ describe('useComposerMascot turn completion', () => {
   }
 
   it('celebrates without a bubble when nothing keeps running', () => {
-    finishTurn([])
+    finishTurn([{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-08-27T00:00:01.000Z' }])
 
     expect(screen.getByTestId('mascot')).toHaveAttribute('data-light', 'success')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()

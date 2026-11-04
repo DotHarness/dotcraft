@@ -202,6 +202,37 @@ describe('MessageStream', () => {
     consoleError.mockRestore()
   })
 
+  it('does not expose edit on a history tail hidden by empty completion', () => {
+    const createdAt = '2026-01-01T00:00:00Z'
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: createdAt,
+        items: [
+          { id: 'user', type: 'userMessage', status: 'completed', text: 'Generate an image', createdAt },
+          { id: 'reply', type: 'agentMessage', status: 'completed', text: 'Image saved.', createdAt }
+        ]
+      }], turnStatus: 'idle', activeTurnId: null
+    })
+    renderWithLocale(<MessageStream />)
+    expect(screen.getByRole('button', { name: 'Edit message' })).toBeInTheDocument()
+
+    act(() => useConversationStore.getState().setTurns([
+      ...useConversationStore.getState().turns,
+      {
+        id: 'turn-2', threadId: 'thread-1', status: 'completed', startedAt: createdAt,
+        items: [{
+          id: 'notice', type: 'userMessage', status: 'completed', createdAt,
+          deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed',
+          triggerRefId: 'term-1', text: 'Background command finished'
+        }]
+      }
+    ]))
+
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull()
+    expect(useConversationStore.getState().turns).toHaveLength(2)
+    expect(appServerSendRequest).not.toHaveBeenCalled()
+  })
+
   it('prevents stale inline edit from rolling back a newer last turn', async () => {
     useConversationStore.setState({
       turns: [{

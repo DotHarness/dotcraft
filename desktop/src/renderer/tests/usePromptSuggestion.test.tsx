@@ -6,10 +6,15 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
+import type { ConversationTurn } from '../types/conversation'
 
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
 const generate = vi.mocked(generatePromptSuggestion)
+const completedTurn: ConversationTurn = {
+  id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-09-27T00:00:00Z',
+  items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-09-27T00:00:01Z' }]
+}
 
 beforeEach(() => {
   generate.mockReset().mockResolvedValue('Add a regression test')
@@ -33,13 +38,29 @@ describe('conversation prompt suggestion lifecycle', () => {
 
     act(() => useConversationStore.setState({
       turnStatus: 'idle',
-      turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-09-27T00:00:00Z', items: [] }]
+      turns: [completedTurn]
     }))
 
     await waitFor(() => expect(result.current.suggestion).toBe('Add a regression test'))
     expect(generate).toHaveBeenCalledOnce()
     expect(generate).toHaveBeenCalledWith('thread-1', 'turn-1', expect.any(AbortSignal), expect.any(Function))
     act(() => expect(result.current.accept()).toBe('Add a regression test'))
+    expect(result.current.suggestion).toBeNull()
+  })
+
+  it('does not request another suggestion when a trailing notification completes without output', () => {
+    const notification: ConversationTurn = {
+      id: 'turn-notice', threadId: 'thread-1', status: 'running', startedAt: '2026-09-27T00:00:02Z',
+      items: [{ id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed', text: 'Background command finished', createdAt: '2026-09-27T00:00:02Z' }]
+    }
+    useConversationStore.setState({ turns: [completedTurn, notification] })
+    const { result } = renderHook(() => usePromptSuggestion({ threadId: 'thread-1', canSuggest: true, visible: true }))
+
+    act(() => useConversationStore.setState({
+      turnStatus: 'idle', turns: [completedTurn, { ...notification, status: 'completed' }]
+    }))
+
+    expect(generate).not.toHaveBeenCalled()
     expect(result.current.suggestion).toBeNull()
   })
 
@@ -56,7 +77,7 @@ describe('conversation prompt suggestion lifecycle', () => {
 
     act(() => useConversationStore.setState({
       turnStatus: 'idle',
-      turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-09-27T00:00:00Z', items: [] }]
+      turns: [completedTurn]
     }))
     await waitFor(() => expect(requestSignal).not.toBeNull())
     rerender({ canSuggest: false })

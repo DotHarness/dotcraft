@@ -9,6 +9,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { reissueFailedTurn, startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { hasRunningBackgroundWork } from '../../utils/threadBackgroundWork'
+import { hasTurnResponseContent } from '../../utils/turnPresentation'
 import type { ContextMenuItem } from '../ui/ContextMenu'
 import type { ComposerMascotInteraction } from './ComposerShell'
 import type { InputPart } from '../../types/conversation'
@@ -42,6 +43,7 @@ export function useComposerMascot({
 }: UseComposerMascotArgs): ComposerMascotInteraction | undefined {
   const t = useT()
   const turns = useConversationStore((s) => s.turns)
+  const turnDiffs = useConversationStore((s) => s.turnDiffs)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
 
@@ -49,6 +51,7 @@ export function useComposerMascot({
   const lastTurnId = lastTurn?.id
   const lastTurnStatus = lastTurn?.status
   const lastTurnError = lastTurn?.error
+  const lastTurnHasContent = lastTurn != null && hasTurnResponseContent(lastTurn, (turnDiffs.get(lastTurn.id)?.files.length ?? 0) > 0)
   const approvalItemId = pendingApproval?.itemId ?? null
   const isFailed = lastTurnStatus === 'failed'
 
@@ -107,10 +110,10 @@ export function useComposerMascot({
       if (handledRef.current !== key) {
         handledRef.current = key
         if (lastTurnStatus === 'failed') setLocal({ kind: 'error', turnId: lastTurnId })
-        else if (!hasRunningBackgroundWork(threadId, useConversationStore.getState().turns)) setLocal({ kind: 'success', turnId: lastTurnId })
+        else if (lastTurnHasContent && !hasRunningBackgroundWork(threadId, useConversationStore.getState().turns)) setLocal({ kind: 'success', turnId: lastTurnId })
       }
     }
-  }, [turnStatus, lastTurnId, lastTurnStatus, approvalItemId, local?.kind, threadId])
+  }, [turnStatus, lastTurnId, lastTurnStatus, lastTurnHasContent, approvalItemId, local?.kind, threadId])
 
   useEffect(() => {
     if (local?.kind !== 'success') return

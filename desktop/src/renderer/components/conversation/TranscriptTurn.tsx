@@ -2,6 +2,8 @@ import { memo, type ReactNode } from 'react'
 import type { TranscriptLiveText } from '../../stores/subAgentTranscriptEvents'
 import type { ConversationTurn } from '../../types/conversation'
 import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
+import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
+import { useSubAgentTranscriptStore } from '../../stores/subAgentTranscriptStore'
 import { AgentResponseBlock } from './AgentResponseBlock'
 import { UserMessageBlock } from './UserMessageBlock'
 import { TranscriptThreadContext } from './transcriptDiffs'
@@ -21,7 +23,11 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   running: boolean
   live: TranscriptLiveText | null
   renderTurnCompletion?: (turnId: string) => ReactNode
-}): JSX.Element {
+}): JSX.Element | null {
+  const hasFileChanges = useSubAgentTranscriptStore((s) =>
+    (s.transcripts.get(threadId)?.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
+  if (isEmptyCompletedTurn(turn, hasFileChanges) && !turn.items.some(isVisibleUserMessage)) return null
+
   return (
     <div className={styles.turn}>
       {turn.items.filter(isVisibleUserMessage).map((item) => (
@@ -46,6 +52,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
           isRunning={running}
           isLastTurn={isLastTurn}
+          isLastVisibleTurn={isLastTurn}
           showWorkingLine={running}
           activeItemIdOverride={live?.itemId ?? null}
           shellRuntimeScope="none"
