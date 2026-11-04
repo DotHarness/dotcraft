@@ -1148,6 +1148,15 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - Metadata is fetched by the trusted host process only when a preview opens, never for every link in a transcript. The request carries only the URL: no cookies, credentials, or referrer, in a session separate from the browser panel's. The host refuses any address that resolves to a loopback, private, link-local, or otherwise non-public network, checking again on each redirect (at most three), and bounds each lookup by time and size: HTML is read only up to the end of its head, and the image and favicon are returned inline, limited to raster image types, so the renderer never loads the page's resources itself.
 - Results are cached by URL for a few minutes (failures briefly) and concurrent lookups for a URL are shared. A failed or refused lookup leaves the link usable and the preview says why.
 
+**Web links**
+
+- An `http`/`https` link reference, forge reference, or branch pull-request pill opens where Browser settings choose, separately for web addresses and local addresses (`localhost`, `*.localhost`, and loopback IPs): DotCraft's browser (the default for both) or the system default browser. DotCraft's browser focuses the thread's tab already showing the URL or opens one; without an active thread, or outside the conversation, links open in the system browser. `mailto` and `tel` links always go to the system handler.
+- Ctrl/⌘+click and middle-click open a new DotCraft browser tab; Shift+click opens the system browser. Neither depends on the preference.
+- The context menu of a web link reference, by pointer or keyboard, offers Open in: New browser tab (only when DotCraft's browser is available) and Default browser; Copy when text is selected; and Copy link. Forge references and the branch pull-request pill add Copy reference (`path#N`, `path!N`). `mailto` and `tel` references offer Open and Copy address. A local file reference keeps its open-with menu; in a remote workspace it offers only Copy path. The link preview's More action opens the same menu as the link.
+- An automatically shortened link label keeps the port and the tail of the query, so different addresses on one host stay distinguishable; a written label is kept as is.
+- Web link references can be dragged out as URLs, and dropping one on the composer inserts its URL as text. File references are not draggable.
+- The main window never navigates away from the app and never opens windows; navigation, dropped URLs, and window requests from app content are refused.
+
 **Files and editing**
 
 - The Files tree offers one root per folder of the active local Project, following the active file's containing folder until another root is chosen. Files are labeled relative to the longest containing Project folder, or absolutely otherwise.

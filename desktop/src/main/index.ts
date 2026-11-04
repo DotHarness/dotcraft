@@ -1,6 +1,7 @@
 import { stopBeforeArchive } from '../shared/stopBeforeArchive'
 import { app, BrowserWindow, dialog, session, Menu, ipcMain, shell, nativeImage, nativeTheme, powerMonitor } from 'electron'
 import { attachDesktopPet, restoreDesktopPet } from './desktopPet'
+import { guardMainWindowNavigation } from './mainWindowNavigation'
 import {
   registerViewerScheme,
   installViewerProtocolHandler,
@@ -1872,6 +1873,7 @@ function createWindow(
   })
 
   const workspaceName = workspaceTitleName(workspacePath, initialLocale)
+  guardMainWindowNavigation(win.webContents)
   viewerBrowserManager.hosts.attachWindow(win)
   attachDesktopPet(win)
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))

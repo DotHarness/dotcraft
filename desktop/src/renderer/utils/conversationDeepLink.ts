@@ -4,6 +4,7 @@ import { useUIStore } from '../stores/uiStore'
 import { addToast } from '../stores/toastStore'
 import { useViewerTabStore, type FileReveal } from '../stores/viewerTabStore'
 import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
+import { openWebLink, type WebLinkDestination } from './webLinks'
 
 type Translator = (key: string) => string
 
@@ -72,6 +73,7 @@ interface OpenConversationLinkParams {
   workspacePath: string
   threadId: string
   forceNew?: boolean
+  destination?: WebLinkDestination
   sourceContextDir?: string
   t: Translator
 }
@@ -110,30 +112,12 @@ export async function openConversationLink(params: OpenConversationLinkParams): 
     })
   }
 
-  const viewerStore = useViewerTabStore.getState()
-  if (!forceNew) {
-    const focused = viewerStore.focusBrowserTabByUrl({
-      threadId: params.threadId,
-      url: resolution.url
-    })
-    if (focused) {
-      const ui = useUIStore.getState()
-      ui.setActiveViewerTab(focused)
-      ui.setDetailPanelVisible(true)
-      return true
-    }
-  }
-
-  const createdTabId = viewerStore.openBrowser({
+  return openWebLink({
+    url: resolution.url,
+    destination: params.destination ?? (forceNew ? 'newBrowserTab' : 'preferred'),
     threadId: params.threadId,
-    initialUrl: resolution.url,
-    initialLabel: resolution.url,
-    forceNew: true
+    t: params.t
   })
-  const ui = useUIStore.getState()
-  ui.setActiveViewerTab(createdTabId)
-  ui.setDetailPanelVisible(true)
-  return true
 }
 
 export async function openImagePathInViewer(params: {

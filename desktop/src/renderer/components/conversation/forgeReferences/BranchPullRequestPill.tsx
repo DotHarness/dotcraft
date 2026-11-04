@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, type JSX, type MouseEvent } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useBranchPullRequest, useForgeRefStore, type ForgeRefLoad } from '../../../stores/forgeRefStore'
-import { forgeRefNumberLabel, forgeRefUrl } from '../../../../shared/forgeReferences'
+import { useConversationStore } from '../../../stores/conversationStore'
+import { useThreadStore } from '../../../stores/threadStore'
+import { forgeRefNumberLabel, forgeRefShortLabel, forgeRefUrl } from '../../../../shared/forgeReferences'
+import { useLinkContextMenu } from '../LinkContextMenu'
 import { ForgeRefGlyph, pullRequestLabel } from './forgeRefState'
 import { openForgeLink } from './openForgeLink'
 import { useForgeRefHoverCard } from './useForgeRefHoverCard'
@@ -14,6 +17,9 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
   const pull = useBranchPullRequest(gitPath, branch, enabled)
   const pullOpen = pull != null && pull.state !== 'merged' && pull.state !== 'closed'
   const label = pull ? pullRequestLabel(pull, t) : ''
+  const linkMenu = useLinkContextMenu()
+  const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const workspacePath = useConversationStore((s) => s.workspacePath)
   const openLink = (url: string, event: MouseEvent<HTMLElement>): void => {
     void openForgeLink(url, event, t)
   }
@@ -58,11 +64,22 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
         aria-label={label}
         {...anchorProps}
         onClick={(event) => openLink(forgeRefUrl(pull), event)}
+        onAuxClick={(event) => {
+          if (event.button !== 1) return
+          event.preventDefault()
+          openLink(forgeRefUrl(pull), event)
+        }}
+        onContextMenu={(event) => linkMenu.openFromEvent(event, {
+          url: forgeRefUrl(pull),
+          threadId: workspacePath ? activeThreadId : null,
+          reference: forgeRefShortLabel(pull, null)
+        })}
       >
         <ForgeRefGlyph refData={pull} size={17} />
         <span>{forgeRefNumberLabel(pull)}</span>
       </button>
       {card}
+      {linkMenu.menu}
     </>
   )
 }

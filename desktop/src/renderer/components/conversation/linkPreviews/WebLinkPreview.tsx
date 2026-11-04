@@ -1,5 +1,5 @@
 import { useCallback, useState, type AnchorHTMLAttributes, type CSSProperties, type JSX, type MouseEvent, type ReactNode } from 'react'
-import { ArrowUpRight, CloudOff, Globe, ShieldOff } from 'lucide-react'
+import { ArrowUpRight, CloudOff, Globe, MoreHorizontal, ShieldOff } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useLinkPreview, type LinkPreviewLoad } from '../../../stores/linkPreviewStore'
 import { linkPreviewHost, type LinkPreviewError } from '../../../../shared/linkPreviews'
@@ -7,6 +7,7 @@ import { Skeleton } from '../../ui/Skeleton'
 import { useReferenceHoverCard } from '../referenceHoverCard'
 
 type OpenLink = (url: string, event: MouseEvent<HTMLElement>) => void
+type OpenMoreActions = (anchor: HTMLElement) => void
 
 const ERROR_ICONS = { unavailable: CloudOff, blocked: ShieldOff } satisfies Record<LinkPreviewError, unknown>
 
@@ -19,7 +20,12 @@ function Favicon({ src }: { src?: string }): JSX.Element {
   )
 }
 
-export function LinkPreviewCardBody({ url, load, onOpenLink }: { url: string; load: LinkPreviewLoad; onOpenLink: OpenLink }): JSX.Element {
+export function LinkPreviewCardBody({ url, load, onOpenLink, onMoreActions }: {
+  url: string
+  load: LinkPreviewLoad
+  onOpenLink: OpenLink
+  onMoreActions?: OpenMoreActions
+}): JSX.Element {
   const t = useT()
   const ready = load.status === 'ready' ? load : null
   const ErrorIcon = load.status === 'error' ? ERROR_ICONS[load.error] : null
@@ -32,6 +38,17 @@ export function LinkPreviewCardBody({ url, load, onOpenLink }: { url: string; lo
           {t('linkPreview.open')}
           <ArrowUpRight size={13} strokeWidth={2} aria-hidden />
         </button>
+        {onMoreActions && (
+          <button
+            type="button"
+            className="dc-link-card__more"
+            aria-label={t('conversation.link.moreActions')}
+            aria-haspopup="menu"
+            onClick={(event) => onMoreActions(event.currentTarget)}
+          >
+            <MoreHorizontal size={14} strokeWidth={2} aria-hidden />
+          </button>
+        )}
       </div>
       {load.status === 'loading' && (
         <div role="status" aria-label={t('linkPreview.loading')}>
@@ -82,6 +99,7 @@ export function WebLinkPreviewAnchor({
   style,
   linkProps,
   onOpenLink,
+  onMoreActions,
   children
 }: {
   href: string
@@ -89,6 +107,7 @@ export function WebLinkPreviewAnchor({
   style: CSSProperties
   linkProps: AnchorHTMLAttributes<HTMLAnchorElement>
   onOpenLink: OpenLink
+  onMoreActions?: OpenMoreActions
   children: ReactNode
 }): JSX.Element {
   const [openCount, setOpenCount] = useState(0)
@@ -101,7 +120,7 @@ export function WebLinkPreviewAnchor({
     layoutKey: load,
     compact: load.status === 'error',
     onOpen,
-    children: <LinkPreviewCardBody url={href} load={load} onOpenLink={onOpenLink} />
+    children: <LinkPreviewCardBody url={href} load={load} onOpenLink={onOpenLink} onMoreActions={onMoreActions} />
   })
 
   return (

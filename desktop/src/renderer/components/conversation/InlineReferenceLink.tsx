@@ -1,15 +1,17 @@
 import { useMemo, useState, type AnchorHTMLAttributes, type MouseEvent } from 'react'
-import { Globe, Link2 } from 'lucide-react'
+import { Copy, Globe, Link2 } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
 import { referenceLocation } from '../../utils/referencePaths'
+import { copyLinkText, isWebUrl, linkClickDestination, openWebLink, shortenUrlForDisplay } from '../../utils/webLinks'
 import type { OpenTargetLocation } from '../../../shared/openTargets'
-import { parseForgeRefUrl } from '../../../shared/forgeReferences'
+import { forgeRefShortLabel, parseForgeRefUrl } from '../../../shared/forgeReferences'
 import { isPreviewableUrl } from '../../../shared/linkPreviews'
 import { resolveConversationLink, type LinkNavigationHint } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import type { ContextMenuPosition } from '../ui/ContextMenu'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { useLinkContextMenu } from './LinkContextMenu'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { extractText } from './markdownText'
 import { ForgeReferenceChip } from './forgeReferences/ForgeReferenceChip'
@@ -41,13 +43,21 @@ export function InlineReferenceLink({
   variant?: 'reference' | 'message'
   t: (key: string, vars?: Record<string, string | number>) => string
 }): JSX.Element {
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null; copyOnly: boolean } | null>(null)
+  const linkMenu = useLinkContextMenu()
   const presentation = useMemo(
     () => getInlineReferencePresentation(href, workspacePath, extractText(children), labelMode, t),
     [children, href, labelMode, t, workspacePath]
   )
   const forgeTarget = useMemo(() => (linkMode === 'conversation' ? parseForgeRefUrl(href) : null), [href, linkMode])
   const previewed = enablePreview && linkMode === 'conversation' && !forgeTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
+
+  const browserThreadId = linkMode === 'conversation' && workspacePath ? activeThreadId : null
+  const menuUrl = href ? resolveExternalMarkdownUrl(href) : null
+  const linkMenuOptions = menuUrl
+    ? { url: menuUrl, threadId: browserThreadId, ...(forgeTarget ? { reference: forgeRefShortLabel(forgeTarget, null) } : {}) }
+    : null
+  const draggableLink = presentation.kind === 'browser' && menuUrl !== null
 
   async function openLink(target: string, event: MouseEvent<HTMLElement>): Promise<void> {
     if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
@@ -57,13 +67,17 @@ export function InlineReferenceLink({
       await window.api.shell.openExternal(externalUrl).catch(() => undefined)
       return
     }
-    if (!workspacePath || !activeThreadId) return
+    if (!workspacePath || !activeThreadId) {
+      if (isWebUrl(target)) await openWebLink({ url: target, destination: 'systemBrowser', threadId: null, t })
+      return
+    }
     if (remoteWorkspaceActive && presentation.kind === 'file') return
     await openConversationLink({
       target,
       workspacePath,
       threadId: activeThreadId,
-      forceNew: event.ctrlKey || event.metaKey,
+      forceNew: event.ctrlKey || event.metaKey || event.button === 1,
+      destination: linkClickDestination(event),
       t
     })
   }
@@ -73,24 +87,35 @@ export function InlineReferenceLink({
     if (href) void openLink(href, event)
   }
 
-  function handleContextMenu(event: MouseEvent<HTMLAnchorElement>): void {
-    if (remoteWorkspaceActive) return
-    if (linkMode !== 'conversation' || !presentation.absolutePath) return
+  function handleAuxClick(event: MouseEvent<HTMLAnchorElement>): void {
+    if (event.button !== 1) return
     event.preventDefault()
-    event.stopPropagation()
-    setContextMenu({
-      position: { x: event.clientX, y: event.clientY },
-      targetPath: presentation.absolutePath,
-      location: presentation.location ?? null
-    })
+    if (href) void openLink(href, event)
+  }
+
+  function handleContextMenu(event: MouseEvent<HTMLAnchorElement>): void {
+    if (presentation.kind === 'file') {
+      if (linkMode !== 'conversation' || !presentation.absolutePath) return
+      event.preventDefault()
+      event.stopPropagation()
+      setContextMenu({
+        position: { x: event.clientX, y: event.clientY },
+        targetPath: presentation.absolutePath,
+        location: presentation.location ?? null,
+        copyOnly: remoteWorkspaceActive
+      })
+      return
+    }
+    if (linkMenuOptions) linkMenu.openFromEvent(event, linkMenuOptions)
   }
 
   const linkProps: AnchorHTMLAttributes<HTMLAnchorElement> & Record<`data-${string}`, string | undefined> = {
     href,
     onClick: handleClick,
+    onAuxClick: handleAuxClick,
     onContextMenu: handleContextMenu,
-    draggable: linkMode === 'conversation' ? false : undefined,
-    onDragStart: linkMode === 'conversation' ? (event) => event.preventDefault() : undefined,
+    draggable: linkMode === 'conversation' ? draggableLink : undefined,
+    onDragStart: linkMode === 'conversation' && !draggableLink ? (event) => event.preventDefault() : undefined,
     'data-conversation-reference': linkMode === 'conversation' ? '' : undefined,
     'data-inline-reference-kind': presentation.kind,
     ...props
@@ -127,6 +152,7 @@ export function InlineReferenceLink({
       style={anchorStyle}
       linkProps={linkProps}
       onOpenLink={(url, event) => { void openLink(url, event) }}
+      onMoreActions={linkMenuOptions ? (element) => linkMenu.openBelow(element, linkMenuOptions) : undefined}
     >
       {anchorContent}
     </WebLinkPreviewAnchor>
@@ -155,14 +181,25 @@ export function InlineReferenceLink({
       ) : (
         anchor
       )}
-      {contextMenu && (
+      {contextMenu && (contextMenu.copyOnly ? (
+        <ContextMenu
+          position={contextMenu.position}
+          items={[{
+            label: t('conversation.reference.copyPath'),
+            icon: <Copy size={16} />,
+            onClick: () => { void copyLinkText(contextMenu.targetPath, t) }
+          }]}
+          onClose={() => setContextMenu(null)}
+        />
+      ) : (
         <ReferencePathContextMenu
           position={contextMenu.position}
           targetPath={contextMenu.targetPath}
           location={contextMenu.location}
           onClose={() => setContextMenu(null)}
         />
-      )}
+      ))}
+      {linkMenu.menu}
     </>
   )
 }
@@ -259,19 +296,5 @@ function fileReferenceTitle(
 
 function isAbsoluteLocalPath(value: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('/') || value.startsWith('\\\\')
-}
-
-function shortenUrlForDisplay(rawUrl: string): string {
-  try {
-    const parsed = new URL(rawUrl)
-    const path = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')
-    if (!path) return parsed.hostname
-    const compactPath = path.length <= 18
-      ? path
-      : `/${path.split('/').filter(Boolean)[0] ?? ''}`
-    return compactPath ? `${parsed.hostname}${compactPath}` : parsed.hostname
-  } catch {
-    return rawUrl
-  }
 }
 

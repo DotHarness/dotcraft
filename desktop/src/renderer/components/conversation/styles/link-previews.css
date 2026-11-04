@@ -84,12 +84,30 @@
   cursor: pointer;
 }
 
-.dc-link-card__open:hover {
+.dc-link-card__more {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dc-link-card__open:hover,
+.dc-link-card__more:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .dc-link-card__open:focus-visible,
+.dc-link-card__more:focus-visible,
 .dc-link-card a:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 1px;

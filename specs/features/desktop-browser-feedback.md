@@ -25,7 +25,7 @@ One reply-selection overlay is active per window; a new selection replaces it. I
 
 Outside pointer-down, Escape, an outside context menu, task changes, and source unmount dismiss the overlay. Passive dismissal keeps an unfinished comment in memory keyed by source and selection; explicit cancel or save clears it. Opening or closing a native menu never clears the text selection or reopens the overlay.
 
-Reply bodies use native context menus. With a selection they offer Search with Google (opened in the system browser), Copy, and Select All; without one, only Select All. macOS omits Select All, following platform convention. Link, file, input, and embedded-page menus keep their own behavior.
+Reply bodies use native context menus. With a selection they offer Search with Google (opened in the system browser), Copy, and Select All; without one, only Select All. macOS omits Select All, following platform convention. Link, file, input, and embedded-page menus keep their own behavior; link and file reference menus follow [Desktop client §10.1](../clients/desktop-client.md#101-viewer-panel).
 
 ## Browser user workflows
 

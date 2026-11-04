@@ -38,6 +38,7 @@ import {
   isImageFile,
   mergeComposerFileAttachments
 } from '../../utils/composerAttachments'
+import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
@@ -1094,6 +1095,11 @@ function ConversationWelcomeCore({
       setDragOver(false)
       if (threadReferences.isThreadDrag(e)) {
         if (!remoteWorkspace) threadReferences.drop(e)
+        return
+      }
+      const droppedLink = droppedWebLink(e.dataTransfer)
+      if (droppedLink) {
+        insertDroppedLink(e as React.DragEvent<HTMLElement>, droppedLink)
         return
       }
       if (remoteWorkspace) {

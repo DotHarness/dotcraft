@@ -51,6 +51,7 @@ import {
   isImageFile,
   mergeComposerFileAttachments
 } from '../../utils/composerAttachments'
+import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { PendingMessageIndicator } from './PendingMessageIndicator'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { AttachmentStrip } from './AttachmentStrip'
@@ -1119,6 +1120,11 @@ function InputComposerCore({
       setDragOver(false)
       if (threadReferences.isThreadDrag(e)) {
         if (!remoteWorkspace) threadReferences.drop(e)
+        return
+      }
+      const droppedLink = droppedWebLink(e.dataTransfer)
+      if (droppedLink) {
+        insertDroppedLink(e as React.DragEvent<HTMLElement>, droppedLink)
         return
       }
       if (remoteWorkspace) {

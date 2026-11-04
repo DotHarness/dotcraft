@@ -138,6 +138,7 @@ import type {
   BrowserUseApprovalMode,
   ConnectionMode,
   FollowUpQueueMode,
+  LinkOpenPreferences,
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 export type {
@@ -1649,6 +1650,7 @@ const api = {
         blockedDomains?: string[]
         allowedDomains?: string[]
       }
+      linkOpenPreferences?: LinkOpenPreferences
       computerUse?: {
         alwaysAllowedApps?: Array<{ id: string; displayName: string }>
       }
@@ -1739,6 +1741,7 @@ const api = {
         blockedDomains?: string[]
         allowedDomains?: string[]
       }
+      linkOpenPreferences?: LinkOpenPreferences
       computerUse?: {
         alwaysAllowedApps?: Array<{ id: string; displayName: string }>
       }
