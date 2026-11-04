@@ -64,6 +64,7 @@ import {
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { isHiddenThread } from '../shared/hiddenThreads'
 import { readAppServerErrorFields } from '../shared/appServerError'
+import { describeAppServerError, serverFallbackText } from './utils/appServerErrorText'
 import { useSideChatStore } from './stores/sideChatStore'
 import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
@@ -232,40 +233,6 @@ function resolveWorkspaceDisplayName(status: WorkspaceStatusPayload): string {
   return path ? basename(path) : 'DotCraft'
 }
 
-function serverTextVars(value: unknown): Record<string, string | number> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const vars: Record<string, string | number> = {}
-  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof raw === 'string' || typeof raw === 'number') {
-      vars[key] = raw
-    } else if (typeof raw === 'boolean') {
-      vars[key] = raw ? 'true' : 'false'
-    }
-  }
-  return Object.keys(vars).length > 0 ? vars : undefined
-}
-
-function serverFallbackText(
-  locale: AppLocale,
-  messageKey: unknown,
-  params: unknown,
-  fallbackText: unknown,
-  legacyMessage?: unknown
-): string | null {
-  const fallback =
-    typeof fallbackText === 'string'
-      ? fallbackText
-      : typeof legacyMessage === 'string'
-        ? legacyMessage
-        : null
-  if (typeof messageKey !== 'string' || messageKey.trim() === '') {
-    return fallback
-  }
-  const key = messageKey.trim()
-  const localized = translate(locale, key, serverTextVars(params))
-  return localized === key ? fallback : localized
-}
-
 function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
   return value === 'accept' ||
     value === 'acceptForSession' ||
@@ -400,12 +367,6 @@ const THREAD_NOT_FOUND = -32010
 
 function isThreadNotFoundError(error: unknown): boolean {
   return readAppServerErrorFields(error).rpcCode === THREAD_NOT_FOUND
-}
-
-function threadLoadErrorText(locale: AppLocale, error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error ?? '')
-  const data = readAppServerErrorFields(error).data
-  return serverFallbackText(locale, data?.messageKey, data?.params, data?.fallbackText) ?? message
 }
 
 function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
@@ -2961,7 +2922,7 @@ export function App(): JSX.Element {
             addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
             return
           }
-          useThreadStore.getState().setActiveThreadLoadError(requestedId, threadLoadErrorText(localeRef.current, err))
+          useThreadStore.getState().setActiveThreadLoadError(requestedId, describeAppServerError(localeRef.current, err))
         })
     } else {
       clearThreadRestoreGate()

@@ -6,6 +6,7 @@ import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties }
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, RefreshCw, Target } from 'lucide-react'
 import { readAppServerErrorFields } from '../../../shared/appServerError'
+import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { sendComposerFollowUp } from '../../utils/composerFollowUp'
@@ -1020,11 +1021,11 @@ function InputComposerCore({
       setMascotBounce((n) => n + 1)
     } catch (err) {
       restoreComposerSubmission(submission)
-      addToast(err instanceof Error ? err.message : String(err), 'error')
+      addToast(describeAppServerError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, t])
+  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, t])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1224,7 +1225,7 @@ function InputComposerCore({
         })
       } catch (err) {
         restoreComposerSubmission(submission)
-        addToast(err instanceof Error ? err.message : String(err), 'error')
+        addToast(describeAppServerError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1286,7 +1287,7 @@ function InputComposerCore({
     try {
       await onBeforeSend?.()
     } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
+      addToast(describeAppServerError(locale, err), 'error')
       return
     }
 
@@ -1325,7 +1326,7 @@ function InputComposerCore({
       } catch (err) {
         console.error('composer submit override failed:', err)
         restoreComposerSubmission(submission)
-        addToast(err instanceof Error ? err.message : String(err), 'error')
+        addToast(describeAppServerError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1353,7 +1354,7 @@ function InputComposerCore({
       } catch (err) {
         console.error(`turn/${mode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         restoreComposerSubmission(submission)
-        addToast(err instanceof Error ? err.message : String(err), 'error')
+        addToast(describeAppServerError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1415,16 +1416,16 @@ function InputComposerCore({
         } catch (enqueueErr) {
           console.error('turn/enqueue fallback failed:', enqueueErr)
           restoreComposerSubmission(submission)
-          addToast(enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr), 'error')
+          addToast(describeAppServerError(locale, enqueueErr), 'error')
           return
         }
       }
       restoreComposerSubmission(submission)
-      addToast(err instanceof Error ? err.message : String(err), 'error')
+      addToast(describeAppServerError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,

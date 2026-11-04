@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
@@ -21,9 +24,11 @@ public sealed class StdioTransport : IAppServerTransport
     // Pending server-initiated requests awaiting a client response (keyed by request id)
     private readonly ConcurrentDictionary<int, TaskCompletionSource<AppServerIncomingMessage>> _pendingClientRequests = new();
 
-    // Queue of client-initiated messages (requests + notifications) for the host loop
-    private readonly ConcurrentQueue<AppServerIncomingMessage> _incomingQueue = new();
-    private readonly SemaphoreSlim _incomingSemaphore = new(0);
+    private const int IncomingCapacity = 128;
+    private readonly Channel<AppServerIncomingMessage> _incoming =
+        Channel.CreateBounded<AppServerIncomingMessage>(IncomingCapacity);
+    private readonly ILogger _logger;
+    private readonly Guid _connectionId;
 
     private Task? _readerLoop;
     private readonly CancellationTokenSource _disposeCts = new();
@@ -34,8 +39,10 @@ public sealed class StdioTransport : IAppServerTransport
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private StdioTransport(Stream input, Stream output)
+    private StdioTransport(Stream input, Stream output, ILogger? logger, Guid connectionId)
     {
+        _logger = logger ?? NullLogger.Instance;
+        _connectionId = connectionId;
         _reader = new StreamReader(input, Encoding.UTF8);
         _writer = new StreamWriter(output, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
         {
@@ -47,14 +54,16 @@ public sealed class StdioTransport : IAppServerTransport
     /// Creates a transport using the process's stdin and stdout streams.
     /// Stdout must already have been redirected to stderr or reserved for JSON-RPC before this call.
     /// </summary>
-    public static StdioTransport CreateStdio() =>
-        new(Console.OpenStandardInput(), Console.OpenStandardOutput());
+    public static StdioTransport CreateStdio(ILogger? logger = null, Guid connectionId = default) =>
+        new(Console.OpenStandardInput(), Console.OpenStandardOutput(), logger, connectionId);
 
     /// <summary>
     /// Creates a transport over arbitrary streams (e.g. subprocess stdin/stdout pipes,
     /// in-memory streams for testing).
     /// </summary>
-    public static StdioTransport Create(Stream input, Stream output) => new(input, output);
+    public static StdioTransport Create(
+        Stream input, Stream output, ILogger? logger = null, Guid connectionId = default) =>
+        new(input, output, logger, connectionId);
 
     /// <summary>
     /// Starts the background reader loop. Must be called before any read/write operations.
@@ -74,11 +83,10 @@ public sealed class StdioTransport : IAppServerTransport
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         try
         {
-            await _incomingSemaphore.WaitAsync(linked.Token);
-            if (_incomingQueue.TryDequeue(out var msg))
-                return msg;
+            return await _incoming.Reader.ReadAsync(linked.Token);
         }
-        catch (OperationCanceledException) { /* Expected */ }
+        catch (OperationCanceledException) { }
+        catch (ChannelClosedException) { }
 
         return null;
     }
@@ -184,9 +192,18 @@ public sealed class StdioTransport : IAppServerTransport
                     }
                 }
 
-                // Enqueue client-initiated messages for the host's main loop
-                _incomingQueue.Enqueue(msg);
-                _incomingSemaphore.Release();
+                if (!msg.IsRequest)
+                {
+                    await _incoming.Writer.WriteAsync(msg, ct);
+                }
+                else if (!_incoming.Writer.TryWrite(msg))
+                {
+                    _logger.LogWarning(
+                        "AppServer incoming buffer full: {RequestMethod} ({RequestId}), connection {ConnectionId}, transport {Transport}, capacity {Capacity}",
+                        msg.Method, msg.Id, _connectionId, nameof(StdioTransport), IncomingCapacity);
+                    await WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(
+                        msg.Id, AppServerErrors.ServerOverloaded().ToError()), ct);
+                }
             }
         }
         catch (OperationCanceledException) { /* Expected on dispose */ }
@@ -199,8 +216,7 @@ public sealed class StdioTransport : IAppServerTransport
             foreach (var tcs in _pendingClientRequests.Values)
                 tcs.TrySetCanceled();
 
-            // Release the semaphore so any blocked ReadMessageAsync returns null
-            _incomingSemaphore.Release();
+            _incoming.Writer.TryComplete();
         }
     }
 
@@ -228,6 +244,5 @@ public sealed class StdioTransport : IAppServerTransport
 
         _disposeCts.Dispose();
         _writeLock.Dispose();
-        _incomingSemaphore.Dispose();
     }
 }

@@ -1121,7 +1121,7 @@ Provider failures also set `turn.providerError` — `contextWindowExceeded`, `us
 
 ### 9.1 Server-Side Queuing
 
-The server uses bounded queues between transport ingress, request processing, and outbound writes. When inbound capacity is saturated, new requests fail with `-32001` (`Server overloaded; retry later.`); clients retry with exponential backoff and jitter.
+Each transport connection buffers up to 128 incoming messages awaiting dispatch. Requests are dispatched concurrently; executing handlers do not occupy buffer capacity. When the incoming buffer is full, new requests fail with `-32001` (`Server overloaded; retry later.`). Notifications wait for buffer capacity, while responses to pending server-initiated requests are routed directly. Clients may retry an explicit overload rejection.
 
 ### 9.2 Client-Side Considerations
 
@@ -1333,7 +1333,7 @@ With a configured bearer token, the client passes it in the upgrade URL: `ws://H
 
 ### 15.5 Multi-Connection Behavior
 
-Each connection has its own handshake, subscriptions, and backpressure gate (32 concurrent in-flight requests, as for stdio). Session state is shared: threads started on one connection are visible to others, a subscriber receives events triggered by other connections, and interactive requests follow [Section 7.6](#76-pending-requests-and-multiple-connections).
+Each connection has its own handshake, subscriptions, and bounded incoming buffer (128 messages awaiting dispatch, as for stdio). Session state is shared: threads started on one connection are visible to others, a subscriber receives events triggered by other connections, and interactive requests follow [Section 7.6](#76-pending-requests-and-multiple-connections).
 
 There is no per-connection identity isolation. Callers with different privilege levels use separate server processes or enforce identity through `SessionIdentity`.
 

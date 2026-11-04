@@ -32,10 +32,9 @@ public sealed partial class AppServerHost
         CancellationToken cancellationToken)
     {
         await using var wsApp = await StartWebSocketAppAsync(wsConfig, publishEndpoint, cancellationToken);
-        await using var transport = StdioTransport.CreateStdio();
-        transport.Start();
-
         var connection = new AppServerConnection();
+        await using var transport = StdioTransport.CreateStdio(_logger, connection.ConnectionId);
+        transport.Start();
         _activeTransports.TryAdd(transport, connection);
 
         var handler = CreateRequestHandler(transport, connection);
@@ -133,10 +132,9 @@ public sealed partial class AppServerHost
             }
 
             using WebSocket ws = await context.WebSockets.AcceptWebSocketAsync();
-            await using var wsTransport = new WebSocketTransport(ws);
-            wsTransport.Start();
-
             var wsConnection = new AppServerConnection();
+            await using var wsTransport = new WebSocketTransport(ws, _logger, wsConnection.ConnectionId);
+            wsTransport.Start();
             _activeTransports.TryAdd(wsTransport, wsConnection);
             try
             {
@@ -150,7 +148,7 @@ public sealed partial class AppServerHost
 
                     if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize)
                     {
-                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
+                        await AppServerRequestDispatcher.ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
 
                         if (wsConnection.IsChannelAdapter)
                         {
@@ -231,11 +229,11 @@ public sealed partial class AppServerHost
 
                     if (firstMsg.IsNotification)
                     {
-                        HandleNotification(firstMsg, wsHandler);
+                        wsHandler.HandleNotification(firstMsg);
                     }
                     else if (firstMsg.IsRequest)
                     {
-                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
+                        await AppServerRequestDispatcher.ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
                     }
                 }
 
