@@ -9,7 +9,8 @@ const CHANNELS = [
   'viewer:terminal:attach',
   'viewer:terminal:write',
   'viewer:terminal:resize',
-  'viewer:terminal:dispose'
+  'viewer:terminal:dispose',
+  'viewer:terminal:rebind-thread'
 ] as const
 
 const cleanupHookedWindows = new Set<number>()
@@ -88,6 +89,10 @@ export function registerViewerTerminalHandlers(deps: ViewerTerminalIpcDeps): voi
   handleSafe('viewer:terminal:dispose', (event, params: { tabId: string }) => {
     const win = windowOf(event)
     if (win) viewerTerminalManager.destroyTab(win, params.tabId)
+  })
+  handleSafe('viewer:terminal:rebind-thread', (event, params: { fromThreadId: string; toThreadId: string }) => {
+    const win = windowOf(event)
+    if (win) viewerTerminalManager.rebindThread(win, params.fromThreadId, params.toThreadId)
   })
 }
 

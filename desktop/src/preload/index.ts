@@ -1351,6 +1351,7 @@ const api = {
         create(params: {
           tabId: string
           threadId: string
+          title?: string
           cwd: string
           cols: number
           rows: number
@@ -1360,6 +1361,7 @@ const api = {
         restart(params: {
           tabId: string
           threadId: string
+          title?: string
           cwd: string
           cols: number
           rows: number
@@ -1367,6 +1369,9 @@ const api = {
           env?: Record<string, string>
         }): Promise<{ tabId: string; pid: number; shell: string; cwd: string }> {
           return ipcRenderer.invoke('viewer:terminal:restart', params)
+        },
+        rebindThread(params: { fromThreadId: string; toThreadId: string }): Promise<void> {
+          return ipcRenderer.invoke('viewer:terminal:rebind-thread', params)
         },
         attach(params: { tabId: string }): Promise<{
           tabId: string

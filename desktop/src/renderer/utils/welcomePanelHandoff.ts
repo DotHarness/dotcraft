@@ -23,6 +23,9 @@ export function handOffWelcomePanel(welcomeScopeId: string, threadId: string): v
   if (welcome?.tabs.some((tab) => tab.kind === 'browser')) {
     void window.api.workspace.viewer.browser.rebindThread({ fromThreadId: welcomeScopeId, toThreadId: threadId })
   }
+  if (welcome?.tabs.some((tab) => tab.kind === 'terminal')) {
+    void window.api.workspace.viewer.terminal.rebindThread({ fromThreadId: welcomeScopeId, toThreadId: threadId })
+  }
 
   useUIStore.setState((state) => ({
     detailPanelPreferredVisibleByThread: moveEntry(state.detailPanelPreferredVisibleByThread, welcomeScopeId, threadId)

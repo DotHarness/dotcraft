@@ -291,6 +291,7 @@ const explicitApi = {
         write: async () => {},
         resize: async () => {},
         dispose: async () => {},
+        rebindThread: async () => {},
         onData: unsubscribe,
         onExit: unsubscribe
       }

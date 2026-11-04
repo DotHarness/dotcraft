@@ -89,6 +89,8 @@ The JSON is `{ "target": "custom:review", "path": "<absolute path>", "location":
 
 Save the commands you keep typing in a project, such as starting the dev server, running the tests, or opening the project in Unity, as actions and run them from the conversation. They live in the **Environment** section of the **Summary** beside a local conversation. The button with an action's icon runs the action you ran most recently, and the **Actions** menu lists every action and has **Open terminal** for a terminal in the project folder. Each action runs in its own terminal tab, named after the action, and running it again restarts that tab.
 
+The agent can read what is in the conversation's terminal tabs, so after an action fails or you sign in to a server yourself, ask "why did that fail?" without pasting the output. It only reads them and never types into them.
+
 To add the first action, choose **Actions → Set up local environment**, enter a name, an icon, and the command, and save. Desktop writes `.craft/environments/environment.json` in the project and runs the action. Add more from **Actions → Add action**.
 
 ### Edit actions in the file

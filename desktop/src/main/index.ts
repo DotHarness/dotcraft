@@ -39,6 +39,7 @@ import { existsSync } from 'fs'
 import { spawn } from 'child_process'
 import net from 'net'
 import { DesktopAppServerClient, type InitializeResult } from './DesktopAppServerClient'
+import { viewerTerminalManager } from './viewerTerminal'
 import {
   handleDesktopRuntimeThreadToolCall,
   resetDesktopThreadToolBindings,
@@ -711,7 +712,15 @@ function desktopThreadToolOptions(): DesktopAppServerRequestOptions {
         broadcastPinnedThreadIdsChanged({ workspacePath, threadIds })
       }
     },
-    tasks: getThreadTasks()
+    tasks: getThreadTasks(),
+    terminals: {
+      threadTabs: (threadId) => mainWindow && !mainWindow.isDestroyed()
+        ? viewerTerminalManager.threadTabs(mainWindow, threadId)
+        : [],
+      waitForOutput: (tabId, timeoutMs) => mainWindow && !mainWindow.isDestroyed()
+        ? viewerTerminalManager.waitForOutput(mainWindow, tabId, timeoutMs)
+        : Promise.resolve('gone')
+    }
   }
 }
 

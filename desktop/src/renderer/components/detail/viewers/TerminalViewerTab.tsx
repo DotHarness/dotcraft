@@ -35,6 +35,8 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
   const startedRef = useRef(false)
   const appliedRunRef = useRef<number | null>(null)
   const threadIdRef = useRef<string | null>(currentThreadId)
+  const titleRef = useRef<string | undefined>(undefined)
+  titleRef.current = tab?.title ?? tab?.label
   const updateTerminalTabRef = useRef(useViewerTabStore.getState().updateTerminalTab)
 
   useEffect(() => {
@@ -138,6 +140,7 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
         const restarted = await window.api.workspace.viewer.terminal.restart({
           tabId,
           threadId,
+          title: titleRef.current,
           cwd,
           cols: term.cols,
           rows: term.rows,
@@ -183,6 +186,7 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
       const created = await window.api.workspace.viewer.terminal.create({
         tabId,
         threadId,
+        title: titleRef.current,
         cwd,
         cols: term.cols,
         rows: term.rows
