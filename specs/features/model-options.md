@@ -218,6 +218,14 @@ For Anthropic:
 - disabled reasoning omits `thinking` when the model supports disabling it
 - enabled reasoning uses the most-specific Anthropic thinking adapter
 - adaptive models map to `thinking.type="adaptive"`, output display, and `output_config.effort`
+- supported adaptive-thinking transports send `thinking.block_binding.prefix_mismatch_behavior="drop_block"`
+  with the `thinking-binding-controls-2026-08-01` beta, allowing the provider to discard thinking
+  blocks whose conversation prefix no longer matches without rewriting persisted history
+- thinking binding support defaults on only for verified model families at `api.anthropic.com` or
+  `openrouter.ai`; unknown compatible endpoints default off. An Anthropic thinking adapter can
+  explicitly set `thinking.supportsBlockBinding` to override support for its matched transport.
+  The resolved capability travels with model-service request adaptation. Disabled thinking never
+  receives binding controls, and existing beta headers are preserved
 - `extraHigh` maps to `xhigh`; `max` and the effective Ultra effort map to `max`
 - models that always reason advertise `supportsDisable=false`
 
