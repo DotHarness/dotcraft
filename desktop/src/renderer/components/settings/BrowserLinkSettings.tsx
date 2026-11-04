@@ -27,7 +27,7 @@ export function BrowserLinkSettings(): JSX.Element {
   }
 
   return (
-    <SettingsGroup title={t('settings.browserUse.links.title')} description={t('settings.browserUse.links.shortcutHint')}>
+    <SettingsGroup title={t('settings.browserUse.links.title')}>
       <SettingsRow
         label={t('settings.browserUse.links.web')}
         description={t('settings.browserUse.links.webHint')}
