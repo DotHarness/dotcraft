@@ -3937,7 +3937,7 @@ export const MESSAGES_JA = {
   'composer.chatgptUsage.unavailable': '使用状況を取得できませんでした。デスクトップはすぐに再試行します。',
   'composer.chatgptUsage.credits': 'クレジット',
   'composer.chatgptUsage.creditsUnlimited': '無制限',
-  'composer.chatgptUsage.limitReached': '制限に達しました ({{kind}});リクエストはリセットされるまで失敗する可能性があります。',
+  'composer.chatgptUsage.limitReached': '制限に達したため（{{kind}}）、リセットされるまでリクエストが失敗する可能性があります。',
   'composer.chatgptUsage.lastFetched': '{{time}} を取得しました',
   'composer.chatgptUsage.duration.now': '今',
   'composer.chatgptUsage.duration.lessThanMinute': '1分未満',

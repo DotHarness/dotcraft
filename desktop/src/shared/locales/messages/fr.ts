@@ -3938,7 +3938,7 @@ export const MESSAGES_FR = {
   'composer.chatgptUsage.unavailable': 'Impossible de récupérer l\'utilisation. Le bureau réessayera sous peu.',
   'composer.chatgptUsage.credits': 'Crédits',
   'composer.chatgptUsage.creditsUnlimited': 'Illimité',
-  'composer.chatgptUsage.limitReached': 'Limite atteinte ({{kind}}); les demandes peuvent échouer jusqu’à la réinitialisation.',
+  'composer.chatgptUsage.limitReached': 'Limite atteinte ({{kind}}) et les demandes peuvent échouer jusqu’à la réinitialisation.',
   'composer.chatgptUsage.lastFetched': 'Récupéré {{time}}',
   'composer.chatgptUsage.duration.now': 'maintenant',
   'composer.chatgptUsage.duration.lessThanMinute': 'moins d\'une minute',

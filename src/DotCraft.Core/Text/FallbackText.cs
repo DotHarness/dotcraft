@@ -231,7 +231,7 @@ public static class FallbackText
   "auth.usage.window.secondary": "Secondary ",
   "auth.usage.credits.balance": "{0}",
   "auth.usage.credits.unlimited": "unlimited",
-  "auth.usage.limitReached": "Limit reached ({0}); requests may fail until reset."
+  "auth.usage.limitReached": "Limit reached ({0}), requests may fail until reset."
 }
 """;
 }

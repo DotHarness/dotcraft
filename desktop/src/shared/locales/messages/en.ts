@@ -3423,7 +3423,7 @@ export const MESSAGES_EN = {
   'composer.chatgptUsage.unavailable': 'Couldn\'t fetch usage. The desktop will retry shortly.',
   'composer.chatgptUsage.credits': 'Credits',
   'composer.chatgptUsage.creditsUnlimited': 'Unlimited',
-  'composer.chatgptUsage.limitReached': 'Limit reached ({{kind}}); requests may fail until reset.',
+  'composer.chatgptUsage.limitReached': 'Limit reached ({{kind}}), requests may fail until reset.',
   'composer.chatgptUsage.lastFetched': 'Fetched {{time}}',
   'composer.chatgptUsage.duration.now': 'now',
   'composer.chatgptUsage.duration.lessThanMinute': 'under 1 minute',

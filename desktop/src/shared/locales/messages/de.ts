@@ -3937,7 +3937,7 @@ export const MESSAGES_DE = {
   'composer.chatgptUsage.unavailable': 'Die Nutzung konnte nicht abgerufen werden. Der Desktop wird es in Kürze erneut versuchen.',
   'composer.chatgptUsage.credits': 'Credits',
   'composer.chatgptUsage.creditsUnlimited': 'Unbegrenzt',
-  'composer.chatgptUsage.limitReached': 'Limit erreicht ({{kind}}); Anfragen können bis zum Zurücksetzen fehlschlagen.',
+  'composer.chatgptUsage.limitReached': 'Limit erreicht ({{kind}}) und Anfragen können bis zum Zurücksetzen fehlschlagen.',
   'composer.chatgptUsage.lastFetched': 'Abgerufen {{time}}',
   'composer.chatgptUsage.duration.now': 'jetzt',
   'composer.chatgptUsage.duration.lessThanMinute': 'unter 1 Minute',

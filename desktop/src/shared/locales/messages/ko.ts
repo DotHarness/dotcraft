@@ -3937,7 +3937,7 @@ export const MESSAGES_KO = {
   'composer.chatgptUsage.unavailable': '사용량을 가져올 수 없습니다. 데스크톱이 곧 다시 시도합니다.',
   'composer.chatgptUsage.credits': '크레딧',
   'composer.chatgptUsage.creditsUnlimited': '무제한',
-  'composer.chatgptUsage.limitReached': '한도에 도달했습니다({{kind}}). 재설정될 때까지 요청이 실패할 수 있습니다.',
+  'composer.chatgptUsage.limitReached': '한도에 도달하여({{kind}}) 재설정될 때까지 요청이 실패할 수 있습니다.',
   'composer.chatgptUsage.lastFetched': '{{time}}을(를) 가져왔습니다.',
   'composer.chatgptUsage.duration.now': '지금',
   'composer.chatgptUsage.duration.lessThanMinute': '1분 이내',
