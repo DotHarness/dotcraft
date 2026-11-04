@@ -375,7 +375,7 @@ public sealed partial class SessionServiceForkTests : IDisposable
         Assert.Equal(source.Id, outcome.GetProperty("parentThreadId").GetString());
         Assert.Equal(lastTurn.Id, outcome.GetProperty("parentTurnId").GetString());
         Assert.Equal(fork.Turns[^1].Id, outcome.GetProperty("turnId").GetString());
-        Assert.Equal(suggestion.Length > 0 ? "text" : "failed", outcome.GetProperty("outcome").GetString());
+        Assert.Equal(suggestion.Length > 0 ? "text" : "empty", outcome.GetProperty("outcome").GetString());
         Assert.Null(await _store.LoadThreadAsync(fork.Id));
     }
 
