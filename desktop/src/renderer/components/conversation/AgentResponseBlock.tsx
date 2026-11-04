@@ -36,8 +36,9 @@ import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
-import { useTranscriptItemDiffs } from './transcriptDiffs'
+import { useTranscriptItemDiffs, useTranscriptTurnHasFileChanges } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
+import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
 import { getSubAgentChipDisplay, SubAgentEndingChips } from './SubAgentChips'
 import { isMidTurnSubAgentEnding, subAgentEndingInterrupted } from '../../utils/subAgentEndings'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
@@ -58,6 +59,7 @@ interface AgentResponseBlockProps {
   streamingReasoning?: string
   isRunning?: boolean
   isLastTurn?: boolean
+  isLastVisibleTurn?: boolean
   showWorkingLine?: boolean
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
@@ -87,16 +89,18 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   streamingReasoning = '',
   isRunning = false,
   isLastTurn = false,
+  isLastVisibleTurn = isLastTurn,
   showWorkingLine = false,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
   readOnly = false,
   renderTurnCompletion
-}: AgentResponseBlockProps): JSX.Element {
+}: AgentResponseBlockProps): JSX.Element | null {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
+  const hasFileChanges = useTranscriptTurnHasFileChanges(turn.id)
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
   const citationSources = useWebCitationSources(turn, streamingMessage)
@@ -349,6 +353,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       normalizedErrorMessage(item.text) === normalizedErrorMessage(turn.error)
   )
 
+  if (isEmptyCompletedTurn(turn, hasFileChanges)) return null
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-tool-assistant-gap)' }}>
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
@@ -366,9 +372,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       <TurnWorkingLine
         working={working}
         label={thinkingLabel}
-        keepSpace={isLastTurn}
+        keepSpace={isLastVisibleTurn}
         afterTool={lastKind === 'tool'}
-        tasksThreadId={isLastTurn && !readOnly ? turn.threadId : null}
+        tasksThreadId={isLastVisibleTurn && !readOnly ? turn.threadId : null}
       />
     </div>
   )

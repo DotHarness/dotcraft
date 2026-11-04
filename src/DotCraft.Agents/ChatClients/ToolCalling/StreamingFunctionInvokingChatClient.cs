@@ -14,9 +14,6 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-/// <summary>
-/// Raised when an initial provider streaming request completes without effective assistant output.
-/// </summary>
 public sealed class EmptyProviderResponseException(string message) : InvalidOperationException(message);
 
 /// <summary>
@@ -452,9 +449,12 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
             var providerErrorText = CollectErrorContentText(updates);
-            if (!hasEffectiveProviderOutput && (!hasAnyEffectiveProviderOutput || awaitingPostToolContinuation))
+            var hasProviderError = updates.Any(update => update.Contents.Any(content => content is ErrorContent));
+            if (!hasEffectiveProviderOutput
+                && (!hasAnyEffectiveProviderOutput || awaitingPostToolContinuation)
+                && (hasProviderError || !HasNormalProviderStop(updates)))
             {
-                if (hasAnyEffectiveProviderOutput && string.IsNullOrWhiteSpace(providerErrorText))
+                if (hasAnyEffectiveProviderOutput && !hasProviderError)
                     yield break;
 
                 var emptyResponseFailure = CreateEmptyProviderResponseFailure(

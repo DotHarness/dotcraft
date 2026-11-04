@@ -10,6 +10,7 @@ import { formatCollapsedToolLabel } from '../../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
 import { stripWebCitations } from '../../utils/webCitations'
 
 export const PET_LINE_MAX = 60
@@ -156,19 +157,23 @@ export function derivePetActivity(input: PetActivityInput): PetStatusInfo {
   if (!input.threadId) return { status: 'idle', title, line: '', lineTone: 'neutral', turnId: '', canStop: false }
   const { turnStatus } = input
   const turn = input.turns[input.turns.length - 1]
+  const emptyCompletion = turn != null && isEmptyCompletedTurn(turn, (input.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
+  const displayTurn = emptyCompletion
+    ? input.turns.findLast((candidate) => !isEmptyCompletedTurn(candidate, (input.turnDiffs.get(candidate.id)?.files.length ?? 0) > 0))
+    : turn
   const decision = input.approval && input.approval.locallySubmittedDecision == null ? input.approval : null
   const running = turnStatus === 'running'
   const status: PetStatus = decision || turnStatus === 'waitingApproval' || turnStatus === 'waitingInput'
     ? 'waiting'
     : turn?.status === 'failed'
       ? 'failed'
-      : turnStatus === 'idle' && turn?.status === 'completed' && turn.id !== input.readTurnId
+      : turnStatus === 'idle' && turn?.status === 'completed' && !emptyCompletion && turn.id !== input.readTurnId
         ? 'review'
         : running ? 'running' : 'idle'
   const turnId = input.activeTurnId ?? turn?.id ?? ''
   const stopping = running && !!input.activeTurnId && input.interruptingTurnId === input.activeTurnId
   const canStop = running && !!input.activeTurnId && !input.activeTurnId.startsWith('local-turn-') && !stopping
-  const info: PetStatusInfo = { status, title, ...resolveLine(input, status, turn, decision), turnId, canStop }
+  const info: PetStatusInfo = { status, title, ...resolveLine(input, status, displayTurn, decision), turnId, canStop }
   if (stopping) info.stopping = true
   if (decision) info.decision = petDecisionOf(decision, input.locale)
 

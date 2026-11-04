@@ -1104,7 +1104,7 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
     }
 }
 
-public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSignalTestBase
+public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSignalTestBase
 {
     [Fact]
     public async Task SubmitInputAsync_ConcurrentCallsCreateOnlyOneRunningTurn()
@@ -1848,33 +1848,6 @@ public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSign
         var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
         Assert.Equal("agent_length_limit", errorPayload.Code);
         Assert.True(errorPayload.Fatal);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SubmitInputAsync_WhenProviderStreamHasNoContent_MarksTurnFailed(bool usageOnly)
-    {
-        IChatClient chatClient = new FakeChatClient(usageOnly
-            ? [UsageUpdate(requestIndex: 1, input: 10_000, output: 0, cachedInput: 9_000)]
-            : []);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnCompleted);
-        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
-        var updatedThread = await svc.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updatedThread.Turns);
-        Assert.Equal(TurnStatus.Failed, turn.Status);
-        var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
-        var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
-        Assert.Equal("agent_empty_response", errorPayload.Code);
-        Assert.True(errorPayload.Fatal);
-        Assert.Contains("empty streaming response", errorPayload.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.AgentMessage);
     }
 
     [Fact]

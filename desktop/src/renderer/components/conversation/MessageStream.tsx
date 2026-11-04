@@ -28,6 +28,7 @@ import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { reloadThreadAfterRollback } from '../../utils/threadRollback'
 import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
+import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
 import { splitMessageComments } from '../../../shared/messageComments'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
@@ -126,6 +127,11 @@ function MessageStreamContent(): JSX.Element {
   )
   const threadStartLoaded = historyHeadLoaded && turns.length > 0 && !gapIdBeforeTurn.has(turns[0].id)
   const supersededRetryTurnIds = useMemo(() => findSupersededRetryTurnIds(turns), [turns])
+  const turnDiffs = useConversationStore((s) => s.turnDiffs)
+  const visibleTurns = useMemo(() => turns.filter((turn) => !supersededRetryTurnIds.has(turn.id)
+    && (!isEmptyCompletedTurn(turn, (turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
+      || turn.items.some(isVisibleUserMessage))), [turns, turnDiffs, supersededRetryTurnIds])
+  const visibleTurnIds = useMemo(() => new Set(visibleTurns.map((turn) => turn.id)), [visibleTurns])
   const threadList = useThreadStore((s) => s.threadList)
   // Origin of a thread spawned by another thread (Desktop CreateThread). Drives the
   // "From another thread" pill on the first user message; null for normal threads.
@@ -268,13 +274,12 @@ function MessageStreamContent(): JSX.Element {
           {turns.map((turn, idx) => {
             const isActiveTurn = turn.id === activeTurnId
             const gapId = gapIdBeforeTurn.get(turn.id)
-            const superseded = supersededRetryTurnIds.has(turn.id)
             return (
               <Fragment key={turn.id}>
                 {gapId !== undefined && (
                   <div className="dc-conversation-history-gap" data-history-gap={gapId} aria-hidden="true" />
                 )}
-                {!superseded && <div
+                {visibleTurnIds.has(turn.id) && <div
                   data-turn-id={turn.id}
                   className="dc-conversation-turn-shell"
                   data-active={isActiveTurn ? 'true' : undefined}
@@ -294,7 +299,8 @@ function MessageStreamContent(): JSX.Element {
                     }
                     isActiveTurn={isActiveTurn}
                     isLastTurn={idx === turns.length - 1}
-                    isFirstTurn={idx === 0 && threadStartLoaded}
+                    isLastVisibleTurn={turn === visibleTurns.at(-1)}
+                    isFirstTurn={turn === visibleTurns[0] && threadStartLoaded}
                     threadOrigin={threadOrigin}
                     isIdle={turnStatus === 'idle'}
                     editing={editing}
@@ -384,6 +390,7 @@ interface TurnBlockProps {
   showWorkingLine: boolean
   isActiveTurn: boolean
   isLastTurn: boolean
+  isLastVisibleTurn: boolean
   isFirstTurn: boolean
   threadOrigin: { refId: string; label?: string } | null
   isIdle: boolean
@@ -402,6 +409,7 @@ const TurnBlock = memo(function TurnBlock({
   showWorkingLine,
   isActiveTurn,
   isLastTurn,
+  isLastVisibleTurn,
   isFirstTurn,
   threadOrigin,
   isIdle,
@@ -458,6 +466,7 @@ const TurnBlock = memo(function TurnBlock({
         isRunning={isRunning}
         showWorkingLine={showWorkingLine}
         isLastTurn={isLastTurn}
+        isLastVisibleTurn={isLastVisibleTurn}
       />
     </div>
   )
@@ -471,6 +480,7 @@ function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps):
     previous.showWorkingLine === next.showWorkingLine &&
     previous.isActiveTurn === next.isActiveTurn &&
     previous.isLastTurn === next.isLastTurn &&
+    previous.isLastVisibleTurn === next.isLastVisibleTurn &&
     previous.isFirstTurn === next.isFirstTurn &&
     previous.threadOrigin === next.threadOrigin &&
     previous.isIdle === next.isIdle &&

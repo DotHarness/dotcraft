@@ -18,6 +18,17 @@ export function useTranscriptItemDiff(itemId: string, enabled: boolean): FileDif
   return childThreadId == null ? conversationDiff : transcriptDiff
 }
 
+export function useTranscriptTurnHasFileChanges(turnId: string): boolean {
+  const childThreadId = useContext(TranscriptThreadContext)
+  const conversationHasChanges = useConversationStore((s) =>
+    childThreadId == null && (s.turnDiffs.get(turnId)?.files.length ?? 0) > 0
+  )
+  const transcriptHasChanges = useSubAgentTranscriptStore((s) =>
+    childThreadId != null && (s.transcripts.get(childThreadId)?.turnDiffs.get(turnId)?.files.length ?? 0) > 0
+  )
+  return childThreadId == null ? conversationHasChanges : transcriptHasChanges
+}
+
 export function useTranscriptItemDiffs(): ReadonlyMap<string, FileDiff> {
   const childThreadId = useContext(TranscriptThreadContext)
   const conversationDiffs = useConversationStore((s) => s.itemDiffs)

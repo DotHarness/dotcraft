@@ -23,6 +23,9 @@ public sealed partial class StreamingFunctionInvokingChatClient
         }
     }
 
+    private static bool HasNormalProviderStop(IEnumerable<ChatResponseUpdate> updates) =>
+        updates.LastOrDefault(update => update.FinishReason.HasValue)?.FinishReason == ChatFinishReason.Stop;
+
     private static bool HasEffectiveProviderOutput(IEnumerable<ChatResponseUpdate> updates)
     {
         foreach (var update in updates)

@@ -487,12 +487,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.DoesNotContain(updates, update => update.Text.Contains("done", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_ThrowsWhenPostToolProviderResponseContainsError()
+    [Theory]
+    [InlineData("provider failed")]
+    [InlineData("")]
+    public async Task GetStreamingResponseAsync_ThrowsWhenPostToolProviderResponseContainsError(string message)
     {
         var inner = new PostToolEmptyResponseFakeChatClient(
             emptyResponsesAfterTool: 0,
-            errorAfterTool: "provider failed");
+            errorAfterTool: message);
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
@@ -502,7 +504,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(async () =>
             await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
 
-        Assert.Contains("provider failed", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("error response after tool results", ex.Message, StringComparison.Ordinal);
         Assert.Equal(2, inner.Calls.Count);
     }
 
@@ -770,29 +772,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.NotNull(captured);
         Assert.Equal("GetStatus", captured.Function.Name);
         Assert.Null(StreamingFunctionInvokingChatClient.CurrentContext);
-    }
-
-    [Theory]
-    [InlineData("empty", "empty streaming response")]
-    [InlineData("usage", "assistant content")]
-    [InlineData("error", "provider returned an empty error response")]
-    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsNoAssistantContent(
-        string kind,
-        string expectedMessage)
-    {
-        AIContent[] contents = kind switch
-        {
-            "usage" => [new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 0 })],
-            "error" => [new ErrorContent("provider returned an empty error response")],
-            _ => []
-        };
-        var client = new StreamingFunctionInvokingChatClient(
-            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, contents)));
-
-        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
-            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
-
-        Assert.Contains(expectedMessage, ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1199,7 +1178,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                     new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())
                 ]);
             }
-            else if (!string.IsNullOrWhiteSpace(errorAfterTool))
+            else if (errorAfterTool is not null)
             {
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [new ErrorContent(errorAfterTool)]);
             }
