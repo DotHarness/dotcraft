@@ -300,6 +300,7 @@ function replaceRangeUndoably(editor: HTMLElement, range: Range, content?: Docum
   const selection = window.getSelection()
   if (!selection) return
   const total = linearLengthOfNode(editor)
+  const placeholder = total === 1 ? editor.querySelector('br') : null
   const following = total - (linearOffsetFromPoint(editor, range.endContainer, range.endOffset) ?? total)
   selection.removeAllRanges()
   selection.addRange(range)
@@ -310,7 +311,9 @@ function replaceRangeUndoably(editor: HTMLElement, range: Range, content?: Docum
   } else if (!range.collapsed) {
     document.execCommand('delete')
   }
-  const caret = locateLinearBoundary(editor, linearLengthOfNode(editor) - following)
+  // Chromium can remove an empty editor's placeholder BR while inserting content.
+  const remaining = placeholder && !editor.contains(placeholder) ? 0 : following
+  const caret = locateLinearBoundary(editor, linearLengthOfNode(editor) - remaining)
   selection.collapse(caret.node, caret.offset)
 }
 
