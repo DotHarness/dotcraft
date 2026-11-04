@@ -236,6 +236,26 @@ describe('ViewerTerminalManager', () => {
     expect(tabs[1]).toMatchObject({ cols: 132, rows: 50 })
   })
 
+  it('reports size changes at their place in the retained output', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    manager.createTab(win, { tabId: 'tab-1', threadId: 'thread-1', cwd: 'C:\\repo', cols: 80, rows: 24 })
+
+    onDataHandler?.('abc')
+    manager.resize(win, { tabId: 'tab-1', cols: 100, rows: 30 })
+    onDataHandler?.('def')
+
+    expect(manager.threadTabs(win, 'thread-1')[0]).toMatchObject({
+      cols: 80,
+      rows: 24,
+      resizes: [{ at: 3, cols: 100, rows: 30 }]
+    })
+
+    onDataHandler?.('x'.repeat(1_000_000))
+
+    expect(manager.threadTabs(win, 'thread-1')[0]).toMatchObject({ cols: 100, rows: 30, resizes: [] })
+  })
+
   it('moves tabs to the thread they are handed to', () => {
     const manager = new ViewerTerminalManager()
     const win = createMockWindow()

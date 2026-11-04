@@ -1,6 +1,19 @@
+import { release } from 'node:os'
 import { Terminal, type IBuffer } from '@xterm/headless'
 
 const SCROLLBACK_LINES = 10_000
+
+export interface TerminalResizeMark {
+  at: number
+  cols: number
+  rows: number
+}
+
+export interface TerminalScreenSizes {
+  cols: number
+  rows: number
+  resizes: TerminalResizeMark[]
+}
 
 export interface RenderedTerminal {
   lines: string[]
@@ -9,20 +22,29 @@ export interface RenderedTerminal {
 
 export function renderTerminalLines(
   data: string,
-  size: { cols: number; rows: number },
+  sizes: TerminalScreenSizes,
   outputTrimmed: boolean
 ): Promise<RenderedTerminal> {
   const terminal = new Terminal({
-    cols: size.cols,
-    rows: size.rows,
+    cols: sizes.cols,
+    rows: sizes.rows,
     scrollback: SCROLLBACK_LINES,
-    allowProposedApi: true
+    convertEol: true,
+    allowProposedApi: true,
+    ...(process.platform === 'win32'
+      ? { windowsPty: { backend: 'conpty' as const, buildNumber: Number(release().split('.')[2]) } }
+      : {})
   })
-  const replay = outputTrimmed ? fromFirstLineStart(data) : data
+  let replayed = outputTrimmed ? firstLineStart(data) : 0
+  for (const { at, cols, rows } of sizes.resizes) {
+    const end = Math.max(replayed, at)
+    terminal.write(data.slice(replayed, end), () => terminal.resize(cols, rows))
+    replayed = end
+  }
   return new Promise((resolve, reject) => {
-    terminal.write(replay, () => {
+    terminal.write(data.slice(replayed), () => {
       try {
-        const lost = outputTrimmed || terminal.buffer.normal.length >= SCROLLBACK_LINES + size.rows
+        const lost = outputTrimmed || terminal.buffer.normal.length >= SCROLLBACK_LINES + terminal.rows
         resolve({ lines: logicalLines(terminal.buffer.active), lost })
       } catch (error) {
         reject(error)
@@ -33,9 +55,8 @@ export function renderTerminalLines(
   })
 }
 
-function fromFirstLineStart(data: string): string {
-  const lineFeed = data.indexOf('\n')
-  return lineFeed < 0 ? data : data.slice(lineFeed + 1)
+function firstLineStart(data: string): number {
+  return data.indexOf('\n') + 1
 }
 
 function logicalLines(buffer: IBuffer): string[] {

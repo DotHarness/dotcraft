@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { spawn, type IPty } from '@lydell/node-pty'
 import { composeShellCommandLine, resolveShellCommand } from './terminalShell'
+import type { TerminalResizeMark, TerminalScreenSizes } from './terminalScreen'
 import type {
   TerminalAttachResult,
   TerminalCreateResult,
@@ -10,6 +11,7 @@ import type {
 const TERMINAL_DATA_CHANNEL = 'viewer:terminal:data'
 const TERMINAL_EXIT_CHANNEL = 'viewer:terminal:exit'
 const MAX_BUFFER_CHARS = 1_000_000
+const MAX_SIZE_MARKS = 64
 
 interface TerminalTabRuntime {
   tabId: string
@@ -21,19 +23,17 @@ interface TerminalTabRuntime {
   proc: IPty | null
   buffer: string
   outputTrimmed: boolean
-  cols: number
-  rows: number
+  outputChars: number
+  sizes: TerminalResizeMark[]
   order: number
   outputWaiters: Set<(event: TerminalWaitResult) => void>
   exited?: TerminalExitState
 }
 
-export interface TerminalTabSnapshot {
+export interface TerminalTabSnapshot extends TerminalScreenSizes {
   tabId: string
   title?: string
   cwd: string
-  cols: number
-  rows: number
   output: string
   outputTrimmed: boolean
 }
@@ -57,6 +57,15 @@ interface WindowRuntime {
 function trimBuffer(input: string): string {
   if (input.length <= MAX_BUFFER_CHARS) return input
   return input.slice(input.length - MAX_BUFFER_CHARS)
+}
+
+function screenSizes(tab: TerminalTabRuntime): TerminalScreenSizes {
+  const marks = tab.sizes.map((mark) => ({
+    ...mark,
+    at: Math.max(0, tab.buffer.length - (tab.outputChars - mark.at))
+  }))
+  const start = Math.max(0, marks.findLastIndex((mark) => mark.at === 0))
+  return { cols: marks[start].cols, rows: marks[start].rows, resizes: marks.slice(start + 1) }
 }
 
 function notifyWaiters(tab: TerminalTabRuntime, event: TerminalWaitResult): void {
@@ -123,9 +132,12 @@ export class ViewerTerminalManager {
   resize(win: BrowserWindow, params: { tabId: string; cols: number; rows: number }): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab?.proc) return
-    tab.cols = Math.max(2, Math.round(params.cols))
-    tab.rows = Math.max(2, Math.round(params.rows))
-    tab.proc.resize(tab.cols, tab.rows)
+    const cols = Math.max(2, Math.round(params.cols))
+    const rows = Math.max(2, Math.round(params.rows))
+    tab.proc.resize(cols, rows)
+    if (tab.sizes.at(-1)?.at === tab.outputChars) tab.sizes.pop()
+    tab.sizes.push({ at: tab.outputChars, cols, rows })
+    if (tab.sizes.length > MAX_SIZE_MARKS) tab.sizes.shift()
   }
 
   threadTabs(win: BrowserWindow, threadId: string): TerminalTabSnapshot[] {
@@ -137,8 +149,7 @@ export class ViewerTerminalManager {
         tabId: tab.tabId,
         ...(tab.title ? { title: tab.title } : {}),
         cwd: tab.cwd,
-        cols: tab.cols,
-        rows: tab.rows,
+        ...screenSizes(tab),
         output: tab.buffer,
         outputTrimmed: tab.outputTrimmed
       }))
@@ -223,8 +234,8 @@ export class ViewerTerminalManager {
       proc,
       buffer: '',
       outputTrimmed: false,
-      cols,
-      rows,
+      outputChars: 0,
+      sizes: [{ at: 0, cols, rows }],
       order,
       outputWaiters: new Set()
     }
@@ -251,6 +262,7 @@ export class ViewerTerminalManager {
       const output = `${tab.buffer}${data}`
       tab.buffer = trimBuffer(output)
       if (tab.buffer.length < output.length) tab.outputTrimmed = true
+      tab.outputChars += data.length
       emitTerminalData(win, { tabId: tab.tabId, data })
       notifyWaiters(tab, 'output')
     })

@@ -3,7 +3,7 @@ import { listTerminalTabsTool, readTerminalTool, type DesktopTerminalHost } from
 import type { TerminalTabSnapshot } from '../viewerTerminal'
 
 function snapshot(tabId: string, output: string, extra: Partial<TerminalTabSnapshot> = {}): TerminalTabSnapshot {
-  return { tabId, cwd: '/workspace', cols: 80, rows: 24, output, outputTrimmed: false, ...extra }
+  return { tabId, cwd: '/workspace', cols: 80, rows: 24, resizes: [], output, outputTrimmed: false, ...extra }
 }
 
 function hostWith(byThread: Record<string, TerminalTabSnapshot[]>): DesktopTerminalHost {
@@ -89,6 +89,23 @@ describe('ReadTerminal', () => {
     const text = textOf(await readTerminalTool(host, 'thread-1', {}))
     expect(text).toContain('top - load average 0.42')
     expect(text).not.toContain('line 1')
+  })
+
+  it('applies size changes where they happened in the output', async () => {
+    const output = '\x1b[?1049hone\r\ntwo\r\nthree'
+    const host = hostWith({
+      'thread-1': [snapshot('primary', output, { rows: 2, resizes: [{ at: output.length, cols: 80, rows: 4 }] })]
+    })
+
+    const text = textOf(await readTerminalTool(host, 'thread-1', {}))
+    expect(text).toContain('two\nthree')
+    expect(text).not.toContain('one')
+  })
+
+  it('returns bare line feeds at the start of the line, as the visible terminal shows them', async () => {
+    const host = hostWith({ 'thread-1': [snapshot('primary', 'first\nsecond\n')] })
+
+    expect(textOf(await readTerminalTool(host, 'thread-1', {}))).toBe('first\nsecond')
   })
 
   it('drops the partial first line of trimmed output', async () => {
