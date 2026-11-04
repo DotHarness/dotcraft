@@ -46,14 +46,32 @@ public sealed class ProviderUsageSourceTests : IDisposable
         Assert.Empty(source.Requests);
     }
 
+    [Fact]
+    public async Task ASourceThatIgnoresCancellationTimesOutAndLaterSourcesAreAsked()
+    {
+        var stalled = new StalledSource();
+        var reporting = new Source(_ => Snapshot());
+        _registry.Add<IProviderUsageSource>(stalled);
+        _registry.Add<IProviderUsageSource>(reporting, new ContributionOptions(Order: 1));
+        var time = new ManualTime();
+        await using var auth = Coordinator(time);
+
+        var read = auth.ReadUsageAsync(Config("https://proxy.example/v1"), "proxy", default);
+        await stalled.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        time.Advance(TimeSpan.FromSeconds(15));
+
+        Assert.NotNull(await read.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Single(reporting.Requests);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
             Directory.Delete(_root, recursive: true);
     }
 
-    private ProviderAuthenticationCoordinator Coordinator() =>
-        new(new ModelBackendResolver(new ModelProviderRegistry([]), _registry, _root), new HttpClient(new FailingHandler()));
+    private ProviderAuthenticationCoordinator Coordinator(TimeProvider? time = null) =>
+        new(new ModelBackendResolver(new ModelProviderRegistry([]), _registry, _root), new HttpClient(new FailingHandler()), time);
 
     private AppConfig Config(string endpoint, string apiKey = "sk-test") => new()
     {
@@ -75,6 +93,68 @@ public sealed class ProviderUsageSourceTests : IDisposable
         {
             Requests.Add(request);
             return Task.FromResult(read(request));
+        }
+    }
+
+    private sealed class StalledSource : IProviderUsageSource
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ProviderUsageSnapshot?> ReadUsageAsync(ProviderUsageRequest request, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            return new TaskCompletionSource<ProviderUsageSnapshot?>().Task;
+        }
+    }
+
+    private sealed class ManualTime : TimeProvider
+    {
+        private readonly List<ManualTimer> _timers = [];
+        private TimeSpan _elapsed;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state);
+            timer.Change(dueTime, period);
+            lock (_timers) _timers.Add(timer);
+            return timer;
+        }
+
+        public void Advance(TimeSpan by)
+        {
+            ManualTimer[] due;
+            lock (_timers)
+            {
+                _elapsed += by;
+                due = _timers.Where(timer => timer.DueAt <= _elapsed).ToArray();
+            }
+            foreach (var timer in due)
+                timer.Fire();
+        }
+
+        private sealed class ManualTimer(ManualTime owner, TimerCallback callback, object? state) : ITimer
+        {
+            public TimeSpan DueAt { get; private set; } = TimeSpan.MaxValue;
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                DueAt = dueTime == Timeout.InfiniteTimeSpan ? TimeSpan.MaxValue : owner._elapsed + dueTime;
+                return true;
+            }
+
+            public void Fire()
+            {
+                DueAt = TimeSpan.MaxValue;
+                callback(state);
+            }
+
+            public void Dispose() => DueAt = TimeSpan.MaxValue;
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
         }
     }
 
