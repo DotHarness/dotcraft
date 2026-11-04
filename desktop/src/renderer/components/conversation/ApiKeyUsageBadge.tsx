@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useProviderUsage, useProvidersStore, type ProviderSummary } from '../../stores/providersStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ProviderMark } from '../ui/ProviderMark'
+import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
+import { PluginUsageIcon } from './PluginUsageIcon'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
-import styles from './OpenRouterUsageBadge.module.css'
+import styles from './ApiKeyUsageBadge.module.css'
 
-export function OpenRouterUsageBadge({ provider }: { provider: ProviderSummary }): JSX.Element {
+export function ApiKeyUsageBadge({ provider, markKind }: { provider: ProviderSummary; markKind: ProviderMarkKind | null }): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const usage = useProviderUsage(provider.id)
@@ -39,12 +40,14 @@ export function OpenRouterUsageBadge({ provider }: { provider: ProviderSummary }
     <ActionTooltip label={open ? '' : `${provider.displayName}: ${label}`} placement="top">
       <button type="button" className={`dc-composer-pill ${styles.badge}`} aria-haspopup="dialog"
         aria-expanded={open} aria-label={`${provider.displayName}: ${label}`} onClick={() => setOpen(!open)}>
-        <ProviderMark kind="openrouter" size={16} />
+        {markKind
+          ? <ProviderMark kind={markKind} size={16} />
+          : <PluginUsageIcon pluginId={usage?.pluginId ?? null} size={16} />}
         {formatted ? <><span>{formatted}</span><span className={styles.suffix}>{suffix}</span></> : <span>{label}</span>}
       </button>
     </ActionTooltip>
     {open && <div className={styles.popover}>
-      <ProviderUsagePopover title={provider.displayName} usage={usage} markKind="openrouter" />
+      <ProviderUsagePopover title={provider.displayName} usage={usage} markKind={markKind ?? undefined} />
     </div>}
   </div>
 }

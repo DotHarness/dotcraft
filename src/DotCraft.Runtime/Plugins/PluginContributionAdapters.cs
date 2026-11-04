@@ -22,6 +22,8 @@ internal static class PluginContributionAdapters
         {
             IModelBackendSource value when typeof(TContract) == typeof(IModelBackendSource) =>
                 new PluginModelBackendSourceAdapter(value, invocation),
+            IProviderUsageSource value when typeof(TContract) == typeof(IProviderUsageSource) =>
+                new ProviderUsageSourceAdapter(value, invocation),
             ISystemPromptSection value when typeof(TContract) == typeof(ISystemPromptSection) =>
                 new SystemPromptSectionAdapter(value, invocation),
             ISystemPromptAssembler value when typeof(TContract) == typeof(ISystemPromptAssembler) =>
@@ -350,6 +352,22 @@ internal static class PluginContributionAdapters
             ThreadRuntimeSignalContext context,
             CancellationToken cancellationToken = default) =>
             invocation.InvokeAsync(() => _target.Value.OnThreadRuntimeSignalAsync(context, cancellationToken));
+    }
+
+    private sealed class ProviderUsageSourceAdapter(
+        IProviderUsageSource target,
+        PluginInvocation invocation) : IProviderUsageSource
+    {
+        private readonly PluginTarget<IProviderUsageSource> _target = invocation.Capture(target);
+
+        public Task<ProviderUsageSnapshot?> ReadUsageAsync(ProviderUsageRequest request, CancellationToken cancellationToken) =>
+            invocation.InvokeAsync(new Func<Task<ProviderUsageSnapshot?>>(async () =>
+            {
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, invocation.Stopping);
+                return HostOwned(
+                    await _target.Value.ReadUsageAsync(request, linked.Token).ConfigureAwait(false),
+                    "provider usage");
+            }));
     }
 
     private sealed class CommitMessageSuggesterAdapter(

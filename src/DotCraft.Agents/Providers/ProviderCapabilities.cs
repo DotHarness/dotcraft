@@ -66,7 +66,8 @@ public sealed record ProviderUsageSnapshot(
     ProviderRateLimitWindow? Secondary = null,
     ProviderCreditStatus? Credits = null,
     string? LimitReachedKind = null,
-    IReadOnlyList<ProviderBalance>? Balances = null);
+    IReadOnlyList<ProviderBalance>? Balances = null,
+    string? PluginId = null);
 
 public sealed record ProviderRateLimitWindow(
     int UsedPercent,

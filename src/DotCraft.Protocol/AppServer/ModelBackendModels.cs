@@ -113,6 +113,7 @@ public sealed class ProviderAuthUsageResult
     [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
     [JsonPropertyName("balances")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<ProviderAuthUsageBalance>? Balances { get; init; }
     [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
+    [JsonPropertyName("pluginId")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PluginId { get; init; }
 }
 
 public sealed class ProviderAuthUsageUpdatedNotification
@@ -126,6 +127,7 @@ public sealed class ProviderAuthUsageUpdatedNotification
     [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
     [JsonPropertyName("balances")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<ProviderAuthUsageBalance>? Balances { get; init; }
     [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
+    [JsonPropertyName("pluginId")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PluginId { get; init; }
 }
 
 public sealed class ProviderAuthUsageWindow

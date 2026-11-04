@@ -20,7 +20,8 @@ public static class ProviderUsageMapping
                 Secondary = ToWire(snapshot.Secondary),
                 Credits = ToWire(snapshot.Credits),
                 Balances = snapshot.Balances?.Select(balance => ToWire(balance)).ToArray(),
-                LimitReachedKind = snapshot.LimitReachedKind
+                LimitReachedKind = snapshot.LimitReachedKind,
+                PluginId = snapshot.PluginId
             };
 
     public static IReadOnlyList<Contract.ProviderAuthUsageUpdatedNotification> ToChatGptNotifications(
@@ -44,7 +45,8 @@ public static class ProviderUsageMapping
             Secondary = result.Secondary,
             Credits = result.Credits,
             Balances = result.Balances,
-            LimitReachedKind = result.LimitReachedKind
+            LimitReachedKind = result.LimitReachedKind,
+            PluginId = result.PluginId
         };
     }
 

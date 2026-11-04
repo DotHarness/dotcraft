@@ -138,6 +138,19 @@ internal static class DotNetPluginSampleEffects
         var backendResponse = await backendClient.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
         Assert.Equal("review-backend:hello", backendResponse.Text);
         ledger.Prove<IModelBackendSource>();
+
+        await using var authentication = new ProviderAuthenticationCoordinator(resolver);
+        var gateway = new DotCraft.Configuration.AppConfig
+        {
+            Providers = new()
+            {
+                ["review-gateway"] = new() { Protocol = "anthropic", EndPoint = "https://review.example/v1", ApiKey = "sk-review" }
+            }
+        };
+        var usage = await authentication.ReadUsageAsync(gateway, "review-gateway", default);
+        Assert.Equal(ProviderId, usage?.PluginId);
+        Assert.Equal(8.5, usage!.Values["limit_remaining"]);
+        ledger.Prove<IProviderUsageSource>();
     }
 
     /// <summary>Both bundles' Tools dispatch, and the four dispatch stages change what dispatch does.</summary>

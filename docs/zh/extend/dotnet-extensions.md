@@ -203,6 +203,19 @@ Desktop 把后端实例与其他提供商列在一起，用同一个提供商编
 请求、鉴权和生命周期要求见
 [后端契约](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)。
 
+## 报告提供商用量 {#report-provider-usage}
+
+实现 `IProviderUsageSource` 并在激活期间注册，即可为内置的 API Key 提供商报告账户用量，例如 DotCraft
+没有对应后端的内部网关。宿主调用 `ReadUsageAsync` 时传入提供商 ID、协议、端点和密钥。
+遇到无法识别的提供商时返回 `null`。上游读取的缓存由插件自己负责。
+
+要报告密钥的消费情况，返回 `labels` `scope: "apiKey"` 和 `currency: "USD"`，并在 `values` 中提供
+`usage`、`limit` 和 `limit_remaining`。Desktop 会在输入框状态栏用插件的 `composerIcon` 显示剩余额度，
+并在每轮对话结束后刷新。
+
+哪些提供商会询问用量来源、结果如何选取，见
+[提供商用量](https://github.com/DotHarness/dotcraft/blob/main/specs/protocols/provider-auth.md#usage)。
+
 ## 编写强类型工具 {#write-typed-tools}
 
 插件工具与内置工具使用同一套生成方法包装器。工作区配置与服务放在构造函数里，JSON 参数与默认值交给生成器处理。`AIFunctionToolSource` 提供注册，宿主负责赋予插件的 `PluginNative` 身份与 generation 生命周期。普通强类型工具不需要实现 `IToolRuntime`，也不需要手工解析 `JsonObject`。

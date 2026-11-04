@@ -51,6 +51,7 @@ internal static class DotNetPluginSampleCoverage
         Effect<ICompactableToolPolicy>("CompactableToolPolicyCatalog.IsCompactable answering true for a plugin Tool the built-in allow-list defers on."),
         Effect<IChatMiddleware>("A model call driven through the folded pipeline reaching the inner client and being observed on the way."),
         Effect<IModelBackendSource>("A configured backend creates a chat client through the host runtime resolver."),
+        Effect<IProviderUsageSource>("The usage ProviderAuthenticationCoordinator reads for a provider on the sample gateway, attributed to the plugin."),
         Effect<IToolSource>("Both bundles' Tools dispatching to a result through ToolDispatcher."),
         Effect<IToolPolicyEvaluator>("A dispatch denied with the plugin's own code while its settings freeze Tools."),
         Effect<IToolApprovalEvaluator>("A dispatch denied without the acknowledgement argument and allowed with it."),
