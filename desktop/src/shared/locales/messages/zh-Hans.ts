@@ -3571,9 +3571,10 @@ export const MESSAGES_ZH_HANS = {
   'detailPanel.launcherPlanDesc': '查看计划与待办',
   'detailPanel.launcherSubagentsTitle': '子智能体',
   'detailPanel.launcherSubagentsDesc': '查看后台智能体',
+  'detailPanel.launcherBoardDesc': '查看共享讨论',
   'detailPanel.addTabSideChat': '侧边聊天',
   'detailPanel.launcherSideChatTitle': '侧边聊天',
-  'detailPanel.launcherSideChatDesc': '快速提问，不打断会话',
+  'detailPanel.launcherSideChatDesc': '快速提问',
   'detailPanel.launcherTerminalTitle': '终端',
   'detailPanel.launcherTerminalDesc': '启动交互式终端',
   // 查看器头部的打开按钮（打开当前文件，而非工作区）

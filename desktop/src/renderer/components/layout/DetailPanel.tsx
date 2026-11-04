@@ -90,6 +90,7 @@ export function DetailPanel({
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
 
   const systemTabsAvailable = activeThreadId != null
+  const canOpenBoard = systemTabsAvailable && boardAvailable && !openSystemTabs.includes('board')
   const systemTabs = systemTabsAvailable ? openSystemTabs : []
   const canOpenWorkspaceTab = Boolean(currentThreadId && workspacePath)
   const activeSystemId = activeDetailTab.kind === 'system' && systemTabsAvailable ? activeDetailTab.id : null
@@ -186,7 +187,7 @@ export function DetailPanel({
               label: t('detailPanel.tabSubagents'),
               enabled: true
             }]),
-        ...(!systemTabsAvailable || !boardAvailable || openSystemTabs.includes('board')
+        ...(!canOpenBoard
           ? []
           : [{
               action: 'newBoard' as const,
@@ -378,6 +379,7 @@ export function DetailPanel({
             onAction={handleAddTabAction}
             canOpenWorkspaceTab={canOpenWorkspaceTab}
             systemTabsAvailable={systemTabsAvailable}
+            canOpenBoard={canOpenBoard}
             canOpenSideChat={sideChatAvailable}
             remoteWorkspace={remoteWorkspace}
           />

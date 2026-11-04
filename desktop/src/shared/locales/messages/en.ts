@@ -3695,9 +3695,10 @@ export const MESSAGES_EN = {
   'detailPanel.launcherPlanDesc': 'View plans and to-dos',
   'detailPanel.launcherSubagentsTitle': 'Subagents',
   'detailPanel.launcherSubagentsDesc': 'View background agents',
+  'detailPanel.launcherBoardDesc': 'View shared discussions',
   'detailPanel.addTabSideChat': 'Side chat',
   'detailPanel.launcherSideChatTitle': 'Side chat',
-  'detailPanel.launcherSideChatDesc': 'Ask a quick question without interrupting the thread',
+  'detailPanel.launcherSideChatDesc': 'Ask a quick question',
   'detailPanel.launcherTerminalTitle': 'Terminal',
   'detailPanel.launcherTerminalDesc': 'Start an interactive shell',
   // Viewer header open button (opens the current file, not the workspace)

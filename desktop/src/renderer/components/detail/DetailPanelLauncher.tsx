@@ -14,6 +14,7 @@ interface DetailPanelLauncherProps {
   onAction: (action: AddTabMenuAction) => void
   canOpenWorkspaceTab: boolean
   systemTabsAvailable: boolean
+  canOpenBoard?: boolean
   canOpenSideChat?: boolean
   /** Remote stacks do not yet expose Desktop-local file, diff, or terminal IPC. */
   remoteWorkspace?: boolean
@@ -32,6 +33,7 @@ export function DetailPanelLauncher({
   onAction,
   canOpenWorkspaceTab,
   systemTabsAvailable,
+  canOpenBoard = false,
   canOpenSideChat = false,
   remoteWorkspace = false
 }: DetailPanelLauncherProps): JSX.Element {
@@ -79,6 +81,13 @@ export function DetailPanelLauncher({
       icon: <Bot size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       enabled: true
     },
+    ...(canOpenBoard ? [{
+      action: 'newBoard' as const,
+      title: t('detailPanel.tabBoard'),
+      description: t('detailPanel.launcherBoardDesc'),
+      icon: <MessagesSquare size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
+      enabled: true
+    }] : []),
     {
       action: 'newSideChat',
       title: t('detailPanel.launcherSideChatTitle'),

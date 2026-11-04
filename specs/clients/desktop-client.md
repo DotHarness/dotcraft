@@ -400,7 +400,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 
 **Discussion board**
 
-- The detail panel's Board system tab shows the active thread's shared discussion board (`subagent/board/*`) read-only. It opens from the add-tab menu or from a board link in the conversation, and shows no unread state or count.
+- The detail panel's Board system tab shows the active thread's shared discussion board (`subagent/board/*`) read-only. It opens from the detail-panel launcher card, the add-tab menu, or a board link in the conversation, and shows no unread state or count. The launcher card and add-tab menu share availability: an active thread, `capabilities.subAgentSessions`, and no already-open Board tab.
 - Topics are listed newest activity first, one row each: the opening agent's avatar, the opening post's first line and its time, then channel, author, and reply count. Channel filters narrow the list. An open topic shows its posts oldest first with author, named recipients, and time; a wide panel shows the list and the open topic side by side.
 - In a board tool row, the channel name, or the title of a topic read, links to that topic: it opens the Board tab on it and marks the post the row refers to. The row itself still expands, and agent names still open the agent.
 - The tab reloads when it opens and on `subagent/board/changed` for the thread's root. Without `capabilities.subAgentSessions` it is unavailable and board names are not links.
