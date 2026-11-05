@@ -101,8 +101,16 @@ internal static class HubProcessStopper
         try
         {
             var actualStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+            var hostPath = executable;
+            if (Path.GetExtension(executable).Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!SamePath(executable, typeof(HubProcessStopper).Assembly.Location)
+                    || Environment.ProcessPath is not { } currentHost)
+                    return false;
+                hostPath = currentHost;
+            }
             return Math.Abs((actualStartedAt - startedAt).TotalMilliseconds) < 1
-                && SamePath(process.MainModule?.FileName, executable);
+                && SamePath(process.MainModule?.FileName, hostPath);
         }
         catch (InvalidOperationException) { return false; }
         catch (System.ComponentModel.Win32Exception) { return false; }

@@ -93,7 +93,7 @@ export class DesktopApplication implements DesktopApplicationServices {
       exit: this.exitFromTray
     })
     await this.manager.routeLaunch(argv, true)
-    if (this.settings.connectionMode !== 'remote' && !hasRemoteEndpointArg(argv)) this.localProjects.start()
+    if (!hasRemoteEndpointArg(argv)) this.localProjects.start()
     void this.tray.refresh()
     this.updateTimer = setTimeout(() => this.getAppUpdateService().start(), 1_200)
     this.updateTimer.unref()

@@ -55,8 +55,8 @@ export async function teardownRuntime(
     if (win) unregisterIpcHandlers(win)
     ctx.sshMachinesManager?.dispose()
     ctx.sshMachinesManager = null
-    if (win) await nodeReplManager.disposeOwner(win.webContents.id)
   }
+  if (win) await nodeReplManager.disposeOwner(win.webContents.id)
   if (win) getChannelModuleManager(win)?.dispose()
   ctx.hubEventAbortController?.abort()
   ctx.hubEventAbortController = null
