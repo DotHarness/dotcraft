@@ -1836,6 +1836,7 @@ function InputComposerCore({
                 visible={showMentionPopover}
                 workspacePath={effectiveFileWorkspacePath}
                 onSelect={onSelectFile}
+                onComplete={(query) => { richRef.current?.completeAtQuery(query) }}
                 onDismiss={() => {
                   setMentionDismissed(true)
                 }}

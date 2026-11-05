@@ -15,10 +15,11 @@ import {
  */
 export function paintFileRefIcon(target: HTMLElement, path: string, size = 14): void {
   void ensureVscodeIcons()
+  const dir = isFolderReference(path)
 
   const paintColored = (): boolean => {
     if (!areVscodeIconsReady()) return false
-    const data = getIcon(fileIconName(path))
+    const data = getIcon(fileIconName(path, { dir }))
     if (!data) return false
     // getIcon returns a fully-resolved icon (left/top/width/height always set);
     // mirror Iconify's own viewBox so the glyph frames exactly like <FileTypeIcon>.
@@ -34,10 +35,27 @@ export function paintFileRefIcon(target: HTMLElement, path: string, size = 14): 
 
   if (paintColored()) return
 
-  target.innerHTML = fallbackFileSvg(size)
+  target.innerHTML = dir ? fallbackFolderSvg(size) : fallbackFileSvg(size)
   const unsubscribe = subscribeVscodeIconsReady(() => {
     if (paintColored()) unsubscribe()
   })
+}
+
+export function isFolderReference(path: string): boolean {
+  return /[/\\]$/.test(path)
+}
+
+export function referenceBaseName(path: string): string {
+  const trimmed = path.replace(/[/\\]+$/, '')
+  return trimmed.split(/[/\\]/).pop() || trimmed
+}
+
+function fallbackFolderSvg(size: number): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" ` +
+    `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ` +
+    `aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`
+  )
 }
 
 function fallbackFileSvg(size: number): string {

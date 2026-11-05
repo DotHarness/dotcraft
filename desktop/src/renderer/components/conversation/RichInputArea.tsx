@@ -45,6 +45,7 @@ export interface RichInputAreaHandle {
   removeCommandQuery: () => void
   insertFileTag: (relativePath: string) => void
   insertFileTagAtSelection: (relativePath: string) => void
+  completeAtQuery: (query: string) => void
   insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
   insertThreadTag: (threadId: string, title: string) => void
@@ -641,6 +642,30 @@ export const RichInputArea = forwardRef(function RichInputArea(
       [replaceQueryRangeWithRef]
     )
 
+    const completeAtQuery = useCallback(
+      (query: string): void => {
+        const el = editorRef.current
+        if (!el) return
+        const parsed = parseAtQuery(textBeforeCaretForTriggers(el))
+        const targetRange = parsed ? queryRange(parsed, '@') : null
+        if (!targetRange) return
+        const startLoc = locateLinearBoundary(el, targetRange.start)
+        const endLoc = locateLinearBoundary(el, targetRange.end)
+        const range = document.createRange()
+        range.setStart(startLoc.node, startLoc.offset)
+        range.setEnd(endLoc.node, endLoc.offset)
+        const frag = document.createDocumentFragment()
+        frag.appendChild(document.createTextNode(`@${query}`))
+        replaceRangeUndoably(el, range, frag)
+        captureSelectionRange()
+        onAtQuery?.(query)
+        syncEmpty()
+        adjustHeight()
+        onContentChange?.()
+      },
+      [adjustHeight, captureSelectionRange, onAtQuery, onContentChange, queryRange, syncEmpty]
+    )
+
     const insertThreadTag = useCallback(
       (threadId: string, title: string): void => {
         const el = editorRef.current
@@ -786,6 +811,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         removeCommandQuery,
         insertFileTag,
         insertFileTagAtSelection,
+        completeAtQuery,
         insertCommandTag,
         insertSkillTag,
         insertThreadTag,
@@ -806,6 +832,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         insertCommandTag,
         insertFileTag,
         insertFileTagAtSelection,
+        completeAtQuery,
         insertSkillTag,
         insertThreadTag,
         insertThreadTagAtSelection,

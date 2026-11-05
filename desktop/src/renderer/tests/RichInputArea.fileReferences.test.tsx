@@ -49,6 +49,26 @@ describe('file references at the saved composer selection', () => {
     expect(manualParts.inputParts).toContainEqual({ type: 'fileRef', path, displayPath: path })
   })
 
+  it('completes a folder query in place, then submits the folder as a file reference', () => {
+    const onAtQuery = vi.fn()
+    const ref = createRef<RichInputAreaHandle>()
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} onAtQuery={onAtQuery} />)
+    act(() => {
+      ref.current!.setPlainText('Check @do')
+      ref.current!.setSelectionRange({ start: 9, end: 9 })
+      ref.current!.completeAtQuery('docs/')
+    })
+
+    expect(ref.current!.getText()).toBe('Check @docs/')
+    expect(onAtQuery).toHaveBeenLastCalledWith('docs/')
+
+    act(() => {
+      ref.current!.insertFileTag('docs/')
+    })
+    const parts = buildComposerInputParts({ text: ref.current!.getText(), segments: ref.current!.getSegments() })
+    expect(parts.inputParts).toContainEqual({ type: 'fileRef', path: 'docs/', displayPath: 'docs/' })
+  })
+
   it('captures a moved caret on blur and inserts in the middle instead of appending', () => {
     const { ref, onContentChange } = fixture()
     act(() => {

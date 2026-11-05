@@ -64,7 +64,7 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
         owner.webContents.id
       )
       const limit = Math.min(20, Math.max(1, params.limit ?? 10))
-      return listWorkspaceFiles(root, params.query, limit, owner.webContents.id)
+      return listWorkspaceFiles(root, params.query, limit, owner.webContents.id, { includeDirectories: true })
     }
   )
 

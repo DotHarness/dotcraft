@@ -3,7 +3,7 @@ import { MessagesSquare } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import type { ThreadSummary } from '../../types/thread'
-import { fuzzyRank } from '../../utils/fuzzyMatch'
+import { fuzzyScore } from '../../utils/fuzzyMatch'
 import { searchThreadMentions, threadMentionTitle } from '../../utils/threadReferences'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -20,12 +20,15 @@ import {
 
 const DEBOUNCE_MS = 80
 const INDEX_POLL_MS = 1500
-const MAX_RESULTS = 8
+const MAX_RESULTS = 15
+const EMPTY_QUERY_FILE_LIMIT = 8
 
 export interface FileMatch {
   name: string
   relativePath: string
   dir: string
+  kind?: 'file' | 'dir'
+  positions?: number[]
 }
 
 type IndexStatus = 'empty' | 'building' | 'ready'
@@ -37,6 +40,7 @@ interface FileSearchPopoverProps {
   visible: boolean
   workspacePath: string
   onSelect: (relativePath: string) => void
+  onComplete: (query: string) => void
   onDismiss: () => void
   threadMentions?: ThreadMentionSource
 }
@@ -46,6 +50,7 @@ export function FileSearchPopover({
   visible,
   workspacePath,
   onSelect,
+  onComplete,
   onDismiss,
   threadMentions
 }: FileSearchPopoverProps): JSX.Element | null {
@@ -70,14 +75,7 @@ export function FileSearchPopover({
       : searchThreadMentions(threadList, query, excludedKey.split('\0'), contentSearch.threads),
     [contentSearch.threads, excludedKey, query, threadList]
   )
-  const entries = useMemo(
-    () => fuzzyRank<MentionEntry>(
-      [...files.map((file) => ({ kind: 'file' as const, file })), ...threads.map((thread) => ({ kind: 'thread' as const, thread }))],
-      query,
-      (entry) => entry.kind === 'file' ? [entry.file.name, entry.file.relativePath] : [threadMentionTitle(entry.thread)]
-    ).slice(0, MAX_RESULTS),
-    [files, query, threads]
-  )
+  const entries = useMemo(() => mergeMentionEntries(files, threads, query), [files, query, threads])
   const entryCount = entries.length
 
   const clearPoll = useCallback((): void => {
@@ -97,12 +95,11 @@ export function FileSearchPopover({
         const res = await window.api.workspace.searchFiles({
           query: q,
           workspacePath,
-          limit: 10
+          limit: trimmed ? MAX_RESULTS : EMPTY_QUERY_FILE_LIMIT
         })
         if (id !== lastReq.current) return
         const status: IndexStatus = res.indexStatus ?? 'ready'
-        // An empty query lists no files but still reports the index status.
-        setFiles(trimmed ? (res.files ?? []) : [])
+        setFiles(res.files ?? [])
         setIndexStatus(status)
         setIndexedCount(res.indexedCount ?? 0)
         clearPoll()
@@ -178,12 +175,13 @@ export function FileSearchPopover({
         e.stopPropagation()
         const entry = entries[highlight]
         if (entry?.kind === 'thread') threadMentions?.onSelect(entry.thread)
-        else if (entry) onSelect(entry.file.relativePath)
+        else if (entry && e.key === 'Tab' && entry.file.kind === 'dir') onComplete(fileReferencePath(entry.file))
+        else if (entry) onSelect(fileReferencePath(entry.file))
       }
     }
     window.addEventListener('keydown', onKey, true)
     return () => { window.removeEventListener('keydown', onKey, true) }
-  }, [visible, entryCount, entries, highlight, onSelect, onDismiss, threadMentions])
+  }, [visible, entryCount, entries, highlight, onSelect, onComplete, onDismiss, threadMentions])
 
   if (!visible) return null
 
@@ -230,22 +228,26 @@ export function FileSearchPopover({
           </span>
         </button>
       ) : (
-        <ActionTooltip key={`file:${entry.file.relativePath}`} label={entry.file.relativePath} wrapperStyle={{ display: 'block', width: '100%' }}>
+        <ActionTooltip key={`${entry.file.kind ?? 'file'}:${entry.file.relativePath}`} label={fileReferencePath(entry.file)} wrapperStyle={{ display: 'block', width: '100%' }}>
         <button
           type="button"
           role="option"
           data-entry-index={i}
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
-          onClick={() => { onSelect(entry.file.relativePath) }}
+          onClick={() => { onSelect(fileReferencePath(entry.file)) }}
           className="dotcraft-sidebar-row-radius"
           style={mentionRowStyle(i === highlight)}
         >
           <MentionRowIcon>
-            <FileTypeIcon path={entry.file.relativePath} size={16} />
+            <FileTypeIcon path={entry.file.relativePath} dir={entry.file.kind === 'dir'} size={16} />
           </MentionRowIcon>
-          <span style={mentionRowNameStyle}>{highlightMatch(entry.file.name, query)}</span>
-          <span style={mentionRowDescStyle}>{entry.file.dir || '.'}</span>
+          <span style={mentionRowNameStyle}>
+            {highlightPositions(entry.file.name, entry.file.relativePath.length - entry.file.name.length, entry.file.positions)}
+          </span>
+          <span style={mentionRowDescStyle}>
+            {entry.file.dir ? highlightPositions(entry.file.dir, 0, entry.file.positions) : '.'}
+          </span>
         </button>
         </ActionTooltip>
       ))}
@@ -281,6 +283,50 @@ function IndexingState({ label }: { label: string }): JSX.Element {
       </div>
     </div>
   )
+}
+
+function fileReferencePath(file: FileMatch): string {
+  return file.kind === 'dir' ? `${file.relativePath}/` : file.relativePath
+}
+
+function mergeMentionEntries(files: FileMatch[], threads: ThreadSummary[], query: string): MentionEntry[] {
+  const fileEntries: MentionEntry[] = files.map((file) => ({ kind: 'file', file }))
+  const threadEntries: MentionEntry[] = threads.map((thread) => ({ kind: 'thread', thread }))
+  if (!query.trim()) return [...fileEntries, ...threadEntries].slice(0, MAX_RESULTS)
+  const score = (entry: MentionEntry): number => Math.max(1, entry.kind === 'file'
+    ? Math.max(fuzzyScore(entry.file.name, query), fuzzyScore(entry.file.relativePath, query))
+    : fuzzyScore(threadMentionTitle(entry.thread), query))
+  const merged: MentionEntry[] = []
+  let fileIndex = 0
+  let threadIndex = 0
+  while (merged.length < MAX_RESULTS && (fileIndex < fileEntries.length || threadIndex < threadEntries.length)) {
+    const file = fileEntries[fileIndex]
+    const thread = threadEntries[threadIndex]
+    if (file && (!thread || score(file) >= score(thread))) {
+      merged.push(file)
+      fileIndex += 1
+    } else if (thread) {
+      merged.push(thread)
+      threadIndex += 1
+    }
+  }
+  return merged
+}
+
+function highlightPositions(text: string, offset: number, positions: number[] | undefined): JSX.Element {
+  const marked = new Set((positions ?? []).map((at) => at - offset).filter((at) => at >= 0 && at < text.length))
+  if (marked.size === 0) return <>{text}</>
+  const parts: JSX.Element[] = []
+  let start = 0
+  while (start < text.length) {
+    const highlighted = marked.has(start)
+    let end = start + 1
+    while (end < text.length && marked.has(end) === highlighted) end += 1
+    const part = text.slice(start, end)
+    parts.push(highlighted ? <span key={start} style={{ color: 'var(--accent)' }}>{part}</span> : <span key={start}>{part}</span>)
+    start = end
+  }
+  return <>{parts}</>
 }
 
 function highlightMatch(name: string, q: string): JSX.Element {

@@ -7,9 +7,11 @@ import { chatFolderFor } from './chatFolderAccess'
 import { resolveDefaultChatWorkspacePath } from './defaultChatWorkspace'
 import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import { FILE_INDEX_WORKER_SOURCE } from './workspaceFileIndexWorker'
+import { WorkspaceGitChanges } from './workspaceGitChanges'
+import { PathSearchIndex } from './workspacePathSearch'
 import type {
   FileIndexEntry, FileIndexCacheWire, FileIndexStatus, FileMatchWire,
-  FileListResultWire, WorkerMessage, BuildProgress
+  FileListOptions, FileListResultWire, WorkerMessage, BuildProgress
 } from './workspaceFileIndexTypes'
 export type { FileIndexEntry, FileIndexStatus, FileIndexSource, FileMatchWire, FileListResultWire } from './workspaceFileIndexTypes'
 
@@ -134,15 +136,6 @@ async function isInvalidKnownCache(filePath: string, fileName: string, resolvedR
   return false
 }
 
-function scoreMatch(name: string, qLower: string): number {
-  const nLower = name.toLowerCase()
-  if (nLower === qLower) return 0
-  if (nLower.startsWith(qLower)) return 1
-  const idx = nLower.indexOf(qLower)
-  if (idx >= 0) return 2 + idx
-  return 1000
-}
-
 class WorkspaceFileIndex {
   private disposed = false
   private readonly cacheFilePath: string
@@ -163,8 +156,11 @@ class WorkspaceFileIndex {
   private buildWorker: Worker | null = null
 
   private readonly fileIndexBuildProgress = new Map<string, BuildProgress>()
+  private searchIndex: { source: FileIndexEntry[]; index: PathSearchIndex } | null = null
+  private readonly gitChanges: WorkspaceGitChanges
 
   constructor(root: string, ownerId: number) {
+    this.gitChanges = new WorkspaceGitChanges(path.resolve(root))
     const chatsWorkspace = resolveDefaultChatWorkspacePath()
     const chatFolder = chatFolderFor(chatsWorkspace, root, ownerId)
     const key = createHash('sha256').update(normalizeWorkspaceProjectKey(root)).digest('hex').slice(0, 24)
@@ -426,42 +422,31 @@ class WorkspaceFileIndex {
     if (!workspaceRoot.trim()) return
     void cleanupWorkspaceCache(workspaceRoot).catch(() => {})
     void this.getAvailableIndex(workspaceRoot, 'warm').catch(() => {})
+    this.gitChanges.current()
   }
 
   async searchWorkspaceFiles(
     workspaceRoot: string,
     query: string,
-    limit: number
+    limit: number,
+    options: FileListOptions = {}
   ): Promise<FileMatchWire[]> {
     const q = query.trim()
     if (!q) {
       return []
     }
-    const { entries: index } = await this.getAvailableIndex(workspaceRoot, 'search')
-    const qLower = q.toLowerCase()
-    const scored = index
-      .map((e) => ({
-        e,
-        score: scoreMatch(e.name, qLower)
-      }))
-      .filter((x) => x.score < 1000)
-      .sort((a, b) => {
-        if (a.score !== b.score) return a.score - b.score
-        return a.e.relativePath.localeCompare(b.e.relativePath)
-      })
-      .slice(0, limit)
-      .map((x) => ({
-        name: x.e.name,
-        relativePath: x.e.relativePath,
-        dir: x.e.dir
-      }))
-    return scored
+    const { entries } = await this.getAvailableIndex(workspaceRoot, 'search')
+    return this.pathSearchIndex(entries).search(q, limit, {
+      boostedPaths: this.gitChanges.current(),
+      includeDirectories: options.includeDirectories
+    })
   }
 
   async listWorkspaceFiles(
     workspaceRoot: string,
     query: string,
-    limit: number
+    limit: number,
+    options: FileListOptions = {}
   ): Promise<FileListResultWire> {
     if (!workspaceRoot.trim()) {
       return { files: [], indexStatus: 'empty', indexedCount: 0, stale: false }
@@ -469,12 +454,14 @@ class WorkspaceFileIndex {
     const resolved = path.resolve(workspaceRoot)
     const { entries, status, stale } = await this.getAvailableIndex(resolved, 'list')
     const q = query.trim()
-    const files = q
-      ? await this.searchWorkspaceFiles(resolved, q, limit)
-      : [...entries]
-          .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
-          .slice(0, limit)
-          .map((e) => ({ name: e.name, relativePath: e.relativePath, dir: e.dir }))
+    const files: FileMatchWire[] = q
+      ? await this.searchWorkspaceFiles(resolved, q, limit, options)
+      : options.includeDirectories
+        ? this.pathSearchIndex(entries).list('', limit)
+        : [...entries]
+            .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+            .slice(0, limit)
+            .map((e) => ({ name: e.name, relativePath: e.relativePath, dir: e.dir }))
     const liveProgress = status === 'building'
       ? this.fileIndexBuildProgress.get(resolved)?.count ?? 0
       : 0
@@ -489,7 +476,15 @@ class WorkspaceFileIndex {
     }
   }
 
+  private pathSearchIndex(entries: FileIndexEntry[]): PathSearchIndex {
+    if (this.searchIndex?.source !== entries) {
+      this.searchIndex = { source: entries, index: new PathSearchIndex(entries) }
+    }
+    return this.searchIndex.index
+  }
+
   invalidateFileIndex(): void {
+    this.searchIndex = null
     if (this.indexInvalidateDebounce) {
       clearTimeout(this.indexInvalidateDebounce)
       this.indexInvalidateDebounce = null
@@ -549,9 +544,11 @@ export function warmFileSearchIndex(root: string, ownerId: number): void {
 export function searchWorkspaceFiles(root: string, query: string, limit: number, ownerId: number): Promise<FileMatchWire[]> {
   return indexFor(root, ownerId).searchWorkspaceFiles(root, query, limit)
 }
-export function listWorkspaceFiles(root: string, query: string, limit: number, ownerId: number): Promise<FileListResultWire> {
+export function listWorkspaceFiles(
+  root: string, query: string, limit: number, ownerId: number, options?: FileListOptions
+): Promise<FileListResultWire> {
   if (!root.trim()) return Promise.resolve({ files: [], indexStatus: 'empty', indexedCount: 0, stale: false })
-  return indexFor(root, ownerId).listWorkspaceFiles(root, query, limit)
+  return indexFor(root, ownerId).listWorkspaceFiles(root, query, limit, options)
 }
 export function invalidateFileIndex(ownerId: number): void {
   const key = ownerRoots.get(ownerId)

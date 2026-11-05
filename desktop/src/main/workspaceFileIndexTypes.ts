@@ -2,6 +2,12 @@ export interface FileMatchWire {
   name: string
   relativePath: string
   dir: string
+  kind?: 'file' | 'dir'
+  positions?: number[]
+}
+
+export interface FileListOptions {
+  includeDirectories?: boolean
 }
 
 export interface FileIndexEntry {

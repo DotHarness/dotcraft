@@ -1123,7 +1123,13 @@ const api = {
       workspacePath: string
       limit?: number
     }): Promise<{
-      files: Array<{ name: string; relativePath: string; dir: string }>
+      files: Array<{
+        name: string
+        relativePath: string
+        dir: string
+        kind?: 'file' | 'dir'
+        positions?: number[]
+      }>
       indexStatus?: 'empty' | 'building' | 'ready'
       indexedCount?: number
       stale?: boolean

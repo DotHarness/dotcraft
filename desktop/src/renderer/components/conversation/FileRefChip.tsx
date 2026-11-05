@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
+import { addToast } from '../../stores/toastStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { resolveLocalReference, type LocalReference } from '../../utils/referencePaths'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { isFolderReference, referenceBaseName } from './fileRefIconDom'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 
 export function FileRefChip({
@@ -28,10 +30,13 @@ export function FileRefChip({
 }): JSX.Element {
   const t = useT()
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; reference: LocalReference } | null>(null)
-  const fileName = displayPath.split(/[/\\]/).pop() ?? displayPath
+  const fileName = referenceBaseName(displayPath)
   const reference = resolveLocalReference(targetPath, workspacePath)
   const title = reference?.path ?? targetPath
-  const canOpen = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
+  const folder = isFolderReference(displayPath)
+  const canOpen = folder
+    ? !remoteWorkspaceActive && !!reference
+    : !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
 
   return (
     <>
@@ -51,6 +56,13 @@ export function FileRefChip({
           })
         }}
         onClick={() => {
+          if (folder) {
+            if (canOpen && reference) {
+              void window.api.shell.revealLocalPath(reference.path.replace(/[/\\]+$/, ''))
+                .catch(() => { addToast(t('conversation.reference.openFailed'), 'warning') })
+            }
+            return
+          }
           if (!canOpen || !activeThreadId) return
           if (onOpen) return onOpen(activeThreadId)
           void openConversationLink({
@@ -62,7 +74,7 @@ export function FileRefChip({
         }}
         style={{ cursor: canOpen ? 'pointer' : 'default' }}
       >
-        <FileTypeIcon path={displayPath} size={12} style={{ display: 'inline-block' }} />
+        <FileTypeIcon path={displayPath} dir={folder} size={12} style={{ display: 'inline-block' }} />
         <span>{label ?? fileName}</span>
       </button>
       </ActionTooltip>

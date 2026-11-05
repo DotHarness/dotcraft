@@ -1264,6 +1264,7 @@ function ConversationWelcomeCore({
                       visible={showMentionPopover}
                       workspacePath={workspacePath}
                       onSelect={onSelectFile}
+                      onComplete={(query) => { richRef.current?.completeAtQuery(query) }}
                       onDismiss={() => {
                         setMentionDismissed(true)
                       }}

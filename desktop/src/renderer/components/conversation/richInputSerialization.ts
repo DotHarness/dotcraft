@@ -1,6 +1,6 @@
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS, THREAD_REF_CLASS, isRefElement } from './richInputConstants'
 import { CHAT_ICON_SVG, REMOVE_ICON_SVG, SKILL_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
-import { paintFileRefIcon } from './fileRefIconDom'
+import { paintFileRefIcon, referenceBaseName } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { formatThreadMention, splitThreadMentions } from '../../utils/threadReferences'
 
@@ -57,8 +57,7 @@ export function createRefSpan(kind: RefType, value: string, title = value): HTML
   if (kind === 'file') {
     span.className = `${FILE_REF_CLASS} dc-ref dc-ref-file`
     span.setAttribute('data-relative-path', value)
-    const fileName = value.split('/').pop() ?? value
-    label.textContent = fileName
+    label.textContent = referenceBaseName(value)
     paintFileRefIcon(icon, value, 14)
     span.title = value
   } else if (kind === 'command') {

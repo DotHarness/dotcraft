@@ -1380,7 +1380,7 @@ describe('registerIpcHandlers', () => {
       const report = path.join(chatFolder, 'outputs', 'report.md')
 
       await handlers.get('workspace:search-files')!({}, { query: 'report', workspacePath: chatFolder, limit: 5 })
-      expect(listWorkspaceFilesMock).toHaveBeenCalledWith(chatFolder, 'report', 5, testWindow.webContents.id)
+      expect(listWorkspaceFilesMock).toHaveBeenCalledWith(chatFolder, 'report', 5, testWindow.webContents.id, { includeDirectories: true })
       await expect(handlers.get('git:inspectHead')!({}, chatFolder)).resolves.toEqual({ kind: 'none' })
       await handlers.get('shell:show-item-in-folder')!({}, report)
       expect(shell.showItemInFolder).toHaveBeenCalledWith(report)
