@@ -128,6 +128,29 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     [Fact]
+    public async Task InputCrossingThresholdCompactsBeforeFirstRequest_AndThatRequestCarriesThreadInstructions()
+    {
+        const string role = "Guard every release.";
+        const string developer = "Reply only through the delivery tool.";
+        await using var factory = CreateFactory();
+        var service = CreateService(factory);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        }, new ThreadConfiguration { RoleInstructions = role, DeveloperInstructions = developer });
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
+
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent(string.Join(' ', Enumerable.Range(0, 120_000).Select(static i => $"w{i}")))]));
+
+        Assert.Single(_provider.Compactions);
+        Assert.Contains("encrypted-test", _provider.Requests[^1]);
+        AssertContainsOnce(_provider.Requests[^1], role);
+        AssertContainsOnce(_provider.Requests[^1], developer);
+    }
+
+    [Fact]
     public async Task Rollback_AfterPreTurnCompaction_KeepsNativeGenerationAndEstimate()
     {
         await using var factory = CreateFactory();

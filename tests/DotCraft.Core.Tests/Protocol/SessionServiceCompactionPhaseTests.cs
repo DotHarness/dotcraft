@@ -57,6 +57,51 @@ public sealed class SessionServiceCompactionPhaseTests : SessionServiceRuntimeSi
     }
 
     [Fact]
+    public async Task SubmitInputAsync_InputCrossingThresholdCompactsBeforeFirstRequest_AndThatRequestCarriesThreadInstructions()
+    {
+        const string role = "Guard every release.";
+        const string developer = "Reply only through the delivery tool.";
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration
+        {
+            RoleInstructions = role,
+            DeveloperInstructions = developer
+        });
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var chatClient = new RecordingChatClient("answer");
+        await using var factory = CreateAgentFactory(
+            chatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>compacted old context</summary>"));
+        var service = CreateService(factory, chatClient, useStreamingFunctionInvoker: true);
+        await service.ResumeThreadAsync(thread.Id);
+        var events = await CollectAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent(string.Join(' ', Enumerable.Range(0, 6000).Select(static i => $"w{i}")))]));
+
+        Assert.Contains(events, evt => IsSystemEvent(evt, "compacted"));
+        AssertCarriesInstructionsOnce();
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
+        AssertCarriesInstructionsOnce();
+
+        void AssertCarriesInstructionsOnce()
+        {
+            var texts = chatClient.LastMessages.Select(static message => message.Text).ToList();
+            Assert.Single(texts, static text => text.Contains(role, StringComparison.Ordinal));
+            Assert.Single(texts, static text => text.Contains(developer, StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
     public async Task RollbackThreadAsync_AfterPreTurnCompaction_KeepsCompactedHistoryAndEstimate()
     {
         var thread = await SeedCompactableThreadAsync(forceHighEstimate: true);
