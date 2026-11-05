@@ -183,13 +183,8 @@ public sealed class HubHostTests : IDisposable
         Assert.False(runTask.IsCompleted);
 
         stoppingOwner.DeleteAfterDispose();
-        HubLockInfo? info = null;
-        while (info is null || info.ApiBaseUrl == unansweredUrl)
-        {
-            Assert.False(runTask.IsCompleted);
-            await Task.Delay(50, cts.Token);
-            info = HubLockFile.TryRead(paths.LockFilePath);
-        }
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, cts.Token);
+        Assert.NotEqual(unansweredUrl, info.ApiBaseUrl);
 
         using var http = new HttpClient();
         (await http.GetAsync($"{info.ApiBaseUrl}/v1/status", cts.Token)).EnsureSuccessStatusCode();
