@@ -198,12 +198,11 @@ public sealed partial class SessionService
                             pendingNeutralReplacement = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
-                            owner.ReloadAgentInstructionsAfterCompaction(thread, pendingNeutralReplacement);
-                            NativeSubAgentGuidance.Reconcile(
+                            owner.RestoreContextAfterCompaction(
                                 thread,
+                                session,
                                 pendingNeutralReplacement,
-                                owner.ResolveThreadContextCarrier(thread),
-                                owner._subAgentGuidanceProviders);
+                                ThreadWorkspaceResolver.Resolve(thread));
                         }
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                  && providerBridge != null)

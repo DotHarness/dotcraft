@@ -19,6 +19,8 @@ public static class WorldStateComposer
         ILogger? logger = null)
     {
         var world = new WorldState(logger);
+        world.AddSection(ThreadInstructionsSection.Role());
+        world.AddSection(ThreadInstructionsSection.Developer());
         world.AddSection(new AgentsMdSection());
         world.AddSection(new EnvironmentSection());
         world.AddSection(new ModeSection());
@@ -26,6 +28,7 @@ public static class WorldStateComposer
         world.AddSection(new ThreadGoalSection());
         world.AddSection(new MemoryIndexSection());
         world.AddSection(new SkillsSection());
+        world.AddSection(new ClientContextSection());
 
         foreach (var section in contributedSections ?? [])
             world.TryAddSection(section);

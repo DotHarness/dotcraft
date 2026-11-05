@@ -494,7 +494,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Equal("default", result.AgentRole);
         Assert.Equal("default", child.Source.SubAgent?.AgentRole);
         Assert.Null(child.Configuration?.AgentControlToolAccess);
-        Assert.Contains("Do not spawn additional agents", child.Configuration?.RoleInstructions, StringComparison.Ordinal);
+        Assert.Contains("Do not spawn additional agents", child.Configuration?.SubAgentRoleInstructions, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -1438,7 +1438,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Equal(
             [nameof(DotCraft.Tools.AgentTools.ListAgents)],
             restoredChild.Configuration?.AllowedAgentControlTools ?? []);
-        Assert.Equal("stored instructions", restoredChild.Configuration?.RoleInstructions);
+        Assert.Equal("stored instructions", restoredChild.Configuration?.SubAgentRoleInstructions);
         Assert.Equal(context.ParentTurnId, pending.ParentTurnId);
 
         runtime.ResultText = "resumed";

@@ -14,33 +14,12 @@ namespace DotCraft.Tests.Agents;
 
 public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
 {
-    private const string Guidance = "Investigate the assigned scope carefully.";
     private readonly string _tempDir;
 
     public AgentFactorySubAgentGuidanceTests()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "AFSAG_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
-    }
-
-    [Theory]
-    [InlineData(ModelProviderProtocols.OpenAIChatCompletions)]
-    [InlineData(ModelProviderProtocols.Anthropic)]
-    [InlineData(ModelProviderProtocols.OpenAIResponses)]
-    public async Task NativeSubAgent_OmitsRoleGuidanceFromSystemInstructions(string protocol)
-    {
-        var client = new RecordingChatClient();
-        await using var factory = CreateFactory(protocol, client);
-        var agent = factory.CreateAgentWithTools([], modeManager: null, factory.RuntimeContext);
-
-        await DrainAsync(agent.RunStreamingAsync(
-            new ChatMessage(ChatRole.User, "child task"),
-            []));
-
-        // Role text is a thread context item on every protocol so the child's instruction channel
-        // stays byte-identical to its parent's and can share the parent's cache prefix.
-        Assert.DoesNotContain(Guidance, client.LastOptions?.Instructions ?? string.Empty, StringComparison.Ordinal);
-        Assert.DoesNotContain(client.LastMessages, message => message.Role.Value == "developer");
     }
 
     [Fact]
@@ -118,8 +97,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             CurrentThreadSource = ThreadSource.ForSubAgent(new SubAgentThreadSource
             {
                 RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
-            }),
-            RoleInstructions = Guidance
+            })
         };
 
         return new AgentFactory(

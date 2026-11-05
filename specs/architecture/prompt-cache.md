@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.10.3 |
 | **Status** | Living |
-| **Date** | 2026-10-24 |
+| **Date** | 2026-11-05 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -215,7 +215,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 8. **Internal cache state may be narrower than provider identity.** Remembered breakpoints are tracked per internal state key, separately for the main conversation and each maintenance fork, so they do not overwrite each other's history. This internal key never replaces provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Provider projection and replay preserve immutable tool
    identities; cache shaping does not rename, regroup, or reorder definitions.
-10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
+10. **Thread-scoped context is history, not prefix.** Content specific to a thread, its role, the application that started it, or an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
 11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, would invalidate the whole cached prefix and is not done. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
 
 ## 4. Failure modes the runtime must guard against

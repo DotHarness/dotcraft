@@ -71,7 +71,7 @@ internal static class NativeSubAgentGuidance
         SessionThread thread,
         IEnumerable<ISubAgentGuidanceProvider>? providers)
     {
-        var roleInstructions = thread.Configuration?.RoleInstructions?.Trim();
+        var roleInstructions = thread.Configuration?.SubAgentRoleInstructions?.Trim();
         var guidance = string.IsNullOrWhiteSpace(roleInstructions)
             ? RoleFraming
             : $"{RoleFraming}\n\n## Role Instructions\n\n{roleInstructions}";

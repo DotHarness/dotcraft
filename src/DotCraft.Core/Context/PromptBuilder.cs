@@ -19,8 +19,6 @@ public sealed class PromptBuilder(
     IReadOnlyList<string>? deferredMcpServerNames = null,
     string? subAgentProfilesSection = null,
     Func<IReadOnlyList<string>>? toolNamesProvider = null,
-    string? roleInstructions = null,
-    string? developerInstructions = null,
     IContextPageManager? contextPageManager = null,
     string? originChannel = null,
     ILogger<PromptBuilder>? logger = null,
@@ -44,8 +42,6 @@ public sealed class PromptBuilder(
         DeferredMcpServerNames = deferredMcpServerNames,
         SubAgentProfilesSection = subAgentProfilesSection,
         SkillsPolicy = skillsPolicy,
-        RoleInstructions = roleInstructions,
-        DeveloperInstructions = developerInstructions,
         ContextPageManager = contextPageManager,
         CommitAttribution = commitAttribution,
         // Must be the same view the section list is resolved from, or sections evaluate against foreign sources.

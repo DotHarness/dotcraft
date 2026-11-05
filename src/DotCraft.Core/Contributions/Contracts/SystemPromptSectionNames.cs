@@ -67,10 +67,4 @@ public static class SystemPromptSectionNames
 
     /// <summary>Discovery guidance for deferred MCP tools.</summary>
     public const string DeferredTools = "deferred-tools";
-
-    /// <summary>The channel or automation role instructions.</summary>
-    public const string RoleInstructions = "role-instructions";
-
-    /// <summary>Instructions from the application that started the thread, after role instructions.</summary>
-    public const string DeveloperInstructions = "developer-instructions";
 }

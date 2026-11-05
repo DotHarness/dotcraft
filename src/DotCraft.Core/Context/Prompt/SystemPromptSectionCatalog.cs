@@ -58,9 +58,7 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.CustomCommands, 1500, WorkspaceContextPromptSections.CustomCommands),
         (SystemPromptSectionNames.ChatContext, 1600, ProviderPromptSections.ChatContext),
         (SystemPromptSectionNames.ThreadContext, 1700, ProviderPromptSections.ThreadContext),
-        (SystemPromptSectionNames.DeferredTools, 1800, ProviderPromptSections.DeferredTools),
-        (SystemPromptSectionNames.RoleInstructions, 1900, ProviderPromptSections.RoleInstructions),
-        (SystemPromptSectionNames.DeveloperInstructions, 2000, ProviderPromptSections.DeveloperInstructions)
+        (SystemPromptSectionNames.DeferredTools, 1800, ProviderPromptSections.DeferredTools)
     ];
 
     private static IContributionView CreateDefaultView()

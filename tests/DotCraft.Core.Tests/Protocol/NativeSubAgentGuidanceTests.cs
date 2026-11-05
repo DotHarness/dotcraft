@@ -42,7 +42,7 @@ public sealed class NativeSubAgentGuidanceTests
         NativeSubAgentGuidance.Reconcile(thread, history, ThreadContextCarrier.DeveloperMessage);
         history.Add(new ChatMessage(ChatRole.User, "child task"));
 
-        thread.Configuration!.RoleInstructions = "New guidance.";
+        thread.Configuration!.SubAgentRoleInstructions = "New guidance.";
         var replaced = NativeSubAgentGuidance.Reconcile(thread, history, ThreadContextCarrier.DeveloperMessage);
 
         Assert.Equal(NativeSubAgentGuidanceChange.Replaced, replaced);
@@ -137,7 +137,7 @@ public sealed class NativeSubAgentGuidanceTests
     private static SessionThread CreateNativeThread(string? instructions) => new()
     {
         Id = "thread_child",
-        Configuration = new ThreadConfiguration { RoleInstructions = instructions },
+        Configuration = new ThreadConfiguration { SubAgentRoleInstructions = instructions },
         Source = ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
             RuntimeType = NativeSubAgentRuntime.RuntimeTypeName

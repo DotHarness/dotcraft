@@ -77,8 +77,6 @@ public sealed class AgentRuntimeContext
         ToolDenyList = source.ToolDenyList;
         ToolCallPolicy = source.ToolCallPolicy;
         ToolInvocationPolicy = source.ToolInvocationPolicy;
-        RoleInstructions = source.RoleInstructions;
-        DeveloperInstructions = source.DeveloperInstructions;
         SkillsPolicy = source.SkillsPolicy;
         CurrentOriginChannel = source.CurrentOriginChannel;
         CurrentChannelContext = source.CurrentChannelContext;
@@ -335,18 +333,6 @@ public sealed class AgentRuntimeContext
     /// Optional invocation policy for resolved functions in this thread.
     /// </summary>
     public Func<FunctionInvocationContext, ModeToolPolicyDecision>? ToolInvocationPolicy { get; set; }
-
-    /// <summary>
-    /// Optional role-specific instructions for the current thread. Native SubAgent threads deliver
-    /// this as a thread context item instead of a base-instruction section.
-    /// </summary>
-    public string? RoleInstructions { get; init; }
-
-    /// <summary>
-    /// Instructions from the application that started the current thread, rendered after the role
-    /// instructions. Native SubAgent threads do not carry them.
-    /// </summary>
-    public string? DeveloperInstructions { get; init; }
 
     /// <summary>The current thread's skill policy, which decides the skills its prompt may name.</summary>
     public DotCraft.Sessions.ThreadSkillsPolicy? SkillsPolicy { get; init; }

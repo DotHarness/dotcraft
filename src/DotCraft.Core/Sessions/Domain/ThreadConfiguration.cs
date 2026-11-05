@@ -216,16 +216,21 @@ public sealed class ThreadConfiguration
     public string[]? AllowedAgentControlTools { get; set; }
 
     /// <summary>
-    /// Role-specific instructions. Ordinary threads append them to the generated system prompt;
-    /// native SubAgent threads deliver them as a thread context item instead.
+    /// The thread's role, delivered as a thread context item. A full-history SubAgent keeps its parent's.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? RoleInstructions { get; set; }
 
     /// <summary>
-    /// Instructions from the application that started the thread, rendered as the final
-    /// system prompt section after <see cref="RoleInstructions"/>. Native SubAgent threads do
-    /// not inherit them.
+    /// A native SubAgent role's text, delivered in its role guidance apart from <see cref="RoleInstructions"/>.
+    /// AppServer contract mapping intentionally omits this runtime state.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubAgentRoleInstructions { get; set; }
+
+    /// <summary>
+    /// Instructions from the application that started the thread, delivered as a thread context item
+    /// after <see cref="RoleInstructions"/>. Only a full-history SubAgent inherits them.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? DeveloperInstructions { get; set; }

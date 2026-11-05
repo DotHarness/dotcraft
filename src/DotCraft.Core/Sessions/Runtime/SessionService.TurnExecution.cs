@@ -577,15 +577,7 @@ public sealed partial class SessionService
                             var compactedHistory = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
-                            ReloadAgentInstructionsAfterCompaction(
-                                thread,
-                                compactedHistory,
-                                turnContext.Workspace);
-                            NativeSubAgentGuidance.Reconcile(
-                                thread,
-                                compactedHistory,
-                                ResolveThreadContextCarrier(thread),
-                                _subAgentGuidanceProviders);
+                            RestoreContextAfterCompaction(thread, session, compactedHistory, turnContext.Workspace);
                             turnCommitter.PendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                 "auto",
                                 CompactionOutcomeToWire(status.Outcome),
@@ -1246,26 +1238,6 @@ public sealed partial class SessionService
                         executionCt);
                 }
 
-                // Client-bound context is appended after the canonical provider-history baseline is
-                // captured, so it travels as new local input like the user message does. Appending
-                // it earlier would place it inside the already-covered region, where it never
-                // reaches the wire. It must never rebuild the generated base instructions either,
-                // because that would invalidate the cached prefix on every client rebind.
-                // A SubAgent owns no client binding: it inherits whatever context its fork carried
-                // and must not restate or retract it, which would also displace the inherited
-                // prefix it shares with its parent.
-                if (thread.Source.SubAgent == null)
-                {
-                    ThreadContextItems.ReconcileDeveloperInstructions(
-                        session,
-                        thread.Configuration?.DeveloperInstructions,
-                        threadContextCarrier);
-                    ThreadContextItems.ReconcileClientContext(
-                        session,
-                        agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
-                        new ThreadSystemPromptContext(threadId, thread.WorkspacePath, thread.OriginChannel),
-                        threadContextCarrier);
-                }
                 SideChatBoundary.Reconcile(thread, session, threadContextCarrier);
 
                 var worldStateUpdate = BuildWorldStateUpdate(
@@ -2137,15 +2109,7 @@ public sealed partial class SessionService
                                     var compactedHistory = neutralReplacement.Messages
                                         .Select(message => message.Clone())
                                         .ToList();
-                                    ReloadAgentInstructionsAfterCompaction(
-                                        thread,
-                                        compactedHistory,
-                                        turnContext.Workspace);
-                                    NativeSubAgentGuidance.Reconcile(
-                                        thread,
-                                        compactedHistory,
-                                        ResolveThreadContextCarrier(thread),
-                                        _subAgentGuidanceProviders);
+                                    RestoreContextAfterCompaction(thread, session, compactedHistory, turnContext.Workspace);
                                     turnCommitter.PendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                         "reactive",
                                         CompactionOutcomeToWire(status.Outcome),

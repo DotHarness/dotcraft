@@ -1,4 +1,3 @@
-using DotCraft.Context;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -16,17 +15,13 @@ internal enum ThreadContextCarrier
 }
 
 /// <summary>
-/// Model-visible context that depends on the running thread or on an attached client connection.
-/// These items live in conversation history instead of the generated base instructions so a
-/// SubAgent's instruction channel stays byte-identical to its parent's, and so a client rebinding
-/// cannot invalidate a thread's cached prompt prefix.
+/// Model-visible context specific to a thread, kept in conversation history so a SubAgent's
+/// instruction channel stays byte-identical to its parent's.
 /// </summary>
 internal static class ThreadContextItems
 {
     public const string KindMetadataKey = "dotcraft.thread_context_item";
     public const string SubAgentRoleKind = "subagent_role";
-    public const string ClientContextKind = "client_context";
-    public const string DeveloperInstructionsKind = "developer_instructions";
 
     private const string ReminderOpenTag = "<system-reminder>";
     private const string ReminderCloseTag = "</system-reminder>";
@@ -111,74 +106,4 @@ internal static class ThreadContextItems
     /// </summary>
     public static ThreadContextCarrier ResolveCarrier(bool isOpenAIResponses) =>
         isOpenAIResponses ? ThreadContextCarrier.DeveloperMessage : ThreadContextCarrier.UserReminder;
-
-    /// <summary>
-    /// Appends an updated client context item when the resolved content changed. Previously sent
-    /// items are never rewritten, so an appended update cannot invalidate the cached prefix.
-    /// </summary>
-    public static bool ReconcileClientContext(
-        IList<ChatMessage> history,
-        IReadOnlyList<IThreadSystemPromptContextProvider> providers,
-        ThreadSystemPromptContext context,
-        ThreadContextCarrier carrier)
-    {
-        ArgumentNullException.ThrowIfNull(history);
-        ArgumentNullException.ThrowIfNull(providers);
-
-        var desired = BuildClientContext(providers, context);
-        var previous = FindLast(history, ClientContextKind);
-        var previousText = previous == null ? string.Empty : ReadText(previous);
-        if (string.Equals(desired, previousText, StringComparison.Ordinal))
-            return false;
-
-        if (desired.Length == 0 && previous == null)
-            return false;
-
-        var text = desired.Length > 0 ? desired : ClearedClientContext;
-        history.Add(Create(carrier, ClientContextKind, text));
-        return true;
-    }
-
-    /// <summary>Appends the thread's developer instructions as a developer-role item on protocols that have that role; elsewhere they remain a base-instruction section.</summary>
-    public static bool ReconcileDeveloperInstructions(
-        IList<ChatMessage> history,
-        string? developerInstructions,
-        ThreadContextCarrier carrier)
-    {
-        ArgumentNullException.ThrowIfNull(history);
-        if (carrier != ThreadContextCarrier.DeveloperMessage)
-            return false;
-
-        var desired = developerInstructions?.Trim() ?? string.Empty;
-        if (desired.Length == 0)
-            return false;
-
-        var previous = FindLast(history, DeveloperInstructionsKind);
-        if (previous != null && string.Equals(ReadText(previous), desired, StringComparison.Ordinal))
-            return false;
-
-        history.Add(Create(carrier, DeveloperInstructionsKind, desired));
-        return true;
-    }
-
-    private const string ClearedClientContext =
-        "## Client Runtime Context\n\nThe client runtime context described earlier is no longer active.";
-
-    private static string BuildClientContext(
-        IReadOnlyList<IThreadSystemPromptContextProvider> providers,
-        ThreadSystemPromptContext context)
-    {
-        var sections = providers
-            .Where(static provider => provider.Placement == ThreadPromptPlacement.ThreadContextItem)
-            .OrderBy(static provider => provider.ContextPageKey.Scope, StringComparer.Ordinal)
-            .ThenBy(static provider => provider.ContextPageKey.Name, StringComparer.Ordinal)
-            .Select(provider => provider.GetSystemPromptSection(context))
-            .Where(static section => !string.IsNullOrWhiteSpace(section))
-            .Select(static section => section!.Trim())
-            .ToArray();
-
-        return sections.Length == 0
-            ? string.Empty
-            : string.Join("\n\n", sections);
-    }
 }

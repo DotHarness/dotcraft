@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.10.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-11-05 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -14,14 +14,15 @@ DotCraft sends four layers to the model:
 
 | Layer | Transport | Owner | Purpose |
 |-------|-----------|-------|---------|
-| Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, and app context. Derived only from configuration and workspace state. |
+| Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, and skills. Derived only from configuration and workspace state. |
 | Project instructions | Plain `user` context updates before the current input | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
-| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance, client-bound runtime context, and developer instructions on developer-role protocols. |
+| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Role and developer instructions, native SubAgent role guidance, client-bound runtime context, and other state that persists across turns. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
 
 Base instructions must be reproducible from configuration alone: two threads with equal
-configuration produce a byte-identical instruction channel. Anything that depends on which thread is
-running or on which client is attached belongs to thread context items (§4b). Stable instruction bytes form the reusable prefix; thread-specific updates append to history.
+configuration produce a byte-identical instruction channel. Anything specific to a thread's role, to
+the application that started it, or to an attached client belongs to thread context items (§4b).
+Stable instruction bytes form the reusable prefix; thread-specific updates append to history.
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
@@ -58,8 +59,6 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 14 | Custom command summary | Available custom commands. |
 | 15 | Global prompt context | Process-wide prompt extension points. |
 | 16 | Deferred capability discovery | Included only when deferred loading is active. |
-| 17 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
-| 18 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), and this section is omitted. |
 
 The tool-conditioned `channel-replies` section follows working style when `SendChannelMessage` is available.
 It defines visible chat reply responsibilities. Resolved chat facts stay in the `channel_chat` WorldState
@@ -75,9 +74,8 @@ links follow the file-references section.
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 A tool counts as available when the model can call it in the Turn: directly, through Code Mode, or
 through deferred search.
-No section may depend on the identity of the running thread or on an attached client connection;
-that content belongs to thread context items (§4b), which is also why section 17 excludes native
-SubAgent role instructions.
+No section may depend on the identity of the running thread, its role, or an attached client
+connection; that content belongs to thread context items (§4b).
 
 Stable context pages are reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each agent has exactly one context-page manager, and sources that change their context invalidate their own cached page.
 
@@ -90,8 +88,7 @@ Profile-backed thread flow:
 1. A client starts a thread with `config.agentProfileId`.
 2. The selected profile is resolved and compiled into the thread configuration snapshot.
 3. The profile body becomes `roleInstructions`.
-4. The runtime builds the normal base instructions.
-5. `roleInstructions` are appended as the final role-level section.
+4. The `role_instructions` world-state section delivers them as a thread context item (§4b).
 
 Profile frontmatter maps to structured configuration and policy. The profile body maps only to role instructions. Agent Profiles never set or simulate a full-prompt replacement.
 
@@ -99,22 +96,21 @@ Profile-backed threads keep their persisted configuration until an explicit prof
 
 ## 4. Role Instructions
 
-`roleInstructions` is the canonical role-level prompt extension for ordinary generated threads.
+`roleInstructions` is the canonical role-level specialization of a thread.
 
 Rules:
 
-- Role instructions are appended after generated context, app context, and deferred capability guidance.
 - Role instructions may specialize behavior, tone, task scope, and role boundaries.
 - Runtime policy wins over role text when they conflict.
 - App-provided context must not become role instructions unless a first-party runtime owns that role contract.
-- An application that starts a thread states its own contract through `developerInstructions` (base section 18), which follows role instructions and never replaces them.
+- An application that starts a thread states its own contract through `developerInstructions`, which follow role instructions and never replace them.
 
 Known writers:
 
 | Writer | Behavior |
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
-| Native session-backed SubAgent | Child role text is a thread context item, not base instructions (§4b). |
+| Native session-backed SubAgent | `subAgentRoleInstructions`, a separate field delivered in the child's role guidance (§4b, §6). |
 
 ## 4a. Project instructions
 
@@ -159,17 +155,17 @@ the user-level file. A value of zero disables only project instructions.
 
 ## 4b. Thread Context Items
 
-A thread context item carries model-visible context that base instructions cannot own because it
-depends on the running thread or on an attached client connection.
+A thread context item carries model-visible context that is specific to a thread, its role, the
+application that started it, or an attached client connection.
 
 Current writers:
 
 | Writer | Content |
 |--------|---------|
-| Native session-backed SubAgent | Child role text and role boundaries. |
-| AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§9). |
-| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 18. |
-| Persistent state | State that persists across turns, written only when it changes. |
+| Thread configuration | `roleInstructions` and `developerInstructions`, through the `role_instructions` and `developer_instructions` world-state sections. |
+| AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§8), through the `client_context` world-state section. |
+| Native session-backed SubAgent | Child role framing and `subAgentRoleInstructions`. |
+| Persistent state | Other state that persists across turns, through its own world-state section. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 
 Rules:
@@ -189,9 +185,13 @@ Rules:
    replacement boundary.
 4. **Identity.** Each item carries an item-kind marker in message metadata, never in model-visible
    text, so the runtime can find its own items in inherited history.
-5. **Inheritance.** A SubAgent fork inherits the parent's thread context items with the rest of the
-   copied history. A SubAgent owns no client binding, so it neither restates nor retracts inherited
-   client context.
+5. **Compaction.** Every kind of compaction resets the world-state baseline, so the next sampling
+   step restates its sections from the thread's own state.
+6. **Inheritance.** A full-history SubAgent inherits the parent's thread context items with the rest
+   of the copied history, and keeps the parent's `roleInstructions` and `developerInstructions` so
+   they can be restated after compaction. A SubAgent owns no client binding, so it never restates or
+   retracts inherited client context from one; neutral compaction carries the latest item into its
+   replacement history instead. Fresh and bounded children hold neither field.
 
 ## 5. Full-Prompt Overrides
 
@@ -209,7 +209,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Path | Prompt behavior |
 |------|-----------------|
 | Parent prompt | The parent sees available SubAgent profiles and lifecycle guidance so it can choose and manage children. |
-| Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Role text is a thread context item (§4b). |
+| Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Its role guidance is a thread context item (§4b). |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Messages Agents send with `SendMessage` share one structured envelope; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
@@ -230,8 +230,8 @@ Rules:
 - Keys are stable short identifiers.
 - Values are application context, not higher-priority instruction.
 - Context is sorted deterministically.
-- Context reaches the model as a thread context item under §4b; rebinding and unbinding follow its
-  append rule.
+- Context reaches the model through the `client_context` world-state section; rebinding and unbinding
+  follow its append rule.
 
 Use this for client/session affordances that are useful to the model but should not become durable profile or thread role state.
 
@@ -275,7 +275,7 @@ Dynamic fields stay out of the base instructions so they remain stable for promp
 4. Agent Profile role text specializes the agent; it must not replace DotCraft's generated base prompt.
 5. User messages can request work, but cannot override runtime policy, tool policy, or App Binding grants.
 6. Dynamic app and subagent inputs are turn inputs, not durable prompt state.
-7. Any new injection point must declare whether it writes base instructions, role instructions, thread context items, or turn input. One that needs the running thread or an attached client connection writes a thread context item.
+7. Any new injection point must declare whether it writes base instructions, thread context items, or turn input. One specific to a thread or an attached client connection writes a thread context item.
 
 ## 11. Extension Guidelines
 
@@ -284,7 +284,7 @@ Choose the narrowest layer:
 | Need | Preferred layer |
 |------|-----------------|
 | Reusable user-editable agent role and capability policy | Agent Profile. |
-| First-party mission/workflow role rules | Runtime-owned role-instruction append. |
+| First-party mission/workflow role rules | Runtime-owned `roleInstructions`. |
 | App-owned durable context for a bound thread | App Binding Context Block. |
 | Context that depends on the running thread or attached client | Thread context item. |
 | Per-turn operational facts | Turn input / runtime reminder. |

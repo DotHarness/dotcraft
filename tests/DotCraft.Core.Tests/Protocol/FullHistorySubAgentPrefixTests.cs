@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -14,6 +16,10 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed class FullHistorySubAgentPrefixTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-fork-prefix-{Guid.NewGuid():N}");
+    private const string RoleText = "Guard every release.";
+    private const string DeveloperText = "Reply only through the delivery tool.";
+    private const string ClientText = "Knowledge files are in the reference folder.";
+
     private readonly string _workspace;
 
     public FullHistorySubAgentPrefixTests()
@@ -22,13 +28,15 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_workspace, ".git"));
     }
 
-    [Fact]
-    public async Task FullHistoryChild_FirstRequestExtendsParentRequestPrefix()
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions)]
+    [InlineData(ModelProviderProtocols.OpenAIResponses)]
+    public async Task FullHistoryChild_FirstRequestExtendsParentRequestPrefix(string protocol)
     {
         var client = new RecordingChatClient();
         client.Respond = request => Task.FromResult<IReadOnlyList<AIContent>>(
             client.Requests.Count == 1 ? [new FunctionCallContent("call-lookup", "LookUp")] : [new TextContent("ok")]);
-        await using var factory = CreateFactory(client);
+        await using var factory = CreateFactory(client, protocol);
         var service = CreateService(factory);
         var parent = await CreateParentAsync(service);
         await foreach (var _ in service.SubmitInputAsync(parent.Id, [new TextContent("parent request")]))
@@ -62,10 +70,103 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
         Assert.Contains(parentRequest.Tools, static tool => tool.StartsWith($"{nameof(UserCoordinationTools.SendUserMessageAsync)}:", StringComparison.Ordinal));
         Assert.Equal(parentRequest.Tools, childRequest.Tools);
         Assert.Equal(parentRequest.Instructions, childRequest.Instructions);
+        Assert.DoesNotContain(RoleText, childRequest.Instructions ?? string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain(DeveloperText, childRequest.Instructions ?? string.Empty, StringComparison.Ordinal);
+        Assert.Single(childRequest.Messages, message => message.Text.Contains(RoleText, StringComparison.Ordinal));
+        Assert.Single(childRequest.Messages, message => message.Text.Contains(DeveloperText, StringComparison.Ordinal));
         Assert.True(childRequest.Messages.Count > parentRequest.Messages.Count);
         Assert.Equal(
             parentRequest.Messages.Select(Describe),
             childRequest.Messages.Take(parentRequest.Messages.Count).Select(Describe));
+    }
+
+    [Fact]
+    public async Task Compaction_RestatesInstructionsForParentAndFullHistoryChild_AndKeepsChildClientContext()
+    {
+        var client = new RecordingChatClient();
+        var clientContext = new FakeClientContext { Section = ClientText };
+        await using var factory = CreateFactory(client, clientContext: clientContext);
+        var service = CreateService(factory);
+        var parent = await CreateParentAsync(service);
+        foreach (var input in new[] { "first", "second", "third" })
+        {
+            await foreach (var _ in service.SubmitInputAsync(parent.Id, [new TextContent(input + new string('u', 1200))]))
+            {
+            }
+        }
+
+        await CompactAndContinueAsync(parent.Id);
+
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            new SubAgentSessionContext
+            {
+                SessionService = service,
+                ParentThread = parent,
+                ParentTurnId = parent.Turns[^1].Id,
+                RootThreadId = parent.Id,
+                ParentModelHistory = client.Requests[^1].Messages
+            },
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect the change" + new string('u', 1200),
+                TaskName = "inspect",
+                ForkTurns = "all",
+                MaxDepth = 1
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        await CompactAndContinueAsync(spawned.ChildThreadId);
+
+        async Task CompactAndContinueAsync(string threadId)
+        {
+            Assert.Equal("partial", (await service.CompactThreadAsync(threadId)).Outcome);
+            await foreach (var _ in service.SubmitInputAsync(threadId, [new TextContent("after compaction")]))
+            {
+            }
+
+            var messages = client.Requests[^1].Messages;
+            Assert.Single(messages, static message => message.Text.Contains(RoleText, StringComparison.Ordinal));
+            Assert.Single(messages, static message => message.Text.Contains(DeveloperText, StringComparison.Ordinal));
+            Assert.Single(messages, static message => message.Text.Contains(ClientText, StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task FreshChild_HoldsNeitherTheParentsInstructionsNorItsClientContext()
+    {
+        var client = new RecordingChatClient();
+        await using var factory = CreateFactory(client, clientContext: new FakeClientContext { Section = ClientText });
+        var service = CreateService(factory);
+        var parent = await CreateParentAsync(service);
+        await foreach (var _ in service.SubmitInputAsync(parent.Id, [new TextContent("parent request")]))
+        {
+        }
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            new SubAgentSessionContext
+            {
+                SessionService = service,
+                ParentThread = parent,
+                ParentTurnId = parent.Turns[^1].Id,
+                RootThreadId = parent.Id,
+                ParentModelHistory = client.Requests[^1].Messages
+            },
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect the change",
+                TaskName = "inspect",
+                ForkTurns = "none",
+                MaxDepth = 1
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        var childRequest = client.Requests[^1];
+        foreach (var text in new[] { RoleText, DeveloperText, ClientText })
+            Assert.DoesNotContain(childRequest.Messages, message => message.Text.Contains(text, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -130,6 +231,8 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
         WorkspacePath = _workspace
     }, new ThreadConfiguration
     {
+        RoleInstructions = RoleText,
+        DeveloperInstructions = DeveloperText,
         SubAgentModelCatalogSnapshot = new SubAgentModelCatalogSnapshot
         {
             ProviderId = "openai",
@@ -137,18 +240,40 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
         }
     });
 
-    private AgentFactory CreateFactory(IChatClient client)
+    private AgentFactory CreateFactory(
+        IChatClient client,
+        string protocol = ModelProviderProtocols.OpenAIChatCompletions,
+        IThreadSystemPromptContextProvider? clientContext = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
+        foreach (var provider in config.Providers.Values)
+            provider.Protocol = protocol;
+        var craft = Path.Combine(_root, "craft");
+        var memoryStore = new MemoryStore(craft);
+        var skillsLoader = new SkillsLoader(craft);
+        var approvalService = new AutoApproveApprovalService();
+        var registry = new ChatClientRegistry(new RecordingProvider(client));
         return new AgentFactory(
-            dotcraftPath: Path.Combine(_root, "craft"),
+            dotcraftPath: craft,
             workspacePath: _workspace,
             config: config,
-            memoryStore: new MemoryStore(Path.Combine(_root, "craft")),
-            skillsLoader: new SkillsLoader(Path.Combine(_root, "craft")),
-            approvalService: new AutoApproveApprovalService(),
+            memoryStore: memoryStore,
+            skillsLoader: skillsLoader,
+            approvalService: approvalService,
             blacklist: null,
-            chatClientRegistry: new ChatClientRegistry(new RecordingProvider(client)),
+            runtimeContext: new AgentRuntimeContext
+            {
+                Config = config,
+                ChatClientRegistry = registry,
+                WorkspacePath = _workspace,
+                BotPath = craft,
+                MemoryStore = memoryStore,
+                SkillsLoader = skillsLoader,
+                ContextPageManager = new ContextPageManager(),
+                ApprovalService = approvalService,
+                ThreadSystemPromptContextProviders = clientContext == null ? [] : [clientContext]
+            },
+            chatClientRegistry: registry,
             toolSources: [new WorktreeToolSource()]);
     }
 
@@ -178,9 +303,22 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
         IReadOnlyList<string> Tools,
         string? Instructions);
 
+    private sealed class FakeClientContext : IThreadSystemPromptContextProvider
+    {
+        public string? Section { get; set; }
+
+        public ThreadPromptPlacement Placement => ThreadPromptPlacement.ThreadContextItem;
+
+        public ContextPageKey ContextPageKey => new("runtime", "fake", "");
+
+        public string? GetSystemPromptSection(ThreadSystemPromptContext context) =>
+            context.ThreadId.Length > 0 ? Section : null;
+    }
+
     private sealed class RecordingProvider(IChatClient client) : IModelProvider
     {
-        public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAI];
+        public IReadOnlyCollection<string> Protocols =>
+            [ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.OpenAIResponses];
 
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => client;
     }

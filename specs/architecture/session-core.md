@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.9 |
+| **Version** | 0.10.3 |
 | **Status** | Living |
-| **Date** | 2026-10-29 |
+| **Date** | 2026-11-05 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -1078,7 +1078,8 @@ ThreadConfiguration
 ├── ToolProfile: string?                            // Named tool profile to inject
 ├── UseToolProfileOnly: bool                        // Use only the profile tools
 ├── AgentInstructions: string?                      // Extra system instructions
-├── DeveloperInstructions: string?                  // Starting application's instructions, final prompt section
+├── SubAgentRoleInstructions: string?               // A native SubAgent role's text, in its role guidance; not on the wire
+├── DeveloperInstructions: string?                  // Starting application's instructions, a thread context item
 ├── ApprovalPolicy: default|prompt|autoApprove|deny // Thread-scoped approval behavior
 ├── AutomationTaskDirectory: string?                // Local automation task directory
 └── RequireApprovalOutsideWorkspace: bool?          // Outside-workspace file and shell boundary behavior
