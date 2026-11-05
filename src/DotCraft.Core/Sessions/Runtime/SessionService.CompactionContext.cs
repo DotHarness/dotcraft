@@ -29,6 +29,18 @@ public sealed partial class SessionService
             agentFactory.PlanStore?.StructuredPlanExists(thread.Id) == true,
             goal, sessionStartHookContext, clientSurface, forceFull: true);
         var items = update.Items.ToList();
+        var hookContextKind = WorldStateComposer.ItemKind(SessionStartHookSection.SectionId);
+        if (string.IsNullOrWhiteSpace(sessionStartHookContext)
+            && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, hookContextKind)) is { } deliveredHook)
+        {
+            items.Add(deliveredHook.Clone());
+            var state = update.Render.Snapshot.ToJsonObject();
+            var text = deliveredHook.Role == ChatRole.User
+                ? ThreadContextItems.ReadText(deliveredHook)
+                : deliveredHook.Text.Trim();
+            state[SessionStartHookSection.SectionId] = SessionStartHookSection.CreateSnapshot(text);
+            update = update with { Render = update.Render with { Snapshot = WorldStateSnapshot.FromJsonObject(state) } };
+        }
         NativeSubAgentGuidance.Reconcile(thread, items, ResolveThreadContextCarrier(thread), _subAgentGuidanceProviders);
         var clientContextKind = WorldStateComposer.ItemKind(ClientContextSection.SectionId);
         if (thread.Source.SubAgent != null

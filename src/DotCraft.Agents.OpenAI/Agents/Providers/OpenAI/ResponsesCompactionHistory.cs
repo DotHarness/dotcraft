@@ -40,12 +40,15 @@ internal static class ResponsesCompactionHistory
 
     internal static IReadOnlyList<JsonElement> InstallContext(ProviderNativeCompactionReplacement replacement)
     {
-        var previous = ResponsesToolSearchMapper.BuildInputItems(replacement.PreviousContext, null).Input
-            .Select(static item => JsonSerializer.SerializeToElement(item))
-            .ToArray();
+        var previous = replacement.PreviousContext.SelectMany(message =>
+        {
+            var preservedId = OpenAIResponsesItemIdentity.GetPreservedMessageId(message);
+            return ResponsesToolSearchMapper.BuildInputItems([message], null).Input
+                .Select(item => (Item: JsonSerializer.SerializeToElement(item), PreservedId: preservedId));
+        }).ToArray();
         var history = replacement.Items
             .Select(static item => item.Payload)
-            .Where(item => !previous.Any(context => SameMessage(item, context)))
+            .Where(item => !previous.Any(context => SameMessage(item, context.Item, context.PreservedId)))
             .ToList();
         var initialContext = ResponsesToolSearchMapper.BuildInputItems(
                 replacement.InitialContext, null, itemOrdinalOffset: history.Count).Input
@@ -61,14 +64,17 @@ internal static class ResponsesCompactionHistory
         return history;
     }
 
-    private static bool SameMessage(JsonElement item, JsonElement context) =>
+    private static bool SameMessage(JsonElement item, JsonElement context, string? preservedId) =>
         item.TryGetProperty("type", out var type) && type.GetString() == "message"
         && item.TryGetProperty("role", out var role)
         && context.TryGetProperty("role", out var contextRole)
         && JsonElement.DeepEquals(role, contextRole)
-        && item.TryGetProperty("content", out var content)
-        && context.TryGetProperty("content", out var contextContent)
-        && JsonElement.DeepEquals(content, contextContent);
+        && (preservedId != null
+            && item.TryGetProperty("id", out var id)
+            && id.GetString() == preservedId
+            || item.TryGetProperty("content", out var content)
+            && context.TryGetProperty("content", out var contextContent)
+            && JsonElement.DeepEquals(content, contextContent));
 
     private static bool IsMessage(JsonElement item, string role) =>
         item.TryGetProperty("type", out var type) && type.GetString() == "message"

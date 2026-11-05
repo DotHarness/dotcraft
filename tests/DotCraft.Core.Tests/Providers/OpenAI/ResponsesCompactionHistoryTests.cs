@@ -100,6 +100,45 @@ public sealed class ResponsesCompactionHistoryTests
     }
 
     [Fact]
+    public void InstallContext_ReplacesTruncatedInheritedContextByPreservedIdentity()
+    {
+        const string contextId = "msg_inherited_context";
+        var context = new ChatMessage(new ChatRole("developer"), new string('x', 8_000))
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                [OpenAIResponsesItemIdentity.MetadataKey] = contextId
+            }
+        };
+        var nativeContext = ResponsesToolSearchMapper.BuildInputItems([context], null).Input[0];
+        var recent = Item(Message("latest question"));
+        var compact = Compact("opaque");
+        var compacted = ResponsesCompactionHistory.Build(
+            [new ProviderHistoryItem("context", JsonSerializer.SerializeToElement(nativeContext)), recent],
+            compact, tokenBudget: 100);
+        Assert.Equal(3, compacted.Count);
+        Assert.Equal(contextId, compacted[0].GetProperty("id").GetString());
+        Assert.NotEqual(context.Text, compacted[0].GetProperty("content")[0].GetProperty("text").GetString());
+        var replacement = new ProviderNativeCompactionReplacement(
+            "openai-responses",
+            compacted.Select((item, index) => new ProviderHistoryItem(index.ToString(), item)).ToArray(),
+            2, "turn_001", 100)
+        {
+            PreviousContext = [context],
+            InitialContext = [context.Clone()]
+        };
+
+        var result = ResponsesCompactionHistory.InstallContext(replacement);
+
+        Assert.Equal(3, result.Count);
+        var restored = Assert.Single(result, item => item.TryGetProperty("id", out var id)
+            && id.GetString() == contextId);
+        Assert.Equal(context.Text, restored.GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal(recent.Payload.GetRawText(), result[1].GetRawText());
+        Assert.Equal(compact.GetRawText(), result[2].GetRawText());
+    }
+
+    [Fact]
     public void InstallContext_WithoutUserInsertsBeforeCompaction()
     {
         var retained = Item("""{"type":"message","role":"developer","content":[{"type":"input_text","text":"retained client context"}]}""");

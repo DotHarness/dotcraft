@@ -76,7 +76,9 @@ DotCraft recognizes these event names:
 | `StopFailure` | After Stop hook execution fails or a Stop-triggered continuation fails. | No | No |
 
 `UserPromptSubmit` runs before baseline capture, tool use, and prompt assembly;
-`PrePrompt` runs after assembly.
+`PrePrompt` runs after assembly. UserPromptSubmit and PrePrompt context is recorded with the current
+input after PreTurn compaction, so rolling back that Turn removes it. SessionStart output is retained
+across compaction without running SessionStart again.
 
 ## 3. Hook File Shape
 

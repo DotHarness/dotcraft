@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
@@ -215,13 +216,14 @@ public sealed partial class SessionService
         return string.IsNullOrWhiteSpace(result.Output) ? null : result.Output;
     }
 
-    private static string? CombineHookContext(params string?[] contexts)
+    private static string? BuildPromptHookReminder(HookResult promptHook, HookResult prePromptHook)
     {
-        var parts = contexts
-            .Where(static context => !string.IsNullOrWhiteSpace(context))
-            .Select(static context => context!.Trim())
-            .ToList();
-        return parts.Count == 0 ? null : string.Join("\n\n", parts);
+        var feedback = new List<StreamingToolHookFeedback>();
+        if (ExtractHookContext(promptHook) is { } promptContext)
+            feedback.Add(new(nameof(HookEvent.UserPromptSubmit), promptContext.Trim(), false));
+        if (ExtractHookContext(prePromptHook) is { } prePromptContext)
+            feedback.Add(new(nameof(HookEvent.PrePrompt), prePromptContext.Trim(), false));
+        return feedback.Count == 0 ? null : StreamingFunctionInvokingChatClient.BuildHookFeedbackReminder(feedback);
     }
 
     private async Task EnqueueHookRewakeAsync(HookRewakeRequest request, CancellationToken ct)

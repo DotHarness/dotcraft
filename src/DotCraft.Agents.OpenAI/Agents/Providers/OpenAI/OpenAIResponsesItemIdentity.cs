@@ -76,6 +76,11 @@ internal static class OpenAIResponsesItemIdentity
 {
     internal const string MetadataKey = "openai.responses.item_id";
 
+    internal static string? GetPreservedMessageId(ChatMessage message) =>
+        FirstValid(message.MessageId,
+            ReadString(message.AdditionalProperties, MetadataKey),
+            ReadString(message.AdditionalProperties, "id"));
+
     public static void PreserveProviderItemId(AIContent content, string providerItemId)
     {
         ArgumentNullException.ThrowIfNull(content);

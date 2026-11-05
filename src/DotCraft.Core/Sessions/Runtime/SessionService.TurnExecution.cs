@@ -204,7 +204,7 @@ public sealed partial class SessionService
             var turnCommitter = new TurnCommitter(this, thread, turn);
             TurnModelHistory? turnModelHistory = null;
             var reactiveCompaction = new ReactiveCompactionState();
-            string? lifecycleHookContext = null;
+            string? sessionStartHookContext = null;
 
             void FinalizeStreamingAgentMessage()
                 => itemProjector.FinalizeAgentMessage();
@@ -575,7 +575,7 @@ public sealed partial class SessionService
                         var isProviderNative = result.Replacement is CompactionReplacement.ProviderNative;
                         var compactionContext = await BuildCompactionContextAsync(
                             thread, turn.Id, modelVisibleHistory, turnRuntime?.ToolLocation?.Current ?? turnContext.Workspace, compactionCt,
-                            lifecycleHookContext, turnContext.Channel?.Surface);
+                            phase == CompactionPhase.PreTurn ? null : sessionStartHookContext, turnContext.Channel?.Surface);
                         var coveredTurnId = phase == CompactionPhase.PreTurn
                             ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
                             : turn.Id;
@@ -985,11 +985,8 @@ public sealed partial class SessionService
                     return;
                 }
 
-                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, turn.Id, turnContext.Workspace.Cwd, stopHookActive, executionCt);
-                lifecycleHookContext = CombineHookContext(
-                    ExtractHookContext(sessionStartHookContext),
-                    ExtractHookContext(promptHookContext),
-                    ExtractHookContext(prePromptHookContext));
+                var sessionStartHook = await RunSessionStartHookOnceAsync(threadId, turn.Id, turnContext.Workspace.Cwd, stopHookActive, executionCt);
+                sessionStartHookContext = ExtractHookContext(sessionStartHook);
 
                 IList<AIContent> modelInputContent = content;
                 if (transientMcpAppContext.Count > 0)
@@ -1001,6 +998,9 @@ public sealed partial class SessionService
                         .. transientMcpAppContext
                     ];
                 }
+
+                if (BuildPromptHookReminder(promptHookContext, prePromptHookContext) is { } promptHookReminder)
+                    modelInputContent = [.. modelInputContent, new TextContent(promptHookReminder)];
 
                 // Step 5e: Set up approval service override
                 sessionApproval = new SessionApprovalService(
@@ -1259,7 +1259,7 @@ public sealed partial class SessionService
                     runtimeModeManager,
                     hasActivePlan,
                     threadGoalForContext,
-                    lifecycleHookContext,
+                    sessionStartHookContext,
                     turnContext.Channel?.Surface);
                 foreach (var worldStateItem in worldStateUpdate.Items)
                     session.Add(worldStateItem);
@@ -1336,7 +1336,7 @@ public sealed partial class SessionService
                                 session,
                                 threadContextCarrier,
                                 runtimeModeManager,
-                                lifecycleHookContext,
+                                sessionStartHookContext,
                                 worldStateCt),
                             drainCt),
                         HasPendingGuidanceAsync = pendingCt => HasPendingGuidanceAsync(thread, turn.Id, pendingCt),

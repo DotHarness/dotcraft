@@ -316,8 +316,10 @@ A provider-native replacement:
 Before native installation, Session Core supplies the current context and its matching world-state
 snapshot. The provider maps that context into the replacement before the last retained user input,
 or before the compaction item when no user input remains, replacing matching historical context.
-A full world-state record follows the committed replacement and uses its covered Turn. Restored
-context is also recorded as neutral local input; it never replaces the neutral transcript.
+A full world-state record follows the committed replacement and uses its covered Turn. Known old
+context is identified by its preserved item identity or exact role and content, so a budget-truncated
+copy is removed before its complete replacement is installed. Restored context is also recorded as
+neutral local input; it never replaces the neutral transcript.
 Subsequent context changes append to the same native generation.
 
 The rollout replacement is authoritative because it contains its own context-window identity.

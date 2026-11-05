@@ -64,6 +64,11 @@ The `role_instructions` and `developer_instructions` sections read the thread's 
 so its `client_context` takes no snapshot. Compaction carries the latest such item into a
 SubAgent's restored context, because nothing else can restate it.
 
+The `session_start_hook` section carries only the once-per-thread SessionStart output. An absent
+hook result is unavailable state, not removal. Compaction carries forward the delivered item and
+its comparison snapshot from history without executing the hook again. UserPromptSubmit and
+PrePrompt output belongs to the current input, not this section or an earlier Turn's checkpoint.
+
 A snapshot never serializes to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored
 from a patch. Normalization is the runtime's job, not a section's.
