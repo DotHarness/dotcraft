@@ -34,6 +34,9 @@ public sealed class ChatClientAgentOptions
     /// <summary>Gets or sets the immutable default chat options.</summary>
     public ChatOptions? ChatOptions { get; set; }
 
+    /// <summary>Identifies the model allowed to replay private history and attributed to new assistant output.</summary>
+    public ProviderMessageOrigin? MessageOrigin { get; set; }
+
     /// <summary>Gets or sets the ordered context providers.</summary>
     public IEnumerable<AIContextProvider>? AIContextProviders { get; set; }
 
@@ -45,6 +48,7 @@ public sealed class ChatClientAgentOptions
             Name = Name,
             Description = Description,
             ChatOptions = ChatOptions?.Clone(),
+            MessageOrigin = MessageOrigin,
             AIContextProviders = AIContextProviders?.ToList()
         };
 }

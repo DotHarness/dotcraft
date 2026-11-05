@@ -22,8 +22,8 @@ MEAI history or a valid provider usage anchor, except that an active opaque prov
 compaction generation supplies its own context estimator. Session Core owns both histories and
 persists them through the rollout contracts defined in [Session Core](session-core.md).
 
-Session Core stores only the provider id, normalized protocol, and opaque JSON items through the
-provider-neutral history contract. The OpenAI integration owns validation, projection, retry-abort
+Session Core stores the producing provider/model identity, normalized protocol, and opaque JSON
+items through the provider-neutral history contract. The OpenAI integration owns validation, projection, retry-abort
 handling, compact transport, and all interpretation of those JSON items.
 
 ## Activation
@@ -55,7 +55,9 @@ The thread rollout supports:
 - `provider_history_attempt_aborted`: a tombstone for provider-output entries from an attempt that
   the stream retry layer deliberately discards.
 
-Every record carries schema version, thread id, protocol, generation id, and context-window id.
+Append and replacement records retain their producing provider id and model in addition to schema
+version, thread id, protocol, generation id, and context-window id. The replayed snapshot preserves
+that ownership; assigning the currently selected provider to a loaded generation is forbidden.
 Append entries additionally carry turn id, source, optional attempt id, a stable ledger entry id,
 and the provider-visible item object. Provider-output entries are captured from completed raw
 Responses output items before tool-search normalization and MEAI conversion.
@@ -160,8 +162,14 @@ machine.
 - **Ephemeral threads:** use the same runtime state in memory and persist nothing until normal
   thread-promotion behavior makes the thread durable.
 
-Canonical replacement is an explicit lifecycle transition. Successful compaction, protocol return,
-and fork materialization may create `provider_history_replaced`; request-local sanitization,
+A provider or model change, including between two Responses-compatible providers, also creates a
+replacement before sampling and advances the context window. The replacement is built from neutral
+history projected for the target provider/protocol/model: foreign reasoning and native metadata
+never enter the new generation. A generation without attributable ownership cannot replay private
+provider state. Exact matching generations retain their ordered native items unchanged.
+
+Canonical replacement is an explicit lifecycle transition. Successful compaction, provider/model
+change, protocol return, and fork materialization may create `provider_history_replaced`; request-local sanitization,
 provider adapter normalization, retry preparation, and ordinary tool-loop projection may not.
 
 ## MEAI projection boundaries

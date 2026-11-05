@@ -219,7 +219,10 @@ public sealed partial class OpenAIClientProvider :
                     ToHistoryIdentity(snapshot.Identity, payload.GenerationId, snapshot.Identity.ContextWindowId, payload.TurnId),
                     payload.AttemptId,
                     ct).ConfigureAwait(false);
-            });
+            },
+            origin: snapshot.Identity.Model is { } model
+                ? new ProviderMessageOrigin(snapshot.Identity.ProviderId, snapshot.Identity.Protocol, model)
+                : null);
     }
 
     private static ProviderHistoryIdentity ToHistoryIdentity(

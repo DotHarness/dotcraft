@@ -19,10 +19,13 @@ public sealed class FreeformCallProtocolSwitchTests : IDisposable
 {
     private readonly string _tempDir = Directory.CreateTempSubdirectory("freeform-switch-").FullName;
 
-    [Fact]
-    public async Task FreeformCallDispatchedOnFunctionProtocol_ReplaysAsCustomOnResponsesOnly()
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions)]
+    [InlineData(ModelProviderProtocols.OpenAIResponses)]
+    public async Task DispatchedFreeformCall_PreservesKindAcrossProtocolOrModelSwitch(string sourceProtocol)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
+        config.Providers[config.ProviderId].Protocol = sourceProtocol;
         var chatClient = new ScriptChatClient();
         var dispatcher = new ToolDispatcher(recorder: new ToolInvocationRecorderRouter());
         await using var agentFactory = new AgentFactory(
@@ -58,17 +61,23 @@ public sealed class FreeformCallProtocolSwitchTests : IDisposable
         var call = Assert.Single(history.SelectMany(static message => message.Contents).OfType<FunctionCallContent>());
         Assert.True(ProviderFunctionCallMetadata.IsCustomToolCall(call));
 
+        var responsesHistory = ProviderMessageProjection.Project(history,
+            new(config.ProviderId, ModelProviderProtocols.OpenAIResponses, "gpt-test"));
         var responses = ModelReaderWriter.Write(
-            ResponsesToolSearchMapper.CreateResponseOptions("gpt-test", history, new ChatOptions())).ToString();
+            ResponsesToolSearchMapper.CreateResponseOptions("gpt-test", responsesHistory, new ChatOptions())).ToString();
         using var responsesDocument = JsonDocument.Parse(responses);
         var input = responsesDocument.RootElement.GetProperty("input").EnumerateArray().ToArray();
         var customCall = Assert.Single(input, static item => item.GetProperty("type").GetString() == "custom_tool_call");
         Assert.Equal("return 1;", customCall.GetProperty("input").GetString());
-        Assert.Single(input, static item => item.GetProperty("type").GetString() == "custom_tool_call_output");
+        var customOutput = Assert.Single(input,
+            static item => item.GetProperty("type").GetString() == "custom_tool_call_output");
+        Assert.Equal(customCall.GetProperty("call_id").GetString(), customOutput.GetProperty("call_id").GetString());
         Assert.DoesNotContain(input, static item => item.GetProperty("type").GetString() == "function_call");
 
+        var chatHistory = ProviderMessageProjection.Project(history,
+            new(config.ProviderId, ModelProviderProtocols.OpenAIChatCompletions, "gpt-test"));
         var chatCall = Assert.Single(
-            MicrosoftExtensionsAIChatExtensions.AsOpenAIChatMessages(history)
+            MicrosoftExtensionsAIChatExtensions.AsOpenAIChatMessages(chatHistory)
                 .OfType<AssistantChatMessage>()
                 .SelectMany(static message => message.ToolCalls));
         Assert.Equal(ChatToolCallKind.Function, chatCall.Kind);

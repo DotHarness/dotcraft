@@ -22,6 +22,7 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
             Protocol = identity.Protocol,
             GenerationId = identity.GenerationId,
             ContextWindowId = identity.ContextWindowId,
+            Origin = GetOrigin(identity),
             Source = source == ProviderHistoryEntrySource.LocalInput
                 ? ProviderHistorySources.LocalInput
                 : ProviderHistorySources.ProviderOutput,
@@ -45,6 +46,7 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
             GenerationId = identity.GenerationId,
             ContextWindowId = identity.ContextWindowId,
             CoveredThroughTurnId = coveredThroughTurnId,
+            Origin = GetOrigin(identity),
             Reason = reason,
             Entries = items.Select(ToEntry).ToList()
         }, cancellationToken).ConfigureAwait(false);
@@ -65,6 +67,9 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
             AttemptId = attemptId
         }, cancellationToken).ConfigureAwait(false);
     }
+
+    private static ProviderMessageOrigin? GetOrigin(ProviderHistoryIdentity identity) =>
+        identity.Model is { } model ? new(identity.ProviderId, identity.Protocol, model) : null;
 
     private static ProviderHistoryEntry ToEntry(ProviderHistoryItem item) => new()
     {

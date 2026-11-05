@@ -317,6 +317,7 @@ public sealed partial class SessionService
                     GenerationId = forkWindow.CurrentWindowId,
                     ContextWindowId = forkWindow.CurrentWindowId,
                     CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id,
+                    Origin = sourceSnapshot.Origin,
                     Reason = sourceSnapshot.IsNativeCompacted
                         ? ProviderHistoryReasons.ForkNativeCompaction
                         : ProviderHistoryReasons.Fork,

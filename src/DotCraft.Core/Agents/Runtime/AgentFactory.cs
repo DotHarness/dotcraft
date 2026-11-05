@@ -727,6 +727,7 @@ public sealed class AgentFactory : IAsyncDisposable
             new ChatClientAgentOptions
             {
                 Name = "DotCraft",
+                MessageOrigin = new ProviderMessageOrigin(runtime.ProviderId, runtime.Protocol, runtime.Model),
                 ChatOptions = chatOptions,
                 AIContextProviders = contextProviders
             });

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
 
@@ -219,6 +220,8 @@ public sealed partial class ThreadStore
         public string ContextWindowId { get; init; } = string.Empty;
 
         public bool IsNativeCompacted { get; init; }
+
+        public ProviderMessageOrigin? Origin { get; init; }
 
         public List<ProviderHistoryEntry> Entries { get; init; } = [];
     }

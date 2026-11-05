@@ -180,6 +180,8 @@ public sealed partial class SessionServiceInterruptionTests
             GenerationId = window.CurrentWindowId,
             ContextWindowId = window.CurrentWindowId,
             CoveredThroughTurnId = source.Turns[^1].Id,
+            Origin = new ProviderMessageOrigin(source.Configuration!.ProviderId!,
+                ModelProviderProtocols.OpenAIResponses, source.Configuration.Model!),
             Reason = ProviderHistoryReasons.RemoteCompaction,
             Entries = [new ProviderHistoryEntry
             {

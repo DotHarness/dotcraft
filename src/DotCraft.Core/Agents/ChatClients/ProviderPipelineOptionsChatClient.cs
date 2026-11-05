@@ -14,7 +14,7 @@ internal sealed class ProviderPipelineOptionsChatClient(
         CancellationToken cancellationToken = default)
     {
         using var scope = ProviderPipelineOptionsScope.Push(pipelineOptions);
-        return await base.GetResponseAsync(messages, ProviderReasoningOptions.ApplyDefaults(options, pipelineOptions), cancellationToken).ConfigureAwait(false);
+        return await base.GetResponseAsync(Project(messages), ProviderReasoningOptions.ApplyDefaults(options, pipelineOptions), cancellationToken).ConfigureAwait(false);
     }
 
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -23,8 +23,13 @@ internal sealed class ProviderPipelineOptionsChatClient(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var scope = ProviderPipelineOptionsScope.Push(pipelineOptions);
-        await foreach (var update in base.GetStreamingResponseAsync(messages, ProviderReasoningOptions.ApplyDefaults(options, pipelineOptions), cancellationToken)
+        await foreach (var update in base.GetStreamingResponseAsync(Project(messages), ProviderReasoningOptions.ApplyDefaults(options, pipelineOptions), cancellationToken)
                            .WithCancellation(cancellationToken).ConfigureAwait(false))
             yield return update;
     }
+
+    private IReadOnlyList<ChatMessage> Project(IEnumerable<ChatMessage> messages) =>
+        ProviderMessageProjection.Project(
+            messages as IReadOnlyList<ChatMessage> ?? messages.ToArray(),
+            new ProviderMessageOrigin(pipelineOptions.Runtime.ProviderId, pipelineOptions.Runtime.Protocol, pipelineOptions.Runtime.Model));
 }

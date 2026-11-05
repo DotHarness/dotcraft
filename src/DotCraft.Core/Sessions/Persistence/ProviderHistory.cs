@@ -31,6 +31,7 @@ internal static class ProviderHistoryReplayer
         var generationId = replacement?.GenerationId ?? string.Empty;
         var contextWindowId = replacement?.ContextWindowId ?? currentContextWindowId;
         var coveredThroughTurnId = replacement?.CoveredThroughTurnId;
+        var origin = replacement?.Origin;
         var entries = new List<(ProviderHistoryEntry Entry, string? AttemptId)>();
         var entryIds = new HashSet<string>(StringComparer.Ordinal);
         if (replacement != null)
@@ -65,6 +66,7 @@ internal static class ProviderHistoryReplayer
             {
                 generationId = appended.GenerationId;
                 contextWindowId = appended.ContextWindowId;
+                origin = appended.Origin;
             }
             if (!string.Equals(generationId, appended.GenerationId, StringComparison.Ordinal)
                 || !string.Equals(contextWindowId, appended.ContextWindowId, StringComparison.Ordinal)
@@ -86,7 +88,7 @@ internal static class ProviderHistoryReplayer
             contextWindowId,
             entries.Select(pair => CloneEntry(pair.Entry)).ToList(),
             coveredThroughTurnId,
-            ProviderHistoryReasons.IsNativeCompacted(replacement?.Reason));
+            ProviderHistoryReasons.IsNativeCompacted(replacement?.Reason)) { Origin = origin };
 
         void AddEntry(ProviderHistoryEntry entry, string? attemptId)
         {
