@@ -11,8 +11,15 @@ internal static class ModelRequestHistorySanitizer
         "Tool result unavailable: DotCraft repaired an incomplete historical tool call. " +
         "The tool was not executed or its result was not persisted. Continue from the latest user request and retry if needed.";
 
-    public static IReadOnlyList<ChatMessage> Sanitize(IReadOnlyList<ChatMessage> messages)
+    public static IReadOnlyList<ChatMessage> Sanitize(IReadOnlyList<ChatMessage> messages) =>
+        Sanitize(messages, AgentHistoryRuntimeScope.Current?.Origin);
+
+    public static IReadOnlyList<ChatMessage> Sanitize(
+        IReadOnlyList<ChatMessage> messages,
+        ProviderMessageOrigin? target)
     {
+        if (target is not null)
+            messages = ProviderMessageProjection.Project(messages, target);
         if (messages.Count == 0)
             return messages;
 

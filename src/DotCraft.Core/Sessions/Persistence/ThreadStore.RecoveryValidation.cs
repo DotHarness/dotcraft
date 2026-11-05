@@ -75,6 +75,7 @@ public sealed partial class ThreadStore
                 GenerationId = providerHistory.GenerationId,
                 ContextWindowId = providerHistory.ContextWindowId,
                 IsNativeCompacted = providerHistory.IsNativeCompacted,
+                Origin = providerHistory.Origin,
                 Entries = providerHistory.Entries.Select(ProviderHistoryEntryCloner.Clone).ToList()
             }
         };
@@ -266,6 +267,7 @@ public sealed partial class ThreadStore
             GenerationId = snapshot.ProviderHistory.GenerationId,
             ContextWindowId = snapshot.ProviderHistory.ContextWindowId,
             CoveredThroughTurnId = snapshot.TerminalTurn.TurnId,
+            Origin = snapshot.ProviderHistory.Origin,
             Reason = snapshot.ProviderHistory.IsNativeCompacted
                 ? ProviderHistoryReasons.RecoveryNativeCompaction
                 : ProviderHistoryReasons.Recovery,
@@ -280,6 +282,7 @@ public sealed partial class ThreadStore
         if (!string.Equals(expected.GenerationId, actual.GenerationId, StringComparison.Ordinal)
             || !string.Equals(expected.ContextWindowId, actual.ContextWindowId, StringComparison.Ordinal)
             || !string.Equals(actual.CoveredThroughTurnId, terminalTurnId, StringComparison.Ordinal)
+            || expected.Origin != actual.Origin
             || expected.IsNativeCompacted != actual.IsNativeCompacted
             || expected.Entries.Count != actual.Entries.Count)
         {

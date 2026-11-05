@@ -119,7 +119,12 @@ public sealed partial class SessionService
             .OrderBy(candidate => candidate.StartedAt)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
             .LastOrDefault();
-        var requiresReplacement = !string.IsNullOrWhiteSpace(forceReplacementReason)
+        if (snapshot.Items.Count == 0 && snapshot.CoveredThroughTurnId is null)
+            snapshot = CreateEmptyOpaqueHistory(runtime, activeIdentity);
+        var originChanged = !string.Equals(snapshot.Identity.ProviderId, runtime.ProviderId, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Identity.Protocol, runtime.Protocol, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Identity.Model, runtime.Model, StringComparison.Ordinal);
+        var requiresReplacement = originChanged || !string.IsNullOrWhiteSpace(forceReplacementReason)
             || previousTurn != null
                && !string.Equals(
                    snapshot.CoveredThroughTurnId,
@@ -150,7 +155,7 @@ public sealed partial class SessionService
             await context.HistoryReplacedAsync(
                     baselineHistory,
                     options: null,
-                    forceReplacementReason ?? "protocol_return",
+                    forceReplacementReason ?? (originChanged ? "model_change" : "protocol_return"),
                     ct)
                 .ConfigureAwait(false);
         }
@@ -224,7 +229,7 @@ public sealed partial class SessionService
                 identity.CurrentThreadId,
                 identity.TurnId,
                 identity.ContextWindowId,
-                identity.ContextWindowId),
+                identity.ContextWindowId) { Model = runtime.Model },
             [],
             CoveredThroughTurnId: null);
 
@@ -234,13 +239,13 @@ public sealed partial class SessionService
         ProviderHistorySnapshot snapshot) =>
         new(
             new ProviderHistoryIdentity(
-                runtime.ProviderId,
-                runtime.Protocol,
+                snapshot.Origin?.ProviderId ?? string.Empty,
+                snapshot.Origin?.Protocol ?? runtime.Protocol,
                 ProviderHistorySchema.CurrentSchemaVersion,
                 identity.CurrentThreadId,
                 identity.TurnId,
                 snapshot.GenerationId,
-                snapshot.ContextWindowId),
+                snapshot.ContextWindowId) { Model = snapshot.Origin?.Model },
             snapshot.Entries
                 .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
                 .ToArray(),

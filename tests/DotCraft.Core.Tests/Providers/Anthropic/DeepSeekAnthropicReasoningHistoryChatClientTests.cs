@@ -55,14 +55,13 @@ public sealed class DeepSeekAnthropicReasoningHistoryChatClientTests
         string endpoint)
     {
         using var inner = new CapturingChatClient();
-        using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            inner,
-            new AppConfig(),
-            CreateRuntime(protocol, model, endpoint));
+        var runtime = CreateRuntime(protocol, model, endpoint);
+        using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(inner, new AppConfig(), runtime);
         var reasoning = new TextReasoningContent("native reasoning");
+        var history = new ChatMessage(ChatRole.Assistant, [reasoning]);
+        ProviderMessageProjection.Stamp(history, new(runtime.ProviderId, runtime.Protocol, runtime.Model));
 
-        await client.GetResponseAsync(
-            [new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[reasoning])]);
+        await client.GetResponseAsync([history]);
 
         var message = Assert.Single(inner.LastMessages);
         var capturedReasoning = Assert.Single(message.Contents.OfType<TextReasoningContent>());
@@ -79,25 +78,17 @@ public sealed class DeepSeekAnthropicReasoningHistoryChatClientTests
             HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
             ApiKey = "test-key"
         };
+        var runtime = CreateRuntime(ModelProviderProtocols.Anthropic, "deepseek-v4-pro", "https://api.deepseek.com/anthropic");
         using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            anthropicClient.Beta.AsIChatClient("deepseek-v4-pro"),
-            new AppConfig(),
-            CreateRuntime(
-                ModelProviderProtocols.Anthropic,
-                "deepseek-v4-pro",
-                "https://api.deepseek.com/anthropic"));
-
-        await client.GetResponseAsync(
+            anthropicClient.Beta.AsIChatClient(runtime.Model), new AppConfig(), runtime);
+        var history = new ChatMessage(ChatRole.Assistant,
         [
-            new ChatMessage(ChatRole.User, "hello"),
-            new ChatMessage(
-                ChatRole.Assistant,
-                (IList<AIContent>)
-                [
-                    new TextReasoningContent("need a tool"),
-                    new FunctionCallContent("call_1", "ReadFile", new Dictionary<string, object?>())
-                ])
+            new TextReasoningContent("need a tool"),
+            new FunctionCallContent("call_1", "ReadFile", new Dictionary<string, object?>())
         ]);
+        ProviderMessageProjection.Stamp(history, new(runtime.ProviderId, runtime.Protocol, runtime.Model));
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello"), history]);
 
         Assert.NotNull(handler.LastRequestJson);
         Assert.DoesNotContain("redacted_thinking", handler.LastRequestJson, StringComparison.Ordinal);

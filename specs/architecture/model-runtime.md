@@ -248,7 +248,27 @@ The rollout is the durable authority for Session behavior, display, protocol exp
 generic conversation reconstruction. It preserves roles, multimodal content, reasoning, tool calls
 and results, usage, and safe metadata without depending on runtime object identity.
 
-### 7.2 Provider-native history
+### 7.2 Cross-model request projection
+
+Assistant messages retain their producing provider id, normalized protocol, and model in durable
+message metadata. Before sampling, the runtime projects history for that exact target identity
+without mutating the stored messages. Foreign or unattributed assistant content keeps visible text,
+tool calls (including their canonical namespace and persisted flat alias), and results, but drops
+reasoning (including readable thinking), protected data, native item identities, signatures, and
+provider-specific metadata. Tool call ids are normalized for the
+target protocol together with their corresponding results. Empty projected assistant messages are
+omitted. The ordinary incomplete-tool-pair sanitizer then repairs the projected history. The active
+agent invocation owns the target identity; request preparation reuses its existing history scope.
+Auxiliary requests, including local compaction, apply the same projection using their client's
+effective target identity before entering the provider adapter.
+
+Only matching source identities may replay private provider state. Switching provider, protocol,
+or model establishes a native-history replacement boundary even when the wire protocol is unchanged;
+the new generation is built from the target-projected neutral history. Switching back can reuse
+matching reasoning from neutral history, but cannot reuse a stale native generation across the
+intervening turns.
+
+### 7.3 Provider-native history
 
 Protocols that require byte- or item-faithful replay use a durable provider-native history owned
 by that provider adapter. Provider-native history:
@@ -311,7 +331,7 @@ history, tool schema, retry timing, or wire request.
 | User fork | Create a new root conversation identity; preserve an exact compatible whole-Turn prefix or establish an explicit replacement boundary when the fork is partial or has no native prefix. |
 | Rollback | Discard later Turn effects and rebuild from the surviving durable history. |
 | Compaction | Replace the active window/history explicitly. |
-| Protocol switch | Rebase from provider-neutral history and start protocol-local state. |
+| Provider, protocol, or model switch | Project provider-neutral history for the target identity and start a new native generation. |
 | Cancellation | Stop active sampling/tools according to their cancellation contract and persist only committed effects. |
 
 ## 10. Failure Behavior

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
 
@@ -41,6 +42,7 @@ internal sealed class ProviderHistoryItemsAppendedPayload
     public string Protocol { get; init; } = string.Empty;
     public string GenerationId { get; init; } = string.Empty;
     public string ContextWindowId { get; init; } = string.Empty;
+    public ProviderMessageOrigin? Origin { get; init; }
     public string Source { get; init; } = string.Empty;
     public string? AttemptId { get; init; }
     public List<ProviderHistoryEntry> Entries { get; init; } = [];
@@ -54,6 +56,7 @@ internal sealed class ProviderHistoryReplacedPayload
     public string GenerationId { get; init; } = string.Empty;
     public string ContextWindowId { get; init; } = string.Empty;
     public string? CoveredThroughTurnId { get; init; }
+    public ProviderMessageOrigin? Origin { get; init; }
     public string Reason { get; init; } = string.Empty;
     public List<ProviderHistoryEntry> Entries { get; init; } = [];
 }
@@ -75,6 +78,8 @@ internal sealed record ProviderHistorySnapshot(
     string? CoveredThroughTurnId,
     bool IsNativeCompacted = false)
 {
+    public ProviderMessageOrigin? Origin { get; init; }
+
     public static ProviderHistorySnapshot Empty(string contextWindowId) =>
         new(contextWindowId, contextWindowId, [], null);
 }

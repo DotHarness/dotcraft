@@ -107,8 +107,8 @@ public sealed class ChatClientAgent
                 cancellationToken)
             .ConfigureAwait(false);
         var updates = new List<ChatResponseUpdate>();
-        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver);
-        await invocationHistory.AppendAsync(inputMessages, cancellationToken);
+        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver, _options.MessageOrigin);
+        await invocationHistory.AppendAsync(inputMessages, cancellationToken, stampOrigin: false);
         Exception? failure = null;
         var completed = false;
 
@@ -206,8 +206,8 @@ public sealed class ChatClientAgent
             .ConfigureAwait(false);
 
         ChatResponse response;
-        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver);
-        await invocationHistory.AppendAsync(inputMessages, cancellationToken);
+        var invocationHistory = new AgentInvocationHistory(history, runOptions?.HistoryObserver, _options.MessageOrigin);
+        await invocationHistory.AppendAsync(inputMessages, cancellationToken, stampOrigin: false);
         try
         {
             using var historyScope = AgentHistoryRuntimeScope.Set(invocationHistory);

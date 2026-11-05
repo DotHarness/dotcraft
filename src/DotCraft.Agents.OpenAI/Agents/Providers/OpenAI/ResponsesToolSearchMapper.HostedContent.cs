@@ -17,8 +17,8 @@ internal static partial class ResponsesToolSearchMapper
     {
         functionNamespace = string.Empty;
 
-        if (TryReadString(call.AdditionalProperties, FunctionCallNamespaceMetadataKey, out functionNamespace)
-            || TryReadString(call.AdditionalProperties, "namespace", out functionNamespace))
+        if (ProviderFunctionCallMetadata.TryGetNamespace(call, out functionNamespace)
+            || TryReadString(call.AdditionalProperties, FunctionCallNamespaceMetadataKey, out functionNamespace))
         {
             return true;
         }

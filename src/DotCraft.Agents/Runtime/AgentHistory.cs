@@ -13,14 +13,23 @@ public interface IAgentHistoryObserver
     ValueTask OnHistoryChangedAsync(AgentHistoryUpdate update, CancellationToken cancellationToken);
 }
 
-internal sealed class AgentInvocationHistory(IList<ChatMessage> target, IAgentHistoryObserver? observer)
+internal sealed class AgentInvocationHistory(
+    IList<ChatMessage> target,
+    IAgentHistoryObserver? observer,
+    ProviderMessageOrigin? origin = null)
 {
     private readonly List<ChatMessage>? _history = observer is null ? target.ToList() : null;
+    public ProviderMessageOrigin? Origin { get; } = origin;
     public bool LoopObserved { get; set; }
 
-    public async ValueTask AppendAsync(IEnumerable<ChatMessage> messages, CancellationToken ct)
+    public async ValueTask AppendAsync(IEnumerable<ChatMessage> messages, CancellationToken ct, bool stampOrigin = true)
     {
-        var batch = messages.Select(message => message.Clone()).ToArray();
+        var batch = messages.Select(message =>
+        {
+            if (stampOrigin && message.Role == ChatRole.Assistant && Origin is { } source)
+                ProviderMessageProjection.Stamp(message, source);
+            return message.Clone();
+        }).ToArray();
         if (batch.Length == 0) return;
         if (observer is not null)
             await observer.OnHistoryChangedAsync(new AgentHistoryUpdate(batch), ct);

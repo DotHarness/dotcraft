@@ -20,6 +20,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ProviderConversationIdentity _identity;
     private readonly string _providerId;
+    private readonly ProviderMessageOrigin? _origin;
     private readonly Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? _appendAsync;
     private readonly Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? _replaceAsync;
     private readonly Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? _abortAsync;
@@ -42,9 +43,11 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? appendAsync,
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync,
         Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync,
-        Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null)
+        Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null,
+        ProviderMessageOrigin? origin = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
+        _origin = origin;
         _providerId = string.IsNullOrWhiteSpace(providerId)
             ? throw new ArgumentException("Provider ID must be configured.", nameof(providerId))
             : providerId.Trim();
@@ -193,6 +196,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 GenerationId = nextWindowId,
                 ContextWindowId = nextWindowId,
                 CoveredThroughTurnId = replacement.CoveredThroughTurnId,
+                Origin = _origin,
                 Reason = ProviderHistoryReasons.RemoteCompaction,
                 Entries = entries
             };
@@ -299,6 +303,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            messages = GetSamplingProjection(messages);
             var mapped = ResponsesToolSearchMapper.BuildInputItems(messages, options);
             var entries = CreateEntries(mapped.Input, ProviderHistorySources.LocalInput, attemptId: null);
             var currentIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
@@ -315,6 +320,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 GenerationId = generationId,
                 ContextWindowId = windowId,
                 CoveredThroughTurnId = coveredTurnId,
+                Origin = _origin,
                 Reason = string.IsNullOrWhiteSpace(reason) ? "history_replaced" : reason,
                 Entries = entries
             };
@@ -326,7 +332,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             _generationId = generationId;
             _contextWindowId = windowId;
             _coveredThroughTurnId = coveredTurnId;
-            _coveredSamplingMessageCount = GetSamplingProjection(messages).Count;
+            _coveredSamplingMessageCount = messages.Count;
             _currentAttemptId = null;
             _isNativeCompacted = false;
         }
@@ -398,7 +404,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             _contextWindowId,
             _entries.Select(entry => ProviderHistoryEntryCloner.Clone(entry.Entry)).ToList(),
             _coveredThroughTurnId,
-            _isNativeCompacted);
+            _isNativeCompacted) { Origin = _origin };
 
     public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot()
     {
@@ -411,7 +417,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 _identity.CurrentThreadId,
                 _identity.TurnId,
                 snapshot.GenerationId,
-                snapshot.ContextWindowId),
+                snapshot.ContextWindowId) { Model = _origin?.Model },
             snapshot.Entries
                 .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
                 .ToArray(),
@@ -459,11 +465,11 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         out long tokens) =>
         TryEstimateActiveNativeContextTokens(messages, options, out tokens);
 
-    private static IReadOnlyList<ChatMessage> GetSamplingProjection(
+    private IReadOnlyList<ChatMessage> GetSamplingProjection(
         IReadOnlyList<ChatMessage> messages)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        return ModelRequestHistorySanitizer.Sanitize(messages);
+        return ModelRequestHistorySanitizer.Sanitize(messages, _origin);
     }
 
     private async Task PersistAppendAsync(
@@ -483,6 +489,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             Protocol = ModelProviderProtocols.OpenAIResponses,
             GenerationId = _generationId,
             ContextWindowId = _contextWindowId,
+            Origin = _origin,
             Source = source,
             AttemptId = attemptId,
             Entries = entries.Select(ProviderHistoryEntryCloner.Clone).ToList()
