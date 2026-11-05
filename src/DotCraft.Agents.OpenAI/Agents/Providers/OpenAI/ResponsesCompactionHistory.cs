@@ -38,6 +38,42 @@ internal static class ResponsesCompactionHistory
         return retained;
     }
 
+    internal static IReadOnlyList<JsonElement> InstallContext(ProviderNativeCompactionReplacement replacement)
+    {
+        var previous = ResponsesToolSearchMapper.BuildInputItems(replacement.PreviousContext, null).Input
+            .Select(static item => JsonSerializer.SerializeToElement(item))
+            .ToArray();
+        var history = replacement.Items
+            .Select(static item => item.Payload)
+            .Where(item => !previous.Any(context => SameMessage(item, context)))
+            .ToList();
+        var initialContext = ResponsesToolSearchMapper.BuildInputItems(
+                replacement.InitialContext, null, itemOrdinalOffset: history.Count).Input
+            .Select(static item => JsonSerializer.SerializeToElement(item));
+        var insertionIndex = history.FindLastIndex(item => IsMessage(item, "user"));
+        if (insertionIndex < 0)
+        {
+            insertionIndex = history.FindLastIndex(item =>
+                item.TryGetProperty("type", out var type)
+                && type.GetString() is "compaction" or "context_compaction");
+        }
+        history.InsertRange(insertionIndex < 0 ? history.Count : insertionIndex, initialContext);
+        return history;
+    }
+
+    private static bool SameMessage(JsonElement item, JsonElement context) =>
+        item.TryGetProperty("type", out var type) && type.GetString() == "message"
+        && item.TryGetProperty("role", out var role)
+        && context.TryGetProperty("role", out var contextRole)
+        && JsonElement.DeepEquals(role, contextRole)
+        && item.TryGetProperty("content", out var content)
+        && context.TryGetProperty("content", out var contextContent)
+        && JsonElement.DeepEquals(content, contextContent);
+
+    private static bool IsMessage(JsonElement item, string role) =>
+        item.TryGetProperty("type", out var type) && type.GetString() == "message"
+        && item.TryGetProperty("role", out var itemRole) && itemRole.GetString() == role;
+
     private static bool IsRetainedMessage(JsonElement item) =>
         item.ValueKind == JsonValueKind.Object
         && item.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String

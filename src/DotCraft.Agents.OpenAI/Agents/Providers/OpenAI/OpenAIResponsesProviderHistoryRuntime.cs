@@ -182,7 +182,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             var previousWindowId = _contextWindowId;
             var nextWindowId = Guid.CreateVersion7().ToString();
             var entries = CreateEntries(
-                replacement.Items.Select(static item => item.Payload).ToArray(),
+                ResponsesCompactionHistory.InstallContext(replacement),
                 ProviderHistoryReasons.RemoteCompaction,
                 attemptId: null);
             var payload = new ProviderHistoryReplacedPayload

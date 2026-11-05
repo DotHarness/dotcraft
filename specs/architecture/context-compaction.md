@@ -144,9 +144,10 @@ the active Responses provider-history generation.
 
 Snapshot validation and replay use the unmodified provider-visible history, including images and
 instruction messages. A valid snapshot keeps its system, tools and message prefix; only the
-maintenance task is appended. Instruction messages are excluded from the summary's coverage and
-replacement history, not removed from the replayed prefix. Image descriptions, binary omission and
-input trimming apply only when constructing a non-cache summary request or a successful replacement.
+maintenance task is appended. Rebuilt world-state and SubAgent instruction items are excluded from
+the summary's coverage and retained replacement tail, not removed from the replayed prefix. Image
+descriptions, binary omission and input trimming apply only when constructing a non-cache summary
+request or a successful replacement.
 
 Providers may expose `IProviderHistoryRewritePolicy` to prepare history whose prefix changes.
 Anthropic providers without a reasoning-history adapter remove thinking and redacted-thinking,
@@ -293,8 +294,10 @@ A neutral replacement:
 4. rebuilds provider-native history from the neutral replacement when the active provider requires
    it.
 
-When the replacement is installed between sampling steps of a Turn, the next request and the rebuilt
-provider-native history are built from the installed replacement, including its instruction item.
+Before installation, Session Core restores the current context in the replacement and captures its
+matching world-state snapshot. Context precedes the last retained user input, or the summary when
+no user input remains. A full world-state record follows the committed checkpoint, using the same
+covered Turn. The next request and any rebuilt provider history use this complete replacement.
 
 ### Provider-native replacement
 
@@ -307,13 +310,15 @@ A provider-native replacement:
 4. publishes the new provider generation and exact context-window identity only after the append
    succeeds;
 5. updates the `thread_context_windows` state-store projection to the committed identity;
-6. leaves the in-memory and persisted neutral `ChatMessage` history unchanged and appends no
-   model-history checkpoint.
+6. does not replace or truncate neutral `ChatMessage` history and appends no model-history
+   checkpoint; restored context is recorded as new neutral local input.
 
-Refreshing AGENTS instructions after installation appends a world-state update to the active native
-generation rather than projecting the neutral transcript into a new generation. Neutral replacements
-instead install the current instruction snapshot after filtering historical AGENTS updates from the
-summary.
+Before native installation, Session Core supplies the current context and its matching world-state
+snapshot. The provider maps that context into the replacement before the last retained user input,
+or before the compaction item when no user input remains, replacing matching historical context.
+A full world-state record follows the committed replacement and uses its covered Turn. Restored
+context is also recorded as neutral local input; it never replaces the neutral transcript.
+Subsequent context changes append to the same native generation.
 
 The rollout replacement is authoritative because it contains its own context-window identity.
 `thread_context_windows` is a routing projection, not a second commit record. Cold recovery selects

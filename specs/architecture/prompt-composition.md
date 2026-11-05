@@ -185,13 +185,13 @@ Rules:
    replacement boundary.
 4. **Identity.** Each item carries an item-kind marker in message metadata, never in model-visible
    text, so the runtime can find its own items in inherited history.
-5. **Compaction.** Every kind of compaction resets the world-state baseline, so the next sampling
-   step restates its sections from the thread's own state.
+5. **Compaction.** Compaction restores the thread's current context before installing the new
+   window and sets its matching world-state baseline, so the next sampling step sends only changes.
 6. **Inheritance.** A full-history SubAgent inherits the parent's thread context items with the rest
    of the copied history, and keeps the parent's `roleInstructions` and `developerInstructions` so
    they can be restated after compaction. A SubAgent owns no client binding, so it never restates or
-   retracts inherited client context from one; neutral compaction carries the latest item into its
-   replacement history instead. Fresh and bounded children hold neither field.
+   retracts inherited client context from one; compaction carries the latest item into its
+   restored context instead. Fresh and bounded children hold neither field.
 
 ## 5. Full-Prompt Overrides
 

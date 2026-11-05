@@ -204,6 +204,7 @@ public sealed partial class SessionService
             var turnCommitter = new TurnCommitter(this, thread, turn);
             TurnModelHistory? turnModelHistory = null;
             var reactiveCompaction = new ReactiveCompactionState();
+            string? lifecycleHookContext = null;
 
             void FinalizeStreamingAgentMessage()
                 => itemProjector.FinalizeAgentMessage();
@@ -572,12 +573,16 @@ public sealed partial class SessionService
                     case CompactionOutcome.Micro:
                     case CompactionOutcome.Partial:
                         var isProviderNative = result.Replacement is CompactionReplacement.ProviderNative;
+                        var compactionContext = await BuildCompactionContextAsync(
+                            thread, turn.Id, modelVisibleHistory, turnRuntime?.ToolLocation?.Current ?? turnContext.Workspace, compactionCt,
+                            lifecycleHookContext, turnContext.Channel?.Surface);
+                        var coveredTurnId = phase == CompactionPhase.PreTurn
+                            ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
+                            : turn.Id;
                         if (result.Replacement is CompactionReplacement.Neutral neutralReplacement)
                         {
-                            var compactedHistory = neutralReplacement.Messages
-                                .Select(message => message.Clone())
-                                .ToList();
-                            RestoreContextAfterCompaction(thread, session, compactedHistory, turnContext.Workspace);
+                            var compactedHistory = RestoreCompactedHistory(neutralReplacement.Messages, compactionContext);
+                            status = EstimateRestoredCompaction(status, coordinator, neutralReplacement, compactedHistory, requestOptions);
                             turnCommitter.PendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                 "auto",
                                 CompactionOutcomeToWire(status.Outcome),
@@ -585,9 +590,6 @@ public sealed partial class SessionService
                                 status.ThresholdAfter.Tokens,
                                 compactedHistory);
                             turnCommitter.PersistedModelHistoryCount = compactedHistory.Count;
-                            var coveredTurnId = phase == CompactionPhase.PreTurn
-                                ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
-                                : turn.Id;
                             // A turn-end checkpoint is committed together with the Turn's terminal state.
                             if (phase != CompactionPhase.PostTurn)
                             {
@@ -629,7 +631,9 @@ public sealed partial class SessionService
                                     result.BackendId,
                                     providerBridge,
                                     providerReplacement,
-                                    CancellationToken.None);
+                                    CancellationToken.None,
+                                    compactionContext.Items,
+                                    modelVisibleHistory.Where(CompactionHistoryPreparation.IsContext).ToArray());
                             }
                             catch (Exception ex)
                             {
@@ -650,6 +654,11 @@ public sealed partial class SessionService
                                 }
                                 return null;
                             }
+                            await AppendNativeCompactionContextAsync(
+                                thread, coveredTurnId, session, compactionContext, CancellationToken.None);
+                            turnCommitter.PersistedModelHistoryCount = session.Count;
+                            status = EstimateRestoredCompaction(status, coordinator, providerReplacement, session, requestOptions);
+                            result = result with { RestoredContext = compactionContext.Items };
                         }
                         else
                         {
@@ -657,9 +666,11 @@ public sealed partial class SessionService
                                 $"Compaction backend '{result.BackendId}' returned no installable replacement.");
                         }
 
+                        result = result with { Status = status };
                         tokenTracker.Reset();
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
-                        ResetWorldStateBaseline(threadId, "auto_compaction");
+                        await CommitCompactionWorldStateAsync(thread, coveredTurnId, compactionContext,
+                            persistBaseline: isProviderNative || phase != CompactionPhase.PostTurn);
                         var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
@@ -667,8 +678,6 @@ public sealed partial class SessionService
                                 ? "provider_compacted_estimate"
                                 : "compacted_estimate",
                             ct: CancellationToken.None);
-                        if (result.Replacement is not CompactionReplacement.Neutral)
-                            ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
                         eventChannel.EmitSystemEvent(
@@ -977,7 +986,7 @@ public sealed partial class SessionService
                 }
 
                 var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, turn.Id, turnContext.Workspace.Cwd, stopHookActive, executionCt);
-                var lifecycleHookContext = CombineHookContext(
+                lifecycleHookContext = CombineHookContext(
                     ExtractHookContext(sessionStartHookContext),
                     ExtractHookContext(promptHookContext),
                     ExtractHookContext(prePromptHookContext));
@@ -2104,12 +2113,13 @@ public sealed partial class SessionService
                             {
                                 var installedProviderNative =
                                     compactExecution.Replacement is CompactionReplacement.ProviderNative;
+                                var compactionHistory = reactiveCompaction.GetHistory(session);
+                                var compactionContext = await BuildCompactionContextAsync(
+                                    thread, turn.Id, compactionHistory, turnContext.Workspace, CancellationToken.None);
                                 if (compactExecution.Replacement is CompactionReplacement.Neutral neutralReplacement)
                                 {
-                                    var compactedHistory = neutralReplacement.Messages
-                                        .Select(message => message.Clone())
-                                        .ToList();
-                                    RestoreContextAfterCompaction(thread, session, compactedHistory, turnContext.Workspace);
+                                    var compactedHistory = RestoreCompactedHistory(neutralReplacement.Messages, compactionContext);
+                                    status = EstimateRestoredCompaction(status, reactiveCoordinator, neutralReplacement, compactedHistory, reactiveCompaction.Options);
                                     turnCommitter.PendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                         "reactive",
                                         CompactionOutcomeToWire(status.Outcome),
@@ -2144,7 +2154,13 @@ public sealed partial class SessionService
                                         compactExecution.BackendId,
                                         providerBridge,
                                         nativeReplacement,
-                                        CancellationToken.None);
+                                        CancellationToken.None,
+                                        compactionContext.Items,
+                                        compactionHistory.Where(CompactionHistoryPreparation.IsContext).ToArray());
+                                    await AppendNativeCompactionContextAsync(
+                                        thread, nativeReplacement.CoveredThroughTurnId!, session, compactionContext, CancellationToken.None);
+                                    turnCommitter.PersistedModelHistoryCount = session.Count;
+                                    status = EstimateRestoredCompaction(status, reactiveCoordinator, nativeReplacement, session, reactiveCompaction.Options);
                                 }
                                 else
                                 {
@@ -2153,7 +2169,7 @@ public sealed partial class SessionService
                                 }
                                 tokenTracker?.Reset();
                                 InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
-                                ResetWorldStateBaseline(threadId, "reactive_compaction");
+                                await CommitCompactionWorldStateAsync(thread, turn.Id, compactionContext);
                                 var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                     threadId,
                                     status.ThresholdAfter.Tokens,
@@ -2161,8 +2177,6 @@ public sealed partial class SessionService
                                         ? "provider_compacted_estimate"
                                         : "compacted_estimate",
                                     ct: CancellationToken.None);
-                                if (installedProviderNative)
-                                    ReleaseStableContextPages(threadId);
                                 traceCollector?.RecordContextCompaction(threadId);
                                 eventChannel.EmitSystemEvent(
                                     "compacted",

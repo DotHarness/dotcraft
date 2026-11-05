@@ -42,7 +42,8 @@ internal sealed record CompactionExecutionRequest(
 internal sealed record CompactionExecutionResult(
     CompactionStatus Status,
     string BackendId,
-    CompactionReplacement? Replacement);
+    CompactionReplacement? Replacement,
+    IReadOnlyList<ChatMessage>? RestoredContext = null);
 
 internal abstract record CompactionReplacement
 {
@@ -126,7 +127,9 @@ internal sealed class CompactionCoordinator
         string backendId,
         IProviderCompactionBridge bridge,
         CompactionReplacement.ProviderNative replacement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<ChatMessage> initialContext,
+        IReadOnlyList<ChatMessage> previousContext)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentException.ThrowIfNullOrWhiteSpace(backendId);
@@ -143,9 +146,13 @@ internal sealed class CompactionCoordinator
                     new ProviderNativeCompactionReplacement(
                         replacement.Protocol,
                         items,
-                        replacement.CoveredMessageCount,
+                        replacement.CoveredMessageCount + initialContext.Count,
                         replacement.CoveredThroughTurnId,
-                        replacement.EstimatedTokensAfter),
+                        replacement.EstimatedTokensAfter)
+                    {
+                        InitialContext = initialContext,
+                        PreviousContext = previousContext
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
         }

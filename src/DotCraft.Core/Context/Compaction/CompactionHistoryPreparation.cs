@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Sessions;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
@@ -7,7 +8,12 @@ namespace DotCraft.Context.Compaction;
 internal static class CompactionHistoryPreparation
 {
     internal static IReadOnlyList<ChatMessage> Conversation(IReadOnlyList<ChatMessage> history) =>
-        history.Where(static message => !AgentInstructionsHistory.IsInstructions(message)).ToArray();
+        history.Where(static message => !IsContext(message)).ToArray();
+
+    internal static bool IsContext(ChatMessage message) =>
+        AgentInstructionsHistory.IsInstructions(message)
+        || WorldStateComposer.SectionIdFromItemKind(ThreadContextItems.GetKind(message)) != null
+        || ThreadContextItems.IsKind(message, ThreadContextItems.SubAgentRoleKind);
 
     internal static IReadOnlyList<ChatMessage> Replacement(
         IReadOnlyList<ChatMessage> tail, IProviderHistoryRewritePolicy? policy)
@@ -47,7 +53,7 @@ internal static class CompactionHistoryPreparation
         var count = 0;
         for (var i = 0; i < history.Count; i++)
         {
-            if (AgentInstructionsHistory.IsInstructions(history[i]))
+            if (IsContext(history[i]))
                 continue;
             if (count++ == conversationBoundary)
                 return i;

@@ -218,8 +218,6 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 lastIterationHadConversationId = false;
                 ResetProviderContinuationAfterHistoryReplacement(ref options);
             }
-            if (preparation.HistoryWasReplaced)
-                pendingDrain ??= StreamingGuidanceBoundary.AfterTools;
             var samplingMessages = preparedMessages;
             if (pendingDrain is { } boundary)
             {

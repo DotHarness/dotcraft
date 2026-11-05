@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using Microsoft.Extensions.AI;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Agents;
@@ -66,6 +67,57 @@ public sealed class ResponsesCompactionHistoryTests
         Assert.NotEmpty(text);
         Assert.Equal(0, text.Length % 2);
         Assert.DoesNotContain("�", text);
+    }
+
+    [Fact]
+    public void InstallContext_ReplacesKnownContextBeforeLastUserAndPreservesOpaqueItems()
+    {
+        var olderUser = Item(Message("earlier question"));
+        var oldContext = Item("""{"type":"message","id":"msg_previous","role":"developer","content":[{"text":"old instructions","type":"input_text"}],"future":1}""");
+        var sameTextUser = Item(Message("old instructions"));
+        var latestUser = Item(Message("latest question"));
+        var compact = Item("""{"type":"compaction","encrypted_content":"opaque","future":{"value":1}}""");
+        var replacement = new ProviderNativeCompactionReplacement(
+            "openai-responses", [olderUser, oldContext, sameTextUser, latestUser, compact], 5, "turn_001", 10)
+        {
+            PreviousContext = [new ChatMessage(new ChatRole("developer"), "old instructions")],
+            InitialContext =
+            [
+                new ChatMessage(new ChatRole("developer"), "new instructions"),
+                new ChatMessage(ChatRole.User, "current project instructions")
+            ]
+        };
+
+        var result = ResponsesCompactionHistory.InstallContext(replacement);
+
+        Assert.Equal(6, result.Count);
+        Assert.Equal(olderUser.Payload.GetRawText(), result[0].GetRawText());
+        Assert.Equal(sameTextUser.Payload.GetRawText(), result[1].GetRawText());
+        Assert.Equal("new instructions", result[2].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal("current project instructions", result[3].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal(latestUser.Payload.GetRawText(), result[4].GetRawText());
+        Assert.Equal(compact.Payload.GetRawText(), result[5].GetRawText());
+    }
+
+    [Fact]
+    public void InstallContext_WithoutUserInsertsBeforeCompaction()
+    {
+        var retained = Item("""{"type":"message","role":"developer","content":[{"type":"input_text","text":"retained client context"}]}""");
+        var compact = Compact("opaque");
+        var replacement = new ProviderNativeCompactionReplacement(
+            "openai-responses",
+            [retained, new ProviderHistoryItem("compact", compact)],
+            1, "turn_001", 10)
+        {
+            InitialContext = [new ChatMessage(new ChatRole("developer"), "restored context")]
+        };
+
+        var result = ResponsesCompactionHistory.InstallContext(replacement);
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal(retained.Payload.GetRawText(), result[0].GetRawText());
+        Assert.Equal("restored context", result[1].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal(compact.GetRawText(), result[2].GetRawText());
     }
 
     private static string Message(string text) => JsonSerializer.Serialize(new

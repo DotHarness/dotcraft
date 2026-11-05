@@ -122,7 +122,11 @@ public sealed record ProviderNativeCompactionReplacement(
     IReadOnlyList<ProviderHistoryItem> Items,
     int CoveredMessageCount,
     string? CoveredThroughTurnId,
-    long EstimatedTokensAfter);
+    long EstimatedTokensAfter)
+{
+    public IReadOnlyList<ChatMessage> InitialContext { get; init; } = [];
+    public IReadOnlyList<ChatMessage> PreviousContext { get; init; } = [];
+}
 
 /// <summary>Bridges Core-owned compaction policy to provider-owned native history.</summary>
 public interface IProviderCompactionBridge
