@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import { create } from 'zustand'
 import { useThreadStore } from '../../stores/threadStore'
+import { useUIStore } from '../../stores/uiStore'
 
 export interface ThreadRowPlacement {
   listId: string | null
@@ -19,8 +20,9 @@ const useSelectionOriginStore = create<{ origin: SelectionOrigin | null }>(() =>
 export function useThreadRowSelected(threadId: string): boolean {
   const { listId, home } = useContext(ThreadRowPlacementContext)
   const active = useThreadStore((s) => s.activeThreadId === threadId)
+  const pendingThreadId = useUIStore((s) => s.pendingProjectThreadOpen?.threadId ?? null)
   const origin = useSelectionOriginStore((s) => (s.origin?.threadId === threadId ? s.origin : null))
-  if (!active) return false
+  if (pendingThreadId != null ? pendingThreadId !== threadId : !active) return false
   return origin ? origin.listId === listId : home
 }
 

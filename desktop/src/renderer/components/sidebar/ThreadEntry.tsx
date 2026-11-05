@@ -312,7 +312,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           filter: dimmedTarget ? 'saturate(0.7)' : 'none',
           pointerEvents: dimmedTarget ? 'none' : 'auto',
           transition:
-            'background-color 100ms ease, box-shadow 140ms ease, transform 140ms ease, opacity 140ms ease',
+            `${dragKind ? 'background-color 100ms ease, ' : ''}box-shadow 140ms ease, transform 140ms ease, opacity 140ms ease`,
           animation:
             anim === 'success'
               ? 'dropSuccessPulse 700ms ease-out'

@@ -541,6 +541,12 @@ The current sidebar destination looks the same in the expanded rows and the
 collapsed rail: `--sidebar-control-active` behind it and `--text-primary` on its
 icon and label. Accent never marks the current destination.
 
+A thread row takes `--sidebar-control-active` on click, without a transition, so
+opening a thread in another project never dims and relights the row. A project
+title uses `--text-primary` while its workspace is started and `--text-secondary`
+only while it is stopped; the foreground project is marked by its status dot's
+ring, never by a brighter title.
+
 ### Navigation icon motion
 
 Sidebar destinations answer hover and keyboard focus with one short glyph motion,

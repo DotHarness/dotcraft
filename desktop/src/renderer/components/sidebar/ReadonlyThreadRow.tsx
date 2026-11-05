@@ -23,7 +23,7 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
-import { useRememberRowSelection } from './threadRowSelection'
+import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 
 /**
  * Pin is a Desktop-local setting keyed by workspace path, so the whole
@@ -63,6 +63,7 @@ export function ReadonlyThreadRow({
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const setPendingProjectThreadOpen = useUIStore((s) => s.setPendingProjectThreadOpen)
   const rememberRowSelection = useRememberRowSelection()
+  const selected = useThreadRowSelected(thread.id)
   const running = isThreadRunning(thread)
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
@@ -265,9 +266,11 @@ export function ReadonlyThreadRow({
             />
           ) : undefined
         }
+        active={selected}
         hoverable
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
         containerProps={{
+          'aria-current': selected ? 'true' : undefined,
           tabIndex: 0,
           'aria-label': displayName,
           onClick: () => void openThread(),

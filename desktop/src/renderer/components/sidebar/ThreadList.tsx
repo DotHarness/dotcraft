@@ -1052,7 +1052,7 @@ function ProjectHeader({
         <span
             style={{
               minWidth: 0,
-              color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+              color: cold ? 'var(--text-secondary)' : 'var(--text-primary)',
               fontSize: 'var(--type-ui-size)',
               lineHeight: 'var(--type-ui-line-height)',
               fontWeight: 'var(--type-ui-emphasis-weight)',
