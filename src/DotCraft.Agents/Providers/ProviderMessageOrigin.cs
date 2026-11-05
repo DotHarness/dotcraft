@@ -60,6 +60,8 @@ internal static class ProviderMessageProjection
                             mappedCall.AdditionalProperties ??= new();
                             mappedCall.AdditionalProperties["dotcraft.tool.provider_flat_name"] = flatName;
                         }
+                        if (ProviderFunctionCallMetadata.IsCustomToolCall(call))
+                            ProviderFunctionCallMetadata.MarkCustomToolCall(mappedCall);
                         contents.Add(mappedCall);
                     }
                     else if (sameOrigin)

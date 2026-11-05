@@ -253,8 +253,8 @@ and results, usage, and safe metadata without depending on runtime object identi
 Assistant messages retain their producing provider id, normalized protocol, and model in durable
 message metadata. Before sampling, the runtime projects history for that exact target identity
 without mutating the stored messages. Foreign or unattributed assistant content keeps visible text,
-tool calls (including their canonical namespace and persisted flat alias), and results, but drops
-reasoning (including readable thinking), protected data, native item identities, signatures, and
+tool calls (including their canonical namespace, persisted flat alias, and freeform-call kind), and
+results, but drops reasoning (including readable thinking), protected data, native item identities, signatures, and
 provider-specific metadata. Tool call ids are normalized for the
 target protocol together with their corresponding results. Empty projected assistant messages are
 omitted. The ordinary incomplete-tool-pair sanitizer then repairs the projected history. The active
