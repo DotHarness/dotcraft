@@ -30,25 +30,37 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     public async Task ManualCompaction_PreservesInstructionsCoverageAcrossContinuationAndColdResume()
     {
         const string threadId = "native-instructions";
+        const string role = "Guard every release.";
         await using (var factory = CreateFactory())
         {
             var service = CreateService(factory);
             await service.CreateThreadAsync(new SessionIdentity
             {
                 WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
-            }, threadId: threadId);
+            }, new ThreadConfiguration { RoleInstructions = role }, threadId: threadId);
             await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("initial question")]));
 
             var persistence = new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")));
             var before = await persistence.LoadModelHistoryAsync(threadId, CancellationToken.None);
             Assert.Single(before, AgentInstructionsHistory.IsInstructions);
             await CompactAsync(service, threadId);
-            Assert.Equal(before.Count, (await persistence.LoadModelHistoryAsync(threadId, CancellationToken.None)).Count);
+            var after = await persistence.LoadModelHistoryAsync(threadId, CancellationToken.None);
+            Assert.Equal(before.Select(message => message.Text), after.Take(before.Count).Select(message => message.Text));
+            Assert.Single(after.Skip(before.Count), message => message.Text.Contains(role, StringComparison.Ordinal));
+            var recordsAfterCompact = await ReadRecordsAsync(threadId);
+            var replacementIndex = Array.FindLastIndex(recordsAfterCompact, record => record.ProviderHistoryReplaced != null);
+            var replacement = JsonSerializer.Serialize(recordsAfterCompact[replacementIndex].ProviderHistoryReplaced!.Entries);
+            AssertContainsOnce(replacement, role);
+            Assert.True(replacement.IndexOf(role, StringComparison.Ordinal) < replacement.IndexOf("initial question", StringComparison.Ordinal));
+            var baseline = recordsAfterCompact.Last(record => record.WorldState != null).WorldState!;
+            Assert.True(baseline.Full);
+            Assert.Equal(recordsAfterCompact[replacementIndex].ProviderHistoryReplaced!.CoveredThroughTurnId, baseline.TurnId);
             Assert.Single(_provider.CompactHistories[^1], AgentInstructionsHistory.IsInstructions);
             Assert.Equal(before.Count, _provider.CompactHistories[^1].Count);
 
             await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("after-first-compact")]));
             AssertContainsOnce(_provider.Requests[^1], "after-first-compact");
+            AssertContainsOnce(_provider.Requests[^1], role);
             Assert.Contains("encrypted-test", _provider.Requests[^1]);
             await CompactAsync(service, threadId);
         }
@@ -57,10 +69,11 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         {
             var service = CreateService(factory);
             await service.GetThreadAsync(threadId);
-            await CompactAsync(service, threadId);
             await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("after-cold-resume")]));
             AssertContainsOnce(_provider.Requests[^1], "after-cold-resume");
+            AssertContainsOnce(_provider.Requests[^1], role);
             Assert.Contains("encrypted-test", _provider.Requests[^1]);
+            await CompactAsync(service, threadId);
         }
 
         var records = await ReadRecordsAsync(threadId);

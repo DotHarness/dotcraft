@@ -39,6 +39,9 @@ public sealed class SessionServiceCompactionPhaseTests : SessionServiceRuntimeSi
         var checkpoint = records[checkpointIndex].ContextCompacted!;
         Assert.Equal("auto", checkpoint.Trigger);
         Assert.Equal(previousTerminalTurnId, checkpoint.CoveredThroughTurnId);
+        var baseline = records.Skip(checkpointIndex + 1).First(record => record.WorldState != null).WorldState!;
+        Assert.True(baseline.Full);
+        Assert.Equal(previousTerminalTurnId, baseline.TurnId);
         Assert.DoesNotContain(
             "pending input after compact",
             JsonSerializer.Serialize(checkpoint.ReplacementHistory, SessionJsonOptions.Default));
@@ -88,6 +91,12 @@ public sealed class SessionServiceCompactionPhaseTests : SessionServiceRuntimeSi
             [new TextContent(string.Join(' ', Enumerable.Range(0, 6000).Select(static i => $"w{i}")))]));
 
         Assert.Contains(events, evt => IsSystemEvent(evt, "compacted"));
+        var records = await ReadRolloutRecordsAsync(thread.Id);
+        var checkpoint = records.Last(record => record.ContextCompacted != null).ContextCompacted!;
+        var replacement = JsonSerializer.Serialize(checkpoint.ReplacementHistory, SessionJsonOptions.Default);
+        Assert.Contains(role, replacement);
+        Assert.Contains(developer, replacement);
+        Assert.True(replacement.IndexOf(role, StringComparison.Ordinal) < replacement.IndexOf("w0 w1", StringComparison.Ordinal));
         AssertCarriesInstructionsOnce();
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
@@ -171,6 +180,9 @@ public sealed class SessionServiceCompactionPhaseTests : SessionServiceRuntimeSi
         var checkpoint = records[checkpointIndex].ContextCompacted!;
         Assert.Equal("auto", checkpoint.Trigger);
         Assert.Equal(completedTurn.Id, checkpoint.CoveredThroughTurnId);
+        var baseline = records.Skip(checkpointIndex + 1).First(record => record.WorldState != null).WorldState!;
+        Assert.True(baseline.Full);
+        Assert.Equal(completedTurn.Id, baseline.TurnId);
         Assert.Contains("post turn answer", JsonSerializer.Serialize(checkpoint.ReplacementHistory, SessionJsonOptions.Default));
         Assert.Equal("compacted_estimate", service.TryGetContextUsageSnapshot(thread.Id)?.Source);
 

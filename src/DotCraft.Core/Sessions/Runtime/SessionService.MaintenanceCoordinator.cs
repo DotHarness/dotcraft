@@ -133,6 +133,7 @@ public sealed partial class SessionService
                 CompactionStatus status;
                 var installedProviderNative = false;
                 List<ChatMessage>? pendingNeutralReplacement = null;
+                WorldStateTurnUpdate? compactionContext = null;
                 try
                 {
                     var manualCoveredTurn = ResolveNewestTerminalTurn(thread);
@@ -193,16 +194,13 @@ public sealed partial class SessionService
                     status = compactExecution.Status;
                     if (status.Success)
                     {
+                        compactionContext = await owner.BuildCompactionContextAsync(
+                            thread, manualCoveredTurn!.Id, historyForEstimate,
+                            ThreadWorkspaceResolver.Resolve(thread), maintenanceCt);
                         if (compactExecution.Replacement is CompactionReplacement.Neutral neutralReplacement)
                         {
-                            pendingNeutralReplacement = neutralReplacement.Messages
-                                .Select(message => message.Clone())
-                                .ToList();
-                            owner.RestoreContextAfterCompaction(
-                                thread,
-                                session,
-                                pendingNeutralReplacement,
-                                ThreadWorkspaceResolver.Resolve(thread));
+                            pendingNeutralReplacement = RestoreCompactedHistory(neutralReplacement.Messages, compactionContext);
+                            status = EstimateRestoredCompaction(status, coordinator, neutralReplacement, pendingNeutralReplacement, manualOptions);
                         }
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                  && providerBridge != null)
@@ -212,8 +210,14 @@ public sealed partial class SessionService
                                 compactExecution.BackendId,
                                 providerBridge,
                                 nativeReplacement,
-                                maintenanceCt);
+                                maintenanceCt,
+                                compactionContext.Items,
+                                historyForEstimate.Where(CompactionHistoryPreparation.IsContext).ToArray());
+                            await owner.AppendNativeCompactionContextAsync(
+                                thread, nativeReplacement.CoveredThroughTurnId!, session, compactionContext, maintenanceCt);
+                            owner.InstallResidentModelHistoryReplacement(thread, manualCoveredTurn!.Id, session);
                             installedProviderNative = true;
+                            status = EstimateRestoredCompaction(status, coordinator, nativeReplacement, session, manualOptions);
                         }
                         else
                         {
@@ -221,7 +225,6 @@ public sealed partial class SessionService
                                 $"Compaction backend '{compactExecution.BackendId}' returned no installable replacement.");
                         }
                         owner.InvalidatePromptRequestSnapshot(threadId, "manual_compaction");
-                        owner.ResetWorldStateBaseline(threadId, "manual_compaction");
                     }
                 }
                 catch (OperationCanceledException)
@@ -285,6 +288,7 @@ public sealed partial class SessionService
                             session.AddRange(pendingNeutralReplacement);
                         }
 
+                        await owner.CommitCompactionWorldStateAsync(thread, coveredTurn!.Id, compactionContext!);
                         var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
@@ -301,8 +305,6 @@ public sealed partial class SessionService
                                 "manual_compaction",
                                 maintenanceCt);
                         }
-                        if (installedProviderNative)
-                            owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);
 

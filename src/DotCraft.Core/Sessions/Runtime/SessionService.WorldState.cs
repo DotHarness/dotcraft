@@ -28,7 +28,8 @@ public sealed partial class SessionService
         bool hasActivePlan,
         ThreadGoal? threadGoal,
         string? sessionStartHookContext,
-        ClientSurface? clientSurface)
+        ClientSurface? clientSurface,
+        bool forceFull = false)
     {
         var world = WorldStateComposer.Build(
             [
@@ -61,18 +62,10 @@ public sealed partial class SessionService
             ClientSurface = clientSurface
         };
 
-        var baseline = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
+        var baseline = !forceFull && _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
             ? runtime.WorldStateBaseline
             : null;
         var full = baseline == null;
-        if ((baseline == null || !baseline.TryGetSection(AgentsMdSection.SectionId, out _))
-            && ProviderRequestContextScope.Current?.History?.CaptureOpaqueSnapshot().IsNativeCompacted != true
-            && AgentInstructionsHistory.TryGetInstalledBaseline(history) is { } installedInstructions)
-        {
-            var sections = baseline?.ToJsonObject() ?? new();
-            sections[AgentsMdSection.SectionId] = installedInstructions;
-            baseline = WorldStateSnapshot.FromJsonObject(sections);
-        }
         var render = world.Render(context, baseline, SectionIdsInHistory(history));
 
         var items = render.Fragments

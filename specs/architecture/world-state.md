@@ -61,8 +61,13 @@ snapshot count as `Unknown`, including when the entire baseline is missing.
 
 The `role_instructions` and `developer_instructions` sections read the thread's configuration, and
 `client_context` reads the context providers bound to the thread. A SubAgent has no binding of its own,
-so its `client_context` takes no snapshot. Neutral compaction carries the latest such item into a
-SubAgent's replacement history, because nothing else can restate it.
+so its `client_context` takes no snapshot. Compaction carries the latest such item into a
+SubAgent's restored context, because nothing else can restate it.
+
+The `session_start_hook` section carries only the once-per-thread SessionStart output. An absent
+hook result is unavailable state, not removal. Compaction carries forward the delivered item and
+its comparison snapshot from history without executing the hook again. UserPromptSubmit and
+PrePrompt output belongs to the current input, not this section or an earlier Turn's checkpoint.
 
 A snapshot never serializes to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored
@@ -114,7 +119,7 @@ replay can tell that a record describes context a rolled-back turn removed.
 Replay applies records oldest first: a full snapshot resets the baseline, a patch advances it, and a
 patch with no full snapshot to stand on is ignored. A record missing its state or its identifiers is
 rejected and replay continues; a malformed record never makes a thread unloadable. Replay stops at the newest surviving compaction
-checkpoint, which is what makes compaction a reset.
+checkpoint, so records from the previous window cannot override the replacement's baseline.
 
 A record is skipped when its turn did not survive rollback, and when its turn was rebuilt from its
 projected items rather than its exact history — such a turn no longer carries the context items the
@@ -122,9 +127,13 @@ record claims.
 
 ### 3.3 Reset
 
-The baseline is dropped whenever history is replaced, because the items it claims the model is
-carrying are gone: compaction of any kind, a reconciliation that reloads history from disk, and a
-replacement that establishes a new checkpoint. The next step then restates every section.
+Compaction rebuilds the current context before installing replacement history and installs the
+matching world-state baseline. A full baseline record follows the committed checkpoint and belongs
+to its covered Turn, so continuation and cold resume send only subsequent changes. If that record
+is missing, replay safely falls back to restating the context.
+
+Other history replacements, including reconciliation from disk and checkpoints without restored
+context, drop the baseline. The next step then restates every section.
 
 Rollback is not a reset. The surviving history still carries what its Turns delivered, so rollback
 restores the baseline those Turns recorded, as replay does, and the next step restates only what
@@ -135,10 +144,11 @@ persisted comparison baselines. This reset supersedes any baseline restored from
 The turn's first context update establishes a new baseline, which later sampling steps reuse without
 repeating unchanged instructions.
 
-Native compaction resets the world-state baseline while retaining the provider's opaque replacement;
-subsequent state updates append to that generation. Neutral compaction excludes all AGENTS updates
-from summarization and installs one current instruction item with its comparison snapshot in the new
-checkpoint. That snapshot prevents a duplicate instruction update on continuation or cold resume.
+Both neutral and native compaction restore the current world-state context before the last retained
+user input, or before the summary or compaction item when no user input remains. Neutral compaction
+replaces historical instruction items in its checkpoint; native compaction maps restored context into
+the provider-owned replacement without decoding opaque content. Native restoration also records the
+context as neutral local input without replacing the neutral transcript.
 
 ### 3.4 Inheritance
 

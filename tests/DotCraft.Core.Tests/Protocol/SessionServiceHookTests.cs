@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
@@ -94,6 +95,81 @@ public sealed class SessionServiceHookTests : IDisposable
         Assert.Empty(chatClient.CapturedRequests);
     }
 
+    [Fact]
+    public async Task PreTurnCompaction_KeepsPromptHookInItsOwnTurnAcrossRollbackAndColdResume()
+    {
+        const string marker = "PENDING_PROMPT_HOOK_CONTEXT";
+        SessionThread thread;
+        var seedClient = new CapturingChatClient("seed answer");
+        await using (var seedFactory = CreateAgentFactory(seedClient, enableCompaction: true))
+        {
+            var seedService = CreateService(seedFactory, seedClient, CreateRunner(HookEvent.UserPromptSubmit));
+            thread = await CreateThreadAsync(seedService);
+            for (var index = 0; index < 4; index++)
+                await DrainAsync(seedService.SubmitInputAsync(thread.Id, [new TextContent($"seed {index} " + new string('u', 1200))]));
+            await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+                thread.Id, 9_500, source: "history_estimate", isEstimate: true);
+        }
+
+        var previousTurnId = thread.Turns[^1].Id;
+        File.WriteAllText(Path.Combine(_tempDir, "prompt-hook.json"),
+            "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"" + marker + "\"}}");
+        var chatClient = new CapturingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient, enableCompaction: true);
+        var service = CreateService(factory, chatClient,
+            CreateRunner(HookEvent.UserPromptSubmit, TestHookCommands.PrintFile("prompt-hook.json")));
+        await service.ResumeThreadAsync(thread.Id);
+        var events = new List<SessionEvent>();
+        await foreach (var item in service.SubmitInputAsync(thread.Id, [new TextContent("pending question")]))
+            events.Add(item);
+
+        Assert.Contains(events, item => item.SystemEventPayload?.Kind == "compacted");
+        var input = Assert.Single(chatClient.CapturedRequests[^1], message =>
+            message.Role == ChatRole.User && MessageText(message).Contains("pending question", StringComparison.Ordinal));
+        Assert.Contains(marker, MessageText(input));
+        var checkpoint = (await ReadRolloutRecordsAsync(thread.Id)).Single(record => record.ContextCompacted != null).ContextCompacted!;
+        Assert.Equal(previousTurnId, checkpoint.CoveredThroughTurnId);
+        Assert.DoesNotContain(marker, JsonSerializer.Serialize(checkpoint.ReplacementHistory, SessionJsonOptions.Default));
+
+        await service.RollbackThreadAsync(thread.Id, 1);
+        var coldClient = new CapturingChatClient("continued");
+        await using var coldFactory = CreateAgentFactory(coldClient, enableCompaction: true);
+        var coldService = CreateService(coldFactory, coldClient, CreateRunner(HookEvent.UserPromptSubmit));
+        await coldService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(coldService.SubmitInputAsync(thread.Id, [new TextContent("replacement question")]));
+        Assert.DoesNotContain(marker, RequestText(Assert.Single(coldClient.CapturedRequests)));
+    }
+
+    [Fact]
+    public async Task ManualCompaction_PreservesDeliveredSessionStartContextWithoutRerunningHook()
+    {
+        const string marker = "ONCE_ONLY_SESSION_CONTEXT";
+        var chatClient = new CapturingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient, enableCompaction: true);
+        var service = CreateService(factory, chatClient, CreateRunner(HookEvent.SessionStart,
+            TestHookCommands.AppendLine("session-start-runs.txt", "run"), TestHookCommands.Echo(marker)));
+        var thread = await CreateThreadAsync(service);
+        for (var index = 0; index < 4; index++)
+            await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent($"turn {index} " + new string('u', 1200))]));
+
+        Assert.Equal(1, Occurrences(RequestText(chatClient.CapturedRequests[^1]), marker));
+        var compacted = await service.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", compacted.Outcome);
+        var checkpoint = (await ReadRolloutRecordsAsync(thread.Id)).Last(record => record.ContextCompacted != null).ContextCompacted!;
+        Assert.Contains(marker, JsonSerializer.Serialize(checkpoint.ReplacementHistory, SessionJsonOptions.Default));
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("continue after compaction")]));
+
+        Assert.Equal(1, Occurrences(RequestText(chatClient.CapturedRequests[^1]), marker));
+        Assert.Single(await File.ReadAllLinesAsync(Path.Combine(_tempDir, "session-start-runs.txt")));
+    }
+
+    private async Task<ThreadRolloutRecord[]> ReadRolloutRecordsAsync(string threadId)
+    {
+        var path = Directory.GetFiles(_tempDir, threadId + ".jsonl", SearchOption.AllDirectories).Single();
+        return (await File.ReadAllLinesAsync(path))
+            .Select(line => JsonSerializer.Deserialize<ThreadRolloutRecord>(line, SessionJsonOptions.Default)!).ToArray();
+    }
+
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient, HookRunner hookRunner)
     {
         var defaultAgent = chatClient.AsAIAgent();
@@ -105,9 +181,29 @@ public sealed class SessionServiceHookTests : IDisposable
             hookRunner: hookRunner);
     }
 
-    private AgentFactory CreateAgentFactory(IChatClient chatClient)
+    private AgentFactory CreateAgentFactory(IChatClient chatClient, bool enableCompaction = false)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
+        if (enableCompaction)
+        {
+            config.Compaction.ContextWindow = 10_000;
+            config.Compaction.SummaryReserveTokens = 1_000;
+            config.Compaction.AutoCompactBufferTokens = 500;
+            config.Compaction.WarningBufferTokens = 500;
+            config.Compaction.ErrorBufferTokens = 250;
+            config.Compaction.KeepRecentMinTokens = 1;
+            config.Compaction.KeepRecentMinGroups = 1;
+            config.Compaction.KeepRecentMaxTokens = 500;
+            config.Compaction.MicrocompactEnabled = false;
+            config.WorkspaceConfigPath = Path.Combine(_tempDir, "config.json");
+            File.WriteAllText(Path.Combine(_tempDir, "models.json"), JsonSerializer.Serialize(new
+            {
+                models = new Dictionary<string, object>
+                {
+                    [ModelProviderResolver.ResolveConfiguredModel(config)!] = new { contextWindow = config.Compaction.ContextWindow }
+                }
+            }));
+        }
         return new AgentFactory(
             dotcraftPath: _tempDir,
             workspacePath: _tempDir,
@@ -118,7 +214,8 @@ public sealed class SessionServiceHookTests : IDisposable
             blacklist: null,
             chatClientRegistry: TestModelProviderRegistry.Create(),
             chatClient: chatClient,
-            toolSources: Array.Empty<IToolSource>());
+            toolSources: Array.Empty<IToolSource>(),
+            compactionChatClient: enableCompaction ? new CapturingChatClient("<summary>compacted hook history</summary>") : null);
     }
 
     private HookRunner CreateRunner(HookEvent evt, params string[] commands)

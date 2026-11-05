@@ -1,7 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Context;
-using DotCraft.Context.WorldState;
-using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
 
@@ -50,27 +48,6 @@ public sealed partial class SessionService
             () => shouldLoad
                 ? new AgentInstructionsLoader(Logger).Load(effectiveCwd, config).ToContextPageDocument()
                 : ContextPageDocument.FromContent(string.Empty));
-    }
-
-    private void RestoreContextAfterCompaction(
-        SessionThread thread,
-        IReadOnlyList<ChatMessage> previous,
-        IList<ChatMessage> compacted,
-        ThreadWorkspaceContext workspace)
-    {
-        AgentInstructionContextPages.ReleaseStablePages(thread.Id);
-        var snapshot = ResolveAgentInstructions(thread, workspace.Cwd);
-        AgentInstructionsHistory.InstallBaseline(compacted, snapshot.Content);
-        RecordAgentInstructionsSnapshot(thread.Id, snapshot);
-        NativeSubAgentGuidance.Reconcile(thread, compacted, ResolveThreadContextCarrier(thread), _subAgentGuidanceProviders);
-
-        var clientContextKind = WorldStateComposer.ItemKind(ClientContextSection.SectionId);
-        if (thread.Source.SubAgent != null
-            && ThreadContextItems.FindLast(compacted, clientContextKind) == null
-            && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, clientContextKind)) is { } inherited)
-        {
-            compacted.Add(inherited.Clone());
-        }
     }
 
     private void RecordAgentInstructionsSnapshot(string threadId, ContextPageSnapshot snapshot) =>

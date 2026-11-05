@@ -126,7 +126,7 @@ public sealed class CompactionCoordinatorTests
             "selected",
             bridge,
             Assert.IsType<CompactionReplacement.ProviderNative>(result.Replacement),
-            CancellationToken.None);
+            CancellationToken.None, [], []);
         tracker.RecordFailure("thread_1");
 
         Assert.Equal(1, bridge.InstallCount);
@@ -189,7 +189,7 @@ public sealed class CompactionCoordinatorTests
                     "selected",
                     cancelledBridge,
                     replacement,
-                    cancellation.Token));
+                    cancellation.Token, [], []));
         }
 
         Assert.Equal(2, cancelledBridge.InstallCount);
@@ -201,7 +201,7 @@ public sealed class CompactionCoordinatorTests
                 "selected",
                 new RecordingBridge((_, _) => throw new IOException("write failed")),
                 replacement,
-                CancellationToken.None));
+                CancellationToken.None, [], []));
 
         Assert.True(tracker.IsTripped("thread_1"));
     }

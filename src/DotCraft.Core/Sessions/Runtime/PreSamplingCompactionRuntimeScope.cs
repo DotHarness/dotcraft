@@ -67,7 +67,8 @@ internal static class PreSamplingCompactionRuntimeScope
             : await compaction.TryCompactAsync(messages, options, cancellationToken);
         var neutralReplacement = execution?.Replacement as CompactionReplacement.Neutral;
         var preparedMessages = ModelRequestHistorySanitizer.Sanitize(
-            neutralReplacement?.Messages ?? messages);
+            neutralReplacement?.Messages
+            ?? (execution?.RestoredContext is { } context ? [.. messages, .. context] : messages));
 
         return new StreamingSamplingPreparation(
             preparedMessages,
