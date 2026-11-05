@@ -25,6 +25,19 @@ export function AgentIdentity() {
 Import `deriveAppearance` from `@dotcraft/avatar` when an application needs the same
 name-derived appearance without React.
 
+## Follow the pointer
+
+`useAvatarGaze` turns the face of each avatar inside an element toward the pointer. Enable it
+only while the avatar is idle. Pass `within` to follow only inside an element, and `reach` to set
+how far from the avatar's centre, in CSS pixels, the gaze reaches its limit.
+
+```tsx
+const face = useRef<HTMLSpanElement>(null)
+useAvatarGaze(face, { enabled: state === 'idle' })
+
+return <span ref={face}><Avatar name="Reviewer" size={60} state={state} motion="system" /></span>
+```
+
 ## Collection
 
 An appearance fills five independent slots: `head`, `face`, `hand`, `back`, and `skin`. Every

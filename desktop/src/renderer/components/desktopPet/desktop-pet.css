@@ -19,7 +19,7 @@ html[data-desktop-pet-detached] [data-composer-mascot-motion] { visibility: hidd
 .desktop-pet-character[data-dragging='true'] .desktop-pet-actions { opacity: 0; pointer-events: none; }
 .desktop-pet-character[data-actions-side='left'] .desktop-pet-actions { left: auto; right: 100%; padding-left: 0; padding-right: 8px; }
 .desktop-pet-reaction { display: block; transform-origin: center bottom; transition: transform 160ms cubic-bezier(.2,.8,.2,1); }
-.desktop-pet-reaction .dca-face-motion { translate: calc(var(--pet-gaze-x, 0) * 30px) calc(var(--pet-gaze-y, 0) * 12px); transition: translate 220ms cubic-bezier(.2,.8,.2,1), transform 180ms ease-out; }
+.desktop-pet-reaction .dca-face-motion { transition: translate 220ms cubic-bezier(.2,.8,.2,1), transform 180ms ease-out; }
 .desktop-pet-action {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border: 0; border-radius: 999px;

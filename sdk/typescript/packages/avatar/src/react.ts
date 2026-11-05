@@ -1,5 +1,6 @@
 export { Avatar, AppearanceAvatar, sizeTier, type AvatarProps, type AppearanceAvatarProps, type SizeTier } from './Avatar.js'
 export { DecorationSwatch, SlotDecoration, HeadDecoration } from './Decorations.js'
+export { useAvatarGaze, type AvatarGazeOptions } from './useAvatarGaze.js'
 
 export { ComposerMascot } from './composer/ComposerMascot.js'
 export type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './composer/types.js'

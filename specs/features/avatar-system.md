@@ -177,6 +177,13 @@ The avatar exposes `data-size-tier` and `data-effects` (`off`, `static`, `live`)
 effects without JavaScript. Reduced motion, paused, and offscreen states pause or disable effects
 like all other avatar motion.
 
+An avatar's face can follow the pointer. `useAvatarGaze` from `@dotcraft/avatar/react` writes the
+direction to `--dca-gaze-x` and `--dca-gaze-y`, each from -1 to 1, on an element around the avatar,
+and the stylesheet turns them into a bounded `translate` of the face, so gaze never competes with
+gestures, which write the face's `transform`. A host enables it only while the avatar rests in its
+idle pose. It follows anywhere within 600px of the avatar, as the desktop pet does, or only inside a
+`within` element such as the tile around it. Touch devices and reduced motion follow nothing.
+
 ### 8.1 Working Story
 
 While an avatar holds the `working` pose at standard or full size with motion on, it plays one

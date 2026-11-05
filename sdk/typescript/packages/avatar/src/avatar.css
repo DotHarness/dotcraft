@@ -23,6 +23,8 @@
 .dca-robot[data-pose='blocked'] .dca-body-motion { transform: translateY(22px) scaleY(.96); }
 .dca-robot[data-pose='greeting'] .dca-body-motion { transform: rotate(-3deg); }
 
+.dca-face-motion { translate: calc(var(--dca-gaze-x, 0) * 30px) calc(var(--dca-gaze-y, 0) * 12px); transition: translate 220ms cubic-bezier(.2,.8,.2,1); }
+
 .dca-robot[data-motion='on'][data-pose='idle'] .dca-body-motion { animation: dca-breathe 5s ease-in-out infinite; }
 .dca-robot[data-motion='on'][data-pose='idle'] .dca-part-caret { animation: dca-cursor 7s step-end infinite; }
 .dca-robot[data-motion='on'][data-pose='working'] .dca-body-motion { animation: dca-work var(--dca-loop) ease-in-out infinite; }

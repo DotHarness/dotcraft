@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { AppearanceAvatar, MascotIdleStage } from '@dotcraft/avatar/react'
+import { AppearanceAvatar, MascotIdleStage, useAvatarGaze } from '@dotcraft/avatar/react'
 import { deriveAppearance, mascotEnergyStyle, mascotPaletteOf } from '@dotcraft/avatar'
 import { safeAppearance } from '../../pet/petModel'
 import { MessageSquare, PanelTop } from 'lucide-react'
@@ -8,7 +8,6 @@ import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import { applyTheme } from '../../utils/theme'
 import type { PetPoint, PetSnapshot } from '../../../shared/desktopPet'
 import { usePetReaction } from './usePetReaction'
-import { usePetGaze } from './usePetGaze'
 import { usePetIdle } from './usePetIdle'
 import { usePetActivityView } from './usePetActivityView'
 import { petActivity } from '../../../shared/desktopPet'
@@ -40,7 +39,7 @@ export function DesktopPet(): JSX.Element | null {
   const trippingRef = useRef(tripping)
   trippingRef.current = tripping
   const gazeEnabled = settled && !snapshot.reducedMotion && !reaction.dragging && reaction.state === 'idle' && idle.pose === 'idle' && !tripping
-  usePetGaze(gaze, gazeEnabled)
+  useAvatarGaze(gaze, { enabled: gazeEnabled })
   const revision = useRef(0)
   const t = useT()
   const setUiLocale = useSetUiLocale()
