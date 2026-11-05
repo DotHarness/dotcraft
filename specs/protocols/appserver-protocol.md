@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.10.3 |
 | **Status** | Living |
-| **Date** | 2026-11-02 |
+| **Date** | 2026-11-05 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -311,7 +311,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `workspaceOverride` / `executionWorkspaceOverride` | Alternate workspace root / runtime execution root used for worktree-bound execution without moving thread state. |
 | `cwd`, `runtimeWorkspaceRoots` | Sticky working directory and ordered roots. Omitted roots default to cwd; `[]` supplies no roots; a supplied array replaces the list. |
 | `toolProfile`, `useToolProfileOnly` | Named tool profile; when `useToolProfileOnly`, only its tools. |
-| `developerInstructions` | Instructions from the starting application (at most 32768 characters), rendered after role instructions as the final system prompt section, or as a developer-role item before the first user message on protocols with a developer role. Not inherited by native SubAgents. Accepted with `agentProfileId`. |
+| `developerInstructions` | Instructions from the starting application (at most 32768 characters), delivered after role instructions as a thread context item before the first user message. A full-history native SubAgent inherits them; fresh and bounded children do not. Accepted with `agentProfileId`. |
 | `toolAllowList` / `toolDenyList` | Exact-name lists; deny wins. |
 | `toolPolicy` | `allow`, `deny`, `agentControl`, `allowedAgentControlTools`. Omitted keeps runtime defaults. |
 | `mcpPolicy` | `servers` lists exact server names, each selecting the server with that runtime name or else a plugin server declaring it ([Agent Profiles](../features/agent-profiles.md) §6); `tools.allow`/`tools.deny` match canonical selectors (`name` or `namespace/name`, `*` wildcards), never provider flat names, source ids, or runtime names. |

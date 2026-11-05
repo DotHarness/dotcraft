@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -51,24 +52,25 @@ public sealed partial class SessionService
                 : ContextPageDocument.FromContent(string.Empty));
     }
 
-    private ContextPageSnapshot ReloadAgentInstructionsAfterCompaction(
+    private void RestoreContextAfterCompaction(
         SessionThread thread,
-        IList<ChatMessage> history) =>
-        ReloadAgentInstructionsAfterCompaction(
-            thread,
-            history,
-            ThreadWorkspaceResolver.Resolve(thread));
-
-    private ContextPageSnapshot ReloadAgentInstructionsAfterCompaction(
-        SessionThread thread,
-        IList<ChatMessage> history,
-        ThreadWorkspaceContext context)
+        IReadOnlyList<ChatMessage> previous,
+        IList<ChatMessage> compacted,
+        ThreadWorkspaceContext workspace)
     {
         AgentInstructionContextPages.ReleaseStablePages(thread.Id);
-        var snapshot = ResolveAgentInstructions(thread, context.Cwd);
-        AgentInstructionsHistory.InstallBaseline(history, snapshot.Content);
+        var snapshot = ResolveAgentInstructions(thread, workspace.Cwd);
+        AgentInstructionsHistory.InstallBaseline(compacted, snapshot.Content);
         RecordAgentInstructionsSnapshot(thread.Id, snapshot);
-        return snapshot;
+        NativeSubAgentGuidance.Reconcile(thread, compacted, ResolveThreadContextCarrier(thread), _subAgentGuidanceProviders);
+
+        var clientContextKind = WorldStateComposer.ItemKind(ClientContextSection.SectionId);
+        if (thread.Source.SubAgent != null
+            && ThreadContextItems.FindLast(compacted, clientContextKind) == null
+            && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, clientContextKind)) is { } inherited)
+        {
+            compacted.Add(inherited.Clone());
+        }
     }
 
     private void RecordAgentInstructionsSnapshot(string threadId, ContextPageSnapshot snapshot) =>

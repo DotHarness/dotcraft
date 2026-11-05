@@ -22,7 +22,11 @@ public static partial class SubAgentSessionControl
             : ThreadConfigurationCloner.Clone(parentConfiguration);
         child.AgentBuilderTargetId = null;
         child.AgentBuilderTargetSource = null;
-        child.DeveloperInstructions = null;
+        if (!isNativeRuntime || !inheritsFullHistory)
+        {
+            child.RoleInstructions = null;
+            child.DeveloperInstructions = null;
+        }
         if (!string.IsNullOrWhiteSpace(role.Mode))
             child.Mode = role.Mode.Trim();
         if (runtimeConfig != null)
@@ -59,7 +63,7 @@ public static partial class SubAgentSessionControl
             child.Speed = preference.Speed;
         }
 
-        child.RoleInstructions = NormalizeOptional(role.Instructions);
+        child.SubAgentRoleInstructions = NormalizeOptional(role.Instructions);
         child.OverrideBasePrompt = role.OverrideBasePrompt;
         if (!isNativeRuntime)
         {

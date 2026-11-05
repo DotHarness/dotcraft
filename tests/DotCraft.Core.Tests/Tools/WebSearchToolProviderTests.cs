@@ -1,3 +1,4 @@
+using DotCraft.Context.WorldState;
 using System.ClientModel.Primitives;
 using System.Net;
 using System.Text.Json;
@@ -143,7 +144,7 @@ public sealed class WebSearchToolProviderTests : IDisposable
             new(ChatRole.User, "first question"),
             new(ChatRole.Assistant, "first answer"),
             new(ChatRole.User, [new TextContent("second question"), new DataContent(new byte[] { 1 }, "image/png"), new TextContent("\n<system-reminder>\nctx\n</system-reminder>")]),
-            ThreadContextItems.Create(ThreadContextCarrier.DeveloperMessage, ThreadContextItems.ClientContextKind, "client"),
+            ThreadContextItems.Create(ThreadContextCarrier.DeveloperMessage, WorldStateComposer.ItemKind(ClientContextSection.SectionId), "client"),
             new(ChatRole.Assistant, [new TextReasoningContent("thinking"), new TextContent("checking"), new FunctionCallContent("c1", "run")]),
             new(ChatRole.Tool, [new FunctionResultContent("c1", "tool output")]),
             new(ChatRole.User, "third question"),

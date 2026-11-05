@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.10.3 |
 | **Status** | Living |
-| **Date** | 2026-11-02 |
+| **Date** | 2026-11-05 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -154,7 +154,7 @@ callers queue a later task.
 A native full-history fork keeps the parent's prompt-cache prefix, so its first request reads the
 parent's cached history instead of paying for it again. Before the first child sampling, it copies
 the input of the parent request that issued the spawn, in order and unchanged, including assistant,
-reasoning, and tool items. When that request is unavailable, it copies the parent's stored model
+reasoning, tool, and thread context items such as the parent's role and developer instructions. When that request is unavailable, it copies the parent's stored model
 history, and each inherited tool call without a result receives a fixed synthetic result. The role
 guidance and initial task follow the inherited history. Stable reference-context pages (including the
 parent's exact `AGENTS.md` snapshot for an environment-compatible child) and eligible bindings are
@@ -257,9 +257,11 @@ Agent control within the depth limit. `TaskStop` on an Agent path requires Agent
 A role allow-list does not gate `CodeMode`, because each nested call is authorized against the role
 on its own; a deny list may still name it.
 
-Role instructions are a thread context item after inherited history and before the initial task.
-Changing or clearing them establishes an explicit history replacement boundary before sampling. Task
-data belongs in the task input, not base instructions.
+A role's instructions (`subAgentRoleInstructions`) are a thread context item after inherited history
+and before the initial task. Changing or clearing them establishes an explicit history replacement
+boundary before sampling. They never replace the `roleInstructions` and `developerInstructions` a
+full-history child inherits; fresh and bounded children hold neither. Task data belongs in the task
+input.
 
 External runtimes receive role instructions through their runtime prompt; their profile translates
 DotCraft approval intent into launch behavior.

@@ -235,10 +235,6 @@ public sealed partial class SessionService
             return true;
         if (config.AllowedAgentControlTools is { Length: > 0 })
             return true;
-        if (!string.IsNullOrWhiteSpace(config.RoleInstructions))
-            return true;
-        if (!string.IsNullOrWhiteSpace(config.DeveloperInstructions))
-            return true;
         if (config.OverrideBasePrompt)
             return true;
         if (config.ApprovalPolicy != ApprovalPolicy.Default)
@@ -354,8 +350,6 @@ public sealed partial class SessionService
                 AllowedAgentControlTools = ResolveAllowedAgentControlTools(config),
                 ToolAllowList = ToSet(config.ToolAllowList),
                 ToolDenyList = ToSet(config.ToolDenyList),
-                RoleInstructions = config.RoleInstructions,
-                DeveloperInstructions = config.DeveloperInstructions,
                 SkillsPolicy = config.SkillsPolicy
             };
         }
@@ -576,8 +570,6 @@ public sealed partial class SessionService
             AllowedAgentControlTools = thread == null ? source.AllowedAgentControlTools : ResolveAllowedAgentControlTools(thread.Configuration),
             ToolAllowList = thread == null ? source.ToolAllowList : ToSet(thread.Configuration?.ToolAllowList),
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
-            RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions,
-            DeveloperInstructions = thread?.Configuration?.DeveloperInstructions ?? source.DeveloperInstructions,
             SkillsPolicy = thread == null ? source.SkillsPolicy : thread.Configuration?.SkillsPolicy
         };
         return cloned;

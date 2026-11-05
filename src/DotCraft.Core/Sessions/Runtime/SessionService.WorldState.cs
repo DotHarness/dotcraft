@@ -47,6 +47,11 @@ public sealed partial class SessionService
             WorkspacePath = location.Cwd,
             WorkspaceRoots = location.RuntimeWorkspaceRoots,
             AgentInstructions = instructions.Content,
+            ClientContext = thread.Source.SubAgent == null
+                ? () => ClientContextSection.Compose(
+                    agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
+                    new ThreadSystemPromptContext(thread.Id, thread.WorkspacePath, thread.OriginChannel))
+                : null,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext,

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.10.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-11-05 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -185,7 +185,7 @@ Policy semantics:
 
 ## 7. Prompt Composition
 
-The profile body supplies the role-instruction layer of [Prompt Composition](../architecture/prompt-composition.md). It must not replace the generated base instructions or raise the authority of application context. Runtime and builder context use that specification's stable and turn-scoped boundaries.
+The profile body supplies the role instructions of [Prompt Composition](../architecture/prompt-composition.md), delivered as a thread context item. It must not replace the generated base instructions or raise the authority of application context. Runtime and builder context use that specification's stable and turn-scoped boundaries.
 
 ## 8. Enforcement
 

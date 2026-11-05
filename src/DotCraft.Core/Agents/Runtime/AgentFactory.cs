@@ -618,11 +618,6 @@ public sealed class AgentFactory : IAsyncDisposable
             ?? _chatClientOverride
             ?? _chatClientRegistry.GetChatClient(runtime);
         var chatClientBuilder = new ChatClientBuilder(baseChatClient);
-        var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
-            && string.Equals(
-                subAgentSource.RuntimeType,
-                NativeSubAgentRuntime.RuntimeTypeName,
-                StringComparison.OrdinalIgnoreCase);
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             ctx.Config,
@@ -692,11 +687,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 CallableToolNames = callableToolNames,
                 DeferredMcpServerNames = deferredServerNames,
                 SubAgentProfilesSection = subAgentProfilesSection,
-                // Native SubAgent role text is a thread context item on every protocol so the
-                // child's instruction channel stays byte-identical to its parent's.
-                RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions,
-                // On a developer-role protocol the thread carries these as a developer item instead.
-                DeveloperInstructions = isNativeSubAgent || runtime.IsOpenAIResponses ? null : ctx.DeveloperInstructions,
                 SkillsPolicy = ctx.SkillsPolicy
             };
             // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
@@ -709,8 +699,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 _customCommandLoader,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
                 subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
-                roleInstructions: promptInputs.RoleInstructions,
-                developerInstructions: promptInputs.DeveloperInstructions,
                 contextPageManager: ctx.ContextPageManager,
                 threadId: ctx.CurrentThreadId,
                 originChannel: ctx.CurrentOriginChannel,

@@ -76,22 +76,4 @@ with keywords describing the capability you need, then call a returned tool by i
 Currently connected external services: {{servers}}
 """;
     }
-
-    /// <summary>Builds the <c>role-instructions</c> section.</summary>
-    internal static string? RoleInstructions(SystemPromptSectionContext context)
-    {
-        var roleInstructions = context.RequireSources().RoleInstructions;
-        return string.IsNullOrWhiteSpace(roleInstructions)
-            ? null
-            : $"## Role Instructions\n\n{roleInstructions.Trim()}";
-    }
-
-    /// <summary>Builds the <c>developer-instructions</c> section.</summary>
-    internal static string? DeveloperInstructions(SystemPromptSectionContext context)
-    {
-        var developerInstructions = context.RequireSources().DeveloperInstructions;
-        return string.IsNullOrWhiteSpace(developerInstructions)
-            ? null
-            : $"## Developer Instructions\n\n{developerInstructions.Trim()}";
-    }
 }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.10.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-11-05 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -31,7 +31,8 @@ State qualifies as a section when it persists across turns and the model must be
 the environment the agent runs in, the active mode and the actions that mode allows, an active goal's
 identity and status, the availability of a capability such as a remote tool host, the client surface the latest request
 came from, the chat a channel conversation is connected to, the model-visible state saved by a visualization, the memory index,
-the Skills the agent may use, and equivalent state contributed by a plugin.
+the Skills the agent may use, the thread's role and developer instructions, the context a client bound to the thread, and
+equivalent state contributed by a plugin.
 
 The following are not sections and stay in the turn's own reminder:
 
@@ -57,6 +58,11 @@ empty string after removal, so instruction replacement and retraction have a rec
 AGENTS fragments use the plain-user `agents_md.instructions` carrier on every protocol (Prompt
 Composition §4a); other sections keep their protocol-specific carrier. Marked items without a
 snapshot count as `Unknown`, including when the entire baseline is missing.
+
+The `role_instructions` and `developer_instructions` sections read the thread's configuration, and
+`client_context` reads the context providers bound to the thread. A SubAgent has no binding of its own,
+so its `client_context` takes no snapshot. Neutral compaction carries the latest such item into a
+SubAgent's replacement history, because nothing else can restate it.
 
 A snapshot never serializes to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored

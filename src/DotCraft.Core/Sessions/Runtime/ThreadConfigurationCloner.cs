@@ -42,6 +42,7 @@ internal static class ThreadConfigurationCloner
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         RoleInstructions = source.RoleInstructions,
+        SubAgentRoleInstructions = source.SubAgentRoleInstructions,
         DeveloperInstructions = source.DeveloperInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,

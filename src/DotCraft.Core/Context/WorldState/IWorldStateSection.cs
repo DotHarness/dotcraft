@@ -38,6 +38,9 @@ public sealed record WorldStateContext
 
     public string? AgentInstructions { get; init; }
 
+    /// <summary>Composes the context clients bound to the Thread, or <c>null</c> when the Thread owns no binding.</summary>
+    public Func<string>? ClientContext { get; init; }
+
     public bool HasActivePlan { get; init; }
 
     public ThreadGoal? ThreadGoal { get; init; }
