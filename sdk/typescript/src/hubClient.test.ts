@@ -442,23 +442,35 @@ test("ensureHub never reuses a mismatched Hub it asked to stop", async () => {
   }
 });
 
-test("Hub discovery reports the running status version rather than stale lock metadata", async () => {
+test("Hub readiness rejects invalid status until the running version is available", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-version-"));
-  const originalFetch = globalThis.fetch;
+  const status = { hubVersion: "running-build", binaryPath: "/actual/path" };
+  const bodies = ["not-json", "null", "", JSON.stringify(status)];
+  let requests = 0;
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.end(bodies[Math.min(requests++, bodies.length - 1)]);
+  });
   try {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
     await writeHubLock(dir, {
-      pid: process.pid, apiBaseUrl: "http://127.0.0.1:49146", version: "old-build", binaryPath: "/old/path",
+      pid: process.pid, apiBaseUrl: `http://127.0.0.1:${address.port}`, version: "old-build", binaryPath: "/old/path",
     });
-    globalThis.fetch = (async () => new Response(JSON.stringify({
-      hubVersion: "running-build", binaryPath: "/actual/path",
-    }), { status: 200 })) as typeof fetch;
+    const client = new HubClient({ homeDir: dir });
+    assert.equal(await client.tryGetLiveHub(), null);
+    assert.equal(await client.tryGetLiveHub(), null);
+    const hub = await client.ensureHub();
+    assert.equal(requests, 4);
+    assert.equal(hub.version, "running-build");
+    assert.equal(hub.binaryPath, "/actual/path");
 
-    for (const hub of [await new HubClient({ homeDir: dir }).ensureHub(), await new HubClient({ homeDir: dir }).tryGetLiveHub()]) {
-      assert.equal(hub?.version, "running-build");
-      assert.equal(hub?.binaryPath, "/actual/path");
-    }
+    assert.deepEqual(await client.getStatus(), status);
+    assert.equal(requests, 5);
   } finally {
-    globalThis.fetch = originalFetch;
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -521,29 +533,6 @@ test("Hub readiness failures retain HTTP probe status and spawned owner identity
       try { process.kill(replacement.pid); } catch { /* already gone */ }
     }
     await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
-  }
-});
-
-test("Hub readiness failures retain a spawned process's early exit code", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-exit-"));
-  const originalCwd = process.cwd();
-  try {
-    await writeFile(join(dir, "hub"), "process.exit(23)", "utf8");
-    process.chdir(dir);
-    await assert.rejects(
-      new HubClient({ homeDir: dir, executable: process.execPath, hubStartupTimeoutMs: 1_000 }).ensureHub(),
-      (error: unknown) => {
-        assert.ok(error instanceof HubClientError);
-        const details = error.details as Record<string, unknown>;
-        assert.equal(details.stage, "ready");
-        assert.equal(details.exitCode, 23);
-        assert.equal(typeof details.spawnedPid, "number");
-        return true;
-      },
-    );
-  } finally {
-    process.chdir(originalCwd);
-    await rm(dir, { recursive: true, force: true });
   }
 });
 

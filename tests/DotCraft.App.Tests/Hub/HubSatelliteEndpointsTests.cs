@@ -226,16 +226,8 @@ internal sealed class SatelliteHubFixture : IAsyncDisposable
             paths);
         using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var runTask = host.RunAsync(startup.Token);
-        while (!startup.IsCancellationRequested)
-        {
-            if (runTask.IsFaulted)
-                await runTask;
-            var info = HubLockFile.TryRead(paths.LockFilePath);
-            if (info is not null && !string.IsNullOrEmpty(info.Token))
-                return new SatelliteHubFixture(host, runTask, info);
-            await Task.Delay(50, startup.Token);
-        }
-        throw new TimeoutException("Hub did not publish its lock file.");
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, startup.Token);
+        return new SatelliteHubFixture(host, runTask, info);
     }
 
     public async Task<CreatedInvite> CreateInviteAsync(string name)

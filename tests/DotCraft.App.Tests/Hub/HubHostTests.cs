@@ -22,7 +22,7 @@ public sealed class HubHostTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
         var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, cts.Token);
         Assert.False(string.IsNullOrWhiteSpace(info.BinaryPath));
 
         using var http = new HttpClient();
@@ -76,7 +76,7 @@ public sealed class HubHostTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
 
         var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, cts.Token);
 
         using var http = new HttpClient();
         {
@@ -146,7 +146,7 @@ public sealed class HubHostTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
 
         var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, cts.Token);
 
         using var http = new HttpClient();
         using var eventsRequest = new HttpRequestMessage(HttpMethod.Get, $"{info.ApiBaseUrl}/v1/events");
@@ -204,7 +204,7 @@ public sealed class HubHostTests : IDisposable
         await using var running = new HubHost(new HubConfig { Port = 0 }, paths);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var runningTask = running.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runningTask, cts.Token);
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runningTask, cts.Token);
 
         await using var second = new HubHost(new HubConfig { Port = 0 }, paths);
         await second.RunAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
@@ -226,7 +226,7 @@ public sealed class HubHostTests : IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+        var info = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, runTask, cts.Token);
 
         using var http = new HttpClient();
         using var first = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/ensure", new
@@ -281,26 +281,6 @@ public sealed class HubHostTests : IDisposable
 
         await ShutdownAsync(http, info, cts.Token);
         await runTask.WaitAsync(cts.Token);
-    }
-
-    private static async Task<HubLockInfo> WaitForLockAsync(string lockFilePath, Task runTask, CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            if (runTask.IsCompleted)
-            {
-                await runTask;
-                throw new InvalidOperationException("Hub exited before publishing its lock file.");
-            }
-
-            var info = HubLockFile.TryRead(lockFilePath);
-            if (info is not null)
-                return info;
-
-            await Task.Delay(50, ct);
-        }
-
-        throw new OperationCanceledException(ct);
     }
 
     private static HttpRequestMessage AuthorizedPost(HubLockInfo info, string url, object body)

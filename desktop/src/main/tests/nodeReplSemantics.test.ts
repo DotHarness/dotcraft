@@ -13,7 +13,7 @@ const fixture = createReplWorkerFixture()
 const directory = mkdtempSync(join(tmpdir(), 'dotcraft-repl-modules-'))
 const browserManager = createFakeBrowserManager()
 const manager = new NodeReplManager(browserManager as never, fixture.fork)
-const owner = {} as Electron.BrowserWindow
+const owner = { isDestroyed: () => false, webContents: { id: 1 } } as Electron.BrowserWindow
 const evaluate = (code: string, threadId = 'one', extra = {}) => manager.evaluate(owner, { code, threadId, ...extra })
 afterEach(async () => { await manager.disposeAll(); vi.clearAllMocks() })
 afterAll(async () => {

@@ -9,7 +9,7 @@ const fixture = createReplWorkerFixture()
 const backend = createFakeBrowserManager()
 const manager = new NodeReplManager(backend as never, fixture.fork)
 const bridges: ReturnType<typeof createMockBridge>[] = []
-const evaluate = (code: string, evaluationId = 'call') => manager.evaluate({} as Electron.BrowserWindow, {
+const evaluate = (code: string, evaluationId = 'call') => manager.evaluate({ isDestroyed: () => false, webContents: { id: 1 } } as Electron.BrowserWindow, {
   threadId: 'chrome-worker', turnId: 'turn', evaluationId, code
 })
 afterEach(async () => {

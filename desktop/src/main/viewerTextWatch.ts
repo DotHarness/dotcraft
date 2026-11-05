@@ -47,6 +47,12 @@ class ViewerTextWatchManager {
     this.entries.delete(subscriptionId)
   }
 
+  disposeSender(senderId: number): void {
+    for (const [id, entry] of this.entries) {
+      if (entry.senderId === senderId) this.unsubscribe(id, senderId)
+    }
+  }
+
   disposeAll(): void {
     for (const [id, entry] of this.entries) this.unsubscribe(id, entry.senderId)
   }

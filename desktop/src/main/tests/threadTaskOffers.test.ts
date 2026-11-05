@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
+import { describe, expect, it, vi } from 'vitest'
 import { MAX_AUTO_STARTS } from '../threadTasks/threadTaskService'
-import { PARENT, createHarness, structured, type Harness } from './threadTaskTestHelpers'
+import { PARENT, WORKSPACE, createHarness, structured, type Harness } from './threadTaskTestHelpers'
 
 async function pendingOffer(harness: Harness, title = 'Fix flaky upload test', turnId = 'turn-1') {
   harness.composerTurn(turnId)
@@ -14,10 +13,6 @@ async function pendingOffer(harness: Harness, title = 'Fix flaky upload test', t
 }
 
 describe('CreateThread offers', () => {
-  beforeEach(() => {
-    resetDesktopThreadToolBindings()
-  })
-
   it('waits for New chat, creates the chat with the card options, then starts it from the brief', async () => {
     const harness = createHarness()
     const { result, task } = await pendingOffer(harness)
@@ -62,7 +57,7 @@ describe('CreateThread offers', () => {
     const harness = createHarness()
     const { result, task } = await pendingOffer(harness)
 
-    await harness.tasks.answerOffer({ workspacePath: 'w', request: harness.client.sendRequest }, PARENT, task.id, { choice: 'here' })
+    await harness.tasks.answerOffer({ workspacePath: WORKSPACE, request: harness.client.sendRequest }, PARENT, task.id, { choice: 'here' })
 
     expect(structured(await result).outcome).toBe('kept')
     expect(harness.store.get(PARENT, task.id)?.state).toBe('keptHere')
@@ -98,7 +93,7 @@ describe('CreateThread offers', () => {
     })
     const { result, task } = await pendingOffer(harness)
 
-    const answer = await harness.tasks.answerOffer({ workspacePath: 'w', request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
+    const answer = await harness.tasks.answerOffer({ workspacePath: WORKSPACE, request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
 
     expect(answer).toEqual({ ok: false, error: 'disk full' })
     expect(structured(await result).outcome).toBe('unstarted')
@@ -114,7 +109,7 @@ describe('CreateThread offers', () => {
     const { result, task } = await pendingOffer(harness)
 
     const answer = await harness.tasks.answerOffer(
-      { workspacePath: 'w', request: harness.client.sendRequest },
+      { workspacePath: WORKSPACE, request: harness.client.sendRequest },
       PARENT,
       task.id,
       { choice: 'newThread', options: { workLocation: 'worktree' } }
@@ -134,7 +129,7 @@ describe('CreateThread offers', () => {
     })
     const { result, task } = await pendingOffer(harness)
 
-    const answer = harness.tasks.answerOffer({ workspacePath: 'w', request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
+    const answer = harness.tasks.answerOffer({ workspacePath: WORKSPACE, request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
     await vi.waitFor(() => expect(harness.store.get(PARENT, task.id)?.state).toBe('starting'))
     harness.tasks.observeUserRequest('turn/start', { threadId: PARENT })
     release({ thread: { id: 'thread-child-1' } })

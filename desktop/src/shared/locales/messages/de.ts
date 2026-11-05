@@ -3238,6 +3238,7 @@ export const MESSAGES_DE = {
   'error.desc.binary.path': 'Desktop konnte DotCraft auf Ihrem Systempfad nicht finden. Installieren Sie es oder wechseln Sie in den Einstellungen zur gebündelten Binärdatei.',
   'error.desc.binary.custom': 'Desktop konnte den von Ihnen konfigurierten benutzerdefinierten DotCraft-Binärpfad nicht finden. Überprüfen Sie den Pfad oder wechseln Sie in den Einstellungen zu einer anderen Quelle.',
   'error.desc.timeout': 'Der AppServer hat nicht innerhalb von 10 Sekunden geantwortet.',
+  'error.desc.hubStartup': 'Der DotCraft-Hintergrunddienst konnte nicht gestartet werden.',
   'error.desc.unexpected': 'Es ist ein unerwarteter Fehler aufgetreten.',
   'sidebar.dashboard': 'Armaturenbrett',
   'sidebar.dashboardDisabledConnect': 'Stellen Sie eine Verbindung zum AppServer her, um das Dashboard zu öffnen',

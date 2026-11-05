@@ -48,7 +48,7 @@ describe('Node REPL browser clients', () => {
     const manager = new NodeReplManager(browserManager as never, workerFixture.fork)
     managers.push(manager)
     browserManagers.push(browserManager)
-    return await manager.evaluate({} as Electron.BrowserWindow, { threadId: `client-${runCount += 1}`, code })
+    return await manager.evaluate({ isDestroyed: () => false, webContents: { id: 1 } } as Electron.BrowserWindow, { threadId: `client-${runCount += 1}`, code })
   }
 
   async function run(browserManager: FakeBrowser, body: string): Promise<any> {

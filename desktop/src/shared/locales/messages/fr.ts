@@ -3238,6 +3238,7 @@ export const MESSAGES_FR = {
   'error.desc.binary.path': 'Desktop n\'a pas pu trouver dotcraft sur le PATH de votre système. Installez-le ou passez au binaire fourni dans Paramètres.',
   'error.desc.binary.custom': 'Desktop n\'a pas trouvé le chemin binaire DotCraft personnalisé que vous avez configuré. Vérifiez le chemin ou passez à une autre source dans Paramètres.',
   'error.desc.timeout': 'L\'AppServer n\'a pas répondu dans les 10 secondes.',
+  'error.desc.hubStartup': 'Le service en arrière-plan de DotCraft n’a pas pu démarrer.',
   'error.desc.unexpected': 'Une erreur inattendue s\'est produite.',
   'sidebar.dashboard': 'Tableau de bord',
   'sidebar.dashboardDisabledConnect': 'Connectez-vous à l\'AppServer pour ouvrir le tableau de bord',

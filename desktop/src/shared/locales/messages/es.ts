@@ -3238,6 +3238,7 @@ export const MESSAGES_ES = {
   'error.desc.binary.path': 'El escritorio no pudo encontrar dotcraft en la RUTA de su sistema. Instálelo o cambie al binario incluido en Configuración.',
   'error.desc.binary.custom': 'El escritorio no pudo encontrar la ruta binaria personalizada de DotCraft que configuró. Verifique la ruta o cambie a otra fuente en Configuración.',
   'error.desc.timeout': 'El AppServer no respondió en 10 segundos.',
+  'error.desc.hubStartup': 'No se pudo iniciar el servicio en segundo plano de DotCraft.',
   'error.desc.unexpected': 'Se produjo un error inesperado.',
   'sidebar.dashboard': 'Panel de control',
   'sidebar.dashboardDisabledConnect': 'Conéctese al AppServer para abrir el Panel de control',

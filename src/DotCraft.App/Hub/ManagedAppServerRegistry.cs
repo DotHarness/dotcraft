@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Common;
-using DotCraft.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -13,7 +12,7 @@ namespace DotCraft.Hub;
 /// <summary>
 /// Tracks and supervises Hub-managed workspace AppServer processes.
 /// </summary>
-public sealed class ManagedAppServerRegistry : IAsyncDisposable
+public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
 {
     internal static readonly StringComparer WorkspaceComparer =
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -27,17 +26,13 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     private readonly HubRuntimeToolsStore? _runtimeToolsStore;
     private readonly ConcurrentDictionary<string, HubAppServerRegistryRecord> _persisted;
     private readonly ILogger<ManagedAppServerRegistry> _logger;
-    private readonly CancellationTokenSource _healthCts = new();
-    private Task? _healthTask;
+    private readonly CancellationTokenSource _stopping = new();
     private bool _disposed;
 
     internal Func<AppServerLockInfo, CancellationToken, Task<string?>> ExistingAppServerProbeAsync { get; set; } =
         ProbeExistingAppServerAsync;
 
     internal Func<string?, string, IReadOnlyDictionary<string, string?>, CancellationToken, Task<IManagedAppServerProcess>> StartAppServerProcessAsync { get; set; }
-
-    internal Func<string, string, CancellationToken, Task> ManagedWebSocketProbeAsync { get; set; } =
-        ProbeWebSocketAsync;
 
     public ManagedAppServerRegistry(
         HubEventBus events,
@@ -56,8 +51,15 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         _store = string.IsNullOrWhiteSpace(registryPath) ? null : new HubAppServerRegistryStore(registryPath);
         _runtimeToolsStore = string.IsNullOrWhiteSpace(runtimeToolsPath) ? null : new HubRuntimeToolsStore(runtimeToolsPath);
         _logger = logger ?? NullLogger<ManagedAppServerRegistry>.Instance;
-        StartAppServerProcessAsync = (bin, workspace, environment, cancellationToken) =>
-            StartManagedAppServerProcessAsync(bin, workspace, environment, cancellationToken, _logger);
+        StartAppServerProcessAsync = async (bin, workspace, environment, cancellationToken) =>
+            new AppServerProcessAdapter(await AppServerProcess.StartAsync(
+                dotcraftBin: bin,
+                workspacePath: workspace,
+                environmentVariables: environment,
+                createNoWindow: true,
+                attachWindowsJob: true,
+                ct: cancellationToken,
+                logger: _logger));
         _persisted = new ConcurrentDictionary<string, HubAppServerRegistryRecord>(WorkspaceComparer);
         foreach (var record in _store?.Load().Values ?? [])
         {
@@ -66,18 +68,14 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         }
     }
 
-    public void StartHealthChecks(TimeSpan? interval = null)
-    {
-        ThrowIfDisposed();
-        if (_healthTask is not null)
-            return;
-
-        _healthTask = Task.Run(() => RunHealthLoopAsync(interval ?? TimeSpan.FromSeconds(10), _healthCts.Token));
-    }
+    public void BeginShutdown() => _stopping.Cancel();
 
     public async Task<HubAppServerResponse> EnsureAsync(EnsureAppServerRequest request, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        using var start = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
+        cancellationToken = start.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         var (workspacePath, canonical, craftPath) = ResolveWorkspace(request.WorkspacePath);
         using var workspaceScope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -142,7 +140,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                     cancellationToken);
                 startedProcess = process;
 
-                await ManagedWebSocketProbeAsync(plan.WebSocketProbeUrl, plan.WebSocketToken, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 VerifyManagedLock(craftPath, process.ProcessId, canonical);
 
                 process.OnCrashed += () => OnProcessCrashed(entry);
@@ -190,7 +188,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                     stderr = entry.RecentStderr
                 });
 
-                if (ex is HubProtocolException)
+                if (ex is HubProtocolException or OperationCanceledException)
                     throw;
 
                 throw new HubProtocolException(
@@ -262,8 +260,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         entry.StartedInCurrentHubProcess ||
         entry.State is HubAppServerStates.Running
             or HubAppServerStates.Starting
-            or HubAppServerStates.Stopping
-            or HubAppServerStates.Unhealthy;
+            or HubAppServerStates.Stopping;
 
     public HubAppServerResponse GetByWorkspace(string workspacePath)
     {
@@ -352,6 +349,10 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         HubRuntimeToolsRequest? runtimeTools,
         CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
+        using var restart = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
+        cancellationToken = restart.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         await StopAsync(workspacePath, cancellationToken);
         return await EnsureAsync(new EnsureAppServerRequest
         {
@@ -367,15 +368,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             return;
 
         _disposed = true;
-        await _healthCts.CancelAsync();
-        if (_healthTask is not null)
-        {
-            try { await _healthTask; }
-            catch (OperationCanceledException) { }
-        }
-
+        BeginShutdown();
         await Task.WhenAll(_entries.Values.Select(StopEntryForDisposeAsync));
-        _healthCts.Dispose();
+        _stopping.Dispose();
     }
 
     private async Task StopEntryForDisposeAsync(ManagedEntry entry)
@@ -399,246 +394,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         {
             entry.Mutex.Release();
             entry.Mutex.Dispose();
-        }
-    }
-
-    private ServicePlan BuildServicePlan(
-        string canonicalWorkspacePath,
-        string craftPath,
-        HubRuntimeToolsRequest? runtimeTools)
-    {
-        var configPath = Path.Combine(craftPath, "config.json");
-        var config = AppConfig.LoadWithGlobalFallback(configPath);
-        var endpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var status = new Dictionary<string, HubServiceStatus>(StringComparer.OrdinalIgnoreCase);
-        var environment = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var usedPorts = new HashSet<int>();
-
-        var wsPort = AllocateUniquePort(usedPorts);
-        var wsHost = "127.0.0.1";
-        var wsToken = CreateToken();
-        var wsProbeUrl = $"ws://{wsHost}:{wsPort}/ws";
-        var wsResponseUrl = $"{wsProbeUrl}?token={Uri.EscapeDataString(wsToken)}";
-        endpoints["appServerWebSocket"] = wsResponseUrl;
-        status["appServerWebSocket"] = new HubServiceStatus("allocated", wsResponseUrl);
-
-        environment[ManagedAppServerEnvironment.ManagedFlag] = "1";
-        environment[ManagedAppServerEnvironment.HubApiBaseUrl] = _hubApiBaseUrl;
-        environment[ManagedAppServerEnvironment.HubToken] = _hubToken;
-        environment[ManagedAppServerEnvironment.WebSocketHost] = wsHost;
-        environment[ManagedAppServerEnvironment.WebSocketPort] = wsPort.ToString();
-        environment[ManagedAppServerEnvironment.WebSocketToken] = wsToken;
-
-        _events.Publish("port.allocated", canonicalWorkspacePath, new { service = "appServerWebSocket", port = wsPort });
-
-        if (config.DashBoard.Enabled && config.Tracing.Enabled)
-        {
-            var port = AllocateUniquePort(usedPorts);
-            var url = $"http://127.0.0.1:{port}/dashboard";
-            endpoints["dashboard"] = url;
-            status["dashboard"] = new HubServiceStatus("allocated", url);
-            environment[ManagedAppServerEnvironment.DashboardHost] = "127.0.0.1";
-            environment[ManagedAppServerEnvironment.DashboardPort] = port.ToString();
-            _events.Publish("port.allocated", canonicalWorkspacePath, new { service = "dashboard", port });
-        }
-        else
-        {
-            status["dashboard"] = new HubServiceStatus("disabled", Reason: "Dashboard or tracing is disabled.");
-        }
-
-        AddRuntimeTools(runtimeTools, environment, status);
-
-        return new ServicePlan(
-            environment,
-            endpoints,
-            status,
-            wsProbeUrl,
-            wsToken,
-            NormalizeOptionalPath(runtimeTools?.NodeBin),
-            runtimeTools?.NodeRunAsNode == true,
-            NormalizeOptionalPath(runtimeTools?.ModulesDir),
-            NormalizeOptionalValue(runtimeTools?.BuiltInPluginRoots),
-            NormalizeOptionalValue(runtimeTools?.DefaultPluginRegistryUrl));
-    }
-
-    internal static void AddRuntimeTools(
-        HubRuntimeToolsRequest? runtimeTools,
-        Dictionary<string, string?> environment,
-        Dictionary<string, HubServiceStatus>? status = null)
-    {
-        if (!string.IsNullOrWhiteSpace(runtimeTools?.RipgrepPath))
-            environment["DOTCRAFT_RG_PATH"] = runtimeTools.RipgrepPath.Trim();
-
-        var nodeBin = NormalizeOptionalPath(runtimeTools?.NodeBin);
-        var modulesDir = NormalizeOptionalPath(runtimeTools?.ModulesDir);
-        if (!string.IsNullOrWhiteSpace(nodeBin))
-            environment["DOTCRAFT_NODE_BIN"] = nodeBin;
-        if (runtimeTools?.NodeRunAsNode == true)
-            environment["DOTCRAFT_NODE_RUN_AS_NODE"] = "1";
-        if (!string.IsNullOrWhiteSpace(modulesDir))
-            environment["DOTCRAFT_MODULES_DIR"] = modulesDir;
-        if (!string.IsNullOrWhiteSpace(runtimeTools?.BuiltInPluginRoots))
-            environment["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"] = runtimeTools.BuiltInPluginRoots.Trim();
-        if (!string.IsNullOrWhiteSpace(runtimeTools?.DefaultPluginRegistryUrl))
-            environment["DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL"] = runtimeTools.DefaultPluginRegistryUrl.Trim();
-
-        if (status != null)
-        {
-            status["typescriptRuntime"] =
-                !string.IsNullOrWhiteSpace(nodeBin) && !string.IsNullOrWhiteSpace(modulesDir)
-                    ? new HubServiceStatus("allocated", Reason: "TypeScript channel runtime hints are available.")
-                    : new HubServiceStatus("unavailable", Reason: "TypeScript channel runtime is not configured. Launch DotCraft Desktop once or run 'dotcraft hub set-runtime'.");
-        }
-    }
-
-    private async Task<HubAppServerResponse?> TryUseExistingWorkspaceLockAsync(
-        ManagedEntry entry,
-        string craftPath,
-        CancellationToken cancellationToken)
-    {
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
-        var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is null)
-            return null;
-
-        if (!AppServerWorkspaceLock.IsHeld(lockPath))
-            return null;
-
-        if (entry.Process is { IsRunning: true } && entry.Process.ProcessId == info.Pid)
-            return null;
-
-        var probeError = await ExistingAppServerProbeAsync(info, cancellationToken);
-        if (probeError is null)
-        {
-            var response = ToExternalResponse(entry, info);
-            PersistExternal(entry, info);
-            _events.Publish("appserver.running", entry.CanonicalWorkspacePath, new
-            {
-                pid = info.Pid,
-                endpoints = info.Endpoints,
-                external = true
-            });
-            return response;
-        }
-
-        throw new HubProtocolException(
-            "workspaceLocked",
-            "A live process appears to own the workspace AppServer lock.",
-            StatusCodes.Status409Conflict,
-            new { workspacePath = entry.CanonicalWorkspacePath, lockPath, pid = info.Pid, reason = probeError });
-    }
-
-    private static void VerifyManagedLock(string craftPath, int expectedPid, string canonicalWorkspacePath)
-    {
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
-        var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is { ManagedByHub: true }
-            && info.Pid == expectedPid
-            && AppServerWorkspaceLock.IsHeld(lockPath))
-            return;
-
-        throw new HubProtocolException(
-            "appServerUnhealthy",
-            "Managed AppServer did not publish the expected workspace lock.",
-            StatusCodes.Status500InternalServerError,
-            new { workspacePath = canonicalWorkspacePath, expectedPid, lockPath });
-    }
-
-    private void PersistExternal(ManagedEntry entry, AppServerLockInfo info)
-    {
-        ApplyExternalLockInfo(entry, info);
-        Persist(entry);
-    }
-
-    private static HubAppServerResponse ToExternalResponse(ManagedEntry entry, AppServerLockInfo info) => new(
-        entry.WorkspacePath,
-        entry.CanonicalWorkspacePath,
-        HubAppServerStates.Running,
-        info.Pid,
-        info.Endpoints,
-        ExternalServiceStatus(info.Endpoints),
-        info.Version,
-        StartedByHub: false,
-        ExitCode: null,
-        LastError: null,
-        RecentStderr: null);
-
-    private static IReadOnlyDictionary<string, HubServiceStatus> ExternalServiceStatus(
-        IReadOnlyDictionary<string, string> endpoints) =>
-        endpoints.ToDictionary(
-            pair => pair.Key,
-            pair => new HubServiceStatus("external", pair.Value),
-            StringComparer.OrdinalIgnoreCase);
-
-    private static void ApplyExternalLockInfo(ManagedEntry entry, AppServerLockInfo info)
-    {
-        entry.Process = null;
-        entry.AdoptedExternalLock = true;
-        entry.State = HubAppServerStates.Running;
-        entry.Pid = info.Pid;
-        entry.ServerVersion = info.Version;
-        entry.StartedByHub = false;
-        entry.StartedInCurrentHubProcess = false;
-        entry.ExitCode = null;
-        entry.LastError = null;
-        entry.RecentStderr = null;
-        entry.LastStartedAt = info.StartedAt;
-        entry.LastSeenAt = DateTimeOffset.UtcNow;
-        entry.Endpoints = info.Endpoints;
-        entry.ServiceStatus = ExternalServiceStatus(info.Endpoints);
-    }
-
-    private static void RefreshAdoptedExternalEntry(ManagedEntry entry, string craftPath)
-    {
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
-        var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is { } live && AppServerWorkspaceLock.IsHeld(lockPath))
-        {
-            ApplyExternalLockInfo(entry, live);
-            return;
-        }
-
-        entry.Process = null;
-        entry.AdoptedExternalLock = false;
-        entry.State = HubAppServerStates.Exited;
-        entry.StartedByHub = false;
-        entry.StartedInCurrentHubProcess = false;
-        entry.LastSeenAt = DateTimeOffset.UtcNow;
-    }
-
-    private static async Task<string?> ProbeExistingAppServerAsync(
-        AppServerLockInfo info,
-        CancellationToken cancellationToken)
-    {
-        if (!info.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl)
-            || string.IsNullOrWhiteSpace(wsUrl))
-        {
-            return "Workspace AppServer lock does not publish an appServerWebSocket endpoint.";
-        }
-
-        if (!Uri.TryCreate(wsUrl, UriKind.Absolute, out var uri))
-            return "Workspace AppServer lock publishes an invalid appServerWebSocket endpoint.";
-
-        try
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(3));
-            await using var connection = await WebSocketClientConnection.ConnectAsync(uri, null, cts.Token);
-            var response = await connection.Wire.InitializeAsync(
-                clientName: "dotcraft-hub-reconnect",
-                clientVersion: AppVersion.Informational,
-                approvalSupport: false,
-                streamingSupport: true);
-            response.Dispose();
-            return null;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return "Workspace AppServer WebSocket probe timed out.";
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return "Workspace AppServer WebSocket probe failed: " + ex.Message;
         }
     }
 
@@ -690,21 +445,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 Url: url,
                 Reason: reason));
     }
-
-    private static async Task<IManagedAppServerProcess> StartManagedAppServerProcessAsync(
-        string? dotcraftBin,
-        string workspacePath,
-        IReadOnlyDictionary<string, string?> environmentVariables,
-        CancellationToken cancellationToken,
-        ILogger logger)
-        => new AppServerProcessAdapter(await AppServerProcess.StartAsync(
-            dotcraftBin: dotcraftBin,
-            workspacePath: workspacePath,
-            environmentVariables: environmentVariables,
-            createNoWindow: true,
-            attachWindowsJob: true,
-            ct: cancellationToken,
-            logger: logger));
 
     private static async Task DisposeStartedProcessAfterFailureAsync(
         ManagedEntry entry,
@@ -761,17 +501,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         return next;
     }
 
-    private static async Task ProbeWebSocketAsync(string wsUrl, string token, CancellationToken cancellationToken)
-    {
-        await using var connection = await WebSocketClientConnection.ConnectAsync(new Uri(wsUrl), token, cancellationToken);
-        var response = await connection.Wire.InitializeAsync(
-            clientName: "dotcraft-hub",
-            clientVersion: AppVersion.Informational,
-            approvalSupport: false,
-            streamingSupport: true);
-        response.Dispose();
-    }
-
     private void OnProcessCrashed(ManagedEntry entry)
     {
         RefreshExited(entry);
@@ -810,99 +539,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         }
     }
 
-    private async Task RunHealthLoopAsync(TimeSpan interval, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(interval);
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-                await CheckHealthOnceAsync(cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    internal async Task CheckHealthOnceAsync(CancellationToken cancellationToken = default)
-    {
-        foreach (var entry in _entries.Values)
-        {
-            if (entry.Process is null)
-                continue;
-
-            await entry.Mutex.WaitAsync(cancellationToken);
-            try
-            {
-                if (entry.Process is null || entry.State != HubAppServerStates.Running)
-                    continue;
-
-                var unhealthyReason = await GetUnhealthyReasonAsync(entry, cancellationToken);
-                if (unhealthyReason is null)
-                {
-                    entry.LastSeenAt = DateTimeOffset.UtcNow;
-                    Persist(entry);
-                    continue;
-                }
-
-                entry.State = HubAppServerStates.Unhealthy;
-                entry.LastError = unhealthyReason;
-                entry.LastSeenAt = DateTimeOffset.UtcNow;
-                Persist(entry);
-                _events.Publish("appserver.unhealthy", entry.CanonicalWorkspacePath, new
-                {
-                    pid = entry.Pid,
-                    error = unhealthyReason
-                });
-            }
-            finally
-            {
-                entry.Mutex.Release();
-            }
-        }
-    }
-
-    private static async Task<string?> GetUnhealthyReasonAsync(ManagedEntry entry, CancellationToken cancellationToken)
-    {
-        if (entry.Process is not { } process)
-            return null;
-
-        if (!process.IsRunning)
-        {
-            RefreshExited(entry);
-            return "Managed AppServer process exited.";
-        }
-
-        var craftPath = Path.Combine(entry.CanonicalWorkspacePath, ".craft");
-        var lockInfo = AppServerWorkspaceLock.TryRead(AppServerWorkspaceLock.GetLockFilePath(craftPath));
-        if (lockInfo is null)
-            return "Workspace AppServer lock is missing.";
-        if (lockInfo.Pid != process.ProcessId
-            || !lockInfo.ManagedByHub
-            || !AppServerWorkspaceLock.IsHeld(AppServerWorkspaceLock.GetLockFilePath(craftPath)))
-            return "Workspace AppServer lock no longer matches the managed process.";
-
-        if (!entry.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
-            return "Managed AppServer WebSocket endpoint is missing.";
-
-        try
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(3));
-            await using var connection = await WebSocketClientConnection.ConnectAsync(new Uri(wsUrl), null, cts.Token);
-            var response = await connection.Wire.InitializeAsync(
-                clientName: "dotcraft-hub-health",
-                clientVersion: AppVersion.Informational,
-                approvalSupport: false,
-                streamingSupport: true);
-            response.Dispose();
-            return null;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return "Managed AppServer WebSocket health probe failed: " + ex.Message;
-        }
-    }
-
     private static HubAppServerRegistryRecord? WithLiveLock(HubAppServerRegistryRecord record)
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(record.CanonicalWorkspacePath, ".craft"));
@@ -929,7 +565,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private void Track(ManagedEntry entry)
     {
-        if (entry.State is HubAppServerStates.Running or HubAppServerStates.Unhealthy)
+        if (entry.State is HubAppServerStates.Running)
             _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
         else
             _persisted.TryRemove(entry.CanonicalWorkspacePath, out _);
@@ -1011,133 +647,4 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         if (_disposed)
             throw new ObjectDisposedException(nameof(ManagedAppServerRegistry));
     }
-
-    private sealed record ServicePlan(
-        IReadOnlyDictionary<string, string?> Environment,
-        IReadOnlyDictionary<string, string> ResponseEndpoints,
-        IReadOnlyDictionary<string, HubServiceStatus> ServiceStatus,
-        string WebSocketProbeUrl,
-        string WebSocketToken,
-        string? TypeScriptNodeBin,
-        bool TypeScriptNodeRunAsNode,
-        string? TypeScriptModulesDir,
-        string? BuiltInPluginRoots,
-        string? DefaultPluginRegistryUrl);
-
-    private sealed class ManagedEntry
-    {
-        public ManagedEntry(string workspacePath, string canonicalWorkspacePath)
-        {
-            WorkspacePath = workspacePath;
-            CanonicalWorkspacePath = canonicalWorkspacePath;
-        }
-
-        public SemaphoreSlim Mutex { get; } = new(1, 1);
-
-        public string WorkspacePath { get; }
-
-        public string CanonicalWorkspacePath { get; }
-
-        public string State { get; set; } = HubAppServerStates.Stopped;
-
-        public IManagedAppServerProcess? Process { get; set; }
-
-        public bool AdoptedExternalLock { get; set; }
-
-        public string? TypeScriptNodeBin { get; set; }
-
-        public bool TypeScriptNodeRunAsNode { get; set; }
-
-        public string? TypeScriptModulesDir { get; set; }
-
-        public string? BuiltInPluginRoots { get; set; }
-
-        public string? DefaultPluginRegistryUrl { get; set; }
-
-        public int? Pid { get; set; }
-
-        public string? ServerVersion { get; set; }
-
-        public bool StartedByHub { get; set; }
-
-        public bool StartedInCurrentHubProcess { get; set; }
-
-        public int? ExitCode { get; set; }
-
-        public string? LastError { get; set; }
-
-        public string? RecentStderr { get; set; }
-
-        public DateTimeOffset? LastStartedAt { get; set; }
-
-        public DateTimeOffset? LastSeenAt { get; set; }
-
-        public IReadOnlyDictionary<string, string> Endpoints { get; set; } =
-            new Dictionary<string, string>();
-
-        public IReadOnlyDictionary<string, HubServiceStatus> ServiceStatus { get; set; } =
-            new Dictionary<string, HubServiceStatus>();
-
-        public HubAppServerResponse ToResponse() => new(
-            WorkspacePath,
-            CanonicalWorkspacePath,
-            State,
-            Pid,
-            Endpoints,
-            ServiceStatus,
-            ServerVersion,
-            StartedByHub,
-            ExitCode,
-            LastError,
-            RecentStderr);
-
-        public HubAppServerRegistryRecord ToRegistryRecord() => new(
-            WorkspacePath,
-            CanonicalWorkspacePath,
-            Path.GetFileName(CanonicalWorkspacePath),
-            State,
-            Pid,
-            Endpoints,
-            ServiceStatus,
-            ServerVersion,
-            StartedByHub,
-            LastStartedAt,
-            LastSeenAt);
-    }
-}
-
-internal interface IManagedAppServerProcess : IAsyncDisposable
-{
-    bool IsRunning { get; }
-
-    int? ExitCode { get; }
-
-    string RecentStderr { get; }
-
-    int ProcessId { get; }
-
-    string? ServerVersion { get; }
-
-    event Action? OnCrashed;
-}
-
-internal sealed class AppServerProcessAdapter(AppServerProcess process) : IManagedAppServerProcess
-{
-    public bool IsRunning => process.IsRunning;
-
-    public int? ExitCode => process.ExitCode;
-
-    public string RecentStderr => process.RecentStderr;
-
-    public int ProcessId => process.ProcessId;
-
-    public string? ServerVersion => process.ServerVersion;
-
-    public event Action? OnCrashed
-    {
-        add => process.OnCrashed += value;
-        remove => process.OnCrashed -= value;
-    }
-
-    public ValueTask DisposeAsync() => process.DisposeAsync();
 }

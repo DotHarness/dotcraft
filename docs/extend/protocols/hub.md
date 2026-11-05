@@ -156,7 +156,7 @@ Example response:
 
 Important fields:
 
-- `state`: one of `stopped`, `starting`, `running`, `unhealthy`, `stopping`, `exited`.
+- `state`: one of `stopped`, `starting`, `running`, `stopping`, `exited`.
 - `endpoints.appServerWebSocket`: the URL your client should use for AppServer Protocol.
 - `serviceStatus`: optional service state for `dashboard` and runtime helpers.
 - `startedByHub`: whether the current process is managed by this Hub.
@@ -268,7 +268,6 @@ Known event kinds include:
 | `appserver.starting` | A workspace AppServer is starting. |
 | `appserver.running` | A workspace AppServer is ready. |
 | `appserver.exited` | A workspace AppServer exited. |
-| `appserver.unhealthy` | A health check failed. |
 | `notification.requested` | A local notification is waiting for UI display. |
 
 Event payloads are extensible. Render known fields by `kind` and ignore unknown ones.
@@ -333,7 +332,7 @@ Common error codes:
 | `workspaceNotFound` | 400/404 | Workspace path is missing, does not exist, or is not a DotCraft workspace. |
 | `workspaceLocked` | 409 | Another live AppServer owns the workspace lock and could not be safely reused. |
 | `appServerStartFailed` | 500 | Managed AppServer failed during startup. |
-| `appServerUnhealthy` | 500 | Managed AppServer failed readiness or health checks. |
+| `appServerUnhealthy` | 500 | Managed AppServer did not publish the expected workspace ownership lock. |
 | `portUnavailable` | 500 | Hub could not allocate a required local port. |
 | `invalidNotification` | 400 | Notification request is invalid. |
 | `managedServiceNotRegistered` | 404 | The service ID is not registered by this DotCraft build. |
@@ -346,8 +345,8 @@ Common error codes:
 
 - Use Hub by default for local workspaces, while keeping explicit remote AppServer mode as an advanced path.
 - After starting Hub, reread `hub.lock` and verify `/v1/status`; do not assume the process is ready immediately.
-- If the `hub.lock` owner is alive but `/v1/status` does not answer, the previous Hub is still shutting down. Wait for it to exit before starting Hub, rather than reporting Hub as unavailable.
-- Render `appserver.unhealthy` and `appserver.exited` as actionable UI states, such as "restart workspace runtime."
+- A live `hub.lock` owner whose `/v1/status` does not answer may still be starting, stopping, or stalled. Wait within the bootstrap budget and observe process exit rather than assuming the lock is stale or starting a duplicate.
+- Show `appserver.exited` and actual connection failures as actionable states. A transient connection failure alone is not a request to restart a live runtime.
 - Do not log Hub tokens or AppServer tokens.
 - Keep unknown endpoints, service statuses, and event kinds forward-compatible.
 

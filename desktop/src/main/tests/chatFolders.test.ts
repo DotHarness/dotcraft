@@ -3,7 +3,8 @@ import { tmpdir } from 'os'
 import { basename, dirname, join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { chatFolderSlug, createChatFolder, knownChatsFolderRoots, rememberChatsFolder, resolveChatsFolderRoot } from '../chatFolders'
-import { chatFolderFor, setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+import { chatFolderFor } from '../chatFolderAccess'
+import { registerWindowFileAccess } from '../windowFileAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 
 describe('chatFolderSlug', () => {
@@ -22,7 +23,8 @@ describe('chatFolderSlug', () => {
 })
 
 describe('earlier Chats folders', () => {
-  afterEach(() => setLocalChatsFolderRootsResolver(() => []))
+  let release = () => {}
+  afterEach(() => release())
 
   it('keeps chats under every earlier Chats folder reachable after the setting changes', () => {
     const documents = join(tmpdir(), 'Documents')
@@ -32,14 +34,17 @@ describe('earlier Chats folders', () => {
     for (const chatsFolder of [first, second, undefined]) {
       settings = { chatsFolder, chatsFolderHistory: rememberChatsFolder(settings.chatsFolderHistory, chatsFolder) }
     }
-    setLocalChatsFolderRootsResolver(() => knownChatsFolderRoots(settings, documents))
     const chats = resolveDefaultChatWorkspacePath()
+    release = registerWindowFileAccess(30, {
+      getWorkspaceRoot: () => chats,
+      getChatFolderRoots: () => knownChatsFolderRoots(settings, documents)
+    })
 
     for (const root of [first, second, join(documents, 'DotCraft', 'Chats')]) {
       const folder = join(root, '2026-10-11', 'plan-a-trip')
-      expect(chatFolderFor(chats, join(folder, 'outputs', 'report.md'))).toBe(folder)
+      expect(chatFolderFor(chats, join(folder, 'outputs', 'report.md'), 30)).toBe(folder)
     }
-    expect(chatFolderFor(chats, join(tmpdir(), 'Elsewhere', '2026-10-11', 'plan-a-trip'))).toBeNull()
+    expect(chatFolderFor(chats, join(tmpdir(), 'Elsewhere', '2026-10-11', 'plan-a-trip'), 30)).toBeNull()
   })
 })
 

@@ -46,9 +46,9 @@ import { attachDesktopPet, restoreDesktopPet } from '../desktopPet'
 const snapshot = { name: 'DotCraft', text: 'Draft', theme: 'dark' as const, locale: 'en' as const, reducedMotion: false, effort: 'off' as const, speed: 'standard' as const, canChat: true, followUpMode: 'queue' as const }
 let owner: any
 function send(sender: any, command: PetCommand): void { mocks.handler!({ sender: sender.webContents }, command) }
-function detach(pointerHeld = false): any {
-  send(owner, { type: 'detach', seat: { x: 100, y: 100, width: 44, height: 44 }, point: { x: 300, y: 200 }, snapshot, pointerHeld })
-  return mocks.windows[1]
+function detach(pointerHeld = false, source = owner): any {
+  send(source, { type: 'detach', seat: { x: 100, y: 100, width: 44, height: 44 }, point: { x: 300, y: 200 }, snapshot, pointerHeld })
+  return mocks.windows.at(-1)
 }
 function events(win: any): PetEvent[] { return win.webContents.send.mock.calls.map((call: any[]) => call[1]) }
 let warn: ReturnType<typeof vi.spyOn>
@@ -59,9 +59,58 @@ beforeEach(() => {
   owner = new BrowserWindow()
   attachDesktopPet(owner)
 })
-afterEach(() => { owner.emit('closed'); vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => {
+  for (const win of mocks.windows) if (!win.isDestroyed()) win.destroy()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('desktop pet native ownership', () => {
+  it('keeps detached companions and their commands with their source windows', async () => {
+    const firstPet = detach()
+    send(firstPet, { type: 'ready' })
+    send(owner, { type: 'hidden' })
+    await vi.advanceTimersByTimeAsync(350)
+    const secondOwner = new BrowserWindow()
+    attachDesktopPet(secondOwner)
+    const secondPet = detach(false, secondOwner)
+
+    expect(firstPet.destroyed).toBe(false)
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: {
+      status: 'running', title: 'Fix', line: 'Running tests', lineTone: 'neutral', turnId: 'turn-a', canStop: true
+    } } })
+    send(secondOwner, { type: 'snapshot', snapshot: { ...snapshot, status: {
+      status: 'running', title: 'Fix', line: 'Running tests', lineTone: 'neutral', turnId: 'turn-b', canStop: true
+    } } })
+    owner.webContents.send.mockClear()
+    secondOwner.webContents.send.mockClear()
+    send(firstPet, { type: 'stop', turnId: 'turn-a' })
+    send(secondPet, { type: 'stop', turnId: 'turn-b' })
+    expect(events(owner)).toEqual([{ type: 'stop', turnId: 'turn-a' }])
+    expect(events(secondOwner)).toEqual([{ type: 'stop', turnId: 'turn-b' }])
+    expect(restoreDesktopPet(secondOwner)).toBe(true)
+    expect(secondPet.destroyed).toBe(true)
+    expect(firstPet.destroyed).toBe(false)
+  })
+
+  it('keeps the remaining window usable after another owner closes and rejects stale senders', () => {
+    const secondOwner = new BrowserWindow()
+    attachDesktopPet(secondOwner)
+    const secondPet = detach(true, secondOwner)
+    const staleOwner = secondOwner.webContents
+    const stalePet = secondPet.webContents
+
+    secondOwner.destroy()
+    expect(secondPet.destroyed).toBe(true)
+    expect(() => mocks.handler!({ sender: staleOwner }, { type: 'return' })).toThrow('Unknown')
+    expect(() => mocks.handler!({ sender: stalePet }, { type: 'return' })).toThrow('Unknown')
+    const firstPet = detach()
+    expect(restoreDesktopPet(owner)).toBe(true)
+    expect(firstPet.destroyed).toBe(true)
+    expect(owner.show).toHaveBeenCalled()
+    expect(restoreDesktopPet(owner)).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('fades on edge entry while preserving source capture until release', async () => {
     const pet = detach(true)
     send(pet, { type: 'ready' })

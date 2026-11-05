@@ -17,6 +17,7 @@ import {
   normalizeBrowserUseUrl
 } from '../browserUseManager'
 import { resolveBrowserUseNavigationDecision } from '../browserUsePolicy'
+import { bindBrowserPageSession } from '../browserSessionPolicy'
 
 const activeManagers = new Set<BrowserUseManager>()
 
@@ -279,6 +280,7 @@ describe('BrowserUseManager IAB backend', () => {
     expect(host.createAutomationTab).toHaveBeenCalledWith(owner, expect.objectContaining({
       tabId: expect.stringMatching(/^browser-thread-1-/),
       workspacePath: '/workspace/test-root',
+      sessionUrl: 'http://localhost:3000/',
       allowFileScheme: true
     }))
     const createdTabId = host.createAutomationTab.mock.calls[0]?.[1]?.tabId
@@ -1071,6 +1073,21 @@ describe('BrowserUseManager IAB backend', () => {
         tabId: String(created.id)
       }
     })
+  })
+
+  it('rejects cross-category CDP navigation even for an explicit iframe target session', async () => {
+    const wc = createFakeWebContents()
+    bindBrowserPageSession(wc, 'website', true)
+    const manager = new BrowserUseManager(createFakeHost(wc))
+    const { call, createTab } = await openSession(manager, createFakeOwner(), 'thread-cdp-file')
+    const tab = await createTab('http://localhost:3000/')
+    ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockClear()
+    for (const url of ['file:///private/key', 'dotcraft-viewer://workspace/private/key']) {
+      await expect(call('executeCdp', {
+        target: { tabId: tab.id, sessionId: 'iframe-session' }, method: 'Page.navigate', commandParams: { url, frameId: 'child' }
+      })).rejects.toThrow('Create a new tab')
+    }
+    expect(wc.debugger.sendCommand).not.toHaveBeenCalledWith('Page.navigate', expect.anything(), expect.anything())
   })
 
   it('checks Desktop browser policy before backend Page.navigate', async () => {

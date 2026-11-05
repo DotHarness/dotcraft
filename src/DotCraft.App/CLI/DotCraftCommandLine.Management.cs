@@ -8,13 +8,34 @@ public static partial class DotCraftCommandLine
     private static Command CreateHubCommand()
     {
         var detach = new Option<bool>(HubLauncher.LauncherOption) { Hidden = true };
-        var hub = new Command("hub", "Run the workspace-independent local Hub.") { detach };
-        hub.SetAction((parseResult, cancellationToken) => parseResult.GetValue(detach)
-            ? Task.FromResult(HubLauncher.RunLauncher())
-            : RunApplicationAsync(new CommandLineArgs
+        var stderrLog = StringOption("--stderr-log", "Hub startup diagnostic log path.");
+        stderrLog.Hidden = true;
+        var hub = new Command("hub", "Run the workspace-independent local Hub.") { detach, stderrLog };
+        hub.SetAction(async (parseResult, cancellationToken) =>
+        {
+            var logPath = parseResult.GetValue(stderrLog);
+            var originalError = Console.Error;
+            using var diagnosticLog = OpenHubDiagnosticLog(logPath);
+            if (diagnosticLog is not null) Console.SetError(diagnosticLog);
+            try
             {
-                Mode = CommandLineArgs.RunMode.Hub
-            }, cancellationToken));
+                if (parseResult.GetValue(detach))
+                    return HubLauncher.RunLauncher(logPath);
+                return await RunApplicationAsync(new CommandLineArgs
+                {
+                    Mode = CommandLineArgs.RunMode.Hub
+                }, cancellationToken);
+            }
+            catch (Exception ex) when (diagnosticLog is not null)
+            {
+                await diagnosticLog.WriteLineAsync(ex.ToString());
+                throw;
+            }
+            finally
+            {
+                if (diagnosticLog is not null) Console.SetError(originalError);
+            }
+        });
 
         var nodeBin = StringOption("--node-bin", "Node.js executable path.");
         var modulesDir = StringOption("--modules-dir", "Node.js modules directory.");
@@ -51,6 +72,7 @@ public static partial class DotCraftCommandLine
             return 0;
         });
         hub.Subcommands.Add(setRuntime);
+        hub.Subcommands.Add(CreateHubStopCommand());
         return hub;
     }
 

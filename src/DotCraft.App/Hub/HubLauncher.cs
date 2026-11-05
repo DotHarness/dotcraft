@@ -15,14 +15,19 @@ internal static class HubLauncher
     {
         if (OperatingSystem.IsWindows())
             StopInheritingStandardHandles();
-        Start(ResolveAgainstCaller(dotcraftBin), paths.HubStatePath, "hub", LauncherOption);
+        Start(ResolveAgainstCaller(dotcraftBin), paths.HubStatePath,
+            "hub", LauncherOption, "--stderr-log", Path.Combine(paths.HubStatePath, "hub-startup.stderr.log"));
     }
 
-    public static int RunLauncher()
+    public static int RunLauncher(string? stderrLogPath = null)
     {
         if (!OperatingSystem.IsWindows())
             DetachFromCallerSession();
-        Start(CurrentBinary(), HubPaths.ForCurrentUser().HubStatePath, "hub");
+        else
+            StopInheritingStandardHandles();
+        var paths = HubPaths.ForCurrentUser();
+        var logPath = stderrLogPath ?? Path.Combine(paths.HubStatePath, "hub-startup.stderr.log");
+        Start(CurrentBinary(), paths.HubStatePath, "hub", "--stderr-log", logPath);
         return 0;
     }
 

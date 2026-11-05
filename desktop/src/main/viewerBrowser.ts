@@ -1,19 +1,20 @@
 import { BrowserGuestRegistry } from './browserGuestRegistry'
-import { app, BrowserWindow, nativeImage, session, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, shell } from 'electron'
 import { join } from 'node:path'
 import { BrowserDownloads } from './browserDownloads'
-import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
 import type { BrowserEventPayload } from '../shared/viewer/types'
-import { installViewerProtocolHandlerForSession, viewerUrlToPath } from './viewerFileProtocol'
-import { configureEmbeddedBrowserIdentity } from './browserIdentity'
-import { applyEmbeddedBrowserSecurity } from './browserSecurity'
+import { viewerUrlToPath } from './viewerFileProtocol'
+import { BrowserSessionPolicy, bindBrowserPageSession, browserLoadUrl, assertBrowserPageNavigation } from './browserSessionPolicy'
+import { BrowserGuestNavigation, classifyTabNavigation, extractScheme, normalizeBrowserUrl } from './browserGuestNavigation'
+export { classifyBrowserUrl, normalizeBrowserUrl } from './browserGuestNavigation'
+export { partitionForWorkspace } from './browserSessionPolicy'
+import { loadOrReport } from './browserPageLoad'
+export { loadOrReport } from './browserPageLoad'
 
 const BROWSER_EVENT_CHANNEL = 'viewer:browser:event'
 const START_URL = 'about:blank'
 const VIEWER_SCHEME = 'dotcraft-viewer:'
-const ALLOWED_SCHEMES = new Set(['http:', 'https:', VIEWER_SCHEME])
-const EXTERNAL_HANDOFF_SCHEMES = new Set(['mailto:', 'tel:'])
 const DEFAULT_START_TITLE = 'DotCraft Browser'
 
 interface BrowserTabRuntime {
@@ -27,7 +28,6 @@ interface BrowserTabRuntime {
   currentUrl: string
   title: string
   faviconDataUrl?: string
-  allowFileScheme?: boolean
   automationSessionName?: string
   automationActive?: boolean
   authPopups: Set<BrowserWindow>
@@ -94,114 +94,22 @@ function escapeHtml(input: string): string {
     .replaceAll("'", '&#39;')
 }
 
-function extractScheme(raw: string): string | null {
-  try {
-    return new URL(raw).protocol.toLowerCase()
-  } catch {
-    return null
-  }
-}
-
-function requestsControlledPopup(details: Electron.HandlerDetails): boolean {
-  const frameName = details.frameName.trim().toLowerCase()
-  const isNamedBrowsingContext = frameName !== ''
-    && !['_blank', '_self', '_parent', '_top'].includes(frameName)
-  return details.disposition === 'new-window' || details.features.trim() !== '' || isNamedBrowsingContext
-}
-
-export type BrowserNavigationDecision = 'allow' | 'external-handoff' | 'blocked'
-
-export function classifyBrowserUrl(url: string): BrowserNavigationDecision {
-  const scheme = extractScheme(url)
-  if (!scheme) return 'blocked'
-  if (ALLOWED_SCHEMES.has(scheme)) return 'allow'
-  if (EXTERNAL_HANDOFF_SCHEMES.has(scheme)) return 'external-handoff'
-  return 'blocked'
-}
-
-export function partitionForWorkspace(workspacePath: string): string {
-  const normalized = workspacePath.trim().toLowerCase()
-  const hash = createHash('sha1').update(normalized).digest('hex').slice(0, 12)
-  return `persist:dotcraft-viewer:${hash}`
-}
-
-export function normalizeBrowserUrl(input: string): string | null {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-  if (/[\u0000-\u001f]/.test(trimmed)) return null
-
-  const looksLikeLocalHost =
-    /^(localhost|127\.0\.0\.1|\[?::1\]?)(:\d+)?(\/|$)/i.test(trimmed)
-  const withScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)
-    ? (looksLikeLocalHost ? `http://${trimmed}` : trimmed)
-    : looksLikeLocalHost
-      ? `http://${trimmed}`
-      : `https://${trimmed}`
-  try {
-    const parsed = new URL(withScheme)
-    return parsed.toString()
-  } catch {
-    return null
-  }
-}
-
-function isNavigationAbortError(error: unknown): boolean {
-  if (typeof error === 'string') return error.includes('ERR_ABORTED') || error.includes('(-3)')
-  if (!error || typeof error !== 'object') return false
-  const details = error as { code?: unknown; errno?: unknown; message?: unknown }
-  if (details.code === -3 || details.errno === -3 || details.code === 'ERR_ABORTED') return true
-  if (typeof details.message !== 'string') return false
-  return details.message.includes('ERR_ABORTED') || details.message.includes('(-3)')
-}
-
-export async function loadOrReport(params: {
-  tabId: string
-  threadId?: string
-  url: string
-  load: () => Promise<unknown>
-  emit: (payload: BrowserEventPayload) => void
-  throwOnFailure?: boolean
-}): Promise<void> {
-  try {
-    await params.load()
-  } catch (error: unknown) {
-    if (isNavigationAbortError(error)) return
-    const message = error instanceof Error ? error.message : String(error)
-    const details = error && typeof error === 'object' ? error as { code?: unknown; errno?: unknown } : {}
-    const numericCode = typeof details.code === 'number'
-      ? details.code
-      : typeof details.errno === 'number'
-        ? details.errno
-        : undefined
-    params.emit({
-      tabId: params.tabId,
-      threadId: params.threadId,
-      type: 'did-fail-load',
-      url: params.url,
-      message,
-      errorCode: numericCode,
-      errorDescription: message,
-      validatedURL: params.url,
-      finalURL: params.url,
-      isMainFrame: true
-    })
-    params.emit({
-      tabId: params.tabId,
-      threadId: params.threadId,
-      type: 'did-stop-loading',
-      url: params.url
-    })
-    if (params.throwOnFailure) {
-      throw new Error(`NavigationFailed: ${message}`)
-    }
-  }
-}
-
 export class ViewerBrowserManager {
   readonly hosts = new BrowserGuestRegistry()
   private downloads: BrowserDownloads | null = null
   private readonly byWindowId = new Map<number, WindowRuntime>()
-  private readonly configuredPartitions = new Set<string>()
+  private readonly navigation = new BrowserGuestNavigation(emitBrowserEvent)
+  private readonly sessions = new BrowserSessionPolicy((event, item, page) => {
+    for (const runtime of this.byWindowId.values()) {
+      for (const tab of runtime.tabs.values()) {
+        if (tab.page.id === page.id) {
+          this.userDownloads().start(item, { tabId: tab.tabId, threadId: tab.threadId })
+          return
+        }
+      }
+    }
+    event.preventDefault()
+  })
   private startPageHint = 'Enter a URL in the address bar to begin browsing.'
 
   setStartPageHint(hint: string): void {
@@ -213,6 +121,7 @@ export class ViewerBrowserManager {
     threadId?: string
     workspacePath: string
     initialUrl?: string
+    sessionUrl?: string
     allowFileScheme?: boolean
     skipStartPageLoad?: boolean
     automation?: boolean
@@ -224,9 +133,7 @@ export class ViewerBrowserManager {
       return this.snapshotFromRuntime(existing)
     }
 
-    const partition = partitionForWorkspace(params.workspacePath)
-    const partitionSession = session.fromPartition(partition)
-    this.configurePartitionSession(partition, partitionSession)
+    const { partition, kind } = this.sessions.select(win, params.workspacePath, params.sessionUrl ?? params.initialUrl ?? START_URL)
 
     const page = await this.hosts.request(win, params.tabId, partition, params.automation)
     if (page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
@@ -242,10 +149,10 @@ export class ViewerBrowserManager {
       boundsInitialized: false,
       currentUrl: START_URL,
       title: DEFAULT_START_TITLE,
-      allowFileScheme: params.allowFileScheme === true,
       authPopups: new Set()
     }
     runtime.tabs.set(params.tabId, tabRuntime)
+    bindBrowserPageSession(page, kind, params.allowFileScheme === true)
     this.bindWebContentsEvents(win, tabRuntime)
 
     const desired = normalizeBrowserUrl(params.initialUrl ?? '') ?? START_URL
@@ -306,6 +213,7 @@ export class ViewerBrowserManager {
     threadId?: string
     workspacePath: string
     initialUrl?: string
+    sessionUrl?: string
     allowFileScheme?: boolean
   }): Promise<BrowserSnapshot> {
     return await this.createTab(win, {
@@ -313,6 +221,7 @@ export class ViewerBrowserManager {
       threadId: params.threadId,
       workspacePath: params.workspacePath,
       initialUrl: params.initialUrl,
+      sessionUrl: params.sessionUrl,
       allowFileScheme: params.allowFileScheme,
       skipStartPageLoad: true,
       automation: true
@@ -354,11 +263,12 @@ export class ViewerBrowserManager {
   async loadAutomationUrl(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
+    const target = assertBrowserPageNavigation(tab.page, params.url)
     await loadOrReport({
       tabId: params.tabId,
       threadId: tab.threadId,
-      url: params.url,
-      load: () => tab.page.loadURL(params.url),
+      url: target,
+      load: () => tab.page.loadURL(target),
       emit: (payload) => emitBrowserEvent(win, payload),
       throwOnFailure: true
     })
@@ -371,10 +281,14 @@ export class ViewerBrowserManager {
     const normalized = normalizeBrowserUrl(params.url)
     if (!normalized) return
 
-    const navigationDecision = this.classifyUrlForTab(tab, normalized)
+    const navigationDecision = classifyTabNavigation(tab, normalized)
     if (navigationDecision === 'external-handoff') {
       await shell.openExternal(normalized)
       emitBrowserEvent(win, { tabId: params.tabId, threadId: tab.threadId, type: 'external-handoff', url: normalized })
+      return
+    }
+    if (navigationDecision === 'new-tab') {
+      this.navigation.boundary(win, tab, normalized)
       return
     }
     if (navigationDecision !== 'allow') {
@@ -391,7 +305,7 @@ export class ViewerBrowserManager {
       tabId: params.tabId,
       threadId: tab.threadId,
       url: normalized,
-      load: () => tab.page.loadURL(normalized),
+      load: () => tab.page.loadURL(browserLoadUrl(normalized)),
       emit: (payload) => emitBrowserEvent(win, payload)
     })
     tab.currentUrl = tab.page.getURL() || tab.currentUrl
@@ -473,7 +387,7 @@ export class ViewerBrowserManager {
     if (!tab) return
     const current = tab.currentUrl || tab.page.getURL()
     const scheme = extractScheme(current)
-    if (!scheme || this.classifyUrlForTab(tab, current) === 'blocked') return
+    if (!scheme || classifyTabNavigation(tab, current) === 'blocked') return
     if (scheme === VIEWER_SCHEME) {
       await shell.openPath(viewerUrlToPath(current))
       return
@@ -651,138 +565,7 @@ export class ViewerBrowserManager {
       emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'crashed' })
     })
 
-    wc.on('will-navigate', (event, url) => {
-      if (this.handleSchemeBoundary(win, tab, url)) {
-        event.preventDefault()
-      }
-    })
-    wc.on('will-redirect', (event, url) => {
-      if (this.handleSchemeBoundary(win, tab, url)) {
-        event.preventDefault()
-      }
-    })
-
-    this.bindWindowOpenEvents(win, tab, wc)
-  }
-
-  private bindWindowOpenEvents(win: BrowserWindow, tab: BrowserTabRuntime, wc: Electron.WebContents): void {
-    wc.setWindowOpenHandler((details) => this.handleWindowOpen(win, tab, details))
-    wc.on('did-create-window', (popup) => this.bindAuthPopup(win, tab, popup))
-  }
-
-  private handleWindowOpen(
-    win: BrowserWindow,
-    tab: BrowserTabRuntime,
-    details: Electron.HandlerDetails
-  ): Electron.WindowOpenHandlerResponse {
-    const normalized = normalizeBrowserUrl(details.url)
-    const opensControlledPopup = requestsControlledPopup(details)
-    const isBlankPopup = opensControlledPopup && details.url === 'about:blank'
-    const isAllowedPopup = normalized && this.classifyUrlForTab(tab, normalized) === 'allow'
-    if (opensControlledPopup && (isBlankPopup || isAllowedPopup)) {
-      return {
-        action: 'allow',
-        outlivesOpener: false,
-        overrideBrowserWindowOptions: {
-          parent: win,
-          autoHideMenuBar: true,
-          webPreferences: applyEmbeddedBrowserSecurity({}, tab.page.session)
-        }
-      }
-    }
-    if (!normalized) return { action: 'deny' }
-    const navigationDecision = this.classifyUrlForTab(tab, normalized)
-    if (navigationDecision === 'allow') {
-      emitBrowserEvent(win, {
-        tabId: tab.tabId,
-        threadId: tab.threadId,
-        type: 'request-new-tab',
-        url: normalized
-      })
-      return { action: 'deny' }
-    }
-    if (navigationDecision === 'external-handoff') {
-      void shell.openExternal(normalized)
-    } else {
-      emitBrowserEvent(win, {
-        tabId: tab.tabId,
-        threadId: tab.threadId,
-        type: 'blocked-navigation',
-        message: `Blocked scheme: ${extractScheme(normalized) ?? 'unknown'}`
-      })
-    }
-    return { action: 'deny' }
-  }
-
-  private bindAuthPopup(win: BrowserWindow, tab: BrowserTabRuntime, popup: BrowserWindow): void {
-    tab.authPopups.add(popup)
-    popup.setMenuBarVisibility(false)
-    popup.webContents.setUserAgent(tab.page.getUserAgent())
-    popup.once('closed', () => tab.authPopups.delete(popup))
-    popup.webContents.on('will-navigate', (event, url) => {
-      if (this.handleSchemeBoundary(win, tab, url)) event.preventDefault()
-    })
-    popup.webContents.on('will-redirect', (event, url) => {
-      if (this.handleSchemeBoundary(win, tab, url)) event.preventDefault()
-    })
-    this.bindWindowOpenEvents(win, tab, popup.webContents)
-  }
-
-  private classifyUrlForTab(tab: BrowserTabRuntime, url: string): BrowserNavigationDecision {
-    const scheme = extractScheme(url)
-    if (scheme === 'file:' && tab.allowFileScheme === true) return 'allow'
-    return classifyBrowserUrl(url)
-  }
-
-  private handleSchemeBoundary(win: BrowserWindow, tab: BrowserTabRuntime, url: string): boolean {
-    const scheme = extractScheme(url)
-    const navigationDecision = this.classifyUrlForTab(tab, url)
-    if (navigationDecision === 'allow') return false
-    if (navigationDecision === 'external-handoff') {
-      void shell.openExternal(url)
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'external-handoff', url })
-      return true
-    }
-    if (navigationDecision === 'blocked') {
-      emitBrowserEvent(win, {
-        tabId: tab.tabId,
-        threadId: tab.threadId,
-        type: 'blocked-navigation',
-        message: `Blocked scheme: ${scheme ?? 'unknown'}`
-      })
-      return true
-    }
-    return true
-  }
-
-  configurePartitionSession(partitionName: string, partitionSession: Electron.Session): void {
-    if (this.configuredPartitions.has(partitionName)) return
-    installViewerProtocolHandlerForSession(partitionSession)
-    configureEmbeddedBrowserIdentity(partitionSession, {
-      appName: app.getName(),
-      preferredLanguages: app.getPreferredSystemLanguages(),
-      fallbackLocale: app.getLocale()
-    })
-    this.configuredPartitions.add(partitionName)
-
-    partitionSession.on('will-download', (event, item, webContents) => {
-      for (const runtime of this.byWindowId.values()) {
-        for (const tab of runtime.tabs.values()) {
-          if (tab.page.id === webContents.id) {
-            this.userDownloads().start(item, { tabId: tab.tabId, threadId: tab.threadId })
-            return
-          }
-        }
-      }
-      event.preventDefault()
-    })
-
-    partitionSession.setPermissionCheckHandler((_wc, permission) => {
-      return permission === 'clipboard-sanitized-write'
-    })
-    partitionSession.setPermissionRequestHandler((_wc, permission, callback) => {
-      callback(permission === 'clipboard-sanitized-write')
-    })
+    this.navigation.bind(win, tab)
   }
 
 }

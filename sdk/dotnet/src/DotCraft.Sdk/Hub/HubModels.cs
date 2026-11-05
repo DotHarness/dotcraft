@@ -1,5 +1,6 @@
 namespace DotCraft.Sdk.Hub;
 
+using System.Diagnostics;
 using System.Text.Json;
 
 /// <summary>Policy applied when a live Hub uses a different executable.</summary>
@@ -53,6 +54,9 @@ public sealed class DotCraftHubClientOptions
     /// Optional factory for test or host-provided HTTP clients.
     /// </summary>
     public Func<HttpClient>? HttpClientFactory { get; set; }
+
+    /// <summary>A host may return its started process for diagnostics, or null when using a detached launcher.</summary>
+    public Func<string, Process?>? StartHubProcess { get; set; }
 }
 
 /// <summary>
@@ -74,7 +78,6 @@ public static class HubAppServerStates
     public const string Stopped = "stopped";
     public const string Starting = "starting";
     public const string Running = "running";
-    public const string Unhealthy = "unhealthy";
     public const string Stopping = "stopping";
     public const string Exited = "exited";
 }

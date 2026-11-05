@@ -11,6 +11,7 @@ const WORKTREE_CREATION_TIMEOUT_MS = 180_000
 type JsonObject = Record<string, unknown>
 
 export interface ThreadTaskConnection {
+  ownerId?: number
   workspacePath: string
   request<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T>
   createChatFolder?: (firstMessage: string) => Promise<string>

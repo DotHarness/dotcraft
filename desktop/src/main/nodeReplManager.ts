@@ -53,10 +53,11 @@ interface NodeReplQueueState {
   tail: Promise<void>
   generation: number
   pending: number
+  ownerGenerations: Map<number, number>
 }
 
 interface NodeReplEvaluationSlot {
-  generation: number
+  isStale(): boolean
   ready: Promise<void>
   release(): void
 }
@@ -148,6 +149,7 @@ function normalizeBrowserSession(params: NodeReplEvaluateParams, evaluationId: s
 
 export class NodeReplManager {
   private readonly runtimes = new Map<string, NodeReplThreadRuntime>()
+  private readonly runtimeOwners = new WeakMap<NodeReplThreadRuntime, number>()
   private readonly evaluationQueues = new Map<string, NodeReplQueueState>()
   private readonly cancelledEvaluations = new Map<string, Set<string>>()
 
@@ -163,10 +165,10 @@ export class NodeReplManager {
     }
 
     const evaluationId = params.evaluationId?.trim() || newEvaluationId()
-    const slot = this.enqueueEvaluation(params.threadId)
+    const slot = this.enqueueEvaluation(params.threadId, owner.webContents.id)
     try {
       await slot.ready
-      if (this.isQueueGenerationStale(params.threadId, slot.generation) ||
+      if (owner.isDestroyed() || slot.isStale() ||
         this.consumeCancelledEvaluation(params.threadId, evaluationId)) {
         return { error: 'NodeReplJs cancelled before it started.', images: [], logs: [] }
       }
@@ -184,6 +186,7 @@ export class NodeReplManager {
     evaluationId: string
   ): Promise<NodeReplEvaluateResult> {
     const runtime = this.getOrCreateRuntime(params.threadId)
+    this.runtimeOwners.set(runtime, owner.webContents.id)
     const browserSession = normalizeBrowserSession(params, evaluationId)
     const abortController = new AbortController()
     runtime.activeEvaluationId = evaluationId
@@ -254,9 +257,11 @@ export class NodeReplManager {
     }
   }
 
-  private enqueueEvaluation(threadId: string): NodeReplEvaluationSlot {
+  private enqueueEvaluation(threadId: string, ownerId: number): NodeReplEvaluationSlot {
     const state = this.getOrCreateQueueState(threadId)
     const generation = state.generation
+    const ownerGeneration = state.ownerGenerations.get(ownerId) ?? 0
+    state.ownerGenerations.set(ownerId, ownerGeneration)
     const previous = state.tail
     let release!: () => void
     const current = new Promise<void>((resolve) => {
@@ -265,7 +270,7 @@ export class NodeReplManager {
     state.pending += 1
     state.tail = previous.then(() => current)
     return {
-      generation,
+      isStale: () => state.generation !== generation || state.ownerGenerations.get(ownerId) !== ownerGeneration,
       ready: previous,
       release: () => {
         state.pending -= 1
@@ -283,15 +288,11 @@ export class NodeReplManager {
     const created: NodeReplQueueState = {
       tail: Promise.resolve(),
       generation: 0,
-      pending: 0
+      pending: 0,
+      ownerGenerations: new Map()
     }
     this.evaluationQueues.set(threadId, created)
     return created
-  }
-
-  private isQueueGenerationStale(threadId: string, generation: number): boolean {
-    const state = this.evaluationQueues.get(threadId)
-    return Boolean(state && state.generation !== generation)
   }
 
   private consumeCancelledEvaluation(threadId: string, evaluationId: string): boolean {
@@ -345,6 +346,20 @@ export class NodeReplManager {
     if (method !== 'thread/deleted' || !params || typeof params !== 'object') return
     const threadId = (params as { threadId?: unknown }).threadId
     if (typeof threadId === 'string') this.reset(threadId)
+  }
+
+  async disposeOwner(ownerId: number): Promise<void> {
+    for (const state of this.evaluationQueues.values()) {
+      const generation = state.ownerGenerations.get(ownerId)
+      if (generation !== undefined) state.ownerGenerations.set(ownerId, generation + 1)
+    }
+    for (const [threadId, runtime] of [...this.runtimes]) {
+      if (this.runtimeOwners.get(runtime) !== ownerId) continue
+      runtime.activeAbortController?.abort(new Error('NodeReplJs connection closed.'))
+      if (runtime.activeEvaluationId) this.browserManager.abortEvaluation(threadId, runtime.activeEvaluationId)
+      this.disposeReplRuntime(threadId, runtime)
+      await runtime.worker.stop(runtime.activeEvaluationId)
+    }
   }
 
   async disposeAll(): Promise<void> {

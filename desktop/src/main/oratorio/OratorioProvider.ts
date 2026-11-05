@@ -38,6 +38,9 @@ export class OratorioProvider {
   private subscribers = 0
   private pendingHandoff: { publicRequest: OratorioHandoffRequest; approvalUrl: string } | null = null
   private focusedRunId: string | null = null
+  private generation = 0
+  private disposed = false
+  private contextAbort = new AbortController()
 
   constructor(
     private readonly getHubClient: () => DesktopHubClient,
@@ -52,7 +55,9 @@ export class OratorioProvider {
   }
 
   async request<T>(request: OratorioRequest): Promise<OratorioResponse<T>> {
+    const signal = this.contextAbort.signal
     const service = await this.ensure()
+    signal.throwIfAborted()
     if (!service.endpoint || !service.accessToken) {
       throw new OratorioProviderError('oratorio.serviceContextInvalid', 'Oratorio returned incomplete connection metadata.')
     }
@@ -62,9 +67,11 @@ export class OratorioProvider {
         Authorization: `Bearer ${service.accessToken}`,
         ...(request.body ? { 'Content-Type': 'application/json' } : {})
       },
-      body: request.body ? JSON.stringify(request.body) : undefined
+      body: request.body ? JSON.stringify(request.body) : undefined,
+      signal
     })
     const data = await readResponseBody(response)
+    signal.throwIfAborted()
     if (!response.ok) {
       throw new OratorioProviderError(readErrorCode(data), readErrorMessage(data, response.status))
     }
@@ -72,17 +79,16 @@ export class OratorioProvider {
   }
 
   async retry(): Promise<OratorioServiceContext> {
-    this.disconnect()
-    this.service = null
-    this.ensurePromise = null
+    this.contextChanged()
     await this.ensure()
-    this.revision += 1
     return this.context()
   }
 
   async handleDesktopServiceHandoff(rawUrl: string): Promise<OratorioHandoffRequest | null> {
+    const signal = this.contextAbort.signal
     const handoff = parseDesktopServiceHandoff(rawUrl)
     const service = await this.ensure()
+    signal.throwIfAborted()
     const workspacePath = service.workspacePath
     if (!workspacePath || !samePath(workspacePath, handoff.workspacePath)) {
       throw new OratorioProviderError(
@@ -94,6 +100,7 @@ export class OratorioProvider {
     let appServerIdentity = service.appServerIdentity
     if (service.provider === 'local') {
       const appServer = await this.getHubClient().ensureAppServer(workspacePath, { startIfMissing: true })
+      signal.throwIfAborted()
       endpoint = appServer.endpoints.appServerWebSocket
         ?? appServer.serviceStatus.appServerWebSocket?.url
       const canonicalWorkspacePath = appServer.canonicalWorkspacePath || workspacePath
@@ -117,6 +124,7 @@ export class OratorioProvider {
       path: '/api/v1/dotcraft/app-binding/inspect',
       body: { url: target.toString() }
     })
+    signal.throwIfAborted()
     const publicRequest: OratorioHandoffRequest = {
       requestId: crypto.randomUUID(), operation: handoff.operation, appId: handoff.appId, workspacePath,
       summary: summarizeHandoffInspection(inspection.data, handoff.operation)
@@ -167,7 +175,18 @@ export class OratorioProvider {
     if (this.subscribers === 0) this.disconnect()
   }
 
+  dispose(): void {
+    this.disposed = true
+    this.contextChanged()
+    this.subscribers = 0
+  }
+
   contextChanged(): number {
+    this.generation += 1
+    this.contextAbort.abort()
+    this.contextAbort = new AbortController()
+    this.pendingHandoff = null
+    this.focusedRunId = null
     this.disconnect()
     this.service = null
     this.ensurePromise = null
@@ -176,12 +195,15 @@ export class OratorioProvider {
   }
 
   private async ensure(): Promise<ResolvedOratorioService> {
+    if (this.disposed) throw new OratorioProviderError('oratorio.serviceUnavailable', 'The window has closed.')
     if (this.service?.endpoint && this.service.accessToken) {
       this.ensureSubscription(this.service)
       return this.service
     }
     if (!this.ensurePromise) {
-      this.ensurePromise = this.resolveRemoteService().then(async (remote) => {
+      const generation = this.generation
+      const workspacePath = normalizeWorkspacePath(this.getWorkspacePath())
+      const pending = this.resolveRemoteService().then(async (remote) => {
         if (remote) {
           return {
             ...remote,
@@ -199,14 +221,18 @@ export class OratorioProvider {
           endpoint: service.endpoint,
           accessToken: service.accessToken,
           provider: 'local' as const,
-          workspacePath: normalizeWorkspacePath(this.getWorkspacePath())
+          workspacePath
         }
         }).then((service) => {
+          if (generation !== this.generation || this.disposed) {
+            throw new OratorioProviderError('oratorio.serviceUnavailable', 'The window context has changed.')
+          }
           this.service = service
           this.ensureSubscription(service)
           return service
         })
-        .finally(() => { this.ensurePromise = null })
+        .finally(() => { if (this.ensurePromise === pending) this.ensurePromise = null })
+      this.ensurePromise = pending
     }
     return this.ensurePromise
   }

@@ -3,6 +3,7 @@ import { ipcMain, Notification, shell } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { PassThrough, type Readable, type Writable } from 'stream'
+import { EventEmitter } from 'events'
 
 const {
   scanModulesMock,
@@ -61,7 +62,8 @@ vi.mock('electron', () => {
     handle: vi.fn(),
     removeHandler: vi.fn(),
     on: vi.fn(),
-    removeAllListeners: vi.fn()
+    removeAllListeners: vi.fn(),
+    removeListener: vi.fn()
   },
   BrowserWindow: {
     getAllWindows: vi.fn(() => []),
@@ -113,6 +115,7 @@ vi.mock('../workspaceComposerIpc', async () => {
   return {
     ...actual,
     activateFileIndexWorkspace: vi.fn(),
+    releaseFileIndex: vi.fn(),
     cleanupWorkspaceCache: vi.fn().mockResolvedValue(undefined),
     listWorkspaceFiles: listWorkspaceFilesMock,
     warmFileSearchIndex: vi.fn()
@@ -125,6 +128,7 @@ import {
   resolveServerRequestBridge,
   registerIpcHandlers,
   unregisterIpcHandlers,
+  getChannelModuleManager,
   sanitizeHttpOrHttpsUrl,
   sanitizeExternalUrl,
   openExternalUrl,
@@ -139,13 +143,13 @@ import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { unwrapAppServerResult } from '../../shared/appServerError'
 import { applyWorkspaceThreadListRequestResult, beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
-import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+import { registerWindowFileAccess } from '../windowFileAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { getForegroundWorkspaceClient, type WorkspaceConnectionRole } from '../workspaceConnectionRouting'
 
-type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
+type IpcCallbacks = Parameters<typeof registerIpcHandlers>[2]
 type ExecFileCallback = (
   error: (Error & { code?: number | string }) | null,
   stdout: string,
@@ -155,6 +159,7 @@ type ExecFileCallback = (
 function createIpcCallbacks(overrides: Partial<IpcCallbacks> = {}): IpcCallbacks {
   return {
     onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
+    onOpenDesktopLink: vi.fn().mockResolvedValue(undefined),
     onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
     onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
     onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
@@ -180,16 +185,32 @@ function machinesManagerFor(hosts: unknown[]): SshMachinesManager {
   })
 }
 
+let testWorkspaceRoot = '/workspace'
+let testChatRoots: readonly string[] = []
+const testWindow = Object.assign(new EventEmitter(), {
+  isDestroyed: () => false,
+  webContents: Object.assign(new EventEmitter(), { id: 101, isDestroyed: () => false, send: vi.fn() })
+}) as unknown as Electron.BrowserWindow
+registerWindowFileAccess(testWindow.webContents.id, {
+  getWorkspaceRoot: () => testWorkspaceRoot,
+  getChatFolderRoots: () => testChatRoots
+})
+function setChatRoots(roots: readonly string[]): void { testChatRoots = roots }
+
 function registerHandlersForTest(
   workspacePath = '/workspace',
-  getWireClient: Parameters<typeof registerIpcHandlers>[1] = () => null,
+  getWireClient: Parameters<typeof registerIpcHandlers>[0] = () => null,
   callbacks: IpcCallbacks = createIpcCallbacks()
 ): Map<string, (...args: unknown[]) => unknown> {
+  unregisterIpcHandlers(testWindow)
+  testWorkspaceRoot = workspacePath
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-    handlers.set(channel, handler as (...args: unknown[]) => unknown)
+    handlers.set(channel, (event: unknown, ...args: unknown[]) => handler({
+      ...(event as object), sender: testWindow.webContents
+    } as Electron.IpcMainInvokeEvent, ...args))
   })
-  registerIpcHandlers(null, getWireClient, workspacePath, callbacks)
+  registerIpcHandlers(getWireClient, workspacePath, callbacks, testWindow)
   return handlers
 }
 
@@ -211,21 +232,21 @@ function mockGitCommands(
 describe('createServerRequestBridge', () => {
   it('resolves a bridge and runs its settlement callback once', async () => {
     const onSettled = vi.fn()
-    const { bridgeId, promise } = createServerRequestBridge(onSettled)
+    const { bridgeId, promise } = createServerRequestBridge(onSettled, testWindow)
 
-    resolveServerRequestBridge(bridgeId, { answers: {} })
+    resolveServerRequestBridge(bridgeId, { answers: {} }, testWindow.webContents.id)
     await expect(promise).resolves.toEqual({ answers: {} })
-    resolveServerRequestBridge(bridgeId, null)
+    resolveServerRequestBridge(bridgeId, null, testWindow.webContents.id)
     expect(onSettled).toHaveBeenCalledTimes(1)
   })
 
   it('rejects a cancelled bridge and runs its settlement callback once', async () => {
     const onSettled = vi.fn()
-    const { bridgeId, promise } = createServerRequestBridge(onSettled)
+    const { bridgeId, promise } = createServerRequestBridge(onSettled, testWindow)
 
-    cancelServerRequestBridge(bridgeId)
+    cancelServerRequestBridge(bridgeId, testWindow.webContents.id)
     await expect(promise).rejects.toThrow()
-    cancelServerRequestBridge(bridgeId)
+    cancelServerRequestBridge(bridgeId, testWindow.webContents.id)
     expect(onSettled).toHaveBeenCalledTimes(1)
   })
 })
@@ -270,14 +291,14 @@ describe('openAppHandoffUrl', () => {
   it('routes managed service handoffs inside Desktop Main', async () => {
     const handler = vi.fn().mockResolvedValue(undefined)
     vi.mocked(shell.openExternal).mockClear()
-    setDesktopServiceHandoffHandler(handler)
+    setDesktopServiceHandoffHandler(testWindow.webContents.id, handler)
     try {
       const url = 'dotcraft-service://oratorio/connect?request=req_1'
-      await openAppHandoffUrl(url)
+      await openAppHandoffUrl(url, testWindow.webContents.id)
       expect(handler).toHaveBeenCalledWith(url)
       expect(shell.openExternal).not.toHaveBeenCalled()
     } finally {
-      setDesktopServiceHandoffHandler(null)
+      setDesktopServiceHandoffHandler(testWindow.webContents.id, null)
     }
   })
 
@@ -304,6 +325,7 @@ describe('openAppHandoffUrl', () => {
 
 describe('registerIpcHandlers', () => {
   beforeEach(async () => {
+    unregisterIpcHandlers(testWindow)
     vi.clearAllMocks()
     scanModulesMock.mockResolvedValue([])
     channelModuleManagerStartMock.mockResolvedValue({ ok: true })
@@ -1201,10 +1223,6 @@ describe('registerIpcHandlers', () => {
   })
 
   it('remote stack Open in Desktop activates a saved stack without persisting a localhost remote URL', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
     const updateSettings = vi.fn()
     const onConnectDockerDeployment = vi.fn().mockResolvedValue({ localPort: 51523 })
     const host = {
@@ -1222,14 +1240,14 @@ describe('registerIpcHandlers', () => {
       }]
     }
 
-    registerIpcHandlers(null, () => null, '/workspace', createIpcCallbacks({
+    const actualHandlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
       getSettings: vi.fn(() => ({ remoteHosts: normalizeSshMachines([host]) })),
       getSshMachinesManager: () => machinesManagerFor([host]),
       updateSettings,
       onConnectDockerDeployment
     }))
 
-    const result = await handlers.get('sshMachines:docker-open')?.({}, {
+    const result = await actualHandlers.get('sshMachines:docker-open')?.({}, {
       id: 'h1',
       stackId: 's1'
     })
@@ -1353,29 +1371,29 @@ describe('registerIpcHandlers', () => {
     const chatFolder = path.join(chatsRoot, '2026-10-11', 'plan-a-trip')
     const dateFolder = path.join(chatsRoot, '2026-10-11')
 
-    afterEach(() => setLocalChatsFolderRootsResolver(() => []))
+    afterEach(() => setChatRoots([]))
 
     it('opens a chat folder to search, git inspection, reveal, and the terminal while Chats is the local foreground', async () => {
-      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      setChatRoots([chatsRoot])
       mockGitCommands(() => ({ error: gitError(128, 'not a git repository') }))
       const handlers = registerHandlersForTest(chatsWorkspace)
       const report = path.join(chatFolder, 'outputs', 'report.md')
 
       await handlers.get('workspace:search-files')!({}, { query: 'report', workspacePath: chatFolder, limit: 5 })
-      expect(listWorkspaceFilesMock).toHaveBeenCalledWith(chatFolder, 'report', 5)
+      expect(listWorkspaceFilesMock).toHaveBeenCalledWith(chatFolder, 'report', 5, testWindow.webContents.id)
       await expect(handlers.get('git:inspectHead')!({}, chatFolder)).resolves.toEqual({ kind: 'none' })
       await handlers.get('shell:show-item-in-folder')!({}, report)
       expect(shell.showItemInFolder).toHaveBeenCalledWith(report)
-      expect(isTerminalCwdAllowed(chatsWorkspace, path.join(chatFolder, 'work'))).toBe(true)
+      expect(isTerminalCwdAllowed(chatsWorkspace, path.join(chatFolder, 'work'), testWindow.webContents.id)).toBe(true)
 
       await expect(handlers.get('workspace:search-files')!({}, { query: 'x', workspacePath: dateFolder })).rejects.toThrow('Workspace path mismatch')
       await expect(handlers.get('git:inspectHead')!({}, chatsRoot)).rejects.toThrow('Workspace path mismatch')
       await expect(handlers.get('shell:show-item-in-folder')!({}, path.join(chatsRoot, 'loose.md'))).rejects.toThrow()
-      expect(isTerminalCwdAllowed(chatsWorkspace, dateFolder)).toBe(false)
+      expect(isTerminalCwdAllowed(chatsWorkspace, dateFolder, testWindow.webContents.id)).toBe(false)
     })
 
     it('reads files inside a chat folder but nowhere else outside the workspace', async () => {
-      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      setChatRoots([chatsRoot])
       vi.mocked(fs.readFile).mockResolvedValueOnce('# Report' as never)
       const handlers = registerHandlersForTest(chatsWorkspace)
       const report = path.join(chatFolder, 'outputs', 'report.md')
@@ -1388,16 +1406,16 @@ describe('registerIpcHandlers', () => {
     })
 
     it('keeps chat folders closed for a project workspace or when Chats is not the local foreground', async () => {
-      setLocalChatsFolderRootsResolver(() => [chatsRoot])
+      setChatRoots([chatsRoot])
       const project = registerHandlersForTest('/workspace')
       await expect(project.get('workspace:search-files')!({}, { query: 'x', workspacePath: chatFolder })).rejects.toThrow('Workspace path mismatch')
       await expect(project.get('git:inspectHead')!({}, chatFolder)).rejects.toThrow('Workspace path mismatch')
-      expect(isTerminalCwdAllowed('/workspace', chatFolder)).toBe(false)
+      expect(isTerminalCwdAllowed('/workspace', chatFolder, testWindow.webContents.id)).toBe(false)
 
-      setLocalChatsFolderRootsResolver(() => [])
+      setChatRoots([])
       const chats = registerHandlersForTest(chatsWorkspace)
       await expect(chats.get('workspace:search-files')!({}, { query: 'x', workspacePath: chatFolder })).rejects.toThrow('Workspace path mismatch')
-      expect(isTerminalCwdAllowed(chatsWorkspace, chatFolder)).toBe(false)
+      expect(isTerminalCwdAllowed(chatsWorkspace, chatFolder, testWindow.webContents.id)).toBe(false)
       expect(listWorkspaceFilesMock).not.toHaveBeenCalled()
     })
   })
@@ -1484,20 +1502,44 @@ describe('task completion notifications', () => {
       foreground: false
     })
 
-    const payload = { bridgeId: 'bridge-1', method: 'item/approval/request', params: { reason: 'Run a command' } }
+    const request = createServerRequestBridge(undefined, win)
+    const payload = { bridgeId: request.bridgeId, method: 'item/approval/request', params: { reason: 'Run a command' } }
     broadcastServerRequest(win, payload)
     expect(Notification).not.toHaveBeenCalled()
     expect(win.webContents.send).toHaveBeenLastCalledWith('appserver:server-request', payload)
+    resolveServerRequestBridge(request.bridgeId, {}, win.webContents.id)
   })
 })
 
 describe('unregisterIpcHandlers', () => {
+  it('closes one full IPC registration without disposing another window or its workspace routing', () => {
+    registerHandlersForTest('/first')
+    const other = Object.assign(new EventEmitter(), {
+      isDestroyed: () => false,
+      webContents: Object.assign(new EventEmitter(), { id: 102, isDestroyed: () => false, send: vi.fn() })
+    }) as unknown as Electron.BrowserWindow
+    registerIpcHandlers(() => null, '/second', createIpcCallbacks(), other)
+    const firstModules = getChannelModuleManager(testWindow)!
+    const secondModules = getChannelModuleManager(other)!
+    try {
+      const dispatch = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === 'window:get-workspace-path')![1]
+      expect(dispatch({ sender: other.webContents } as Electron.IpcMainInvokeEvent)).toBe('/second')
+      testWindow.emit('closed')
+      expect(firstModules.dispose).toHaveBeenCalledOnce()
+      expect(secondModules.dispose).not.toHaveBeenCalled()
+      expect(dispatch({ sender: other.webContents } as Electron.IpcMainInvokeEvent)).toBe('/second')
+      expect(() => dispatch({ sender: testWindow.webContents } as Electron.IpcMainInvokeEvent)).toThrow('active Desktop window')
+    } finally {
+      unregisterIpcHandlers(other)
+    }
+  })
+
   it('removes each workspace project handler exactly once', () => {
     vi.clearAllMocks()
     registerHandlersForTest('/workspace', () => null, createIpcCallbacks())
     vi.mocked(ipcMain.removeHandler).mockClear()
 
-    unregisterIpcHandlers()
+    unregisterIpcHandlers(testWindow)
 
     const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
     for (const channel of ['workspace:get-projects', 'workspace:remove-project', 'workspace:disconnect-remote']) {

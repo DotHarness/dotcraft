@@ -1,19 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HubClient } from '@dotcraft/sdk/hub'
-import { AppUpdateRuntime } from '../appUpdateRuntime'
 import { DesktopHubClient, DesktopHubError } from '../desktopHub'
 import { logDesktopHubFailure, logLiveDesktopHub } from '../desktopHubDiagnostics'
 
-describe('Desktop Hub diagnostics and update gate', () => {
-  it('rejects Hub work without calling the SDK once update preparation starts', async () => {
-    const runtime = new AppUpdateRuntime()
-    const inner = new HubClient()
-    const ensure = vi.spyOn(inner, 'ensureAppServer')
-    runtime.quiesce()
-    await expect(new DesktopHubClient(inner, undefined, runtime).ensureAppServer('/work')).rejects.toThrow('preparing')
-    expect(ensure).not.toHaveBeenCalled()
-  })
-
+describe('Desktop Hub diagnostics', () => {
   it('observes the actual live build without ensuring a Hub or exposing its bearer', async () => {
     const inner = new HubClient()
     vi.spyOn(inner, 'tryGetLiveHub').mockResolvedValue({

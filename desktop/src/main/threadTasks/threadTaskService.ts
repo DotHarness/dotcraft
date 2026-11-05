@@ -8,6 +8,7 @@ import type {
   ThreadTasksSnapshot
 } from '../../shared/threadTasks'
 import { readBrowserTurnNotification } from '../browserTabLifecycle'
+import { sameFilePath } from '../../shared/workspaceProjectKey'
 import {
   composeBrief,
   createChildThread,
@@ -50,10 +51,11 @@ export type NewProposal = Omit<NewThreadTask, 'kind'>
 export interface ThreadTaskServiceHost {
   store: ThreadTaskStore
   getNewTaskPrompt(): NewTaskPromptMode
-  notifyOffer?(task: ThreadTask): void
+  notifyOffer?(task: ThreadTask, ownerId?: number): void
 }
 
 interface OfferWaiter {
+  ownerId?: number
   task: ThreadTask
   threadId: string
   turnId?: string
@@ -98,6 +100,12 @@ export class DesktopThreadTasks {
     for (const taskId of [...this.waiters.keys()]) this.abandon(taskId)
   }
 
+  abandonOffersForOwner(ownerId: number): void {
+    for (const [taskId, waiter] of this.waiters) {
+      if (waiter.ownerId === ownerId) this.abandon(taskId)
+    }
+  }
+
   canSeeCard(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<boolean> {
     return this.audience.fromComposer(connection, threadId, turnId)
   }
@@ -118,13 +126,13 @@ export class DesktopThreadTasks {
     const auto = decision === 'alwaysNewThread'
     const { task } = this.host.store.add({ ...input, kind: 'offer' })
     const outcome = new Promise<OfferOutcome>((resolve) => {
-      this.waiters.set(task.id, { task, threadId: task.threadId, turnId: task.turnId, resolve })
+      this.waiters.set(task.id, { ownerId: connection.ownerId, task, threadId: task.threadId, turnId: task.turnId, resolve })
     })
     if (auto) {
       this.autoStarts.set(task.threadId, (this.autoStarts.get(task.threadId) ?? 0) + 1)
       void this.accept(connection, task.threadId, task.id, undefined)
     } else {
-      this.host.notifyOffer?.(task)
+      this.host.notifyOffer?.(task, connection.ownerId)
     }
     return outcome
   }
@@ -136,7 +144,7 @@ export class DesktopThreadTasks {
     answer: ThreadOfferAnswer
   ): Promise<ThreadTaskActionResult> {
     const task = this.host.store.get(threadId, taskId)
-    if (!task || task.kind !== 'offer' || task.state !== 'pending' || !this.waiters.has(taskId)) {
+    if (!task || !sameFilePath(task.workspacePath, connection.workspacePath) || task.kind !== 'offer' || task.state !== 'pending' || !this.waiters.has(taskId)) {
       return { ok: false, error: 'This offer is no longer waiting for an answer.' }
     }
     if (answer.choice === 'here') {
@@ -154,7 +162,7 @@ export class DesktopThreadTasks {
     options?: ThreadTaskStartOptions
   ): Promise<ProposalStartOutcome> {
     const task = this.host.store.get(threadId, taskId)
-    if (!task) return { kind: 'refused', reason: 'notFound' }
+    if (!task || !sameFilePath(task.workspacePath, connection.workspacePath)) return { kind: 'refused', reason: 'notFound' }
     if (task.state === 'starting') return { kind: 'refused', reason: 'starting' }
     if (task.kind === 'offer' && task.state === 'accepted' && task.childThreadId) {
       return brief.prompt ? this.sendAcceptedBrief(connection, task, brief) : { kind: 'refused', reason: 'briefRequired' }

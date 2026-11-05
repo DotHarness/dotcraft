@@ -61,7 +61,7 @@ internal static class DotCraftApplication
             {
                 var hubConfig = globalConfig.GetSection<HubConfig>("Hub");
                 await using var hubHost = new HubHost(hubConfig, hubPaths, loggerFactory: hubLoggerFactory);
-                await hubHost.RunAsync();
+                await hubHost.RunAsync(cancellationToken);
             }
             catch (Exception ex)
             {

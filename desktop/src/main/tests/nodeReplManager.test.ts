@@ -23,7 +23,7 @@ const browserSetup = `
 
 describe('NodeReplManager', () => {
   const initialCwd = nodeProcess.cwd()
-  const owner = {} as Electron.BrowserWindow
+  const owner = { isDestroyed: () => false, webContents: { id: 1 } } as Electron.BrowserWindow
   const managers: NodeReplManager[] = []
   const browserManagers: Array<ReturnType<typeof createFakeBrowserManager>> = []
   const createManager = (browserManager = createFakeBrowserManager(), computerUse?: unknown) => {
@@ -39,6 +39,17 @@ describe('NodeReplManager', () => {
     await Promise.all(browserManagers.map((manager) => manager.closeBackendForTests()))
     managers.length = 0
     browserManagers.length = 0
+  })
+
+  it('disposing one window preserves another window\'s interpreter state', async () => {
+    const { manager } = createManager()
+    const first = { isDestroyed: () => false, webContents: { id: 11 } } as Electron.BrowserWindow
+    const second = { isDestroyed: () => false, webContents: { id: 22 } } as Electron.BrowserWindow
+    await manager.evaluate(first, { threadId: 'owner-one', code: 'let retained = 1' })
+    await manager.evaluate(second, { threadId: 'owner-two', code: 'let retained = 2' })
+    await manager.disposeOwner(11)
+    expect((await manager.evaluate(second, { threadId: 'owner-two', code: 'retained' })).resultText).toBe('2')
+    expect((await manager.evaluate(first, { threadId: 'owner-one', code: 'typeof retained' })).resultText).toBe('undefined')
   })
 
   it('serializes evaluations for the same thread and cancels queued ones before they start', async () => {

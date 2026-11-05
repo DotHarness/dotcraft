@@ -3238,6 +3238,7 @@ export const MESSAGES_JA = {
   'error.desc.binary.path': 'デスクトップはシステム PATH で dotcraft を見つけることができませんでした。インストールするか、設定でバンドルされたバイナリに切り替えてください。',
   'error.desc.binary.custom': 'デスクトップは、構成したカスタム DotCraft バイナリ パスを見つけることができませんでした。パスを確認するか、設定で別のソースに切り替えてください。',
   'error.desc.timeout': 'AppServer は 10 秒以内に応答しませんでした。',
+  'error.desc.hubStartup': 'DotCraft のバックグラウンドサービスを起動できませんでした。',
   'error.desc.unexpected': '予期しないエラーが発生しました。',
   'sidebar.dashboard': 'ダッシュボード',
   'sidebar.dashboardDisabledConnect': 'AppServerに接続してダッシュボードを開きます',

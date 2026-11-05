@@ -4,17 +4,24 @@ import { clampPet, type PetCommand, type PetEvent, type PetPoint, type PetRect, 
 import { PET_RETURN_DURATION, samplePetReturn, type PetReturnFrame } from '../shared/desktopPetMotion'
 import { validDecisionCommand, validLayout, validPoint, validRead, validRect, validSnapshot, validStop, validVoice } from './desktopPetValidation'
 
-let active: DesktopPet | null = null
+const pets = new Map<BrowserWindow, DesktopPet>()
 
 export function restoreDesktopPet(win: BrowserWindow): boolean {
-  if (!active || active.owner !== win || !active.detached) return false
-  active.returnHome()
+  const pet = pets.get(win)
+  if (!pet?.detached) return false
+  pet.returnHome()
   return true
 }
 
 export function attachDesktopPet(owner: BrowserWindow): void {
-  active?.dispose()
-  active = new DesktopPet(owner)
+  if (pets.size === 0) {
+    ipcMain.handle('desktop-pet:command', (event, command: PetCommand) => {
+      const pet = [...pets.values()].find(candidate => candidate.ownsSender(event.sender))
+      if (!pet) throw new Error('Unknown desktop pet sender')
+      pet.handleCommand(event.sender, command)
+    })
+  }
+  pets.set(owner, new DesktopPet(owner))
 }
 
 class DesktopPet {
@@ -39,73 +46,76 @@ class DesktopPet {
 
   constructor(readonly owner: BrowserWindow) {
     this.ownerContents = owner.webContents
-    ipcMain.removeHandler('desktop-pet:command')
-    ipcMain.handle('desktop-pet:command', (event, command: PetCommand) => {
-      const fromOwner = event.sender === this.ownerContents
-      const fromPet = !!this.overlay && !this.overlay.isDestroyed() && event.sender === this.overlay.webContents
-      if (!fromOwner && !fromPet) throw new Error('Unknown desktop pet sender')
-      if (!command || typeof command.type !== 'string') throw new Error('Invalid desktop pet command')
-      switch (command.type) {
-        case 'detach':
-          if (fromOwner && !this.detached && validRect(command.seat) && validPoint(command.point)
-            && validSnapshot(command.snapshot)) this.detach(command)
-          break
-        case 'ready': if (fromPet) this.ready(); break
-        case 'source-drag': if (fromOwner && this.sourceDragging) this.updateSourceDrag(command.stage === 'end'); break
-        case 'layout':
-          if (fromPet && !this.returning && validLayout(command)) {
-            this.reserve = command.height
-            this.place(this.point)
-          }
-          break
-        case 'stop':
-          if (fromPet && this.detached && !this.returning && validStop(command, this.snapshot)) this.send(owner, { type: 'stop', turnId: command.turnId })
-          break
-        case 'read':
-          if (fromPet && this.detached && validRead(command)) this.send(owner, { type: 'read', turnId: command.turnId })
-          break
-        case 'decision':
-          if (fromPet && this.detached && !this.returning && validDecisionCommand(command, this.snapshot)) {
-            this.send(owner, { type: 'decision', id: command.id, value: command.value })
-          }
-          break
-        case 'voice':
-          if (fromPet && this.detached && !this.returning && validVoice(command, this.snapshot)) this.send(owner, { type: 'voice', action: command.action })
-          break
-        case 'hidden': if (fromOwner && this.detached && !this.returning && !this.started) this.leave(); break
-        case 'shown': if (fromOwner && this.revealing) this.recover(); break
-        case 'return': this.returnHome(); break
-        case 'seat':
-          if (fromOwner && this.returning) this.land(validRect(command.seat) ? this.toScreen(command.seat) : this.seat)
-          break
-        case 'snapshot':
-          if (fromOwner && validSnapshot(command.snapshot)) {
-            this.snapshot = command.snapshot
-            this.send(this.overlay, { type: 'snapshot', snapshot: command.snapshot })
-          } else if (fromOwner && !this.warnedSnapshot) {
-            this.warnedSnapshot = true
-            console.warn('[desktop-pet] snapshot rejected by validation; the companion keeps its last state')
-          }
-          break
-        case 'edit':
-          if (fromPet && this.detached && !this.returning && this.snapshot?.canChat
-            && typeof command.text === 'string' && command.text.length <= 100000 && typeof command.submit === 'boolean'
-            && Number.isSafeInteger(command.revision) && command.revision >= 0) {
-            this.send(owner, command)
-          }
-          break
-        case 'drag': if (fromPet && this.settled && !this.returning) this.drag(command.stage); break
-        case 'interactive':
-          if (fromPet && typeof command.value === 'boolean') this.overlay?.setIgnoreMouseEvents(this.sourceDragging || !command.value, { forward: true })
-          break
-      }
-    })
     owner.on('show', this.onShow)
     owner.on('closed', this.onClosed)
     owner.webContents.on('render-process-gone', this.onFailure)
     owner.webContents.on('did-start-loading', this.onFailure)
     screen.on('display-removed', this.onDisplayChange)
     screen.on('display-metrics-changed', this.onDisplayChange)
+  }
+
+  ownsSender(sender: Electron.WebContents): boolean {
+    return sender === this.ownerContents || !!this.overlay && !this.overlay.isDestroyed() && sender === this.overlay.webContents
+  }
+
+  handleCommand(sender: Electron.WebContents, command: PetCommand): void {
+    const fromOwner = sender === this.ownerContents
+    const fromPet = !fromOwner
+    if (!command || typeof command.type !== 'string') throw new Error('Invalid desktop pet command')
+    switch (command.type) {
+      case 'detach':
+        if (fromOwner && !this.detached && validRect(command.seat) && validPoint(command.point)
+          && validSnapshot(command.snapshot)) this.detach(command)
+        break
+      case 'ready': if (fromPet) this.ready(); break
+      case 'source-drag': if (fromOwner && this.sourceDragging) this.updateSourceDrag(command.stage === 'end'); break
+      case 'layout':
+        if (fromPet && !this.returning && validLayout(command)) {
+          this.reserve = command.height
+          this.place(this.point)
+        }
+        break
+      case 'stop':
+        if (fromPet && this.detached && !this.returning && validStop(command, this.snapshot)) this.send(this.owner, { type: 'stop', turnId: command.turnId })
+        break
+      case 'read':
+        if (fromPet && this.detached && validRead(command)) this.send(this.owner, { type: 'read', turnId: command.turnId })
+        break
+      case 'decision':
+        if (fromPet && this.detached && !this.returning && validDecisionCommand(command, this.snapshot)) {
+          this.send(this.owner, { type: 'decision', id: command.id, value: command.value })
+        }
+        break
+      case 'voice':
+        if (fromPet && this.detached && !this.returning && validVoice(command, this.snapshot)) this.send(this.owner, { type: 'voice', action: command.action })
+        break
+      case 'hidden': if (fromOwner && this.detached && !this.returning && !this.started) this.leave(); break
+      case 'shown': if (fromOwner && this.revealing) this.recover(); break
+      case 'return': this.returnHome(); break
+      case 'seat':
+        if (fromOwner && this.returning) this.land(validRect(command.seat) ? this.toScreen(command.seat) : this.seat)
+        break
+      case 'snapshot':
+        if (fromOwner && validSnapshot(command.snapshot)) {
+          this.snapshot = command.snapshot
+          this.send(this.overlay, { type: 'snapshot', snapshot: command.snapshot })
+        } else if (fromOwner && !this.warnedSnapshot) {
+          this.warnedSnapshot = true
+          console.warn('[desktop-pet] snapshot rejected by validation; the companion keeps its last state')
+        }
+        break
+      case 'edit':
+        if (fromPet && this.detached && !this.returning && this.snapshot?.canChat
+          && typeof command.text === 'string' && command.text.length <= 100000 && typeof command.submit === 'boolean'
+          && Number.isSafeInteger(command.revision) && command.revision >= 0) {
+          this.send(this.owner, command)
+        }
+        break
+      case 'drag': if (fromPet && this.settled && !this.returning) this.drag(command.stage); break
+      case 'interactive':
+        if (fromPet && typeof command.value === 'boolean') this.overlay?.setIgnoreMouseEvents(this.sourceDragging || !command.value, { forward: true })
+        break
+    }
   }
 
   private send(win: BrowserWindow | null, event: PetEvent): void {
@@ -318,7 +328,7 @@ class DesktopPet {
     this.ownerContents.removeListener('did-start-loading', this.onFailure)
     screen.removeListener('display-removed', this.onDisplayChange)
     screen.removeListener('display-metrics-changed', this.onDisplayChange)
-    ipcMain.removeHandler('desktop-pet:command')
-    if (active === this) active = null
+    pets.delete(this.owner)
+    if (pets.size === 0) ipcMain.removeHandler('desktop-pet:command')
   }
 }

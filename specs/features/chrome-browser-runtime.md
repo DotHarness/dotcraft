@@ -111,7 +111,7 @@ The Chrome backend does not use a fixed TCP port. After Chrome starts the native
 
 Desktop discovers candidates by scanning the platform pipe prefix, connecting, sending `getInfo`, and selecting a protocol-compatible backend. There is no TCP fallback.
 
-The browser client and native host use 4-byte little-endian length-prefixed JSON frames.
+The browser client and native host use 4-byte little-endian length-prefixed JSON frames. The extension's Open Settings action activates the Desktop through its OS URL protocol, which the application window manager routes to a window; it does not probe a separate Desktop TCP control listener.
 
 ### Command Envelope
 

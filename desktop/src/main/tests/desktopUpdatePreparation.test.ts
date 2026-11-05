@@ -1,40 +1,45 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AppUpdateRuntime } from '../appUpdateRuntime'
+import { createDesktopLifecycle } from '../desktopLifecycle'
 import { DesktopUpdatePreparation } from '../desktopUpdatePreparation'
 import * as processes from '../appUpdateProcesses'
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 describe('DesktopUpdatePreparation', () => {
-  it('quiesces clients before process shutdown and holds the lease through installer handoff', async () => {
-    const runtime = new AppUpdateRuntime()
-    const steps: string[] = []
-    let finishRelease!: () => void
-    const released = new Promise<void>((resolve) => { finishRelease = resolve })
-    const release = vi.fn(() => released)
-    vi.spyOn(processes, 'prepareAppUpdateProcesses').mockImplementation(async ({ quiesce }) => {
-      steps.push('process coordination')
-      await quiesce(new AbortController().signal)
-      steps.push('processes exited')
-      return { release }
+  it('cancels starts and subscriptions before stopping the application-owned Hub', async () => {
+    const lifecycle = createDesktopLifecycle()
+    const order: string[] = []
+    vi.spyOn(processes, 'prepareAppUpdateProcesses').mockImplementation(async () => {
+      order.push('stop Hub')
     })
     const preparation = new DesktopUpdatePreparation({
-      runtime,
-      desktopExecutable: 'C:/App/DotCraft.exe',
-      runtimeExecutable: 'C:/App/resources/bin/dotcraft.exe',
-      stopBackgroundWork: () => { expect(runtime.isPreparing).toBe(true); steps.push('stop watchers') },
-      disposeRuntime: async () => { steps.push('dispose runtime') }
+      lifecycle,
+      stopBackgroundWork: () => {
+        expect(lifecycle.signal.aborted).toBe(true)
+        order.push('stop retries')
+      },
+      disposeRuntime: async () => {
+        order.push('close window resources')
+      }
     })
     await preparation.prepare()
-    expect(steps).toEqual(['stop watchers', 'process coordination', 'dispose runtime', 'processes exited'])
-    expect(release).not.toHaveBeenCalled()
-    let releaseDone = false
-    const releasing = preparation.release().then(() => { releaseDone = true })
-    await Promise.resolve()
-    expect(releaseDone).toBe(false)
-    finishRelease()
-    await releasing
-    await preparation.release()
-    expect(release).toHaveBeenCalledOnce()
+    expect(order).toEqual(['stop retries', 'close window resources', 'stop Hub'])
+  })
+
+  it('does not make an unended subscription an idle barrier before Hub shutdown', async () => {
+    vi.useFakeTimers()
+    const stop = vi.spyOn(processes, 'prepareAppUpdateProcesses').mockResolvedValue()
+    const preparation = new DesktopUpdatePreparation({
+      lifecycle: createDesktopLifecycle(),
+      stopBackgroundWork: () => {},
+      disposeRuntime: () => new Promise(() => {})
+    })
+    const preparing = preparation.prepare()
+    await vi.advanceTimersByTimeAsync(5_000)
+    await preparing
+    expect(stop).toHaveBeenCalledOnce()
   })
 })

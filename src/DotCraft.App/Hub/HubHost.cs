@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Spectre.Console;
@@ -34,6 +37,9 @@ public sealed class HubHost : IDotCraftHost
     private SatelliteConnectionManager? _satellites;
     private MobileGateway? _mobile;
     private int _cleanupStarted;
+    private Task? _optionalListenersTask;
+
+    internal Func<CancellationToken, Task>? OptionalListenersStartup { get; init; }
 
     /// <summary>
     /// Creates a new Hub host.
@@ -69,11 +75,14 @@ public sealed class HubHost : IDotCraftHost
         var host = NormalizeHost(_config.Host);
         var apiBaseUrl = $"http://{host}:{port}";
         var token = CreateToken();
-        var startedAt = DateTimeOffset.UtcNow;
+        using var currentProcess = Process.GetCurrentProcess();
+        var startedAt = new DateTimeOffset(currentProcess.StartTime.ToUniversalTime());
         var binaryPath = ResolveHubBinaryPath();
 
         try
         {
+            lockFile.Publish(new HubLockInfo(
+                Environment.ProcessId, apiBaseUrl, token, startedAt, AppVersion.Informational, binaryPath));
             _eventBus = new HubEventBus();
             _registry = new ManagedAppServerRegistry(
                 _eventBus,
@@ -87,6 +96,12 @@ public sealed class HubHost : IDotCraftHost
             _serviceRegistry = new ManagedLocalServiceRegistry(
                 ManagedLocalServiceDefinitions.CreateBuiltIns(_paths),
                 _loggerFactory.CreateLogger<ManagedLocalServiceRegistry>());
+            using var stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
+            using var stopRegistration = stopping.Token.Register(() =>
+            {
+                _registry.BeginShutdown();
+                _serviceRegistry.BeginShutdown();
+            });
             _satellites = new SatelliteConnectionManager(
                 new SatelliteRegistry(_paths.SatellitesPath),
                 _config,
@@ -100,32 +115,20 @@ public sealed class HubHost : IDotCraftHost
                 _registry,
                 _projects,
                 _loggerFactory);
-            _registry.StartHealthChecks();
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
-            await _satellites.StartForExistingPeersAsync(cancellationToken);
-            await _mobile.StartIfEnabledAsync();
-
-            var lockInfo = new HubLockInfo(
-                Pid: Environment.ProcessId,
-                ApiBaseUrl: apiBaseUrl,
-                Token: token,
-                StartedAt: startedAt,
-                Version: AppVersion.Informational,
-                BinaryPath: binaryPath);
-            lockFile.Publish(lockInfo);
+            _optionalListenersTask = Task.Run(() => InitializeOptionalListenersAsync(_shutdownCts.Token));
             _eventBus.Publish("hub.started", data: new { apiBaseUrl, pid = Environment.ProcessId });
 
             AnsiConsole.MarkupLine($"[green][[Hub]][/] DotCraft Hub started at {Markup.Escape(apiBaseUrl)}");
             _logger.LogInformation("Hub started at {ApiBaseUrl}", apiBaseUrl);
 
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
             try
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, linkedCts.Token);
+                await Task.Delay(Timeout.InfiniteTimeSpan, stopping.Token);
             }
-            catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
             {
             }
         }
@@ -148,18 +151,15 @@ public sealed class HubHost : IDotCraftHost
             return true;
         }
 
-        if (owner is null || await OwnerAnswersAsync(owner, cancellationToken))
+        if (owner is not null && await OwnerAnswersAsync(owner, cancellationToken))
         {
-            var hint = owner is null
-                ? "Hub already running."
-                : $"Hub already running at {owner.ApiBaseUrl} (pid {owner.Pid}).";
+            var hint = $"Hub already running at {owner.ApiBaseUrl} (pid {owner.Pid}).";
             AnsiConsole.MarkupLine($"[yellow][[Hub]][/] {Markup.Escape(hint)}");
             _logger.LogWarning("Hub lock is already held: {Hint}", hint);
             return false;
         }
 
-        AnsiConsole.MarkupLine($"[grey][[Hub]][/] Waiting for the previous Hub (pid {owner.Pid}) to stop");
-        _logger.LogInformation("Waiting for the previous Hub (pid {Pid}) to release the Hub lock", owner.Pid);
+        _logger.LogInformation("Waiting for the Hub lock owner {Pid} to become ready or release ownership", owner?.Pid);
         var deadline = DateTimeOffset.UtcNow + LockHandoffTimeout;
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -167,22 +167,42 @@ public sealed class HubHost : IDotCraftHost
             if (HubLockFile.TryAcquire(_paths, out _lockFile, out var current))
                 return true;
 
-            if (current?.Pid != owner.Pid)
-            {
-                AnsiConsole.MarkupLine("[yellow][[Hub]][/] Another Hub took over hub.lock.");
-                _logger.LogWarning("Another Hub acquired the Hub lock after pid {Pid} released it", owner.Pid);
+            if (current is not null && await OwnerAnswersAsync(current, cancellationToken))
                 return false;
-            }
         }
 
-        AnsiConsole.MarkupLine(
-            $"[yellow][[Hub]][/] The previous Hub (pid {owner.Pid}) did not stop within {LockHandoffTimeout.TotalSeconds:N0}s.");
-        _logger.LogWarning(
-            "The previous Hub (pid {Pid}) did not release the Hub lock within {Timeout}",
-            owner.Pid,
-            LockHandoffTimeout);
+        _logger.LogWarning("Hub ownership did not become available within {Timeout}", LockHandoffTimeout);
         return false;
     }
+
+    private async Task InitializeOptionalListenersAsync(CancellationToken cancellationToken)
+    {
+        if (OptionalListenersStartup is { } initialize)
+        {
+            await initialize(cancellationToken);
+            return;
+        }
+        try
+        {
+            await _satellites!.StartForExistingPeersAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex) { _logger.LogWarning(ex, "Satellite listener startup failed"); }
+        try
+        {
+            await _mobile!.StartIfEnabledAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex) { _logger.LogWarning(ex, "Mobile listener startup failed"); }
+    }
+
+    private static bool RequiresRunningHub(PathString path) =>
+        path == "/v1/appservers/ensure" || path == "/v1/appservers/restart"
+        || path == "/v1/services/ensure" || path == "/v1/services/restart";
+
+    private static IResult StoppingResult() => Results.Json(
+        new HubErrorResponse(new HubError("hubStopping", "DotCraft Hub is stopping.", null)),
+        HubJson.Options, statusCode: StatusCodes.Status503ServiceUnavailable);
 
     private static async Task<bool> OwnerAnswersAsync(HubLockInfo owner, CancellationToken cancellationToken)
     {
@@ -212,13 +232,37 @@ public sealed class HubHost : IDotCraftHost
         builder.Logging.AddProvider(new NonOwningLoggerProvider(_loggerFactory));
         var app = builder.Build();
         app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+        app.Use(async (context, next) =>
+        {
+            if (!RequiresRunningHub(context.Request.Path))
+            {
+                await next(context);
+                return;
+            }
+            if (_shutdownCts.IsCancellationRequested)
+            {
+                await StoppingResult().ExecuteAsync(context);
+                return;
+            }
+            using var work = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, _shutdownCts.Token);
+            context.RequestAborted = work.Token;
+            await next(context);
+        });
 
         app.MapGet("/v1/status", () => Results.Json(CreateStatus(apiBaseUrl, startedAt, binaryPath), HubJson.Options));
-        app.MapPost("/v1/shutdown", (HttpRequest request) =>
+        app.MapPost("/v1/shutdown", async (HttpRequest request) =>
         {
             if (Unauthorized(request, token) is { } unauthorized)
                 return unauthorized;
 
+            if (request.HttpContext.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true)
+            {
+                using var body = await JsonDocument.ParseAsync(request.Body, cancellationToken: request.HttpContext.RequestAborted);
+                if (body.RootElement.TryGetProperty("expectedPid", out var expectedPid)
+                    && (!expectedPid.TryGetInt32(out var pid) || pid != Environment.ProcessId))
+                    return Results.Json(new HubErrorResponse(new HubError("hubIdentityMismatch", "Hub process identity changed.", null)),
+                        HubJson.Options, statusCode: StatusCodes.Status409Conflict);
+            }
             _shutdownCts.Cancel();
             return Results.Json(new { ok = true }, HubJson.Options);
         });
@@ -413,11 +457,15 @@ public sealed class HubHost : IDotCraftHost
         }
     }
 
-    private static async Task<IResult> ProtectedAsync(Func<Task<IResult>> action)
+    private async Task<IResult> ProtectedAsync(Func<Task<IResult>> action)
     {
         try
         {
             return await action();
+        }
+        catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+        {
+            return StoppingResult();
         }
         catch (HubProtocolException ex)
         {
@@ -508,7 +556,15 @@ public sealed class HubHost : IDotCraftHost
             // Best-effort shutdown only.
         }
 
+        _registry?.BeginShutdown();
+        _serviceRegistry?.BeginShutdown();
         _eventBus?.Publish("hub.stopping", data: new { pid = Environment.ProcessId });
+        if (_optionalListenersTask is { } listeners)
+        {
+            try { await listeners; }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { _logger.LogWarning(ex, "Optional Hub listener startup failed"); }
+        }
         if (_satellites is not null)
         {
             await _satellites.DisposeAsync();

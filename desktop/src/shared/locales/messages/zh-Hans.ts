@@ -1999,6 +1999,7 @@ export const MESSAGES_ZH_HANS = {
   'error.desc.binary.path': 'Desktop 无法在系统 PATH 中找到 dotcraft。请先安装，或在设置中切换为内嵌版本。',
   'error.desc.binary.custom': 'Desktop 无法找到你配置的自定义 DotCraft 路径。请检查路径，或在设置中切换到其他来源。',
   'error.desc.timeout': 'AppServer 在 10 秒内未响应。',
+  'error.desc.hubStartup': 'DotCraft 后台服务启动失败。',
   'error.desc.unexpected': '发生意外错误。',
   'error.action.openSettings': '打开设置',
   'error.action.restart': '重新启动',

@@ -1,47 +1,31 @@
-import { AppUpdateRuntime } from './appUpdateRuntime'
-import type { AppUpdateLease } from './appUpdateLease'
-import { AppUpdatePreparationError, prepareAppUpdateProcesses } from './appUpdateProcesses'
+import type { DesktopLifecycleController } from './desktopLifecycle'
+import { prepareAppUpdateProcesses } from './appUpdateProcesses'
 
 export interface DesktopUpdatePreparationOptions {
-  runtime: AppUpdateRuntime
-  desktopExecutable: string
+  lifecycle: DesktopLifecycleController
   runtimeExecutable?: string
-  stopBackgroundWork: () => void
-  disposeRuntime: () => Promise<void>
+  stopBackgroundWork(): void
+  disposeRuntime(): Promise<void>
 }
 
 export class DesktopUpdatePreparation {
-  private prepared: AppUpdateLease | null = null
-
   constructor(private readonly options: DesktopUpdatePreparationOptions) {}
 
   async prepare(): Promise<void> {
-    const { runtime, desktopExecutable, runtimeExecutable } = this.options
-    runtime.quiesce()
+    this.options.lifecycle.stop(new Error('Desktop is preparing to install an update.'))
     this.options.stopBackgroundWork()
-    console.info('[desktop-update] preparing installation', { desktopExecutable, runtimeExecutable })
+    const cleanup = this.options.disposeRuntime()
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      this.prepared = await prepareAppUpdateProcesses({
-        desktopExecutable,
-        runtimeExecutable,
-        log: (stage, details) => console.info('[desktop-update] process preparation', { stage, ...details }),
-        quiesce: async (signal: AbortSignal) => {
-          await this.options.disposeRuntime()
-          await runtime.waitForIdle(signal)
-        }
-      })
-      console.info('[desktop-update] background processes stopped; starting installer')
-    } catch (error) {
-      console.warn('[desktop-update] process preparation blocked', error instanceof AppUpdatePreparationError
-        ? { stage: error.stage, blockers: error.blockers, message: error.message }
-        : { message: error instanceof Error ? error.message : String(error) })
-      throw error
+      await Promise.race([
+        cleanup,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 5_000)
+        })
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
     }
-  }
-
-  async release(): Promise<void> {
-    const prepared = this.prepared
-    this.prepared = null
-    await prepared?.release()
+    await prepareAppUpdateProcesses({ runtimeExecutable: this.options.runtimeExecutable })
   }
 }

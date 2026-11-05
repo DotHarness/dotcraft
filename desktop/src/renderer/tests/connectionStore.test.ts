@@ -46,11 +46,14 @@ describe('connectionStore', () => {
       dashboardUrl: null
     })
 
-    state().setStatus({ status: 'error', errorMessage: 'AppServer is not responding. Restart?', errorType: 'handshake-timeout' })
-    expect(state()).toMatchObject({ status: 'error', errorType: 'handshake-timeout' })
+    state().setStatus({
+      status: 'error', errorMessage: 'AppServer is not responding. Restart?',
+      errorType: 'handshake-timeout', errorDetails: 'stage: ready'
+    })
+    expect(state()).toMatchObject({ status: 'error', errorType: 'handshake-timeout', errorDetails: 'stage: ready' })
 
     state().setStatus({ status: 'connecting' })
-    expect(state()).toMatchObject({ status: 'connecting', errorMessage: null, errorType: null })
+    expect(state()).toMatchObject({ status: 'connecting', errorMessage: null, errorType: null, errorDetails: null })
 
     state().reset()
     expect(state()).toMatchObject({ status: 'connecting', serverInfo: null, errorMessage: null, connectionEpoch: 0 })

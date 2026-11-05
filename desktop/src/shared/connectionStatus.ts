@@ -5,6 +5,7 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'er
 export type ConnectionErrorType =
   | 'binary-not-found'
   | 'handshake-timeout'
+  | 'hub-startup-failed'
   | 'crash'
   | 'remote-config-invalid'
 
@@ -19,6 +20,7 @@ export interface ConnectionStatusPayload {
   /** DashBoard URL when the server hosts it (initialize). */
   dashboardUrl?: string
   errorMessage?: string
+  errorDetails?: string
   errorType?: ConnectionErrorType
   binarySource?: BinarySource
 }

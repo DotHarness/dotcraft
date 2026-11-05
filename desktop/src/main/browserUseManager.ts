@@ -8,6 +8,7 @@ import {
   type BrowserUseBackendRequestHandler
 } from './browserUseBackendServer'
 import { viewerBrowserManager } from './viewerBrowser'
+import { assertBrowserPageNavigation } from './browserSessionPolicy'
 import { BrowserScreenshot, type BrowserScreenshotContext } from './browserScreenshot'
 import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
 import {
@@ -94,6 +95,7 @@ interface BrowserUseViewerHost {
     threadId?: string
     workspacePath: string
     initialUrl?: string
+    sessionUrl?: string
     allowFileScheme?: boolean
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
@@ -353,9 +355,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     this.policyHost = host
   }
 
-  handleApprovalResponse(payload: BrowserUseApprovalResponsePayload): boolean {
+  handleApprovalResponse(payload: BrowserUseApprovalResponsePayload, ownerId: number): boolean {
     const pending = this.pendingApprovals.get(payload.requestId)
-    if (!pending) return false
+    if (!pending || pending.owner.webContents.id !== ownerId) return false
     this.pendingApprovals.delete(payload.requestId)
     clearTimeout(pending.timer)
     pending.owner.off('closed', pending.onClosed)
@@ -1625,6 +1627,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       threadId: runtime.threadId,
       workspacePath: runtime.workspacePath || owner.getTitle(),
       initialUrl: 'about:blank',
+      sessionUrl: normalizedInitial ?? 'about:blank',
       allowFileScheme: true
     })
 
@@ -1826,6 +1829,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     await this.ensureDebuggerAttached(tab)
     await this.viewports.settled(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
+    if (method === 'Page.navigate') {
+      const url = typeof params?.url === 'string' ? params.url : ''
+      params = { ...params, url: assertBrowserPageNavigation(wc, url) }
+    }
     const send = async () => await (sessionId
       ? wc.debugger.sendCommand(method, params, sessionId)
       : wc.debugger.sendCommand(method, params)) as T

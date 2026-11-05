@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parseThreadToolAction } from '../../renderer/utils/threadToolDisplay'
 import type { ConversationItem } from '../../renderer/types/conversation'
-import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { MAX_THREAD_TASKS, PROPOSAL_EXPIRY_MS, ThreadTaskStore } from '../threadTasks/threadTaskStore'
 import { PARENT, WORKSPACE, createHarness, structured, type Harness } from './threadTaskTestHelpers'
 
@@ -18,10 +17,6 @@ function connection(harness: Harness) {
 }
 
 describe('CreateThread proposals', () => {
-  beforeEach(() => {
-    resetDesktopThreadToolBindings()
-  })
-
   it('stores an ownInitiative proposal and returns at once without starting anything', async () => {
     const harness = createHarness()
     harness.composerTurn('turn-1')

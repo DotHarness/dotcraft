@@ -1,4 +1,10 @@
+import { normalizeComposerTextDrafts } from '../../shared/composerTextDrafts'
+
 const KEY = 'dotcraft:composer-text-drafts:v1'
+
+export function hydratePlainComposerDrafts(drafts: unknown): void {
+  try { localStorage.setItem(KEY, JSON.stringify(normalizeComposerTextDrafts(drafts))) } catch {}
+}
 
 function readDrafts(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(KEY) ?? '{}') } catch { return {} }
@@ -15,5 +21,8 @@ export function savePlainComposerDraft(key: string, text: string): void {
     if (text.trim()) drafts[key] = text
     else delete drafts[key]
     localStorage.setItem(KEY, JSON.stringify(drafts))
-  } catch { /* Draft persistence may be unavailable in ephemeral windows. */ }
+  } catch {}
+  try {
+    void window.api?.settings?.set?.({ composerTextDrafts: { [key]: text } })?.catch(() => {})
+  } catch {}
 }

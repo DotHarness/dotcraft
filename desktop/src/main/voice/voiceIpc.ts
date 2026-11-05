@@ -1,7 +1,8 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import type { WebContents } from 'electron'
 import { join } from 'path'
 
-import type { VoiceTranscriptionInput } from '../../shared/voice'
+import type { VoiceChatGptState, VoiceTranscriptionInput } from '../../shared/voice'
+import type { WindowIpcMain } from '../windowIpc'
 import { ChatGptVoiceTranscriber, type ReadVoiceChatGptAuth } from './VoiceChatGptTranscriber'
 import { VoiceModelManager } from './VoiceModelManager'
 import { VoiceRuntimeError, VoiceRuntimeService } from './VoiceRuntimeService'
@@ -9,110 +10,141 @@ import { UtilityVoiceWorkerClient } from './VoiceWorkerClient'
 import { resolveVoiceRoot } from './voicePaths'
 import { voiceMicrophonePermissions } from './VoiceMicrophonePermissions'
 
-const HANDLERS = [
-  'voice:get-microphone-permission-status',
-  'voice:request-microphone-permission',
-  'voice:open-microphone-settings',
-  'voice:get-snapshot',
-  'voice:install-model',
-  'voice:cancel-model-install',
-  'voice:remove-model',
-  'voice:repair-model',
-  'voice:submit-transcription',
-  'voice:retry-transcription',
-  'voice:discard-session'
-] as const
-
 export interface VoiceHost {
-  readChatGptAuth: ReadVoiceChatGptAuth
+  webContents: WebContents
+  captureChatGptAuth(): ReadVoiceChatGptAuth
   isChatGptTranscriptionEnabled(): boolean
 }
 
-let servicePromise: Promise<VoiceRuntimeService> | null = null
-let voiceHost: VoiceHost | null = null
-
-export function registerVoiceIpc(host: VoiceHost): void {
-  voiceHost = host
-  for (const channel of HANDLERS) ipcMain.removeHandler(channel)
-
-  ipcMain.handle('voice:get-microphone-permission-status', () => voiceMicrophonePermissions.getStatus())
-  ipcMain.handle('voice:request-microphone-permission', () => voiceMicrophonePermissions.request())
-  ipcMain.handle('voice:open-microphone-settings', () => voiceMicrophonePermissions.openSettings())
-  ipcMain.handle('voice:get-snapshot', () => withService((service) => service.getSnapshot()))
-  ipcMain.handle('voice:install-model', () => withService((service) => service.installModel()))
-  ipcMain.handle('voice:cancel-model-install', () => withService((service) => service.cancelModelInstall()))
-  ipcMain.handle('voice:remove-model', () => withService((service) => service.removeModel()))
-  ipcMain.handle('voice:repair-model', () => withService((service) => service.repairModel()))
-  ipcMain.handle('voice:submit-transcription', (_event, input: VoiceTranscriptionInput) => (
-    withService((service) => service.submitTranscription(input))
-  ))
-  ipcMain.handle('voice:retry-transcription', (_event, sessionId: string) => (
-    withService((service) => service.retryTranscription(validateSessionId(sessionId)))
-  ))
-  ipcMain.handle('voice:discard-session', (_event, sessionId: string) => (
-    withService((service) => service.discardSession(validateSessionId(sessionId)))
-  ))
+interface VoiceOwner {
+  host: VoiceHost
+  controller: AbortController
+  signedIn: boolean
+  refreshGeneration: number
 }
 
-export function refreshVoiceChatGptAvailability(): void {
-  void servicePromise?.then((service) => service.refreshChatGptAvailability()).catch(() => {})
+let servicePromise: Promise<VoiceRuntimeService> | null = null
+const owners = new Map<number, VoiceOwner>()
+
+export function registerVoiceIpc(host: VoiceHost, ipc: WindowIpcMain): () => Promise<void> {
+  const id = host.webContents.id
+  const owner: VoiceOwner = { host, controller: new AbortController(), signedIn: false, refreshGeneration: 0 }
+  owners.set(id, owner)
+  let released = false
+  const release = async (): Promise<void> => {
+    if (released) return
+    released = true
+    owner.controller.abort()
+    if (owners.get(id) === owner) owners.delete(id)
+    const service = await servicePromise?.catch(() => null)
+    await service?.discardOwnerSessions(id)
+  }
+  host.webContents.once('destroyed', () => { void release() })
+
+  ipc.handle('voice:get-microphone-permission-status', () => voiceMicrophonePermissions.getStatus())
+  ipc.handle('voice:request-microphone-permission', () => voiceMicrophonePermissions.request())
+  ipc.handle('voice:open-microphone-settings', () => voiceMicrophonePermissions.openSettings())
+  ipc.handle('voice:get-snapshot', () => withService(owner, async (service) => {
+    await refreshOwner(owner)
+    return snapshotFor(service, owner)
+  }))
+  ipc.handle('voice:install-model', () => withService(owner, (service) => service.installModel()))
+  ipc.handle('voice:cancel-model-install', () => withService(owner, (service) => service.cancelModelInstall()))
+  ipc.handle('voice:remove-model', () => withService(owner, (service) => service.removeModel()))
+  ipc.handle('voice:repair-model', () => withService(owner, (service) => service.repairModel()))
+  ipc.handle('voice:submit-transcription', (_event, input: VoiceTranscriptionInput) => {
+    const readAuth = host.captureChatGptAuth()
+    return withService(owner, (service) => service.submitTranscription(input, {
+      ownerId: id,
+      signal: owner.controller.signal,
+      chatGpt: {
+        transcriber: new ChatGptVoiceTranscriber(readAuth),
+        isSignedIn: async () => (await readAuth(false)) !== null,
+        isEnabled: () => host.isChatGptTranscriptionEnabled()
+      }
+    }))
+  })
+  ipc.handle('voice:retry-transcription', (_event, sessionId: string) => withService(owner, (service) => (
+    service.retryTranscription(validateSessionId(sessionId), id)
+  )))
+  ipc.handle('voice:discard-session', (_event, sessionId: string) => withService(owner, (service) => (
+    service.discardSession(validateSessionId(sessionId), id)
+  )))
+  return release
+}
+
+export function refreshVoiceChatGptAvailability(ownerId?: number): void {
+  if (!servicePromise) return
+  for (const [id, owner] of owners) {
+    if (ownerId === undefined || id === ownerId) void refreshOwner(owner)
+  }
 }
 
 export async function shutdownVoiceService(): Promise<void> {
-  const promise = servicePromise
-  if (!promise) return
-  const service = await promise.catch(() => null)
+  for (const owner of owners.values()) owner.controller.abort()
+  owners.clear()
+  const service = await servicePromise?.catch(() => null)
   if (service) await service.shutdown()
   servicePromise = null
 }
 
 async function getService(): Promise<VoiceRuntimeService> {
   if (servicePromise) return servicePromise
-  const host = voiceHost
-  if (!host) throw new Error('Voice IPC is not registered.')
   const voiceRoot = resolveVoiceRoot()
   const modelManager = new VoiceModelManager({ voiceRoot })
   const service = new VoiceRuntimeService({
     voiceRoot,
     modelManager,
     localTranscriber: new UtilityVoiceWorkerClient({
-      modulePath: resolveVoiceWorkerModule(),
+      modulePath: join(__dirname, 'voiceWorker.js'),
       modelPath: modelManager.modelPath
-    }),
-    chatGpt: {
-      transcriber: new ChatGptVoiceTranscriber(host.readChatGptAuth),
-      isSignedIn: async () => (await host.readChatGptAuth(false)) !== null,
-      isEnabled: () => host.isChatGptTranscriptionEnabled()
-    }
+    })
   })
-  service.onSnapshot((snapshot) => broadcast('voice:snapshot', snapshot))
-  service.onSessionEvent((event) => broadcast('voice:session-event', event))
-  const initializing = service.initialize().then(() => service)
-  servicePromise = initializing
-  return initializing
+  service.onSnapshot(() => {
+    for (const owner of owners.values()) send(owner, 'voice:snapshot', snapshotFor(service, owner))
+  })
+  service.onSessionEvent((event, ownerId) => {
+    const owner = ownerId === undefined ? undefined : owners.get(ownerId)
+    if (owner) send(owner, 'voice:session-event', event)
+  })
+  servicePromise = service.initialize().then(() => service)
+  return servicePromise
 }
 
-async function withService<T>(operation: (service: VoiceRuntimeService) => T | Promise<T>): Promise<T> {
+async function refreshOwner(owner: VoiceOwner): Promise<void> {
+  const generation = ++owner.refreshGeneration
+  const signedIn = await owner.host.captureChatGptAuth()(false).then((auth) => auth !== null).catch(() => false)
+  if (generation !== owner.refreshGeneration || owner.controller.signal.aborted) return
+  owner.signedIn = signedIn
+  const service = await servicePromise?.catch(() => null)
+  if (service) send(owner, 'voice:snapshot', snapshotFor(service, owner))
+}
+
+function snapshotFor(service: VoiceRuntimeService, owner: VoiceOwner) {
+  const chatGpt: VoiceChatGptState = {
+    signedIn: owner.signedIn,
+    enabled: owner.host.isChatGptTranscriptionEnabled()
+  }
+  return { ...service.getSnapshot(owner.host.webContents.id), chatGpt }
+}
+
+async function withService<T>(owner: VoiceOwner, operation: (service: VoiceRuntimeService) => T | Promise<T>): Promise<T> {
   try {
-    return await operation(await getService())
+    owner.controller.signal.throwIfAborted()
+    const service = await getService()
+    owner.controller.signal.throwIfAborted()
+    return await operation(service)
   } catch (error) {
     if (error instanceof VoiceRuntimeError) throw new Error(error.code)
     throw error
   }
 }
-function resolveVoiceWorkerModule(): string {
-  return join(__dirname, 'voiceWorker.js')
-}
 
 function validateSessionId(value: unknown): string {
-  if (typeof value !== 'string' || !/^[0-9a-f-]{36}$/i.test(value)) {
-    throw new VoiceRuntimeError('invalid-audio')
-  }
+  if (typeof value !== 'string' || !/^[0-9a-f-]{36}$/i.test(value)) throw new VoiceRuntimeError('invalid-audio')
   return value
 }
 
-function broadcast(channel: string, payload: unknown): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) window.webContents.send(channel, payload)
-  }
+function send(owner: VoiceOwner, channel: string, payload: unknown): void {
+  if (!owner.controller.signal.aborted && !owner.host.webContents.isDestroyed()) owner.host.webContents.send(channel, payload)
 }

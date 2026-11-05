@@ -3,7 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { zipSync, strToU8 } from 'fflate'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
@@ -12,11 +12,18 @@ vi.mock('electron', () => ({
 
 import { DesktopPluginArtifactCache, desktopPluginSourceKey, extractDesktopArtifact } from '../desktopPluginArtifactCache'
 import { DesktopPluginModules, type DesktopPluginConnection } from '../desktopPluginModules'
-import { computeDesktopPluginRevision, handlePluginFileRequest, clearDesktopPluginModuleRoutes } from '../pluginFileProtocol'
+import { computeDesktopPluginRevision, handlePluginFileRequest as handleRequestForOwner, clearDesktopPluginModuleRoutes } from '../pluginFileProtocol'
+import { registerWindowFileAccess } from '../windowFileAccess'
+
+const OWNER = 1
+let release: () => void
+beforeEach(() => { release = registerWindowFileAccess(OWNER, { getWorkspaceRoot: () => '/workspace' }) })
+const handlePluginFileRequest = (request: Request) => handleRequestForOwner(request, OWNER)
 
 const roots: string[] = []
 afterEach(async () => {
-  clearDesktopPluginModuleRoutes()
+  clearDesktopPluginModuleRoutes(OWNER)
+  release()
   for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true })
 })
 
@@ -48,7 +55,7 @@ it('keeps local module routes across workspace rebinding until the generation is
     identity: {}, source: 'local', remote: false, supported: true, workspacePath: '/one',
     list: async () => ({ plugins: [] }), read: f.read
   }
-  const manager = new DesktopPluginModules({
+  const manager = new DesktopPluginModules({ ownerId: OWNER,
     connection: () => connection,
     cache: new DesktopPluginArtifactCache(join(f.root, 'cache')),
     grants: () => [], saveGrants: async () => {}
@@ -140,7 +147,7 @@ describe('remote Desktop artifacts', () => {
     for (const workspacePath of ['/one', '/two']) {
       const sourceKey = desktopPluginSourceKey('host/stack', workspacePath)
       const identity = {}
-      const manager = new DesktopPluginModules({
+      const manager = new DesktopPluginModules({ ownerId: OWNER,
         connection: () => ({ identity, source: 'host/stack', remote: true, supported: true, workspacePath,
           read: f.read, list: async () => ({ workspacePath, plugins: installed
             ? [{ id: f.request.pluginId, installed: true, enabled: true, desktop: { revision: f.request.revision } }] : [] })
@@ -172,7 +179,7 @@ describe('remote Desktop artifacts', () => {
     const f = await fixture()
     const connection = { identity: {}, source: 'host/stack', workspacePath: '/remote', remote: true, supported: false,
       list: vi.fn(), read: f.read }
-    const manager = new DesktopPluginModules({ connection: () => connection,
+    const manager = new DesktopPluginModules({ ownerId: OWNER, connection: () => connection,
       cache: new DesktopPluginArtifactCache(join(f.root, 'cache')),
       grants: () => [], saveGrants: vi.fn()
     })
@@ -193,7 +200,7 @@ describe('remote Desktop artifacts', () => {
       list: async () => ({ workspacePath: '/workspace', plugins: [{ id: f.request.pluginId, installed: true, enabled: true, desktop: { revision: f.request.revision } }] }),
       read: f.read
     }
-    const manager = new DesktopPluginModules({ connection: () => connection,
+    const manager = new DesktopPluginModules({ ownerId: OWNER, connection: () => connection,
       cache: new DesktopPluginArtifactCache(join(f.root, 'cache')),
       grants: () => grants, saveGrants: async next => { grants = next }
     })
@@ -216,7 +223,7 @@ describe('remote Desktop artifacts', () => {
     const f = await fixture()
     let identity = {}
     let lists = 0
-    const manager = new DesktopPluginModules({
+    const manager = new DesktopPluginModules({ ownerId: OWNER,
       connection: () => ({ identity, source: 'host/stack', remote: true, supported: true, workspacePath: '/workspace',
         list: async () => {
           if (++lists > 1) identity = {}

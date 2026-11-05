@@ -57,6 +57,7 @@ export interface ConnectionState {
   /** DashBoard URL when AppServer reports it at initialize; null if unavailable. */
   dashboardUrl: string | null
   errorMessage: string | null
+  errorDetails: string | null
   errorType: ConnectionErrorType | null
   binarySource: BinarySource | null
   isExpectedRestart: boolean
@@ -76,6 +77,7 @@ const initialState: ConnectionState = {
   capabilities: null,
   dashboardUrl: null,
   errorMessage: null,
+  errorDetails: null,
   errorType: null,
   binarySource: null,
   isExpectedRestart: false,
@@ -94,6 +96,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       capabilities: (payload.capabilities as ServerCapabilities) ?? null,
       dashboardUrl: connected ? (payload.dashboardUrl ?? null) : null,
       errorMessage: payload.errorMessage ?? null,
+      errorDetails: payload.errorDetails ?? null,
       errorType: payload.errorType ?? null,
       binarySource: payload.binarySource ?? null,
       isExpectedRestart: connected ? false : state.isExpectedRestart,

@@ -3,7 +3,16 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
+import { registerWindowFileAccess } from '../windowFileAccess'
+import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+
+const OWNER = 1
+const watchMock = vi.hoisted(() => vi.fn())
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  watchMock.mockImplementation(actual.watch)
+  return { ...actual, watch: watchMock }
+})
 
 const fakeHome = vi.hoisted(() => ({ path: '' }))
 
@@ -15,6 +24,7 @@ import {
   cleanupWorkspaceCache,
   ensureFileIndex,
   invalidateFileIndex,
+  releaseFileIndex,
   listWorkspaceFiles,
   readImageAsDataUrl,
   shouldInvalidateFileIndexForWatchEvent
@@ -22,10 +32,11 @@ import {
 
 describe('chat folder file index', () => {
   let tempRoot = ''
+  let releaseAccess = () => {}
 
   afterEach(async () => {
-    invalidateFileIndex()
-    setLocalChatsFolderRootsResolver(() => [])
+    releaseFileIndex(OWNER)
+    releaseAccess()
     fakeHome.path = ''
     if (tempRoot) await rm(tempRoot, { recursive: true, force: true })
     tempRoot = ''
@@ -38,9 +49,12 @@ describe('chat folder file index', () => {
     const chatFolder = join(chatsRoot, '2026-10-11', 'plan-a-trip')
     await mkdir(join(chatFolder, 'outputs'), { recursive: true })
     await writeFile(join(chatFolder, 'outputs', 'itinerary.md'), '# Trip', 'utf8')
-    setLocalChatsFolderRootsResolver(() => [chatsRoot])
+    releaseAccess = registerWindowFileAccess(OWNER, {
+      getWorkspaceRoot: () => resolveDefaultChatWorkspacePath(),
+      getChatFolderRoots: () => [chatsRoot]
+    })
 
-    const entries = await ensureFileIndex(chatFolder)
+    const entries = await ensureFileIndex(chatFolder, OWNER)
 
     expect(entries.map((entry) => entry.relativePath)).toContain('outputs/itinerary.md')
     expect(existsSync(join(chatFolder, '.craft'))).toBe(false)
@@ -119,11 +133,13 @@ describe('workspace file index build', () => {
   }
 
   beforeEach(() => {
-    invalidateFileIndex()
+    invalidateFileIndex(OWNER)
   })
 
   afterEach(async () => {
-    invalidateFileIndex()
+    releaseFileIndex(OWNER)
+    releaseFileIndex(2)
+    releaseFileIndex(3)
     restoreEnv()
     if (tempRoot) await rm(tempRoot, { recursive: true, force: true })
     tempRoot = ''
@@ -157,7 +173,7 @@ describe('workspace file index build', () => {
 
   it('builds the index honouring .gitignore and excluding .craft/', async () => {
     const root = await buildFixture()
-    const entries = await ensureFileIndex(root)
+    const entries = await ensureFileIndex(root, OWNER)
 
     expectIndexedPaths(entries)
     const cache = await readIndexCache(root)
@@ -165,18 +181,45 @@ describe('workspace file index build', () => {
     expect(['rg', 'walk']).toContain(cache.source)
   }, 20_000)
 
+  it('shares a workspace index across windows and releases it only after the last owner closes', async () => {
+    const root = await buildFixture()
+    const [first, second] = await Promise.all([ensureFileIndex(root, OWNER), ensureFileIndex(root, 2)])
+    expect(first).toBe(second)
+    const watcher = watchMock.mock.results.at(-1)?.value as import('fs').FSWatcher
+    const close = vi.spyOn(watcher, 'close')
+    releaseFileIndex(OWNER)
+    expect(close).not.toHaveBeenCalled()
+    const result = await listWorkspaceFiles(root, 'Real', 5, 2)
+    expect(result.files.some(file => file.relativePath === 'Source/Real.cs')).toBe(true)
+    releaseFileIndex(2)
+    expect(close).toHaveBeenCalledOnce()
+    expect((await listWorkspaceFiles(root, 'Real', 5, 3)).files.some(file => file.relativePath === 'Source/Real.cs')).toBe(true)
+  }, 20_000)
+
+  it('does not terminate another window\'s index when switching workspace', async () => {
+    const root = await buildFixture()
+    const other = join(root, 'Other')
+    await mkdir(other)
+    await writeFile(join(other, 'Other.ts'), 'export {}')
+    const [first, second] = await Promise.all([ensureFileIndex(root, OWNER), ensureFileIndex(other, 2)])
+    expect(first.some(file => file.relativePath === 'Source/Real.cs')).toBe(true)
+    expect(second.some(file => file.relativePath === 'Other.ts')).toBe(true)
+    releaseFileIndex(OWNER)
+    expect((await listWorkspaceFiles(other, 'Other', 5, 2)).files.some(file => file.relativePath === 'Other.ts')).toBe(true)
+  }, 20_000)
+
   it('reports building, then falls back to ignore-walk when the ripgrep binary is missing', async () => {
     rememberEnv('DOTCRAFT_RG_PATH_OVERRIDE')
     process.env.DOTCRAFT_RG_PATH_OVERRIDE = join(tmpdir(), `nonexistent-rg-${Date.now()}`)
     const root = await buildFixture()
 
-    const first = await listWorkspaceFiles(root, 'Real', 5)
+    const first = await listWorkspaceFiles(root, 'Real', 5, OWNER)
     expect(first.indexStatus).toBe('building')
     expect(first.stale).toBe(true)
 
-    expectIndexedPaths(await ensureFileIndex(root))
+    expectIndexedPaths(await ensureFileIndex(root, OWNER))
     expect((await readIndexCache(root)).source).toBe('walk')
-    const second = await listWorkspaceFiles(root, 'Real', 5)
+    const second = await listWorkspaceFiles(root, 'Real', 5, OWNER)
     expect(second.indexStatus).toBe('ready')
     expect(second.files.some((f) => f.relativePath === 'Source/Real.cs')).toBe(true)
   })
@@ -185,10 +228,10 @@ describe('workspace file index build', () => {
     tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-empty-file-index-'))
     await mkdir(join(tempRoot, '.craft', 'cache'), { recursive: true })
 
-    const entries = await ensureFileIndex(tempRoot)
+    const entries = await ensureFileIndex(tempRoot, OWNER)
     expect(entries).toHaveLength(0)
 
-    const result = await listWorkspaceFiles(tempRoot, 'anything', 5)
+    const result = await listWorkspaceFiles(tempRoot, 'anything', 5, OWNER)
     expect(result).toEqual({
       files: [],
       indexStatus: 'ready',
@@ -204,12 +247,12 @@ describe('workspace file index build', () => {
     process.env.DOTCRAFT_RG_QUIET_FALLBACK_MS = '60000'
 
     const root = await buildFixture()
-    await expect(ensureFileIndex(root)).rejects.toThrow(/timed out/i)
+    await expect(ensureFileIndex(root, OWNER)).rejects.toThrow(/timed out/i)
 
     delete process.env.DOTCRAFT_INDEX_BUILD_TIMEOUT_MS
     delete process.env.DOTCRAFT_RG_QUIET_FALLBACK_MS
-    invalidateFileIndex()
-    const entries = await ensureFileIndex(root)
+    invalidateFileIndex(OWNER)
+    const entries = await ensureFileIndex(root, OWNER)
     expect(entries.some((e) => e.relativePath === 'Source/Real.cs')).toBe(true)
   }, 20_000)
 })
