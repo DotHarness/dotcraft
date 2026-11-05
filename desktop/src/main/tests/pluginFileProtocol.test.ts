@@ -19,13 +19,25 @@ vi.mock('electron', () => ({
 import {
   PLUGIN_FILE_SCHEME,
   buildPluginFileUrl,
-  clearDesktopPluginModuleRoutes,
+  clearDesktopPluginModuleRoutes as clearRoutesForOwner,
   computeDesktopPluginRevision,
-  handlePluginFileRequest,
+  handlePluginFileRequest as handleRequestForOwner,
   pluginUrlToRoute,
-  registerDesktopPluginModuleRoute,
-  removeDesktopPluginModuleRoute
+  installPluginFileProtocolHandlerForSession,
+  registerDesktopPluginModuleRoute as registerRouteForOwner,
+  removeDesktopPluginModuleRoute as removeRouteForOwner,
+  type DesktopPluginModuleRequest, type DesktopPluginModuleRouteOptions
 } from '../pluginFileProtocol'
+import { registerWindowFileAccess } from '../windowFileAccess'
+
+const OWNER = 1
+let release: () => void
+const clearDesktopPluginModuleRoutes = () => clearRoutesForOwner(OWNER)
+const handlePluginFileRequest = (request: Request) => handleRequestForOwner(request, OWNER)
+const registerDesktopPluginModuleRoute = (request: DesktopPluginModuleRequest, options: Omit<DesktopPluginModuleRouteOptions, 'ownerId'> = {}) =>
+  registerRouteForOwner(request, { ...options, ownerId: OWNER })
+const removeDesktopPluginModuleRoute = (pluginId: string, revision: string, sourceKey?: string) =>
+  removeRouteForOwner(pluginId, revision, sourceKey, OWNER)
 
 interface RevisionFixture {
   entry: string
@@ -39,6 +51,7 @@ const revisionFixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as Revisio
 const tempDirs: string[] = []
 
 beforeEach(() => {
+  release = registerWindowFileAccess(OWNER, { getWorkspaceRoot: () => '/workspace' })
   clearDesktopPluginModuleRoutes()
   netFetchMock.mockReset()
   netFetchMock.mockResolvedValue(new Response('export {}', {
@@ -49,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clearDesktopPluginModuleRoutes()
+  release()
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -75,6 +89,34 @@ function writePluginRoot(root: string, pluginId = 'fixture.desktop', version = '
 }
 
 describe('Desktop extension module protocol', () => {
+  it('requires a route grant from the requesting session and preserves another window on close', async () => {
+    const secondOwner = 2
+    const releaseSecond = registerWindowFileAccess(secondOwner, { getWorkspaceRoot: () => '/other' })
+    const handlers = new Map<number, (request: Request) => Promise<Response>>()
+    for (const ownerId of [OWNER, secondOwner]) {
+      const targetSession = { protocol: { handle: (_scheme: string, handler: (request: Request) => Promise<Response>) => handlers.set(ownerId, handler) } } as unknown as Electron.Session
+      installPluginFileProtocolHandlerForSession(targetSession, ownerId)
+    }
+    try {
+      const request = {
+        pluginId: 'fixture.desktop', version: '1.0.0', revision: revisionFixture.expectedRevision, rootPath: createPluginRoot()
+      }
+      const route = await registerRouteForOwner(request, { ownerId: OWNER })
+      const forged = Object.assign(new Request(route.entryUrl), { webContentsId: OWNER })
+      expect((await handlers.get(secondOwner)!(forged)).status).toBe(403)
+      expect((await handleRequestForOwner(forged)).status).toBe(403)
+      await registerRouteForOwner(request, { ownerId: secondOwner })
+      clearRoutesForOwner(OWNER)
+      expect((await handlers.get(OWNER)!(new Request(route.entryUrl))).status).toBe(403)
+      expect((await handlers.get(secondOwner)!(new Request(route.entryUrl))).status).toBe(200)
+      releaseSecond()
+      expect((await handlers.get(secondOwner)!(new Request(route.entryUrl))).status).toBe(403)
+    } finally {
+      clearRoutesForOwner(secondOwner)
+      releaseSecond()
+    }
+  })
+
   it('matches the shared Core revision fixture including directory entries', async () => {
     const root = createPluginRoot()
     const revision = await computeDesktopPluginRevision(join(root, 'desktop', 'dist'), {

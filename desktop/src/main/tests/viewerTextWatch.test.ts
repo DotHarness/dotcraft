@@ -64,6 +64,25 @@ describe('viewer text subscriptions', () => {
     expect(sender.send).not.toHaveBeenCalled()
   })
 
+  it('disposes one sender without closing another window\'s subscription', async () => {
+    const otherWatcher = Object.assign(new EventEmitter(), { close: vi.fn() })
+    const otherSender = Object.assign(new EventEmitter(), { id: 2, send: vi.fn(), isDestroyed: () => false })
+    const notifications: Array<(event: string, name: string) => void> = []
+    fsMock.watch.mockImplementation((_path, _options, callback) => {
+      notifications.push(callback)
+      return notifications.length === 1 ? watcher : otherWatcher
+    })
+    viewerTextWatchManager.subscribe(sender as unknown as WebContents, 'C:/repo/one.txt')
+    viewerTextWatchManager.subscribe(otherSender as unknown as WebContents, 'C:/repo/two.txt')
+    viewerTextWatchManager.disposeSender(sender.id)
+    expect(watcher.close).toHaveBeenCalledOnce()
+    expect(otherWatcher.close).not.toHaveBeenCalled()
+    notifications[1]('change', 'two.txt')
+    await vi.advanceTimersByTimeAsync(80)
+    expect(otherSender.send).toHaveBeenCalledOnce()
+    expect(sender.send).not.toHaveBeenCalled()
+  })
+
   it('handles watcher errors without an uncaught main-process exception', () => {
     viewerTextWatchManager.subscribe(sender as unknown as WebContents, 'C:/repo/notes.txt')
     expect(() => watcher.emit('error', new Error('watch unavailable'))).not.toThrow()

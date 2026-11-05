@@ -152,7 +152,7 @@ The backend implements the primitives the browser-use client expects. Public Jav
 | `moveMouse` | Moves the virtual cursor only; never dispatches page input. |
 | `executeUnhandledCommand` | Handles backend-specific commands the browser client does not implement directly (§10). |
 
-Backend tab ids are stable numeric ids scoped to the browser session, independent of viewer tab ids.
+Backend tab ids are stable numeric ids scoped to the browser session, independent of viewer tab ids. Website guests use the workspace's persistent profile; local file-preview guests use a window-owned private session. The initial target URL selects the profile even when a tab starts at `about:blank`. Navigating an existing automation handle or CDP target across these categories is rejected with guidance to create a new tab, rather than replacing its identity or granting website guests local-file access. Explicit `file:` navigation is normalized to the local viewer protocol and uses the owning window's existing workspace or external-file grants; it never grants access to an arbitrary filesystem path merely because automation requested it.
 
 Target-scoped CDP sessions exist only when the debugger can attach the target and returns a concrete `sessionId`; otherwise frame or OOPIF targets fail with `UnsupportedApi` rather than silently routing to the top-level page. Out-of-process frames are auto-attached as their own execution targets. A cross-origin frame that shares its parent's process is reached through an isolated world in the parent's session, recreated once if it no longer exists.
 

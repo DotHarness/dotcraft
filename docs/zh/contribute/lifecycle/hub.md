@@ -23,7 +23,7 @@
 dotcraft hub
 ```
 
-启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。Hub 自动分配本地端口。如果启动因端口被占用、权限受限或安全软件阻止本地回环而失败，重启 Hub 或 Desktop 即可重新分配。
+Hub 先把进程身份和选定的本机回环端点写入 `~/.craft/hub/hub.lock`，再使本地管理 API 就绪。发现 PID 不代表 API 已就绪。可选的手机和 Satellite 监听器独立启动，不阻塞本地管理接口。Hub 自动分配本地端口。
 
 如果上一个 Hub 仍在关闭，新的 `dotcraft hub` 会最多等待 30 秒，待其释放 `hub.lock` 后再启动；已有 Hub 正在运行时，再次启动会直接退出。
 
@@ -97,7 +97,7 @@ Token 也可以通过环境变量 `DOTCRAFT_RELAY_TOKEN` 提供，代替 `--toke
 
 ## Desktop 与托盘
 
-Hub 自身是无界面的后台协调器，可视化层由 Desktop 托盘提供：
+Hub 自身是无界面的后台协调器。Desktop 主进程管理多个窗口和托盘，每个窗口保留各自的前台工作区和连接。托盘提供以下操作：
 
 - 打开或切换工作区
 - 查看最近和正在运行的工作区

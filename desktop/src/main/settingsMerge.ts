@@ -1,9 +1,17 @@
 import type { AppSettings } from './settings'
 import { normalizeLocale } from '../shared/locales'
 import { mergeOpenTargetPreferences } from '../shared/openTargets'
+import { normalizeComposerTextDrafts } from '../shared/composerTextDrafts'
 
 export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppSettings>): Partial<AppSettings> {
   const next: Partial<AppSettings> = { ...partial }
+
+  if (partial.composerTextDrafts !== undefined) {
+    next.composerTextDrafts = normalizeComposerTextDrafts({
+      ...current.composerTextDrafts,
+      ...partial.composerTextDrafts
+    })
+  }
 
   if (partial.openTargetPreferences !== undefined) {
     next.openTargetPreferences = mergeOpenTargetPreferences(current.openTargetPreferences, partial.openTargetPreferences)

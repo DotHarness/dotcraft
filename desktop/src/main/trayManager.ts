@@ -1,302 +1,119 @@
-import { app, Menu, nativeImage, nativeTheme, Notification, shell, Tray, type MenuItemConstructorOptions } from 'electron'
-import { spawn } from 'child_process'
-import { basename, join } from 'path'
-import { existsSync } from 'fs'
-import {
-  createDesktopHubClient,
-  type DesktopHubClient,
-  type HubAppServerResponse,
-  type HubEvent
-} from './desktopHub'
-import {
-  loadSettings,
-  normalizeShowInMenuBar,
-  resolveTaskCompletionNotificationMode,
-  type AppSettings
-} from './settings'
-import { readTrayLockInfo, requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
-import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
+import { app, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron'
+import { basename, join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { normalizeLocale, translate, type AppLocale } from '../shared/locales'
+import { normalizeShowInMenuBar, type AppSettings } from './settings'
+import type { DesktopHubClient, HubAppServerResponse } from './desktopHub'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
-import { checkWorkspaceLock } from './workspaceLock'
-import { requestWorkspaceActivation, requestWorkspaceWindowState } from './desktopActivation'
-import { getDesktopActivationEndpoint } from './desktopActivationLock'
-import {
-  buildWorkspaceOpenDeepLink,
-  parseNewThreadDeepLink,
-  parseSatelliteJoinDeepLink,
-  parseWorkspaceOpenDeepLink
-} from '../shared/desktopDeepLink'
-import { NO_WORKSPACE_ARG } from './workspaceArgs'
-import { applyNativeThemeSource } from './nativeThemeSource'
-import { stripRemoteDebuggingPortArgs } from './remoteDebuggingArgs'
 import { isDefaultChatWorkspace } from './defaultChatWorkspace'
-import { quitRegisteredDesktopProcesses } from './desktopProcessRegistry'
+import { parseWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 import {
+  TrayRecentThreadCatalog,
   DIRECT_RECENT_THREAD_COUNT,
   RECENT_THREAD_TITLE_MAX_LENGTH,
-  TrayRecentThreadCatalog,
   type TrayRecentThread
 } from './trayRecentThreads'
+import { showHubNotification, type HubNotificationPayload } from './trayNotifications'
 
-interface TrayState {
-  appServers: HubAppServerResponse[]
-  recentThreads: TrayRecentThread[]
-  locale: AppLocale
-  /** Machines currently connected to Hub. */
-  satellites: number
+export interface DesktopTrayHost {
+  getSettings(): AppSettings
+  getHubClient(): DesktopHubClient
+  openWindow(workspacePath?: string | null, threadId?: string | null): Promise<void>
+  newWindow(): void
+  isWorkspaceFocused(workspacePath: string): boolean
+  exit(): Promise<void>
 }
 
-const REFRESH_INTERVAL_MS = 5_000
+export interface DesktopTray {
+  readonly visible: boolean
+  refresh(): Promise<void>
+  dispose(): void
+}
 
-export function shouldRunTrayProcess(
+export function shouldShowDesktopTray(
   settings: AppSettings,
   platform: NodeJS.Platform = process.platform
 ): boolean {
-  if (platform !== 'darwin') return true
-  return normalizeShowInMenuBar(settings) !== false
-}
-
-interface HubNotificationPayload {
-  kind?: string | null
-  workspacePath?: string | null
-  threadId?: string | null
-  titleKey?: string | null
-  bodyKey?: string | null
-  params?: unknown
-  title?: string
-  body?: string | null
-  actionUrl?: string | null
-  openDesktopOnClick?: boolean | null
-}
-
-function notificationVars(value: unknown): Record<string, string | number> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const vars: Record<string, string | number> = {}
-  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof raw === 'string' || typeof raw === 'number') vars[key] = raw
-    else if (typeof raw === 'boolean') vars[key] = raw ? 'true' : 'false'
-  }
-  return Object.keys(vars).length > 0 ? vars : undefined
-}
-
-function resolveNotificationText(
-  locale: AppLocale,
-  key: unknown,
-  params: unknown,
-  fallback: unknown,
-  legacy: unknown
-): string | null {
-  const fallbackText =
-    typeof fallback === 'string'
-      ? fallback
-      : typeof legacy === 'string'
-        ? legacy
-        : null
-  if (typeof key !== 'string' || key.trim() === '') return fallbackText
-  const normalizedKey = key.trim()
-  const localized = translate(locale, normalizedKey, notificationVars(params))
-  return localized === normalizedKey ? fallbackText : localized
+  return platform !== 'darwin' || normalizeShowInMenuBar(settings) !== false
 }
 
 export function resolveTrayIconPath(platform: NodeJS.Platform = process.platform): string | null {
-  const basePath = app.isPackaged && typeof process.resourcesPath === 'string'
-    ? process.resourcesPath
-    : join(__dirname, '../../resources')
-  const candidates = platform === 'win32'
-    ? ['icon.ico', 'icon.png']
-    : platform === 'darwin'
-      ? ['icon-macTemplate.png', 'icon.png']
-      : ['icon.png']
-
-  for (const candidate of candidates) {
-    const path = join(basePath, candidate)
-    if (existsSync(path)) return path
-  }
-
-  return null
-}
-
-export function resolveNotificationIconPath(platform: NodeJS.Platform = process.platform): string | null {
-  const basePath = app.isPackaged && typeof process.resourcesPath === 'string'
-    ? process.resourcesPath
-    : join(__dirname, '../../resources')
-  const candidates = platform === 'win32'
-    ? ['icon.png', 'icon.ico']
-    : ['icon.png']
-
-  for (const candidate of candidates) {
-    const path = join(basePath, candidate)
-    if (existsSync(path)) return path
-  }
-
-  return null
-}
-
-function createTrayIcon(): Electron.NativeImage {
-  const iconPath = resolveTrayIconPath()
-  if (!iconPath) {
-    return nativeImage.createEmpty()
-  }
-
-  const icon = nativeImage.createFromPath(iconPath)
-  if (process.platform === 'darwin') {
-    icon.setTemplateImage(true)
-  }
-
-  return icon
-}
-
-function stripArgPair(argv: string[], name: string): string[] {
-  const result: string[] = []
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === name) {
-      i++
-      continue
-    }
-    result.push(argv[i])
-  }
-  return result
-}
-
-function baseDesktopArgs(): string[] {
-  return stripRemoteDebuggingPortArgs(
-    stripArgPair(
-      stripArgPair(
-        process.argv.slice(1).filter((arg) => (
-          arg !== '--tray' &&
-          arg !== NO_WORKSPACE_ARG &&
-          !parseWorkspaceOpenDeepLink(arg) &&
-          !parseNewThreadDeepLink(arg) &&
-          !parseSatelliteJoinDeepLink(arg)
-        )),
-        '--workspace'
-      ),
-      '--remote'
-    )
-  )
-}
-
-export function spawnDesktopWindow(workspacePath?: string, threadId?: string | null): void {
-  const args = baseDesktopArgs()
-  if (workspacePath && threadId?.trim()) {
-    args.push(buildWorkspaceOpenDeepLink(workspacePath, threadId))
-  } else if (workspacePath) {
-    args.push('--workspace', workspacePath)
-  } else {
-    args.push(NO_WORKSPACE_ARG)
-  }
-  const child = spawn(process.execPath, args, {
-    detached: true,
-    stdio: 'ignore'
-  })
-  child.unref()
-}
-
-export async function openDesktopWindow(workspacePath?: string | null, threadId?: string | null): Promise<void> {
-  const path = workspacePath?.trim()
-  if (path) {
-    if (process.platform === 'darwin') {
-      const desktopActivation = getDesktopActivationEndpoint()
-      if (desktopActivation) {
-        const activated = await requestWorkspaceActivation(desktopActivation, {
-          workspacePath: path,
-          threadId: threadId ?? null
-        })
-        if (activated) return
-      }
-    }
-
-    const lock = checkWorkspaceLock(path)
-    if (lock.activation) {
-      const activated = await requestWorkspaceActivation(lock.activation, {
-        workspacePath: path,
-        threadId: threadId ?? null
-      })
-      if (activated) return
-    }
-  }
-
-  spawnDesktopWindow(path || undefined, threadId)
-}
-
-export async function openMostRecentWorkspaceFromTray(
-  hubClient: Pick<DesktopHubClient, 'listProjects'>,
-  settings: AppSettings = loadSettings()
-): Promise<boolean> {
-  const projects = await hubClient.listProjects().catch(() => [])
-  const workspacePath = projects[0]?.path.trim() || settings.lastWorkspacePath?.trim()
-  if (!workspacePath) return false
-
-  await openDesktopWindow(workspacePath)
-  return true
-}
-
-async function openNotificationAction(payload: HubNotificationPayload): Promise<void> {
-  const actionUrl = payload.actionUrl?.trim()
-  if (actionUrl) {
-    const workspaceOpen = parseWorkspaceOpenDeepLink(actionUrl)
-    if (workspaceOpen) {
-      if (payload.openDesktopOnClick === false) return
-      await openDesktopWindow(workspaceOpen.workspacePath, workspaceOpen.threadId)
-      return
-    }
-
-    await shell.openExternal(actionUrl)
-    return
-  }
-
-  if (payload.openDesktopOnClick === false) return
-  await openDesktopWindow(payload.workspacePath ?? undefined, payload.threadId ?? undefined)
+  const root = app.isPackaged ? process.resourcesPath : join(__dirname, '../../resources')
+  const names =
+    platform === 'win32'
+      ? ['icon.ico', 'icon.png']
+      : platform === 'darwin'
+        ? ['icon-macTemplate.png', 'icon.png']
+        : ['icon.png']
+  return names.map((name) => join(root, name)).find(existsSync) ?? null
 }
 
 export function trayWorkspaceName(path: string, locale: AppLocale): string {
   return isDefaultChatWorkspace(path) ? translate(locale, 'chatsRail.title') : basename(path) || path
 }
 
-function dashboardUrlOf(server: HubAppServerResponse): string | null {
-  return server.endpoints.dashboard ?? server.serviceStatus.dashboard?.url ?? null
+function recentItem(
+  thread: TrayRecentThread,
+  locale: AppLocale,
+  host: DesktopTrayHost
+): MenuItemConstructorOptions {
+  const title = Array.from(thread.displayName || translate(locale, 'sidebar.newConversation'))
+  return {
+    label:
+      title.length <= RECENT_THREAD_TITLE_MAX_LENGTH
+        ? title.join('')
+        : `${title
+            .slice(0, RECENT_THREAD_TITLE_MAX_LENGTH - 1)
+            .join('')
+            .trimEnd()}…`,
+    sublabel: isDefaultChatWorkspace(thread.workspacePath)
+      ? translate(locale, 'chatsRail.title')
+      : thread.workspaceName,
+    click: () => {
+      void host.openWindow(thread.workspacePath, thread.id)
+    }
+  }
 }
 
-function buildAppServerMenu(
+function serverItem(
   server: HubAppServerResponse,
-  hubClient: DesktopHubClient,
-  refresh: () => void,
-  locale: AppLocale
+  locale: AppLocale,
+  host: DesktopTrayHost,
+  refresh: () => void
 ): MenuItemConstructorOptions {
-  const L = (key: string) => translate(locale, key)
-  const workspacePath = server.canonicalWorkspacePath || server.workspacePath
-  const dashboardUrl = dashboardUrlOf(server)
-  const running = server.state === 'running'
+  const t = (key: string): string => translate(locale, key)
+  const workspace = server.canonicalWorkspacePath || server.workspacePath
+  const dashboard = server.endpoints.dashboard ?? server.serviceStatus.dashboard?.url
   return {
-    label: `${trayWorkspaceName(workspacePath, locale)} (${server.state})`,
+    label: `${trayWorkspaceName(workspace, locale)} (${server.state})`,
     submenu: [
       {
-        label: L('tray.openDesktop'),
+        label: t('tray.openDesktop'),
         click: () => {
-          void openDesktopWindow(workspacePath)
+          void host.openWindow(workspace)
         }
       },
       {
-        label: L('tray.openDashboard'),
-        enabled: Boolean(dashboardUrl),
+        label: t('tray.openDashboard'),
+        enabled: Boolean(dashboard),
         click: async () => {
-          if (dashboardUrl) await shell.openExternal(dashboardUrl)
+          if (dashboard) await shell.openExternal(dashboard)
         }
       },
       { type: 'separator' },
       {
-        label: L('tray.restartAppServer'),
-        enabled: Boolean(workspacePath),
+        label: t('tray.restartAppServer'),
+        enabled: Boolean(workspace),
         click: async () => {
-          await hubClient.restartAppServer(workspacePath, resolveDotCraftRuntimeTools())
+          await host.getHubClient().restartAppServer(workspace, resolveDotCraftRuntimeTools())
           refresh()
         }
       },
       {
-        label: L('tray.stopAppServer'),
-        enabled: running,
+        label: t('tray.stopAppServer'),
+        enabled: server.state === 'running',
         click: async () => {
-          await hubClient.stopAppServer(workspacePath)
+          await host.getHubClient().stopAppServer(workspace)
           refresh()
         }
       }
@@ -304,356 +121,161 @@ function buildAppServerMenu(
   }
 }
 
-function truncateRecentThreadTitle(title: string): string {
-  const characters = Array.from(title)
-  if (characters.length <= RECENT_THREAD_TITLE_MAX_LENGTH) return title
-  return `${characters.slice(0, RECENT_THREAD_TITLE_MAX_LENGTH - 1).join('').trimEnd()}…`
-}
-
-function buildRecentThreadItem(
-  thread: TrayRecentThread,
-  locale: AppLocale
-): MenuItemConstructorOptions {
-  const title = thread.displayName || translate(locale, 'sidebar.newConversation')
-  return {
-    label: truncateRecentThreadTitle(title),
-    sublabel: isDefaultChatWorkspace(thread.workspacePath)
-      ? translate(locale, 'chatsRail.title')
-      : thread.workspaceName,
-    click: () => {
-      void openDesktopWindow(thread.workspacePath, thread.id)
-    }
-  }
-}
-
-function buildRecentThreadItems(
-  recent: TrayRecentThread[],
-  locale: AppLocale
-): MenuItemConstructorOptions[] {
-  if (recent.length === 0) return []
-
-  const direct = recent.slice(0, DIRECT_RECENT_THREAD_COUNT)
-  const overflow = recent.slice(DIRECT_RECENT_THREAD_COUNT)
-  return [
-    { label: translate(locale, 'tray.recent'), enabled: false },
-    ...direct.map((thread) => buildRecentThreadItem(thread, locale)),
-    ...(overflow.length > 0
-      ? [{
-          label: translate(locale, 'tray.more'),
-          submenu: overflow.map((thread) => buildRecentThreadItem(thread, locale))
-        } satisfies MenuItemConstructorOptions]
-      : [])
-  ]
-}
-
-function buildTrayMenu(
-  state: TrayState,
-  hubClient: DesktopHubClient,
-  refresh: () => void,
-  exitAll: () => Promise<void>
-): Menu {
-  const L = (key: string) => translate(state.locale, key)
-  const appServerItems = state.appServers.length > 0
-    ? state.appServers.map((server) => buildAppServerMenu(server, hubClient, refresh, state.locale))
-    : [{ label: L('tray.noManagedAppServers'), enabled: false } satisfies MenuItemConstructorOptions]
-
-  const recentItems = buildRecentThreadItems(state.recentThreads, state.locale)
-  const template: MenuItemConstructorOptions[] = [
-    ...recentItems,
-    ...(recentItems.length > 0 ? [{ type: 'separator' } satisfies MenuItemConstructorOptions] : []),
-    {
-      label: L('tray.newChat'),
-      click: () => spawnDesktopWindow()
-    },
-    {
-      label: L('tray.appServers'),
-      submenu: appServerItems
-    },
-    ...(state.satellites > 0
-      ? [{
-          label: translate(
-            state.locale,
-            state.satellites === 1 ? 'tray.satellitesOnline.one' : 'tray.satellitesOnline.other',
-            { count: state.satellites }
-          ),
-          enabled: false
-        } satisfies MenuItemConstructorOptions]
-      : []),
-    { type: 'separator' },
-    {
-      label: L('tray.exit'),
-      click: () => {
-        void exitAll()
-      }
-    }
-  ]
-
-  return Menu.buildFromTemplate(template)
-}
-
-export function parseHubNotificationPayload(
-  event: HubEvent,
-  locale: AppLocale = DEFAULT_LOCALE
-): HubNotificationPayload | null {
-  if (event.kind !== 'notification.requested' || !event.data || typeof event.data !== 'object') {
-    return null
-  }
-
-  const data = event.data as Record<string, unknown>
-  const title = (resolveNotificationText(
-    locale,
-    data.titleKey,
-    data.params,
-    data.fallbackTitle,
-    data.title
-  ) ?? '').trim()
-  if (!title) return null
-  const body = resolveNotificationText(
-    locale,
-    data.bodyKey,
-    data.params,
-    data.fallbackBody,
-    data.body
-  )
-
-  return {
-    kind: typeof data.kind === 'string' ? data.kind : null,
-    workspacePath: typeof data.workspacePath === 'string' ? data.workspacePath : event.workspacePath,
-    threadId: typeof data.threadId === 'string' ? data.threadId : null,
-    titleKey: typeof data.titleKey === 'string' ? data.titleKey : null,
-    bodyKey: typeof data.bodyKey === 'string' ? data.bodyKey : null,
-    params: data.params,
-    title,
-    body,
-    actionUrl: typeof data.actionUrl === 'string' ? data.actionUrl : null,
-    openDesktopOnClick: typeof data.openDesktopOnClick === 'boolean' ? data.openDesktopOnClick : null
-  }
-}
-
-async function isWorkspaceWindowFocused(payload: HubNotificationPayload): Promise<boolean> {
-  const workspacePath = payload.workspacePath?.trim()
-  if (!workspacePath) return false
-
-  const lock = checkWorkspaceLock(workspacePath)
-  if (!lock.activation) return false
-
-  const state = await requestWorkspaceWindowState(lock.activation, workspacePath)
-  return state?.focused === true
-}
-
-async function shouldShowHubNotification(
-  payload: HubNotificationPayload,
-  settings?: AppSettings
-): Promise<boolean> {
-  switch (payload.kind) {
-    case 'turnCompleted':
-    case 'turnFailed': {
-      const mode = resolveTaskCompletionNotificationMode(settings)
-      if (mode === 'never') return false
-      return mode === 'always' || !await isWorkspaceWindowFocused(payload)
-    }
-    case 'approvalRequested':
-      return settings?.notifications?.approvalRequests !== false && !await isWorkspaceWindowFocused(payload)
-    case 'inputRequested':
-      return settings?.notifications?.questions !== false && !await isWorkspaceWindowFocused(payload)
-    default:
-      return true
-  }
-}
-
-function showHubNotificationPayload(payload: HubNotificationPayload): boolean {
-  if (!payload.title || !Notification.isSupported()) return false
-
-  const notification = new Notification({
-    title: payload.title,
-    body: payload.body ?? undefined,
-    icon: resolveNotificationIconPath() ?? undefined
-  })
-
-  notification.on('click', () => {
-    void openNotificationAction(payload)
-  })
-  notification.show()
-  return true
-}
-
-export function showHubNotification(event: HubEvent, locale: AppLocale = DEFAULT_LOCALE): boolean {
-  const payload = parseHubNotificationPayload(event, locale)
-  return payload ? showHubNotificationPayload(payload) : false
-}
-
-export async function showHubNotificationForSettings(
-  event: HubEvent,
-  settings?: AppSettings,
-  locale: AppLocale = DEFAULT_LOCALE
-): Promise<boolean> {
-  const payload = parseHubNotificationPayload(event, locale)
-  if (!payload) return false
-  if (!await shouldShowHubNotification(payload, settings)) return false
-  return showHubNotificationPayload(payload)
-}
-
-export function applyTrayNativeThemeSource(settings: Pick<AppSettings, 'theme'>): void {
-  applyNativeThemeSource(nativeTheme, settings)
-}
-
-export async function runTrayProcess(): Promise<void> {
-  let settings: AppSettings = loadSettings()
-  if (!shouldRunTrayProcess(settings)) {
-    app.quit()
-    return
-  }
-  applyTrayNativeThemeSource(settings)
-
+export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
+  let tray: Tray | null = null
   let disposed = false
-  const lock = await tryAcquireTrayLock(undefined, {
-    onShutdown: () => app.quit()
-  })
-  if (!lock) {
-    app.quit()
-    return
+  let refreshPromise: Promise<void> | null = null
+  let events: AbortController | null = null
+  let timer: ReturnType<typeof setInterval> | null = null
+  const recent = new TrayRecentThreadCatalog()
+  const openNotification = (payload: HubNotificationPayload): void => {
+    if (payload.actionUrl) {
+      const link = parseWorkspaceOpenDeepLink(payload.actionUrl)
+      if (!link) {
+        void shell.openExternal(payload.actionUrl)
+        return
+      }
+      if (payload.openDesktopOnClick !== false) void host.openWindow(link.workspacePath, link.threadId)
+    } else if (payload.openDesktopOnClick !== false)
+      void host.openWindow(payload.workspacePath, payload.threadId)
   }
-
-  let tray: Tray | null = new Tray(createTrayIcon())
-  const hubClient = createDesktopHubClient(settings, {
-    preferDevBuild: import.meta.env.DEV,
-    requireDevBuild: import.meta.env.DEV
-  })
-  const recentThreadCatalog = new TrayRecentThreadCatalog()
-  let eventAbortController: AbortController | null = null
-  let refreshTimer: ReturnType<typeof setInterval> | null = null
-  let openRecentInFlight = false
-
-  tray.on('click', () => {
-    if (disposed || openRecentInFlight) return
-    openRecentInFlight = true
-    void openMostRecentWorkspaceFromTray(hubClient, loadSettings()).catch(() => {
-      // Non-fatal: tray clicks should not crash the background process.
-    }).finally(() => {
-      openRecentInFlight = false
-    })
-  })
-
-  const setMenu = (state: TrayState): void => {
-    if (disposed || !tray) return
-    tray.setToolTip(translate(state.locale, 'tray.hub'))
-    tray.setContextMenu(buildTrayMenu(state, hubClient, () => {
-      void refresh()
-    }, exitAll))
-  }
-
-  const refresh = async (): Promise<void> => {
-    if (disposed) return
-    settings = loadSettings()
-    if (!shouldRunTrayProcess(settings)) {
-      app.quit()
-      return
-    }
-    applyTrayNativeThemeSource(settings)
-    // Settled individually so a Hub without the satellite surface still fills the menu.
-    const [status, appServers, satellites] = await Promise.allSettled([
-      hubClient.getStatus(),
-      hubClient.listAppServers(),
-      hubClient.listSatellites()
-    ])
-    const activeAppServers = appServers.status === 'fulfilled' ? appServers.value : []
-    if (disposed) return
-    const recentThreads = await recentThreadCatalog.refresh(activeAppServers)
-    if (disposed) return
-    setMenu({
-      appServers: activeAppServers,
-      satellites: satellites.status === 'fulfilled'
-        ? satellites.value.filter((satellite) => satellite.online).length
-        : 0,
-      recentThreads,
-      locale: normalizeLocale(settings.locale)
-    })
-    if (status.status === 'fulfilled' || appServers.status === 'fulfilled') {
-      subscribeEvents()
-    }
-  }
-
-  const subscribeEvents = (): void => {
-    if (disposed || eventAbortController) return
-    const controller = new AbortController()
-    eventAbortController = controller
-    void hubClient.subscribeEvents((event: HubEvent) => {
-      void showHubNotificationForSettings(event, settings, normalizeLocale(settings.locale))
-      void refresh()
-    }, controller.signal).then(() => {
-      eventAbortController = null
-    }).catch(() => {
-      eventAbortController = null
-    })
-  }
-
-  async function exitAll(): Promise<void> {
-    if (disposed) return
-    disposed = true
-    if (refreshTimer) {
-      clearInterval(refreshTimer)
-      refreshTimer = null
-    }
-    eventAbortController?.abort()
-    eventAbortController = null
-    recentThreadCatalog.dispose()
-    try {
-      await quitRegisteredDesktopProcesses()
-    } catch {
-      // A stale or unavailable Desktop process must not block Hub shutdown.
-    }
-    try {
-      await hubClient.shutdownHub()
-    } catch {
-      // Hub may already be stopped.
-    }
-    app.quit()
-  }
-
-  const cleanup = (lockHandle: TrayLockHandle): void => {
-    disposed = true
-    if (refreshTimer) {
-      clearInterval(refreshTimer)
-      refreshTimer = null
-    }
-    eventAbortController?.abort()
-    eventAbortController = null
-    recentThreadCatalog.dispose()
+  const destroyTray = (): void => {
     tray?.destroy()
     tray = null
-    lockHandle.release()
   }
-
-  app.on('before-quit', () => cleanup(lock))
-
-  setMenu({
-    appServers: [],
-    satellites: 0,
-    recentThreads: [],
-    locale: normalizeLocale(settings.locale)
-  })
-  await refresh()
-  if (disposed) return
-  refreshTimer = setInterval(() => {
+  const buildMenu = (servers: HubAppServerResponse[], threads: TrayRecentThread[], online: number): void => {
+    if (!tray || disposed) return
+    const locale = normalizeLocale(host.getSettings().locale)
+    const t = (key: string): string => translate(locale, key)
+    const items: MenuItemConstructorOptions[] = []
+    if (threads.length) {
+      items.push(
+        { label: t('tray.recent'), enabled: false },
+        ...threads.slice(0, DIRECT_RECENT_THREAD_COUNT).map((thread) => recentItem(thread, locale, host))
+      )
+      if (threads.length > DIRECT_RECENT_THREAD_COUNT)
+        items.push({
+          label: t('tray.more'),
+          submenu: threads.slice(DIRECT_RECENT_THREAD_COUNT).map((thread) => recentItem(thread, locale, host))
+        })
+      items.push({ type: 'separator' })
+    }
+    items.push(
+      { label: t('tray.newChat'), click: host.newWindow },
+      {
+        label: t('tray.appServers'),
+        submenu: servers.length
+          ? servers.map((server) =>
+              serverItem(server, locale, host, () => {
+                void refresh()
+              })
+            )
+          : [{ label: t('tray.noManagedAppServers'), enabled: false }]
+      }
+    )
+    if (online)
+      items.push({
+        label: translate(locale, online === 1 ? 'tray.satellitesOnline.one' : 'tray.satellitesOnline.other', {
+          count: online
+        }),
+        enabled: false
+      })
+    items.push(
+      { type: 'separator' },
+      {
+        label: t('tray.exit'),
+        click: () => {
+          void host.exit()
+        }
+      }
+    )
+    tray.setToolTip(t('tray.hub'))
+    tray.setContextMenu(Menu.buildFromTemplate(items))
+  }
+  const subscribe = (): void => {
+    if (disposed || events) return
+    const controller = new AbortController()
+    events = controller
+    void host
+      .getHubClient()
+      .subscribeEvents((event) => {
+        if (disposed || !tray) return
+        showHubNotification(event, {
+          locale: normalizeLocale(host.getSettings().locale),
+          settings: host.getSettings(),
+          isWorkspaceFocused: host.isWorkspaceFocused,
+          open: openNotification
+        })
+        void refresh()
+      }, controller.signal)
+      .catch(() => {})
+      .finally(() => {
+        if (events === controller) events = null
+      })
+  }
+  const refresh = (): Promise<void> => {
+    if (disposed) return Promise.resolve()
+    if (refreshPromise) return refreshPromise
+    refreshPromise = (async () => {
+      if (!shouldShowDesktopTray(host.getSettings())) {
+        events?.abort()
+        events = null
+        destroyTray()
+        return
+      }
+      if (!tray) {
+        const path = resolveTrayIconPath()
+        const icon = path ? nativeImage.createFromPath(path) : nativeImage.createEmpty()
+        if (process.platform === 'darwin') icon.setTemplateImage(true)
+        tray = new Tray(icon)
+        tray.on('click', () => {
+          void host
+            .getHubClient()
+            .listProjects()
+            .then((projects) => host.openWindow(projects[0]?.path ?? host.getSettings().lastWorkspacePath))
+            .catch(() => host.openWindow())
+        })
+        buildMenu([], [], 0)
+      }
+      const hub = host.getHubClient()
+      const [servers, satellites] = await Promise.allSettled([hub.listAppServers(), hub.listSatellites()])
+      if (disposed || !tray) return
+      const appServers = servers.status === 'fulfilled' ? servers.value : []
+      const threads = await recent.refresh(appServers)
+      if (disposed || !tray) return
+      buildMenu(
+        appServers,
+        threads,
+        satellites.status === 'fulfilled' ? satellites.value.filter((item) => item.online).length : 0
+      )
+      if (servers.status === 'fulfilled') subscribe()
+    })()
+      .catch((error) => {
+        console.warn('[desktop] tray refresh failed', error)
+        destroyTray()
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+    return refreshPromise
+  }
+  timer = setInterval(() => {
     void refresh()
-  }, REFRESH_INTERVAL_MS)
-}
-
-export async function stopTrayProcess(): Promise<boolean> {
-  const endpoint = readTrayLockInfo()?.endpoint
-  return endpoint ? await requestTrayShutdown(endpoint) : false
-}
-
-export function ensureTrayProcess(settings: AppSettings = loadSettings()): void {
-  if (process.argv.includes('--tray')) return
-  if (!shouldRunTrayProcess(settings)) return
-
-  const args = baseDesktopArgs()
-  args.push('--tray')
-  const child = spawn(process.execPath, args, {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true
-  })
-  child.unref()
+  }, 5_000)
+  timer.unref()
+  return {
+    get visible() {
+      return tray !== null
+    },
+    refresh,
+    dispose() {
+      disposed = true
+      if (timer) clearInterval(timer)
+      timer = null
+      events?.abort()
+      events = null
+      recent.dispose()
+      destroyTray()
+    }
+  }
 }

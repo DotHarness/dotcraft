@@ -99,7 +99,9 @@ Channel adapters additionally send `capabilities.channelAdapter` as defined in [
 
 The Hub client implements the [shared Hub bootstrap profile](sdk.md#32-hub-bootstrap-profile). Lock fields, discovery checks, authenticated endpoints, and ensure responses are owned by [Hub architecture](../architecture/hub-architecture.md).
 
-When Hub is not live, the SDK starts `dotcraft hub`, resolving the binary from the explicit `executable`, then a host-provided resolver, then `dotcraft` on PATH. The child process is detached, hidden on Windows, and not connected to the parent stdio streams.
+When Hub is not live, the SDK starts `dotcraft hub`, resolving the binary from the explicit `executable`, then a host-provided resolver, then `dotcraft` on PATH. The child process is detached and hidden on Windows; stderr goes to a startup diagnostic log rather than a parent-lifetime pipe. Early process exit is reported immediately with a bounded, redacted stderr tail, separately from a readiness timeout.
+
+`HubClientOptions.signal` scopes the client's application lifetime. Hub operations also accept a caller signal; `ensureAppServer` takes it after the options argument, and `ensureHub` takes it directly. Event subscription cancellation covers its preliminary bootstrap as well as the SSE connection. Concurrent callers for one runtime selection share an in-flight bootstrap; cancelling one caller does not cancel remaining callers, while cancelling the last caller stops probes, polling and future spawn attempts. No successful discovery is retained as a long-lived health cache.
 
 The SDK consumes `GET /v1/events` with bearer authorization. SSE parsing accepts both `\n\n` and `\r\n\r\n` frame boundaries; malformed frames are ignored, with optional debug diagnostics.
 

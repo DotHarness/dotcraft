@@ -4,189 +4,18 @@ import { homedir } from "node:os";
 import { isIP } from "node:net";
 
 import { DotCraftError } from "./errors.js";
-import { ensureLocalHub, isProcessAlive, probeLocalHub } from "./hubBootstrap.js";
+import { ensureLocalHub, isProcessAlive, probeLocalHub, type HubConnection } from "./hubBootstrap.js";
+import { shareHubBootstrap } from "./hubBootstrapFlight.js";
 
 export { isProcessAlive } from "./hubBootstrap.js";
 
-export interface HubClientOptions {
-  executable?: string;
-  expectedExecutable?: string;
-  binaryMatchPolicy?: HubBinaryMatchPolicy;
-  hubStartupTimeoutMs?: number;
-  hubShutdownTimeoutMs?: number;
-  homeDir?: string;
-}
-
-export type HubBinaryMatchPolicy = "ignore" | "restartIfMismatch" | "errorIfMismatch";
-
-export interface HubLockInfo {
-  pid: number;
-  apiBaseUrl: string;
-  token: string;
-  startedAt?: string;
-  version?: string;
-  binaryPath?: string | null;
-}
-
-export interface HubClientInfo {
-  name?: string;
-  version?: string;
-}
-
-export interface HubServiceStatus {
-  state: string;
-  url?: string | null;
-  reason?: string | null;
-}
-
-export interface HubAppServerResponse {
-  workspacePath: string;
-  canonicalWorkspacePath: string;
-  state: string;
-  pid?: number | null;
-  endpoints: Record<string, string>;
-  serviceStatus: Record<string, HubServiceStatus>;
-  serverVersion?: string | null;
-  startedByHub: boolean;
-  exitCode?: number | null;
-  lastError?: string | null;
-  recentStderr?: string | null;
-}
-
-export interface HubStatusResponse {
-  hubVersion: string;
-  pid: number;
-  startedAt: string;
-  statePath: string;
-  apiBaseUrl: string;
-  binaryPath?: string | null;
-  capabilities: HubCapabilities;
-}
-
-export interface HubCapabilities {
-  appServerManagement: boolean;
-  managedServiceManagement?: boolean;
-  portManagement: boolean;
-  events: boolean;
-  notifications: boolean;
-  tray: boolean;
-  satellites?: boolean;
-  [key: string]: unknown;
-}
-
-export interface HubManagedServiceResponse {
-  serviceId: string;
-  state: string;
-  pid?: number | null;
-  endpoint?: string | null;
-  accessToken?: string | null;
-  version?: string | null;
-  lastError?: string | null;
-  recentStderr?: string | null;
-}
-
-export interface HubEnsureManagedServiceOptions {
-  executable?: string;
-  startIfMissing?: boolean;
-}
-
-export interface HubEvent {
-  kind: string;
-  at: string;
-  workspacePath?: string | null;
-  data?: unknown;
-}
-
-export interface HubSatelliteWorkspace {
-  workspaceId: string;
-  path: string;
-  busy: boolean;
-  busyOwner?: string | null;
-  leaseExpiresAt?: string | null;
-}
-
-/** A paired machine; its peer id is also the AppServer `hostId`. */
-export interface HubSatellite {
-  peerId: string;
-  displayName: string;
-  online: boolean;
-  machineName?: string;
-  operatingSystem?: string;
-  userName?: string;
-  buildVersion?: string;
-  workspaces: HubSatelliteWorkspace[];
-  pairedAt?: string;
-  lastSeenAt?: string | null;
-}
-
-export interface HubSatelliteInvite {
-  inviteId: string;
-  url: string;
-  expiresAt: string;
-}
-
-export interface HubCreateSatelliteInviteOptions {
-  name?: string;
-  host?: string;
-  ttlHours?: number;
-}
-
-export interface HubMobileDevice {
-  deviceId: string;
-  displayName: string;
-  platform: "ios" | "android";
-  osVersion: string;
-  appVersion: string;
-  pairedAt: string;
-  lastSeenAt: string | null;
-  connected: boolean;
-}
-
-export interface HubMobileRelay {
-  url: string;
-  state: "connecting" | "connected" | "failed";
-}
-
-export interface HubMobileState {
-  state: "off" | "on" | "failed";
-  failureCode?: string;
-  failureMessage?: string;
-  port: number;
-  addresses: string[];
-  devices: HubMobileDevice[];
-  relay: HubMobileRelay | null;
-}
-
-export interface HubMobilePairing {
-  pairingId: string;
-  qrPayload: string;
-  expiresAt: string;
-}
-
-export interface HubProject {
-  path: string;
-  displayName: string;
-  addedAt: string;
-  lastOpenedAt: string;
-  running: boolean;
-}
-
-export interface HubRuntimeToolsRequest {
-  ripgrepPath?: string;
-  nodeBin?: string;
-  nodeRunAsNode?: boolean;
-  modulesDir?: string;
-  builtInPluginRoots?: string;
-  defaultPluginRegistryUrl?: string;
-}
-
-export interface HubEnsureAppServerOptions {
-  client?: HubClientInfo;
-  clientName?: string;
-  clientVersion?: string;
-  startIfMissing?: boolean;
-  runtimeTools?: HubRuntimeToolsRequest;
-}
+import type {
+  HubClientOptions, HubLockInfo, HubAppServerResponse, HubStatusResponse,
+  HubManagedServiceResponse, HubEnsureManagedServiceOptions, HubEvent,
+  HubSatellite, HubSatelliteInvite, HubCreateSatelliteInviteOptions,
+  HubMobileState, HubMobilePairing, HubProject, HubRuntimeToolsRequest, HubEnsureAppServerOptions,
+} from "./hubTypes.js";
+export type * from "./hubTypes.js";
 
 export class HubClientError extends DotCraftError {
   readonly details?: unknown;
@@ -291,14 +120,16 @@ export class HubClient {
   async ensureAppServer(
     workspacePath: string,
     options: HubEnsureAppServerOptions = {},
+    signal?: AbortSignal,
   ): Promise<HubAppServerResponse> {
-    const hub = await this.ensureHub();
+    const hub = await this.ensureHub(signal);
     const client = options.client ?? {
       name: options.clientName ?? "dotcraft-sdk",
       version: options.clientVersion ?? "0.1.0",
     };
     return await this.requestJson<HubAppServerResponse>(hub, "/v1/appservers/ensure", {
       method: "POST",
+      signal,
       body: JSON.stringify({
         workspacePath,
         client,
@@ -308,13 +139,13 @@ export class HubClient {
     });
   }
 
-  async getAppServerByWorkspace(workspacePath: string): Promise<HubAppServerResponse | null> {
-    const hub = await this.tryGetLiveHub();
+  async getAppServerByWorkspace(workspacePath: string, signal?: AbortSignal): Promise<HubAppServerResponse | null> {
+    const hub = await this.tryGetLiveHub(signal);
     if (!hub) return null;
     return await this.requestJson<HubAppServerResponse | null>(
       hub,
       `/v1/appservers/by-workspace?path=${encodeURIComponent(workspacePath)}`,
-      { method: "GET" },
+      { method: "GET", signal },
       true,
     );
   }
@@ -322,34 +153,39 @@ export class HubClient {
   async restartAppServer(
     workspacePath: string,
     runtimeTools?: HubRuntimeToolsRequest,
+    signal?: AbortSignal,
   ): Promise<HubAppServerResponse> {
-    const hub = await this.ensureHub();
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubAppServerResponse>(hub, "/v1/appservers/restart", {
       method: "POST",
+      signal,
       body: JSON.stringify({ workspacePath, runtimeTools }),
     });
   }
 
-  async stopAppServer(workspacePath: string): Promise<HubAppServerResponse> {
-    const hub = await this.ensureHub();
+  async stopAppServer(workspacePath: string, signal?: AbortSignal): Promise<HubAppServerResponse> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubAppServerResponse>(hub, "/v1/appservers/stop", {
       method: "POST",
+      signal,
       body: JSON.stringify({ workspacePath }),
     });
   }
 
-  async listAppServers(): Promise<HubAppServerResponse[]> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubAppServerResponse[]>(hub, "/v1/appservers", { method: "GET" });
+  async listAppServers(signal?: AbortSignal): Promise<HubAppServerResponse[]> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubAppServerResponse[]>(hub, "/v1/appservers", { method: "GET", signal });
   }
 
   async ensureManagedService(
     serviceId: string,
     options: HubEnsureManagedServiceOptions = {},
+    signal?: AbortSignal,
   ): Promise<HubManagedServiceResponse> {
-    const hub = await this.ensureHub();
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/ensure", {
       method: "POST",
+      signal,
       body: JSON.stringify({
         serviceId,
         executable: options.executable,
@@ -358,42 +194,46 @@ export class HubClient {
     });
   }
 
-  async getManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
-    const hub = await this.ensureHub();
+  async getManagedService(serviceId: string, signal?: AbortSignal): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubManagedServiceResponse>(
       hub,
       `/v1/services/by-id?id=${encodeURIComponent(serviceId)}`,
-      { method: "GET" },
+      { method: "GET", signal },
     );
   }
 
-  async restartManagedService(serviceId: string, executable?: string): Promise<HubManagedServiceResponse> {
-    const hub = await this.ensureHub();
+  async restartManagedService(serviceId: string, executable?: string, signal?: AbortSignal): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/restart", {
       method: "POST",
+      signal,
       body: JSON.stringify({ serviceId, executable }),
     });
   }
 
-  async stopManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
-    const hub = await this.ensureHub();
+  async stopManagedService(serviceId: string, signal?: AbortSignal): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/stop", {
       method: "POST",
+      signal,
       body: JSON.stringify({ serviceId }),
     });
   }
 
-  async listSatellites(): Promise<HubSatellite[]> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubSatellite[]>(hub, "/v1/satellites", { method: "GET" });
+  async listSatellites(signal?: AbortSignal): Promise<HubSatellite[]> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubSatellite[]>(hub, "/v1/satellites", { method: "GET", signal });
   }
 
   async createSatelliteInvite(
     options: HubCreateSatelliteInviteOptions = {},
+    signal?: AbortSignal,
   ): Promise<HubSatelliteInvite> {
-    const hub = await this.ensureHub();
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubSatelliteInvite>(hub, "/v1/satellites/invites", {
       method: "POST",
+      signal,
       body: JSON.stringify({
         name: options.name,
         host: options.host,
@@ -402,119 +242,124 @@ export class HubClient {
     });
   }
 
-  async revokeSatellite(peerId: string): Promise<void> {
-    const hub = await this.ensureHub();
+  async revokeSatellite(peerId: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
     await this.requestJson<{ revoked: boolean }>(
       hub,
       `/v1/satellites/${encodeURIComponent(peerId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     );
   }
 
-  async getMobile(): Promise<HubMobileState> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubMobileState>(hub, "/v1/mobile", { method: "GET" });
+  async getMobile(signal?: AbortSignal): Promise<HubMobileState> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile", { method: "GET", signal });
   }
 
-  async enableMobile(): Promise<HubMobileState> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/enable", { method: "POST", body: "{}" });
+  async enableMobile(signal?: AbortSignal): Promise<HubMobileState> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/enable", { method: "POST", body: "{}", signal });
   }
 
-  async disableMobile(): Promise<HubMobileState> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/disable", { method: "POST", body: "{}" });
+  async disableMobile(signal?: AbortSignal): Promise<HubMobileState> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/disable", { method: "POST", body: "{}", signal });
   }
 
-  async createMobilePairing(): Promise<HubMobilePairing> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubMobilePairing>(hub, "/v1/mobile/pairings", { method: "POST", body: "{}" });
+  async createMobilePairing(signal?: AbortSignal): Promise<HubMobilePairing> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubMobilePairing>(hub, "/v1/mobile/pairings", { method: "POST", body: "{}", signal });
   }
 
-  async allowMobilePairing(pairingId: string): Promise<void> {
-    const hub = await this.ensureHub();
+  async allowMobilePairing(pairingId: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
     await this.requestJson<void>(
       hub,
       `/v1/mobile/pairings/${encodeURIComponent(pairingId)}/allow`,
-      { method: "POST", body: "{}" },
+      { method: "POST", body: "{}", signal },
     );
   }
 
-  async denyMobilePairing(pairingId: string): Promise<void> {
-    const hub = await this.ensureHub();
+  async denyMobilePairing(pairingId: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
     await this.requestJson<void>(
       hub,
       `/v1/mobile/pairings/${encodeURIComponent(pairingId)}/deny`,
-      { method: "POST", body: "{}" },
+      { method: "POST", body: "{}", signal },
     );
   }
 
-  async revokeMobileDevice(deviceId: string): Promise<void> {
-    const hub = await this.ensureHub();
+  async revokeMobileDevice(deviceId: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
     await this.requestJson<void>(
       hub,
       `/v1/mobile/devices/${encodeURIComponent(deviceId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     );
   }
 
-  async setMobileRelay(url: string, token: string): Promise<HubMobileState> {
-    const hub = await this.ensureHub();
+  async setMobileRelay(url: string, token: string, signal?: AbortSignal): Promise<HubMobileState> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", {
       method: "PUT",
+      signal,
       body: JSON.stringify({ url, token }),
     });
   }
 
-  async clearMobileRelay(): Promise<HubMobileState> {
-    const hub = await this.ensureHub();
-    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", { method: "DELETE" });
+  async clearMobileRelay(signal?: AbortSignal): Promise<HubMobileState> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubMobileState>(hub, "/v1/mobile/relay", { method: "DELETE", signal });
   }
 
-  async listProjects(): Promise<HubProject[]> {
-    const hub = await this.ensureHub();
-    const response = await this.requestJson<{ projects: HubProject[] }>(hub, "/v1/projects", { method: "GET" });
+  async listProjects(signal?: AbortSignal): Promise<HubProject[]> {
+    const hub = await this.ensureHub(signal);
+    const response = await this.requestJson<{ projects: HubProject[] }>(hub, "/v1/projects", { method: "GET", signal });
     return response.projects;
   }
 
-  async openProject(path: string): Promise<HubProject> {
-    const hub = await this.ensureHub();
+  async openProject(path: string, signal?: AbortSignal): Promise<HubProject> {
+    const hub = await this.ensureHub(signal);
     return await this.requestJson<HubProject>(hub, "/v1/projects/open", {
       method: "POST",
+      signal,
       body: JSON.stringify({ path }),
     });
   }
 
-  async removeProject(path: string): Promise<void> {
-    const hub = await this.ensureHub();
+  async removeProject(path: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
     await this.requestJson<unknown>(hub, "/v1/projects/remove", {
       method: "POST",
+      signal,
       body: JSON.stringify({ path }),
     });
   }
 
   async ensureDefaultChatAppServer(
     options: HubEnsureAppServerOptions = {},
+    signal?: AbortSignal,
   ): Promise<HubAppServerResponse> {
+    this.cancellation(signal)?.throwIfAborted();
     const workspacePath = ensureDefaultChatWorkspace(this.options.homeDir);
-    return await this.ensureAppServer(workspacePath, options);
+    return await this.ensureAppServer(workspacePath, options, signal);
   }
 
-  async getStatus(): Promise<HubStatusResponse> {
-    const hub = await this.ensureHub();
-    const response = await fetch(`${hub.apiBaseUrl}/v1/status`);
-    if (!response.ok) throw await this.toError(response);
-    return (await response.json()) as HubStatusResponse;
+  async getStatus(signal?: AbortSignal): Promise<HubStatusResponse> {
+    const connection = await this.ensureConnection(signal);
+    return connection.status;
   }
 
-  async shutdownHub(): Promise<void> {
-    const hub = await this.tryGetLiveHub();
+  async shutdownHub(signal?: AbortSignal): Promise<void> {
+    const hub = await this.tryGetLiveHub(signal);
     if (!hub) return;
-    await this.requestJson<{ ok: boolean }>(hub, "/v1/shutdown", { method: "POST" });
+    await this.requestJson<{ ok: boolean }>(hub, "/v1/shutdown", { method: "POST", signal });
   }
 
   async subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {
-    const hub = await this.ensureHub();
+    signal = this.cancellation(signal)!;
+    const hub = await this.ensureHub(signal);
+    signal.throwIfAborted();
     const response = await fetch(`${hub.apiBaseUrl}/v1/events`, {
       headers: { Authorization: `Bearer ${hub.token}` },
       signal,
@@ -524,43 +369,58 @@ export class HubClient {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    while (!signal.aborted) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = findSseBoundary(buffer);
-      while (boundary) {
-        const raw = buffer.slice(0, boundary.index);
-        buffer = buffer.slice(boundary.index + boundary.sequence.length);
-        const dataLine = raw.split(/\r?\n/).find((line) => line.startsWith("data:"));
-        const data = dataLine?.slice("data:".length).trim();
-        if (data) {
-          try {
-            onEvent(JSON.parse(data) as HubEvent);
-          } catch {
-            // Ignore malformed event frames by default.
+    try {
+      while (!signal.aborted) {
+        const { done, value } = await reader.read();
+        signal.throwIfAborted();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = findSseBoundary(buffer);
+        while (boundary && !signal.aborted) {
+          const raw = buffer.slice(0, boundary.index);
+          buffer = buffer.slice(boundary.index + boundary.sequence.length);
+          const dataLine = raw.split(/\r?\n/).find((line) => line.startsWith("data:"));
+          const data = dataLine?.slice("data:".length).trim();
+          if (data) {
+            try {
+              onEvent(JSON.parse(data) as HubEvent);
+            } catch {}
           }
+          boundary = findSseBoundary(buffer);
         }
-        boundary = findSseBoundary(buffer);
       }
+      signal.throwIfAborted();
+    } finally {
+      reader.releaseLock();
     }
   }
 
-  async ensureHub(): Promise<HubLockInfo> {
+  async ensureHub(signal?: AbortSignal): Promise<HubLockInfo> {
+    return (await this.ensureConnection(signal)).hub;
+  }
+
+  private ensureConnection(signal?: AbortSignal): Promise<HubConnection> {
     const lockPath = hubLockPath(this.options.homeDir);
-    return await ensureLocalHub(this.options, {
+    return shareHubBootstrap(this.options, lockPath, (sharedSignal) => ensureLocalHub(this.options, {
       lockPath,
       readLock: () => readHubLockFromPath(lockPath),
       validateBaseUrl: parseHubBaseUrl,
-      shutdown: (hub, signal) => this.requestJson(hub, "/v1/shutdown", { method: "POST", signal }),
+      shutdown: (hub, signal) => this.requestJson(hub, "/v1/shutdown", { method: "POST", signal }, false, false),
       error: (code, message, details) => new HubClientError(code, message, details),
-    });
+    }, sharedSignal), this.cancellation(signal));
   }
 
-  async tryGetLiveHub(): Promise<HubLockInfo | null> {
+  async tryGetLiveHub(signal?: AbortSignal): Promise<HubLockInfo | null> {
+    signal = this.cancellation(signal);
+    signal?.throwIfAborted();
     const info = readHubLockFromPath(hubLockPath(this.options.homeDir));
     if (!info || !isProcessAlive(info.pid)) return null;
-    return (await probeLocalHub(info, parseHubBaseUrl)).hub;
+    return (await probeLocalHub(info, parseHubBaseUrl, undefined, signal)).hub;
+  }
+
+  private cancellation(signal?: AbortSignal): AbortSignal | undefined {
+    const lifetime = this.options.signal;
+    return lifetime && signal && lifetime !== signal ? AbortSignal.any([lifetime, signal]) : signal ?? lifetime;
   }
 
   private async requestJson<T>(
@@ -568,9 +428,13 @@ export class HubClient {
     path: string,
     init: RequestInit,
     returnNullOnNotFound = false,
+    useClientSignal = true,
   ): Promise<T> {
+    const signal = useClientSignal ? this.cancellation(init.signal ?? undefined) : init.signal;
+    signal?.throwIfAborted();
     const response = await fetch(`${hub.apiBaseUrl}${path}`, {
       ...init,
+      signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${hub.token}`,

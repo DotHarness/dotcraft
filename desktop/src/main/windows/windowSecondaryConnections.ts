@@ -1,0 +1,418 @@
+import { normalizeLocale, translate } from '../../shared/locales'
+import type { WorkspaceProjectKind } from '../../shared/workspaceProjects'
+import { retryAppServerConnection, type RetryConnectionRequest } from '../appServerRetry'
+import { readBrowserTurnNotification } from '../browserTabLifecycle'
+import { browserUseManager } from '../browserUseManager'
+import { computerUseManager } from '../computerUse/runtime'
+import {
+  ensureDefaultChatWorkspace,
+  isDefaultChatWorkspace,
+  resolveDefaultChatWorkspacePath
+} from '../defaultChatWorkspace'
+import { DesktopAppServerClient, type InitializeResult } from '../DesktopAppServerClient'
+import { type DesktopHubClient, type HubAppServerResponse, type HubEvent } from '../desktopHub'
+import { broadcastNotification } from '../ipcBridge'
+import { nodeReplManager } from '../nodeReplManager'
+import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
+import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
+import { hasRemoteEndpointArg } from '../workspaceArgs'
+import {
+  canBridgeRendererInteractiveServerRequest,
+  getWorkspaceNotificationForeground,
+  shouldBridgeWorkspaceServerRequest
+} from '../workspaceConnectionRouting'
+import { getWorkspaceStatus } from '../workspaceSetup'
+import { SECONDARY_WORKSPACE_CONNECTION_LIMIT } from './windowConstants'
+import type { DesktopWindowRuntime } from './windowRuntime'
+import type { WorkspaceConnectionEntry } from './windowTypes'
+
+export function getManagedAppServerEndpoint(
+  _ctx: DesktopWindowRuntime,
+  response: HubAppServerResponse
+): string {
+  const endpoint = response.endpoints?.appServerWebSocket
+  if (!endpoint?.trim()) {
+    throw new Error('Hub did not return an AppServer WebSocket endpoint.')
+  }
+  return endpoint
+}
+
+export async function restartCurrentManagedAppServer(ctx: DesktopWindowRuntime): Promise<void> {
+  if (!ctx.currentWorkspacePath) {
+    throw new Error('Open a workspace before restarting AppServer.')
+  }
+  if (ctx.argv.includes('--remote')) {
+    throw new Error('Cannot restart AppServer while using a remote WebSocket connection.')
+  }
+  if (ctx.resolveConnectionMode(ctx.settings) === 'remote') {
+    throw new Error('Restart is only available for Hub-managed local AppServers.')
+  }
+  const hubClient = ctx.app.createHubClient(ctx.settings)
+  const restarted = await hubClient.restartAppServer(ctx.currentWorkspacePath, resolveDotCraftRuntimeTools())
+  await ctx.connectViaWebSocket(ctx.currentWorkspacePath, ctx.getManagedAppServerEndpoint(restarted))
+  ctx.startHubEventSubscription(ctx.currentWorkspacePath, hubClient)
+}
+
+export async function retryCurrentAppServerConnection(
+  ctx: DesktopWindowRuntime,
+  request?: RetryConnectionRequest
+): Promise<void> {
+  await retryAppServerConnection(request, {
+    currentWorkspacePath: ctx.currentWorkspacePath,
+    launchedWithRemote: ctx.argv.includes('--remote'),
+    connectionMode: ctx.resolveConnectionMode(ctx.settings),
+    reconnect: async () => {
+      await ctx.connectToAppServer(ctx.currentWorkspacePath)
+    },
+    restartManaged: ctx.restartCurrentManagedAppServer
+  })
+}
+
+export function isCurrentWorkspaceEvent(
+  ctx: DesktopWindowRuntime,
+  event: HubEvent,
+  workspacePath: string
+): boolean {
+  if (!event.workspacePath) return false
+  return ctx.isSameWorkspacePath(event.workspacePath, workspacePath)
+}
+
+export function isHubAppServerLifecycleEvent(_ctx: DesktopWindowRuntime, event: HubEvent): boolean {
+  return event.kind.startsWith('appserver.')
+}
+
+export function isSecondaryProjectEvent(ctx: DesktopWindowRuntime, event: HubEvent): boolean {
+  const workspacePath = event.workspacePath?.trim()
+  if (!workspacePath || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') {
+    return false
+  }
+  if (ctx.isWorkspaceForeground(workspacePath)) return false
+  return ctx.app.localProjects.has(workspacePath)
+}
+
+export function scheduleSecondaryWorkspaceRefresh(ctx: DesktopWindowRuntime): void {
+  if (ctx.runtimeIsStopping()) return
+  if (ctx.secondaryRefreshTimer) {
+    clearTimeout(ctx.secondaryRefreshTimer)
+  }
+  ctx.secondaryRefreshTimer = setTimeout(() => {
+    ctx.secondaryRefreshTimer = null
+    void ctx.refreshSecondaryWorkspaceConnections()
+  }, 150)
+}
+
+export function startHubEventSubscription(
+  ctx: DesktopWindowRuntime,
+  workspacePath: string,
+  hubClient: DesktopHubClient
+): void {
+  if (ctx.runtimeIsStopping()) return
+  ctx.hubEventAbortController?.abort()
+  const controller = new AbortController()
+  ctx.hubEventAbortController = controller
+
+  void hubClient
+    .subscribeEvents((event) => {
+      if (ctx.isHubAppServerLifecycleEvent(event) && ctx.isSecondaryProjectEvent(event)) {
+        ctx.scheduleSecondaryWorkspaceRefresh()
+      }
+
+      if (!ctx.isCurrentWorkspaceEvent(event, workspacePath)) return
+
+      if (event.kind === 'appserver.exited') {
+        ctx.wireClient?.dispose()
+        ctx.wireClient = null
+        if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+          const loc = normalizeLocale(ctx.settings.locale)
+          ctx.emitConnectionStatus(ctx.mainWindow, {
+            status: 'disconnected',
+            errorMessage: translate(loc, 'main.status.reconnecting')
+          })
+        }
+        return
+      }
+
+      if (event.kind === 'appserver.running') {
+        const data = event.data as { endpoints?: Record<string, string> } | null
+        const endpoint = data?.endpoints?.appServerWebSocket
+        if (endpoint && ctx.currentWorkspacePath === workspacePath && !ctx.runtimeIsStopping()) {
+          void ctx.connectViaWebSocket(workspacePath, endpoint)
+        }
+      }
+
+      if (event.kind === 'notification.requested' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+        const data = event.data as { kind?: string; title?: string; body?: string } | null
+        broadcastNotification(
+          ctx.mainWindow,
+          data?.kind ?? 'hub/notification',
+          data ?? {},
+          ctx.settings,
+          event.workspacePath ?? workspacePath
+        )
+      }
+    }, controller.signal)
+    .catch((error) => {
+      if (!controller.signal.aborted) {
+        console.warn('[desktop] Hub event subscription ended', error)
+      }
+    })
+}
+
+export function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): void {
+  const previous = ctx.currentWorkspacePath ? ctx.getWorkspaceConnection(ctx.currentWorkspacePath) : undefined
+  if (previous && previous.client !== entry.client) {
+    previous.role = 'secondary'
+    previous.lastUsedAt = Date.now()
+    ctx.releaseConnectionThreadSubscriptions(previous, 'workspace demote')
+  }
+
+  entry.role = 'foreground'
+  entry.lastUsedAt = Date.now()
+  ctx.wireClient = entry.client
+  ctx.currentWorkspacePath = entry.workspacePath
+  ctx.lastAppServerWsUrl = entry.wsUrl
+  ctx.lastDashboardUrl = entry.initializeResult?.dashboardUrl ?? null
+  ctx.setActiveRemoteProject(null)
+  ctx.previousLocalForegroundWorkspacePath = null
+  ctx.lastRemoteStackLocalPort = null
+  ctx.resetThreadToolState()
+  ctx.reregisterIpcForWorkspace(entry.workspacePath)
+
+  ctx.emitCurrentWorkspaceStatus(entry.workspacePath)
+  if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+    if (entry.initializeResult) {
+      ctx.emitConnectionStatus(ctx.mainWindow, {
+        status: 'connected',
+        serverInfo: entry.initializeResult.serverInfo,
+        capabilities: entry.initializeResult.capabilities as Record<string, unknown>,
+        dashboardUrl: entry.initializeResult.dashboardUrl
+      })
+    } else {
+      ctx.emitConnectionStatus(ctx.mainWindow, { status: entry.connected ? 'connected' : 'connecting' })
+    }
+    const loc = normalizeLocale(ctx.settings.locale)
+    ctx.mainWindow.setTitle(
+      translate(loc, 'app.titleWithWorkspace', { name: ctx.workspaceTitleName(entry.workspacePath, loc) })
+    )
+  }
+  ctx.startHubEventSubscription(entry.workspacePath, ctx.app.createHubClient(ctx.settings))
+  ctx.emitWorkspaceProjects()
+}
+
+export function createSecondaryWorkspaceConnection(
+  ctx: DesktopWindowRuntime,
+  workspacePath: string,
+  wsUrl: string,
+  options: { kind?: WorkspaceProjectKind } = {}
+): WorkspaceConnectionEntry {
+  const key = ctx.normalizeWorkspaceConnectionKey(workspacePath)
+  const existing = ctx.workspaceConnections.get(key)
+  if (existing) {
+    existing.lastUsedAt = Date.now()
+    return existing
+  }
+
+  const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
+    initializeProfile: 'secondary'
+  })
+  const entry: WorkspaceConnectionEntry = {
+    key,
+    projectId: ctx.localProjectId(workspacePath),
+    kind: options.kind ?? 'local',
+    workspacePath,
+    localWorkspacePath: workspacePath,
+    displayPath: workspacePath,
+    wsUrl,
+    client,
+    role: 'secondary',
+    connected: false,
+    connecting: true,
+    lastUsedAt: Date.now(),
+    threads: [],
+    subscribedThreadIds: new Set()
+  }
+  ctx.workspaceConnections.set(key, entry)
+  ctx.emitWorkspaceProjects()
+
+  client.onNotification((method, params) => {
+    if (!ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry) {
+      nodeReplManager.handleNotification(method, params)
+      ctx.getThreadTasks().handleNotification(method, params)
+      const turnEvent = readBrowserTurnNotification(method, params)
+      if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
+      const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
+      if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
+    }
+    const foreground = getWorkspaceNotificationForeground(method, {
+      appQuitting: ctx.runtimeIsStopping(),
+      mainWindow: ctx.mainWindow,
+      wireClient: ctx.wireClient,
+      client,
+      role: entry.role
+    })
+    if (foreground == null) return
+    if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
+
+    ctx.applyWorkspaceThreadNotification(entry, method, params)
+    if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+      broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground)
+    }
+  })
+
+  client.onServerRequest(async (method, params) => {
+    const routingState = {
+      appQuitting: ctx.runtimeIsStopping(),
+      mainWindow: ctx.mainWindow,
+      wireClient: ctx.wireClient,
+      client,
+      role: entry.role
+    }
+    return ctx.handleWorkspaceServerRequest(
+      method,
+      params,
+      entry,
+      shouldBridgeWorkspaceServerRequest(routingState),
+      canBridgeRendererInteractiveServerRequest(routingState)
+    )
+  })
+
+  const onReady = (result: InitializeResult): void => {
+    entry.connected = true
+    entry.connecting = false
+    entry.errorMessage = undefined
+    entry.initializeResult = result
+
+    void ctx.refreshConnectionThreadList(entry)
+  }
+  client.on('ready', onReady)
+  client.on('reconnected', onReady)
+  client.on('close', () => {
+    entry.connected = false
+    entry.connecting = false
+    entry.errorMessage = undefined
+    ctx.emitWorkspaceProjects()
+    if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+      const loc = normalizeLocale(ctx.settings.locale)
+      ctx.emitConnectionStatus(ctx.mainWindow, {
+        status: 'disconnected',
+        errorMessage: translate(loc, 'main.status.reconnecting')
+      })
+    }
+  })
+  client.on('reconnect-error', (error) => {
+    entry.errorMessage = error instanceof Error ? error.message : String(error)
+    entry.connecting = false
+    ctx.emitWorkspaceProjects()
+    if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+      ctx.emitConnectionStatus(ctx.mainWindow, { status: 'error', errorMessage: entry.errorMessage })
+    }
+  })
+
+  return entry
+}
+
+export async function ensureDefaultChatConnection(ctx: DesktopWindowRuntime): Promise<void> {
+  if (ctx.runtimeIsStopping()) return
+  const chatPath = resolveDefaultChatWorkspacePath()
+  if (ctx.isWorkspaceForeground(chatPath)) return
+  const existing = ctx.getWorkspaceConnection(chatPath)
+  if (existing?.connected || existing?.connecting) return
+
+  try {
+    ensureDefaultChatWorkspace()
+    if (getWorkspaceStatus(chatPath).status !== 'ready') return
+
+    const ensured = await ctx.app.createHubClient(ctx.settings).ensureAppServer(chatPath, {
+      runtimeTools: resolveDotCraftRuntimeTools()
+    })
+    if (ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(chatPath)) return
+    const endpoint = ensured.endpoints?.appServerWebSocket
+    if (endpoint?.trim()) {
+      ctx.createSecondaryWorkspaceConnection(chatPath, endpoint, { kind: 'chat' })
+    }
+  } catch (error) {
+    console.warn('[desktop] failed to ensure default chat workspace connection', error)
+  }
+}
+
+export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
+  if (
+    ctx.runtimeIsStopping() ||
+    ctx.activeRemoteWorkspace ||
+    ctx.resolveConnectionMode(ctx.settings) !== 'local'
+  ) {
+    return
+  }
+  if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
+  ctx.secondaryRefreshTimer = null
+  await ctx.ensureDefaultChatConnection()
+  if (ctx.runtimeIsStopping()) return
+  const candidates = ctx.app.localProjects
+    .list()
+    .filter((project) => !ctx.isWorkspaceForeground(project.path))
+  if (candidates.length === 0) {
+    ctx.emitWorkspaceProjects()
+    return
+  }
+
+  let liveAppServers: HubAppServerResponse[] = []
+  try {
+    liveAppServers = await ctx.app.createHubClient(ctx.settings).listAppServers()
+  } catch (error) {
+    console.warn('[desktop] failed to list Hub appservers for secondary workspaces', error)
+    ctx.emitWorkspaceProjects()
+    return
+  }
+
+  const liveByKey = new Map<string, HubAppServerResponse>()
+  for (const appServer of liveAppServers) {
+    if (!ctx.isRunningHubAppServer(appServer)) continue
+    const workspacePath = appServer.workspacePath || appServer.canonicalWorkspacePath
+    if (!workspacePath) continue
+    liveByKey.set(ctx.normalizeWorkspaceConnectionKey(workspacePath), appServer)
+    if (appServer.canonicalWorkspacePath) {
+      liveByKey.set(ctx.normalizeWorkspaceConnectionKey(appServer.canonicalWorkspacePath), appServer)
+    }
+  }
+
+  const allowedKeys = new Set<string>()
+  for (const project of candidates) {
+    if (allowedKeys.size >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) break
+    const key = ctx.normalizeWorkspaceConnectionKey(project.path)
+    const live = liveByKey.get(key)
+    const endpoint = live?.endpoints?.appServerWebSocket
+    if (endpoint?.trim()) {
+      allowedKeys.add(key)
+      ctx.createSecondaryWorkspaceConnection(project.path, endpoint)
+    }
+  }
+
+  for (const entry of [...ctx.workspaceConnections.values()]) {
+    if (entry.role !== 'secondary') continue
+    // Default Chat has its own connection owner outside the project list.
+    if (isDefaultChatWorkspace(entry.workspacePath)) continue
+    if (!allowedKeys.has(entry.key)) {
+      ctx.disposeWorkspaceConnection(entry)
+    }
+  }
+  ctx.emitWorkspaceProjects()
+}
+
+export function recordForegroundWorkspace(
+  ctx: DesktopWindowRuntime,
+  workspacePath: string,
+  addProject: boolean
+): void {
+  if (isDefaultChatWorkspace(workspacePath)) {
+    ctx.settings.lastForegroundEntry = 'chats'
+  } else {
+    ctx.settings.lastWorkspacePath = workspacePath
+    ctx.settings.lastForegroundEntry = 'workspace'
+    if (addProject && !hasRemoteEndpointArg(ctx.argv)) {
+      void ctx.app.localProjects
+        .open(workspacePath)
+        .catch((error) => console.warn('[desktop] failed to add project to Hub', error))
+    }
+  }
+  ctx.app.persistWindowSettings(ctx.settings)
+}

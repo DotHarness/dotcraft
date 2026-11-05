@@ -3,16 +3,6 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import { viewerTerminalManager, type TerminalSpawnParams } from './viewerTerminal'
 import { chatFolderFor } from './chatFolderAccess'
 
-const CHANNELS = [
-  'viewer:terminal:create',
-  'viewer:terminal:restart',
-  'viewer:terminal:attach',
-  'viewer:terminal:write',
-  'viewer:terminal:resize',
-  'viewer:terminal:dispose',
-  'viewer:terminal:rebind-thread'
-] as const
-
 const cleanupHookedWindows = new Set<number>()
 
 interface ViewerTerminalIpcDeps {
@@ -26,16 +16,22 @@ function contains(parent: string, child: string): boolean {
   return path === '' || (!path.startsWith('..') && !isAbsolute(path))
 }
 
-export function isTerminalCwdAllowed(workspacePath: string, cwd: string): boolean {
+export function isTerminalCwdAllowed(workspacePath: string, cwd: string, ownerId: number): boolean {
   if (!workspacePath || typeof cwd !== 'string' || !isAbsolute(cwd)) return false
   const workspace = resolve(workspacePath)
   const target = resolve(cwd)
-  return contains(workspace, target) || contains(target, workspace) || chatFolderFor(workspacePath, cwd) !== null
+  return (
+    contains(workspace, target) || contains(target, workspace) || chatFolderFor(workspacePath, cwd, ownerId) !== null
+  )
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    && Object.values(value).every((entry) => typeof entry === 'string')
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  )
 }
 
 function windowOf(event: IpcMainInvokeEvent): BrowserWindow | null {
@@ -60,16 +56,19 @@ export function registerViewerTerminalHandlers(deps: ViewerTerminalIpcDeps): voi
   const spawnWindow = (event: IpcMainInvokeEvent, params: TerminalSpawnParams): BrowserWindow => {
     const win = windowOf(event)
     if (!win) throw new Error('Browser window not available')
-    if (!isTerminalCwdAllowed(deps.workspacePath, params?.cwd)) throw new Error(deps.workspaceMismatchMessage())
+    if (!isTerminalCwdAllowed(deps.workspacePath, params?.cwd, event.sender.id))
+      throw new Error(deps.workspaceMismatchMessage())
     ensureWindowCleanup(win)
     return win
   }
 
   handleSafe('viewer:terminal:create', (event, params: TerminalSpawnParams) =>
-    viewerTerminalManager.createTab(spawnWindow(event, params), params))
+    viewerTerminalManager.createTab(spawnWindow(event, params), params)
+  )
   handleSafe('viewer:terminal:restart', (event, params: TerminalSpawnParams & { command: string }) => {
     if (typeof params?.command !== 'string' || !params.command.trim()) throw new Error('A command is required')
-    if (params.env !== undefined && !isStringRecord(params.env)) throw new Error('Environment variables must be strings')
+    if (params.env !== undefined && !isStringRecord(params.env))
+      throw new Error('Environment variables must be strings')
     return viewerTerminalManager.restartTab(spawnWindow(event, params), params)
   })
   handleSafe('viewer:terminal:attach', (event, params: { tabId: string }) => {
@@ -94,10 +93,4 @@ export function registerViewerTerminalHandlers(deps: ViewerTerminalIpcDeps): voi
     const win = windowOf(event)
     if (win) viewerTerminalManager.rebindThread(win, params.fromThreadId, params.toThreadId)
   })
-}
-
-export function unregisterViewerTerminalHandlers(): void {
-  for (const channel of CHANNELS) ipcMain.removeHandler(channel)
-  for (const win of BrowserWindow.getAllWindows()) viewerTerminalManager.destroyAllTabs(win)
-  cleanupHookedWindows.clear()
 }

@@ -13,7 +13,7 @@ interface ErrorScreenProps {
 
 export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Element | null {
   const t = useT()
-  const { status, errorMessage, errorType, binarySource } = useConnectionStore()
+  const { status, errorMessage, errorDetails, errorType, binarySource } = useConnectionStore()
   const [retryPending, setRetryPending] = useState(false)
   const [retryError, setRetryError] = useState<string | null>(null)
 
@@ -21,6 +21,7 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
 
   const isBinaryNotFound = errorType === 'binary-not-found'
   const isHandshakeTimeout = errorType === 'handshake-timeout'
+  const isHubStartupFailure = errorType === 'hub-startup-failed'
   const isRemoteConfigInvalid = errorType === 'remote-config-invalid'
 
   const title = isBinaryNotFound
@@ -37,7 +38,9 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
         : t('error.desc.binary.bundled')
     : isHandshakeTimeout
       ? t('error.desc.timeout')
-      : (errorMessage ?? t('error.desc.unexpected'))
+      : isHubStartupFailure
+        ? t('error.desc.hubStartup')
+        : (errorMessage ?? t('error.desc.unexpected'))
 
   const actionLabel = isBinaryNotFound || isRemoteConfigInvalid
     ? t('error.action.openSettings')
@@ -50,7 +53,7 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
       : t('settings.action.connecting')
     : actionLabel
   const detailsText = [
-    errorMessage,
+    errorDetails ?? errorMessage,
     retryError ? `Retry failed: ${retryError}` : null
   ].filter((value): value is string => Boolean(value)).join('\n\n')
 

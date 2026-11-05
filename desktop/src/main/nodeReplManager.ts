@@ -148,6 +148,7 @@ function normalizeBrowserSession(params: NodeReplEvaluateParams, evaluationId: s
 
 export class NodeReplManager {
   private readonly runtimes = new Map<string, NodeReplThreadRuntime>()
+  private readonly runtimeOwners = new WeakMap<NodeReplThreadRuntime, number>()
   private readonly evaluationQueues = new Map<string, NodeReplQueueState>()
   private readonly cancelledEvaluations = new Map<string, Set<string>>()
 
@@ -166,7 +167,7 @@ export class NodeReplManager {
     const slot = this.enqueueEvaluation(params.threadId)
     try {
       await slot.ready
-      if (this.isQueueGenerationStale(params.threadId, slot.generation) ||
+      if (owner.isDestroyed() || this.isQueueGenerationStale(params.threadId, slot.generation) ||
         this.consumeCancelledEvaluation(params.threadId, evaluationId)) {
         return { error: 'NodeReplJs cancelled before it started.', images: [], logs: [] }
       }
@@ -184,6 +185,7 @@ export class NodeReplManager {
     evaluationId: string
   ): Promise<NodeReplEvaluateResult> {
     const runtime = this.getOrCreateRuntime(params.threadId)
+    this.runtimeOwners.set(runtime, owner.webContents.id)
     const browserSession = normalizeBrowserSession(params, evaluationId)
     const abortController = new AbortController()
     runtime.activeEvaluationId = evaluationId
@@ -345,6 +347,16 @@ export class NodeReplManager {
     if (method !== 'thread/deleted' || !params || typeof params !== 'object') return
     const threadId = (params as { threadId?: unknown }).threadId
     if (typeof threadId === 'string') this.reset(threadId)
+  }
+
+  async disposeOwner(ownerId: number): Promise<void> {
+    for (const [threadId, runtime] of [...this.runtimes]) {
+      if (this.runtimeOwners.get(runtime) !== ownerId) continue
+      runtime.activeAbortController?.abort(new Error('NodeReplJs window closed.'))
+      if (runtime.activeEvaluationId) this.browserManager.abortEvaluation(threadId, runtime.activeEvaluationId)
+      await runtime.worker.stop(runtime.activeEvaluationId)
+      this.disposeReplRuntime(threadId, runtime)
+    }
   }
 
   async disposeAll(): Promise<void> {

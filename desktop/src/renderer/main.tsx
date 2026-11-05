@@ -18,6 +18,7 @@ import { SelectMenuHost } from './components/ui/SelectMenu'
 import './styles/index.css'
 import { observeDesktopPetOwnership } from './components/desktopPet/desktopPetOwnership'
 import { DesktopPet } from './components/desktopPet/DesktopPet'
+import { hydratePlainComposerDrafts } from './utils/plainComposerDraft'
 
 const isPetWindow = document.documentElement.hasAttribute('data-desktop-pet-window')
 const stopPetOwnership = isPetWindow ? () => {} : observeDesktopPetOwnership()
@@ -34,9 +35,10 @@ const initialAppearance = window.api?.initialAppearance
 applyThemeSeeds(initialAppearance?.accent ?? null, initialAppearance?.themeSeeds)
 applyTheme(initialTheme, { syncTitleBarOverlay: !isPetWindow })
 
-void window.api?.settings
-  ?.get?.()
+const settingsReady = Promise.resolve(window.api?.settings?.get?.())
   .then((settings) => {
+    if (!settings) return
+    if (!isPetWindow) hydratePlainComposerDrafts(settings.composerTextDrafts)
     const appearance = resolveAppearanceSettings(settings)
     applyAppearanceDom(appearance)
     useUIStore.getState().setDiffMarkers(appearance.diffMarkers)
@@ -51,7 +53,7 @@ if (!rootElement) {
 
 const appSurfaceContext = { rootElement }
 
-createRoot(rootElement).render(
+void settingsReady.then(() => createRoot(rootElement).render(
   <StrictMode>
     <LocaleProvider loadSettings={!isPetWindow}>
       <HighlightProvider>
@@ -80,4 +82,4 @@ createRoot(rootElement).render(
       </HighlightProvider>
     </LocaleProvider>
   </StrictMode>
-)
+))

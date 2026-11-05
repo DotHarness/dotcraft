@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
-import type { HubClientOptions, HubLockInfo, HubStatusResponse } from "./hubClient.js";
+import { safeStartupFailure, startHubProcess, type HubStartupProcess, type StartupFailure } from "./hubStartupProcess.js";
+
+import type { HubClientOptions, HubLockInfo, HubStatusResponse } from "./hubTypes.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
@@ -9,18 +10,14 @@ const PROBE_TIMEOUT_MS = 2_000;
 const POLL_MS = 200;
 
 type BinaryMismatch = { expectedExecutable: string; actualExecutable: string | null };
-type Failure = { name?: string; code?: string };
-type ProbeResult = {
-  hub: HubLockInfo | null;
+export interface HubConnection {
+  hub: HubLockInfo;
+  status: HubStatusResponse;
+}
+
+type ProbeResult = (HubConnection | { hub: null; status?: never }) & {
   httpStatus?: number;
-  error?: Failure;
-};
-type SpawnState = {
-  pid?: number;
-  spawnError?: Failure;
-  exitCode?: number | null;
-  signal?: NodeJS.Signals | null;
-  dispose(): void;
+  error?: StartupFailure;
 };
 
 interface BootstrapDependencies {
@@ -45,67 +42,77 @@ export async function probeLocalHub(
   info: HubLockInfo,
   validateBaseUrl: (value: string) => unknown,
   timeoutMs = PROBE_TIMEOUT_MS,
+  cancellation?: AbortSignal,
 ): Promise<ProbeResult> {
+  cancellation?.throwIfAborted();
   try {
     validateBaseUrl(info.apiBaseUrl);
-    const signal = AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs)));
+    const timeout = AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs)));
+    const signal = cancellation ? AbortSignal.any([cancellation, timeout]) : timeout;
     const response = await fetch(`${info.apiBaseUrl}/v1/status`, { signal });
     if (!response.ok) return { hub: null, httpStatus: response.status };
-    let status: Partial<HubStatusResponse> | null = null;
-    try {
-      status = await response.json() as Partial<HubStatusResponse>;
-    } catch (error) {
-      if (signal.aborted) throw error;
-      // A status response can be empty during startup races.
-    }
+    const status = await response.json() as HubStatusResponse | null;
+    if (!status) return { hub: null, httpStatus: response.status };
     return {
       hub: {
         ...info,
         version: typeof status?.hubVersion === "string" ? status.hubVersion : info.version,
         binaryPath: typeof status?.binaryPath === "string" ? status.binaryPath : info.binaryPath,
       },
+      status,
       httpStatus: response.status,
     };
   } catch (error) {
-    return { hub: null, error: safeFailure(error) };
+    cancellation?.throwIfAborted();
+    return { hub: null, error: safeStartupFailure(error) };
   }
 }
 
 export async function ensureLocalHub(
   options: HubClientOptions,
   deps: BootstrapDependencies,
-): Promise<HubLockInfo> {
+  signal: AbortSignal,
+): Promise<HubConnection> {
+  signal.throwIfAborted();
   const startedAt = Date.now();
   const shutdownBudgetMs = options.hubShutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
   const startupBudgetMs = options.hubStartupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
   const shutdownDeadline = startedAt + shutdownBudgetMs;
   let stopping: { pid: number; mismatch: BinaryMismatch } | null = null;
   let startupStartedAt: number | null = null;
-  let child: SpawnState | null = null;
+  let child: HubStartupProcess | null = null;
   let lastOwner: HubLockInfo | null = null;
-  let lastProbe: Omit<ProbeResult, "hub"> | undefined;
+  let lastToken: string | undefined;
+  let lastProbe: Omit<ProbeResult, "hub" | "status"> | undefined;
 
   const details = (
     stage: "owner-wait" | "mismatch-shutdown" | "spawn" | "ready",
     mismatch?: BinaryMismatch,
-  ) => ({
-    stage,
-    elapsedMs: Date.now() - (startupStartedAt ?? startedAt),
-    budgetMs: startupStartedAt === null ? shutdownBudgetMs : startupBudgetMs,
-    lockPath: deps.lockPath,
-    ...(lastOwner ? ownerDetails(lastOwner) : {}),
-    ...(options.executable ? { executable: options.executable } : {}),
-    ...(options.expectedExecutable ? { expectedExecutable: options.expectedExecutable } : {}),
-    ...mismatch,
-    ...(lastProbe ? { lastProbe } : {}),
-    ...(child?.pid !== undefined ? { spawnedPid: child.pid } : {}),
-    ...(child?.spawnError ? { spawnError: child.spawnError } : {}),
-    ...(child?.exitCode !== undefined ? { exitCode: child.exitCode, signal: child.signal } : {}),
-  });
+  ) => {
+    const stderr = child?.recentStderr();
+    const recentStderr = lastToken ? stderr?.replaceAll(lastToken, "[redacted]") : stderr;
+    return {
+      stage,
+      elapsedMs: Date.now() - (startupStartedAt ?? startedAt),
+      budgetMs: startupStartedAt === null ? shutdownBudgetMs : startupBudgetMs,
+      lockPath: deps.lockPath,
+      ...(lastOwner ? ownerDetails(lastOwner) : {}),
+      ...(options.executable ? { executable: options.executable } : {}),
+      ...(options.expectedExecutable ? { expectedExecutable: options.expectedExecutable } : {}),
+      ...mismatch,
+      ...(lastProbe ? { lastProbe } : {}),
+      ...(child?.pid !== undefined ? { spawnedPid: child.pid } : {}),
+      ...(child?.spawnError ? { spawnError: child.spawnError } : {}),
+      ...(child?.exitCode !== undefined ? { exitCode: child.exitCode, signal: child.signal } : {}),
+      ...(recentStderr ? { recentStderr } : {}),
+    };
+  };
 
   try {
     for (;;) {
+      signal.throwIfAborted();
       const lock = deps.readLock();
+      if (lock?.token) lastToken = lock.token;
       const owner = lock && isProcessAlive(lock.pid) ? lock : null;
       if (owner && owner.pid === stopping?.pid) {
         if (Date.now() >= shutdownDeadline) {
@@ -118,14 +125,14 @@ export async function ensureLocalHub(
       } else if (owner) {
         lastOwner = owner;
         const deadline = startupStartedAt === null ? shutdownDeadline : startupStartedAt + startupBudgetMs;
-        const probe = await probeLocalHub(owner, deps.validateBaseUrl, Math.min(PROBE_TIMEOUT_MS, deadline - Date.now()));
-        const { hub: live, ...diagnostic } = probe;
+        const probe = await probeLocalHub(owner, deps.validateBaseUrl, Math.min(PROBE_TIMEOUT_MS, deadline - Date.now()), signal);
+        const { hub: live, status, ...diagnostic } = probe;
         lastProbe = diagnostic;
         if (live) lastOwner = live;
-        if (live && startupStartedAt !== null) return live;
+        if (live && startupStartedAt !== null) return { hub: live, status };
         if (live) {
           const mismatch = binaryMismatch(options, live);
-          if (!mismatch || options.binaryMatchPolicy === "ignore" || !options.binaryMatchPolicy) return live;
+          if (!mismatch || options.binaryMatchPolicy === "ignore" || !options.binaryMatchPolicy) return { hub: live, status };
           if (options.binaryMatchPolicy === "errorIfMismatch") {
             throw deps.error("hubBinaryMismatch", "Hub is running from a different executable.", mismatch);
           }
@@ -137,17 +144,18 @@ export async function ensureLocalHub(
               details("mismatch-shutdown", mismatch),
             );
           }
-          const signal = AbortSignal.timeout(Math.max(1, Math.floor(remainingMs)));
+          const timeout = AbortSignal.timeout(Math.max(1, Math.floor(remainingMs)));
           try {
-            await deps.shutdown(live, signal);
+            await deps.shutdown(live, AbortSignal.any([signal, timeout]));
           } catch (error) {
-            const timedOut = signal.aborted;
+            signal.throwIfAborted();
+            const timedOut = timeout.aborted;
             throw deps.error(
               timedOut ? "hubMismatchShutdownTimeout" : "hubMismatchShutdownFailed",
               timedOut
                 ? "Hub uses a different executable and its shutdown request timed out."
                 : "Hub uses a different executable and could not be stopped.",
-              { ...details("mismatch-shutdown", mismatch), shutdownError: safeFailure(error) },
+              { ...details("mismatch-shutdown", mismatch), shutdownError: safeStartupFailure(error) },
             );
           }
           stopping = { pid: live.pid, mismatch };
@@ -160,50 +168,47 @@ export async function ensureLocalHub(
         }
       } else if (startupStartedAt === null) {
         startupStartedAt = Date.now();
-        child = startHub(options.executable?.trim() || "dotcraft");
+        child = startHubProcess(options.executable?.trim() || "dotcraft", deps.lockPath, signal);
       }
 
       if (child?.spawnError) {
         throw deps.error("hubUnavailable", "DotCraft Hub could not be started.", details("spawn"));
       }
+      if (child?.exitCode !== undefined && (!owner || owner.pid === child.pid)) {
+        throw deps.error("hubUnavailable", "DotCraft Hub exited before becoming ready.", {
+          ...details("ready"), failureKind: "processExited",
+        });
+      }
       if (startupStartedAt !== null && Date.now() >= startupStartedAt + startupBudgetMs) {
-        throw deps.error("hubUnavailable", "DotCraft Hub could not be started.", details("ready"));
+        throw deps.error("hubUnavailable", "DotCraft Hub could not be started.", {
+          ...details("ready"), failureKind: "timeout",
+        });
       }
       const deadline = startupStartedAt === null ? shutdownDeadline : startupStartedAt + startupBudgetMs;
-      await new Promise((resolve) => setTimeout(resolve, Math.max(1, Math.min(POLL_MS, deadline - Date.now()))));
+      await waitForNextProbe(
+        Math.max(1, Math.min(POLL_MS, deadline - Date.now())), signal,
+        child?.exitCode === undefined ? child?.changed : undefined,
+      );
     }
   } finally {
     child?.dispose();
   }
 }
 
-function startHub(executable: string): SpawnState {
-  const state: SpawnState = { dispose() {} };
-  const isDll = executable.toLowerCase().endsWith(".dll");
-  try {
-    const child = spawn(isDll ? "dotnet" : executable, isDll ? [executable, "hub"] : ["hub"], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    state.pid = child.pid;
-    const onError = (error: Error) => { state.spawnError = safeFailure(error); };
-    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-      state.exitCode = code;
-      state.signal = signal;
+async function waitForNextProbe(ms: number, signal: AbortSignal, changed?: Promise<void>): Promise<void> {
+  signal.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const finish = (): void => { cleanup(); resolve(); };
+    const abort = (): void => { cleanup(); reject(signal.reason); };
+    const timer = setTimeout(finish, ms);
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
     };
-    child.on("error", onError);
-    child.on("exit", onExit);
-    child.unref();
-    state.dispose = () => {
-      child.off("error", onError);
-      child.off("exit", onExit);
-      child.on("error", () => {});
-    };
-  } catch (error) {
-    state.spawnError = safeFailure(error);
-  }
-  return state;
+    signal.addEventListener("abort", abort, { once: true });
+    void changed?.then(finish);
+  });
+  signal.throwIfAborted();
 }
 
 function ownerDetails(owner: HubLockInfo) {
@@ -213,18 +218,6 @@ function ownerDetails(owner: HubLockInfo) {
     ...(typeof owner.version === "string" ? { version: owner.version } : {}),
     ...(typeof owner.binaryPath === "string" ? { binaryPath: owner.binaryPath } : {}),
   };
-}
-
-function safeFailure(error: unknown): Failure {
-  if (!error || typeof error !== "object") return {};
-  const failure = error as { name?: unknown; code?: unknown; cause?: { code?: unknown } };
-  const name = identifier(failure.name);
-  const code = identifier(failure.code) ?? identifier(failure.cause?.code);
-  return { ...(name ? { name } : {}), ...(code ? { code } : {}) };
-}
-
-function identifier(value: unknown): string | undefined {
-  return typeof value === "string" && /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(value) ? value : undefined;
 }
 
 function binaryMismatch(options: HubClientOptions, hub: HubLockInfo): BinaryMismatch | null {

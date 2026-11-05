@@ -1595,6 +1595,7 @@ const api = {
 
   settings: {
     get(): Promise<{
+      composerTextDrafts?: Record<string, string>
       binarySource?: BinarySource
       appServerBinaryPath?: string
       lastWorkspacePath?: string
@@ -1686,6 +1687,7 @@ const api = {
     },
 
     set(partial: {
+      composerTextDrafts?: Record<string, string>
       binarySource?: BinarySource
       appServerBinaryPath?: string
       connectionMode?: ConnectionMode

@@ -1,16 +1,13 @@
 import { isAbsolute } from 'path'
 import { chatFolderContaining } from './chatFolders'
 import { isDefaultChatWorkspace } from './defaultChatWorkspace'
+import { getWindowFileAccess } from './windowFileAccess'
 
-let localChatsFolderRoots: () => readonly string[] = () => []
-
-export function setLocalChatsFolderRootsResolver(resolver: () => readonly string[]): void {
-  localChatsFolderRoots = resolver
-}
-
-export function chatFolderFor(workspacePath: string, targetPath: unknown): string | null {
+export function chatFolderFor(workspacePath: string, targetPath: unknown, ownerId: number): string | null {
   if (typeof targetPath !== 'string' || !isAbsolute(targetPath) || !isDefaultChatWorkspace(workspacePath)) return null
-  for (const root of localChatsFolderRoots()) {
+  const context = getWindowFileAccess(ownerId)
+  if (!context || context.getWorkspaceRoot() !== workspacePath) return null
+  for (const root of context.getChatFolderRoots?.() ?? []) {
     const chatFolder = chatFolderContaining(targetPath, root)
     if (chatFolder) return chatFolder
   }

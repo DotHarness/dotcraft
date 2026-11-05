@@ -53,6 +53,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\..\sdk\dotnet\src\DotCraft.Sdk\DotCraft.Sdk.csproj" />
     <ProjectReference Include="..\DotCraft.Harness\DotCraft.Harness.csproj" />
     <ProjectReference Include="..\DotCraft.AppServer\DotCraft.AppServer.csproj" />
     <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" />

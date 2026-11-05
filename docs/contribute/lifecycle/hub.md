@@ -23,7 +23,7 @@ You usually do not need to run `dotcraft hub` manually. For coordination debuggi
 dotcraft hub
 ```
 
-Hub starts a loopback management API and writes discovery metadata to `~/.craft/hub/hub.lock`. It allocates local ports automatically; if startup fails because a port is busy, a permission is denied, or security software blocks loopback, restart Hub or Desktop to reallocate.
+Hub publishes its process identity and selected loopback endpoint in `~/.craft/hub/hub.lock`, then makes the local management API ready. A published PID does not mean the API is ready yet. Optional phone and Satellite listeners start independently of local management readiness. Hub allocates local ports automatically.
 
 If a previous Hub is still shutting down, a new `dotcraft hub` waits up to 30 seconds for it to release `hub.lock`, then starts. A start while a Hub is running exits without effect.
 
@@ -97,7 +97,7 @@ On the computer, open **Settings → Connections → Phones → Access from anyw
 
 ## Desktop and the tray
 
-Hub itself is a headless background coordinator, and the Desktop tray is its visual layer:
+Hub itself is a headless background coordinator. Desktop's main process owns its windows and tray, while each window keeps its own foreground workspace and connection. The tray provides these actions:
 
 - Open or switch workspaces
 - See recent and running workspaces

@@ -21,6 +21,26 @@ describe('OratorioProvider', () => {
     sockets.length = 0
   })
 
+  it('does not publish an old workspace resolution after switching or closing its owner', async () => {
+    let resolveFirst!: (value: never) => void
+    const first = new Promise<never>((resolve) => { resolveFirst = resolve })
+    const ensureManagedService = vi.fn()
+      .mockImplementationOnce(() => first)
+      .mockResolvedValue({ state: 'running', endpoint: 'http://127.0.0.1:5010', accessToken: 'new-token' })
+    let workspace = 'F:/old'
+    const provider = new OratorioProvider(() => ({ ensureManagedService } as never), () => workspace)
+    const old = provider.getContext()
+    await vi.waitFor(() => expect(ensureManagedService).toHaveBeenCalledOnce())
+    workspace = 'F:/new'
+    provider.contextChanged()
+    await expect(provider.getContext()).resolves.toMatchObject({ workspacePath: 'F:/new' })
+    resolveFirst({ state: 'running', endpoint: 'http://127.0.0.1:5009', accessToken: 'old-token' } as never)
+    await expect(old).rejects.toMatchObject({ code: 'oratorio.serviceUnavailable' })
+    await expect(provider.getContext()).resolves.toMatchObject({ workspacePath: 'F:/new' })
+    provider.dispose()
+    await expect(provider.getContext()).rejects.toMatchObject({ code: 'oratorio.serviceUnavailable' })
+  })
+
   it('coalesces ensure and keeps endpoint and token in Main', async () => {
     const ensureManagedService = vi.fn().mockResolvedValue({
       serviceId: 'oratorio', state: 'running', pid: 42,

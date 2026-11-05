@@ -5,7 +5,6 @@ public static class HubAppServerStates
     public const string Stopped = "stopped";
     public const string Starting = "starting";
     public const string Running = "running";
-    public const string Unhealthy = "unhealthy";
     public const string Stopping = "stopping";
     public const string Exited = "exited";
 }

@@ -42,6 +42,7 @@ import type {
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 import { normalizeLinkPreferences } from '../shared/desktopSettings'
+import { normalizeComposerTextDrafts } from '../shared/composerTextDrafts'
 export type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -108,6 +109,7 @@ export interface VoiceSettings {
 }
 
 export interface AppSettings extends SidebarThreadOrderSettings {
+  composerTextDrafts?: Record<string, string>
   sidebarDestinationPins?: SidebarDestinationPins
   remoteDesktopPluginGrants?: string[]
   followUpQueueMode?: FollowUpQueueMode
@@ -598,6 +600,7 @@ export function loadSettings(): AppSettings {
   try {
     if (existsSync(filePath)) {
       const raw = JSON.parse(readFileSync(filePath, 'utf8')) as AppSettings
+      raw.composerTextDrafts = normalizeComposerTextDrafts(raw.composerTextDrafts)
       raw.lastForegroundEntry = normalizeLastForegroundEntry(raw)
       raw.binarySource = normalizeBinarySource(raw)
       raw.connectionMode = normalizeConnectionMode(raw)

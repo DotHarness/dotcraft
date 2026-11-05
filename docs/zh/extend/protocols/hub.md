@@ -156,7 +156,7 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 
 重要字段：
 
-- `state`: 取值为 `stopped`、`starting`、`running`、`unhealthy`、`stopping` 或 `exited`。
+- `state`: 取值为 `stopped`、`starting`、`running`、`stopping` 或 `exited`。
 - `endpoints.appServerWebSocket`: 客户端连接 AppServer Protocol 时应使用的 URL。
 - `serviceStatus`: `dashboard` 和运行时辅助服务的状态。
 - `startedByHub`: 当前进程是否由此 Hub 管理。
@@ -268,7 +268,6 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 | `appserver.starting` | 工作区 AppServer 正在启动。 |
 | `appserver.running` | 工作区 AppServer 已可用。 |
 | `appserver.exited` | 工作区 AppServer 已退出。 |
-| `appserver.unhealthy` | 健康检查失败。 |
 | `notification.requested` | 有本地通知请求等待 UI 展示。 |
 
 事件负载可扩展。按 `kind` 渲染已知字段，忽略未知字段。
@@ -333,7 +332,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 | `workspaceNotFound` | 400/404 | 工作区路径缺失、不存在，或不是 DotCraft 工作区。 |
 | `workspaceLocked` | 409 | 另一个运行中的 AppServer 拥有该工作区锁，且无法安全复用。 |
 | `appServerStartFailed` | 500 | 托管 AppServer 启动失败。 |
-| `appServerUnhealthy` | 500 | 托管 AppServer 未通过就绪检查或健康检查。 |
+| `appServerUnhealthy` | 500 | 托管 AppServer 未发布预期的工作区所有权锁。 |
 | `portUnavailable` | 500 | Hub 无法分配需要的本地端口。 |
 | `invalidNotification` | 400 | 通知请求无效。 |
 | `managedServiceNotRegistered` | 404 | 当前 DotCraft 构建没有注册该服务 ID。 |
@@ -346,8 +345,8 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 
 - 默认使用 Hub 管理本地工作区，并保留显式远程 AppServer 模式作为高级路径。
 - 启动 Hub 后应重读 `hub.lock` 并验证 `/v1/status`，不要假设进程已立即可用。
-- 如果 `hub.lock` 的进程仍存活但 `/v1/status` 无响应，说明上一个 Hub 正在关闭。应等它退出后再启动 Hub，而不是直接报告 Hub 不可用。
-- 对 `appserver.unhealthy` 和 `appserver.exited` 事件显示可操作状态，例如“重启工作区运行时”。
+- 如果 `hub.lock` 的进程仍存活但 `/v1/status` 无响应，它可能正在启动、关闭或发生阻塞。在启动预算内等待并观察进程退出，不要直接把锁当成已失效，也不要启动重复进程。
+- 对 `appserver.exited` 事件和实际连接失败显示可操作状态。一次短暂的连接失败不代表应重启仍存活的运行时。
 - 不要把 Hub 令牌或 AppServer 令牌写入日志。
 - 对未知端点、服务状态和事件类型保持兼容。
 

@@ -21,19 +21,26 @@ import {
 } from './VoiceWorkerClient'
 import { writeMonoPcm16Wav } from './wav'
 
+export interface VoiceSessionContext {
+  ownerId: number
+  signal: AbortSignal
+  chatGpt?: VoiceChatGptRoute
+}
+
 interface SessionRecord extends VoiceSessionState {
   wavPath: string
   discarded: boolean
+  context?: VoiceSessionContext
 }
 
 type SnapshotListener = (snapshot: VoiceRuntimeSnapshot) => void
-type SessionListener = (event: VoiceSessionEvent) => void
+type SessionListener = (event: VoiceSessionEvent, ownerId?: number) => void
 
 export interface VoiceRuntimeServiceOptions {
   voiceRoot: string
   modelManager: VoiceModelController
   localTranscriber: VoiceTranscriber
-  chatGpt: VoiceChatGptRoute
+  chatGpt?: VoiceChatGptRoute
   writeWav?: (path: string, pcm16: Uint8Array) => Promise<void>
 }
 
@@ -67,7 +74,7 @@ export class VoiceRuntimeService {
   private readonly sessionListeners = new Set<SessionListener>()
   private readonly pendingAdmissions = new Set<Promise<void>>()
   private readonly tempRoot: string
-  private running: { sessionId: string; transcriber: VoiceTranscriber } | null = null
+  private running: { sessionId: string; transcriber: VoiceTranscriber | null } | null = null
   private admissionGeneration = 0
   private localRouteBlocked = false
   private modelLifecycleGeneration = 0
@@ -88,18 +95,20 @@ export class VoiceRuntimeService {
     await this.options.modelManager.initialize()
   }
 
-  getSnapshot(): VoiceRuntimeSnapshot {
+  getSnapshot(ownerId?: number): VoiceRuntimeSnapshot {
     return {
       model: this.options.modelManager.getState(),
       chatGpt: this.chatGptState(),
-      sessions: [...this.sessions.values()].map(toPublicSession),
+      sessions: [...this.sessions.values()]
+        .filter((session) => ownerId === undefined || session.context?.ownerId === ownerId)
+        .map(toPublicSession),
       capacity: VOICE_SESSION_CAPACITY
     }
   }
 
   async refreshChatGptAvailability(): Promise<void> {
     const generation = ++this.chatGptRefreshGeneration
-    const signedIn = await this.options.chatGpt.isSignedIn().catch(() => false)
+    const signedIn = await this.options.chatGpt?.isSignedIn().catch(() => false) ?? false
     if (generation !== this.chatGptRefreshGeneration) return
     this.chatGptSignedIn = signedIn
     const state = this.chatGptState()
@@ -151,9 +160,10 @@ export class VoiceRuntimeService {
     ) this.localRouteBlocked = false
   }
 
-  async submitTranscription(input: VoiceTranscriptionInput): Promise<{ sessionId: string }> {
+  async submitTranscription(input: VoiceTranscriptionInput, context?: VoiceSessionContext): Promise<{ sessionId: string }> {
     this.validateInput(input)
-    if (!this.isChatGptAvailable()) {
+    context?.signal.throwIfAborted()
+    if (!context?.chatGpt && !this.isChatGptAvailable()) {
       const modelState = this.options.modelManager.getState()
       if (modelState.phase !== 'installed') {
         throw new VoiceRuntimeError(modelState.phase === 'damaged' ? 'model-damaged' : 'model-missing')
@@ -174,6 +184,7 @@ export class VoiceRuntimeService {
       await mkdir(this.tempRoot, { recursive: true })
       await (this.options.writeWav ?? writeMonoPcm16Wav)(wavPath, new Uint8Array(input.pcm16))
       if (admissionGeneration !== this.admissionGeneration) throw new VoiceRuntimeError('model-missing')
+      context?.signal.throwIfAborted()
       const session: SessionRecord = {
         sessionId,
         threadId: input.threadId.trim(),
@@ -181,11 +192,12 @@ export class VoiceRuntimeService {
         phase: 'queued',
         durationMs: Math.round(input.durationMs),
         wavPath,
-        discarded: false
+        discarded: false,
+        context
       }
       this.sessions.set(sessionId, session)
       this.queue.push(sessionId)
-      this.emitSession({ ...toPublicSession(session), type: 'changed' })
+      this.emitSession({ ...toPublicSession(session), type: 'changed' }, session.context?.ownerId)
       this.emitSnapshot()
       void this.drainQueue()
       return { sessionId }
@@ -198,29 +210,36 @@ export class VoiceRuntimeService {
     }
   }
 
-  async retryTranscription(sessionId: string): Promise<void> {
+  async retryTranscription(sessionId: string, ownerId?: number): Promise<void> {
     const session = this.sessions.get(sessionId)
-    if (!session || session.phase !== 'retryable' || !existsSync(session.wavPath)) {
+    if (!session || (ownerId !== undefined && session.context?.ownerId !== ownerId) || session.phase !== 'retryable' || !existsSync(session.wavPath)) {
       throw new VoiceRuntimeError('invalid-audio')
     }
     session.phase = 'queued'
     delete session.errorCode
     if (!this.queue.includes(sessionId)) this.queue.push(sessionId)
-    this.emitSession({ ...toPublicSession(session), type: 'changed' })
+    this.emitSession({ ...toPublicSession(session), type: 'changed' }, session.context?.ownerId)
     this.emitSnapshot()
     void this.drainQueue()
   }
 
-  async discardSession(sessionId: string): Promise<void> {
+  async discardSession(sessionId: string, ownerId?: number): Promise<void> {
     const session = this.sessions.get(sessionId)
     if (!session) return
+    if (ownerId !== undefined && session.context?.ownerId !== ownerId) throw new VoiceRuntimeError('invalid-audio')
     session.discarded = true
     this.removeFromQueue(sessionId)
-    if (this.running?.sessionId === sessionId) await this.running.transcriber.cancel(sessionId)
+    if (this.running?.sessionId === sessionId) await this.running.transcriber?.cancel(sessionId)
     this.sessions.delete(sessionId)
     await rm(session.wavPath, { force: true })
-    this.emitSession({ ...toPublicSession(session), type: 'discarded' })
+    this.emitSession({ ...toPublicSession(session), type: 'discarded' }, session.context?.ownerId)
     this.emitSnapshot()
+  }
+
+  async discardOwnerSessions(ownerId: number): Promise<void> {
+    await Promise.all([...this.sessions.values()]
+      .filter((session) => session.context?.ownerId === ownerId)
+      .map((session) => this.discardSession(session.sessionId, ownerId)))
   }
 
   async shutdown(): Promise<void> {
@@ -231,7 +250,7 @@ export class VoiceRuntimeService {
       await this.invalidatePendingAdmissions()
       await this.discardAllSessions()
       await this.options.localTranscriber.shutdown()
-      await this.options.chatGpt.transcriber.shutdown()
+      await this.options.chatGpt?.transcriber.shutdown()
       await rm(this.tempRoot, { recursive: true, force: true })
     } finally {
       this.shuttingDown = false
@@ -244,19 +263,20 @@ export class VoiceRuntimeService {
       const sessionId = this.queue.shift()!
       const session = this.sessions.get(sessionId)
       if (!session || session.discarded) continue
-      const transcriber = this.chooseTranscriber()
-      if (!transcriber) {
-        session.phase = 'retryable'
-        session.errorCode = 'model-missing'
-        this.emitSession({ ...toPublicSession(session), type: 'changed' })
-        this.emitSnapshot()
-        continue
-      }
-      this.running = { sessionId, transcriber }
-      session.phase = 'transcribing'
-      this.emitSession({ ...toPublicSession(session), type: 'changed' })
-      this.emitSnapshot()
+      this.running = { sessionId, transcriber: null }
       try {
+        const transcriber = await this.chooseTranscriber(session)
+        if (session.discarded || !this.sessions.has(sessionId) || this.shuttingDown) continue
+        if (!transcriber) {
+          session.phase = 'retryable'
+          session.errorCode = 'model-missing'
+          this.emitSession({ ...toPublicSession(session), type: 'changed' }, session.context?.ownerId)
+          continue
+        }
+        this.running.transcriber = transcriber
+        session.phase = 'transcribing'
+        this.emitSession({ ...toPublicSession(session), type: 'changed' }, session.context?.ownerId)
+        this.emitSnapshot()
         const result = await transcriber.transcribe(sessionId, session.wavPath)
         if (session.discarded || !this.sessions.has(sessionId)) continue
         this.sessions.delete(sessionId)
@@ -264,13 +284,13 @@ export class VoiceRuntimeService {
           ...toPublicSession(session),
           type: 'completed',
           transcript: result.transcript.trim()
-        })
+        }, session.context?.ownerId)
         await rm(session.wavPath, { force: true })
       } catch (error) {
         if (session.discarded || !this.sessions.has(sessionId)) continue
         session.phase = 'retryable'
         session.errorCode = mapTranscriptionError(error)
-        this.emitSession({ ...toPublicSession(session), type: 'changed' })
+        this.emitSession({ ...toPublicSession(session), type: 'changed' }, session.context?.ownerId)
       } finally {
         if (this.running?.sessionId === sessionId) this.running = null
         this.emitSnapshot()
@@ -278,18 +298,19 @@ export class VoiceRuntimeService {
     }
   }
 
-  private chooseTranscriber(): VoiceTranscriber | null {
-    if (this.isChatGptAvailable()) return this.options.chatGpt.transcriber
+  private async chooseTranscriber(session: SessionRecord): Promise<VoiceTranscriber | null> {
+    const chatGpt = session.context?.chatGpt ?? this.options.chatGpt
+    if (chatGpt?.isEnabled() && await chatGpt.isSignedIn().catch(() => false)) return chatGpt.transcriber
     const localReady = this.options.modelManager.getState().phase === 'installed' && !this.localRouteBlocked
     return localReady ? this.options.localTranscriber : null
   }
 
   private isChatGptAvailable(): boolean {
-    return this.chatGptSignedIn && this.options.chatGpt.isEnabled()
+    return this.chatGptSignedIn && this.options.chatGpt?.isEnabled() === true
   }
 
   private chatGptState(): VoiceChatGptState {
-    return { signedIn: this.chatGptSignedIn, enabled: this.options.chatGpt.isEnabled() }
+    return { signedIn: this.chatGptSignedIn, enabled: this.options.chatGpt?.isEnabled() === true }
   }
 
   private validateInput(input: VoiceTranscriptionInput): void {
@@ -335,8 +356,8 @@ export class VoiceRuntimeService {
     for (const listener of this.snapshotListeners) listener(snapshot)
   }
 
-  private emitSession(event: VoiceSessionEvent): void {
-    for (const listener of this.sessionListeners) listener(event)
+  private emitSession(event: VoiceSessionEvent, ownerId?: number): void {
+    for (const listener of this.sessionListeners) listener(event, ownerId)
   }
 }
 

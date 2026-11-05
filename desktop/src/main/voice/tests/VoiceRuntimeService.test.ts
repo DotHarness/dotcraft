@@ -127,6 +127,7 @@ describe('VoiceRuntimeService', () => {
     await expect(submission).resolves.toMatchObject({ code: 'model-missing' })
     await repair
     const admitted = await service.submitTranscription(input('after-repair'))
+    await transcriber.started
     expect(transcriber.transcribe).toHaveBeenCalledTimes(1)
     await service.discardSession(admitted.sessionId)
     await service.shutdown()
@@ -294,9 +295,10 @@ describe('VoiceRuntimeService transcription routes', () => {
     const { service, events } = await createRoutedService({ signedIn: true, chatGpt, local })
 
     const { sessionId } = await service.submitTranscription(input('thread-a'))
+    await chatGpt.started
     await service.discardSession(sessionId)
     pending.resolve({ transcript: 'late' })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await pending.promise
 
     expect(chatGpt.cancel).toHaveBeenCalledWith(sessionId)
     expect(local.cancel).not.toHaveBeenCalled()
@@ -467,10 +469,13 @@ function fakeTranscriber(results: Array<Promise<VoiceTranscriptionResult>>): Voi
   transcribe: ReturnType<typeof vi.fn>
   cancel: ReturnType<typeof vi.fn>
   shutdown: ReturnType<typeof vi.fn>
+  started: Promise<void>
 } {
   let index = 0
+  const started = deferred<void>()
   return {
-    transcribe: vi.fn(() => results[index++] ?? Promise.reject(new Error('missing fake result'))),
+    started: started.promise,
+    transcribe: vi.fn(() => { started.resolve(); return results[index++] ?? Promise.reject(new Error('missing fake result')) }),
     cancel: vi.fn(async () => {}),
     shutdown: vi.fn(async () => {})
   }

@@ -2029,6 +2029,7 @@ export const MESSAGES_EN = {
   'error.desc.binary.path': 'Desktop could not find dotcraft on your system PATH. Install it or switch to the bundled binary in Settings.',
   'error.desc.binary.custom': 'Desktop could not find the custom DotCraft binary path you configured. Check the path or switch to another source in Settings.',
   'error.desc.timeout': 'The AppServer did not respond within 10 seconds.',
+  'error.desc.hubStartup': 'The DotCraft background service could not start.',
   'error.desc.unexpected': 'An unexpected error occurred.',
   'error.action.openSettings': 'Open Settings',
   'error.action.restart': 'Restart',

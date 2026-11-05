@@ -6,8 +6,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const DESKTOP_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10);
-const HOST = '127.0.0.1';
 const DEFAULT_COMMAND_TIMEOUT_MS = 30000;
 const MAX_COMMAND_TIMEOUT_MS = 120000;
 const HOST_PROTOCOL_VERSION = 3;
@@ -143,7 +141,7 @@ function cancelExtensionCommand(envelope) {
   return { ok: true, cancelled: Boolean(pending) };
 }
 
-function openDotCraftChromeSettingsViaProtocol() {
+function openDotCraftChromeSettings() {
   const platform = process.platform;
   let command;
   let args;
@@ -159,65 +157,18 @@ function openDotCraftChromeSettingsViaProtocol() {
     args = [DOTCRAFT_CHROME_SETTINGS_URL];
   }
 
-  const child = spawn(command, args, {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true
-  });
-  child.unref();
-}
-
-function requestDesktopChromeSettings() {
-  if (!Number.isFinite(DESKTOP_DEEP_LINK_PORT) || DESKTOP_DEEP_LINK_PORT <= 0) {
-    return Promise.reject(new Error('Invalid DotCraft deep link port.'));
-  }
-
   return new Promise((resolve, reject) => {
-    const socket = net.createConnection({ host: HOST, port: DESKTOP_DEEP_LINK_PORT });
-    let buffer = '';
-    let settled = false;
-    let timer;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      socket.destroy();
-      if (error) reject(error);
-      else resolve();
-    };
-
-    timer = setTimeout(() => {
-      finish(new Error('DotCraft did not respond.'));
-    }, 600);
-
-    socket.setEncoding('utf8');
-    socket.on('connect', () => {
-      socket.write(JSON.stringify({ type: 'openChromeSettings' }) + '\n', 'utf8');
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
     });
-    socket.on('data', (chunk) => {
-      buffer += chunk;
-      const newline = buffer.indexOf('\n');
-      if (newline < 0) return;
-      const line = buffer.slice(0, newline).trim();
-      if (!line) return;
-      try {
-        const response = JSON.parse(line);
-        finish(response?.ok === true ? null : new Error(response?.error || 'DotCraft rejected the request.'));
-      } catch {
-        finish(new Error('DotCraft returned invalid JSON.'));
-      }
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
     });
-    socket.on('error', (error) => finish(error));
-    socket.on('close', () => finish(new Error('DotCraft closed the connection.')));
   });
-}
-
-async function openDotCraftChromeSettings() {
-  try {
-    await requestDesktopChromeSettings();
-  } catch {
-    openDotCraftChromeSettingsViaProtocol();
-  }
 }
 
 function handleExtensionMessage(message) {

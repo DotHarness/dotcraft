@@ -9,7 +9,7 @@ namespace DotCraft.Sdk.Tests;
 public sealed class HubClientTests
 {
     [Fact]
-    public async Task TryGetLiveHubAsync_ReadsLockWhileOwnerHoldsWritableHandle()
+    public async Task HubReadiness_RejectsInvalidStatusUntilWritableLockOwnerIsReady()
     {
         using var temp = new TemporaryDirectory();
         var lockPath = Path.Combine(temp.Path, "hub.lock");
@@ -29,14 +29,13 @@ public sealed class HubClientTests
         await owner.WriteAsync(lockJson);
         await owner.FlushAsync();
 
-        var statusProbed = false;
+        var bodies = new Queue<string>(["not-json", "null", "", """
+            {"hubVersion":"test","pid":1,"startedAt":"2026-05-18T00:00:00Z","statePath":"","apiBaseUrl":"http://127.0.0.1:49122","capabilities":{}}
+            """]);
         var handler = new CaptureHandler(request =>
         {
             Assert.Equal("/v1/status", request.RequestUri?.AbsolutePath);
-            statusProbed = true;
-            return Json(HttpStatusCode.OK, """
-                {"hubVersion":"test","pid":1,"startedAt":"2026-05-18T00:00:00Z","statePath":"","apiBaseUrl":"http://127.0.0.1:49122","capabilities":{}}
-                """);
+            return Json(HttpStatusCode.OK, bodies.Dequeue());
         });
         var hub = new HubClient(new DotCraftHubClientOptions
         {
@@ -45,12 +44,14 @@ public sealed class HubClientTests
             HttpClientFactory = () => new HttpClient(handler)
         });
 
-        var live = await hub.TryGetLiveHubAsync();
+        Assert.Null(await hub.TryGetLiveHubAsync());
+        Assert.Null(await hub.TryGetLiveHubAsync());
+        var live = await hub.EnsureHubAsync();
 
-        Assert.NotNull(live);
         Assert.Equal(pid, live.Pid);
         Assert.Equal("http://127.0.0.1:49122", live.ApiBaseUrl);
-        Assert.True(statusProbed);
+        Assert.Equal("test", live.Version);
+        Assert.Empty(bodies);
     }
 
     [Fact]

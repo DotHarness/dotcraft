@@ -49,8 +49,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             {
                 workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
                 return Task.FromResult<IManagedAppServerProcess>(process);
-            },
-            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+            }
         };
 
         await registry.EnsureAsync(new EnsureAppServerRequest
@@ -190,7 +189,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
-    public async Task Ensure_DisposesStartedProcessWhenStartupProbeFails()
+    public async Task Ensure_DisposesStartedProcessWhenWorkspaceOwnershipWasNotPublished()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
         var workspace = CreateWorkspace("probe-failure-workspace");
@@ -205,8 +204,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             "hub-token",
             registryPath: registryPath)
         {
-            StartAppServerProcessAsync = (_, _, _, _) => Task.FromResult<IManagedAppServerProcess>(process),
-            ManagedWebSocketProbeAsync = (_, _, _) => Task.FromException(new InvalidOperationException("probe failed"))
+            StartAppServerProcessAsync = (_, _, _, _) => Task.FromResult<IManagedAppServerProcess>(process)
         };
 
         var ex = await Assert.ThrowsAsync<HubProtocolException>(() => registry.EnsureAsync(new EnsureAppServerRequest
@@ -215,12 +213,12 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             StartIfMissing = true
         }, CancellationToken.None));
 
-        Assert.Equal("appServerStartFailed", ex.Code);
+        Assert.Equal("appServerUnhealthy", ex.Code);
         Assert.True(process.Disposed);
 
         var inspected = registry.GetByWorkspace(workspace);
         Assert.Equal(HubAppServerStates.Exited, inspected.State);
-        Assert.Equal("probe failed", inspected.LastError);
+        Assert.Equal("Managed AppServer did not publish the expected workspace lock.", inspected.LastError);
         Assert.Equal(12345, inspected.Pid);
         Assert.Equal(42, inspected.ExitCode);
         Assert.Equal("probe stderr", inspected.RecentStderr);
@@ -281,8 +279,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             {
                 workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
                 return Task.FromResult<IManagedAppServerProcess>(process);
-            },
-            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+            }
         };
 
         var response = await registry.EnsureAsync(new EnsureAppServerRequest
@@ -400,8 +397,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             {
                 workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
                 return Task.FromResult<IManagedAppServerProcess>(process);
-            },
-            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+            }
         };
 
         var response = await registry.EnsureAsync(new EnsureAppServerRequest
@@ -442,8 +438,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
                         stopping[index].TrySetResult();
                         await release.Task;
                     }));
-            },
-            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+            }
         };
         try
         {

@@ -4,6 +4,9 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import * as path from 'path'
 import { pathToFileURL } from 'url'
+import {
+  bindWindowFileSession, getWindowFileAccess, requireWindowFileAccess, windowFileAccessForSession
+} from './windowFileAccess'
 
 export const PLUGIN_FILE_SCHEME = 'dotcraft-plugin'
 
@@ -28,6 +31,7 @@ export interface DesktopPluginModuleRoute {
 }
 
 export interface DesktopPluginModuleRouteOptions {
+  ownerId: number
   cached?: boolean
 }
 
@@ -39,6 +43,7 @@ interface DesktopPluginManifest {
 interface ModuleRoute {
   distRoot: string
   snapshotRoot?: string
+  owners: Set<number>
 }
 
 interface TreeEntry {
@@ -48,6 +53,7 @@ interface TreeEntry {
 }
 
 let defaultProtocolHandlerInstalled = false
+const installedSessionProtocols = new WeakSet<object>()
 const moduleRoutes = new Map<string, ModuleRoute>()
 
 export function registerPluginFileScheme(): void {
@@ -69,13 +75,22 @@ export function registerPluginFileScheme(): void {
 export function installPluginFileProtocolHandler(): void {
   if (defaultProtocolHandlerInstalled) return
   defaultProtocolHandlerInstalled = true
-  protocol.handle(PLUGIN_FILE_SCHEME, handlePluginFileRequest)
+  protocol.handle(PLUGIN_FILE_SCHEME, () => new Response(null, { status: 403 }))
+}
+
+export function installPluginFileProtocolHandlerForSession(targetSession: Electron.Session, ownerId: number): void {
+  bindWindowFileSession(targetSession, ownerId)
+  if (installedSessionProtocols.has(targetSession.protocol)) return
+  installedSessionProtocols.add(targetSession.protocol)
+  targetSession.protocol.handle(PLUGIN_FILE_SCHEME, request =>
+    handlePluginFileRequest(request, windowFileAccessForSession(targetSession)?.ownerId))
 }
 
 export async function registerDesktopPluginModuleRoute(
   request: DesktopPluginModuleRequest,
-  options: DesktopPluginModuleRouteOptions = {}
+  options: DesktopPluginModuleRouteOptions
 ): Promise<DesktopPluginModuleRoute> {
+  const context = requireWindowFileAccess(options.ownerId)
   const pluginId = normalizePluginId(request.pluginId)
   if (!pluginId) throw new Error('Desktop extension id is invalid.')
   if (!request.version) throw new Error('Desktop extension version is required.')
@@ -94,13 +109,21 @@ export async function registerDesktopPluginModuleRoute(
     const snapshotRoot = options.cached === true
       ? undefined
       : await materializeDesktopSnapshot(bundle.distRoot, bundle.desktop, request.revision)
-    const route = snapshotRoot
-      ? { distRoot: snapshotRoot, snapshotRoot }
-      : { distRoot: bundle.distRoot }
+    const route: ModuleRoute = {
+      distRoot: snapshotRoot ?? bundle.distRoot,
+      ...(snapshotRoot ? { snapshotRoot } : {}),
+      owners: new Set()
+    }
+    if (getWindowFileAccess(options.ownerId) !== context) {
+      disposeModuleRoute(route)
+      throw new Error('Desktop extension window closed.')
+    }
     const existing = moduleRoutes.get(key)
     if (existing) disposeModuleRoute(route)
     else moduleRoutes.set(key, route)
   }
+  if (getWindowFileAccess(options.ownerId) !== context) throw new Error('Desktop extension window closed.')
+  moduleRoutes.get(key)!.owners.add(options.ownerId)
   return {
     entryUrl: buildPluginFileUrl(pluginId, request.revision, distRelativePath(bundle.desktop.entry), request.sourceKey),
     styleUrls: bundle.desktop.styles.map((style) =>
@@ -108,17 +131,22 @@ export async function registerDesktopPluginModuleRoute(
   }
 }
 
-export function removeDesktopPluginModuleRoute(pluginId: string, revision: string, sourceKey?: string): void {
+export function removeDesktopPluginModuleRoute(
+  pluginId: string, revision: string, sourceKey: string | undefined, ownerId: number
+): void {
   const key = routeKey(normalizePluginId(pluginId), revision, sourceKey)
   const route = moduleRoutes.get(key)
-  if (!route) return
+  if (!route || !route.owners.delete(ownerId) || route.owners.size > 0) return
   moduleRoutes.delete(key)
   disposeModuleRoute(route)
 }
 
-export function clearDesktopPluginModuleRoutes(): void {
-  for (const route of moduleRoutes.values()) disposeModuleRoute(route)
-  moduleRoutes.clear()
+export function clearDesktopPluginModuleRoutes(ownerId: number): void {
+  for (const [key, route] of moduleRoutes) {
+    if (!route.owners.delete(ownerId) || route.owners.size > 0) continue
+    moduleRoutes.delete(key)
+    disposeModuleRoute(route)
+  }
 }
 
 export function buildPluginFileUrl(pluginId: string, revision: string, relativePath: string, sourceKey?: string): string {
@@ -131,18 +159,21 @@ export function buildPluginFileUrl(pluginId: string, revision: string, relativeP
   return `${PLUGIN_FILE_SCHEME}://${encodeURIComponent(id)}/${sourceKey ? `source/${sourceKey}/` : ''}${revision}/${encodedPath}`
 }
 
-export async function handlePluginFileRequest(request: Request): Promise<Response> {
+export async function handlePluginFileRequest(request: Request, ownerId?: number): Promise<Response> {
   try {
+    const context = getWindowFileAccess(ownerId)
+    if (!context) return new Response(null, { status: 403 })
     const corsOrigin = resolveCorsOrigin(request)
     if (!corsOrigin) return new Response(null, { status: 403 })
 
     const target = pluginUrlToRoute(request.url)
     const route = moduleRoutes.get(routeKey(target.pluginId, target.revision, target.sourceKey))
-    if (!route) return new Response(null, { status: 403 })
+    if (!route?.owners.has(context.ownerId)) return new Response(null, { status: 403 })
 
     const resolvedPath = await fs.realpath(path.join(route.distRoot, ...target.relativePath.split('/')))
     if (!isPathWithin(resolvedPath, route.distRoot)) return new Response(null, { status: 403 })
-    if (!(await fs.stat(resolvedPath)).isFile()) return new Response(null, { status: 403 })
+    if (!(await fs.stat(resolvedPath)).isFile() || getWindowFileAccess(context.ownerId) !== context
+      || !route.owners.has(context.ownerId)) return new Response(null, { status: 403 })
 
     const response = await net.fetch(pathToFileURL(resolvedPath).toString())
     const headers = new Headers(response.headers)

@@ -2,7 +2,6 @@ import { Notification, type BrowserWindow } from 'electron'
 import { DEFAULT_LOCALE, normalizeLocale, translate } from '../shared/locales'
 import type { WorkspaceProjectKind } from '../shared/workspaceProjects'
 import type { AppSettings } from './settings'
-import { isTrayRunning } from './trayLock'
 
 export const NEW_TASK_OFFER_ATTENTION = 'desktop/newTaskOffer'
 
@@ -53,7 +52,7 @@ function chatName(threads: unknown[], threadId: string): string {
 }
 
 export function createWindowAttentionNotifier(
-  trayRunning: () => Promise<boolean> = () => isTrayRunning()
+  trayRunning: () => Promise<boolean>
 ): WindowAttentionNotifier {
   const seen = new Set<string>()
   return async (method, params, context) => {

@@ -27,7 +27,8 @@ internal sealed class HubMobileListener : IAsyncDisposable
         int port,
         X509Certificate2 certificate,
         MobileGateway gateway,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken = default)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -50,7 +51,7 @@ internal sealed class HubMobileListener : IAsyncDisposable
 
         try
         {
-            await app.StartAsync();
+            await app.StartAsync(cancellationToken);
         }
         catch (Exception ex)
         {

@@ -85,14 +85,14 @@ internal sealed class MobileGateway : IAsyncDisposable
                 : null);
     }
 
-    public async Task StartIfEnabledAsync()
+    public async Task StartIfEnabledAsync(CancellationToken cancellationToken = default)
     {
         if (!_registry.Enabled)
             return;
-        await _stateGate.WaitAsync().ConfigureAwait(false);
+        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await StartListenerAsync().ConfigureAwait(false);
+            await StartListenerAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (HubProtocolException ex)
         {
@@ -323,7 +323,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         }
     }
 
-    private async Task StartListenerAsync()
+    private async Task StartListenerAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -337,7 +337,8 @@ internal sealed class MobileGateway : IAsyncDisposable
                 _config.MobilePort,
                 _certificate,
                 this,
-                _loggerFactory).ConfigureAwait(false);
+                _loggerFactory,
+                cancellationToken).ConfigureAwait(false);
             SetStatus(GatewayStatus.On);
             StartRelay();
         }

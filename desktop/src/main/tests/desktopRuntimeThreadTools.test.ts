@@ -6,7 +6,6 @@ import {
   buildDesktopThreadDynamicTools,
   handleDesktopRuntimeThreadToolCall,
   hasDesktopThreadTools,
-  resetDesktopThreadToolBindings,
   sendDesktopAppServerRequest,
   type AppServerRequestClient
 } from '../desktopRuntimeThreadTools'
@@ -22,7 +21,6 @@ function createClient(handler: RequestHandler): AppServerRequestClient {
 
 describe('desktop runtime thread tools', () => {
   beforeEach(() => {
-    resetDesktopThreadToolBindings()
     vi.clearAllMocks()
   })
 
@@ -83,10 +81,10 @@ describe('desktop runtime thread tools', () => {
     expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toMatchObject({
       dynamicTools: [expect.objectContaining({ name: 'desktop' })]
     })
-    expect(hasDesktopThreadTools('thread-started', {})).toBe(true)
-    expect(hasDesktopThreadTools('thread-worktree', {})).toBe(true)
-    expect(hasDesktopThreadTools('thread-other', {})).toBe(false)
-    expect(hasDesktopThreadTools('thread-other', { supportsDynamicToolRebind: true })).toBe(true)
+    expect(hasDesktopThreadTools(client, 'thread-started', {})).toBe(true)
+    expect(hasDesktopThreadTools(client, 'thread-worktree', {})).toBe(true)
+    expect(hasDesktopThreadTools(client, 'thread-other', {})).toBe(false)
+    expect(hasDesktopThreadTools(client, 'thread-other', { supportsDynamicToolRebind: true })).toBe(true)
   })
 
   it('keeps Desktop thread tools off ephemeral helper threads, including their turns', async () => {

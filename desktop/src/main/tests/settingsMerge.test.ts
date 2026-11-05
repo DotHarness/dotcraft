@@ -4,6 +4,13 @@ import type { AppSettings } from '../settings'
 import { rememberOpenTarget } from '../../shared/openTargets'
 
 describe('mergeUpdatedSettings', () => {
+  it('merges draft updates from separate windows without dropping other drafts', () => {
+    const current: AppSettings = { composerTextDrafts: { a: 'First', b: 'Second' } }
+    const first = mergeUpdatedSettings(current, { composerTextDrafts: { a: 'Changed', c: 'Third' } })
+    const next = mergeUpdatedSettings({ ...current, ...first }, { composerTextDrafts: { b: '' } })
+    expect(next.composerTextDrafts).toEqual({ a: 'Changed', c: 'Third' })
+  })
+
   it('merges other nested transport settings without dropping unspecified fields', () => {
     const current: AppSettings = {
       webSocket: {

@@ -19,6 +19,9 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<ManagedLocalServiceRegistry> _logger;
     private bool _disposed;
+    private readonly CancellationTokenSource _stopping = new();
+
+    public void BeginShutdown() => _stopping.Cancel();
 
     internal Func<ManagedServiceLaunch, CancellationToken, Task<IManagedLocalServiceProcess>> StartProcessAsync { get; set; } =
         StartProcessCoreAsync;
@@ -44,6 +47,9 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        using var start = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
+        cancellationToken = start.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         var definition = ResolveDefinition(request.ServiceId);
         var entry = _entries.GetOrAdd(definition.ServiceId, _ => new Entry(definition.ServiceId));
 
@@ -116,6 +122,9 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        using var start = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
+        cancellationToken = start.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         var definition = ResolveDefinition(request.ServiceId);
         var executable = ResolveExecutable(request.Executable);
         var entry = _entries.GetOrAdd(definition.ServiceId, _ => new Entry(definition.ServiceId));
@@ -191,6 +200,8 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
             entry.Process = null;
             entry.Pid = null;
             entry.AccessToken = null;
+            if (ex is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                throw;
             throw new HubProtocolException(
                 "managedServiceStartFailed",
                 "Managed local service failed to start.",
@@ -306,7 +317,9 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
         if (_disposed)
             return;
         _disposed = true;
+        BeginShutdown();
         await Task.WhenAll(_entries.Values.Select(StopEntryForDisposeAsync));
+        _stopping.Dispose();
     }
 
     private static async Task StopEntryForDisposeAsync(Entry entry)

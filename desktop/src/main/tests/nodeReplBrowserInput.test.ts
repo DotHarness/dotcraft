@@ -63,7 +63,7 @@ describe('Node REPL browser client input', () => {
     const manager = new NodeReplManager(browserManager as never, workerFixture.fork)
     managers.push(manager)
     browserManagers.push(browserManager)
-    const result = await manager.evaluate({} as Electron.BrowserWindow, { threadId: `input-${runCount += 1}`, code: `${prelude}
+    const result = await manager.evaluate({ isDestroyed: () => false, webContents: { id: 1 } } as Electron.BrowserWindow, { threadId: `input-${runCount += 1}`, code: `${prelude}
 ${body}` })
     expect(result.error).toBeUndefined()
     return result.resultText ? JSON.parse(result.resultText) : undefined

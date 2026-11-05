@@ -26,6 +26,7 @@ export class DesktopPluginModules {
   private connectionIdentity: object | null = null
 
   constructor(private readonly options: {
+    ownerId: number
     connection(): DesktopPluginConnection
     cache: DesktopPluginArtifactCache
     grants(): readonly string[]
@@ -95,10 +96,10 @@ export class DesktopPluginModules {
       }
       if (!current()) throw new Error('Desktop extension source changed.')
       const route: DesktopPluginModuleRoute = await registerDesktopPluginModuleRoute({ ...request, rootPath }, {
-        cached: connection.remote
+        cached: connection.remote, ownerId: this.options.ownerId
       })
       if (!current()) {
-        removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey)
+        removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey, this.options.ownerId)
         throw new Error('Desktop extension source changed.')
       }
       this.active.set(routeKey(request), request)
@@ -110,7 +111,7 @@ export class DesktopPluginModules {
   }
 
   async remove(request: Pick<DesktopPluginModuleRequest, 'pluginId' | 'revision' | 'sourceKey'>): Promise<void> {
-    removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey)
+    removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey, this.options.ownerId)
     this.active.delete(routeKey(request))
     await this.prune()
   }
@@ -122,7 +123,7 @@ export class DesktopPluginModules {
   }
 
   private clearRoutes(): void {
-    for (const request of this.active.values()) removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey)
+    for (const request of this.active.values()) removeDesktopPluginModuleRoute(request.pluginId, request.revision, request.sourceKey, this.options.ownerId)
     this.active.clear()
   }
 

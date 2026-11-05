@@ -112,8 +112,9 @@ The Hub Bootstrap profile is required for local-workspace SDK clients:
 - Resolve `~/.craft/hub/hub.lock`.
 - Parse Hub lock metadata.
 - Reject stale process ids and non-loopback Hub URLs.
-- Probe `GET /v1/status`.
-- Start `dotcraft hub` when configured.
+- Probe `GET /v1/status`; readiness requires a successful response with a parsed status body, not just a live process or HTTP 200.
+- Coalesce concurrent bootstrap for the same runtime selection and propagate cancellation through discovery and the spawn boundary.
+- Start `dotcraft hub` when configured, observing early process exit separately from readiness timeout and retaining bounded, redacted startup diagnostics.
 - Call the Hub operations for live discovery, workspace lookup, AppServer ensure, restart, stop, list, status, event streaming, and shutdown.
 - Require `endpoints.appServerWebSocket` for local AppServer connections.
 - Preserve every runtime tool field returned by Hub.

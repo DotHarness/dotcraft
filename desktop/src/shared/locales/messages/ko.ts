@@ -3238,6 +3238,7 @@ export const MESSAGES_KO = {
   'error.desc.binary.path': '데스크탑이 시스템 PATH에서 dotcraft를 찾을 수 없습니다. 이를 설치하거나 설정에서 번들 바이너리로 전환하세요.',
   'error.desc.binary.custom': '데스크톱에서 구성한 사용자 정의 DotCraft 바이너리 경로를 찾을 수 없습니다. 경로를 확인하거나 설정에서 다른 소스로 전환하세요.',
   'error.desc.timeout': 'AppServer가 10초 이내에 응답하지 않았습니다.',
+  'error.desc.hubStartup': 'DotCraft 백그라운드 서비스를 시작하지 못했습니다.',
   'error.desc.unexpected': '예상치 못한 오류가 발생했습니다.',
   'sidebar.dashboard': '대시보드',
   'sidebar.dashboardDisabledConnect': '대시보드를 열려면 AppServer에 연결하세요.',

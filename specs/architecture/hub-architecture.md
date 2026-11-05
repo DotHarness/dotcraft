@@ -63,6 +63,10 @@ The default Chat workspace `~/.craft/workspaces/chats` is an ordinary workspace 
 
 `dotcraft hub` runs as a global, per-user background process. It is workspace-independent, uses a single-instance `hub.lock` discovery file, exposes a loopback HTTP JSON API, publishes a random bearer token in `hub.lock`, stores best-effort registry metadata in `~/.craft/hub/appservers.json`, and reports `tray=false`. Hub may be started by the user or automatically by a client or the tray.
 
+`dotcraft hub stop --expected-pid <pid> --expected-started-at <ISO-8601> --expected-executable <absolute-path> [--grace-ms <milliseconds>]` stops a captured local Hub identity. The discovery record must match all three expected fields, and OS process creation time and executable identity must agree before shutdown is authorized. The command retains the confirmed process handle, requests authenticated shutdown with the expected PID, waits for the grace period (10 seconds by default), and then may terminate only that process, with another bounded exit confirmation. An already exited target succeeds; an identity mismatch or an unexited target fails. It never rediscovers and stops a replacement owner. `startedAt` identifies the OS process creation time in UTC, not the completion of Hub initialization.
+
+The official .NET launcher may pass an internal `--stderr-log <path>` option through detach so the Hub command writes startup stderr to an append-only diagnostic log without depending on a parent-owned pipe. The .NET runtime's own failures before command entry may have no captured stderr; process exit must still be distinguished from a readiness timeout. This option carries diagnostics, not discovery or ownership.
+
 ## 5. Managed AppServer
 
 A Hub-managed AppServer is a normal `dotcraft app-server` process launched with:
@@ -73,7 +77,7 @@ A Hub-managed AppServer is a normal `dotcraft app-server` process launched with:
 - runtime overrides injected ephemerally, never rewriting `.craft/config.json`;
 - the stdio supervisor connection kept open for readiness and graceful shutdown.
 
-Readiness requires a live process, a successful stdio `initialize`, a WebSocket endpoint that accepts an `initialize` probe, and workspace `appserver.lock` owned by the expected process.
+Managed readiness requires a live process, a successful supervisor stdio `initialize` after its WebSocket listener has started, and workspace `appserver.lock` owned by the expected process. Hub does not open a second WebSocket session to repeat managed startup initialization; the real client performs its own connection-specific handshake. Discovering an external, unsupervised AppServer still requires an endpoint probe.
 
 ## 6. Hub Local API
 
@@ -173,7 +177,7 @@ Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCance
 
 Hub keeps `hub.lock` open for its lifetime; the file is both the cross-process mutex and the discovery metadata. Other processes may read it but cannot acquire or replace it while the handle is held. A leftover file with no live handle is stale and may be recovered.
 
-Hub writes the metadata only once it serves HTTP and releases the handle only after shutdown finishes, so a live owner whose published `/v1/status` does not answer is shutting down or stalled. A starting Hub that finds the lock held probes the owner: when it answers, the new process exits without effect; otherwise it retries the lock for up to 30 seconds and takes over once the owner releases it, exiting instead if another starting Hub acquired it first.
+Hub publishes process identity and its selected endpoint promptly after taking ownership, before readiness-dependent initialization. Process existence and protocol readiness are separate facts; an unanswered endpoint can mean startup, shutdown or failure. The core local API becomes discoverable without awaiting optional Satellite and Mobile listeners, whose failures remain feature-local. A starting Hub that finds the lock held probes the owner: when it answers, the new process exits without effect; otherwise it waits for ownership release within the handoff budget. Incomplete metadata is not evidence that no owner exists. The lifetime ownership handle is released only after shutdown cleanup.
 
 Clients verify both process liveness and `/v1/status` before trusting the metadata. Development clients may compare the binary path against their expected build and restart Hub when it differs.
 
@@ -221,9 +225,9 @@ When Hub finds a live lock owned by a process it does not supervise, it probes t
 Managed AppServer states:
 
 ```text
-stopped -> starting -> running -> unhealthy/exited
+stopped -> starting -> running -> exited
 running -> stopping -> stopped
-unhealthy/exited -> starting, when ensure or restart is requested
+exited -> starting, when ensure or restart is requested
 ```
 
 Ensure flow:
@@ -233,21 +237,21 @@ Ensure flow:
 3. Recover confirmed stale workspace locks, reuse a healthy external AppServer published by a live lock, or refuse when a live lock cannot be safely reused.
 4. Allocate local endpoints.
 5. Start `dotcraft app-server`.
-6. Complete stdio and WebSocket readiness checks.
+6. Complete the supervisor stdio readiness handshake and verify workspace ownership.
 7. Persist registry metadata.
 8. Return the AppServer WebSocket endpoint.
 
 The stdio `initialize` in step 6 has no deadline, because it covers the AppServer's whole cold start. Hub keeps waiting while the process runs, logs a warning once startup passes 30 seconds, and fails the start only when the process exits, closes stdio, answers with an error, or the ensure is cancelled.
 
-Health checks apply only to processes supervised by the current Hub: process liveness, workspace lock ownership, and a short WebSocket `initialize` probe. On failure Hub marks the entry `unhealthy`, records diagnostics, and emits `appserver.unhealthy`. Hub never restarts automatically; restart is explicit or triggered by a later `ensure`.
+For processes it supervises, Hub observes process exit and supervisor-connection failure rather than periodically opening full WebSocket protocol sessions or revalidating lifetime ownership. A transient client probe failure is not authority to terminate a live managed runtime. Explicit stop/restart remains available for a live but unresponsive process; external discovery retains its one-time endpoint validation.
 
 Closing a local client does not stop a healthy managed AppServer or cancel started turns. Client connections and subscriptions are connection-scoped; turn execution is AppServer-scoped and continues until completion, failure, cancellation, Hub shutdown, or explicit stop/restart.
 
-`POST /v1/appservers/ensure` is non-destructive for a healthy running AppServer. If a client reconnects with sidecar settings that differ from the running process, Hub returns the existing endpoint and reports services needing recreation as `serviceStatus.<service>.state = "restartRequired"` with a reason. Only explicit restart, stop, Hub shutdown, or ensure of an unhealthy/exited entry may stop a managed AppServer.
+`POST /v1/appservers/ensure` is non-destructive for a healthy running AppServer. If a client reconnects with sidecar settings that differ from the running process, Hub returns the existing endpoint and reports services needing recreation as `serviceStatus.<service>.state = "restartRequired"` with a reason. Only explicit restart, stop, or Hub shutdown may terminate a live managed AppServer. A later ensure may replace a process confirmed to have exited.
 
 Hub shutdown emits `hub.stopping`, ends SSE streams, and closes satellite control and data connections and their listener before waiting for the HTTP API to stop. It then stops the AppServers and services it manages concurrently, releases local state, and removes `hub.lock` last, so a replacement Hub never manages processes the previous one still owns.
 
-Desktop update preparation closes all owned Hub event streams, including process-wide bridges, before waiting for the local runtime to become idle. It then requests normal shutdown of registered Desktop windows and tray belonging to the installation being replaced, using each captured, identity-verified endpoint for shutdown, and waits for their recorded PIDs to exit before stopping its bundled Hub. The Hub lock's executable identity selects the installation; when status answers, its PID and binary path must agree before the authenticated shutdown request. A shutdown acknowledgement or failed HTTP probe does not mean cleanup has finished. Other runtimes are not stopped merely because they own the user-scoped Hub lock. The shared 30-second preparation budget ends in a retryable failure if an owner remains alive; Desktop neither force-terminates it nor releases its lock. Hub remains responsible for cleaning up its managed process trees, and the installer retains the final file-use check.
+Desktop has one application update coordinator. It stops new starts and retries and cancels its local work without treating SSE lifetimes as an idle barrier before Hub shutdown. Once stopping begins, Hub rejects new ensure/restart/service-start admission and cancels incomplete starts before disposing registries. Hub owns shutdown of its managed processes and streams. The Hub lock's executable identity selects the installation; shutdown and any bounded force fallback target the captured process identity, not whichever process later owns discovery. Process identity must include a defense against PID reuse. Other runtimes are not stopped merely because they own the user-scoped Hub lock. The installer retains its final file-use check.
 
 ### Product-owned local services
 
@@ -274,7 +278,7 @@ Local clients default to Hub-managed local mode:
 
 Waiting for a previous owner and waiting for a new Hub have separate budgets: 30 seconds for the owner to exit, then 15 seconds for the new Hub to answer, measured from when the owner is gone. Each status probe is bounded to 2 seconds. A client that restarts Hub because of a binary mismatch treats the Hub it asked to stop as such an owner and never reuses it.
 
-Hub bootstrap failures retain structured stage and timing diagnostics for owner wait, mismatched-owner shutdown, spawning, and readiness, including available owner identity and the last failed status probe. Mismatched-owner shutdown requests share the bounded shutdown budget. Diagnostics must not include discovery bearer tokens or authenticated URLs. Desktop records the actual running Hub version and PID, not the version of an executable currently on disk.
+Local bootstrap coalesces concurrent callers for the same runtime selection. Caller cancellation reaches polling, probes and the spawn boundary; cancelled work cannot start a replacement after application shutdown begins. Startup readiness races actual process exit, reporting early exit separately from timeout and retaining a bounded stderr tail. Bootstrap failures retain structured stage, timing, owner and probe diagnostics without bearer tokens or authenticated URLs. Desktop renders a short user-facing summary separately from multiline technical details, and records the actual running Hub version and PID rather than the executable currently on disk. C# host and SDK consumers share one bootstrap implementation; transport adapters do not independently recreate lifecycle rules.
 
 Desktop project snapshot recovery is independent of SSE liveness. Cold-start fetch failures retry even if the event subscription succeeds; subsequent local foreground readiness explicitly re-reads the snapshot before secondary recovery. Failed reads preserve cached projects; successful empty reads replace them.
 
@@ -300,7 +304,7 @@ Local mode does not require users to configure AppServer or Dashboard ports.
 
 When a client window closes during a running turn, notification delivery to it may stop immediately. Reopening the workspace reuses the same managed AppServer and recovers thread state through normal AppServer Protocol reads or subscriptions.
 
-Clients present failures as local runtime availability problems: Hub could not start, the workspace is locked by another live process, the AppServer failed during startup or did not become ready, or it became unhealthy or exited.
+Clients present failures as local runtime availability problems: Hub could not start, the workspace is locked by another live process, the AppServer failed during startup or did not become ready, or its process exited or connection failed.
 
 ## 10. Tray and Notifications
 

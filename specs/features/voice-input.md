@@ -130,7 +130,7 @@ Response handling:
 
 ## 7. Desktop voice boundary
 
-The Desktop voice boundary exposes microphone permission and recovery, model install/cancel/remove/repair, runtime snapshots, transcription submit/retry/discard, and session events. Main owns ids, queue admission, and lifecycle; the renderer cannot supply filesystem paths. Subscriptions are scoped to their owning window, and Main accepts audio-only media requests only from DotCraft windows.
+The Desktop voice boundary exposes microphone permission and recovery, model install/cancel/remove/repair, runtime snapshots, transcription submit/retry/discard, and session events. One application-level Main service owns ids, queue admission, the model and worker lifecycle; the renderer cannot supply filesystem paths. Each session retains its originating window and authentication-reader identity, while route selection and token lookup occur when transcription or retry actually starts. Snapshots and session actions are window-scoped; closing a window cancels only its sessions, and Main accepts audio-only media requests only from DotCraft windows.
 
 - Model phases: `missing`, `downloading`, `installed`, `damaged`, `failed`.
 - Unresolved session phases: `recording`, `queued`, `transcribing`, `retryable`. A session retains its origin, `insert` or `send` intent, and measured duration.

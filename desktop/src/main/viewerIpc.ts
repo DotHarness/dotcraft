@@ -288,11 +288,12 @@ export async function listDirectory(
 export async function listViewerFiles(
   workspaceRoot: string,
   query: string,
-  limit: number
+  limit: number,
+  ownerId: number
 ): Promise<FileListResultWire> {
   if (!workspaceRoot) {
     return { files: [], indexStatus: 'empty', indexedCount: 0, stale: false }
   }
 
-  return listWorkspaceFiles(workspaceRoot, query, limit)
+  return listWorkspaceFiles(workspaceRoot, query, limit, ownerId)
 }

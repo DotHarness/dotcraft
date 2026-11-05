@@ -31,7 +31,7 @@ const electronMock = vi.hoisted(() => {
     on: vi.fn(),
     getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36'),
     setUserAgent: vi.fn(),
-    webRequest: { onBeforeSendHeaders: vi.fn() },
+    webRequest: { onBeforeSendHeaders: vi.fn(), onBeforeRequest: vi.fn() },
     setPermissionCheckHandler: vi.fn(),
     setPermissionRequestHandler: vi.fn()
   }
@@ -62,6 +62,7 @@ const electronMock = vi.hoisted(() => {
       partitionSession.getUserAgent.mockClear()
       partitionSession.setUserAgent.mockClear()
       partitionSession.webRequest.onBeforeSendHeaders.mockClear()
+      partitionSession.webRequest.onBeforeRequest.mockClear()
       partitionSession.setPermissionCheckHandler.mockClear()
       partitionSession.setPermissionRequestHandler.mockClear()
     }
@@ -81,6 +82,7 @@ vi.mock('electron', () => ({
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
+import { BrowserSessionPolicy } from '../browserSessionPolicy'
 import {
   classifyBrowserUrl,
   loadOrReport,
@@ -120,24 +122,23 @@ describe('browser URL policy', () => {
 })
 
 describe('ViewerBrowserManager partition configuration', () => {
-  it('installs the viewer protocol handler on browser partition sessions once', () => {
+  it('configures a shared website profile once without local file handlers', () => {
     const handle = vi.fn()
     const fakeSession = {
       protocol: { handle },
       on: vi.fn(),
       getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36'),
       setUserAgent: vi.fn(),
-      webRequest: { onBeforeSendHeaders: vi.fn() },
+      webRequest: { onBeforeSendHeaders: vi.fn(), onBeforeRequest: vi.fn() },
       setPermissionCheckHandler: vi.fn(),
       setPermissionRequestHandler: vi.fn()
     } as unknown as Electron.Session
-    const manager = new ViewerBrowserManager()
+    const policy = new BrowserSessionPolicy(() => {})
 
-    manager.configurePartitionSession('persist:dotcraft-viewer:test', fakeSession)
-    manager.configurePartitionSession('persist:dotcraft-viewer:test', fakeSession)
+    policy.configure(fakeSession)
+    policy.configure(fakeSession)
 
-    expect(handle).toHaveBeenCalledTimes(1)
-    expect(handle).toHaveBeenCalledWith('dotcraft-viewer', expect.any(Function))
+    expect(handle).not.toHaveBeenCalled()
     expect(fakeSession.setUserAgent).toHaveBeenCalledTimes(1)
     expect(fakeSession.setUserAgent).toHaveBeenCalledWith(
       'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36',

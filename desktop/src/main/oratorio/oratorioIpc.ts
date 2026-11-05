@@ -1,12 +1,11 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import type { WebContents } from 'electron'
+import type { WindowIpcMain } from '../windowIpc'
 
-import type { OratorioHandoffRequest, OratorioRequest, OratorioServiceEvent } from '../../shared/oratorio'
+import type { OratorioRequest, OratorioServiceEvent } from '../../shared/oratorio'
 import type { DesktopHubClient } from '../desktopHub'
 import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { OratorioProvider, type RemoteOratorioService } from './OratorioProvider'
 
-const HANDLERS = ['oratorio:get-context', 'oratorio:request', 'oratorio:retry', 'oratorio:get-pending-handoff', 'oratorio:resolve-handoff', 'oratorio:focus-run'] as const
-const SUBSCRIPTION_CHANNELS = ['oratorio:subscribe', 'oratorio:unsubscribe'] as const
 const GET_PATHS = [
   /^\/api\/v1\/tasks(?:\?.*)?$/,
   /^\/api\/v1\/tasks\/[^/?]+$/,
@@ -35,62 +34,76 @@ const PATCH_PATHS = [
   /^\/api\/v1\/follow-up-drafts\/[^/?]+$/
 ]
 
-let provider: OratorioProvider | null = null
-let revision = 1
-const subscribedSenders = new Set<number>()
+export interface OratorioWindowHandle {
+  contextChanged(): void
+  dispose(): void
+}
 
 export function registerOratorioIpc(
   getWorkspacePath: () => string | null,
-  getHubClient?: () => DesktopHubClient,
-  resolveRemoteService?: () => Promise<RemoteOratorioService | null>
-): void {
-  for (const channel of HANDLERS) ipcMain.removeHandler(channel)
-  for (const channel of SUBSCRIPTION_CHANNELS) ipcMain.removeAllListeners(channel)
-  subscribedSenders.clear()
-  provider?.disconnect()
-  provider = getHubClient
-    ? new OratorioProvider(getHubClient, getWorkspacePath, (nextRevision, event) => {
-        revision = nextRevision
-        broadcast(event ? { type: 'board-event', revision, event } : { type: 'data-changed', revision })
-      }, resolveRemoteService)
-    : null
-  setDesktopServiceHandoffHandler(provider ? async (url) => {
-    const handoff = await requireProvider().handleDesktopServiceHandoff(url)
-    if (handoff) broadcastHandoff(handoff)
-  } : null)
+  getHubClient: () => DesktopHubClient,
+  resolveRemoteService: (() => Promise<RemoteOratorioService | null>) | undefined,
+  ipc: WindowIpcMain,
+  sender: WebContents
+): OratorioWindowHandle {
+  let revision = 1
+  let subscribed = false
+  let disposed = false
+  const send = (event: OratorioServiceEvent): void => {
+    if (!disposed && !sender.isDestroyed()) sender.send('oratorio:event', event)
+  }
+  const provider = new OratorioProvider(getHubClient, getWorkspacePath, (nextRevision, event) => {
+    revision = nextRevision
+    send(event ? { type: 'board-event', revision, event } : { type: 'data-changed', revision })
+  }, resolveRemoteService)
+  setDesktopServiceHandoffHandler(sender.id, async (url) => {
+    const handoff = await provider.handleDesktopServiceHandoff(url)
+    if (handoff) send({ type: 'handoff-requested', revision, handoff })
+  })
 
-  ipcMain.handle('oratorio:get-context', () => requireProvider().getContext())
-  ipcMain.handle('oratorio:request', (_event, value: unknown) => requireProvider().request(validateRequest(value)))
-  ipcMain.handle('oratorio:retry', async () => {
-    const context = await requireProvider().retry()
+  ipc.handle('oratorio:get-context', () => provider.getContext())
+  ipc.handle('oratorio:request', (_event, value: unknown) => provider.request(validateRequest(value)))
+  ipc.handle('oratorio:retry', async () => {
+    const context = await provider.retry()
     revision = context.revision
-    broadcast({ type: 'context-changed', revision })
+    send({ type: 'context-changed', revision })
     return { ...context, revision }
   })
-  ipcMain.handle('oratorio:get-pending-handoff', () => requireProvider().getPendingHandoff())
-  ipcMain.handle('oratorio:resolve-handoff', (_event, value: unknown) => {
+  ipc.handle('oratorio:get-pending-handoff', () => provider.getPendingHandoff())
+  ipc.handle('oratorio:resolve-handoff', (_event, value: unknown) => {
     if (!value || typeof value !== 'object') throw new Error('oratorio.invalid_handoff_resolution')
     const resolution = value as { requestId?: unknown; approved?: unknown }
     if (typeof resolution.requestId !== 'string' || typeof resolution.approved !== 'boolean') throw new Error('oratorio.invalid_handoff_resolution')
-    return requireProvider().resolveHandoff(resolution.requestId, resolution.approved)
+    return provider.resolveHandoff(resolution.requestId, resolution.approved)
   })
-  ipcMain.handle('oratorio:focus-run', (_event, runId: unknown) => {
+  ipc.handle('oratorio:focus-run', (_event, runId: unknown) => {
     if (runId !== null && typeof runId !== 'string') throw new Error('oratorio.invalid_run_focus')
-    requireProvider().focusRun(runId as string | null)
+    provider.focusRun(runId as string | null)
   })
-  ipcMain.on('oratorio:subscribe', (event) => {
-    const id = event.sender.id
-    if (subscribedSenders.has(id)) return
-    subscribedSenders.add(id)
-    requireProvider().subscribe()
-    event.sender.once('destroyed', () => removeSubscriber(id))
+  ipc.on('oratorio:subscribe', () => {
+    if (subscribed) return
+    subscribed = true
+    provider.subscribe()
   })
-  ipcMain.on('oratorio:unsubscribe', (event) => removeSubscriber(event.sender.id))
-}
-
-export function notifyOratorioContextChanged(): void {
-  revision = provider?.contextChanged() ?? revision + 1
-  broadcast({ type: 'context-changed', revision })
+  ipc.on('oratorio:unsubscribe', () => {
+    if (!subscribed) return
+    subscribed = false
+    provider.unsubscribe()
+  })
+  const handle: OratorioWindowHandle = {
+    contextChanged: () => {
+      revision = provider.contextChanged()
+      send({ type: 'context-changed', revision })
+    },
+    dispose: () => {
+      if (disposed) return
+      disposed = true
+      setDesktopServiceHandoffHandler(sender.id, null)
+      provider.dispose()
+    }
+  }
+  sender.once('destroyed', handle.dispose)
+  return handle
 }
 
 export function validateRequest(value: unknown): OratorioRequest {
@@ -104,24 +117,4 @@ export function validateRequest(value: unknown): OratorioRequest {
     throw new Error('oratorio.invalid_body')
   }
   return request as unknown as OratorioRequest
-}
-
-function requireProvider(): OratorioProvider {
-  if (!provider) throw new Error('oratorio.provider_not_configured')
-  return provider
-}
-
-function removeSubscriber(id: number): void {
-  if (!subscribedSenders.delete(id)) return
-  provider?.unsubscribe()
-}
-
-function broadcast(event: OratorioServiceEvent): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) window.webContents.send('oratorio:event', event)
-  }
-}
-
-function broadcastHandoff(handoff: OratorioHandoffRequest): void {
-  broadcast({ type: 'handoff-requested', revision, handoff })
 }
