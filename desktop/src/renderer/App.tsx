@@ -122,6 +122,7 @@ import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreRec
 import { readThreadHistoryHead } from './utils/threadHistory'
 import { applyThreadHistoryHead } from './stores/threadHistoryStore'
 import { openThreadState, releaseThreadState } from './stores/threadState'
+import { initPromptSuggestionStore } from './stores/promptSuggestionStore'
 import { createWarmThreads, WARM_THREAD_SWEEP_MS } from './stores/warmThreads'
 import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
@@ -963,6 +964,8 @@ export function App(): JSX.Element {
       void window.api.settings.set({ lastSeenWhatsNewVersion: markSeenVersion })
     }
   }, [whatsNewDialog])
+
+  useEffect(initPromptSuggestionStore, [])
 
   useEffect(() => {
     performance.mark('app:bootstrap-start')
