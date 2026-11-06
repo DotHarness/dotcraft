@@ -1,3 +1,4 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { translate } from '../../shared/locales'
@@ -6,7 +7,6 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
 import type { ConversationItem } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
 import { makeSubAgent, makeSubAgentThread } from './subAgentFixtures'
@@ -41,7 +41,7 @@ beforeEach(() => {
   useSubAgentStore.getState().reset()
   useThreadStore.getState().reset()
   useThreadStore.setState({ activeThreadId: 'parent-B', threadList: [makeSubAgentThread('parent-B')] })
-  useUIStore.setState({ activeDetailTab: { kind: 'launcher' } })
+  setRendererTestState({ activeDetailTab: { kind: 'launcher' } })
 })
 
 describe('agent TaskStop row', () => {
@@ -51,7 +51,7 @@ describe('agent TaskStop row', () => {
 
     fireEvent.click(agentButton('Core B'))
     expect(useSubAgentStore.getState().selectedChildByParent.get('parent-B')).toBe('child-B')
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
   })
 
   it('resolves a running relative target from the containing thread path', () => {
@@ -70,6 +70,6 @@ describe('agent TaskStop row', () => {
     renderStop(stop())
     fireEvent.click(agentButton('Core'))
     expect(useSubAgentStore.getState().selectedChildByParent.has('parent-B')).toBe(false)
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
   })
 })

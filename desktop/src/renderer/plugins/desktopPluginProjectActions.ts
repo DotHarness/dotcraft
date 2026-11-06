@@ -9,8 +9,7 @@ import { requestAddProjectActionDialog } from '../components/projectActions/AddP
 import { openEnvironmentSettings } from '../stores/appNavigationStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { readDesktopPluginEnvironment } from './desktopPluginEnvironment'
 
 function localWorkspace(): string {
@@ -82,14 +81,14 @@ export async function runDesktopPluginProjectAction(request: {
     actionId: request.actionId,
     ...(worktreePath ? { worktreePath } : {})
   })
-  const tabId = useViewerTabStore.getState().runInTerminal({
+  const tabId = useDetailPanelStore.getState().runInTerminal({
     threadId: request.threadId,
     tabId: projectActionTerminalTabId(request.threadId, request.environmentId, request.actionId),
     cwd: run.cwd,
     title: run.title,
     command: run.command
   })
-  useUIStore.getState().setActiveViewerTab(tabId)
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
 }
 
 function threadOf(threadId: string) {
@@ -109,12 +108,12 @@ export async function openDesktopPluginProjectSettings(request: {
 }
 
 export async function openDesktopPluginProjectTerminal(request: { threadId: string }): Promise<void> {
-  const tabId = useViewerTabStore.getState().openTerminal({
+  const tabId = useDetailPanelStore.getState().openTerminal({
     threadId: request.threadId,
     cwd: localWorkspace(),
     initialLabel: translate(readDesktopPluginEnvironment().locale, 'viewer.newTerminalTab')
   })
-  useUIStore.getState().setActiveViewerTab(tabId)
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
 }
 
 export async function promptDesktopPluginProjectAction(

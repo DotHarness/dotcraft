@@ -6,7 +6,7 @@ import { useConversationStore, type PendingApproval } from '../../stores/convers
 import { useThreadStore } from '../../stores/threadStore'
 import { isSideChatRunning, useSideChatStore, type SideChat } from '../../stores/sideChatStore'
 import { addToast } from '../../stores/toastStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { reopenSideChat } from '../../utils/sideChat'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
@@ -23,7 +23,7 @@ import styles from './SideChat.module.css'
 const NO_TURN_COMPLETION = (): null => null
 
 export function SideChatTab({ tabId }: { tabId: string }): JSX.Element | null {
-  const sideChatKey = useViewerTabStore((state) => {
+  const sideChatKey = useDetailPanelStore((state) => {
     const tab = state.getThreadState(state.currentThreadId ?? '').tabs.find((candidate) => candidate.id === tabId)
     return tab?.kind === 'sideChat' ? tab.sideChatKey : null
   })

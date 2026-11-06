@@ -21,6 +21,7 @@ export interface NodeReplEvaluateParams {
   code: string
   timeoutMs?: number
   workspacePath?: string
+  projectKey?: string
   requestApproval?: (request: NodeReplApprovalRequest) => Promise<boolean>
 }
 
@@ -199,7 +200,7 @@ export class NodeReplManager {
     try {
       const result = await this.withTimeout((async () => {
         browserRuntime = await this.browserManager.prepareNodeRepl(owner, {
-          threadId: params.threadId, workspacePath: params.workspacePath, evaluationId,
+          threadId: params.threadId, workspacePath: params.workspacePath, projectKey: params.projectKey, evaluationId,
           signal: abortController.signal, browserSession
         })
         if (abortController.signal.aborted) throw new NodeReplEvaluationCancelledError(runtime.phase)
@@ -327,7 +328,7 @@ export class NodeReplManager {
     return { ok: true }
   }
 
-  reset(threadId: string): { ok: boolean } {
+  reset(threadId: string, options?: { preserveBrowserTabs?: boolean }): { ok: boolean } {
     this.cancelQueuedEvaluations(threadId)
     this.cancelledEvaluations.delete(threadId)
     const runtime = this.runtimes.get(threadId)
@@ -338,7 +339,9 @@ export class NodeReplManager {
       }
       this.disposeReplRuntime(threadId, runtime)
     }
-    const browserReset = this.browserManager.reset(threadId)
+    const browserReset = options?.preserveBrowserTabs
+      ? this.browserManager.reset(threadId, { preserveTabs: true })
+      : this.browserManager.reset(threadId)
     return { ok: Boolean(runtime) || browserReset.ok }
   }
 

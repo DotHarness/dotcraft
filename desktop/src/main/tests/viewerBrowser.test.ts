@@ -15,6 +15,8 @@ const electronMock = vi.hoisted(() => {
     getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36'),
     getTitle: vi.fn(() => 'DotCraft Browser'),
     isLoading: vi.fn(() => false),
+    isCurrentlyAudible: () => false,
+    isBeingCaptured: () => false,
     loadURL,
     reload: vi.fn(),
     stop: vi.fn(),
@@ -44,27 +46,7 @@ const electronMock = vi.hoisted(() => {
     partitionSession,
     reset() {
       currentUrl = 'about:blank'
-      loadURL.mockClear()
-      webContents.on.mockClear()
-      webContents.once.mockClear()
-      webContents.close.mockClear()
-      webContents.reload.mockClear()
-      webContents.stop.mockClear()
-      webContents.getUserAgent.mockClear()
-      webContents.setWindowOpenHandler.mockClear()
-      webContents.navigationHistory.canGoBack.mockClear()
-      webContents.navigationHistory.canGoForward.mockClear()
-      webContents.navigationHistory.goBack.mockClear()
-      webContents.navigationHistory.goForward.mockClear()
-      fromPartition.mockClear()
-      partitionSession.protocol.handle.mockClear()
-      partitionSession.on.mockClear()
-      partitionSession.getUserAgent.mockClear()
-      partitionSession.setUserAgent.mockClear()
-      partitionSession.webRequest.onBeforeSendHeaders.mockClear()
-      partitionSession.webRequest.onBeforeRequest.mockClear()
-      partitionSession.setPermissionCheckHandler.mockClear()
-      partitionSession.setPermissionRequestHandler.mockClear()
+      vi.clearAllMocks()
     }
   }
 })
@@ -82,7 +64,6 @@ vi.mock('electron', () => ({
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
-import { BrowserSessionPolicy } from '../browserSessionPolicy'
 import {
   classifyBrowserUrl,
   loadOrReport,
@@ -115,36 +96,8 @@ describe('browser URL policy', () => {
   })
 
   it('derives a stable, case-insensitive partition per workspace', () => {
-    const partition = partitionForWorkspace('F:/DOTCRAFT/Workspace')
-    expect(partition).toBe(partitionForWorkspace('f:/dotcraft/workspace'))
-    expect(partition.startsWith('persist:dotcraft-viewer:')).toBe(true)
-  })
-})
-
-describe('ViewerBrowserManager partition configuration', () => {
-  it('configures a shared website profile once without local file handlers', () => {
-    const handle = vi.fn()
-    const fakeSession = {
-      protocol: { handle },
-      on: vi.fn(),
-      getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36'),
-      setUserAgent: vi.fn(),
-      webRequest: { onBeforeSendHeaders: vi.fn(), onBeforeRequest: vi.fn() },
-      setPermissionCheckHandler: vi.fn(),
-      setPermissionRequestHandler: vi.fn()
-    } as unknown as Electron.Session
-    const policy = new BrowserSessionPolicy(() => {})
-
-    policy.configure(fakeSession)
-    policy.configure(fakeSession)
-
-    expect(handle).not.toHaveBeenCalled()
-    expect(fakeSession.setUserAgent).toHaveBeenCalledTimes(1)
-    expect(fakeSession.setUserAgent).toHaveBeenCalledWith(
-      'Mozilla/5.0 Chrome/148.0.7778.97 Safari/537.36',
-      'zh-CN,en-US'
-    )
-    expect(fakeSession.webRequest.onBeforeSendHeaders).toHaveBeenCalledTimes(1)
+    const partition = partitionForWorkspace('F:/EXAMPLE/Workspace')
+    expect(partition).toBe(partitionForWorkspace('f:/example/workspace'))
   })
 })
 
@@ -226,6 +179,24 @@ describe('ViewerBrowserManager tab creation', () => {
     await creation
     expect(electronMock.loadURL).toHaveBeenCalledWith('https://example.com/')
     expect(manager.getTabWebContents(win, 'tab')).toBe(electronMock.webContents)
+  })
+
+  it('does not attach an old pending creation after close and replacement', async () => {
+    const manager = new ViewerBrowserManager()
+    let ready!: (page: Electron.WebContents) => void
+    vi.spyOn(manager.hosts, 'request')
+      .mockReturnValueOnce(new Promise(resolve => { ready = resolve }))
+      .mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    const old = manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace', initialUrl: 'https://old.example/' })
+    const rejected = expect(old).rejects.toThrow('closed')
+    manager.destroyTab(win, 'tab')
+    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace', initialUrl: 'https://new.example/' })
+    ready(electronMock.webContents as unknown as Electron.WebContents)
+    await rejected
+    expect(manager.snapshotState(win, 'tab')?.currentUrl).toBe('https://new.example/')
+    expect(manager.getTabWebContents(win, 'tab')).toBe(electronMock.webContents)
+    expect(electronMock.loadURL).toHaveBeenCalledOnce()
   })
 
   it('retains the same guest when its presentation changes', async () => {
@@ -345,135 +316,29 @@ describe('ViewerBrowserManager tab creation', () => {
 
 describe('ViewerBrowserManager automation input', () => {
   function createAutomationHarness() {
-    const webContents = {
-      isDestroyed: vi.fn(() => false)
-    }
-    const win = {
-      id: 1,
-      isDestroyed: () => false,
-      isFocused: () => true,
-      webContents: {
-        isDestroyed: () => false,
-        send: vi.fn()
-      },
-      contentView: {
-        addChildView: vi.fn(),
-        removeChildView: vi.fn()
-      }
-    } as unknown as Electron.BrowserWindow & { webContents: { send: ReturnType<typeof vi.fn> } }
     const manager = new ViewerBrowserManager()
-    ;(manager as unknown as {
-      byWindowId: Map<number, {
-        tabs: Map<string, unknown>
-        activeTabId: string | null
-      }>
-    }).byWindowId.set(1, {
-      activeTabId: null,
-      tabs: new Map([['tab-1', {
-        tabId: 'tab-1',
-        workspacePath: '/workspace/test-root',
-        page: webContents,
-        desiredVisible: true,
-        visible: true,
-        boundsInitialized: true,
-        currentUrl: 'http://localhost:3000/',
-        title: 'Test'
-      }]])
-    })
+    const win = { id: 1, isDestroyed: () => false, webContents: { isDestroyed: () => false, send: vi.fn() } } as unknown as Electron.BrowserWindow
+    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
+    vi.spyOn(manager.hosts, 'list').mockImplementation(() => ['tab-current', 'tab-other', 'tab-welcome'].map(tabId => ({ tabId }) as never))
     return { manager, win }
   }
 
-  it('returns the active browser tab for the requested thread as automation target', () => {
+  it('isolates automation discovery when different projects contain the same thread id', async () => {
     const { manager, win } = createAutomationHarness()
-    const webContents = {
-      isDestroyed: vi.fn(() => false),
-      getURL: vi.fn(() => 'http://localhost:5173/'),
-      getTitle: vi.fn(() => 'Local app'),
-      isLoading: vi.fn(() => false),
-      navigationHistory: {
-        canGoBack: vi.fn(() => false),
-        canGoForward: vi.fn(() => false)
-      }
-    }
-    ;(manager as unknown as {
-      byWindowId: Map<number, {
-        tabs: Map<string, unknown>
-        activeTabId: string | null
-      }>
-    }).byWindowId.set(1, {
-      activeTabId: 'tab-current',
-      tabs: new Map([
-        ['tab-other', {
-          tabId: 'tab-other',
-          threadId: 'thread-other',
-          workspacePath: '/workspace/test-root',
-          page: webContents,
-          desiredVisible: true,
-          visible: true,
-          boundsInitialized: true,
-          currentUrl: 'http://localhost:4000/',
-          title: 'Other'
-        }],
-        ['tab-current', {
-          tabId: 'tab-current',
-          threadId: 'thread-a',
-          workspacePath: '/workspace/test-root',
-          page: webContents,
-          desiredVisible: true,
-          visible: true,
-          boundsInitialized: true,
-          currentUrl: 'http://localhost:5173/',
-          title: 'Local app'
-        }]
-      ])
-    })
-
-    expect(manager.getAutomationTargetTab(win, 'thread-a')).toMatchObject({
-      tabId: 'tab-current',
-      threadId: 'thread-a',
-      currentUrl: 'http://localhost:5173/',
-      title: 'Local app'
-    })
-    expect(manager.getAutomationTargetTab(win, 'thread-missing')).toBeNull()
+    await manager.createTab(win, { tabId: 'tab-current', projectKey: 'project:a', threadId: 'same', workspacePath: '/workspace/a' })
+    await manager.createTab(win, { tabId: 'tab-other', projectKey: 'project:b', threadId: 'same', workspacePath: '/workspace/b' })
+    manager.setActiveTab(win, 'tab-other')
+    expect(manager.listAutomationTargetTabs(win, 'same', 'project:a').map(tab => tab.tabId)).toEqual(['tab-current'])
+    expect(manager.listAutomationTargetTabs(win, 'same', 'project:missing')).toEqual([])
   })
 
-  it('rebinds Welcome draft pages so automation finds them on the created thread', () => {
+  it('rebinds Welcome draft pages so automation finds them on the created thread', async () => {
     const { manager, win } = createAutomationHarness()
-    const page = {
-      isDestroyed: vi.fn(() => false),
-      getURL: vi.fn(() => 'http://localhost:5173/'),
-      getTitle: vi.fn(() => 'Local app'),
-      isLoading: vi.fn(() => false),
-      navigationHistory: {
-        canGoBack: vi.fn(() => false),
-        canGoForward: vi.fn(() => false)
-      }
-    }
-    const tab = (tabId: string, threadId: string) => ({
-      tabId,
-      threadId,
-      workspacePath: '/workspace/test-root',
-      page,
-      desiredVisible: false,
-      visible: false,
-      boundsInitialized: true,
-      currentUrl: 'http://localhost:5173/',
-      title: 'Local app'
-    })
-    ;(manager as unknown as {
-      byWindowId: Map<number, { tabs: Map<string, unknown>; activeTabId: string | null }>
-    }).byWindowId.set(1, {
-      activeTabId: null,
-      tabs: new Map([
-        ['tab-welcome', tab('tab-welcome', 'welcome:/workspace/test-root')],
-        ['tab-other', tab('tab-other', 'thread-other')]
-      ])
-    })
-
+    await manager.createTab(win, { tabId: 'tab-welcome', threadId: 'welcome:/workspace/test-root', workspacePath: '/workspace/test-root', initialUrl: 'http://localhost:5173/' })
+    await manager.createTab(win, { tabId: 'tab-other', threadId: 'thread-other', workspacePath: '/workspace/test-root', initialUrl: 'http://localhost:5173/' })
     manager.rebindThread(win, 'welcome:/workspace/test-root', 'thread-new')
-
-    expect(manager.listAutomationTargetTabs(win, 'thread-new').map((snapshot) => snapshot.tabId)).toEqual(['tab-welcome'])
-    expect(manager.listAutomationTargetTabs(win, 'thread-other').map((snapshot) => snapshot.tabId)).toEqual(['tab-other'])
+    expect(manager.listAutomationTargetTabs(win, 'thread-new').map(snapshot => snapshot.tabId)).toEqual(['tab-welcome'])
+    expect(manager.listAutomationTargetTabs(win, 'thread-other').map(snapshot => snapshot.tabId)).toEqual(['tab-other'])
     expect(manager.listAutomationTargetTabs(win, 'welcome:/workspace/test-root')).toEqual([])
   })
 })

@@ -1,8 +1,8 @@
 import { useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { useUIStore } from '../../stores/uiStore'
-import type { SystemDetailTab } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import type { SystemDetailTab } from '../../stores/detailPanelStore'
+import { useDetailPanelPresentation } from '../../stores/detailPanelPresentation'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -70,11 +70,12 @@ export function DetailPanel({
     setActiveViewerTab,
     toggleDetailPanel,
     detailPanelFullView,
+    detailPanelVisible,
     toggleDetailPanelFullView
-  } = useUIStore()
+  } = { ...useDetailPanelPresentation(), ...useDetailPanelStore() }
 
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const viewerTabs = useViewerTabStore((s) => s.getThreadState(s.currentThreadId ?? '').tabs)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const viewerTabs = useDetailPanelStore((s) => s.getThreadState(s.currentThreadId ?? '').tabs)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
   const fileCount = useConversationStore((s) => turnPatchTotals(latestTurnDiff(s.turnDiffs, s.turns)?.files ?? []).files)
@@ -388,7 +389,7 @@ export function DetailPanel({
         {activeSystemId === 'plan' && <PlanTab />}
         {activeSystemId === 'subagents' && <SubagentsTab />}
         {activeSystemId === 'board' && <BoardTab />}
-        {activeDetailTab.kind === 'viewer' && (
+        {detailPanelVisible && activeDetailTab.kind === 'viewer' && (
           <ViewerTabContainer tabId={activeDetailTab.id} />
         )}
       </div>

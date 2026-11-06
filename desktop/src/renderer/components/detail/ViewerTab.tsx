@@ -1,10 +1,6 @@
-/**
- * Routes a tab descriptor from `viewerTabStore` to its sub-viewer, all of which are
- * `React.lazy`-loaded to keep the code view out of the initial bundle.
- */
 import { lazy, Suspense, useCallback } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useUIStore } from '../../stores/uiStore'
 import { AlertTriangle, Folder, FolderOpen } from 'lucide-react'
 import { ViewerHeader } from './ViewerHeader'
@@ -56,12 +52,12 @@ function isMarkdownPath(filePath: string): boolean {
 
 export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   const t = useT()
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const tab = useViewerTabStore((s) => {
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const tab = useDetailPanelStore((s) => {
     if (!currentThreadId) return null
     return s.getThreadState(currentThreadId).tabs.find((t) => t.id === tabId) ?? null
   })
-  const setWordWrap = useViewerTabStore((s) => s.setWordWrap)
+  const setWordWrap = useDetailPanelStore((s) => s.setWordWrap)
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const explorerWidth = useUIStore((s) => s.explorerWidth)
   const setExplorerVisible = useUIStore((s) => s.setExplorerVisible)
@@ -126,7 +122,6 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   if (tab.kind === 'sideChat') return <SideChatTab tabId={tab.id} />
   if (tab.kind === 'automation') return <AutomationViewerTab tabId={tab.id} />
 
-  // Browser / terminal tabs keep their own chrome and fill the panel.
   if (tab.kind === 'browser' || tab.kind === 'terminal' || tab.kind === 'workflow') {
     return (
       <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

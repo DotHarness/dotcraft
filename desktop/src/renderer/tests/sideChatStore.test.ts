@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useSideChatStore } from '../stores/sideChatStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { parseSideSlashCommand, withoutSideCommand } from '../utils/sideChat'
 
 type Notify = (payload: { method: string; params: unknown }) => void
@@ -55,13 +55,13 @@ beforeEach(() => {
     }
   })
   useSideChatStore.getState().reset()
-  useViewerTabStore.setState({ byThread: new Map(), currentThreadId: 'parent' })
+  useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: 'parent' })
   useConnectionStore.setState({ status: 'connected' })
 })
 
 afterEach(() => {
   useSideChatStore.getState().reset()
-  useViewerTabStore.setState({ byThread: new Map(), currentThreadId: null })
+  useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: null })
   vi.unstubAllGlobals()
 })
 
@@ -72,7 +72,7 @@ describe('side chats', () => {
     expect(sendRequest).toHaveBeenCalledWith('thread/fork', { threadId: 'parent', ephemeral: true, sideChat: true })
     const turnStart = sendRequest.mock.calls.find(([method]) => method === 'turn/start')?.[1] as Record<string, unknown>
     expect(turnStart).toMatchObject({ threadId: 'side-1', input: [{ type: 'text', text: 'Where is Retry called?' }] })
-    const tab = useViewerTabStore.getState().getThreadState('parent').tabs[0]
+    const tab = useDetailPanelStore.getState().getThreadState('parent').tabs[0]
     expect(tab).toMatchObject({ kind: 'sideChat', sideChatKey: key, label: 'Side chat 1' })
 
     emit('turn/started', { turn: { id: 'turn-1', threadId: 'side-1', status: 'running' } })
@@ -98,7 +98,7 @@ describe('side chats', () => {
       turnId: 'turn-1',
       item: { id: 'agent-1', type: 'agentMessage', status: 'completed', createdAt: '2026-10-15T00:00:02.000Z', payload: { text: 'From Send.' } }
     })
-    useViewerTabStore.getState().onThreadSwitched('another-thread')
+    useDetailPanelStore.getState().onThreadSwitched('another-thread')
     emit('turn/completed', { turn: { id: 'turn-1', threadId: 'side-1', status: 'completed' } })
 
     const { turns, unread } = chat(key)
@@ -151,7 +151,7 @@ describe('side chats', () => {
       threadId: 'side-1', turnId: 'turn-1', requestId: 'request-1'
     })
 
-    useViewerTabStore.getState().closeTab('parent', chat(key).tabId)
+    useDetailPanelStore.getState().closeTab('parent', chat(key).tabId)
 
     expect(useSideChatStore.getState().chats.has(key)).toBe(false)
     expect(sendServerResponse).toHaveBeenCalledWith('bridge-1', { decision: 'cancel' })
@@ -161,7 +161,7 @@ describe('side chats', () => {
   it('keeps using the connection it was opened on after the workspace switches', async () => {
     await openSideChat('Where is Retry called?')
 
-    useViewerTabStore.getState().onWorkspaceSwitched('/workspace-b')
+    useDetailPanelStore.getState().onWorkspaceSwitched('/workspace-b')
 
     expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/fork', expect.anything())
     expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'turn/start', expect.anything())
@@ -175,7 +175,7 @@ describe('side chats', () => {
     emit('thread/deleted', { threadId: 'side-1' })
 
     expect(useSideChatStore.getState().chats.has(key)).toBe(false)
-    expect(useViewerTabStore.getState().getThreadState('parent').tabs).toEqual([])
+    expect(useDetailPanelStore.getState().getThreadState('parent').tabs).toEqual([])
   })
 
   it('expires open side chats when the connection is lost', async () => {
@@ -191,7 +191,7 @@ describe('side chats', () => {
 
     await expect(useSideChatStore.getState().open('parent', { label: () => 'Side chat' })).rejects.toThrow('boom')
 
-    expect(useViewerTabStore.getState().getThreadState('parent').tabs).toEqual([])
+    expect(useDetailPanelStore.getState().getThreadState('parent').tabs).toEqual([])
     expect(useSideChatStore.getState().chats.size).toBe(0)
   })
 })

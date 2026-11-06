@@ -17,7 +17,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useGitStore, normalizeGitPathKey } from '../../stores/gitStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
@@ -140,7 +140,7 @@ export function AutomationsView(): JSX.Element {
   async function createManual(): Promise<void> {
     const path = foregroundIsChat
       ? undefined
-      : useViewerTabStore.getState().currentWorkspacePath
+      : useDetailPanelStore.getState().currentWorkspacePath
         ?? useUIStore.getState().welcomeDraftWorkspacePath
         ?? useThreadStore.getState().activeThread?.workspacePath
     if (path) await useGitStore.getState().ensureBranches(path)

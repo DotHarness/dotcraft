@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import { getRendererTestState, setRendererTestState } from './panelTestState'
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleBrowserEvent } from '../utils/browserEventHandler'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import type { BrowserEventPayload } from '../../shared/viewer/types'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -13,7 +14,7 @@ const WORKSPACE_PATH = 'F:/workspace'
 const createBrowser = vi.fn()
 
 function store() {
-  return useViewerTabStore.getState()
+  return useDetailPanelStore.getState()
 }
 
 function installWindowApi(): void {
@@ -29,12 +30,12 @@ function installWindowApi(): void {
 }
 
 function resetStores(): void {
-  useViewerTabStore.setState({
+  useDetailPanelStore.setState({
     byThread: new Map(),
     currentThreadId: THREAD_A,
     currentWorkspacePath: WORKSPACE_PATH
   })
-  useUIStore.setState({
+  setRendererTestState({
     activeMainView: 'settings',
     activeDetailTab: { kind: 'system', id: 'changes' },
     detailPanelPreferredVisible: false,
@@ -65,7 +66,7 @@ function handle(event: BrowserEventPayload, workspacePath = WORKSPACE_PATH): voi
 
 beforeEach(() => {
   createBrowser.mockReset()
-  createBrowser.mockResolvedValue(null)
+  createBrowser.mockResolvedValue({ browserStorageId: 'popup-storage' })
   installWindowApi()
   resetStores()
 })
@@ -133,11 +134,14 @@ describe('handleBrowserEvent', () => {
     const newTab = threadState.tabs.find((tab) => tab.id !== 'source-tab')
     expect(newTab?.kind).toBe('browser')
     expect(threadState.activeTabId).toBe(newTab?.id)
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: newTab?.id })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: newTab?.id })
     expect(createBrowser).toHaveBeenCalledWith({
       tabId: newTab?.id,
       threadId: THREAD_A,
       workspacePath: WORKSPACE_PATH,
+      projectKey: '',
+      browserStorageId: newTab?.kind === 'browser' ? newTab.browserStorageId : undefined,
+      restore: 'none',
       initialUrl: 'https://example.com/popup'
     })
   })
@@ -145,8 +149,8 @@ describe('handleBrowserEvent', () => {
   it('creates requested popup tabs for background threads without stealing UI focus', () => {
     openBrowserTab(THREAD_A, 'tab-a')
     openBrowserTab(THREAD_B, 'source-tab')
-    useViewerTabStore.setState({ currentThreadId: THREAD_A })
-    useUIStore.setState({ activeDetailTab: { kind: 'system', id: 'changes' } })
+    useDetailPanelStore.setState({ currentThreadId: THREAD_A })
+    setRendererTestState({ activeDetailTab: { kind: 'system', id: 'changes' } })
     const previousBackgroundActive = store().getThreadState(THREAD_B).activeTabId
 
     handle({
@@ -160,11 +164,14 @@ describe('handleBrowserEvent', () => {
     const newTab = backgroundState.tabs.find((tab) => tab.id !== 'source-tab')
     expect(newTab?.kind).toBe('browser')
     expect(backgroundState.activeTabId).toBe(previousBackgroundActive)
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
     expect(createBrowser).toHaveBeenCalledWith({
       tabId: newTab?.id,
       threadId: THREAD_B,
       workspacePath: WORKSPACE_PATH,
+      projectKey: '',
+      browserStorageId: newTab?.kind === 'browser' ? newTab.browserStorageId : undefined,
+      restore: 'none',
       initialUrl: 'https://example.com/background-popup'
     })
   })

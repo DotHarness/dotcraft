@@ -7,7 +7,7 @@ import { type IpcHandlerCallbacks } from '../ipcBridge'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { forgetLocalProject, saveLocalProjectDetails } from '../settings'
 import { viewerBrowserManager } from '../viewerBrowser'
-import { clearAuthorizedViewerFiles } from '../viewerFileProtocol'
+import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../windowFileAccess'
 import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
 import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
@@ -25,12 +25,9 @@ export async function removeLocalProject(ctx: DesktopWindowRuntime, workspacePat
 }
 
 export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPath: string): Promise<void> {
-  if (ctx.mainWindow) clearAuthorizedViewerFiles(ctx.mainWindow.webContents.id)
+  if (ctx.mainWindow) invalidateForegroundFileAccess(ctx.mainWindow.webContents.id)
   if (ctx.activeRemoteProject) {
     await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: false })
-  }
-  if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-    viewerBrowserManager.destroyAllTabs(ctx.mainWindow)
   }
 
   if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()
@@ -190,7 +187,7 @@ export async function openWorkspaceWithoutConnection(
 }
 
 export async function clearWorkspaceSelection(ctx: DesktopWindowRuntime): Promise<void> {
-  if (ctx.mainWindow) clearAuthorizedViewerFiles(ctx.mainWindow.webContents.id)
+  if (ctx.mainWindow) revokeAllWindowFileAccess(ctx.mainWindow.webContents.id)
   if (ctx.currentWorkspacePath) {
     await ctx.teardownRuntime('clear workspace selection', { clearWorkspace: true })
   }

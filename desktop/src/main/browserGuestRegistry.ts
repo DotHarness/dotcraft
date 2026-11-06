@@ -1,4 +1,6 @@
 import { session, webContents, type BrowserWindow, type WebContents } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { BROWSER_GUEST_BOOTSTRAP_PREFIX } from '../shared/viewer/browserHost'
 import type { BrowserHostDescriptor, BrowserHostEvent } from '../shared/viewer/browserHost'
 import { applyEmbeddedBrowserSecurity } from './browserSecurity'
 import { BrowserAutomationCursors } from './browserAutomationCursor'
@@ -10,6 +12,12 @@ interface GuestEntry {
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
   page?: WebContents
+  viewInstanceId?: number
+}
+
+interface AttachedWebContents extends WebContents {
+  // Electron assigns this id before emitting did-attach-webview.
+  viewInstanceId?: number
 }
 
 export class BrowserGuestRegistry {
@@ -21,8 +29,26 @@ export class BrowserGuestRegistry {
   })
 
   attachWindow(win: BrowserWindow): void {
-    win.webContents.on('will-attach-webview', (_event, preferences) => {
+    win.webContents.on('will-attach-webview', (event, preferences, params) => {
       applyEmbeddedBrowserSecurity(preferences)
+      if (!params.src?.startsWith(BROWSER_GUEST_BOOTSTRAP_PREFIX)) return
+      const token = params.src.slice(BROWSER_GUEST_BOOTSTRAP_PREFIX.length)
+      const entry = [...this.windows.get(win.id)?.values() ?? []].find(item => item.descriptor.bootstrapToken === token)
+      const instanceId = Number(params.instanceId)
+      if (!entry || entry.page || entry.viewInstanceId !== undefined || !Number.isInteger(instanceId) || params.partition !== entry.descriptor.partition) {
+        event.preventDefault()
+        return
+      }
+      entry.viewInstanceId = instanceId
+      // Native history restoration requires a guest that has never loaded a page.
+      params.src = ''
+    })
+    win.webContents.on('did-attach-webview', (_event, page) => {
+      const instanceId = (page as AttachedWebContents).viewInstanceId
+      if (instanceId === undefined) return
+      const entry = [...this.windows.get(win.id)?.values() ?? []].find(item => item.viewInstanceId === instanceId)
+      if (!entry) return
+      this.bind(win, entry.descriptor.tabId, page.id)
     })
     win.once('closed', () => this.clear(win))
   }
@@ -36,7 +62,7 @@ export class BrowserGuestRegistry {
     let reject!: GuestEntry['reject']
     const ready = new Promise<WebContents>((accept, fail) => { resolve = accept; reject = fail })
     const descriptor: BrowserHostDescriptor = {
-      tabId, partition, visible: false, automation,
+      tabId, bootstrapToken: randomUUID(), partition, visible: false, automation,
       bounds: { x: 0, y: 0, width: 1280, height: 720 }
     }
     const timer = setTimeout(() => this.remove(win, tabId, 'Browser guest did not become ready.'), 30_000)
@@ -62,7 +88,9 @@ export class BrowserGuestRegistry {
     page.on('before-mouse-event', (_event, mouse) => {
       if (mouse.type === 'mouseDown') this.emit(win, { type: 'pointer-down', tabId })
     })
-    page.once('destroyed', () => this.remove(win, tabId, 'Browser page closed.'))
+    page.once('destroyed', () => {
+      if (this.windows.get(win.id)?.get(tabId) === entry) this.remove(win, tabId, 'Browser page closed.')
+    })
     entry.resolve(page)
   }
 

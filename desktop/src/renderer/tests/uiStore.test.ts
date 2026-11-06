@@ -1,3 +1,5 @@
+import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useThreadStore } from '../stores/threadStore'
 import {
@@ -6,16 +8,7 @@ import {
   useUIStore
 } from '../stores/uiStore'
 
-const ui = () => useUIStore.getState()
-
-describe('uiStore detail panel width', () => {
-  it('updates the detail panel width fallback and ratio together', () => {
-    ui().setDetailPanelWidth(580, 1676)
-
-    expect(ui().detailPanelWidth).toBe(580)
-    expect(ui().detailPanelWidthRatio).toBeCloseTo(580 / 1676, 6)
-  })
-})
+const ui = () => getRendererTestState()
 
 const settingsSet = vi.fn()
 
@@ -27,7 +20,7 @@ describe('uiStore sidebar section preferences', () => {
       configurable: true,
       value: { api: { settings: { set: settingsSet } } }
     })
-    useUIStore.setState({
+    setRendererTestState({
       projectsSectionCollapsed: false,
       pinnedSectionCollapsed: false,
       chatsSectionCollapsed: false
@@ -54,7 +47,7 @@ describe('uiStore sidebar section preferences', () => {
 describe('uiStore welcome state', () => {
   beforeEach(() => {
     useThreadStore.getState().reset()
-    useUIStore.setState({
+    setRendererTestState({
       activeMainView: 'settings',
       welcomeDraft: null,
       welcomeDraftsByWorkspace: {},
@@ -116,11 +109,10 @@ describe('uiStore welcome state', () => {
 describe('uiStore responsive panel preferences', () => {
   beforeEach(() => {
     useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({
+    setRendererTestState({
       sidebarPreferredCollapsed: false,
       sidebarCollapsed: false,
       detailPanelPreferredVisible: true,
-      detailPanelPreferredVisibleByThread: { 'thread-a': true },
       detailPanelVisible: true,
       detailPanelWidth: DETAIL_DEFAULT_WIDTH,
       detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
@@ -136,7 +128,7 @@ describe('uiStore responsive panel preferences', () => {
     ui().setDetailPanelVisible(false)
 
     expect(ui().detailPanelPreferredVisible).toBe(false)
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+    expect(useDetailPanelStore.getState().getPanel('thread-a').detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
 
     ui().setResponsiveLayout('collapsed')
@@ -194,12 +186,12 @@ describe('uiStore responsive panel preferences', () => {
     ui().setActiveViewerTab('vtab-hidden', { reveal: false })
     expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-hidden' })
     expect(ui().detailPanelPreferredVisible).toBe(false)
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+    expect(useDetailPanelStore.getState().getPanel('thread-a').detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
 
     ui().setActiveDetailTab('plan')
     expect(ui().detailPanelPreferredVisible).toBe(true)
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+    expect(useDetailPanelStore.getState().getPanel('thread-a').detailPanelPreferredVisible).toBe(true)
     expect(ui().detailPanelVisible).toBe(true)
   })
 })

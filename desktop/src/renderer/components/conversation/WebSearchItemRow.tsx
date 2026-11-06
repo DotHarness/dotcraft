@@ -4,7 +4,7 @@ import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { getWebSearchDisplay, getWebSearchToolDisplay, type WebSearchDisplay } from '../../utils/webSearchDisplay'
 import { RunningShimmer } from '../ui/RunningShimmer'
@@ -16,7 +16,7 @@ const ICON = { icon: Globe }
 function WebSearchSummaryRow({ display }: { display: WebSearchDisplay }): JSX.Element {
   const locale = useLocale()
   const workspacePath = useConversationStore((s) => s.workspacePath)
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
   const [expanded, setExpanded] = useState(false)
   const openSource = (url: string): void => {
     if (!workspacePath || !currentThreadId) return

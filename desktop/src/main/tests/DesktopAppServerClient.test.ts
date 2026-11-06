@@ -65,8 +65,9 @@ describe('DesktopAppServerClient', () => {
     push({ jsonrpc: '2.0', method: 'extension/unknown', params: { value: 1 } })
     push({ jsonrpc: '2.0', id: 'request-1', method: 'extension/request', params: { value: 2 } })
 
-    await expect.poll(() => notifications).toEqual([['extension/unknown', { value: 1 }]])
-    expect(await readRequest()).toEqual({
+    const response = await readRequest()
+    expect(notifications).toEqual([['extension/unknown', { value: 1 }]])
+    expect(response).toEqual({
       jsonrpc: '2.0',
       id: 'request-1',
       result: { method: 'extension/request', params: { value: 2 } }
@@ -83,6 +84,7 @@ describe('DesktopAppServerClient', () => {
 
   it('holds the wire subscription through UI unsubscribe and releases it at browser turn end', async () => {
     const retain = client.retainBrowserTurn('thread', 'turn')
+    expect(client.hasRetainedBrowserTurns).toBe(true)
     const subscribe = await readRequest()
     expect(subscribe).toMatchObject({ method: 'thread/subscribe', params: { threadId: 'thread', replayRecent: false } })
     await expect(client.sendRequest('thread/unsubscribe', { threadId: 'thread' })).resolves.toEqual({})
@@ -93,6 +95,7 @@ describe('DesktopAppServerClient', () => {
     expect(unsubscribe).toMatchObject({ method: 'thread/unsubscribe', params: { threadId: 'thread' } })
     push({ jsonrpc: '2.0', id: unsubscribe.id, result: {} })
     await release
+    expect(client.hasRetainedBrowserTurns).toBe(false)
     await client.releaseBrowserTurn('thread', 'turn')
     const next = client.sendRequest('fixture/next', {})
     const request = await readRequest()

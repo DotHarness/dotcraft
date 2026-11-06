@@ -7,18 +7,15 @@ it('retains guest nodes and navigation while switching visibility and ignores st
   let initial!: (hosts: BrowserHostDescriptor[]) => void
   const api: BrowserHostApi = {
     list: () => new Promise(resolve => { initial = resolve }),
-    bind: vi.fn().mockResolvedValue(undefined), failed: vi.fn().mockResolvedValue(undefined),
     cursorArrived: vi.fn().mockResolvedValue(undefined),
     onEvent: callback => { listener = callback; return vi.fn() }
   }
   const stop = startBrowserGuestHost(api)
-  const host: BrowserHostDescriptor = { tabId: 'tab', partition: 'persist:example', automation: true,
+  const host: BrowserHostDescriptor = { tabId: 'tab', bootstrapToken: 'bootstrap', partition: 'persist:example', automation: true,
     visible: false, bounds: { x: 10, y: 30, width: 800, height: 600 } }
   listener({ type: 'update', host })
   const guest = document.querySelector('webview') as Electron.WebviewTag
-  Object.assign(guest, { getWebContentsId: () => 7 })
-  guest.dispatchEvent(new Event('dom-ready'))
-  expect(api.bind).toHaveBeenCalledWith({ tabId: 'tab', webContentsId: 7 })
+  expect(guest.getAttribute('src')).toBe('about:blank#dotcraft-browser-host=bootstrap')
   guest.setAttribute('src', 'https://example.com/current')
   listener({ type: 'update', host: { ...host, visible: true } })
   listener({ type: 'update', host })
@@ -41,12 +38,11 @@ function mountWithCursor(reduceMotion: 'on' | 'off') {
   let listener!: (event: BrowserHostEvent) => void
   const api: BrowserHostApi = {
     list: () => new Promise(() => {}),
-    bind: vi.fn().mockResolvedValue(undefined), failed: vi.fn().mockResolvedValue(undefined),
     cursorArrived: vi.fn().mockResolvedValue(undefined),
     onEvent: callback => { listener = callback; return vi.fn() }
   }
   const stop = startBrowserGuestHost(api)
-  const host: BrowserHostDescriptor = { tabId: 'tab', partition: 'persist:example', automation: true,
+  const host: BrowserHostDescriptor = { tabId: 'tab', bootstrapToken: 'bootstrap', partition: 'persist:example', automation: true,
     visible: true, bounds: { x: 0, y: 0, width: 800, height: 600 } }
   const update = (changes: Partial<BrowserHostDescriptor>) => listener({ type: 'update', host: { ...host, ...changes } })
   return { api, stop, update }

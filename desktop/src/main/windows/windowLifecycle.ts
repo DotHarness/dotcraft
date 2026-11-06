@@ -10,6 +10,7 @@ import {
   unregisterIpcHandlers
 } from '../ipcBridge'
 import { nodeReplManager } from '../nodeReplManager'
+import { viewerBrowserManager } from '../viewerBrowser'
 import type { DesktopWindowRuntime } from './windowRuntime'
 
 export function registerDesktopIpcHandlers(
@@ -50,6 +51,7 @@ export async function teardownRuntime(
   options?: { clearWorkspace?: boolean; cleanupIpcHandlers?: boolean }
 ): Promise<void> {
   const win = ctx.mainWindow
+  if (win) viewerBrowserManager.destroyAllTabs(win)
   if (win) ctx.getThreadTasks().abandonOffersForOwner(win.webContents.id)
   if (options?.cleanupIpcHandlers) {
     if (win) unregisterIpcHandlers(win)

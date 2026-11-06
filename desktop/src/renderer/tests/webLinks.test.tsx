@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { setRendererTestState } from './panelTestState'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MarkdownRenderer } from '../components/conversation/MarkdownRenderer'
@@ -7,8 +8,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useLinkPreferencesStore } from '../stores/linkPreferencesStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const openExternal = vi.fn()
@@ -31,7 +31,7 @@ function renderMarkdown(content: string): void {
 }
 
 function browserTabs(): Array<{ kind: string }> {
-  return useViewerTabStore.getState().getThreadState('thread-1').tabs
+  return useDetailPanelStore.getState().getThreadState('thread-1').tabs
 }
 
 function link(name: string): HTMLElement {
@@ -46,8 +46,8 @@ describe('web links', () => {
     useConversationStore.getState().reset()
     useConversationStore.setState({ workspacePath: 'F:/workspace' })
     useThreadStore.setState({ activeThreadId: 'thread-1' })
-    useViewerTabStore.setState({ byThread: new Map(), currentThreadId: 'thread-1', currentWorkspacePath: 'F:/workspace' })
-    useUIStore.setState({ activeDetailTab: { kind: 'system', id: 'changes' }, detailPanelPreferredVisible: false, detailPanelVisible: false })
+    useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: 'thread-1', currentWorkspacePath: 'F:/workspace' })
+    setRendererTestState({ activeDetailTab: { kind: 'system', id: 'changes' }, detailPanelPreferredVisible: false, detailPanelVisible: false })
   })
 
   it('opens web and local links where their preferences point', () => {

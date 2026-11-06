@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { CircleAlert, Square } from 'lucide-react'
 import type { WorkflowPhaseView } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
@@ -87,8 +87,8 @@ function WorkflowPhaseSection({
 
 export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
   const t = useT()
-  const currentThreadId = useViewerTabStore((state) => state.currentThreadId)
-  const tab = useViewerTabStore((state) => currentThreadId
+  const currentThreadId = useDetailPanelStore((state) => state.currentThreadId)
+  const tab = useDetailPanelStore((state) => currentThreadId
     ? state.getThreadState(currentThreadId).tabs.find((candidate): candidate is WorkflowViewerTabDescriptor =>
         candidate.id === tabId && candidate.kind === 'workflow')
     : undefined)

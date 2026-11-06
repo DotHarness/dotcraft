@@ -4,8 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { turnWrittenFiles } from '../../stores/turnDiffs'
-import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import type { FileDiff } from '../../types/toolCall'
 import { basename } from '../../utils/path'
 import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
@@ -21,12 +20,12 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
   const t = useT()
   const writtenFiles = useConversationStore(useShallow((s) => turnWrittenFiles(s.turnDiffs, turnId)))
   const workspacePath = useConversationStore((s) => s.workspacePath)
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const openFile = useViewerTabStore((s) => s.openFile)
-  const openBrowser = useViewerTabStore((s) => s.openBrowser)
-  const focusBrowserTabByUrl = useViewerTabStore((s) => s.focusBrowserTabByUrl)
-  const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
-  const setDetailPanelVisible = useUIStore((s) => s.setDetailPanelVisible)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const openFile = useDetailPanelStore((s) => s.openFile)
+  const openBrowser = useDetailPanelStore((s) => s.openBrowser)
+  const focusBrowserTabByUrl = useDetailPanelStore((s) => s.focusBrowserTabByUrl)
+  const setActiveViewerTab = useDetailPanelStore((s) => s.setActiveViewerTab)
+  const setDetailPanelVisible = useDetailPanelStore((s) => s.setDetailPanelVisible)
 
   const artifacts = writtenFiles
     .map((row) => toTurnArtifact(row.diff))
@@ -51,10 +50,16 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
         initialLabel: basename(diff.filePath)
       })
       setActiveViewerTab(tabId)
+      const panels = useDetailPanelStore.getState()
+      const tab = panels.getThreadState(currentThreadId).tabs.find(item => item.id === tabId)
+      if (tab?.kind !== 'browser') return
       await window.api.workspace.viewer.browser.create({
         tabId,
         threadId: currentThreadId,
-        workspacePath,
+        workspacePath: panels.currentWorkspacePath!,
+        projectKey: panels.currentProjectKey,
+        browserStorageId: tab.browserStorageId,
+        restore: tab.restore ?? 'none',
         initialUrl: url
       })
     } catch (err) {

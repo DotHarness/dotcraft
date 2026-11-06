@@ -1,4 +1,6 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
+import { viewerPanelState } from './viewerPanelState'
+import { viewerBrowserLifecycle } from './viewerBrowserLifecycle'
 import type { ForgeBranchPullResult, ForgeRefResult, ForgeRefTarget, ForgeRepo } from '../shared/forgeReferences'
 import type { LinkPreviewResult } from '../shared/linkPreviews'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
@@ -1138,6 +1140,7 @@ const api = {
     },
 
     viewer: {
+      panelState: viewerPanelState,
       listFiles(params: {
         workspacePath: string
         query: string
@@ -1222,8 +1225,6 @@ const api = {
         browser: {
         host: {
           list: () => ipcRenderer.invoke('viewer:browser:host-list'),
-          bind: (params) => ipcRenderer.invoke('viewer:browser:host-bind', params),
-          failed: (params) => ipcRenderer.invoke('viewer:browser:host-failed', params),
           cursorArrived: (params) => ipcRenderer.invoke('viewer:browser:host-cursor-arrived', params),
           onEvent(callback) {
             const listener = (_event: Electron.IpcRendererEvent, payload: BrowserHostEvent) => callback(payload)
@@ -1255,22 +1256,7 @@ const api = {
           ipcRenderer.on('viewer:browser:feedback', wrapped)
           return () => ipcRenderer.removeListener('viewer:browser:feedback', wrapped)
         },
-        create(params: {
-          tabId: string
-          threadId?: string
-          workspacePath: string
-          initialUrl?: string
-        }): Promise<{
-          tabId: string
-          currentUrl: string
-          title: string
-          faviconDataUrl?: string
-          canGoBack: boolean
-          canGoForward: boolean
-          loading: boolean
-        }> {
-          return ipcRenderer.invoke('viewer:browser:create', params)
-        },
+        ...viewerBrowserLifecycle,
         destroy(params: { tabId: string }): Promise<void> {
           return ipcRenderer.invoke('viewer:browser:destroy', params)
         },

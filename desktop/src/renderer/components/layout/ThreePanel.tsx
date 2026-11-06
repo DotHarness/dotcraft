@@ -7,6 +7,8 @@ import {
   DETAIL_DEFAULT_WIDTH_RATIO,
   type UIState
 } from '../../stores/uiStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
+import { isDetailPanelVisible, useDetailPanelPresentation } from '../../stores/detailPanelPresentation'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { ConversationTargetWidthContext } from '../../contexts/ConversationLayoutContext'
 import { prefersReducedMotion } from '../../utils/appearance'
@@ -64,12 +66,9 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
   const {
     sidebarCollapsed,
     sidebarWidth,
-    detailPanelVisible,
-    detailPanelWidth,
-    detailPanelWidthRatio,
-    detailPanelFullView,
     activeMainView
   } = useUIStore()
+  const { detailPanelVisible, detailPanelWidth, detailPanelWidthRatio, detailPanelFullView } = useDetailPanelPresentation()
   const mainSurfaceRef = useRef<HTMLDivElement>(null)
   const mainSurfaceWidthRef = useRef<number | null>(null)
   const [observedMainSurfaceWidth, setObservedMainSurfaceWidth] = useState<number | null>(null)
@@ -141,11 +140,11 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     if (state.sidebarCollapsed) return
 
     const currentMainSurfaceWidth = window.innerWidth - state.sidebarWidth
-    const detailVisible = isDetailPanelEffectivelyVisible(state.activeMainView, state.detailPanelVisible)
+    const detailVisible = isDetailPanelEffectivelyVisible(state.activeMainView, isDetailPanelVisible())
     const detailWidth = detailVisible
       ? resolveDetailPanelWidth(
-        state.detailPanelWidth,
-        state.detailPanelWidthRatio,
+        useDetailPanelStore.getState().getCurrentPanel().detailPanelWidth,
+        useDetailPanelStore.getState().getCurrentPanel().detailPanelWidthRatio,
         currentMainSurfaceWidth,
         true
       )
@@ -168,13 +167,13 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     const currentMainSurfaceWidth = mainSurfaceWidthRef.current ?? window.innerWidth - sidebar
     const maxDetailWidth = resolveMaxDetailPanelWidth(currentMainSurfaceWidth)
     const currentDetailWidth = resolveDetailPanelWidth(
-      state.detailPanelWidth,
-      state.detailPanelWidthRatio,
+      useDetailPanelStore.getState().getCurrentPanel().detailPanelWidth,
+      useDetailPanelStore.getState().getCurrentPanel().detailPanelWidthRatio,
       currentMainSurfaceWidth,
       true
     )
     const nextWidth = Math.min(maxDetailWidth, Math.max(DETAIL_MIN_WIDTH, currentDetailWidth - delta))
-    state.setDetailPanelWidth(nextWidth, currentMainSurfaceWidth)
+    useDetailPanelStore.getState().setDetailPanelWidth(nextWidth, currentMainSurfaceWidth)
   }, [])
 
   const handleDetailDragStateChange = useCallback((dragging: boolean) => {
@@ -240,8 +239,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         />
       )}
 
-      {/* Main work surface: conversation + optional detail panel. The rounded
-          left corners keep the sidebar as the app chrome behind it. */}
       <div
         ref={mainSurfaceRef}
         className="dotcraft-shell-main"

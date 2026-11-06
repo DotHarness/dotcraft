@@ -1,30 +1,22 @@
 import { app, BrowserWindow, session } from 'electron'
 import { translate } from '../shared/locales'
-import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
+import type { BrowserRestoreIntent, BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
 import { registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { browserUseManager } from './browserUseManager'
 import { checkChromeSetup, installChromeNativeHost, openChromeWindow, type ChromeOpenRequest } from './chromeSetup'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
-import { assertWorkspaceOrChatFolder } from './ipcBridgePaths'
 import { registerProjectActionsHandlers } from './projectActions/projectActionsIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { registerViewerTerminalHandlers } from './viewerTerminalIpc'
+import { assertBrowserScope } from './browserScope'
 
 export function registerViewerBrowserHandlers(context: WindowIpcContext): () => void {
   const { handleSafe, workspacePath, callbacks, ipc, owner } = context
-  for (const operation of ['list', 'bind', 'failed'] as const) {
-    handleSafe(
-      `viewer:browser:host-${operation}`,
-      async (event, params?: { tabId: string; webContentsId: number; message: string }) => {
-        const win = BrowserWindow.fromWebContents(event.sender)
-        if (!win || win.isDestroyed()) throw new Error('Browser window not available.')
-        if (operation === 'list') return viewerBrowserManager.hosts.list(win)
-        if (!params) throw new Error('Browser host parameters are required.')
-        if (operation === 'bind') viewerBrowserManager.hosts.bind(win, params.tabId, params.webContentsId)
-        else viewerBrowserManager.hosts.remove(win, params.tabId, params.message)
-      }
-    )
-  }
+  handleSafe('viewer:browser:host-list', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) throw new Error('Browser window not available.')
+    return viewerBrowserManager.hosts.list(win)
+  })
   handleSafe('viewer:browser:host-cursor-arrived', async (event, params?: { tabId: string; moveSequence: number }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) throw new Error('Browser window not available.')
@@ -34,20 +26,38 @@ export function registerViewerBrowserHandlers(context: WindowIpcContext): () => 
   registerBrowserFeedbackIpc(viewerBrowserManager, ipc)
   handleSafe(
     'viewer:browser:create',
-    async (event, params: { tabId: string; threadId?: string; workspacePath: string; initialUrl?: string }) => {
+    async (event, params: { tabId: string; threadId?: string; workspacePath: string; projectKey?: string; browserStorageId?: string; initialUrl?: string; restore?: BrowserRestoreIntent }) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win || win.isDestroyed()) {
         throw new Error('Browser window not available')
       }
-      assertWorkspaceOrChatFolder(params.workspacePath, workspacePath, mainLocale(callbacks), owner.webContents.id)
+      assertBrowserScope(context, params)
       return viewerBrowserManager.createTab(win, {
         tabId: params.tabId,
-        ...(params.threadId ? { threadId: params.threadId } : {}),
+        threadId: params.threadId,
         workspacePath: params.workspacePath,
-        ...(params.initialUrl ? { initialUrl: params.initialUrl } : {})
+        projectKey: params.projectKey,
+        browserStorageId: params.browserStorageId,
+        restore: params.restore,
+        initialUrl: params.initialUrl
       })
     }
   )
+  handleSafe('viewer:browser:restore-state', (event, params: {
+    workspacePath: string
+    projectKey?: string
+    threadId?: string
+    tabs: Array<{ tabId: string; browserStorageId: string; initialUrl?: string }>
+  }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) throw new Error('Browser window not available')
+    assertBrowserScope(context, params)
+    return viewerBrowserManager.restoreState(win, params)
+  })
+  handleSafe('viewer:browser:set-foreground-scope', (event, params: { projectKey: string; threadId?: string }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win && !win.isDestroyed()) viewerBrowserManager.setForegroundScope(win, params)
+  })
   handleSafe('viewer:browser:destroy', async (event, params: { tabId: string }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) return

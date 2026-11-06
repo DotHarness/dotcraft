@@ -6,7 +6,7 @@ import type { FileViewerTab } from '../../shared/viewer/types'
 import { ContextFeedback } from '../components/conversation/ContextFeedback'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const THREAD = 'thread-1'
@@ -47,7 +47,7 @@ beforeEach(() => {
     }
   })
   useConversationStore.setState({ workspacePath: WORKSPACE, remoteWorkspaceActive: false })
-  useViewerTabStore.setState({ byThread: new Map(), currentThreadId: THREAD, currentWorkspacePath: WORKSPACE })
+  useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: THREAD, currentWorkspacePath: WORKSPACE })
 })
 
 describe('file annotation comments in the composer', () => {
@@ -64,7 +64,7 @@ describe('file annotation comments in the composer', () => {
 
     await waitFor(() => expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: annotation.path }))
     await waitFor(() => {
-      const tab = useViewerTabStore.getState().getThreadState(THREAD).tabs[0] as FileViewerTab | undefined
+      const tab = useDetailPanelStore.getState().getThreadState(THREAD).tabs[0] as FileViewerTab | undefined
       expect(tab).toMatchObject({
         absolutePath: annotation.path,
         contentClass: 'spreadsheet',

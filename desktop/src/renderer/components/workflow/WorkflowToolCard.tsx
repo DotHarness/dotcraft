@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { runWithoutAppNavigationRecording } from '../../stores/appNavigationStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../stores/workflowRunStore'
 import { Button } from '../ui/Button'
@@ -27,10 +26,10 @@ export function WorkflowToolCard({ threadId, runId, createdAt, callId }: Workflo
   const visiblePhases = run?.phases ?? []
 
   const openDetails = (): void => {
-    const tabId = useViewerTabStore.getState().openWorkflow({
+    const tabId = useDetailPanelStore.getState().openWorkflow({
       threadId, runId, initialLabel: t('workflow.tab')
     })
-    useUIStore.getState().setActiveViewerTab(tabId)
+    useDetailPanelStore.getState().setActiveViewerTab(tabId)
   }
 
   const name = run?.name ?? runId
@@ -107,13 +106,13 @@ export function autoOpenWorkflowLaunch(
   if (!launch) return false
   let opened = false
   runWithoutAppNavigationRecording(() => {
-    if (!useUIStore.getState().maybeAutoShowForReason(`workflow:${threadId}:${launch.runId}`)) return
-    const tabId = useViewerTabStore.getState().openWorkflow({
+    if (!useDetailPanelStore.getState().maybeAutoShowForReason(`workflow:${threadId}:${launch.runId}`)) return
+    const tabId = useDetailPanelStore.getState().openWorkflow({
       threadId,
       runId: launch.runId,
       initialLabel: launch.name
     })
-    useUIStore.getState().setActiveViewerTab(tabId)
+    useDetailPanelStore.getState().setActiveViewerTab(tabId)
     opened = true
   })
   return opened

@@ -1,13 +1,13 @@
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { useUIStore } from '../../stores/uiStore'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 export function DetailPanelToggleButton(): JSX.Element | null {
   const t = useT()
-  const detailPanelPreferredVisible = useUIStore((s) => s.detailPanelPreferredVisible)
-  const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
+  const detailPanelPreferredVisible = useDetailPanelStore((s) => s.getCurrentPanel().detailPanelPreferredVisible)
+  const toggleDetailPanel = useDetailPanelStore((s) => s.toggleDetailPanel)
   if (detailPanelPreferredVisible) return null
   return (
     <IconButton

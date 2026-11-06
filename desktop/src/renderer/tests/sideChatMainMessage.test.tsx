@@ -1,3 +1,4 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { translate } from '../../shared/locales'
@@ -6,7 +7,6 @@ import { MessageOriginLine } from '../components/conversation/MessageOriginMarke
 import { SideChatMainMessageRow } from '../components/conversation/SideChatMainMessageRow'
 import { useSideChatStore, type SideChat } from '../stores/sideChatStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
 import type { ConversationItem } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -58,7 +58,7 @@ describe('side chat messages to the main thread', () => {
     fireEvent.click(screen.getByRole('button'))
 
     expect(useSideChatStore.getState().focusRequest?.key).toBe(chat.key)
-    expect(useUIStore.getState().activeDetailTab).toMatchObject({ kind: 'viewer', id: chat.tabId })
+    expect(getRendererTestState().activeDetailTab).toMatchObject({ kind: 'viewer', id: chat.tabId })
   })
 
   it('shows a static origin marker once the side chat is gone', () => {
@@ -69,7 +69,7 @@ describe('side chat messages to the main thread', () => {
 
   it('leaves side chat full view when showing the main thread it is already beside', () => {
     useThreadStore.setState({ activeThreadId: 'thread-main' })
-    useUIStore.setState({
+    setRendererTestState({
       activeMainView: 'conversation',
       detailPanelVisible: true,
       activeDetailTab: { kind: 'viewer', id: chat.tabId },
@@ -79,7 +79,7 @@ describe('side chat messages to the main thread', () => {
 
     fireEvent.click(screen.getByRole('button', { name: translate('en', 'sideChat.toolMain.openAria') }))
 
-    expect(useUIStore.getState().detailPanelFullView).toBe(false)
+    expect(getRendererTestState().detailPanelFullView).toBe(false)
   })
 
   it('shows the main thread from the side chat tool row', () => {
@@ -88,6 +88,6 @@ describe('side chat messages to the main thread', () => {
     fireEvent.click(screen.getByRole('button', { name: translate('en', 'sideChat.toolMain.openAria') }))
 
     expect(useThreadStore.getState().activeThreadId).toBe('thread-main')
-    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(getRendererTestState().activeMainView).toBe('conversation')
   })
 })

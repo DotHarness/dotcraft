@@ -1,8 +1,7 @@
 import { resolveConversationLink, type LinkRejectReason } from '../../shared/viewer/linkResolver'
 import type { FileNavigationHint } from '../../shared/viewer/types'
-import { useUIStore } from '../stores/uiStore'
 import { addToast } from '../stores/toastStore'
-import { useViewerTabStore, type FileReveal } from '../stores/viewerTabStore'
+import { useDetailPanelStore, type FileReveal } from '../stores/detailPanelStore'
 import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
 import { openWebLink, type WebLinkDestination } from './webLinks'
 
@@ -43,7 +42,7 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
   const absolutePath = authorized.absolutePath
   const classified = await window.api.workspace.viewer.classify({ absolutePath })
   const relativePath = deriveRelativePathForViewer(absolutePath, params.workspacePath)
-  const tabId = useViewerTabStore.getState().openFile({
+  const tabId = useDetailPanelStore.getState().openFile({
     threadId: params.threadId,
     absolutePath,
     relativePath,
@@ -53,9 +52,8 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
     navigationHint: params.hint,
     reveal: params.reveal
   })
-  const ui = useUIStore.getState()
-  ui.setActiveViewerTab(tabId)
-  ui.setDetailPanelVisible(true)
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
+  useDetailPanelStore.getState().setDetailPanelVisible(true)
 }
 
 export async function openFileViewer(params: OpenFileViewerParams): Promise<boolean> {

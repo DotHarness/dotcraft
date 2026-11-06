@@ -11,7 +11,9 @@ import { threadTaskConnection } from '../desktopRuntimeThreadTools'
 import { registerOratorioIpc } from '../oratorio/oratorioIpc'
 import { getLocalProjectDetails } from '../settings'
 import { registerThreadTasksIpc } from '../threadTasks/threadTasksIpc'
-import { bindViewerWindow } from '../viewerFileProtocol'
+import { bindViewerWindow, resolveScopedViewerFileForAccess, viewerUrlToPath } from '../viewerFileProtocol'
+import { viewerBrowserManager } from '../viewerBrowser'
+import { fileURLToPath } from 'node:url'
 import { readAppServerChatGptAuth } from '../voice/VoiceChatGptTranscriber'
 import { registerVoiceIpc } from '../voice/voiceIpc'
 import { createWindowIpcMain } from '../windowIpc'
@@ -37,6 +39,12 @@ export function startDesktopWindow(
   const win = ctx.createWindow(workspace, status)
   ctx.mainWindow = win
   ctx.currentWorkspacePath = workspace ?? ''
+  viewerBrowserManager.registerPersistenceOwner(win)
+  viewerBrowserManager.setRestoreValidator(async (owner, url, scope) => {
+    if (!/^(file|dotcraft-viewer):/i.test(url)) return
+    const absolutePath = url.startsWith('file:') ? fileURLToPath(url) : viewerUrlToPath(url)
+    await resolveScopedViewerFileForAccess(absolutePath, scope.workspacePath, owner.webContents.id)
+  })
   ctx.disposers.push(
     bindViewerWindow(win, {
       getWorkspaceRoot: () => ctx.currentWorkspacePath,
@@ -44,8 +52,8 @@ export function startDesktopWindow(
         application.localProjects.has(root)
           ? (getLocalProjectDetails(ctx.settings, root)?.secondaryFolders ?? [])
           : [],
-      getChatFolderRoots: () =>
-        ctx.isLocalChatsForeground() ? knownChatsFolderRootsFromSettings(ctx.settings) : []
+      getChatFolderRoots: (root) =>
+        isDefaultChatWorkspace(root ?? ctx.currentWorkspacePath) ? knownChatsFolderRootsFromSettings(ctx.settings) : []
     })
   )
   const features = createWindowIpcMain(win)

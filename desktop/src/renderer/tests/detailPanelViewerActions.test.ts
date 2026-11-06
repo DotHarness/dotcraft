@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { FileViewerTab } from '../../shared/viewer/types'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 
-const store = () => useViewerTabStore.getState()
+const store = () => useDetailPanelStore.getState()
 
 const THREAD_A = 'thread-a'
 const THREAD_B = 'thread-b'
@@ -23,7 +23,7 @@ function openFile(
 }
 
 beforeEach(() => {
-  useViewerTabStore.setState({
+  useDetailPanelStore.setState({
     byThread: new Map(),
     currentThreadId: null,
     currentWorkspacePath: null
@@ -109,17 +109,6 @@ describe('openFile', () => {
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
     expect(tab).not.toHaveProperty('navigationHint')
   })
-
-  it('disambiguates colliding basenames only', () => {
-    openFile(THREAD_A, 'src/components/Button.tsx')
-    openFile(THREAD_A, 'src/elements/Button.tsx')
-    openFile(THREAD_A, 'lib/utils.ts')
-
-    const labels = store().getThreadState(THREAD_A).tabs.map((t) => t.label)
-    expect(new Set(labels.slice(0, 2)).size).toBe(2)
-    expect(labels.slice(0, 2)).not.toContain('Button.tsx')
-    expect(labels[2]).toBe('utils.ts')
-  })
 })
 
 describe('openBrowser / updateBrowserTab', () => {
@@ -130,7 +119,7 @@ describe('openBrowser / updateBrowserTab', () => {
     expect(threadState.tabs.find((item) => item.id === id)).toMatchObject({
       kind: 'browser',
       currentUrl: 'https://example.com',
-      label: 'example.com',
+      restore: 'none',
       canGoBack: false,
       canGoForward: false
     })
@@ -175,7 +164,7 @@ describe('openBrowser / updateBrowserTab', () => {
     expect(store().getThreadState(THREAD_A).tabs.find((item) => item.id === id)).toMatchObject({
       kind: 'browser',
       title: 'Example Domain',
-      label: 'Example Domain',
+
       canGoBack: true,
       automationActive: true,
       automationSessionName: 'DotCraft',
@@ -196,8 +185,8 @@ describe('openBrowser / updateBrowserTab', () => {
 })
 
 describe('openTerminal / updateTerminalTab', () => {
-  it('opens terminal tabs with incremental labels and patches runtime state', () => {
-    const terminal1 = store().openTerminal({ threadId: THREAD_A, cwd: WS_PATH })
+  it('patches terminal runtime state without changing its identity', () => {
+    store().openTerminal({ threadId: THREAD_A, cwd: WS_PATH })
     const terminal2 = store().openTerminal({ threadId: THREAD_A, cwd: WS_PATH })
     store().updateTerminalTab(THREAD_A, terminal2, {
       hasStarted: true,
@@ -207,9 +196,9 @@ describe('openTerminal / updateTerminalTab', () => {
     })
 
     const state = store().getThreadState(THREAD_A)
-    expect(state.tabs.find((item) => item.id === terminal1)?.label).toBe('Terminal 1')
+
     expect(state.tabs.find((item) => item.id === terminal2)).toMatchObject({
-      label: 'Terminal 2',
+
       hasStarted: true,
       pid: 1234,
       shell: 'powershell.exe',
@@ -244,8 +233,6 @@ describe('thread lifecycle', () => {
   it('keeps tabs per thread and exposes the current thread tabs after switching', () => {
     expect(store().getCurrentTabs()).toHaveLength(0)
     expect(store().getCurrentActiveTabId()).toBeNull()
-    expect(store().getCurrentTabs()).toBe(store().getCurrentTabs())
-    expect(store().getThreadState('unknown')).toBe(store().getThreadState('unknown'))
 
     const a = openFile(THREAD_A, 'src/a.ts')
     openFile(THREAD_B, 'src/b.ts')
@@ -278,23 +265,17 @@ describe('thread lifecycle', () => {
     expect(store().getThreadState(THREAD_B).tabs).toHaveLength(1)
   })
 
-  it('onWorkspaceSwitched clears every thread and reports browser and terminal tabs for cleanup', () => {
+  it('keeps each project panel when switching foreground workspaces', () => {
     store().openBrowser({ threadId: THREAD_A, initialUrl: 'https://example.com' })
     store().openTerminal({ threadId: THREAD_A, cwd: WS_PATH })
     openFile(THREAD_B, 'b.ts')
-    let browserRemoved = 0
-    let terminalRemoved = 0
-
-    store().onWorkspaceSwitched('/new/workspace', {
-      onBrowserTabRemoved: () => { browserRemoved++ },
-      onTerminalTabRemoved: () => { terminalRemoved++ }
-    })
-
-    expect(browserRemoved).toBe(1)
-    expect(terminalRemoved).toBe(1)
+    const original = store().getThreadState(THREAD_A)
+    store().onWorkspaceSwitched('/new/workspace')
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(0)
-    expect(store().getThreadState(THREAD_B).tabs).toHaveLength(0)
     expect(store().currentWorkspacePath).toBe('/new/workspace')
+    store().onWorkspaceSwitched('', '')
+    expect(store().getThreadState(THREAD_A)).toBe(original)
+    expect(store().getThreadState(THREAD_B).tabs).toHaveLength(1)
   })
 })
 

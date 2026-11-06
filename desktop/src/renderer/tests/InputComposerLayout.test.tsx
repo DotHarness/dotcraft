@@ -1,3 +1,4 @@
+import { setRendererTestState } from './panelTestState'
 import './setupPluginRuntime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -12,7 +13,6 @@ import { useSatellitesStore } from '../stores/satellitesStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
-import { useUIStore } from '../stores/uiStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
@@ -105,13 +105,13 @@ describe('InputComposer layout', () => {
       localErrors: {}
     })
     useToastStore.setState({ toasts: [] })
-    useUIStore.setState({
+    setRendererTestState({
       activeMainView: 'conversation',
       sidebarCollapsed: false,
       sidebarWidth: 240,
       detailPanelVisible: true,
       detailPanelWidth: 400,
-      activeDetailTab: 'changes',
+       activeDetailTab: { kind: 'system', id: 'changes' },
       selectedChangeKey: null,
       composerPrefill: null,
       pendingWelcomeTurn: null,

@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { createTerminalThemeFromDocument } from './viewerTheme'
 import { useDocumentThemeMode } from '../../../utils/theme'
 
@@ -18,8 +18,8 @@ function formatExitMessage(code: number | null): string {
 
 export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Element {
   const themeMode = useDocumentThemeMode()
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const tab = useViewerTabStore((s) => {
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const tab = useDetailPanelStore((s) => {
     const threadId = s.currentThreadId
     if (!threadId) return null
     const found = s.getThreadState(threadId).tabs.find((item) => item.id === tabId)
@@ -37,7 +37,7 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
   const threadIdRef = useRef<string | null>(currentThreadId)
   const titleRef = useRef<string | undefined>(undefined)
   titleRef.current = tab?.title ?? tab?.label
-  const updateTerminalTabRef = useRef(useViewerTabStore.getState().updateTerminalTab)
+  const updateTerminalTabRef = useRef(useDetailPanelStore.getState().updateTerminalTab)
 
   useEffect(() => {
     threadIdRef.current = currentThreadId

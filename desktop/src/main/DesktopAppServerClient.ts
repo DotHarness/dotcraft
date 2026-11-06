@@ -80,7 +80,6 @@ class DesktopStreamTransport implements Transport {
   }
 }
 
-/** Desktop host policy around the SDK Wire client. JSON-RPC remains owned by @dotcraft/sdk. */
 export class DesktopAppServerClient extends EventEmitter {
   private readonly wire: DotCraftWireClient
   private readonly browserSubscriptions: BrowserTurnSubscriptions
@@ -195,6 +194,10 @@ export class DesktopAppServerClient extends EventEmitter {
     return this.browserSubscriptions.release(threadId, turnId)
   }
 
+  get hasRetainedBrowserTurns(): boolean { return this.browserSubscriptions.retained }
+
+  get isDisposed(): boolean { return this.disposed }
+
   async sendNotification(method: string, params?: unknown): Promise<void> {
     await this.wire.notifyRaw(method, (params ?? {}) as Record<string, unknown>)
   }
@@ -244,6 +247,7 @@ export class DesktopAppServerClient extends EventEmitter {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.emit('disposed')
     this.browserSubscriptions.clear()
     this.notificationCallbacks = []
     this.serverRequestHandler = null
@@ -270,7 +274,6 @@ function isTransport(value: Readable | Transport): value is Transport {
   return typeof (value as Transport).readMessage === 'function'
 }
 
-/** Keeps the JSON-RPC code and `data` while dropping the wire error's cause chain. */
 function normalizeDesktopRpcError(error: unknown): AppServerRequestError {
   return fromAppServerErrorEnvelope(toAppServerErrorEnvelope(error))
 }

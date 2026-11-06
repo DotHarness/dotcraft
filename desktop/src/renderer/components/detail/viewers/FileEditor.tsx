@@ -35,7 +35,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import { useDocumentThemeMode } from '../../../utils/theme'
 import { useHighlighterPool } from '../../../highlight'
 import { useFindStore } from '../../../stores/findStore'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { useFileEditorStore } from '../../../stores/fileEditorStore'
 import { openConversationLink } from '../../../utils/conversationDeepLink'
 import { IconButton } from '../../ui/IconButton'
@@ -87,7 +87,7 @@ export function FileEditor({
       ? [
           markdown({ extensions: GFM }),
           markdownEditing(theme, absolutePath, (href) => {
-            const viewer = useViewerTabStore.getState()
+            const viewer = useDetailPanelStore.getState()
             if (!viewer.currentThreadId || !viewer.currentWorkspacePath) return
             void openConversationLink({
               target: href,

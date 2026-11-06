@@ -1,8 +1,3 @@
-/**
- * Presentation-agnostic so it can be hosted as a centered modal (`QuickOpenDialog`)
- * or an anchored dropdown (`JumpToFileButton`). First mount loads up to 500
- * workspace files over IPC; matching is client-side from then on.
- */
 import {
   useEffect,
   useRef,
@@ -13,8 +8,7 @@ import {
   type ChangeEvent
 } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { Search, AlertCircle } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -33,7 +27,7 @@ interface FileEntry {
 interface FuzzyMatch {
   entry: FileEntry
   score: number
-  /** Indices of matched characters in the file name label. */
+
   matchedNameIndices: Set<number>
 }
 
@@ -97,11 +91,11 @@ export function fuzzyMatch(query: string, entries: FileEntry[]): FuzzyMatch[] {
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
 interface QuickOpenContentProps {
-  /** Called after a file opens, on Escape, or when the finder should dismiss. */
+
   onClose: () => void
-  /** Search input placeholder + aria-label. Defaults to `quickOpen.placeholder`. */
+
   placeholder?: string
-  /** Max height of the scrollable result list. */
+
   resultsMaxHeight?: number
 }
 
@@ -111,11 +105,11 @@ export function QuickOpenContent({
   resultsMaxHeight = 320
 }: QuickOpenContentProps): JSX.Element {
   const t = useT()
-  const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
-  const setDetailPanelVisible = useUIStore((s) => s.setDetailPanelVisible)
+  const setActiveViewerTab = useDetailPanelStore((s) => s.setActiveViewerTab)
+  const setDetailPanelVisible = useDetailPanelStore((s) => s.setDetailPanelVisible)
 
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const openFile = useViewerTabStore((s) => s.openFile)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const openFile = useDetailPanelStore((s) => s.openFile)
 
   const workspacePath = useConversationStore((s) => s.workspacePath)
 

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { buildViewerUrl, installViewerProtocolHandlerForSession } from './viewerFileProtocol'
 import { configureEmbeddedBrowserIdentity } from './browserIdentity'
+import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 export type BrowserSessionKind = 'website' | 'local-preview'
 interface PageAuthority { kind: BrowserSessionKind; allowFileScheme: boolean }
@@ -54,9 +55,10 @@ export class BrowserSessionPolicy {
 
   select(win: BrowserWindow, workspacePath: string, initialUrl: string): { partition: string; kind: BrowserSessionKind } {
     const kind = browserSessionKind(initialUrl)
-    const partition = kind === 'website' ? partitionForWorkspace(workspacePath) : `dotcraft-preview:${win.webContents.id}`
+    const scope = createHash('sha256').update(normalizeWorkspaceProjectKey(workspacePath)).digest('hex').slice(0, 24)
+    const partition = kind === 'website' ? partitionForWorkspace(workspacePath) : `dotcraft-preview:${win.webContents.id}:${scope}`
     const target = session.fromPartition(partition)
-    if (kind === 'local-preview') installViewerProtocolHandlerForSession(target, win.webContents.id)
+    if (kind === 'local-preview') installViewerProtocolHandlerForSession(target, win.webContents.id, workspacePath)
     this.configure(target, kind)
     return { partition, kind }
   }

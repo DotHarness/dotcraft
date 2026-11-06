@@ -4,8 +4,7 @@ import {
   type WriteEnvironmentResult
 } from '../../../shared/projectActions'
 import { showToast } from '../../stores/toastStore'
-import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { sameEnvironmentPath, threadWorktreeEnvironment } from '../conversation/summary/worktreeEnvironment'
 import { selectProjectEnvironment } from './environmentSelection'
 
@@ -26,7 +25,7 @@ async function runProjectSetup({ workspacePath, threadId, environmentId, t }: {
     ...(worktreePath ? { worktreePath } : {})
   })
   if (!run) return
-  const tabId = useViewerTabStore.getState().runInTerminal({
+  const tabId = useDetailPanelStore.getState().runInTerminal({
     threadId,
     tabId: projectSetupTerminalTabId(threadId),
     cwd: run.cwd,
@@ -34,7 +33,7 @@ async function runProjectSetup({ workspacePath, threadId, environmentId, t }: {
     command: run.command,
     env: run.env
   })
-  useUIStore.getState().setActiveViewerTab(tabId)
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
 }
 
 export async function setUpProject({ workspacePath, threadId, document, t }: {

@@ -6,7 +6,8 @@ import { computerUseManager } from '../computerUse/runtime'
 import { DesktopAppServerClient, type InitializeResult } from '../DesktopAppServerClient'
 import { broadcastNotification } from '../ipcBridge'
 import { bindLocalProjectRecovery } from '../localProjectRecovery'
-import { nodeReplManager } from '../nodeReplManager'
+import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
+import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import {
   canBridgeRendererInteractiveServerRequest,
@@ -82,12 +83,20 @@ export async function connectViaWebSocket(
 
   client.onNotification((method, params) => {
     if (!ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry) {
-      nodeReplManager.handleNotification(method, params)
+      const turn = readBrowserTurnNotification(method, params)
+      const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
+      handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
+      handleWorkspaceNodeReplNotification(entry, method, params)
       ctx.getThreadTasks().handleNotification(method, params)
-      const turnEvent = readBrowserTurnNotification(method, params)
-      if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
-      const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
-      if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
+      if (ownsThread) {
+        if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
+        browserUseManager.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
+      }
+      if (turn?.terminal) {
+        void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn).finally(() => {
+          if (!ctx.runtimeIsStopping()) ctx.scheduleSecondaryWorkspaceRefresh()
+        })
+      }
     }
     const foreground = getWorkspaceNotificationForeground(method, {
       appQuitting: ctx.runtimeIsStopping(),
@@ -204,6 +213,7 @@ export async function connectViaWebSocket(
     entry.connecting = false
     entry.errorMessage = undefined
     ctx.emitWorkspaceProjects()
+    if (!ctx.runtimeIsStopping() && entry.kind !== 'remote') ctx.scheduleSecondaryWorkspaceRefresh()
     if (entry.role === 'secondary') return
     if (!isCurrentForegroundClient()) return
     ctx.resetThreadToolState()

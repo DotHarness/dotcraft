@@ -3,11 +3,12 @@ import { createReadStream, promises as fs } from 'fs'
 import * as path from 'path'
 import { Readable } from 'stream'
 import { pathToFileURL } from 'url'
-import { chatFolderFor } from './chatFolderAccess'
+import { chatFolderContaining } from './chatFolders'
+import { isDefaultChatWorkspace } from './defaultChatWorkspace'
 import { mimeForExtension } from './viewerMime'
 import {
-  bindWindowFileSession, getWindowFileAccess, isCurrentWindowFileAccess,
-  registerWindowFileAccess, requireWindowFileAccess, windowFileAccessForSession,
+  bindWindowFileSession, getWindowFileAccess, isCurrentWindowFileAccess, isWindowFileAccessValid,
+  registerWindowFileAccess, requireWindowFileAccess, scopedWindowFileAccess, windowFileAccessForSession,
   type WindowFileAccess, type WindowFileAccessOptions
 } from './windowFileAccess'
 import { clearDesktopPluginModuleRoutes, installPluginFileProtocolHandlerForSession } from './pluginFileProtocol'
@@ -61,16 +62,20 @@ export function bindViewerWindow(
   }
 }
 
-export function installViewerProtocolHandlerForSession(targetSession: Electron.Session, ownerId: number): void {
-  bindWindowFileSession(targetSession, ownerId)
+export function installViewerProtocolHandlerForSession(targetSession: Electron.Session, ownerId: number, workspaceRoot?: string): void {
+  bindWindowFileSession(targetSession, ownerId, workspaceRoot)
   const targetProtocol = targetSession.protocol
   if (installedSessionProtocols.has(targetProtocol)) return
   installedSessionProtocols.add(targetProtocol)
   targetProtocol.handle(VIEWER_SCHEME, (request) =>
-    handleViewerFileRequest(request, windowFileAccessForSession(targetSession)?.ownerId))
+    handleViewerFileRequestWithContext(request, windowFileAccessForSession(targetSession)))
 }
 
-export async function handleViewerFileRequest(request: Request, ownerId?: number): Promise<Response> {
+export function handleViewerFileRequest(request: Request, ownerId?: number): Promise<Response> {
+  return handleViewerFileRequestWithContext(request, getWindowFileAccess(ownerId))
+}
+
+async function handleViewerFileRequestWithContext(request: Request, context?: WindowFileAccess): Promise<Response> {
   try {
     const absPath = viewerUrlToPath(request.url)
 
@@ -78,14 +83,13 @@ export async function handleViewerFileRequest(request: Request, ownerId?: number
       return new Response(null, { status: 400 })
     }
 
-    const context = getWindowFileAccess(ownerId)
     const root = context?.getWorkspaceRoot()
     if (!context || !root) {
       return new Response(null, { status: 403 })
     }
 
     const epoch = context.authorizationEpoch
-    const insideWorkspace = await isPathInsideViewerRoots(absPath, root, context.ownerId)
+    const insideWorkspace = await isPathInsideContextRoots(absPath, context)
     const resolvedExternalPath = insideWorkspace ? null : await resolveAuthorizedExternalFile(absPath, context)
     if (!insideWorkspace && !resolvedExternalPath) {
       return new Response(null, { status: 403 })
@@ -93,7 +97,7 @@ export async function handleViewerFileRequest(request: Request, ownerId?: number
 
     const filePath = resolvedExternalPath ?? absPath
     const stat = await fs.stat(filePath)
-    if (!stat.isFile() || !isCurrentWindowFileAccess(context, root, epoch)) {
+    if (!stat.isFile() || !isWindowFileAccessValid(context, root, epoch)) {
       return new Response(null, { status: 403 })
     }
 
@@ -142,9 +146,20 @@ export function getViewerWorkspaceRoot(ownerId: number): string {
 export function viewerRootsFor(workspaceRoot: string, targetPath: string | undefined, ownerId: number): string[] {
   const context = getWindowFileAccess(ownerId)
   if (!context || !workspaceRoot || context.getWorkspaceRoot() !== workspaceRoot) return []
+  return contextRootsFor(context, targetPath)
+}
+
+function contextRootsFor(context: WindowFileAccess, targetPath?: string): string[] {
+  const workspaceRoot = context.getWorkspaceRoot()
   const roots: string[] = []
   const seen = new Set<string>()
-  const chatFolder = chatFolderFor(workspaceRoot, targetPath, ownerId)
+  let chatFolder: string | null = null
+  if (targetPath && path.isAbsolute(targetPath) && isDefaultChatWorkspace(workspaceRoot)) {
+    for (const root of context.getChatFolderRoots?.() ?? []) {
+      chatFolder = chatFolderContaining(targetPath, root)
+      if (chatFolder) break
+    }
+  }
   for (const candidate of [workspaceRoot, ...(context.getSecondaryRoots?.(workspaceRoot) ?? []), ...(chatFolder ? [chatFolder] : [])]) {
     if (!candidate) continue
     const resolved = path.resolve(candidate)
@@ -161,6 +176,29 @@ export async function isPathInsideViewerRoots(targetPath: string, workspaceRoot:
     if (await isPathInsideWorkspace(targetPath, root)) return true
   }
   return false
+}
+
+async function isPathInsideContextRoots(targetPath: string, context: WindowFileAccess): Promise<boolean> {
+  for (const root of contextRootsFor(context, targetPath)) {
+    if (await isPathInsideWorkspace(targetPath, root)) return true
+  }
+  return false
+}
+
+export async function resolveScopedViewerFileForAccess(
+  absolutePath: string,
+  workspaceRoot: string,
+  ownerId: number
+): Promise<string> {
+  const context = scopedWindowFileAccess(ownerId, workspaceRoot)
+  const epoch = context.authorizationEpoch
+  if (!path.isAbsolute(absolutePath)) throw new Error('Viewer access requires an absolute file path')
+  const inside = await isPathInsideContextRoots(absolutePath, context)
+  const resolved = inside ? await fs.realpath(path.resolve(absolutePath)) : await resolveAuthorizedExternalFile(absolutePath, context)
+  if (!resolved || !isWindowFileAccessValid(context, context.getWorkspaceRoot(), epoch)) {
+    throw new Error(`Viewer access denied: ${absolutePath}`)
+  }
+  return resolved
 }
 
 export async function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): Promise<boolean> {
@@ -191,13 +229,6 @@ export async function authorizeViewerFile(absolutePath: string, ownerId: number)
   if (!isCurrentWindowFileAccess(context, root, epoch)) throw new Error('Viewer workspace changed.')
   context.authorizedExternalFiles.add(resolved)
   return resolved
-}
-
-export function clearAuthorizedViewerFiles(ownerId: number): void {
-  const context = getWindowFileAccess(ownerId)
-  if (!context) return
-  context.authorizedExternalFiles.clear()
-  context.authorizationEpoch++
 }
 
 async function resolveAuthorizedExternalFile(absolutePath: string, context: WindowFileAccess): Promise<string | null> {
@@ -238,24 +269,13 @@ export function buildViewerUrl(absolutePath: string): string {
   return `${VIEWER_SCHEME}://${VIEWER_HOST}${encodeViewerPath(normalized)}`
 }
 
-/** Also accepts legacy URLs created before the fixed host was introduced. */
 export function viewerUrlToPath(viewerUrl: string): string {
   const parsed = new URL(viewerUrl)
   if (parsed.protocol !== `${VIEWER_SCHEME}:`) {
     throw new Error('Invalid viewer URL scheme')
   }
-
-  const decodedPath = decodeViewerPath(parsed.pathname)
-
-  if (parsed.hostname === VIEWER_HOST || parsed.hostname === '') {
-    return stripWindowsPathLeadingSlash(decodedPath)
-  }
-
-  if (/^[a-z]$/i.test(parsed.hostname)) {
-    return `${parsed.hostname.toUpperCase()}:${decodedPath.startsWith('/') ? decodedPath : `/${decodedPath}`}`
-  }
-
-  throw new Error('Invalid viewer URL host')
+  if (parsed.hostname !== VIEWER_HOST) throw new Error('Invalid viewer URL host')
+  return stripWindowsPathLeadingSlash(decodeViewerPath(parsed.pathname))
 }
 
 function normalizeAbsolutePathForViewerUrl(absolutePath: string): string {

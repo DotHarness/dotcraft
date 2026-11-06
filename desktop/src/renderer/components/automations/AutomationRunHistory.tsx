@@ -1,10 +1,10 @@
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { Archive, ArchiveRestore, Check, Circle, GitCompareArrows } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { openAutomationRun } from '../../stores/automationRunNavigation'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
 import type { AutomationRun } from '../../types/automation'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
@@ -83,7 +83,7 @@ export function AutomationRunHistory({ automationId, automationName }: { automat
         disabled: pending || !archiveable(selected), onClick: () => { setMenu(null); setArchiveIds([selected.threadId!]) } }]),
       ...(selected.worktree ? [{ label: t('automation.reviewChanges'), icon: <GitCompareArrows size={15} />,
         disabled: pending || selectedArchived || !selected.threadId || !selected.turnId || !threads[selected.threadId],
-        onClick: () => { setMenu(null); openAutomationRun(selected); useUIStore.getState().setActiveDetailTab('changes') } }] : [])
+        onClick: () => { setMenu(null); openAutomationRun(selected); useDetailPanelStore.getState().setActiveDetailTab('changes') } }] : [])
     ] : [
       { label: t('automation.markAllRead'), icon: <Check size={15} />, disabled: pending || !unreadIds.length, onClick: () => mark(unreadIds, true) },
       { label: t('automation.archiveAll'), icon: <Archive size={15} />, disabled: pending || !targets.length,

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 
 import type {
-  ActiveDetailTab,
   DesktopPluginMainView,
   PluginCatalogSurface,
   SelectedChannelKey
@@ -12,7 +11,7 @@ import { useThreadStore } from './threadStore'
 import { usePluginStore } from './pluginStore'
 import { useSkillsStore } from './skillsStore'
 import { useAutomationsStore } from './automationsStore'
-import { useViewerTabStore } from './viewerTabStore'
+import { useDetailPanelStore, type ActiveDetailTab } from './detailPanelStore'
 import {
   findDesktopPluginMainView,
   useDesktopPluginRegistry
@@ -147,8 +146,8 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
     return {
       kind: 'conversation',
       threadId: activeThreadId,
-      detailVisible: ui.detailPanelPreferredVisible,
-      activeDetailTab: ui.activeDetailTab,
+      detailVisible: useDetailPanelStore.getState().getCurrentPanel().detailPanelPreferredVisible,
+      activeDetailTab: useDetailPanelStore.getState().getCurrentPanel().activeDetailTab,
       selectedChangeKey: ui.selectedChangeKey
     }
   }
@@ -230,7 +229,7 @@ export function startAppNavigationHistory(workspaceKey: string): () => void {
     usePluginStore.subscribe(schedule),
     useSkillsStore.subscribe(schedule),
     useAutomationsStore.subscribe(schedule),
-    useViewerTabStore.subscribe(schedule),
+    useDetailPanelStore.subscribe(schedule),
     useDesktopPluginRegistry.subscribe(schedule)
   ]
 
@@ -275,7 +274,7 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
     }
     if (location.activeDetailTab.kind === 'viewer') {
       const viewerTabId = location.activeDetailTab.id
-      const viewerExists = useViewerTabStore
+      const viewerExists = useDetailPanelStore
         .getState()
         .getThreadState(locationDetailScopeId(location))
         .tabs
@@ -312,7 +311,7 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
 }
 
 function locationDetailScopeId(location: ConversationNavigationLocation): string {
-  return location.threadId ?? useViewerTabStore.getState().welcomeScopeId ?? ''
+  return location.threadId ?? useDetailPanelStore.getState().welcomeScopeId ?? ''
 }
 
 function restoreLocation(location: AppNavigationLocation): void {
@@ -320,17 +319,18 @@ function restoreLocation(location: AppNavigationLocation): void {
 
   if (location.kind === 'conversation') {
     useThreadStore.getState().setActiveThreadId(location.threadId)
+    useDetailPanelStore.getState().onThreadSwitched(locationDetailScopeId(location))
     ui.setActiveMainView('conversation')
     ui.selectChangeKey(location.selectedChangeKey)
     if (location.activeDetailTab.kind === 'system') {
-      ui.setActiveDetailTab(location.activeDetailTab.id, { reveal: false })
+      useDetailPanelStore.getState().setActiveDetailTab(location.activeDetailTab.id, { reveal: false })
     } else if (location.activeDetailTab.kind === 'viewer') {
-      useViewerTabStore.getState().setActiveTab(locationDetailScopeId(location), location.activeDetailTab.id)
-      ui.setActiveViewerTab(location.activeDetailTab.id, { reveal: false })
+      useDetailPanelStore.getState().setActiveTab(locationDetailScopeId(location), location.activeDetailTab.id)
+      useDetailPanelStore.getState().setActiveViewerTab(location.activeDetailTab.id, { reveal: false })
     } else {
-      useUIStore.setState({ activeDetailTab: { kind: 'launcher' } })
+      useDetailPanelStore.getState().patchPanel({ activeDetailTab: { kind: 'launcher' } })
     }
-    ui.setDetailPanelVisible(location.detailVisible)
+    useDetailPanelStore.getState().setDetailPanelVisible(location.detailVisible)
     return
   }
 

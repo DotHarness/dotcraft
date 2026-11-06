@@ -1,3 +1,4 @@
+import { useDetailPanelStore, type SystemDetailTab } from '../../../stores/detailPanelStore'
 import type {
   DesktopPluginProjectActionsSnapshot,
   DesktopPluginSavedProjectAction,
@@ -33,7 +34,6 @@ import { useConversationStore, type ContextUsage } from '../../../stores/convers
 import { useThreadStore } from '../../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
 import { showToast } from '../../../stores/toastStore'
-import { useUIStore, type SystemDetailTab } from '../../../stores/uiStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
 import { compactThreadContext } from '../../../utils/manualCompaction'
 import { openSkill } from '../../../utils/openSkill'
@@ -185,7 +185,7 @@ export const desktopSummaryServices: SummaryServices = {
     }
   },
   navigation: {
-    openDetailPanel: (tab) => useUIStore.getState().setActiveDetailTab(tab),
+    openDetailPanel: (tab) => useDetailPanelStore.getState().setActiveDetailTab(tab),
     openFile: openActiveThreadFile,
     openExternal: openExternalUrl,
     openSkill,

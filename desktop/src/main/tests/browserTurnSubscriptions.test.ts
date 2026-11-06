@@ -44,6 +44,25 @@ describe('browser turn subscriptions', () => {
     expect(raw.mock.calls.filter(([method]) => method === 'thread/unsubscribe')).toHaveLength(2)
   })
 
+  it('protects the connection until every retained turn ends and drops failed leases', async () => {
+    const { raw, leases } = fixture()
+    expect(leases.retained).toBe(false)
+    await leases.retain('a', 'one')
+    await leases.retain('b', 'two')
+    expect(leases.retained).toBe(true)
+    await leases.release('a', 'one')
+    expect(leases.retained).toBe(true)
+    await leases.release('b', 'two')
+    expect(leases.retained).toBe(false)
+    raw.mockRejectedValueOnce(new Error('disconnected'))
+    await expect(leases.retain('a', 'three')).rejects.toThrow('disconnected')
+    expect(leases.retained).toBe(false)
+    await leases.retain('a', 'four')
+    expect(leases.retained).toBe(true)
+    leases.clear()
+    expect(leases.retained).toBe(false)
+  })
+
   it('does not unsubscribe a newer turn acquired while the older retain is pending', async () => {
     let resolve!: () => void
     const raw = vi.fn(() => new Promise<void>((done) => { resolve = done }))

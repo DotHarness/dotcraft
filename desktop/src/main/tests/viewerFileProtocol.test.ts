@@ -27,7 +27,6 @@ import {
   VIEWER_SCHEME,
   authorizeViewerFile,
   buildViewerUrl,
-  clearAuthorizedViewerFiles,
   bindViewerWindow,
   handleViewerFileRequest as handleViewerFileRequestForOwner,
   installViewerProtocolHandlerForSession,
@@ -36,7 +35,7 @@ import {
   viewerRootsFor,
   viewerUrlToPath
 } from '../viewerFileProtocol'
-import { registerWindowFileAccess } from '../windowFileAccess'
+import { registerWindowFileAccess, revokeWindowFileAccess } from '../windowFileAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 
 const tempDirs: string[] = []
@@ -59,7 +58,6 @@ beforeEach(() => {
     getSecondaryRoots: root => secondaryRoots(root),
     getChatFolderRoots: () => chatRoots()
   })
-  clearAuthorizedViewerFiles(OWNER)
   netFetchMock.mockReset()
   netFetchMock.mockResolvedValue(new Response('ok', { status: 200 }))
 })
@@ -79,17 +77,17 @@ function createTempDir(): string {
 
 describe('viewer URLs', () => {
   it('builds path-like URLs that round-trip Windows and spaced paths', () => {
-    const url = buildViewerUrl('C:\\Users\\user\\my project\\file name.ts')
-    expect(url).toBe(`${VIEWER_SCHEME}://workspace/C%3A/Users/user/my%20project/file%20name.ts`)
-    expect(viewerUrlToPath(url)).toBe('C:/Users/user/my project/file name.ts')
+    const url = buildViewerUrl('C:\\workspace\\sample project\\file name.ts')
+    expect(url).toBe(`${VIEWER_SCHEME}://workspace/C%3A/workspace/sample%20project/file%20name.ts`)
+    expect(viewerUrlToPath(url)).toBe('C:/workspace/sample project/file name.ts')
   })
 
   it.each([
-    [`${VIEWER_SCHEME}://workspace/E%3A/workspace/index.html`],
-    [`${VIEWER_SCHEME}://e/workspace/index.html`],
-    [`${VIEWER_SCHEME}:///E:/workspace/index.html`]
-  ])('decodes %s without creating UNC paths', (url) => {
-    expect(viewerUrlToPath(url)).toBe('E:/workspace/index.html')
+    `${VIEWER_SCHEME}://other/workspace/index.html`,
+    `${VIEWER_SCHEME}:///E:/workspace/index.html`,
+    'https://workspace/index.html'
+  ])('rejects a viewer URL outside the fixed scheme and host: %s', (url) => {
+    expect(() => viewerUrlToPath(url)).toThrow('Invalid viewer URL')
   })
 })
 
@@ -252,7 +250,7 @@ describe('window-scoped protocol authorization', () => {
         expect((await second.request(new Request(buildViewerUrl(file)))).status).toBe(403)
       }
       expect(() => installViewerProtocolHandlerForSession(first.targetSession, 12)).toThrow('cannot be shared')
-      clearAuthorizedViewerFiles(11)
+      revokeWindowFileAccess(11)
       expect((await first.request(new Request(buildViewerUrl(outsideFile)))).status).toBe(403)
     } finally {
       first.dispose()
@@ -267,7 +265,7 @@ describe('window-scoped protocol authorization', () => {
     const first = windowFixture(11, root)
     try {
       const pending = authorizeViewerFile(file, 11)
-      clearAuthorizedViewerFiles(11)
+      revokeWindowFileAccess(11)
       await expect(pending).rejects.toThrow('workspace changed')
       expect((await first.request(new Request(buildViewerUrl(file)))).status).toBe(403)
     } finally { first.dispose() }

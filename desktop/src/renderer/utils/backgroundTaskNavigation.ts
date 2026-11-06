@@ -1,15 +1,14 @@
 import { requestToolCallReveal } from '../stores/toolCallRevealStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { openSubAgent } from './subAgentNavigation'
 
 export type BackgroundTaskKind = 'terminal' | 'subagent' | 'workflow'
 
 export function openBackgroundTask(threadId: string, kind: BackgroundTaskKind, taskId: string, workflowTabLabel: string): void {
   if (kind === 'workflow') {
-    const tabId = useViewerTabStore.getState().openWorkflow({ threadId, runId: taskId, initialLabel: workflowTabLabel })
-    useUIStore.getState().setActiveViewerTab(tabId)
+    const tabId = useDetailPanelStore.getState().openWorkflow({ threadId, runId: taskId, initialLabel: workflowTabLabel })
+    useDetailPanelStore.getState().setActiveViewerTab(tabId)
     return
   }
   if (kind === 'subagent') {

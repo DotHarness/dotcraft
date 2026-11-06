@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useUIStore, type SystemDetailTab } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore, type SystemDetailTab } from '../../stores/detailPanelStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
 import { useSideChatStore } from '../../stores/sideChatStore'
@@ -29,9 +28,9 @@ export function detailTabMenuState(order: DetailTabRef[], ref: DetailTabRef): De
 }
 
 export function currentDetailTabOrder(): DetailTabRef[] {
-  const viewer = useViewerTabStore.getState()
+  const viewer = useDetailPanelStore.getState()
   const system = useThreadStore.getState().activeThreadId != null
-    ? useUIStore.getState().openSystemTabs
+    ? useDetailPanelStore.getState().getCurrentPanel().openSystemTabs
     : []
   return [
     ...system.map((id): DetailTabRef => ({ kind: 'system', id })),
@@ -51,7 +50,7 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
   const closingTabs = useRef(new Set<string>())
 
   const closeViewerTab = async (threadId: string, tabId: string): Promise<boolean> => {
-    const closing = useViewerTabStore.getState().getThreadState(threadId).tabs.find((tab) => tab.id === tabId)
+    const closing = useDetailPanelStore.getState().getThreadState(threadId).tabs.find((tab) => tab.id === tabId)
     if (!closing) return false
     if (closing.kind === 'file' && closing.contentClass === 'text') {
       const saved = await useFileEditorStore.getState().save(tabId)
@@ -81,26 +80,15 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
     } else if (closing.kind === 'terminal') {
       void window.api.workspace.viewer.terminal.dispose({ tabId: closing.id })
     }
-    const latestTabs = useViewerTabStore.getState().getThreadState(threadId).tabs
-    useViewerTabStore.getState().closeTab(threadId, tabId)
-    if (useViewerTabStore.getState().currentThreadId !== threadId) return true
-    const remaining = latestTabs.filter((tab) => tab.id !== tabId)
-    const ui = useUIStore.getState()
-    const active = ui.activeDetailTab
-    if (active.kind === 'viewer' && active.id === tabId) {
-      const index = latestTabs.findIndex((tab) => tab.id === tabId)
-      const next = index > 0 ? remaining[index - 1] : remaining[0]
-      if (next) ui.setActiveViewerTab(next.id)
-      else ui.closeViewerTab()
-    }
+    useDetailPanelStore.getState().closeTab(threadId, tabId)
     return true
   }
 
   const closeTab = async (ref: DetailTabRef): Promise<boolean> => {
-    const threadId = useViewerTabStore.getState().currentThreadId
+    const threadId = useDetailPanelStore.getState().currentThreadId
     if (ref.kind === 'system') {
-      const viewerTabs = useViewerTabStore.getState().getThreadState(threadId ?? '').tabs
-      useUIStore.getState().closeSystemTab(ref.id, viewerTabs[0]?.id ?? null)
+      const viewerTabs = useDetailPanelStore.getState().getThreadState(threadId ?? '').tabs
+      useDetailPanelStore.getState().closeSystemTab(ref.id, viewerTabs[0]?.id ?? null)
       return true
     }
     if (!threadId || closingTabs.current.has(ref.id)) return false
@@ -114,21 +102,20 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
 
   // Sequential because the confirm dialog shows one unsaved-changes prompt at a time.
   const closeMany = async (targets: DetailTabRef[]): Promise<void> => {
-    const threadId = useViewerTabStore.getState().currentThreadId
+    const threadId = useDetailPanelStore.getState().currentThreadId
     for (const target of [...targets].reverse()) {
-      if (useViewerTabStore.getState().currentThreadId !== threadId) return
+      if (useDetailPanelStore.getState().currentThreadId !== threadId) return
       await closeTab(target)
     }
   }
 
   const closeOtherTabs = async (ref: DetailTabRef): Promise<void> => {
-    const threadId = useViewerTabStore.getState().currentThreadId
+    const threadId = useDetailPanelStore.getState().currentThreadId
     await closeMany(currentDetailTabOrder().filter((tab) => !sameTab(tab, ref)))
-    if (useViewerTabStore.getState().currentThreadId !== threadId) return
+    if (useDetailPanelStore.getState().currentThreadId !== threadId) return
     if (!currentDetailTabOrder().some((tab) => sameTab(tab, ref))) return
-    const ui = useUIStore.getState()
-    if (ref.kind === 'system') ui.setActiveDetailTab(ref.id)
-    else ui.setActiveViewerTab(ref.id)
+    if (ref.kind === 'system') useDetailPanelStore.getState().setActiveDetailTab(ref.id)
+    else useDetailPanelStore.getState().setActiveViewerTab(ref.id)
   }
 
   const closeTabsToRight = async (ref: DetailTabRef): Promise<void> => {

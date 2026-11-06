@@ -3,16 +3,15 @@ import { Clock } from 'lucide-react'
 import { useT, useLocale } from '../../contexts/LocaleContext'
 import type { AutomationDefinition } from '../../types/automation'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { automationScheduleSummary } from '../../utils/automationScheduleSummary'
 import { Button } from '../ui/Button'
 
 export function openAutomationTab(id: string, name: string): void {
   const threadId = useThreadStore.getState().activeThreadId
   if (!threadId) return
-  const tabId = useViewerTabStore.getState().openAutomation({ threadId, automationId: id, label: name })
-  useUIStore.getState().setActiveViewerTab(tabId)
+  const tabId = useDetailPanelStore.getState().openAutomation({ threadId, automationId: id, label: name })
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
 }
 
 export const AutomationCard = memo(function AutomationCard({ automation }: { automation: AutomationDefinition }): JSX.Element {

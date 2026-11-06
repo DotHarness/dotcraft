@@ -12,7 +12,8 @@ import {
 import { DesktopAppServerClient, type InitializeResult } from '../DesktopAppServerClient'
 import { type DesktopHubClient, type HubAppServerResponse, type HubEvent } from '../desktopHub'
 import { broadcastNotification } from '../ipcBridge'
-import { nodeReplManager } from '../nodeReplManager'
+import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
+import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -236,12 +237,20 @@ export function createSecondaryWorkspaceConnection(
 
   client.onNotification((method, params) => {
     if (!ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry) {
-      nodeReplManager.handleNotification(method, params)
+      const turn = readBrowserTurnNotification(method, params)
+      const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
+      handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
+      handleWorkspaceNodeReplNotification(entry, method, params)
       ctx.getThreadTasks().handleNotification(method, params)
-      const turnEvent = readBrowserTurnNotification(method, params)
-      if (turnEvent?.terminal) computerUseManager.handleTurnEnded(turnEvent.threadId, turnEvent.turnId)
-      const turn = browserUseManager.handleTurnNotification(method, params, entry.workspacePath)
-      if (turn?.terminal) void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn)
+      if (ownsThread) {
+        if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
+        browserUseManager.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
+      }
+      if (turn?.terminal) {
+        void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn).finally(() => {
+          if (!ctx.runtimeIsStopping()) ctx.scheduleSecondaryWorkspaceRefresh()
+        })
+      }
     }
     const foreground = getWorkspaceNotificationForeground(method, {
       appQuitting: ctx.runtimeIsStopping(),
@@ -291,6 +300,7 @@ export function createSecondaryWorkspaceConnection(
     entry.connecting = false
     entry.errorMessage = undefined
     ctx.emitWorkspaceProjects()
+    if (!ctx.runtimeIsStopping() && entry.kind !== 'remote') ctx.scheduleSecondaryWorkspaceRefresh()
     if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       const loc = normalizeLocale(ctx.settings.locale)
       ctx.emitConnectionStatus(ctx.mainWindow, {
@@ -376,13 +386,20 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   }
 
   const allowedKeys = new Set<string>()
+  let idleCount = 0
   for (const project of candidates) {
-    if (allowedKeys.size >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) break
     const key = ctx.normalizeWorkspaceConnectionKey(project.path)
+    const existing = ctx.workspaceConnections.get(key)
+    if (existing?.client.hasRetainedBrowserTurns) {
+      allowedKeys.add(key)
+      continue
+    }
+    if (idleCount >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) continue
     const live = liveByKey.get(key)
     const endpoint = live?.endpoints?.appServerWebSocket
     if (endpoint?.trim()) {
       allowedKeys.add(key)
+      idleCount += 1
       ctx.createSecondaryWorkspaceConnection(project.path, endpoint)
     }
   }
@@ -391,7 +408,7 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
     if (entry.role !== 'secondary') continue
     // Default Chat has its own connection owner outside the project list.
     if (isDefaultChatWorkspace(entry.workspacePath)) continue
-    if (!allowedKeys.has(entry.key)) {
+    if (!allowedKeys.has(entry.key) && !entry.client.hasRetainedBrowserTurns) {
       ctx.disposeWorkspaceConnection(entry)
     }
   }

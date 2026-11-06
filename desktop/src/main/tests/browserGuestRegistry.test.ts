@@ -44,16 +44,37 @@ it('registers one guest, keeps it through presentation changes and forwards page
   expect(registry.list(win)).toEqual([])
 })
 
+it('does not let an old destroyed guest remove a replacement with the same tab id', async () => {
+  const { registry, win, page } = fixture()
+  const first = registry.request(win, 'tab', 'persist:workspace')
+  registry.bind(win, 'tab', 7)
+  await first
+  registry.remove(win, 'tab')
+  const replacement = Object.assign(new EventEmitter(), {
+    setBackgroundThrottling: vi.fn(), hostWebContents: win.webContents,
+    session: mocks.partition, isDestroyed: () => false, close: vi.fn()
+  })
+  mocks.fromId.mockReturnValue(replacement)
+  const next = registry.request(win, 'tab', 'persist:workspace')
+  registry.bind(win, 'tab', 8)
+  await next
+  page.emit('destroyed')
+  expect(registry.list(win)).toHaveLength(1)
+  expect(replacement.close).not.toHaveBeenCalled()
+  registry.clear(win)
+})
+
 it('hardens remote guest preferences before attachment', () => {
   const { registry, win, owner } = fixture()
   registry.attachWindow(win)
   const listener = owner.listeners('will-attach-webview')[0] as (
     event: unknown,
-    preferences: Electron.WebPreferences
+    preferences: Electron.WebPreferences,
+    params: Record<string, string>
   ) => void
   const preferences = { preload: 'unsafe.js', webSecurity: false, plugins: true }
 
-  listener({}, preferences)
+  listener({}, preferences, {})
 
   expect(preferences).toEqual({
     nodeIntegration: false,
@@ -67,6 +88,39 @@ it('hardens remote guest preferences before attachment', () => {
     plugins: false,
     devTools: true
   })
+})
+
+it('binds a pristine guest on main attachment without loading the bootstrap URL', async () => {
+  const { registry, win, owner, page } = fixture()
+  registry.attachWindow(win)
+  const ready = registry.request(win, 'tab', 'persist:workspace')
+  const descriptor = registry.list(win)[0]
+  const preferences: Electron.WebPreferences = {}
+  const params = { src: `about:blank#dotcraft-browser-host=${descriptor.bootstrapToken}`, partition: 'persist:workspace', instanceId: 42 }
+  owner.emit('will-attach-webview', { preventDefault: vi.fn() }, preferences, params)
+  expect(params.src).toBe('')
+  const repeated = { preventDefault: vi.fn() }
+  owner.emit('will-attach-webview', repeated, {}, { src: `about:blank#dotcraft-browser-host=${descriptor.bootstrapToken}`, partition: 'persist:workspace' })
+  expect(repeated.preventDefault).toHaveBeenCalledOnce()
+  Object.assign(page, { id: 7, viewInstanceId: 42 })
+  owner.emit('did-attach-webview', {}, page)
+  await expect(ready).resolves.toBe(page)
+  registry.clear(win)
+})
+
+it('rejects unknown bootstrap tokens and mismatched profile attachment', () => {
+  const { registry, win, owner } = fixture()
+  registry.attachWindow(win)
+  const unknown = { preventDefault: vi.fn() }
+  owner.emit('will-attach-webview', unknown, {}, { src: 'about:blank#dotcraft-browser-host=unknown', partition: 'persist:workspace' })
+  expect(unknown.preventDefault).toHaveBeenCalledOnce()
+  const pending = registry.request(win, 'tab', 'persist:workspace').catch(() => {})
+  const descriptor = registry.list(win)[0]
+  const mismatched = { preventDefault: vi.fn() }
+  owner.emit('will-attach-webview', mismatched, {}, { src: `about:blank#dotcraft-browser-host=${descriptor.bootstrapToken}`, partition: 'another-session' })
+  expect(mismatched.preventDefault).toHaveBeenCalledOnce()
+  registry.clear(win)
+  return pending
 })
 
 it('rejects pending creation on close and refuses guests that are late or belong to another window', async () => {
