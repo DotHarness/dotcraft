@@ -482,7 +482,7 @@ internal static partial class ResponsesToolSearchMapper
 
                     case WebSearchToolResultContent searchResult:
                         FlushMessage();
-                        input.Add(CreateWebSearchItem(searchResult));
+                        input.Add(ResponsesWebSearchMetadata.Read(searchResult));
                         break;
 
                     case FunctionCallContent call:

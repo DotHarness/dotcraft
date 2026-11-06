@@ -31,7 +31,7 @@ internal static class ResponsesWebSearchMetadata
         }
     }
 
-    public static JsonObject ReadNative(WebSearchCallResponseItem raw, string callId)
+    private static JsonObject ReadNative(WebSearchCallResponseItem raw, string callId)
     {
         try
         {
@@ -46,11 +46,14 @@ internal static class ResponsesWebSearchMetadata
         }
     }
 
-    public static bool TryRead(WebSearchToolResultContent result, out JsonObject item)
+    public static JsonObject Read(WebSearchToolResultContent result)
     {
-        item = null!;
         if (result.AdditionalProperties?.TryGetValue(Key, out var metadata) != true)
-            return false;
+        {
+            return result.RawRepresentation is WebSearchCallResponseItem raw
+                ? ReadNative(raw, result.CallId)
+                : throw Invalid();
+        }
 
         try
         {
@@ -65,8 +68,7 @@ internal static class ResponsesWebSearchMetadata
                 || envelope["item"] is not JsonObject native)
                 throw Invalid();
             Validate(native, result.CallId);
-            item = (JsonObject)native.DeepClone();
-            return true;
+            return (JsonObject)native.DeepClone();
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
@@ -101,6 +103,6 @@ internal static class ResponsesWebSearchMetadata
             throw Invalid();
     }
 
-    internal static InvalidDataException Invalid() =>
+    private static InvalidDataException Invalid() =>
         new("responses_web_search_metadata_invalid: Invalid or unsupported web search replay metadata.");
 }
