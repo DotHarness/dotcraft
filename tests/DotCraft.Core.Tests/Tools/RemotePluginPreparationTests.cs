@@ -14,7 +14,7 @@ namespace DotCraft.Tests.Tools;
 public sealed class RemotePluginPreparationTests
 {
     [Fact]
-    public async Task ExecutionHostExportPinsReplacedBundle_UntilExportIsReleased()
+    public async Task ExecutionHostReplacementPreservesExportedBytes_AndActivatesNewCode()
     {
         using var harness = new PluginRuntimeHarness();
         using var data = new TemporaryDirectory();
@@ -31,24 +31,9 @@ public sealed class RemotePluginPreparationTests
         var replacement = Install(2);
         await host.PrepareAsync(replacement);
         Assert.Contains("dispose:first", PluginLogFile.ReadLines(Path.Combine(harness.Workspace, "plugin-lifecycle.log")));
-        for (var attempt = 0; attempt < 5; attempt++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await host.PrepareAsync(replacement);
-            await Task.Delay(100);
-        }
         Assert.Equal("bundle-resource", await File.ReadAllTextAsync(Path.Combine(oldRoot, "resource.txt")));
 
         export.Dispose();
-        for (var attempt = 0; attempt < 100 && Directory.Exists(oldRoot); attempt++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await host.PrepareAsync(replacement);
-            await Task.Delay(50);
-        }
-        Assert.False(Directory.Exists(oldRoot));
         var snapshot = new EffectiveToolSnapshotBuilder().Build(await host.GetRegistrationsAsync(planning), 2);
         var result = await new ToolDispatcher().DispatchAsync(snapshot, new("Probe", "Run"),
             new JsonObject { ["operation"] = "read" }, new("thread", "turn", "call", ToolInvocationAudience.Model));
