@@ -6,7 +6,7 @@ import type { ComposerFileAttachment, ConversationTurn, ImageAttachment, InputPa
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { createOptimisticUserMessage } from '../utils/inputPresentation'
 import { parsePendingApproval, parseUserInputRequest } from '../utils/interactiveRequestParsing'
-import { runtimeWorkspaceRootsFor } from '../utils/workspaceRuntimeRoots'
+import { runtimeWorkspaceUpdateFor } from '../utils/workspaceRuntimeRoots'
 import { useThreadStore } from './threadStore'
 import { useComposerContextStore } from './composerContextStore'
 import { useComposerDraftStore } from './composerDraftStore'
@@ -29,6 +29,7 @@ export interface SideChat {
   key: string
   parentThreadId: string
   identityWorkspacePath: string | undefined
+  cwd: string | undefined
   threadId: string | null
   tabId: string
   ordinal: number
@@ -246,14 +247,19 @@ async function request<M extends keyof ClientRequestMethods>(
     : window.api.appServer.sendRequest(method, params)
 }
 
-async function forkSideChat(key: string, parentThreadId: string, identityWorkspacePath: string | undefined): Promise<string | null> {
+async function forkSideChat(
+  key: string,
+  parentThreadId: string,
+  identityWorkspacePath: string | undefined,
+  cwd: string | undefined
+): Promise<string | null> {
   try {
-    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityWorkspacePath)
+    const workspaceUpdate = runtimeWorkspaceUpdateFor(identityWorkspacePath, cwd)
     const result = await request(key, 'thread/fork', {
       threadId: parentThreadId,
       ephemeral: true,
       sideChat: true,
-      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
+      ...workspaceUpdate
     }) as { thread?: { id?: string } }
     const threadId = result.thread?.id ?? null
     if (!threadId) throw new Error('thread/fork returned no thread')
@@ -265,6 +271,7 @@ async function forkSideChat(key: string, parentThreadId: string, identityWorkspa
     update(key, (current) => ({
       ...current,
       threadId,
+      cwd: workspaceUpdate.cwd ?? cwd,
       status: current.status === 'starting' ? 'ready' : current.status,
       turns: current.turns.map((turn) => turn.threadId ? turn : { ...turn, threadId })
     }))
@@ -288,6 +295,9 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       ? activeThread
       : threadList.find((candidate) => candidate.id === parentThreadId)
     const identityWorkspacePath = parent?.workspacePath
+    const cwd = activeThread?.id === parentThreadId
+      ? activeThread.configuration?.cwd ?? identityWorkspacePath
+      : identityWorkspacePath
     const key = crypto.randomUUID()
     const ordinal = Math.max(0, ...sideChatsOf(get().chats, parentThreadId).map((chat) => chat.ordinal)) + 1
     const tabId = useDetailPanelStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
@@ -300,6 +310,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
         key,
         parentThreadId,
         identityWorkspacePath,
+        cwd,
         threadId: null,
         tabId,
         ordinal,
@@ -315,7 +326,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     })
     if (contexts?.length) useComposerContextStore.getState().setContexts(key, contexts)
     connectionByKey.set(key, window.api.appServer.getConnectionKey())
-    const ready = forkSideChat(key, parentThreadId, identityWorkspacePath)
+    const ready = forkSideChat(key, parentThreadId, identityWorkspacePath, cwd)
     readyByKey.set(key, ready)
     get().requestFocus(key)
     if (prompt) await get().send(key, buildComposerInputParts({ ...prompt, threadId: parentThreadId }))
@@ -351,13 +362,16 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     try {
       const threadId = await (readyByKey.get(key) ?? Promise.resolve(chat.threadId))
       if (!threadId) throw new Error('The side chat is not ready.')
-      const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(chat.identityWorkspacePath)
+      const currentChat = get().chats.get(key)
+      if (!currentChat) return
+      const workspaceUpdate = runtimeWorkspaceUpdateFor(currentChat.identityWorkspacePath, currentChat.cwd)
       await request(key, 'turn/start', {
         threadId,
         input: inputParts,
         clientUserMessageId,
-        ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
+        ...workspaceUpdate
       })
+      if (workspaceUpdate.cwd) update(key, (current) => ({ ...current, cwd: workspaceUpdate.cwd }))
     } catch (error) {
       update(key, (current) => ({
         ...current,

@@ -52,6 +52,7 @@ export type {
 
 export interface LocalProjectDetails {
   name?: string
+  primaryFolder?: string
   secondaryFolders?: string[]
 }
 
@@ -568,12 +569,16 @@ function sanitizeSecondaryFolders(folders: unknown, primaryPath: string): string
   return result
 }
 
-function toLocalProjectDetails(primaryPath: string, name: unknown, secondaryFolders: unknown): LocalProjectDetails | null {
-  const trimmedName = typeof name === 'string' ? name.trim() : ''
-  const folders = sanitizeSecondaryFolders(secondaryFolders, primaryPath)
-  if (!trimmedName && folders.length === 0) return null
+function toLocalProjectDetails(workspacePath: string, value: LocalProjectDetails): LocalProjectDetails | null {
+  const name = typeof value.name === 'string' ? value.name.trim() : ''
+  const primaryFolder = typeof value.primaryFolder === 'string' && value.primaryFolder.trim()
+    ? normalize(value.primaryFolder.trim())
+    : undefined
+  const folders = sanitizeSecondaryFolders(value.secondaryFolders, primaryFolder ?? workspacePath)
+  if (!name && !primaryFolder && folders.length === 0) return null
   return {
-    ...(trimmedName ? { name: trimmedName } : {}),
+    ...(name ? { name } : {}),
+    ...(primaryFolder ? { primaryFolder } : {}),
     ...(folders.length > 0 ? { secondaryFolders: folders } : {})
   }
 }
@@ -584,7 +589,7 @@ function normalizeLocalProjectDetails(settings: AppSettings): Record<string, Loc
   const result: Record<string, LocalProjectDetails> = {}
   for (const [path, value] of Object.entries(raw)) {
     const key = normalizeWorkspaceProjectKey(path)
-    const details = key ? toLocalProjectDetails(key, value?.name, value?.secondaryFolders) : null
+    const details = key && value ? toLocalProjectDetails(key, value) : null
     if (details) result[key] = details
   }
   return Object.keys(result).length > 0 ? result : undefined
@@ -723,39 +728,29 @@ export function getLocalProjectDetails(settings: AppSettings, path: string): Loc
   return settings.localProjectDetails?.[normalizeWorkspaceProjectKey(path)]
 }
 
-/** `pinnedThreadIdsByWorkspace` stays under the previous key because existing threads keep their original workspace. */
 export function saveLocalProjectDetails(
   settings: AppSettings,
   params: {
-    previousPath?: string
+    projectPath?: string
     primaryFolder: string
     secondaryFolders: string[]
     name?: string
   }
 ): string {
   const primaryFolder = normalize(params.primaryFolder.trim())
-  const primaryKey = normalizeWorkspaceProjectKey(primaryFolder)
-  const previousKey = normalizeWorkspaceProjectKey(params.previousPath)
-  const allDetails = { ...settings.localProjectDetails }
-
-  if (previousKey && previousKey !== primaryKey) {
-    delete allDetails[previousKey]
-    const rekey = (ids: string[] | undefined): string[] | undefined =>
-      ids?.map((id) => (id === previousKey ? primaryKey : id))
-    settings.pinnedProjectIds = rekey(settings.pinnedProjectIds)
-    settings.projectOrder = rekey(settings.projectOrder)
-    settings.collapsedProjectIds = rekey(settings.collapsedProjectIds)
+  const workspacePath = normalize(params.projectPath?.trim() || primaryFolder)
+  const projectKey = normalizeWorkspaceProjectKey(workspacePath)
+  const name = params.name?.trim()
+  const secondaryFolders = sanitizeSecondaryFolders(params.secondaryFolders, primaryFolder).map(normalize)
+  settings.localProjectDetails = {
+    ...settings.localProjectDetails,
+    [projectKey]: {
+      primaryFolder,
+      ...(name ? { name } : {}),
+      ...(secondaryFolders.length > 0 ? { secondaryFolders } : {})
+    }
   }
-
-  const secondaryFolders = (params.secondaryFolders ?? [])
-    .map((folder) => (typeof folder === 'string' ? folder.trim() : ''))
-    .filter((folder) => folder.length > 0)
-    .map((folder) => normalize(folder))
-  const details = toLocalProjectDetails(primaryFolder, params.name, secondaryFolders)
-  if (details) allDetails[primaryKey] = details
-  else delete allDetails[primaryKey]
-  settings.localProjectDetails = Object.keys(allDetails).length > 0 ? allDetails : undefined
-  return primaryFolder
+  return workspacePath
 }
 
 export function forgetLocalProject(settings: AppSettings, path: string): void {

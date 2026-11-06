@@ -39,7 +39,21 @@ describe('viewerRoots', () => {
       ]
     })
 
-    expect(viewerRootsFor('X:/work/worktree', 'X:/work/app')).toEqual(['X:/work/worktree', 'X:/work/private'])
+    expect(viewerRootsFor('X:/work/worktree', 'X:/work/app', 'X:/work/app'))
+      .toEqual(['X:/work/worktree', 'X:/work/private'])
+
+    useWorkspaceProjectsStore.setState({ projects: [{
+      ...project('X:/work/app', ['X:/work/app', 'X:/work/new-shared']), primaryFolder: 'X:/work/lib'
+    }] })
+    expect(viewerRootsFor('X:/work/app')).toEqual(['X:/work/app', 'X:/work/lib', 'X:/work/new-shared'])
+    expect(viewerRootsFor('X:/work/worktree', 'X:/work/app', 'X:/work/app'))
+      .toEqual(['X:/work/worktree', 'X:/work/lib', 'X:/work/new-shared'])
+
+    useWorkspaceProjectsStore.setState({ projects: [{
+      ...project('X:/work/app', ['X:/work/new-shared']), primaryFolder: 'X:/work/lib'
+    }] })
+    expect(viewerRootsFor('X:/work/worktree', 'X:/work/app', 'X:/work/lib'))
+      .toEqual(['X:/work/worktree', 'X:/work/new-shared'])
   })
 
   it('picks the longest containing root case-insensitively and derives the relative path', () => {

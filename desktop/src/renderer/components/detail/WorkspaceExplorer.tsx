@@ -25,6 +25,9 @@ export function WorkspaceExplorer(): JSX.Element {
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const identityWorkspacePath = useThreadStore((s) => s.activeThread?.workspacePath) ?? workspacePath
   const effectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath) ?? workspacePath
+  const worktreeSourcePath = useThreadStore((s) => s.activeThread?.worktree
+    ? s.activeThread.configuration?.cwd ?? s.activeThread.worktree.sourceWorkspacePath
+    : undefined)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const activeFilePath = useDetailPanelStore((s) => {
     if (!s.currentThreadId) return null
@@ -36,8 +39,8 @@ export function WorkspaceExplorer(): JSX.Element {
   const consumeExplorerReveal = useUIStore((s) => s.consumeExplorerReveal)
 
   const roots = useMemo(
-    () => viewerRootsFor(effectiveWorkspacePath, identityWorkspacePath),
-    [effectiveWorkspacePath, identityWorkspacePath, projects]
+    () => viewerRootsFor(effectiveWorkspacePath, identityWorkspacePath, worktreeSourcePath),
+    [effectiveWorkspacePath, identityWorkspacePath, worktreeSourcePath, projects]
   )
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
   const root = selectedRoot && roots.includes(selectedRoot)

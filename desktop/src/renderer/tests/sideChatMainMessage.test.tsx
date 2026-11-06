@@ -14,6 +14,7 @@ const chat: SideChat = {
   key: 'side-key',
   parentThreadId: 'thread-main',
   identityWorkspacePath: undefined,
+  cwd: undefined,
   threadId: 'thread-side',
   tabId: 'tab-side',
   ordinal: 1,

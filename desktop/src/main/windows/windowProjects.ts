@@ -250,6 +250,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       kind: 'local',
       path: project.path,
       identityWorkspacePath: project.path,
+      primaryFolder: details?.primaryFolder ?? project.path,
       name: details?.name || project.displayName || basename(project.path),
       lastOpenedAt: project.lastOpenedAt,
       state,

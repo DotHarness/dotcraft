@@ -2,11 +2,12 @@ import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 export interface WindowFileAccessOptions {
   getWorkspaceRoot(): string
-  getSecondaryRoots?(workspaceRoot: string): readonly string[]
+  getWorkspaceRoots?(workspaceIdentity: string): readonly string[]
   getChatFolderRoots?(workspaceRoot?: string): readonly string[]
 }
 
 export interface WindowFileAccess extends WindowFileAccessOptions {
+  getWorkspaceRoots(workspaceIdentity: string): readonly string[]
   readonly ownerId: number
   readonly authorizedExternalFiles: Set<string>
   authorizationEpoch: number
@@ -52,7 +53,7 @@ function createContext(registration: WindowRegistration, root: string, scoped: b
   return {
     ownerId: registration.ownerId,
     getWorkspaceRoot: () => root,
-    getSecondaryRoots: () => registration.options.getSecondaryRoots?.(root) ?? [],
+    getWorkspaceRoots: () => registration.options.getWorkspaceRoots?.(root) ?? [root],
     getChatFolderRoots: scoped ? () => chatRoots : () => registration.options.getChatFolderRoots?.(root) ?? [],
     authorizedExternalFiles: grants,
     authorizationEpoch: 0

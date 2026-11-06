@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parseThreadToolAction } from '../../renderer/utils/threadToolDisplay'
+import { threadTaskConnection } from '../desktopRuntimeThreadTools'
 import type { ConversationItem } from '../../renderer/types/conversation'
 import { MAX_THREAD_TASKS, PROPOSAL_EXPIRY_MS, ThreadTaskStore } from '../threadTasks/threadTaskStore'
 import { PARENT, WORKSPACE, createHarness, structured, type Harness } from './threadTaskTestHelpers'
@@ -116,6 +117,29 @@ describe('CreateThread proposals', () => {
       operationId: expect.any(String)
     }))
     expect(harness.store.snapshot(PARENT).tasks.map((task) => task.state)).toEqual(['started', 'started'])
+  })
+
+  it.each(['local', 'worktree'] as const)('reads the latest Project workspace when starting a %s proposal', async (workLocation) => {
+    const harness = createHarness()
+    harness.composerTurn('turn-1')
+    const task = await propose(harness, 'Use current folders')
+    let cwd = 'X:/first-primary'
+    const target = threadTaskConnection(harness.client, WORKSPACE, {
+      projectWorkspaceFor: (client, anchor) => {
+        expect(client).toBe(harness.client)
+        expect(anchor).toBe(WORKSPACE)
+        return { cwd, runtimeWorkspaceRoots: [cwd, WORKSPACE] }
+      }
+    })
+    cwd = 'X:/promoted-primary'
+
+    await harness.tasks.startProposals(target, PARENT, [task.id], { workLocation })
+
+    const method = workLocation === 'worktree' ? 'worktree/createAndStart' : 'thread/start'
+    expect(harness.calls().find(([name]) => name === method)?.[1]).toMatchObject({
+      identity: { workspacePath: WORKSPACE },
+      config: { cwd, runtimeWorkspaceRoots: [cwd, WORKSPACE] }
+    })
   })
 
   it('starts a proposal with reasoning off when the card turns it off', async () => {

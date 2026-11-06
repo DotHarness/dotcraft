@@ -5,18 +5,19 @@ const norm = (value: string): string => value.replace(/\\/g, '/').replace(/\/+$/
 
 export function viewerRootsFor(
   workspacePath: string | null | undefined,
-  identityWorkspacePath: string | null | undefined = workspacePath
+  identityWorkspacePath: string | null | undefined = workspacePath,
+  worktreeSourcePath?: string
 ): string[] {
   const primary = workspacePath?.trim()
   if (!primary) return []
   const key = normalizeWorkspaceProjectKey(primary)
-  const projectRoots = runtimeWorkspaceRootsFor(identityWorkspacePath)
-  const folders = projectRoots?.slice(1) ?? []
+  const folders = runtimeWorkspaceRootsFor(identityWorkspacePath) ?? []
+  const worktreeSourceKey = normalizeWorkspaceProjectKey(worktreeSourcePath)
   const roots = [primary]
   const seen = new Set([key])
   for (const folder of folders) {
     const folderKey = normalizeWorkspaceProjectKey(folder)
-    if (!folderKey || seen.has(folderKey)) continue
+    if (!folderKey || folderKey === worktreeSourceKey || seen.has(folderKey)) continue
     seen.add(folderKey)
     roots.push(folder)
   }

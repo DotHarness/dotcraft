@@ -194,6 +194,41 @@ describe('Project workspace submission', () => {
     })
   })
 
+  it('keeps the owning identity when the primary is promoted and the folder list changes again', async () => {
+    const promoted = { ...project('X:/app', ['X:/app', 'X:/shared']), primaryFolder: 'X:/lib' }
+    useWorkspaceProjectsStore.setState({ projects: [promoted] })
+    await startTurnWithOptimisticUI(input)
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      runtimeWorkspaceRoots: ['X:/lib', 'X:/app', 'X:/shared']
+    }))
+    expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
+
+    useWorkspaceProjectsStore.setState({ projects: [{ ...promoted, secondaryFolders: ['X:/app', 'X:/new-shared'] }] })
+    await startTurnWithOptimisticUI(input)
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      runtimeWorkspaceRoots: ['X:/lib', 'X:/app', 'X:/new-shared']
+    }))
+  })
+
+  it('retains a configured ordinary cwd until its source root is removed', async () => {
+    useThreadStore.setState({ activeThread: {
+      id: 'thread-1', workspacePath: 'X:/app', effectiveWorkspacePath: 'X:/worktree',
+      userId: 'local', metadata: {}, turns: [], displayName: null, status: 'active',
+      originChannel: 'dotcraft-desktop', createdAt: '2026-11-06T00:00:00Z', lastActiveAt: '2026-11-06T00:00:00Z',
+      configuration: { cwd: 'X:/lib/src' }
+    } })
+    const promoted = { ...project('X:/app', ['X:/lib']), primaryFolder: 'X:/new-primary' }
+    useWorkspaceProjectsStore.setState({ projects: [promoted] })
+    await startTurnWithOptimisticUI(input)
+    expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
+
+    useWorkspaceProjectsStore.setState({ projects: [{ ...promoted, secondaryFolders: [] }] })
+    await reissueFailedTurn(input)
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', {
+      threadId: 'thread-1', input: [], runtimeWorkspaceRoots: ['X:/new-primary'], cwd: 'X:/new-primary'
+    })
+  })
+
   it.each(['unassigned', 'remote'] as const)('does not apply local folder membership to a %s workspace', async (kind) => {
     const projects = [project('X:/other', ['X:/app'])]
     if (kind !== 'unassigned') projects.push({ ...project('X:/app'), kind })

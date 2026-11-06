@@ -113,7 +113,7 @@ describe('side chats', () => {
     expect(unread).toBe(true)
   })
 
-  it('refreshes its parent project roots without following a different foreground project', async () => {
+  it('follows primary promotion and later folder edits without following a different foreground project', async () => {
     useThreadStore.setState({ threadList: [{
       id: 'parent', workspacePath: 'X:/app', effectiveWorkspacePath: 'X:/worktree',
       displayName: null, status: 'active', originChannel: 'dotcraft-desktop',
@@ -138,14 +138,40 @@ describe('side chats', () => {
 
     useThreadStore.setState({ activeThread: null, threadList: [] })
     useWorkspaceProjectsStore.setState({
-      foregroundProjectId: 'X:/other', projects: [other, { ...project, secondaryFolders: ['X:/private'] }]
+      foregroundProjectId: 'X:/other', projects: [other, {
+        ...project, primaryFolder: 'X:/lib', secondaryFolders: ['X:/app', 'X:/private']
+      }]
     })
     await useSideChatStore.getState().send(key, {
       inputParts: [{ type: 'text', text: 'Check again.' }], visibleText: 'Check again.'
     })
     expect(sendConnectionRequest).toHaveBeenLastCalledWith('workspace-a', 'turn/start', expect.objectContaining({
-      threadId: 'side-1', runtimeWorkspaceRoots: ['X:/app', 'X:/private']
+      threadId: 'side-1', runtimeWorkspaceRoots: ['X:/lib', 'X:/app', 'X:/private']
     }))
+    expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
+    emit('turn/completed', { turn: { id: 'turn-2', threadId: 'side-1', status: 'completed' } })
+
+    useWorkspaceProjectsStore.setState({ projects: [{
+      ...project, primaryFolder: 'X:/lib', secondaryFolders: ['X:/new-shared']
+    }] })
+    await useSideChatStore.getState().send(key, {
+      inputParts: [{ type: 'text', text: 'Use the new folders.' }], visibleText: 'Use the new folders.'
+    })
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      runtimeWorkspaceRoots: ['X:/lib', 'X:/new-shared'], cwd: 'X:/lib'
+    }))
+    emit('turn/completed', { turn: { id: 'turn-3', threadId: 'side-1', status: 'completed' } })
+
+    useWorkspaceProjectsStore.setState({ projects: [{
+      ...project, primaryFolder: 'X:/new-shared', secondaryFolders: ['X:/lib']
+    }] })
+    await useSideChatStore.getState().send(key, {
+      inputParts: [{ type: 'text', text: 'Keep working here.' }], visibleText: 'Keep working here.'
+    })
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      runtimeWorkspaceRoots: ['X:/new-shared', 'X:/lib']
+    }))
+    expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
   })
 
   it('guides the running side chat turn instead of starting another one', async () => {

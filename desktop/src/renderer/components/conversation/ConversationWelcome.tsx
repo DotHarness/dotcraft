@@ -679,10 +679,11 @@ function ConversationWelcomeCore({
     const chatFolder = startsInChatFolder(identityPath, remoteWorkspace)
       ? await chatFolderThreadStart(firstMessage, welcomeThreadConfiguration)
       : null
-    const config = chatFolder?.config ?? welcomeThreadConfiguration
-
-    // worktree/createAndStart does not accept runtime roots; its first turn establishes them.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    const config = {
+      ...(chatFolder?.config ?? welcomeThreadConfiguration),
+      ...(runtimeWorkspaceRoots ? { cwd: runtimeWorkspaceRoots[0] } : {})
+    }
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
     const nameField = displayName ? { displayName } : {}
 

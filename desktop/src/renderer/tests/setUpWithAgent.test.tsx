@@ -25,6 +25,7 @@ function setTurn(status: ConversationTurn['status'], next = false): void {
     key: KEY,
     parentThreadId: 'thread-1',
     identityWorkspacePath: WORKSPACE,
+    cwd: WORKSPACE,
     threadId: 'side-1',
     tabId: 'tab-1',
     ordinal: 1,

@@ -8,7 +8,7 @@ import {
   type DesktopTerminalHost
 } from './desktopTerminalTools'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
-import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection } from './threadTasks/childThreads'
+import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection, type ThreadTaskWorkspace } from './threadTasks/childThreads'
 import {
   CREATE_THREAD_DESCRIPTION,
   CREATE_THREAD_PROPERTIES,
@@ -70,6 +70,7 @@ export interface DesktopAppServerRequestOptions {
   supportsDynamicToolRebind?: boolean
   settingsHost?: DesktopThreadToolSettingsHost
   createChatFolder?: (firstMessage: string) => Promise<string>
+  projectWorkspaceFor?: (client: AppServerRequestClient, workspacePath: string) => ThreadTaskWorkspace | undefined
   tasks?: DesktopThreadTasks
   terminals?: DesktopTerminalHost
 }
@@ -394,6 +395,7 @@ export function threadTaskConnection(
   return {
     ownerId: options.ownerId,
     workspacePath,
+    getProjectWorkspace: () => options.projectWorkspaceFor?.(client, workspacePath),
     request: (method, params, timeoutMs) => sendDesktopAppServerRequest(client, method, params, timeoutMs, options),
     ...(options.createChatFolder ? { createChatFolder: options.createChatFolder } : {})
   }

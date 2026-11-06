@@ -8,6 +8,7 @@ import {
   type DesktopAppServerRequestOptions
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
+import { getLocalProjectDetails } from '../settings'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
 import { NEW_TASK_OFFER_ATTENTION } from '../windowAttentionNotifier'
@@ -19,6 +20,13 @@ import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWork
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime): DesktopAppServerRequestOptions {
   return {
     supportsDynamicToolRebind: ctx.lastConnectionStatus.capabilities?.dynamicToolRebind === true,
+    projectWorkspaceFor: (client, workspacePath) => {
+      const connection = [...ctx.workspaceConnections.values()].find((entry) => entry.client === client)
+      if (connection?.kind !== 'local' || !ctx.app.localProjects.has(workspacePath)) return undefined
+      const details = getLocalProjectDetails(ctx.settings, workspacePath)
+      const cwd = details?.primaryFolder ?? workspacePath
+      return { cwd, runtimeWorkspaceRoots: [cwd, ...(details?.secondaryFolders ?? [])] }
+    },
     ...(ctx.isLocalChatsForeground()
       ? {
           createChatFolder: (firstMessage: string) => createChatFolderFromSettings(ctx.settings, firstMessage)

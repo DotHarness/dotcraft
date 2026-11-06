@@ -106,6 +106,11 @@ describe('InputComposer follow-up routing', () => {
 
   it('synchronizes Project roots before queueing a maintenance submission without notifying', async () => {
     setLocalProject()
+    const project = useWorkspaceProjectsStore.getState().projects[0]
+    const promotedRoots = ['X:\\fixtures\\lib', ...workspaceRoots]
+    useWorkspaceProjectsStore.setState({ projects: [{
+      ...project, primaryFolder: promotedRoots[0], secondaryFolders: workspaceRoots
+    }] })
     useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
     let resume!: () => void
     sendRequest.mockImplementation((method: string) => method === 'thread/resume'
@@ -115,7 +120,7 @@ describe('InputComposer follow-up routing', () => {
     fireEvent.keyDown(draft('after compaction'), { key: 'Enter', code: 'Enter' })
 
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('thread/resume', {
-      threadId: 'thread-1', runtimeWorkspaceRoots: workspaceRoots
+      threadId: 'thread-1', runtimeWorkspaceRoots: promotedRoots
     }))
     expect(sendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
     await act(async () => resume())

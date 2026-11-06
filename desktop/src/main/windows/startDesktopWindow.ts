@@ -48,10 +48,11 @@ export function startDesktopWindow(
   ctx.disposers.push(
     bindViewerWindow(win, {
       getWorkspaceRoot: () => ctx.currentWorkspacePath,
-      getSecondaryRoots: (root) =>
-        application.localProjects.has(root)
-          ? (getLocalProjectDetails(ctx.settings, root)?.secondaryFolders ?? [])
-          : [],
+      getWorkspaceRoots: (root) => {
+        if (!application.localProjects.has(root)) return [root]
+        const details = getLocalProjectDetails(ctx.settings, root)
+        return [details?.primaryFolder ?? root, ...(details?.secondaryFolders ?? [])]
+      },
       getChatFolderRoots: (root) =>
         isDefaultChatWorkspace(root ?? ctx.currentWorkspacePath) ? knownChatsFolderRootsFromSettings(ctx.settings) : []
     })

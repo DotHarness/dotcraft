@@ -204,7 +204,12 @@ export const desktopSummaryServices: SummaryServices = {
       const thread = activeThread?.id === threadId
         ? activeThread
         : threadList.find((candidate) => candidate.id === threadId)
-      return viewerRootsFor(thread?.effectiveWorkspacePath ?? workspacePath, thread?.workspacePath ?? workspacePath)
+      const worktreeSourcePath = thread?.worktree
+        ? (activeThread?.id === threadId ? activeThread.configuration?.cwd : undefined) ?? thread.worktree.sourceWorkspacePath
+        : undefined
+      return viewerRootsFor(
+        thread?.effectiveWorkspacePath ?? workspacePath, thread?.workspacePath ?? workspacePath, worktreeSourcePath
+      )
     }
   },
   ui: {

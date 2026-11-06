@@ -18,6 +18,7 @@ import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import {
   clearDesktopPluginRegistry,
@@ -111,6 +112,7 @@ describe('ConversationWelcome composer', () => {
       }
     })
     useThreadStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
     useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
     useThreadRouteStore.setState({
       supported: false,
@@ -288,6 +290,25 @@ describe('ConversationWelcome composer', () => {
     })
     const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
+  })
+
+  it('starts in the promoted primary without moving the project state identity', async () => {
+    useWorkspaceProjectsStore.setState({ projects: [{
+      kind: 'local', path: 'X:\\fixtures\\workspace', primaryFolder: 'X:\\fixtures\\lib',
+      secondaryFolders: ['X:\\fixtures\\workspace', 'X:\\fixtures\\shared'],
+      name: 'sample', state: 'foreground', running: true, loaded: true, threadCount: 0, threads: [], pinned: false
+    }] })
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Use the promoted primary'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: 'X:\\fixtures\\workspace' }),
+      config: expect.objectContaining({ cwd: 'X:\\fixtures\\lib' }),
+      runtimeWorkspaceRoots: ['X:\\fixtures\\lib', 'X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
+    })))
   })
 
   it('writes an explicit approval override in thread/start', async () => {

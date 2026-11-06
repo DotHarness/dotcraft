@@ -169,6 +169,7 @@ export interface Turn {
 }
 
 export interface ThreadConfigurationWire {
+  cwd?: string | null
   agentProfileId?: string
   mode?: string
   providerId?: string

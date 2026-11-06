@@ -22,6 +22,7 @@ export interface WorkspaceProjectSummary {
   kind?: WorkspaceProjectKind
   path: string
   identityWorkspacePath?: string
+  primaryFolder?: string
   name: string
   lastOpenedAt?: string
   state: WorkspaceProjectState
@@ -32,12 +33,6 @@ export interface WorkspaceProjectSummary {
   pinnedThreadIds?: string[]
   /** Desktop-local project pin state. */
   pinned: boolean
-  /**
-   * Local multi-folder Projects only: additional runtime roots beyond the
-   * primary folder, as absolute normalized paths. The primary folder (`path`)
-   * is the identity and is never included here. Omitted/empty for single-folder,
-   * remote, and Chat projects.
-   */
   secondaryFolders?: string[]
   remote?: WorkspaceRemoteProjectMetadata
   errorMessage?: string

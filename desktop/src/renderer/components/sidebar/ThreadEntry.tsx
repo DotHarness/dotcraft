@@ -93,7 +93,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
-  const identityPath = thread.worktree?.sourceWorkspacePath || thread.workspacePath || ''
+  const identityPath = thread.workspacePath || ''
   const ownsIdentity = (candidate: { projectId?: string; path: string; identityWorkspacePath?: string }): boolean =>
     [candidate.projectId, candidate.path, candidate.identityWorkspacePath]
       .some((value) => sameWorkspaceProjectKey(value, identityPath))

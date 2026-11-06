@@ -25,9 +25,10 @@ function normalizePath(value: string): string {
 export function deriveRelativePathForViewer(
   absolutePath: string,
   workspacePath: string,
-  identityWorkspacePath: string = workspacePath
+  identityWorkspacePath: string = workspacePath,
+  worktreeSourcePath?: string
 ): string {
-  const root = containingRoot(absolutePath, viewerRootsFor(workspacePath, identityWorkspacePath))
+  const root = containingRoot(absolutePath, viewerRootsFor(workspacePath, identityWorkspacePath, worktreeSourcePath))
   return root ? relativeToRoot(absolutePath, root) : normalizePath(absolutePath)
 }
 
@@ -50,7 +51,12 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
   const thread = activeThread?.id === params.threadId
     ? activeThread
     : threadList.find((candidate) => candidate.id === params.threadId)
-  const relativePath = deriveRelativePathForViewer(absolutePath, params.workspacePath, thread?.workspacePath)
+  const worktreeSourcePath = thread?.worktree
+    ? (activeThread?.id === params.threadId ? activeThread.configuration?.cwd : undefined) ?? thread.worktree.sourceWorkspacePath
+    : undefined
+  const relativePath = deriveRelativePathForViewer(
+    absolutePath, params.workspacePath, thread?.workspacePath, worktreeSourcePath
+  )
   const tabId = useDetailPanelStore.getState().openFile({
     threadId: params.threadId,
     absolutePath,

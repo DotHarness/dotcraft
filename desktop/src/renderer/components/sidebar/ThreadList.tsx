@@ -1199,7 +1199,7 @@ function projectStatusDotColor(state: WorkspaceProjectState): string {
 }
 
 function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
-  const folders = [project.path, ...(project.secondaryFolders ?? [])]
+  const folders = [project.primaryFolder ?? project.path, ...(project.secondaryFolders ?? [])]
   return folders.filter((folder, index) => {
     const key = normalizeWorkspaceProjectKey(folder)
     return key.length > 0 &&
