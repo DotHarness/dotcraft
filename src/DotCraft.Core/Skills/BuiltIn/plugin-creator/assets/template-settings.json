@@ -1,0 +1,9 @@
+{
+  "fields": [
+    {
+      "key": "[TODO: key]",
+      "type": "[TODO: text, textarea, number, bool, select, stringList, keyValueMap, or json]",
+      "defaultValue": "[TODO: default]"
+    }
+  ]
+}

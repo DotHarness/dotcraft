@@ -180,7 +180,8 @@ export const enSections: DocSection[] = [
           { text: withIcon('code', 'Desktop Extension API'), link: '/extend/desktop-extension-api' },
           { text: withIcon('dotnet', '.NET Extensions'), link: '/extend/dotnet-extensions' },
           { text: withIcon('code', '.NET Extension API'), link: '/extend/dotnet-extension-api' },
-          { text: withIcon('package', 'Plugin Market'), link: '/extend/plugin-market' }
+          { text: withIcon('package', 'Plugin Market'), link: '/extend/plugin-market' },
+          { text: withIcon('file-json', 'Plugin Manifest'), link: '/extend/plugin-manifest' }
         ]
       },
       {
@@ -431,7 +432,8 @@ export const zhSections: DocSection[] = [
           { text: withIcon('code', '桌面扩展 API'), link: '/zh/extend/desktop-extension-api' },
           { text: withIcon('dotnet', '.NET 扩展'), link: '/zh/extend/dotnet-extensions' },
           { text: withIcon('code', '.NET 扩展 API'), link: '/zh/extend/dotnet-extension-api' },
-          { text: withIcon('package', '插件市场'), link: '/zh/extend/plugin-market' }
+          { text: withIcon('package', '插件市场'), link: '/zh/extend/plugin-market' },
+          { text: withIcon('file-json', '插件清单'), link: '/zh/extend/plugin-manifest' }
         ]
       },
       {

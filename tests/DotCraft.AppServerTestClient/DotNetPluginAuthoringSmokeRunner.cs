@@ -461,7 +461,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
         return $"""
         This is an isolated .NET extension authoring smoke test. Use tools; do not answer from memory.
         First load the built-in `plugin-creator` skill with SkillView and follow its managed .NET workflow.
-        Do not use a shell. Read the deployed creator reference or scaffold script when you need the current template.
+        Do not use a shell. Read the deployed creator reference and templates when you need the current template.
         With workspace file tools, create exactly `.craft/plugin-projects/{PluginId}` with `src/Plugin.cs`
         and `plugin/.craft-plugin/plugin.json`. The manifest id must be `{PluginId}`, its entry assembly must be
         `./lib/SmokeAgentTool.Plugin.dll`, and its entry type must be `DotCraft.Plugin.SmokeAgentTool.Plugin`.

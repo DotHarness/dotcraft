@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "[TODO: event name]": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${DOTCRAFT_PLUGIN_ROOT}/hooks/[TODO: script].js\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

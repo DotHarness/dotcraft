@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.5 |
+| **Version** | 0.10.3 |
 | **Status** | Draft |
-| **Date** | 2026-10-25 |
+| **Date** | 2026-11-07 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -77,6 +77,7 @@ Rules:
 - The target directory must contain `.craft-plugin/plugin.json`.
 - `policy.installation` controls whether the plugin is shown as installable and must be explicitly set to `AVAILABLE`.
 - `policy.authentication` describes when the plugin expects authentication or app connection setup; `ON_INSTALL` is supported.
+- `category` equals the plugin manifest's `interface.category`.
 - Runtime contribution metadata must stay in the plugin manifest and descriptor files, not in the marketplace entry.
 
 ## 5. Marketplace Source Kinds
@@ -235,12 +236,19 @@ Runtime boundaries:
 - Desktop extensions are trusted installed code and load only after installation and enablement.
 - App Binding, MCP/LSP, dynamic tools, and Desktop extensions retain the lifecycle and consent rules in their owning specifications.
 
-Review expectations for the official marketplace: check misleading metadata, missing referenced files, unsupported contribution types, and obvious provenance problems.
+Review expectations for the official marketplace: check misleading metadata, copy that explains or hedges instead of stating what the plugin does, missing referenced files, unsupported contribution types, unclear code or artwork licensing, unjustified data or network access, compiled or bundled code without a public source repository and commit, and obvious provenance problems. An official listing is a review result, not a sandbox or a security guarantee.
 
 ## 11. Publication Workflow
 
-A contributor adds or updates a plugin directory under `plugins/<pluginName>/` and the
-`.craft/plugins/marketplace.json` entry. CI validates marketplace shape, path safety, manifest id
-consistency, and referenced files; maintainers review and merge; the merged default branch reaches
-users through marketplace refresh. The same layout applies to any user-added or organization-managed
-marketplace.
+A plugin directory under `plugins/<pluginName>/` and its `.craft/plugins/marketplace.json` entry reach the official registry through a pull request, by one of two routes:
+
+- **Community contribution**: any author forks the registry and opens a pull request. No organization access is required.
+- **First-party release**: a DotHarness plugin repository calls the registry's shared release workflow from a version tag. The workflow stages the plugin with its release provenance and opens the pull request, and it depends on organization credentials that external repositories cannot read.
+
+The registry publishes its contributor instructions and a pull request checklist that follows the review expectations in §10.
+
+CI validates marketplace shape, path safety, manifest id consistency, and referenced files for the whole registry. It also applies the checks of `dotcraft plugin verify --for-publish` to each plugin a pull request adds or changes, and an existing plugin meets them when it next changes. Both routes pass the same gate.
+
+Maintainers review and merge, and the merged default branch reaches users through marketplace refresh. The plugin `id` is immutable after listing, and an update must increase `version`.
+
+The same layout applies to any user-added or organization-managed marketplace. Its owner decides its review and validation.

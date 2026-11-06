@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.9 |
+| **Version** | 0.10.3 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-11-07 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
 authoring, installation, client access, and remote use.
@@ -107,7 +107,7 @@ Prompt text is not the enforcement boundary.
   always loaded, as the `skills` world-state section.
 
 Base instructions do not direct the Agent to create or revise Skills. Authoring guidance lives in the
-built-in `skill-authoring` Skill, which the Agent selects like any other Skill (§5).
+built-in `skill-creator` Skill, which the Agent selects like any other Skill (§5).
 
 ### 4.1 Catalog freshness
 
@@ -134,9 +134,10 @@ already present in context and do not need a `SkillView` call.
 The Agent creates and changes Skills with the general file and shell tools, under those tools' path
 and approval policies. DotCraft does not validate, approve, or record these edits separately.
 
-The built-in `skill-authoring` Skill describes bundle structure, where a new Skill belongs, how to
-reference supporting files, and how to check the result with `dotcraft skill verify` (§7). It is
-listed and loaded like any other Skill. A Skill the Agent creates or renames enters the catalog after
+The built-in `skill-creator` Skill describes bundle structure, where a new Skill belongs, how to
+reference supporting files, how to capture a workflow from the conversation, and how to check the
+result with `dotcraft skill verify` (§7) and a realistic request. It is listed and loaded like any
+other Skill. A Skill the Agent creates or renames enters the catalog after
 the next reported change (§4.1), while `SkillView` can load it at once.
 
 Where a Skill lives decides who owns an edit:

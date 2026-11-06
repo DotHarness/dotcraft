@@ -1,94 +1,95 @@
 ---
 name: plugin-creator
-description: Create and scaffold DotCraft local plugins, including project-local managed .NET extensions, Desktop extensions, plugin-contained skills, MCP configuration, hooks, and assets. Use when developing or maintaining a DotCraft plugin bundle.
+description: "Create, update, verify, or share a DotCraft plugin that bundles skills, commands, MCP or LSP servers, hooks, workflows, apps, settings, Desktop UI, or .NET extensions, including contributing one to the official registry. Not for a standalone skill or for installing an existing plugin."
 ---
 
 # Plugin Creator
 
-Use this skill when the user wants to create, scaffold, or maintain a DotCraft plugin directory.
+A plugin is finished when it would look complete in the plugin catalog and has been shown to work. The runtime loads far less than that, so `dotcraft plugin verify` and a real run decide completion.
 
-For a managed .NET extension, read `references/dotnet-authoring.md` and use the .NET authoring mode.
-For a Desktop extension, read `references/desktop-authoring.md` and use `--with-desktop`.
-When one plugin needs both, read both references and use `--dotnet --with-desktop`; the creator generates one bundle and one plugin id.
-For other plugin contributions, use the local bundle workflow below.
+- To change an existing plugin, go to [Update](#update).
+- To share a plugin, read `references/contribute.md`.
 
-## Quick Start
+A standalone skill is enough for reusable instructions in one workspace or for one person. Use a plugin to bundle several contributions, run executable behavior, or hand a capability to other people.
 
-Default to a workspace-local plugin under `<workspace>/.craft/plugins/<plugin-id>`, which comes with this workspace:
+## Plan
 
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin"
-```
+Start from what the conversation already shows, including a workflow the user just performed. Ask only about gaps that would change the result, and do not ask the user to write manifest fields.
 
-If reading the skill from the source tree instead of a deployed workspace skill, use the source-tree script path from the repo root:
+Before writing files, state one sentence of purpose and the plan: plugin id, location, and contributions. Wait for the user only when the purpose or the contributions are ambiguous. If the id already exists among discovered plugins, update that plugin unless the user asks for a separate one.
 
-```powershell
-python src/DotCraft.Core/Skills/BuiltIn/plugin-creator/scripts/create_basic_plugin.py "My Plugin"
-```
+Choose the contributions with the least execution authority that meet the need. A Desktop or .NET extension runs as trusted code, so it needs a reason a skill or MCP server cannot satisfy.
 
-Use `--path` when the user asks for another parent directory, such as `~/.craft/plugins` for a plugin available in every workspace:
+| The user needs | Manifest field and file | Start from | Then |
+|---|---|---|---|
+| Instructions the agent follows | `"skills": "./skills/"`, `skills/<name>/SKILL.md` | `assets/template-skill.md` | Follow `$skill-creator` for its content, and add its interface metadata |
+| A prompt invoked by name | `"commands": "./commands/"`, `commands/<name>.md` | `assets/template-command.md` | |
+| Tools or data from a service | `"mcpServers": "./.mcp.json"` | `assets/template-mcp.json` | For a remote server, use `"transport": "http"` and `"url"`. See `https://www.dotcraft.net/configuration/plugins#mcp-servers` |
+| Automation on agent events | `"hooks": "./hooks/hooks.json"` | `assets/template-hooks.json`, `assets/template-hook-script.js` | Follow `$create-hooks` |
+| A scripted multi-agent procedure | `"workflows": "./workflows"` | | Follow `$workflow-authoring` |
+| Language intelligence | `"lspServers": "./.lsp.json"` | `assets/template-lsp.json` | |
+| An application connected to threads | `"apps": "./apps.json"` | | See `https://www.dotcraft.net/extend/app-binding` |
+| User options | `"settings": "./settings.schema.json"` | `assets/template-settings.json` | |
+| A view or action in Desktop | `"desktop"` | `assets/template-desktop-*` | Read `references/desktop-authoring.md` |
+| In-process tools or Host contribution points | `"dotnet"` | `assets/template-dotnet-plugin.txt` | Read `references/dotnet-authoring.md` |
 
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" --path "$HOME/.craft/plugins"
-```
+## Write
 
-## Defaults
+Choose the location:
 
-- Normalize plugin ids to lowercase hyphen-case, max 64 characters.
-- Create `<parent>/<plugin-id>/.craft-plugin/plugin.json`.
-- Create a skill plugin by default with `skills: "./skills/"`.
-- Create `skills/<skill-name>/SKILL.md`; `--skill-name` defaults to the plugin id.
-- Add `--with-mcp` to create a plugin-bundled `.mcp.json` placeholder.
-- Add `--with-hooks` to create a plugin-bundled `hooks/hooks.json` placeholder.
-- Add `--with-desktop` to create a source-based Desktop extension with one main view, including alongside `--dotnet`.
-- Add `--with-assets` to create plugin-level icon/logo placeholders.
+- This workspace, by default: `<workspace>/.craft/plugins/<id>`
+- Every workspace of this user, when asked: `~/.craft/plugins/<id>`
+- A .NET extension: `<workspace>/.craft/plugin-projects/<id>`
 
-## Manifest Rules
+Do not write into marketplace snapshots or a plugin directory that holds a `.builtin` marker.
 
-DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, lifecycle hooks, Desktop UI, interface metadata, or a combination of these.
+Copy `assets/template-plugin.json` to `.craft-plugin/plugin.json`, add the manifest field for each contribution, and copy the templates you need. Create only the directories the plugin uses. The id is lowercase hyphen-case, at most 64 characters, and equals the directory name.
 
-- Skill-only plugins are valid when `skills` points to a plugin-contained skills directory.
-- MCP-only plugins are valid when `mcpServers` points to a plugin-bundled MCP config or a root `.mcp.json` exists.
-- Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
-- Desktop extensions declare one inline `desktop` entry, an optional contribution description, and optional styles inside `./desktop/dist/`.
-- Interface-only plugins are valid for catalog or UI metadata.
-- Managed plugins declare `dotnet` metadata and contribute in-process behavior, such as native Tools, through the .NET extension contribution points.
-- Manifest fields `tools`, `functions`, and `processes` are unsupported and must not be generated.
-- Out-of-process executable capabilities can be exposed through MCP.
-- Thread-scoped AppServer client callbacks should use Runtime Dynamic Tools, not plugin manifest fields.
-- Manifest-relative paths must start with `./`, stay inside the plugin root, and never contain `..`.
+Manifest fields are documented at `https://www.dotcraft.net/extend/plugin-manifest`. Replace every `[TODO: ...]` with real content. The `.builtin` file in this skill's directory holds the running DotCraft version, which is the value for host-pinned fields.
 
-For exact examples, read `references/plugin-json-spec.md`.
+Reference plugin files with plugin-relative paths or `${DOTCRAFT_PLUGIN_ROOT}`, never absolute paths. Keep secrets out of plugin files: reference environment variables and name them in the setup instructions.
 
-## MCP Plugin Template
+Read `references/presentation.md` before writing the name, descriptions, default prompt, or icons. Every plugin needs them, including a .NET-only plugin.
 
-Use this when creating a plugin that bundles MCP configuration:
+## Verify
 
 ```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py review-tools --with-mcp
+dotcraft plugin verify --candidate "<plugin-root>" --json
 ```
 
-After generation, replace placeholder descriptions and edit `.mcp.json` to point at the real MCP server command or HTTPS endpoint.
+Fix every error. Read each warning and fix it unless you can state why it does not apply. If `dotcraft` is not on PATH, look in `~/.craft/bin`, the DotCraft installation directory, or Desktop Settings > Connections. If it still cannot run, report the plugin as unverified.
 
-## Hooks Plugin Template
+## Exercise
 
-Use this when creating a plugin that bundles lifecycle hooks:
+Passing verification does not show that a plugin works. Make it active and exercise each contribution.
 
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py audit-hooks --without-skill --with-hooks
-```
+| Contribution | Evidence |
+|---|---|
+| Skills, commands | The skill loads with `SkillView`, and a realistic request follows its workflow |
+| MCP servers | The server starts, its tools are listed, and one harmless call succeeds |
+| Hooks | After the user grants trust, the event fires and its effect is observed |
+| Workflows | The workflow is listed and a bounded run completes |
+| LSP servers | The server starts for a matching file and returns one result |
+| Apps | The app appears and its connection flow starts |
+| Desktop extension | The build succeeds, and the view opens or the action runs in Desktop |
+| .NET extension | `DotNetPlugin.Build` succeeds, and a contributed tool runs on a later turn |
+| Settings | The field appears and its value reaches the plugin |
 
-After generation, replace placeholder descriptions, edit `hooks/hooks.json`, and update helper scripts under `hooks/`. Plugin hook commands can use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}`. First run still requires user trust through Desktop Hooks settings or `hooks/setState`.
+Some steps belong to the user: refreshing Desktop > Plugins, sending `/reload-skills`, granting trust, or starting a new conversation. Name the exact step and mark the result unverified until you have evidence. Do not report success from file creation or installation alone.
 
-## Validation
+When you finish, report the location, the contributions, the verification result, what was and was not exercised, and how to try it. You may mention in one line that the plugin can be shared.
 
-After scaffolding:
+## Update
 
-1. Inspect `.craft-plugin/plugin.json` and replace TODO placeholders.
-2. Confirm every manifest-relative path starts with `./`.
-3. If the plugin has skills, confirm each child skill has `SKILL.md`.
-4. If the plugin has MCP servers, confirm `.mcp.json` uses the same schema as workspace `McpServers`.
-5. If the plugin has hooks, confirm `hooks/hooks.json` uses the same shape as `.craft/hooks.json`.
-6. If the plugin has Desktop source, run its `build` script and confirm the declared files exist under `desktop/dist/`.
-7. If the plugin is managed .NET, use `DotNetPlugin.Build` and address its compiler or preflight diagnostics.
-8. Run relevant DotCraft tests when changing the runtime, or start DotCraft and confirm the expected contributions are active.
+Inspect the plugin first, then change the source that owns it:
+
+| Plugin | Where to change it |
+|---|---|
+| Workspace-local or user-owned | In place |
+| .NET under development | The project's `src/`, then `DotNetPlugin.Build` |
+| Published from another repository | That repository, through its release process |
+| Holds a `.builtin` marker | Not in place, because a refresh replaces it. Change its source, or copy it without the marker to `<workspace>/.craft/plugins/<id>`, which takes precedence |
+
+Keep the `id` once anyone else has the plugin, because a new id is a new plugin. Keep existing metadata and contributions the request does not change. Increase `version` when a changed plugin is distributed: patch for fixes, minor for added behavior, and major for incompatible changes.
+
+Rerun verification and exercise the affected contributions. A question about a plugin does not by itself call for an edit.

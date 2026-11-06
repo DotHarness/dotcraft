@@ -1,0 +1,11 @@
+{
+  "lspServers": {
+    "[TODO: server name]": {
+      "transport": "stdio",
+      "command": "[TODO: command]",
+      "extensionToLanguage": {
+        "[TODO: .ext]": "[TODO: language id]"
+      }
+    }
+  }
+}

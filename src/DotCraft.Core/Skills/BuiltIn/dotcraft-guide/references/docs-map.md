@@ -15,7 +15,7 @@ Use `WebFetch` with `extractMode` `markdown` so the VitePress chrome does not co
 ## Two pages that do not exist
 
 - **There is no CLI reference page.** Nothing on the site documents the `dotcraft` command surface. Use `cli.md` in this skill and `--help`, and say the site does not cover it.
-- **There is no developer page on authoring skills.** `/guide/skills` is the user-facing feature page. For authoring, route to `$skill-authoring`.
+- **There is no developer page on authoring skills.** `/guide/skills` is the user-facing feature page. For authoring, route to `$skill-creator`.
 
 ## Question to page
 
@@ -75,4 +75,4 @@ Route these to `$dotcraft-api` rather than answering from the page list.
 | SDKs | `/extend/sdks/`, then `/extend/sdks/quickstart`, `/extend/sdks/runs`, `/extend/sdks/tools`, `/extend/sdks/mcp-runtime`, `/extend/sdks/channels`, `/extend/sdks/typescript`, `/extend/sdks/dotnet` |
 | In-process hosting | `/extend/harness/`, then `/extend/harness/hosting-lifecycle`, `/extend/harness/configuration-paths`, `/extend/harness/threads-turns`, `/extend/harness/tools-approvals`, `/extend/harness/model-providers`, `/extend/harness/nuget-package` |
 | Protocols | `/extend/protocols/appserver`, `/extend/protocols/hub`, `/extend/protocols/dashboard-api` |
-| Extending DotCraft | `/extend/app-binding`, `/extend/plugin-market`, `/extend/mcp-apps`, `/extend/dotnet-extensions`, `/extend/dotnet-extension-api`, `/extend/desktop-extensions`, `/extend/desktop-extension-api`, `/contribute/architecture/oratorio`, `/extend/channel-modules` |
+| Extending DotCraft | `/extend/app-binding`, `/extend/plugin-manifest`, `/extend/plugin-market`, `/extend/mcp-apps`, `/extend/dotnet-extensions`, `/extend/dotnet-extension-api`, `/extend/desktop-extensions`, `/extend/desktop-extension-api`, `/contribute/architecture/oratorio`, `/extend/channel-modules` |

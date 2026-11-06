@@ -58,6 +58,7 @@ marketplace-root/
 | `plugins[].policy` | object | 是 | — |
 | `plugins[].policy.installation` | `"AVAILABLE"` | 是 | — |
 | `plugins[].policy.authentication` | `"ON_INSTALL"` | 是 | — |
+| `plugins[].category` | string | 否 | — |
 
 ### 文档规则
 
@@ -68,6 +69,7 @@ marketplace-root/
 - `source.path` 必须以 `./` 开头、保持在市场根目录内，并指向有效插件目录。
 - 只有 `policy.installation` 为 `AVAILABLE` 的插件才会显示为可安装。
 - 当前发布格式中的 `policy.authentication` 为 `ON_INSTALL`。App 与账号配置行为由插件自己的 [App descriptor](./app-binding) 定义。
+- `category` 与插件的 `interface.category` 一致。
 - 插件能力和安装页元数据属于 `.craft-plugin/plugin.json`，不应写入市场文档。
 
 ## 市场来源
@@ -163,7 +165,19 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - Tools、apps 与 hooks 继续使用各自的运行时检查。启用桌面扩展会执行其可信 renderer 代码，这也是对该模块的信任决定。
 - 安装或启用 [.NET 扩展](./dotnet-extension-api)不会授予它执行托管代码的信任。任何托管代码加载之前，已接受的插件 id 与指纹都必须先获得显式授权。
 
+## 贡献到官方市场
+
+任何人都可以通过 pull request 向[官方市场](https://github.com/DotHarness/dotcraft-plugins)提交插件。可以让 `$plugin-creator` 帮你准备，也可以自己完成：
+
+1. 运行 `dotcraft plugin verify --candidate <plugin-root> --for-publish` 并修复所有错误。参见[插件清单](./plugin-manifest)。
+2. Fork 该仓库，把插件复制到 `plugins/<id>/`，不要带开发产物。Desktop 或 .NET 插件需要包含构建产物。
+3. 在 `.craft/plugins/marketplace.json` 中添加对应条目。
+4. 发起 pull request，并完成仓库贡献指南中的检查清单。
+
+CI 会对 pull request 改动的每个插件运行同样的校验，再由维护者审查结果。更新时保持插件 `id` 不变，并提高 `version`。上架是审查结果，不代表沙箱隔离或安全保证。
+
 ## 相关文档
 
+- [插件清单](./plugin-manifest)：清单字段与校验命令。
 - [DotCraft 官方插件市场](https://github.com/DotHarness/dotcraft-plugins)——可以直接参照的真实市场仓库。
 - [桌面扩展](./desktop-extensions)——发布带 Desktop 界面的插件时读它。

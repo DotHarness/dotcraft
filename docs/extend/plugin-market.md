@@ -58,6 +58,7 @@ The default catalog path is `.craft/plugins/marketplace.json`. Each listed plugi
 | `plugins[].policy` | object | yes | — |
 | `plugins[].policy.installation` | `"AVAILABLE"` | yes | — |
 | `plugins[].policy.authentication` | `"ON_INSTALL"` | yes | — |
+| `plugins[].category` | string | no | — |
 
 ### Document rules
 
@@ -68,6 +69,7 @@ The default catalog path is `.craft/plugins/marketplace.json`. Each listed plugi
 - `source.path` must start with `./`, stay inside the marketplace root, and point to a valid plugin directory.
 - `policy.installation` must be `AVAILABLE` for the plugin to appear as installable.
 - `policy.authentication` is `ON_INSTALL` in the current publication format. App and account setup behavior comes from the plugin's own [app descriptors](./app-binding).
+- `category` equals the plugin's `interface.category`.
 - Plugin capabilities and install-page metadata belong in `.craft-plugin/plugin.json`, not in the marketplace document.
 
 ## Marketplace sources
@@ -163,7 +165,19 @@ See [AppServer Protocol](./protocols/appserver#plugin-marketplaces) for request 
 - Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop extension executes its trusted renderer code and is the trust decision for that module.
 - Installing or enabling a [.NET extension](./dotnet-extension-api) does not grant it managed execution trust. Its accepted plugin id and fingerprint need an explicit grant before any managed code loads.
 
+## Contribute to the official marketplace
+
+Anyone can propose a plugin for the [official marketplace](https://github.com/DotHarness/dotcraft-plugins) with a pull request. Ask `$plugin-creator` to prepare one, or do it yourself:
+
+1. Run `dotcraft plugin verify --candidate <plugin-root> --for-publish` and fix every error. See [Plugin manifest](./plugin-manifest).
+2. Fork the repository and copy the plugin to `plugins/<id>/`, without development artifacts. Include the built output of a Desktop or .NET plugin.
+3. Add its entry to `.craft/plugins/marketplace.json`.
+4. Open a pull request that covers the checklist in the repository's contributing guide.
+
+CI runs the same verification on each plugin a pull request changes, and maintainers review the result. An update keeps the plugin `id` and increases `version`. A listing is a review result, not a sandbox or a security guarantee.
+
 ## Related docs
 
+- [Plugin manifest](./plugin-manifest): the manifest fields and verification command.
 - [Official DotCraft plugin marketplace](https://github.com/DotHarness/dotcraft-plugins) — a real marketplace repository to model yours on.
 - [Desktop extensions](./desktop-extensions) — read this before publishing a plugin that ships a Desktop surface.

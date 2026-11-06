@@ -1,0 +1,17 @@
+.plugin-main-view {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  height: 100%;
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.plugin-main-view h1 {
+  margin: 0;
+}
+
+.plugin-main-view button {
+  width: fit-content;
+}

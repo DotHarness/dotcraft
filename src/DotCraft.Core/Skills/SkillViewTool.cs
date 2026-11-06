@@ -20,7 +20,7 @@ public sealed class SkillViewTool(
     [ToolPresentation("core.skill-view")]
     [Description(SkillViewDescription)]
     public string SkillView(
-        [Description("Skill name, for example 'browser' or 'skill-authoring'.")]
+        [Description("Skill name.")]
         string name)
     {
         if (string.IsNullOrWhiteSpace(name))

@@ -23,7 +23,7 @@
         └── index.tsx
 ```
 
-Scaffold 会把 `@dotcraft/plugin` 固定为创建它的 DotCraft 版本。请让该包与加载插件的 Desktop 版本保持一致。
+模板会把 `@dotcraft/plugin` 固定为创建它的 DotCraft 版本。请让该包与加载插件的 Desktop 版本保持一致。
 
 ## 声明 Desktop 模块
 

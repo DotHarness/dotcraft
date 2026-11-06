@@ -1,0 +1,37 @@
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using DotCraft.Contributions;
+using DotCraft.Plugins;
+using DotCraft.Tools;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Plugin.[TODO: PascalCaseId];
+
+public sealed class Plugin : IDotCraftPlugin
+{
+    public ValueTask ActivateAsync(
+        IPluginActivationContext context,
+        CancellationToken cancellationToken)
+    {
+        context.Contributions.Add<IToolSource>(new PluginTool());
+        return ValueTask.CompletedTask;
+    }
+}
+
+internal sealed class PluginTool : AIFunctionToolSource
+{
+    public override string SourceId => "[TODO: plugin id]";
+
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+    {
+        yield return AIFunctionFactory.Create(
+            () => "[TODO: result]",
+            name: "[TODO: tool_name]",
+            description: "[TODO: what the tool does]");
+    }
+
+    protected override ToolPolicyHints GetPolicyHints(
+        AIFunction function,
+        ToolPlanningContext context) => new(ReadOnly: true);
+}

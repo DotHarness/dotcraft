@@ -127,6 +127,25 @@ public static partial class DotCraftCommandLine
         return command;
     }
 
+    private static Command CreatePluginCommand()
+    {
+        var candidate = StringOption("--candidate", "Candidate plugin root.");
+        candidate.Required = true;
+        var forPublish = Flag("--for-publish", "Also apply the checks required for public distribution.");
+        var json = Flag("--json", "Write the result as JSON.");
+        var verify = new Command("verify", "Verify a plugin candidate without installing it.") { candidate, forPublish, json };
+        verify.SetAction((parseResult, cancellationToken) => PluginCliRunner.VerifyAsync(
+            parseResult.GetRequiredValue(candidate)!,
+            parseResult.GetValue(forPublish),
+            parseResult.GetValue(json),
+            parseResult.InvocationConfiguration.Output,
+            cancellationToken));
+
+        var plugin = new Command("plugin", "Verify DotCraft plugins.");
+        plugin.Subcommands.Add(verify);
+        return plugin;
+    }
+
     private static Command CreateContextCommand()
     {
         var context = new Command("context", "Search and export saved DotCraft context.");

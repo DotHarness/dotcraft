@@ -1,79 +1,39 @@
-# Desktop Extension Authoring
+# Desktop extension authoring
 
-Use Desktop authoring when a DotCraft Plugin needs local UI such as a main view or settings page.
+Use Desktop authoring when a plugin needs local UI such as a main view or settings page. The API is documented at `https://www.dotcraft.net/extend/desktop-extension-api`.
 
-## Scaffold
+## Files
 
-Create a plugin with a minimal main view:
+Copy the templates into the plugin's `desktop/` directory:
 
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" --without-skill --with-desktop
-```
+| Template | Destination |
+|---|---|
+| `assets/template-desktop-package.json` | `desktop/package.json` |
+| `assets/template-desktop-tsconfig.json` | `desktop/tsconfig.json` |
+| `assets/template-desktop-index.tsx` | `desktop/src/index.tsx` |
+| `assets/template-desktop-index.css` | `desktop/src/index.css` |
 
-The scaffold adds the inline `desktop` manifest declaration and source files:
+Declare the module in the manifest and add `desktop` to `capabilities`. A plugin with Desktop UI needs a canonical `MAJOR.MINOR.PATCH` version.
 
-```text
-.craft/plugins/my-plugin/
-├── .craft-plugin/plugin.json
-└── desktop/
-    ├── package.json
-    ├── tsconfig.json
-    └── src/
-        ├── index.css
-        └── index.tsx
-```
-
-The package pins `@dotcraft/plugin` to the deployed DotCraft version. The creator does not install dependencies or generate `dist/`.
-
-To add Desktop source to an existing plugin, pass the parent that already contains the plugin directory:
-
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" --with-desktop --path .craft/plugins
-```
-
-The creator preserves the existing manifest and plugin files, then adds only the inline `desktop` declaration, the `desktop` capability, and the source scaffold. It fails if the manifest already declares `desktop` or a Desktop source directory already exists.
-
-For a managed plugin with Desktop UI, create both parts together:
-
-```powershell
-python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" --dotnet --with-desktop
-```
-
-The C# project and Desktop source share the `.craft/plugin-projects/my-plugin/plugin` development bundle and one plugin id. Build the Desktop output before calling `DotNetPlugin.Build`, which validates the complete bundle.
-
-## Main view
-
-The entry exports a named `activate` function and returns typed contributions:
-
-```tsx
-import { Button, type DesktopPluginActivate, type DesktopPluginViewProps } from "@dotcraft/plugin";
-
-function MainView({ host }: DesktopPluginViewProps) {
-  return <Button onClick={() => host.ui.showToast({ message: "Ready" })}>Verify plugin</Button>;
+```json
+"desktop": {
+  "description": "One sentence about what the Desktop module adds.",
+  "entry": "./desktop/dist/index.mjs",
+  "styles": ["./desktop/dist/index.css"]
 }
-
-export const activate: DesktopPluginActivate = () => ({
-  mainViews: [
-    {
-      id: "main",
-      label: { default: "My Plugin" },
-      component: MainView,
-    },
-  ],
-});
 ```
 
-Use the SDK types and shared UI exports rather than Desktop renderer internals. Keep contribution ids unique within the plugin.
+Set `@dotcraft/plugin` to the running DotCraft version. Use the SDK types and shared UI exports rather than Desktop renderer internals, and keep contribution ids unique within the plugin.
 
-## Build and verify
-
-Install the declared dependencies, then build from the Desktop source directory:
+## Build
 
 ```powershell
 npm install
 npm run build
 ```
 
-The build script type-checks the source, then runs `dotcraft-plugin build` to compile `src/index.tsx` into `dist/index.mjs` and imported CSS into `dist/index.css`. Treat `dist/` as generated output and do not edit it. Build it before DotCraft discovers the local plugin or before packaging it, then refresh DotCraft, enable the plugin, and open its main view.
+Run these from `desktop/`. The build type-checks the source and writes `dist/index.mjs` and `dist/index.css`. Treat `dist/` as generated output. Verification fails until it exists.
 
-Desktop extensions execute as trusted renderer code. Installing and enabling the plugin is the trust decision; the Host API is a stable authoring contract, not a sandbox. Use MCP Apps for untrusted interactive tool UI.
+After building, the user refreshes Desktop > Plugins, enables the plugin, and opens its main view. After a source change, rebuild and refresh or re-enable the plugin.
+
+Desktop extensions execute as trusted renderer code. Enabling the plugin is the trust decision, and the Host API is an authoring contract rather than a sandbox. Use MCP Apps for untrusted interactive tool UI.

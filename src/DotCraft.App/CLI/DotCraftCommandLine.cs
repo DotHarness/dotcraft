@@ -53,6 +53,7 @@ public static partial class DotCraftCommandLine
         root.Subcommands.Add(CreateDashboardCommand());
         root.Subcommands.Add(CreateAuthCommand());
         root.Subcommands.Add(CreateSkillCommand());
+        root.Subcommands.Add(CreatePluginCommand());
         root.Subcommands.Add(CreateContextCommand());
         root.Subcommands.Add(CreateConfigCommand());
         root.Subcommands.Add(CreateStackCommand());

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "[TODO: lowercase hyphen-case id]",
+  "version": "0.1.0",
+  "displayName": "[TODO: name]",
+  "description": "[TODO: one sentence stating what the plugin does]",
+  "capabilities": ["[TODO: skill, commands, mcp, lsp, apps, hooks, workflows, desktop, or dotnet]"],
+  "interface": {
+    "displayName": "[TODO: name]",
+    "shortDescription": "[TODO: what the plugin does]",
+    "developerName": "[TODO: real author or team]",
+    "category": "[TODO: Coding, Design, Engineering, Security, Lifestyle, Productivity, or Research]",
+    "capabilities": ["[TODO: display tags such as Skill, MCP, Desktop]"],
+    "defaultPrompt": "[TODO: a realistic first request]",
+    "logo": "./assets/logo.svg",
+    "composerIcon": "./assets/icon.svg"
+  }
+}

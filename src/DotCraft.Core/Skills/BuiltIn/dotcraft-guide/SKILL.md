@@ -30,7 +30,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A custom model's context window or Fast capability | `<workspace>/.craft/models.json`, or `~/.craft/models.json` for every workspace |
 | A skill or tool turned off here | `Skills` or `EnabledTools` in the workspace config, or Desktop > Plugins > Skills to take effect at once |
 | A plugin turned off here | `Plugins.DisabledPlugins` in the workspace config, or Desktop > Plugins > Manage to take effect at once |
-| A procedure worth repeating | A skill — `$skill-authoring` to write one, `$skill-installer` to install one |
+| A procedure worth repeating | A skill — `$skill-creator` to write one, `$skill-installer` to install one |
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
 | External data or actions from another program | `McpServers` |
 | "From now on, whenever X happens, do Y", mechanically | A hook — `$create-hooks`. Not memory, and not prose in a file |
@@ -62,5 +62,5 @@ Read the one that matches the task. They sit next to this file, in the directory
 ## Hand off
 
 - A failure that needs logs, rollouts, or `state.db` — `dotcraft-doctor`, in the bundled `dotcraft` plugin. If it is not installed, say so and point to Desktop > Plugins rather than guessing at a cause. An error already visible in this conversation you can simply answer.
-- Writing or installing a skill — `$skill-authoring`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — the `Automation` tool. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
+- Writing or installing a skill — `$skill-creator`, `$skill-installer`. Plugins — `$plugin-creator`. Hooks — `$create-hooks`. Schedules — the `Automation` tool. Workflows — `$workflow-authoring`. Charts and interactive views — `$visualize`.
 - Building an application on the SDKs, in-process Harness, or AppServer protocol — `$dotcraft-api`.

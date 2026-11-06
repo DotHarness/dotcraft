@@ -23,7 +23,7 @@ Ask `$plugin-creator` to create a plugin with Desktop support. The generated Des
         └── index.tsx
 ```
 
-The scaffold pins `@dotcraft/plugin` to the DotCraft version that created it. Keep that package aligned with the Desktop version that loads the plugin.
+The template pins `@dotcraft/plugin` to the DotCraft version that created it. Keep that package aligned with the Desktop version that loads the plugin.
 
 ## Declare the Desktop module
 

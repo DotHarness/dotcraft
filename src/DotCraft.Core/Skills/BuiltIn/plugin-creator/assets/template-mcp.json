@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "[TODO: server name]": {
+      "transport": "stdio",
+      "command": "[TODO: command]",
+      "arguments": ["[TODO: plugin-relative entry point]"],
+      "cwd": "./"
+    }
+  }
+}
