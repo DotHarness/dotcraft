@@ -27,23 +27,25 @@ afterEach(() => {
 })
 
 describe('prompt prediction lifecycle outside the composer', () => {
-  it('cancels only the affected pending prediction on a new turn or queued input without retrying the old turn', () => {
+  it('cancels only the affected pending prediction on a later turn or queued input', () => {
     const store = usePromptSuggestionStore.getState()
-    store.request('first', 'first-turn')
-    store.request('second', 'second-turn')
+    const firstTurn = { id: 'first-turn', startedAt: '2026-09-27T00:00:00Z' }
+    const nextTurn = { id: 'next-turn', startedAt: '2026-09-27T00:00:02Z' }
+    store.request('first', firstTurn)
+    const secondTurn = { ...firstTurn, id: 'second-turn' }
+    store.request('second', secondTurn)
     const firstSignal = generate.mock.calls[0][2]
     const secondSignal = generate.mock.calls[1][2]
 
-    notify({ method: 'turn/started', params: { turn: { threadId: 'first', id: 'next-turn' } } })
+    notify({ method: 'turn/started', params: { turn: { ...nextTurn, threadId: 'first' } } })
     expect(firstSignal.aborted).toBe(true)
     expect(secondSignal.aborted).toBe(false)
     notify({ method: 'thread/queue/updated', params: { threadId: 'second', queuedInputs: [{ id: 'queued' }] } })
     expect(secondSignal.aborted).toBe(true)
 
-    store.request('first', 'first-turn')
-    store.request('second', 'second-turn')
-    expect(generate).toHaveBeenCalledTimes(2)
-    store.request('first', 'next-turn')
-    expect(generate).toHaveBeenCalledTimes(3)
+    notify({ method: 'thread/queue/updated', params: { threadId: 'second', queuedInputs: [] } })
+    store.request('second', secondTurn)
+    store.request('first', nextTurn)
+    expect(generate).toHaveBeenCalledTimes(4)
   })
 })

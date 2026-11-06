@@ -32,7 +32,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   const suggestion = available && visible && entry?.turnId === eligibleTurn?.id ? entry?.suggestion ?? null : null
 
   const dismiss = useCallback((): void => {
-    if (currentTurn) usePromptSuggestionStore.getState().dismiss(threadId, currentTurn.id)
+    if (currentTurn) usePromptSuggestionStore.getState().dismiss(threadId, currentTurn)
   }, [currentTurn, threadId])
 
   const accept = useCallback((): string | null => {
@@ -43,11 +43,12 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   useEffect(() => {
     if (!enabled || activeThreadId !== threadId || !currentTurn) return
     const store = usePromptSuggestionStore.getState()
-    if (turnStatus !== 'idle' || queuedCount > 0 || !eligibleTurn) {
+    if (queuedCount > 0) {
       store.invalidate(threadId)
       return
     }
-    if (canSuggest && visible) store.request(threadId, eligibleTurn.id)
+    store.invalidate(threadId, currentTurn)
+    if (turnStatus === 'idle' && eligibleTurn && canSuggest && visible) store.request(threadId, eligibleTurn)
   }, [activeThreadId, canSuggest, currentTurn, eligibleTurn, enabled, queuedCount, threadId, turnStatus, visible])
 
   return { suggestion, dismiss, accept }

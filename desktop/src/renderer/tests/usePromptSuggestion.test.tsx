@@ -1,4 +1,5 @@
 import { Activity, type PropsWithChildren } from 'react'
+import type { KnownNotificationPayload } from '../../shared/appServerBoundary'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePromptSuggestion } from '../components/conversation/usePromptSuggestion'
@@ -24,6 +25,7 @@ const completedTurn: ConversationTurn = {
   items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-09-27T00:00:01Z' }]
 }
 let stopSuggestions: () => void
+let notify: (notification: KnownNotificationPayload) => void
 
 function selectThread(threadId: string): void {
   activateThreadConversation(threadId)
@@ -41,7 +43,10 @@ function useActiveSuggestion({ canSuggest = true, visible = true } = {}) {
 
 beforeEach(() => {
   generate.mockReset().mockResolvedValue('Add a regression test')
-  installDesktopApiMock({ appServer: { onNotification: () => () => undefined, sendRequest: vi.fn(async () => ({})) } })
+  installDesktopApiMock({ appServer: {
+    onNotification: (callback: typeof notify) => { notify = callback; return () => undefined },
+    sendRequest: vi.fn(async () => ({}))
+  } })
   usePromptSuggestionStore.getState().reset()
   useThreadStore.getState().reset()
   createThreadConversation('thread-1').setState({
@@ -158,7 +163,7 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(oldSignal.aborted).toBe(false)
     expect(generate).toHaveBeenCalledOnce()
 
-    const nextTurn = { ...completedTurn, id: 'turn-next' }
+    const nextTurn = { ...completedTurn, id: 'turn-next', startedAt: '2026-09-27T00:00:02Z' }
     act(() => getThreadConversation('thread-1')!.setState({
       turnStatus: 'running', turns: [completedTurn, { ...nextTurn, status: 'running', items: [] }]
     }))
@@ -168,6 +173,44 @@ describe('conversation prompt suggestion lifecycle', () => {
     await act(async () => resolveOld('Outdated suggestion'))
     expect(restored.result.current.suggestion).toBe('Add a regression test')
     expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['cached', 'pending'] as const)('preserves a %s prediction through a cold reopen with historical starts', async (state) => {
+    let resolvePrediction!: (value: string | null) => void
+    if (state === 'pending') generate.mockImplementationOnce(() => new Promise((resolve) => { resolvePrediction = resolve }))
+    completeThread()
+    const hook = renderHook(() => useActiveSuggestion())
+    if (state === 'cached') await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
+    const signal = generate.mock.calls[0][2]
+    hook.unmount()
+    selectThread('thread-2')
+    releaseThreadConversation('thread-1')
+    const conversation = createThreadConversation('thread-1')
+    selectThread('thread-1')
+    const restored = renderHook(() => useActiveSuggestion())
+
+    for (const turn of [
+      { id: 'older-turn', startedAt: '2026-09-26T23:59:00Z' },
+      { id: completedTurn.id, startedAt: completedTurn.startedAt }
+    ]) {
+      const started = { ...turn, threadId: 'thread-1', status: 'running', items: [] }
+      act(() => {
+        conversation.getState().setTurns([completedTurn])
+        notify({ method: 'turn/started', params: { turn: started } })
+        conversation.getState().onTurnStarted(started)
+      })
+      expect(signal.aborted).toBe(false)
+      expect(restored.result.current.suggestion).toBeNull()
+      act(() => conversation.getState().onTurnCompleted({
+        ...started, status: 'completed',
+        items: [{ id: 'replayed-reply', type: 'agentMessage', status: 'completed', payload: { text: 'Done.' } }]
+      }))
+      expect(signal.aborted).toBe(false)
+    }
+    act(() => conversation.getState().setTurns([completedTurn]))
+    if (state === 'pending') await act(async () => resolvePrediction('Add a regression test'))
+    await waitFor(() => expect(restored.result.current.suggestion).toBe('Add a regression test'))
+    expect(generate).toHaveBeenCalledOnce()
   })
 
   it('does not regenerate an empty prediction after returning', async () => {

@@ -1,18 +1,22 @@
 import { create } from 'zustand'
 import { readConfigValue, useConfigStore } from './configStore'
+import type { ConversationTurn } from '../types/conversation'
 import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../utils/promptSuggestion'
+
+type SuggestionTurn = Pick<ConversationTurn, 'id' | 'startedAt'>
 
 interface PromptSuggestionEntry {
   turnId: string
+  startedAt: number
   suggestion: string | null
   controller: AbortController | null
 }
 
 interface PromptSuggestionStore {
   entries: Map<string, PromptSuggestionEntry>
-  request(threadId: string, turnId: string): void
-  dismiss(threadId: string, turnId: string): void
-  invalidate(threadId: string): void
+  request(threadId: string, turn: SuggestionTurn): void
+  dismiss(threadId: string, turn: SuggestionTurn): void
+  invalidate(threadId: string, turn?: SuggestionTurn): void
   forget(threadId: string): void
   reset(): void
 }
@@ -20,12 +24,14 @@ interface PromptSuggestionStore {
 export const usePromptSuggestionStore = create<PromptSuggestionStore>((set, get) => ({
   entries: new Map(),
 
-  request(threadId, turnId) {
+  request(threadId, turn) {
+    const turnId = turn.id
+    const startedAt = Date.parse(turn.startedAt)
     const previous = get().entries.get(threadId)
-    if (previous?.turnId === turnId) return
+    if (previous && (previous.turnId === turnId || startedAt <= previous.startedAt)) return
     previous?.controller?.abort()
     const controller = new AbortController()
-    const entry: PromptSuggestionEntry = { turnId, suggestion: null, controller }
+    const entry: PromptSuggestionEntry = { turnId, startedAt, suggestion: null, controller }
     set((state) => ({ entries: new Map(state.entries).set(threadId, entry) }))
     let diagnostic: PromptSuggestionDiagnostic = {
       parentThreadId: threadId, parentTurnId: turnId, threadId: null, turnId: null, outcome: 'requested'
@@ -36,20 +42,24 @@ export const usePromptSuggestionStore = create<PromptSuggestionStore>((set, get)
         return
       }
       if (suggestion) logPromptSuggestion({ ...diagnostic, outcome: 'cached', textLength: suggestion.length })
-      set((state) => ({ entries: new Map(state.entries).set(threadId, { turnId, suggestion, controller: null }) }))
+      set((state) => ({ entries: new Map(state.entries).set(threadId, { ...entry, suggestion, controller: null }) }))
     })
   },
 
-  dismiss(threadId, turnId) {
+  dismiss(threadId, turn) {
     const entry = get().entries.get(threadId)
-    if (entry && (entry.turnId !== turnId || (!entry.controller && entry.suggestion === null))) return
+    if (entry && (entry.turnId !== turn.id || (!entry.controller && entry.suggestion === null))) return
     entry?.controller?.abort()
-    set((state) => ({ entries: new Map(state.entries).set(threadId, { turnId, suggestion: null, controller: null }) }))
+    set((state) => ({ entries: new Map(state.entries).set(threadId, {
+      turnId: turn.id, startedAt: Date.parse(turn.startedAt), suggestion: null, controller: null
+    }) }))
   },
 
-  invalidate(threadId) {
+  invalidate(threadId, turn) {
     const entry = get().entries.get(threadId)
-    if (entry) get().dismiss(threadId, entry.turnId)
+    if (!entry || (!entry.controller && entry.suggestion === null)) return
+    if (turn && (turn.id === entry.turnId || Date.parse(turn.startedAt) <= entry.startedAt)) return
+    get().forget(threadId)
   },
 
   forget(threadId) {
@@ -85,7 +95,7 @@ export function initPromptSuggestionStore(): () => void {
         store.forget(notification.params.threadId)
         break
       case 'turn/started':
-        store.invalidate(notification.params.turn.threadId)
+        store.invalidate(notification.params.turn.threadId, notification.params.turn)
         break
       case 'thread/queue/updated': {
         const { threadId, queuedInputs } = notification.params
