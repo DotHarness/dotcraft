@@ -14,22 +14,24 @@ export function runtimeWorkspaceRootsFor(identityWorkspacePath: string | undefin
 
 export function runtimeWorkspaceUpdateFor(
   identityWorkspacePath: string | undefined | null,
-  cwd: string | undefined = identityWorkspacePath ?? undefined
+  cwd: string | undefined = identityWorkspacePath ?? undefined,
+  executionWorkspaceOverride?: string | null
 ): { runtimeWorkspaceRoots?: string[]; cwd?: string } {
   const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityWorkspacePath)
   if (!runtimeWorkspaceRoots) return {}
   const cwdKey = normalizeWorkspaceProjectKey(cwd)
   const retainsCwd = runtimeWorkspaceRoots.some((root) => {
     const rootKey = normalizeWorkspaceProjectKey(root)
-    return cwdKey === rootKey || cwdKey.startsWith(`${rootKey.replace(/\/$/u, '')}/`)
+    return cwdKey === rootKey || (!executionWorkspaceOverride && cwdKey.startsWith(`${rootKey.replace(/\/$/u, '')}/`))
   })
   return { runtimeWorkspaceRoots, ...(!retainsCwd ? { cwd: runtimeWorkspaceRoots[0] } : {}) }
 }
 
 export function threadWorkspaceUpdateFor(threadId: string, identityWorkspacePath: string): ReturnType<typeof runtimeWorkspaceUpdateFor> {
   const { activeThread, threadList } = useThreadStore.getState()
-  const cwd = activeThread?.id === threadId
-    ? activeThread.configuration?.cwd ?? activeThread.workspacePath
-    : threadList.find((thread) => thread.id === threadId)?.workspacePath ?? identityWorkspacePath
-  return runtimeWorkspaceUpdateFor(identityWorkspacePath, cwd)
+  const thread = activeThread?.id === threadId ? activeThread : threadList.find((candidate) => candidate.id === threadId)
+  const configuration = activeThread?.id === threadId ? activeThread.configuration : undefined
+  const cwd = configuration?.cwd ?? thread?.worktree?.sourceWorkspacePath ?? thread?.workspacePath ?? identityWorkspacePath
+  const executionWorkspaceOverride = configuration?.executionWorkspaceOverride ?? thread?.worktree?.path
+  return runtimeWorkspaceUpdateFor(identityWorkspacePath, cwd, executionWorkspaceOverride)
 }

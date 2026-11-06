@@ -14,6 +14,7 @@ import { composerModelPillStyle } from '../ComposerShell'
 import { ComposerWorkspaceFooter } from '../ComposerWorkspaceFooter'
 import { ModelPicker } from '../ModelPicker'
 import { useComposerModelControls } from '../useComposerModelControls'
+import { useWelcomeWorkspace } from '../useWelcomeWorkspace'
 import css from './ThreadTaskCard.module.css'
 
 export interface ThreadTaskOptionsHandle {
@@ -34,9 +35,12 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
   const inheritedApproval = resolveVisibleApprovalPolicy(threadPolicy, workspaceDefault)
   const [chosenApproval, setApproval] = useState<VisibleApprovalPolicy | null>(null)
   const approval = chosenApproval ?? inheritedApproval
-  const [workLocation, setWorkLocation] = useState<'local' | 'worktree'>('local')
-  const [baseRef, setBaseRef] = useState<string | null>(null)
-  const [branchName, setBranchName] = useState<string | null>(null)
+  const {
+    sourceWorkspacePath,
+    welcomeWorkspaceMode: workLocation, changeWelcomeWorkspaceMode: setWorkLocation,
+    welcomeBaseRef: baseRef, setWelcomeBaseRef: setBaseRef,
+    welcomeWorktreeBranchName: branchName, setWelcomeWorktreeBranchName: setBranchName
+  } = useWelcomeWorkspace(workspacePath)
   const [open, setOpen] = useState(false)
   const [modelTouched, setModelTouched] = useState(false)
   const [opensUp, setOpensUp] = useState(false)
@@ -46,7 +50,7 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
   optionsRef.current = {
     async read() {
       const environment = workLocation === 'worktree'
-        ? await selectedWorktreeEnvironment(workspacePath).catch(() => null)
+        ? await selectedWorktreeEnvironment(sourceWorkspacePath).catch(() => null)
         : null
       const reasoning = model.reasoningValue
       return {
@@ -146,6 +150,7 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
             <span>{t('threadTask.where')}</span>
             <ComposerWorkspaceFooter
               workspacePath={workspacePath}
+              sourceWorkspacePath={sourceWorkspacePath}
               mode={workLocation}
               variant="welcome"
               baseRef={baseRef}

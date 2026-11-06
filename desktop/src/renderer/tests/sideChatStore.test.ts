@@ -174,6 +174,33 @@ describe('side chats', () => {
     expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
   })
 
+  it('retains an inherited worktree execution root when its nested source is replaced by an ancestor', async () => {
+    useThreadStore.setState({ activeThread: {
+      id: 'parent', workspacePath: 'X:/repo/sub', effectiveWorkspacePath: 'X:/worktree',
+      userId: 'local', metadata: {}, turns: [], displayName: null, status: 'active',
+      originChannel: 'dotcraft-desktop', createdAt: '2026-11-06T00:00:00Z', lastActiveAt: '2026-11-06T00:00:00Z',
+      configuration: { cwd: 'X:/repo/sub', executionWorkspaceOverride: 'X:/worktree' }
+    } })
+    const project = {
+      kind: 'local' as const, path: 'X:/repo/sub', name: 'sample', state: 'foreground' as const,
+      running: true, loaded: true, threadCount: 1, threads: [], pinned: false
+    }
+    useWorkspaceProjectsStore.setState({ projects: [project] })
+    const key = await openSideChat('Inspect this checkout.')
+    emit('turn/completed', { turn: { id: 'turn-1', threadId: 'side-1', status: 'completed' } })
+    useThreadStore.setState({ activeThread: null, threadList: [] })
+    useWorkspaceProjectsStore.setState({ projects: [{ ...project, primaryFolder: 'X:/repo' }] })
+
+    await useSideChatStore.getState().send(key, {
+      inputParts: [{ type: 'text', text: 'Continue in the worktree.' }], visibleText: 'Continue in the worktree.'
+    })
+
+    expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      threadId: 'side-1', runtimeWorkspaceRoots: ['X:/repo'], cwd: 'X:/repo'
+    }))
+    expect(chat(key).cwd).toBe('X:/repo')
+  })
+
   it('guides the running side chat turn instead of starting another one', async () => {
     const key = await openSideChat('Where is Retry called?')
     emit('turn/started', { turn: { id: 'turn-1', threadId: 'side-1', status: 'running' } })

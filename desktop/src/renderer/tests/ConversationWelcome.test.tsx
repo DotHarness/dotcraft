@@ -36,6 +36,7 @@ const shellGetProtocolHandlerName = vi.fn()
 const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
 const gitCreateAndCheckoutBranch = vi.fn()
+const listWorktreeEnvironments = vi.fn()
 
 class ResizeObserverMock {
   observe(): void {}
@@ -181,6 +182,7 @@ describe('ConversationWelcome composer', () => {
     })
     gitCheckoutBranch.mockResolvedValue(undefined)
     gitCreateAndCheckoutBranch.mockResolvedValue(undefined)
+    listWorktreeEnvironments.mockResolvedValue({ environments: [], selectedEnvironmentId: null, unavailable: false })
     getPathForFile.mockImplementation((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') {
@@ -235,10 +237,16 @@ describe('ConversationWelcome composer', () => {
           sendRequest: (method: string, ...rest: unknown[]) => method === 'config/read'
             ? Promise.resolve({ config: structuredClone(serverConfig), origins: {} })
             : appServerSendRequest(method, ...rest),
-          onNotification: undefined
+          sendRequestRaw: appServerSendRequest,
+          onNotification: undefined,
+          onNotificationRaw: () => () => {}
         },
         file: {
           readFile: fileReadFile
+        },
+        projectActions: {
+          listWorktreeEnvironments,
+          watch: () => () => {}
         },
         git: {
           listBranches: gitListBranches,
@@ -309,6 +317,68 @@ describe('ConversationWelcome composer', () => {
       config: expect.objectContaining({ cwd: 'X:\\fixtures\\lib' }),
       runtimeWorkspaceRoots: ['X:\\fixtures\\lib', 'X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
     })))
+  })
+
+  it('uses the new primary for worktree inputs without resetting the project text draft', async () => {
+    const anchor = 'X:\\fixtures\\workspace'
+    const primary = 'X:\\fixtures\\lib'
+    const project = {
+      kind: 'local' as const, path: anchor, name: 'sample',
+      state: 'foreground' as const, running: true, loaded: true, threadCount: 0, threads: [], pinned: false
+    }
+    useWorkspaceProjectsStore.setState({ projects: [project] })
+    useConnectionStore.setState((state) => ({ capabilities: { ...state.capabilities, gitWorktrees: true } }))
+    gitListBranches.mockImplementation(async (path: string) => ({
+      current: path === primary ? 'lib-main' : 'main',
+      detachedHead: null,
+      branches: [{ name: path === primary ? 'lib-main' : 'main', current: true }]
+    }))
+    listWorktreeEnvironments.mockImplementation(async (path: string) => ({
+      environments: [{ id: 'setup', name: 'Setup', path: `${path}\\.craft\\environments\\setup.json`, isDefault: true }],
+      selectedEnvironmentId: 'setup',
+      unavailable: false
+    }))
+    const defaultRequest = appServerSendRequest.getMockImplementation()!
+    appServerSendRequest.mockImplementation(async (method: string, ...args: unknown[]) =>
+      method === 'worktree/createAndStart'
+        ? { thread: { id: 'thread-worktree', workspacePath: anchor } }
+        : defaultRequest(method, ...args))
+
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    fireEvent.click(screen.getByRole('button', { name: 'Work locally' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New worktree' }))
+    await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(anchor))
+    fireEvent.click(screen.getByRole('button', { name: 'main', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create worktree branch...' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Branch name' }), { target: { value: 'feature/old-repo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create', exact: true }))
+    textbox.textContent = 'Keep this draft across primary changes'
+    fireEvent.input(textbox)
+    expect(screen.getByRole('button', { name: 'feature/old-repo' })).toBeInTheDocument()
+
+    act(() => useWorkspaceProjectsStore.setState({
+      projects: [{ ...project, primaryFolder: primary, secondaryFolders: [anchor] }]
+    }))
+
+    await waitFor(() => expect(gitListBranches).toHaveBeenCalledWith(primary))
+    await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(primary))
+    await screen.findByRole('button', { name: 'lib-main', exact: true })
+    expect(textbox).toHaveTextContent('Keep this draft across primary changes')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
+      'worktree/createAndStart',
+      expect.objectContaining({
+        identity: expect.objectContaining({ workspacePath: anchor }),
+        config: expect.objectContaining({ cwd: primary }),
+        baseRef: 'lib-main',
+        branchName: undefined,
+        environmentPath: `${primary}\\.craft\\environments\\setup.json`
+      }),
+      null
+    ))
+    expect(getRendererTestState().pendingWelcomeTurn?.text).toBe('Keep this draft across primary changes')
   })
 
   it('writes an explicit approval override in thread/start', async () => {

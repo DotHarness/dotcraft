@@ -186,6 +186,7 @@ function machinesManagerFor(hosts: unknown[]): SshMachinesManager {
 }
 
 let testWorkspaceRoot = '/workspace'
+let testContentRoots: readonly string[] | undefined
 let testChatRoots: readonly string[] = []
 const testWindow = Object.assign(new EventEmitter(), {
   isDestroyed: () => false,
@@ -193,6 +194,7 @@ const testWindow = Object.assign(new EventEmitter(), {
 }) as unknown as Electron.BrowserWindow
 registerWindowFileAccess(testWindow.webContents.id, {
   getWorkspaceRoot: () => testWorkspaceRoot,
+  getWorkspaceRoots: () => testContentRoots ?? [testWorkspaceRoot],
   getChatFolderRoots: () => testChatRoots
 })
 function setChatRoots(roots: readonly string[]): void { testChatRoots = roots }
@@ -325,6 +327,7 @@ describe('openAppHandoffUrl', () => {
 
 describe('registerIpcHandlers', () => {
   beforeEach(async () => {
+    testContentRoots = undefined
     unregisterIpcHandlers(testWindow)
     vi.clearAllMocks()
     scanModulesMock.mockResolvedValue([])
@@ -1012,9 +1015,13 @@ describe('registerIpcHandlers', () => {
         { name: 'feat/worktree', current: true }
       ]
     })
+
+    testContentRoots = ['/library']
+    await expect(listBranches({}, '/library')).resolves.toMatchObject({ current: 'feat/worktree' })
+    await expect(listBranches({}, '/workspace')).rejects.toThrow('Workspace path mismatch')
   })
 
-  it('git:checkoutBranch switches branches in the workspace or its managed worktrees only', async () => {
+  it('git:checkoutBranch admits current content roots and managed worktrees, not unrelated paths', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'switch') return { stdout: '' }
       throw new Error(`Unexpected git command: ${args.join(' ')}`)
@@ -1024,6 +1031,9 @@ describe('registerIpcHandlers', () => {
     await expect(checkout({}, '/outside/worktree', 'main')).rejects.toThrow('Workspace path mismatch')
     expect(execFileMock).not.toHaveBeenCalled()
     await checkout({}, '/workspace/.craft/worktrees/feat-worktree', 'main')
+    testContentRoots = ['/library']
+    await checkout({}, '/library', 'main')
+    await expect(checkout({}, '/workspace', 'main')).rejects.toThrow('Workspace path mismatch')
 
     expect(execFileMock).toHaveBeenCalledWith(
       'git',

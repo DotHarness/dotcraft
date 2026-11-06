@@ -70,8 +70,17 @@ order. `cwd` remains the source of relative paths.
 - **The chat's `cwd` folder was removed:** Desktop sends the current primary as `cwd` together with
   the full roots array.
 - **Fork:** inherits `cwd` and roots unless the fork request replaces them.
-- **Worktree:** the worktree replaces only the ordinary cwd root; secondary roots are preserved and
-  the persisted roots are not rewritten.
+- **Worktree:** the worktree replaces only a runtime root exactly equal to the ordinary cwd;
+  secondary roots are preserved and persisted roots are not rewritten. If a source edit replaces
+  that exact root with an ancestor, Desktop updates the ordinary cwd to the current primary before
+  retargeting; containment alone cannot retain the execution root. Ordinary non-worktree chats may
+  keep a cwd nested within a current root. Side chats inherit the execution override and use the
+  same projection rule.
+- **Worktree creation inputs:** resolve the environment selection, Git branch list, and base ref from
+  the current primary source repository, independently of the fixed Project state workspace. Changing
+  that source clears the previous repository's base ref and branch-name draft; thread identity and
+  welcome text drafts remain attached to the fixed Project. Desktop Git controls validate against
+  current Project content roots, not only the state workspace; unrelated external paths remain denied.
 
 Inactive threads are never mutated in the background; an explicit workspace update or Turn submission
 is the synchronization boundary. Desktop resolves Project roots from its existing project identity,

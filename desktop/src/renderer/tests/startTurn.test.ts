@@ -210,19 +210,22 @@ describe('Project workspace submission', () => {
     }))
   })
 
-  it('retains a configured ordinary cwd until its source root is removed', async () => {
+  it.each([false, true])('projects nested cwd updates without losing the execution root (worktree=%s)', async (worktree) => {
     useThreadStore.setState({ activeThread: {
-      id: 'thread-1', workspacePath: 'X:/app', effectiveWorkspacePath: 'X:/worktree',
+      id: 'thread-1', workspacePath: 'X:/app', effectiveWorkspacePath: worktree ? 'X:/worktree' : 'X:/lib/src',
       userId: 'local', metadata: {}, turns: [], displayName: null, status: 'active',
       originChannel: 'dotcraft-desktop', createdAt: '2026-11-06T00:00:00Z', lastActiveAt: '2026-11-06T00:00:00Z',
-      configuration: { cwd: 'X:/lib/src' }
+      configuration: { cwd: 'X:/lib/src', executionWorkspaceOverride: worktree ? 'X:/worktree' : undefined }
     } })
-    const promoted = { ...project('X:/app', ['X:/lib']), primaryFolder: 'X:/new-primary' }
+    const promoted = { ...project('X:/app'), primaryFolder: 'X:/lib' }
     useWorkspaceProjectsStore.setState({ projects: [promoted] })
     await startTurnWithOptimisticUI(input)
-    expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
+    const params = sendRequest.mock.calls.at(-1)![1]
+    expect(params.runtimeWorkspaceRoots).toEqual(['X:/lib'])
+    if (worktree) expect(params.cwd).toBe('X:/lib')
+    else expect(params).not.toHaveProperty('cwd')
 
-    useWorkspaceProjectsStore.setState({ projects: [{ ...promoted, secondaryFolders: [] }] })
+    useWorkspaceProjectsStore.setState({ projects: [{ ...promoted, primaryFolder: 'X:/new-primary' }] })
     await reissueFailedTurn(input)
     expect(sendRequest).toHaveBeenLastCalledWith('turn/start', {
       threadId: 'thread-1', input: [], runtimeWorkspaceRoots: ['X:/new-primary'], cwd: 'X:/new-primary'

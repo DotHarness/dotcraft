@@ -57,6 +57,7 @@ export async function runThreadFork({
       ? await createForkWorktreeThread({
           sourceThreadId: threadId,
           workspacePath,
+          sourceWorkspacePath: source?.worktree?.sourceWorkspacePath ?? source?.effectiveWorkspacePath ?? workspacePath,
           local: !remoteWorkspaceActive,
           params: {
             sourceThreadId: threadId,

@@ -30,6 +30,7 @@ export interface SideChat {
   parentThreadId: string
   identityWorkspacePath: string | undefined
   cwd: string | undefined
+  executionWorkspaceOverride: string | undefined
   threadId: string | null
   tabId: string
   ordinal: number
@@ -251,10 +252,11 @@ async function forkSideChat(
   key: string,
   parentThreadId: string,
   identityWorkspacePath: string | undefined,
-  cwd: string | undefined
+  cwd: string | undefined,
+  executionWorkspaceOverride: string | undefined
 ): Promise<string | null> {
   try {
-    const workspaceUpdate = runtimeWorkspaceUpdateFor(identityWorkspacePath, cwd)
+    const workspaceUpdate = runtimeWorkspaceUpdateFor(identityWorkspacePath, cwd, executionWorkspaceOverride)
     const result = await request(key, 'thread/fork', {
       threadId: parentThreadId,
       ephemeral: true,
@@ -295,9 +297,9 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       ? activeThread
       : threadList.find((candidate) => candidate.id === parentThreadId)
     const identityWorkspacePath = parent?.workspacePath
-    const cwd = activeThread?.id === parentThreadId
-      ? activeThread.configuration?.cwd ?? identityWorkspacePath
-      : identityWorkspacePath
+    const configuration = activeThread?.id === parentThreadId ? activeThread.configuration : undefined
+    const cwd = configuration?.cwd ?? parent?.worktree?.sourceWorkspacePath ?? identityWorkspacePath
+    const executionWorkspaceOverride = configuration?.executionWorkspaceOverride ?? parent?.worktree?.path
     const key = crypto.randomUUID()
     const ordinal = Math.max(0, ...sideChatsOf(get().chats, parentThreadId).map((chat) => chat.ordinal)) + 1
     const tabId = useDetailPanelStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
@@ -311,6 +313,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
         parentThreadId,
         identityWorkspacePath,
         cwd,
+        executionWorkspaceOverride,
         threadId: null,
         tabId,
         ordinal,
@@ -326,7 +329,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     })
     if (contexts?.length) useComposerContextStore.getState().setContexts(key, contexts)
     connectionByKey.set(key, window.api.appServer.getConnectionKey())
-    const ready = forkSideChat(key, parentThreadId, identityWorkspacePath, cwd)
+    const ready = forkSideChat(key, parentThreadId, identityWorkspacePath, cwd, executionWorkspaceOverride)
     readyByKey.set(key, ready)
     get().requestFocus(key)
     if (prompt) await get().send(key, buildComposerInputParts({ ...prompt, threadId: parentThreadId }))
@@ -364,7 +367,9 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       if (!threadId) throw new Error('The side chat is not ready.')
       const currentChat = get().chats.get(key)
       if (!currentChat) return
-      const workspaceUpdate = runtimeWorkspaceUpdateFor(currentChat.identityWorkspacePath, currentChat.cwd)
+      const workspaceUpdate = runtimeWorkspaceUpdateFor(
+        currentChat.identityWorkspacePath, currentChat.cwd, currentChat.executionWorkspaceOverride
+      )
       await request(key, 'turn/start', {
         threadId,
         input: inputParts,

@@ -119,7 +119,12 @@ export function assertPathWithinViewerRoots(
   return { resolved, root: match }
 }
 
-export function assertGitWorkspacePath(requestedPath: string, workspacePath: string, locale: AppLocale): string {
+export function assertGitWorkspacePath(
+  requestedPath: string,
+  workspacePath: string,
+  locale: AppLocale,
+  contentRoots: readonly string[]
+): string {
   if (!workspacePath) {
     throw new Error(translate(locale, 'ipc.noWorkspaceOpen'))
   }
@@ -129,7 +134,7 @@ export function assertGitWorkspacePath(requestedPath: string, workspacePath: str
 
   const resolved = path.resolve(requestedPath)
   const workspaceResolved = path.resolve(workspacePath)
-  if (resolved === workspaceResolved) return resolved
+  if (contentRoots.some((root) => path.resolve(root) === resolved)) return resolved
 
   const worktreesRoot = path.resolve(workspaceResolved, '.craft', 'worktrees')
   if (isSameOrInsidePath(resolved, worktreesRoot) && resolved !== worktreesRoot) {
@@ -147,7 +152,7 @@ export function assertGitInspectionPath(
   ownerId: number
 ): string {
   try {
-    return assertGitWorkspacePath(requestedPath, workspacePath, locale)
+    return assertGitWorkspacePath(requestedPath, workspacePath, locale, viewerRootsFor(workspacePath, requestedPath, ownerId))
   } catch {
     // Read-only inspection may target a known local project without
     // granting that path to commit, checkout, or branch-management handlers.

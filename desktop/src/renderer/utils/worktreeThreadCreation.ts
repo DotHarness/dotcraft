@@ -28,17 +28,19 @@ async function threadOf(method: string, params: RequestParams, timeoutMs?: numbe
 
 export async function createWelcomeWorktreeThread({
   workspacePath,
+  sourceWorkspacePath,
   local,
   params,
   localParams
 }: {
   workspacePath: string
+  sourceWorkspacePath: string
   local: boolean
   params: RequestParams
   localParams: RequestParams
 }): Promise<ThreadSummary> {
   const anchorId = useUIStore.getState().pendingThreadCreation?.requestId ?? `welcome-${crypto.randomUUID()}`
-  const environment = await environmentFor(workspacePath, local)
+  const environment = await environmentFor(sourceWorkspacePath, local)
   return useWorktreeCreationStore.getState().run<ThreadSummary>({
     anchorId,
     workspacePath,
@@ -55,17 +57,19 @@ export async function createWelcomeWorktreeThread({
 export async function createForkWorktreeThread({
   sourceThreadId,
   workspacePath,
+  sourceWorkspacePath,
   local,
   params,
   localParams
 }: {
   sourceThreadId: string
   workspacePath: string
+  sourceWorkspacePath: string
   local: boolean
   params: RequestParams
   localParams: RequestParams
 }): Promise<ThreadSummary> {
-  const environment = await environmentFor(workspacePath, local)
+  const environment = await environmentFor(sourceWorkspacePath, local)
   return useWorktreeCreationStore.getState().run<ThreadSummary>({
     anchorId: sourceThreadId,
     workspacePath,
