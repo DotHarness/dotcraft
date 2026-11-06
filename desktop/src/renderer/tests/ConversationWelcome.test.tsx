@@ -1,3 +1,4 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import './setupPluginRuntime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -11,7 +12,6 @@ import { useProvidersStore } from '../stores/providersStore'
 import { useSatellitesStore } from '../stores/satellitesStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppBindingStore } from '../stores/appBindingStore'
@@ -136,7 +136,7 @@ describe('ConversationWelcome composer', () => {
       skillContent: null,
       contentLoading: false
     })
-    useUIStore.setState({
+    setRendererTestState({
       activeMainView: 'conversation',
       sidebarCollapsed: false,
       sidebarWidth: 240,
@@ -281,7 +281,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+      expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
         text: 'Use the configured workspace default'
       })
@@ -309,7 +309,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
-    await waitFor(() => expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
     const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
     expect(start?.[1]).toEqual(expect.objectContaining({
       config: expect.objectContaining({ approvalPolicy: 'prompt' })
@@ -330,7 +330,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
-    await waitFor(() => expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
     const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
     expect(start?.[1]).toEqual(expect.objectContaining({
       config: expect.objectContaining({ approvalPolicy: 'autoApprove' })
@@ -338,7 +338,7 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('resolves a legacy default welcome draft approval policy to the current workspace default', async () => {
-    useUIStore.getState().setWelcomeDraft({
+    getRendererTestState().setWelcomeDraft({
       text: 'legacy default policy draft',
       images: [],
       mode: 'agent',
@@ -362,7 +362,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+      expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
         text: 'legacy default policy draft'
       })
@@ -377,7 +377,7 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument())
 
     act(() => {
-      useUIStore.getState().stageWelcomeDraft({
+      getRendererTestState().stageWelcomeDraft({
         text: 'Help me create a plugin',
         segments: [{ type: 'text', value: 'Help me create a plugin' }],
         images: [],
@@ -404,9 +404,9 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))
-    expect(useUIStore.getState().pendingThreadCreation).toBeNull()
+    expect(getRendererTestState().pendingThreadCreation).toBeNull()
     expect(useThreadStore.getState().activeThreadId).toBeNull()
-    expect(useUIStore.getState().getWelcomeDraftForWorkspace('X:\\fixtures\\workspace')?.text)
+    expect(getRendererTestState().getWelcomeDraftForWorkspace('X:\\fixtures\\workspace')?.text)
       .toBe('Keep this after creation fails')
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/delete', expect.anything())
   })

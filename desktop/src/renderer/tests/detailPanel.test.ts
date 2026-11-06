@@ -1,220 +1,139 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { isDetailPanelVisible } from '../stores/detailPanelPresentation'
 import { useUIStore } from '../stores/uiStore'
-import { useThreadStore } from '../stores/threadStore'
 
-const ui = () => useUIStore.getState()
+const store = () => useDetailPanelStore.getState()
+const panel = () => store().getCurrentPanel()
 
 beforeEach(() => {
-  useUIStore.setState({
-    detailPanelPreferredVisible: true,
-    detailPanelPreferredVisibleByThread: {},
-    selectedChangeKey: null,
-    activeDetailTab: { kind: 'system', id: 'changes' },
-    openSystemTabs: ['changes'],
-    lastActiveSystemTab: 'changes',
-    detailPanelVisible: true,
-    responsiveLayout: 'full'
-  })
-  useThreadStore.setState({ activeThreadId: null })
+  store().reset()
+  store().onWorkspaceSwitched('/project-a')
+  store().onThreadSwitched('thread-a')
+  useUIStore.setState({ responsiveLayout: 'full', activeMainView: 'conversation', selectedChangeKey: null })
 })
 
-describe('detail panel tab focus', () => {
-  it('shows the panel on the Changes tab with the selected row', () => {
-    useUIStore.setState({
-      detailPanelVisible: false,
-      activeDetailTab: { kind: 'system', id: 'plan' }
-    })
-
-    ui().showChangesForKey('turn-1::a')
-
-    expect(ui().detailPanelVisible).toBe(true)
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(ui().selectedChangeKey).toBe('turn-1::a')
+describe('detail panel focus and closing', () => {
+  it('shows Changes with its selected row through the shared UI action', () => {
+    store().setActiveDetailTab('plan')
+    store().setDetailPanelVisible(false)
+    useUIStore.getState().showChangesForKey('turn-1::a')
+    expect(isDetailPanelVisible()).toBe(true)
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(useUIStore.getState().selectedChangeKey).toBe('turn-1::a')
   })
 
-  it('reveals the panel for system and viewer tabs and remembers the last system tab', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({ detailPanelVisible: false })
-
-    ui().setActiveDetailTab('plan')
-    expect(ui().detailPanelVisible).toBe(true)
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-
-    ui().setActiveViewerTab('vtab-123')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-123' })
-    expect(ui().lastActiveSystemTab).toBe('plan')
-
-    ui().closeViewerTab()
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-  })
-})
-
-describe('optional system tabs', () => {
-  beforeEach(() => {
-    useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+  it('reveals system and viewer tabs and remembers the last system tab', () => {
+    store().setActiveDetailTab('plan')
+    store().setActiveViewerTab('viewer')
+    expect(panel().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer' })
+    expect(panel().lastActiveSystemTab).toBe('plan')
+    store().closeViewerTab()
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
   })
 
-  it('opens system tabs in canonical order and falls back through remaining tabs on close', () => {
-    ui().setActiveDetailTab('plan')
-    ui().setActiveDetailTab('changes')
-    expect(ui().openSystemTabs).toEqual(['changes', 'plan'])
-
-    ui().setActiveDetailTab('plan')
-    ui().closeSystemTab('changes')
-    expect(ui().openSystemTabs).toEqual(['plan'])
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-
-    ui().setActiveDetailTab('changes')
-    ui().closeSystemTab('changes')
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-
-    ui().closeSystemTab('plan', 'vtab-9')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-9' })
-    expect(ui().detailPanelVisible).toBe(true)
+  it('orders system tabs canonically and selects remaining tabs on close', () => {
+    store().setActiveDetailTab('plan')
+    store().setActiveDetailTab('changes')
+    expect(panel().openSystemTabs).toEqual(['changes', 'plan'])
+    store().closeSystemTab('changes')
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    store().closeSystemTab('plan', 'viewer')
+    expect(panel().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer' })
+    expect(isDetailPanelVisible()).toBe(true)
   })
 
-  it('auto-hides the panel and saves the choice when the last tab closes', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({ detailPanelPreferredVisibleByThread: { 'thread-a': true } })
-
-    ui().setActiveDetailTab('plan')
-    ui().setActiveViewerTab('vtab-2')
-    ui().closeViewerTab()
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-    expect(ui().detailPanelVisible).toBe(true)
-
-    ui().closeSystemTab('plan')
-    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-    expect(ui().detailPanelPreferredVisible).toBe(false)
-    expect(ui().detailPanelVisible).toBe(false)
+  it('hides the panel after the final tab closes', () => {
+    store().setActiveDetailTab('plan')
+    store().closeSystemTab('plan')
+    expect(panel().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(panel().detailPanelPreferredVisible).toBe(false)
   })
 
-  it('hides the panel when internal synchronization empties it without revealing', () => {
-    useUIStore.setState({ activeDetailTab: { kind: 'viewer', id: 'vtab-from-prev-thread' } })
-
-    ui().closeViewerTab({ reveal: false })
-
-    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
-    expect(ui().detailPanelPreferredVisible).toBe(false)
-    expect(ui().detailPanelVisible).toBe(false)
+  it('does not reveal a hidden panel when switching tabs without reveal', () => {
+    store().setActiveDetailTab('plan', { reveal: false })
+    store().setActiveViewerTab('viewer', { reveal: false })
+    expect(isDetailPanelVisible()).toBe(false)
+    store().closeViewerTab({ reveal: false })
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    expect(isDetailPanelVisible()).toBe(false)
   })
 
-  it('resetDetailTabs clears open tabs and per-thread visibility', () => {
-    ui().setActiveDetailTab('changes')
-    useUIStore.setState({ detailPanelPreferredVisibleByThread: { 'thread-a': true } })
-
-    ui().resetDetailTabs()
-
-    expect(ui().openSystemTabs).toEqual([])
-    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
-    expect(ui().detailPanelPreferredVisibleByThread).toEqual({})
-    expect(ui().detailPanelVisible).toBe(false)
+  it('hides an empty panel when the last viewer closes internally', () => {
+    store().setActiveViewerTab('viewer')
+    store().closeViewerTab({ reveal: false })
+    expect(panel().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(isDetailPanelVisible()).toBe(false)
   })
 })
 
-describe('per-thread detail panel visibility', () => {
-  beforeEach(() => {
-    useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+describe('scope state', () => {
+  it('opens a new thread without inheriting the previous panel selection', () => {
+    store().openBrowser({ threadId: 'thread-a' })
+    store().setActiveDetailTab('changes')
+    store().onThreadSwitched('thread-b')
+    expect(panel().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(isDetailPanelVisible()).toBe(false)
   })
 
-  it.each([
-    { kind: 'launcher' as const },
-    { kind: 'viewer' as const, id: 'viewer-from-previous-thread' },
-    { kind: 'system' as const, id: 'changes' as const }
-  ])('hides an empty incoming thread from a previous $kind state', (activeDetailTab) => {
-    useUIStore.setState({ activeDetailTab })
-
-    ui().syncDetailPanelForThread('thread-empty', null)
-
-    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
-    expect(ui().detailPanelPreferredVisible).toBe(false)
-    expect(ui().detailPanelVisible).toBe(false)
+  it('restores each thread system selection and full-view preference', () => {
+    store().openBrowser({ threadId: 'thread-a' })
+    store().setActiveDetailTab('plan')
+    store().setDetailPanelFullView(true)
+    store().onThreadSwitched('thread-b')
+    store().setActiveDetailTab('board')
+    store().onThreadSwitched('thread-a')
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    expect(panel().openSystemTabs).toEqual(['plan'])
+    expect(panel().detailPanelFullView).toBe(true)
   })
 
-  it('shows a viewer tab only for a thread saved as visible', () => {
-    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
-    expect(ui().detailPanelVisible).toBe(false)
-
-    useUIStore.setState({ detailPanelPreferredVisibleByThread: { 'thread-b': true } })
-    ui().syncDetailPanelForThread('thread-b', 'viewer-thread-b')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-b' })
-    expect(ui().detailPanelPreferredVisible).toBe(true)
-    expect(ui().detailPanelVisible).toBe(true)
-
-    ui().syncDetailPanelForThread('thread-b', null)
-    expect(ui().detailPanelPreferredVisibleByThread['thread-b']).toBe(true)
-    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
-    expect(ui().detailPanelVisible).toBe(false)
+  it('keeps A hidden while switching through visible B', () => {
+    store().setActiveDetailTab('changes')
+    store().toggleDetailPanel()
+    store().onThreadSwitched('thread-b')
+    store().setActiveDetailTab('plan')
+    expect(isDetailPanelVisible()).toBe(true)
+    store().onThreadSwitched('thread-a')
+    expect(isDetailPanelVisible()).toBe(false)
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
   })
 
-  it('keeps A hidden after switching through visible B', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({ detailPanelPreferredVisibleByThread: { 'thread-a': true, 'thread-b': true } })
-
-    ui().toggleDetailPanel()
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-
-    useThreadStore.setState({ activeThreadId: 'thread-b' })
-    ui().syncDetailPanelForThread('thread-b', 'viewer-thread-b')
-    expect(ui().detailPanelVisible).toBe(true)
-
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
-    expect(ui().detailPanelVisible).toBe(false)
+  it('preserves a deliberately opened empty launcher on return', () => {
+    store().setDetailPanelVisible(true)
+    store().onThreadSwitched('thread-b')
+    store().onThreadSwitched('thread-a')
+    expect(panel().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(isDetailPanelVisible()).toBe(true)
   })
 
-  it('restores the last active system tab only for a thread saved as visible', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({
-      openSystemTabs: ['changes', 'plan'],
-      lastActiveSystemTab: 'changes',
-      activeDetailTab: { kind: 'viewer', id: 'viewer-from-previous-thread' },
-      detailPanelPreferredVisibleByThread: { 'thread-a': true },
-      detailPanelPreferredVisible: false,
-      detailPanelVisible: false
-    })
-
-    ui().syncDetailPanelForThread('thread-a', null)
-
-    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(ui().detailPanelVisible).toBe(true)
+  it('isolates identical thread ids across projects and deletes only the owning scope', () => {
+    const first = store().openBrowser({ threadId: 'thread-a' })
+    store().setActiveDetailTab('plan')
+    store().onWorkspaceSwitched('/project-b')
+    const second = store().openBrowser({ threadId: 'thread-a' })
+    store().setActiveViewerTab(second)
+    store().onThreadDeleted('thread-a', { projectKey: '/project-a' })
+    expect(store().getThreadState('thread-a', '/project-a').tabs).toEqual([])
+    expect(store().getThreadState('thread-a', '/project-b').tabs.map(tab => tab.id)).toEqual([second])
+    expect(store().getScopeForTab(first)).toBeNull()
   })
 
-  it('records automatic and manual visibility changes for the active thread', () => {
-    useThreadStore.setState({ activeThreadId: 'thread-a' })
-    useUIStore.setState({
-      detailPanelPreferredVisible: false,
-      detailPanelVisible: false,
-      autoShowReasons: new Set()
-    })
-
-    expect(ui().maybeAutoShowForReason('turn:one')).toBe(true)
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
-
-    ui().toggleDetailPanel()
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-
-    ui().setActiveDetailTab('plan')
-    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+  it('retains user visibility while responsive layout suppresses presentation', () => {
+    store().setActiveDetailTab('plan')
+    useUIStore.getState().setResponsiveLayout('no-detail')
+    expect(panel().detailPanelPreferredVisible).toBe(true)
+    expect(isDetailPanelVisible()).toBe(false)
+    useUIStore.getState().setResponsiveLayout('full')
+    expect(isDetailPanelVisible()).toBe(true)
   })
 
-  it('preserves saved visibility while responsive layout suppresses the panel', () => {
-    useUIStore.setState({
-      responsiveLayout: 'no-detail',
-      detailPanelPreferredVisibleByThread: { 'thread-a': true },
-      detailPanelPreferredVisible: false,
-      detailPanelVisible: false
-    })
-
-    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
-
-    expect(ui().detailPanelPreferredVisible).toBe(true)
-    expect(ui().detailPanelVisible).toBe(false)
-
-    ui().setResponsiveLayout('full')
-    expect(ui().detailPanelVisible).toBe(true)
+  it('keeps automatic reveal reasons scoped to their conversation', () => {
+    expect(store().maybeAutoShowForReason('turn:one')).toBe(true)
+    expect(store().maybeAutoShowForReason('turn:one')).toBe(false)
+    store().onThreadSwitched('thread-b')
+    expect(store().maybeAutoShowForReason('turn:one')).toBe(true)
+    store().resetAutoShowReasons()
+    expect(store().getCurrentPanel().autoShowReasons.size).toBe(0)
   })
 })

@@ -156,7 +156,8 @@ function createFakeHost(webContents = createFakeWebContents()) {
     setCaptureSurface: vi.fn(),
     createAutomationTab: vi.fn(),
     getTabWebContents: vi.fn(() => webContents),
-    getAutomationTargetTab: vi.fn((): { tabId: string; currentUrl: string; title: string; loading: boolean } | null => null),
+    ensureTabWebContents: vi.fn(async () => webContents),
+    listAutomationTargetTabs: vi.fn((): Array<{ tabId: string; currentUrl: string; title: string; loading: boolean }> => []),
     loadAutomationUrl: vi.fn(async (_win: Electron.BrowserWindow, params: { tabId: string; url: string }) => {
       webContents.setUrl(params.url)
     }),
@@ -631,12 +632,12 @@ describe('BrowserUseManager IAB backend', () => {
 
   it('reset destroys viewer tabs it created but leaves claimed user tabs open with automation cleared', async () => {
     const host = createFakeHost()
-    host.getAutomationTargetTab.mockReturnValue({
+    host.listAutomationTargetTabs.mockReturnValue([{
       tabId: 'user-browser-tab',
       currentUrl: 'about:blank',
       title: 'User tab',
       loading: false
-    })
+    }])
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
     const { call, createTab } = await openSession(manager, owner, 'thread-1', '/workspace/test-root')
@@ -742,7 +743,7 @@ describe('BrowserUseManager IAB backend', () => {
   it('applies viewport and visibility to controlled tabs and finalizes only tabs it created', async () => {
     const selectedTab = { tabId: 'existing-tab', currentUrl: 'http://127.0.0.1:3000/', title: 'Existing', loading: false }
     const host = createFakeHost()
-    host.getAutomationTargetTab.mockReturnValue(selectedTab)
+    host.listAutomationTargetTabs.mockReturnValue([selectedTab])
     const manager = new BrowserUseManager(host)
     const owner = createFakeOwner()
     const { call, command, createTab } = await openSession(manager, owner, 'thread-1')

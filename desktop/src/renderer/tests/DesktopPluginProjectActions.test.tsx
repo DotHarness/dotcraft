@@ -1,3 +1,4 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,8 +12,7 @@ import {
 import type { PluginEntry } from '../stores/pluginStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const { requestDialog } = vi.hoisted(() => ({ requestDialog: vi.fn() }))
@@ -55,12 +55,16 @@ function nonceOf(tab: ViewerTab): number | undefined {
 }
 
 function terminalTabs(threadId: string) {
-  return useViewerTabStore.getState().getThreadState(threadId).tabs.filter((tab) => tab.kind === 'terminal')
+  return useDetailPanelStore.getState().getThreadState(threadId).tabs.filter((tab) => tab.kind === 'terminal')
 }
 
 beforeEach(() => {
   useConversationStore.setState({ workspacePath: WORKSPACE, remoteWorkspaceActive: false })
-  useViewerTabStore.setState({ byThread: new Map() })
+  useThreadStore.getState().reset()
+  useThreadStore.getState().setActiveThreadId('t1')
+  useDetailPanelStore.getState().reset()
+  useDetailPanelStore.getState().onWorkspaceSwitched(WORKSPACE)
+  useDetailPanelStore.getState().onThreadSwitched('t1')
 })
 
 afterEach(() => {
@@ -104,18 +108,20 @@ describe('Desktop extension projectActions', () => {
     expect(tabs).toHaveLength(1)
     expect(tabs[0]).toMatchObject({ id: first.id, label: 'Test', cwd: WORKSPACE, pendingRun: { command: 'npm test' } })
     expect(nonceOf(tabs[0])).not.toBe(nonceOf(first))
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: first.id })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: first.id })
 
     await projectActions.run({ ...request, threadId: 't2' })
     expect(terminalTabs('t2')[0].id).not.toBe(first.id)
+    expect(useDetailPanelStore.getState().getCurrentScope()?.threadId).toBe('t1')
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: first.id })
   })
 
   it('runs an action inside the worktree of a worktree thread', async () => {
-    const prepareRun = vi.fn().mockResolvedValue({ cwd: 'C:\worktrees\repo-1', command: 'npm test', title: 'Test' })
+    const prepareRun = vi.fn().mockResolvedValue({ cwd: 'C:\\worktrees\\repo-1', command: 'npm test', title: 'Test' })
     installDesktopApiMock({ projectActions: { prepareRun } })
-    useConversationStore.setState({ workspacePath: 'C:\worktrees\repo-1' })
+    useConversationStore.setState({ workspacePath: 'C:\\worktrees\\repo-1' })
     useThreadStore.setState({
-      threadList: [{ id: 'w1', workspacePath: WORKSPACE, worktree: { path: 'C:\worktrees\repo-1' } } as never]
+      threadList: [{ id: 'w1', workspacePath: WORKSPACE, worktree: { path: 'C:\\worktrees\\repo-1' } } as never]
     })
 
     await host().projectActions.run({ threadId: 'w1', environmentId: 'e', actionId: 'Test' })
@@ -124,7 +130,7 @@ describe('Desktop extension projectActions', () => {
       workspacePath: WORKSPACE,
       environmentId: 'e',
       actionId: 'Test',
-      worktreePath: 'C:\worktrees\repo-1'
+      worktreePath: 'C:\\worktrees\\repo-1'
     })
   })
 
@@ -139,11 +145,11 @@ describe('Desktop extension projectActions', () => {
 
   it('opens environment settings and remembers the conversation to return to', async () => {
     installDesktopApiMock({})
-    useUIStore.setState({ activeMainView: 'conversation', environmentSettingsTarget: null })
+    setRendererTestState({ activeMainView: 'conversation', environmentSettingsTarget: null })
 
     await host().projectActions.openSettings({ workspacePath: WORKSPACE, environmentId: 'e' })
 
-    const ui = useUIStore.getState()
+    const ui = getRendererTestState()
     expect(ui.activeMainView).toBe('settings')
     expect(ui.activeSettingsTab).toBe('worktrees')
     expect(ui.environmentSettingsTarget).toMatchObject({
@@ -160,7 +166,7 @@ describe('Desktop extension projectActions', () => {
     const [tab] = terminalTabs('t1')
     expect(tab).toMatchObject({ cwd: WORKSPACE, hasStarted: false })
     expect(tab.kind === 'terminal' && tab.pendingRun).toBeFalsy()
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: tab.id })
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: tab.id })
   })
 
   it('notifies only when the listed result changes and stops after disposal', async () => {

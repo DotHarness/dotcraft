@@ -1,7 +1,7 @@
+import { setRendererTestState } from './panelTestState'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useAppNavigationStore, type AppNavigationLocation } from '../stores/appNavigationStore'
-import { useUIStore } from '../stores/uiStore'
 import { handleAppNavigationShortcut } from '../utils/appNavigationShortcut'
 
 const first: AppNavigationLocation = {
@@ -27,7 +27,7 @@ function shortcut(key: '[' | ']', target?: HTMLElement, isComposing = false): Ke
 beforeEach(() => {
   useAppNavigationStore.getState().reset(first)
   useAppNavigationStore.getState().push({ kind: 'settings', tab: 'general' })
-  useUIStore.setState({ quickOpenVisible: false })
+  setRendererTestState({ quickOpenVisible: false })
 })
 
 describe('handleAppNavigationShortcut', () => {
@@ -65,7 +65,7 @@ describe('handleAppNavigationShortcut', () => {
   })
 
   it('blocks navigation while Quick Open is visible', () => {
-    useUIStore.setState({ quickOpenVisible: true })
+    setRendererTestState({ quickOpenVisible: true })
     expect(handleAppNavigationShortcut(shortcut('['), 'win32')).toBe(true)
     expect(useAppNavigationStore.getState().index).toBe(1)
   })

@@ -22,8 +22,7 @@ import { useSidebarDestinationsStore } from './stores/sidebarDestinationsStore'
 import { hydrateSummaryPinned } from './components/conversation/summary/view'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
 import { showFindToast } from './pet/findToast'
-import { useViewerTabStore } from './stores/viewerTabStore'
-import { useTransientOverlayStore } from './stores/transientOverlayStore'
+import { useDetailPanelStore } from './stores/detailPanelStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
@@ -112,6 +111,7 @@ import { handleBrowserEvent } from './utils/browserEventHandler'
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
+import { useDetailPanelLifecycle } from './hooks/useDetailPanelLifecycle'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { reloadThreadAfterRollback } from './utils/threadRollback'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
@@ -362,7 +362,6 @@ function currentForegroundThreadListIdentityKey(
   return `${projectKey}\u0000${protocolKey}`
 }
 
-
 const THREAD_NOT_FOUND = -32010
 
 function isThreadNotFoundError(error: unknown): boolean {
@@ -378,7 +377,6 @@ function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
   useSubAgentStore.getState().reset()
-  useUIStore.getState().resetDetailTabs()
   if (useUIStore.getState().activeMainView !== 'settings') {
     useUIStore.getState().setActiveMainView('conversation')
   }
@@ -387,11 +385,6 @@ function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   useThreadRouteStore.getState().setPendingRoute(null)
 }
 
-/**
- * Builds a generic PendingApproval for a decoupled UI tool call's mutate-approval (M-v). Shown in
- * the shared ApprovalDecisionComposer; the accept/decline decision is sent back as the response to
- * the originating `ui/tool/approval/request` server request, then the slot is cleared.
- */
 function buildUiToolApproval(
   p: Record<string, unknown>,
   bridgeId: string,
@@ -429,11 +422,6 @@ function buildUiToolApproval(
   }
 }
 
-/**
- * Builds a generic PendingApproval for a browser-use navigation request so it renders in the shared
- * ApprovalDecisionComposer (bottom dock) instead of a separate modal. The decision routes back to
- * the browser-use IPC channel and clears the generic-approval slot.
- */
 function buildBrowserUseApproval(
   request: BrowserUseApprovalRequestPayload,
   locale: AppLocale
@@ -616,10 +604,7 @@ export function App(): JSX.Element {
   const [mcpElicitation, setMcpElicitation] = useState<McpElicitationRequest | null>(null)
   const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
-  const activeDetailTab = useUIStore((s) => s.activeDetailTab)
-  const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
-  const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const desktopPluginMainViews = useDesktopPluginRegistry((state) => state.mainViews)
   const activeDesktopPluginView = desktopPluginMainViews.find((entry) => entry.viewKey === activeMainView) ?? null
@@ -1091,8 +1076,19 @@ export function App(): JSX.Element {
     return () => window.clearInterval(clock)
   }, [])
 
+  const panelThreadId = useThreadStore((state) => state.activeThreadId)
+  const panelThreadProjectKey = useThreadStore((state) => state.threadListProjectKey)
   const activeConversationWorkspacePath =
     activeThreadEffectiveWorkspacePath?.trim() || workspacePath
+
+  useDetailPanelLifecycle({
+    projectKey: normalizeWorkspaceProjectKey(activeProjectKey || protocolWorkspacePath || workspacePath),
+    workspacePath: activeConversationWorkspacePath,
+    browserWorkspacePath: protocolWorkspacePath || workspacePath,
+    threadId: panelThreadId,
+    selectionProjectKey: panelThreadProjectKey,
+    welcomeScopeId
+  })
 
   useEffect(() => {
     const store = useConversationStore.getState()
@@ -1101,18 +1097,6 @@ export function App(): JSX.Element {
       store.setWorkspacePath(activeConversationWorkspacePath)
     }
   }, [activeConversationWorkspacePath, remoteWorkspaceActive])
-
-  useEffect(() => {
-    useViewerTabStore.getState().onWorkspaceSwitched(protocolWorkspacePath || workspacePath, {
-      onBrowserTabRemoved: (tab) => {
-        void window.api.workspace.viewer.browser.destroy({ tabId: tab.id })
-      },
-      onTerminalTabRemoved: (tab) => {
-        void window.api.workspace.viewer.terminal.dispose({ tabId: tab.id })
-      }
-    })
-    useUIStore.getState().resetAutoShowReasons()
-  }, [protocolWorkspacePath, workspacePath])
 
   useEffect(() => {
     moduleConnectedSnapshotRef.current = new Map()
@@ -1418,12 +1402,14 @@ export function App(): JSX.Element {
   }, [activeDesktopPluginView, activeMainView, capabilities?.pluginManagement])
 
   useEffect(() => {
-    // Use empty deps so this effect runs exactly once (on mount) and is cleaned
-    // up on unmount. Store actions are accessed via .getState() to avoid closure
-    // stale-reference issues and to prevent re-subscription on state changes.
+
     const unsubscribe = window.api.appServer.onNotification(
       (payload) => {
         if (payload.foreground === false) {
+          if (payload.method === 'thread/deleted' && payload.workspacePath) {
+            const threadId = (payload.params as { threadId?: string } | undefined)?.threadId
+            if (threadId) useDetailPanelStore.getState().onThreadDeleted(threadId, { projectKey: normalizeWorkspaceProjectKey(payload.workspacePath) })
+          }
           return
         }
         const notificationWorkspacePath = payload.workspacePath?.trim()
@@ -1650,7 +1636,7 @@ export function App(): JSX.Element {
                     const name = r?.thread?.displayName
                     if (name) useThreadStore.getState().renameThread(completedThreadId, name)
                   })
-                  .catch(() => { /* non-critical — ignore */ })
+                  .catch(() => {})
               }
             }
 
@@ -2239,7 +2225,7 @@ export function App(): JSX.Element {
         }
         e.preventDefault()
         ui.setQuickOpenVisible(true)
-        ui.setDetailPanelVisible(true)
+        useDetailPanelStore.getState().setDetailPanelVisible(true)
         return
       }
 
@@ -2249,13 +2235,13 @@ export function App(): JSX.Element {
         const ui = useUIStore.getState()
         if (ui.activeMainView !== 'conversation') return
         e.preventDefault()
-        ui.toggleDetailPanelFullView()
+        useDetailPanelStore.getState().toggleDetailPanelFullView()
         return
       }
 
       if (ctrl && e.shiftKey && e.key === 'B') {
         e.preventDefault()
-        useUIStore.getState().toggleDetailPanel()
+        useDetailPanelStore.getState().toggleDetailPanel()
         return
       }
 
@@ -2365,8 +2351,6 @@ export function App(): JSX.Element {
       translate: (key, vars) => translate(localeRef.current, key, vars)
     })
   }, [])
-  const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
-  const activeBrowserTabSentRef = useRef<string | null>(null)
   /**
    * Server-side thread subscriptions by thread id. The intent/ready/in-flight
    * maps guard duplicate subscribes and stale completions across React
@@ -2602,85 +2586,6 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    const viewerStore = useViewerTabStore.getState()
-    viewerStore.setWelcomeScope(welcomeScopeId)
-    const scopeId = activeThreadId ?? welcomeScopeId
-    const outgoingThreadId = viewerStore.currentThreadId
-    if (outgoingThreadId === scopeId) return
-    useUIStore.getState().resetAutoShowReasons()
-    if (outgoingThreadId) {
-      const outgoingState = viewerStore.getThreadState(outgoingThreadId)
-      for (const tab of outgoingState.tabs) {
-        if (tab.kind === 'browser') {
-          void window.api.workspace.viewer.browser.setVisible({ tabId: tab.id, visible: false })
-        }
-      }
-    }
-
-    viewerStore.onThreadSwitched(scopeId)
-    const threadState = viewerStore.getThreadState(scopeId)
-    runWithoutAppNavigationRecording(() => {
-      useUIStore.getState().syncDetailPanelForThread(scopeId, threadState.activeTabId)
-    })
-
-    if (threadState.activeTabId) {
-      const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
-      const uiState = useUIStore.getState()
-      if (activeTab?.kind === 'browser' && uiState.detailPanelVisible && uiState.activeMainView === 'conversation') {
-        void window.api.workspace.viewer.browser.setActive({ tabId: activeTab.id })
-      }
-    }
-  }, [activeThreadId, welcomeScopeId])
-
-  // Hide native browser views when non-conversation surfaces or overlays are shown.
-  useEffect(() => {
-    const viewerStore = useViewerTabStore.getState()
-    const threadId = viewerStore.currentThreadId
-    if (!threadId) return
-    const threadState = viewerStore.getThreadState(threadId)
-    const desiredVisibility = new Map<string, boolean>()
-    for (const tab of threadState.tabs) {
-      if (tab.kind === 'browser') {
-        desiredVisibility.set(tab.id, false)
-      }
-    }
-    const shouldHideBrowser =
-      quickOpenVisible
-      || nativeViewBlocked
-      || activeMainView !== 'conversation'
-      || !detailPanelVisible
-      || activeDetailTab.kind !== 'viewer'
-
-    let activeBrowserTabId: string | null = null
-    if (!shouldHideBrowser) {
-      const activeTab = threadState.tabs.find((tab) => tab.id === activeDetailTab.id)
-      if (activeTab?.kind === 'browser') {
-        desiredVisibility.set(activeTab.id, true)
-        activeBrowserTabId = activeTab.id
-      }
-    }
-
-    const lastVisibility = browserVisibilitySentRef.current
-    for (const [tabId, visible] of desiredVisibility.entries()) {
-      if (lastVisibility.get(tabId) === visible) continue
-      lastVisibility.set(tabId, visible)
-      void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
-    }
-
-    for (const tabId of [...lastVisibility.keys()]) {
-      if (desiredVisibility.has(tabId)) continue
-      lastVisibility.delete(tabId)
-    }
-
-    if (activeBrowserTabId && activeBrowserTabSentRef.current !== activeBrowserTabId) {
-      activeBrowserTabSentRef.current = activeBrowserTabId
-      void window.api.workspace.viewer.browser.setActive({ tabId: activeBrowserTabId })
-    } else if (!activeBrowserTabId) {
-      activeBrowserTabSentRef.current = null
-    }
-  }, [activeDetailTab, activeMainView, detailPanelVisible, nativeViewBlocked, quickOpenVisible])
-
-  useEffect(() => {
     const prev = prevThreadIdRef.current
     const curr = activeThreadId
     if (pendingWelcomeTurnRef.current && pendingWelcomeTurnRef.current.threadId !== curr) {
@@ -2802,7 +2707,6 @@ export function App(): JSX.Element {
 
     openThreadState(curr)
 
-    // Keep or release the previous thread only when genuinely switching (not StrictMode remount)
     if (leftWarm) {
       for (const evicted of warmThreadsRef.current.keep(leftWarm)) releaseThread(evicted)
     } else if (leftThreadId) {
@@ -2844,7 +2748,7 @@ export function App(): JSX.Element {
         curr
       )
         .then(async (result) => {
-          // Stale guard: user may have switched threads while we were loading
+
           if (useThreadStore.getState().activeThreadId !== requestedId) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
             startPendingWelcomeTurnUnseen(requestedId)

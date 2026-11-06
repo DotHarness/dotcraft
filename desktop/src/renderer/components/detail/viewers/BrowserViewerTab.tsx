@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Globe } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
-import { useConversationStore } from '../../../stores/conversationStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
+import { useDetailPanelPresentation } from '../../../stores/detailPanelPresentation'
 import { useUIStore } from '../../../stores/uiStore'
 import { BrowserFeedbackControls, BrowserFindBar } from './BrowserFeedbackControls'
 import { BrowserPageFeedback } from './BrowserPageFeedback'
@@ -13,7 +13,7 @@ interface BrowserViewerTabProps {
   tabId: string
 }
 
-type ViewerStoreSnapshot = ReturnType<typeof useViewerTabStore.getState>
+type ViewerStoreSnapshot = ReturnType<typeof useDetailPanelStore.getState>
 
 function findBrowserTab(
   state: ViewerStoreSnapshot,
@@ -28,28 +28,25 @@ function findBrowserTab(
 export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element {
   const t = useT()
   const feedback = useBrowserFeedback(tabId)
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const existsTab = useViewerTabStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)))
-  const loading = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.loading ?? false)
-  const canGoBack = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoBack ?? false)
-  const canGoForward = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoForward ?? false)
-  const currentUrl = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.currentUrl ?? '')
-  const crashed = useViewerTabStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)?.crashed))
-  const blockedMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.blockedMessage ?? '')
-  const downloadMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.downloadMessage ?? '')
-  const errorMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.errorMessage ?? '')
-  const workspacePath = useConversationStore((s) => s.workspacePath)
-  const updateBrowserTab = useViewerTabStore((s) => s.updateBrowserTab)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const existsTab = useDetailPanelStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)))
+  const loading = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.loading ?? false)
+  const canGoBack = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoBack ?? false)
+  const canGoForward = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoForward ?? false)
+  const currentUrl = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.currentUrl ?? '')
+  const crashed = useDetailPanelStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)?.crashed))
+  const blockedMessage = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.blockedMessage ?? '')
+  const downloadMessage = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.downloadMessage ?? '')
+  const errorMessage = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.errorMessage ?? '')
+  const workspacePath = useDetailPanelStore((s) => s.currentWorkspacePath)
+  const scope = useDetailPanelStore((s) => s.getCurrentScope())
+  const updateBrowserTab = useDetailPanelStore((s) => s.updateBrowserTab)
   const activeMainView = useUIStore((s) => s.activeMainView)
-  const activeDetailTab = useUIStore((s) => s.activeDetailTab)
-  const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
+  const { activeDetailTab, detailPanelVisible } = useDetailPanelPresentation()
 
   const [readyTab, setReadyTab] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
-  // A fresh tab sits on the internal start page (about:blank / a data: start
-  // page). Treat those as "no page": empty address bar + a themed empty state,
-  // matching the reference design rather than leaking the start-page URL.
   const isBlank = !currentUrl || currentUrl === 'about:blank' || currentUrl.startsWith('data:')
   const isActiveBrowserSurface = existsTab &&
     activeMainView === 'conversation' &&
@@ -61,18 +58,22 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   useEffect(() => {
     if (!currentThreadId || !workspacePath || !existsTab) return
     let disposed = false
-    const state = useViewerTabStore.getState()
+    const state = useDetailPanelStore.getState()
     const found = findBrowserTab(state, currentThreadId, tabId)
     const initialUrl = found?.currentUrl || 'about:blank'
     void window.api.workspace.viewer.browser.create({
       tabId,
       threadId: currentThreadId,
       workspacePath,
+      projectKey: scope?.projectKey,
+      ...(found?.browserStorageId ? { browserStorageId: found.browserStorageId } : {}),
       initialUrl
     }).then((snapshot) => {
       if (disposed) return
       setReadyTab(tabId)
       updateBrowserTab(currentThreadId, tabId, {
+        browserStorageId: snapshot.browserStorageId,
+        suspended: snapshot.suspended,
         currentUrl: snapshot.currentUrl,
         title: snapshot.title,
         ...(snapshot.faviconDataUrl ? { faviconDataUrl: snapshot.faviconDataUrl } : {}),
@@ -88,7 +89,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       if (!disposed) updateBrowserTab(currentThreadId, tabId, { errorMessage: String(error instanceof Error ? error.message : error) })
     })
     return () => { disposed = true }
-  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, t, feedback.initialize])
+  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, scope?.projectKey, t, feedback.initialize])
 
   useEffect(() => {
     if (!existsTab) return

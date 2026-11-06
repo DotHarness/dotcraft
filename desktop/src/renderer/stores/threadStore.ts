@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ThreadSummary, Thread, ThreadStatus, ThreadRuntimeSnapshot, ThreadGoal, ThreadReadState } from '../types/thread'
-import { useViewerTabStore } from './viewerTabStore'
+import { useDetailPanelStore } from './detailPanelStore'
 import { useComposerDraftStore } from './composerDraftStore'
 import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
@@ -30,22 +30,22 @@ interface ThreadStoreState {
   activeThreadLoadError: { threadId: string; message: string } | null
   searchQuery: string
   loading: boolean
-  /** Set of threadIds that currently have a running turn (for activity indicator). */
+
   runningTurnThreadIds: Set<string>
-  /** Background-thread approvals waiting for user to return to that thread. */
+
   parkedApprovals: Map<string, ParkedApproval[]>
   parkedUserInputs: Map<string, ParkedUserInput>
-  /** Lightweight per-thread runtime snapshot from workspace-level broadcasts. */
+
   runtimeSnapshots: Map<string, ThreadRuntimeSnapshot>
-  /** Threads that should show "awaiting approval" badge in sidebar. */
+
   pendingApprovalThreadIds: Set<string>
   pendingUserInputThreadIds: Set<string>
-  /** Threads with pending plan confirmation shortcut in conversation view. */
+
   pendingPlanConfirmationThreadIds: Set<string>
-  /** Best-effort current goal snapshots, keyed by thread id. */
+
   goalSnapshots: Map<string, ThreadGoal>
   hiddenThreadIds: Set<string>
-  /** Desktop-local pinned top-level thread ids for the current workspace. */
+
   pinnedThreadIds: string[]
   pinnedThreadWorkspacePath: string | null
 }
@@ -248,7 +248,7 @@ function persistPinnedThreadIds(workspacePath: string | null, threadIds: string[
 }
 
 function disposeViewerTabsForThread(threadId: string): void {
-  useViewerTabStore.getState().onThreadDeleted(threadId, {
+  useDetailPanelStore.getState().onThreadDeleted(threadId, {
     onBrowserTabRemoved: (tab) => {
       void window.api.workspace.viewer.browser.destroy({ tabId: tab.id })
     },
@@ -866,16 +866,11 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   }
 }))
 
-// Expose store to E2E / debug tooling via a window global (browser only)
 if (typeof window !== 'undefined') {
   ;(window as unknown as Record<string, unknown>).__THREAD_STORE_STATE = () =>
     useThreadStore.getState()
 }
 
-/**
- * Archived threads are always hidden from the main sidebar list — on the archive
- * action itself and on a thread/archived notification.
- */
 export function selectFilteredThreads(state: ThreadStore): ThreadSummary[] {
   // Subagent threads are surfaced through the dock (running) and the Subagents
   // detail tab (Active/Done), never as sidebar thread entries.

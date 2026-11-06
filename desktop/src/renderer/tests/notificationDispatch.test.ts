@@ -1,10 +1,10 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
-import { useUIStore } from '../stores/uiStore'
 import type { ContextUsageSnapshotWire, ThreadSummary } from '../types/thread'
 import type { ApprovalDecision } from '../types/conversation'
 import type { SubAgentEntry } from '../types/toolCall'
@@ -319,7 +319,7 @@ beforeEach(() => {
   useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
   useThreadStore.getState().reset()
   useSubAgentStore.getState().reset()
-  useUIStore.setState({
+  setRendererTestState({
     activeDetailTab: { kind: 'system', id: 'changes' },
     lastActiveSystemTab: 'changes',
     detailPanelPreferredVisible: false,
@@ -939,7 +939,7 @@ describe('notification dispatch payload format', () => {
   })
 
   it('applies plan/updated for the active thread without opening or switching the detail panel', () => {
-    useUIStore.setState({
+    setRendererTestState({
       activeDetailTab: { kind: 'system', id: 'changes' },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
@@ -958,8 +958,8 @@ describe('notification dispatch payload format', () => {
 
     expect(s().plan?.title).toBe('Active Plan')
     expect(s().plan?.todos[0].content).toBe('Show this task')
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(getRendererTestState().detailPanelVisible).toBe(false)
   })
 
   it('applies turn/diff/updated for the active thread as the live turn diff', () => {

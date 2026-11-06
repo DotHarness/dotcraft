@@ -107,4 +107,16 @@ it('delivers multiple live pages, releases client handles and reclaims them with
   expect(destroy).toHaveBeenCalledTimes(1)
   expect(load).not.toHaveBeenCalled()
   expect(send.mock.calls.some(([channel]) => channel === 'viewer:browser:close')).toBe(false)
+  await evaluate(`
+    const { setupBrowserRuntime } = await import(dotcraft.browserClientPath);
+    const agent = await setupBrowserRuntime();
+    const browser = await agent.browsers.get('iab');
+    const unfinished = await browser.tabs.new(); true;
+  `)
+  const beforeDisconnect = [...pages.values()]
+  expect(beforeDisconnect).toHaveLength(3)
+  repl.reset('delivery', { preserveBrowserTabs: true })
+  expect([...pages.values()]).toEqual(beforeDisconnect)
+  expect(destroy).toHaveBeenCalledTimes(1)
+  expect(send.mock.calls.some(([channel]) => channel === 'viewer:browser:close')).toBe(false)
 }, 30000)

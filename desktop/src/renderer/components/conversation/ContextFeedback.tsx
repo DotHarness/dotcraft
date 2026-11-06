@@ -11,7 +11,7 @@ import type {
 import { isLineCommentContext } from '../../../shared/messageComments'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { openFileViewer } from '../../utils/conversationDeepLink'
 import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import { IconButton } from '../ui/IconButton'
@@ -162,7 +162,7 @@ function LineCommentList({ comments }: { comments: LineCommentContext[] }): JSX.
   const t = useT()
   const workspacePath = useConversationStore((state) => state.workspacePath)
   const remoteWorkspaceActive = useConversationStore((state) => state.remoteWorkspaceActive)
-  const viewerScopeId = useViewerTabStore((state) => state.currentThreadId)
+  const viewerScopeId = useDetailPanelStore((state) => state.currentThreadId)
   const chip = (comment: LineCommentContext, targetPath: string, label: string, onOpen?: (threadId: string) => void) => (
     <FileRefChip
       className="dc-feedback-file"

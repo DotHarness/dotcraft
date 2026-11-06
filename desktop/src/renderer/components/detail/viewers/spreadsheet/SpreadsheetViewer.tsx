@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../../stores/detailPanelStore'
 import type { FileViewerTab } from '../../../../../shared/viewer/types'
 import { Skeleton } from '../../../ui/Skeleton'
 import { FileChangedNotice } from '../FileChangedNotice'
@@ -20,8 +20,8 @@ export function SpreadsheetViewer({ absolutePath, relativePath, tabId }: FilePre
   const [attempt, setAttempt] = useState(0)
   const [zoom, setZoom] = useState(1)
   const data = useSpreadsheetData(absolutePath, version, sheetIndex, attempt)
-  const threadId = useViewerTabStore((state) => state.currentThreadId)
-  const reveal = useViewerTabStore((state) => {
+  const threadId = useDetailPanelStore((state) => state.currentThreadId)
+  const reveal = useDetailPanelStore((state) => {
     if (!state.currentThreadId) return null
     const tab = state.getThreadState(state.currentThreadId).tabs.find((entry) => entry.id === tabId)
     return (tab as FileViewerTab | undefined)?.pendingReveal ?? null
@@ -34,12 +34,12 @@ export function SpreadsheetViewer({ absolutePath, relativePath, tabId }: FilePre
     if (!target || target === result.sheet.name) return
     const index = result.sheets.findIndex((sheet) => sheet.name === target)
     if (index >= 0) setSheetIndex(index)
-    else useViewerTabStore.getState().clearPendingReveal(threadId, tabId, reveal.revision)
+    else useDetailPanelStore.getState().clearPendingReveal(threadId, tabId, reveal.revision)
   }, [reveal, result, threadId, tabId])
 
   const onRevealed = useCallback(
     (revision: number) => {
-      if (threadId) useViewerTabStore.getState().clearPendingReveal(threadId, tabId, revision)
+      if (threadId) useDetailPanelStore.getState().clearPendingReveal(threadId, tabId, revision)
     },
     [threadId, tabId]
   )

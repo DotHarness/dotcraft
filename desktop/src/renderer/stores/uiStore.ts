@@ -7,7 +7,7 @@ import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { AppNavigationLocation } from './appNavigationStore'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
-import { activeDetailScopeId } from '../utils/detailPanelScope'
+import { useDetailPanelStore } from './detailPanelStore'
 import type { ThreadTitleRequest } from '../utils/threadTitleGeneration'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import {
@@ -31,27 +31,7 @@ const EXPLORER_MAX_WIDTH = 480
 
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
-export type SystemDetailTab = 'changes' | 'plan' | 'subagents' | 'board'
 export type ChangesDiffMode = 'inline' | 'split'
-
-/** @deprecated Use `ActiveDetailTab` instead. */
-export type DetailPanelTab = SystemDetailTab
-
-export type ActiveDetailTab =
-  | { kind: 'system'; id: SystemDetailTab }
-  | { kind: 'viewer'; id: string }
-  | { kind: 'launcher' }
-
-const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents', 'board']
-
-function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {
-  if (open.includes(id)) return open
-  return SYSTEM_TAB_ORDER.filter((tab) => tab === id || open.includes(tab))
-}
-
-interface DetailRevealOptions {
-  reveal?: boolean
-}
 
 export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings' | 'channels'
 export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
@@ -139,18 +119,9 @@ export interface UIState {
   sidebarPreferredCollapsed: boolean
   sidebarCollapsed: boolean
   sidebarWidth: number
-  detailPanelPreferredVisible: boolean
-  detailPanelPreferredVisibleByThread: Record<string, boolean>
-  detailPanelVisible: boolean
-  detailPanelFullView: boolean
-  detailPanelWidthRatio: number
-  detailPanelWidth: number
   agentBuilderChatWidthRatio: number
   agentBuilderChatWidth: number
   responsiveLayout: 'full' | 'no-detail' | 'collapsed'
-  activeDetailTab: ActiveDetailTab
-  openSystemTabs: SystemDetailTab[]
-  lastActiveSystemTab: SystemDetailTab
   quickOpenVisible: boolean
   explorerVisible: boolean
   slideSidebarVisible: boolean
@@ -159,7 +130,6 @@ export interface UIState {
   selectedChangeKey: string | null
   changesDiffModeByThread: Record<string, ChangesDiffMode>
   changesWordWrap: boolean
-  autoShowReasons: Set<string>
   composerPrefill: string | null
   composerImageAttachmentRequest: {
     id: number
@@ -169,7 +139,7 @@ export interface UIState {
   pendingThreadCreation: PendingThreadCreation | null
   pendingProjectThreadOpen: PendingProjectThreadOpen | null
   welcomeDraft: WelcomeDraft | null
-  /** Unsent welcome drafts keyed by normalized workspace path. */
+
   welcomeDraftsByWorkspace: Record<string, WelcomeDraft>
   welcomeDraftWorkspacePath: string | null
   welcomeDraftStageSeq: number
@@ -195,19 +165,8 @@ interface UIStore extends UIState {
   toggleSidebar(): void
   setSidebarCollapsed(collapsed: boolean): void
   setSidebarWidth(width: number): void
-  toggleDetailPanel(): void
-  setDetailPanelVisible(visible: boolean): void
-  toggleDetailPanelFullView(): void
-  setDetailPanelFullView(fullView: boolean): void
   setResponsiveLayout(layout: 'full' | 'no-detail' | 'collapsed'): void
-  setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
   setAgentBuilderChatWidth(width: number, splitWidth?: number | null): void
-  setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions): void
-  closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
-  resetDetailTabs(): void
-  syncDetailPanelForThread(scopeId: string | null, activeViewerTabId: string | null): void
-  setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
-  closeViewerTab(options?: DetailRevealOptions): void
   setQuickOpenVisible(visible: boolean): void
   toggleExplorer(): void
   toggleSlideSidebar(): void
@@ -220,9 +179,6 @@ interface UIStore extends UIState {
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
   toggleChangesWordWrap(): void
   showChangesForKey(key: string): void
-  /** Auto-show detail panel once for a reason. Returns true when newly triggered. */
-  maybeAutoShowForReason(reasonId: string): boolean
-  resetAutoShowReasons(): void
   /** Set text to be picked up by InputComposer on its next mount. */
   setComposerPrefill(text: string): void
   consumeComposerPrefill(): string | null
@@ -255,40 +211,9 @@ interface InternalState {
 
 export function resolveResponsivePanels(
   layout: UIState['responsiveLayout'],
-  sidebarPreferredCollapsed: boolean,
-  detailPanelPreferredVisible: boolean
-): Pick<UIState, 'sidebarCollapsed' | 'detailPanelVisible'> {
-  switch (layout) {
-    case 'collapsed':
-      return {
-        sidebarCollapsed: true,
-        detailPanelVisible: false
-      }
-    case 'no-detail':
-      return {
-        sidebarCollapsed: sidebarPreferredCollapsed,
-        detailPanelVisible: false
-      }
-    case 'full':
-    default:
-      return {
-        sidebarCollapsed: sidebarPreferredCollapsed,
-        detailPanelVisible: detailPanelPreferredVisible
-      }
-  }
-}
-
-function withActiveScopeDetailVisibility(
-  current: Record<string, boolean>,
-  visible: boolean
-): Record<string, boolean> {
-  const scopeId = activeDetailScopeId()
-  if (!scopeId || current[scopeId] === visible) return current
-  return { ...current, [scopeId]: visible }
-}
-
-function scopedSystemTabs(openSystemTabs: SystemDetailTab[]): SystemDetailTab[] {
-  return useThreadStore.getState().activeThreadId ? openSystemTabs : []
+  sidebarPreferredCollapsed: boolean
+): Pick<UIState, 'sidebarCollapsed'> {
+  return { sidebarCollapsed: layout === 'collapsed' || sidebarPreferredCollapsed }
 }
 
 function normalizeWorkspaceDraftKey(path: string | null | undefined): string {
@@ -316,18 +241,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   sidebarPreferredCollapsed: false,
   sidebarCollapsed: false,
   sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
-  detailPanelPreferredVisible: false,
-  detailPanelPreferredVisibleByThread: {},
-  detailPanelVisible: false,
-  detailPanelFullView: false,
-  detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
-  detailPanelWidth: DETAIL_DEFAULT_WIDTH,
   agentBuilderChatWidthRatio: AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
   agentBuilderChatWidth: AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
   responsiveLayout: 'full',
-  activeDetailTab: { kind: 'launcher' },
-  openSystemTabs: [],
-  lastActiveSystemTab: 'changes',
   quickOpenVisible: false,
   explorerVisible: false,
   slideSidebarVisible: true,
@@ -336,7 +252,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   selectedChangeKey: null,
   changesDiffModeByThread: {},
   changesWordWrap: false,
-  autoShowReasons: new Set<string>(),
   composerPrefill: null,
   composerImageAttachmentRequest: null,
   pendingWelcomeTurn: null,
@@ -408,8 +323,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         sidebarPreferredCollapsed,
         ...resolveResponsivePanels(
           state.responsiveLayout,
-          sidebarPreferredCollapsed,
-          state.detailPanelPreferredVisible
+          sidebarPreferredCollapsed
         )
       }
     })
@@ -420,8 +334,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       sidebarPreferredCollapsed: collapsed,
       ...resolveResponsivePanels(
         state.responsiveLayout,
-        collapsed,
-        state.detailPanelPreferredVisible
+        collapsed
       )
     }))
   },
@@ -431,73 +344,14 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({ sidebarWidth: clamped })
   },
 
-  toggleDetailPanel() {
-    set((state) => {
-      const detailPanelPreferredVisible = !state.detailPanelPreferredVisible
-      return {
-        detailPanelPreferredVisible,
-        detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
-          state.detailPanelPreferredVisibleByThread,
-          detailPanelPreferredVisible
-        ),
-        ...resolveResponsivePanels(
-          state.responsiveLayout,
-          state.sidebarPreferredCollapsed,
-          detailPanelPreferredVisible
-        )
-      }
-    })
-  },
-
-  setDetailPanelVisible(visible: boolean) {
-    set((state) => ({
-      detailPanelPreferredVisible: visible,
-      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
-        state.detailPanelPreferredVisibleByThread,
-        visible
-      ),
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        visible
-      )
-    }))
-  },
-
-  toggleDetailPanelFullView() {
-    get().setDetailPanelFullView(!get().detailPanelFullView)
-  },
-
-  setDetailPanelFullView(fullView: boolean) {
-    if (!fullView) {
-      set({ detailPanelFullView: false })
-      return
-    }
-    get().setDetailPanelVisible(true)
-    if (canShowDetailPanelFullView(get())) set({ detailPanelFullView: true })
-  },
-
   setResponsiveLayout(layout) {
     set((state) => ({
       responsiveLayout: layout,
       ...resolveResponsivePanels(
         layout,
-        state.sidebarPreferredCollapsed,
-        state.detailPanelPreferredVisible
+        state.sidebarPreferredCollapsed
       )
     }))
-  },
-
-  setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null) {
-    const clamped = Math.max(DETAIL_MIN_WIDTH, width)
-    if (mainSurfaceWidth != null && mainSurfaceWidth > 0) {
-      set({
-        detailPanelWidth: clamped,
-        detailPanelWidthRatio: clamped / mainSurfaceWidth
-      })
-      return
-    }
-    set({ detailPanelWidth: clamped })
   },
 
   setAgentBuilderChatWidth(width: number, splitWidth?: number | null) {
@@ -510,155 +364,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       return
     }
     set({ agentBuilderChatWidth: clamped })
-  },
-
-  setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions) {
-    const state = get()
-    const detailPanelPreferredVisible = options?.reveal === false
-      ? state.detailPanelPreferredVisible
-      : true
-    set({
-      activeDetailTab: { kind: 'system', id: tab },
-      openSystemTabs: withSystemTabOpen(state.openSystemTabs, tab),
-      lastActiveSystemTab: tab,
-      detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: options?.reveal === false
-        ? state.detailPanelPreferredVisibleByThread
-        : withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
-  },
-
-  closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null) {
-    const state = get()
-    const openSystemTabs = state.openSystemTabs.filter((id) => id !== tab)
-    const wasActive = state.activeDetailTab.kind === 'system' && state.activeDetailTab.id === tab
-    if (!wasActive) {
-      set({ openSystemTabs })
-      return
-    }
-    const nextActive: ActiveDetailTab = openSystemTabs.length > 0
-      ? { kind: 'system', id: openSystemTabs[openSystemTabs.length - 1] }
-      : fallbackViewerId
-        ? { kind: 'viewer', id: fallbackViewerId }
-        : { kind: 'launcher' }
-    // Closing the last tab empties the panel — auto-hide it, because the launcher
-    // is only meant to appear when the user manually opens an empty panel.
-    if (nextActive.kind === 'launcher') {
-      set({
-        openSystemTabs,
-        activeDetailTab: nextActive,
-        detailPanelPreferredVisible: false,
-        detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
-          state.detailPanelPreferredVisibleByThread,
-          false
-        ),
-        ...resolveResponsivePanels(
-          state.responsiveLayout,
-          state.sidebarPreferredCollapsed,
-          false
-        )
-      })
-      return
-    }
-    set({ openSystemTabs, activeDetailTab: nextActive })
-  },
-
-  resetDetailTabs() {
-    const state = get()
-    set({
-      openSystemTabs: [],
-      activeDetailTab: { kind: 'launcher' },
-      detailPanelPreferredVisible: false,
-      detailPanelPreferredVisibleByThread: {},
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        false
-      )
-    })
-  },
-
-  syncDetailPanelForThread(scopeId, activeViewerTabId) {
-    const state = get()
-    const systemTabs = scopedSystemTabs(state.openSystemTabs)
-    const hasViewerTab = activeViewerTabId != null
-    const hasSystemTab = systemTabs.length > 0
-    const savedVisible = scopeId != null
-      && state.detailPanelPreferredVisibleByThread[scopeId] === true
-    const detailPanelPreferredVisible = savedVisible && (hasViewerTab || hasSystemTab)
-    const activeDetailTab: ActiveDetailTab = hasViewerTab
-      ? { kind: 'viewer', id: activeViewerTabId }
-      : hasSystemTab
-        ? {
-            kind: 'system',
-            id: systemTabs.includes(state.lastActiveSystemTab)
-              ? state.lastActiveSystemTab
-              : systemTabs[systemTabs.length - 1]
-          }
-        : { kind: 'launcher' }
-
-    set({
-      activeDetailTab,
-      detailPanelPreferredVisible,
-      detailPanelFullView: false,
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
-  },
-
-  setActiveViewerTab(tabId: string, options?: DetailRevealOptions) {
-    const state = get()
-    const detailPanelPreferredVisible = options?.reveal === false
-      ? state.detailPanelPreferredVisible
-      : true
-    set({
-      activeDetailTab: { kind: 'viewer', id: tabId },
-      detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: options?.reveal === false
-        ? state.detailPanelPreferredVisibleByThread
-        : withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
-  },
-
-  closeViewerTab(options?: DetailRevealOptions) {
-    const state = get()
-    const open = scopedSystemTabs(state.openSystemTabs)
-    const fallsBackToLauncher = open.length === 0
-    const nextActive: ActiveDetailTab = fallsBackToLauncher
-      ? { kind: 'launcher' }
-      : { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
-    // Closing the last tab empties the panel — auto-hide it, because the launcher
-    // is only meant to appear when the user manually opens an empty panel.
-    const detailPanelPreferredVisible = fallsBackToLauncher
-      ? false
-      : options?.reveal === false
-        ? state.detailPanelPreferredVisible
-        : true
-    set({
-      activeDetailTab: nextActive,
-      detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: fallsBackToLauncher
-        ? withActiveScopeDetailVisibility(state.detailPanelPreferredVisibleByThread, false)
-        : state.detailPanelPreferredVisibleByThread,
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
   },
 
   setQuickOpenVisible(visible: boolean) {
@@ -716,52 +421,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   },
 
   showChangesForKey(key) {
-    const state = get()
-    const detailPanelPreferredVisible = true
-    set({
-      activeDetailTab: { kind: 'system', id: 'changes' },
-      openSystemTabs: withSystemTabOpen(state.openSystemTabs, 'changes'),
-      lastActiveSystemTab: 'changes',
-      selectedChangeKey: key,
-      detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
-        state.detailPanelPreferredVisibleByThread,
-        true
-      ),
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
-  },
-
-  maybeAutoShowForReason(reasonId) {
-    const normalized = reasonId.trim()
-    if (!normalized) return false
-    const state = get()
-    if (state.autoShowReasons.has(normalized)) return false
-    const autoShowReasons = new Set(state.autoShowReasons)
-    autoShowReasons.add(normalized)
-    const detailPanelPreferredVisible = true
-    set({
-      autoShowReasons,
-      detailPanelPreferredVisible,
-      detailPanelPreferredVisibleByThread: withActiveScopeDetailVisibility(
-        state.detailPanelPreferredVisibleByThread,
-        true
-      ),
-      ...resolveResponsivePanels(
-        state.responsiveLayout,
-        state.sidebarPreferredCollapsed,
-        detailPanelPreferredVisible
-      )
-    })
-    return true
-  },
-
-  resetAutoShowReasons() {
-    set({ autoShowReasons: new Set<string>() })
+    set({ selectedChangeKey: key })
+    useDetailPanelStore.getState().setActiveDetailTab('changes')
   },
 
   setComposerPrefill(text) {
@@ -1007,20 +668,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   _pendingWelcomeTimer: null
 }))
-
-function canShowDetailPanelFullView(
-  state: Pick<UIState, 'detailPanelVisible' | 'activeMainView' | 'activeDetailTab'>
-): boolean {
-  return state.detailPanelVisible
-    && state.activeMainView === 'conversation'
-    && state.activeDetailTab.kind !== 'launcher'
-}
-
-useUIStore.subscribe((state) => {
-  if (state.detailPanelFullView && !canShowDetailPanelFullView(state)) {
-    useUIStore.setState({ detailPanelFullView: false })
-  }
-})
 
 export {
   SIDEBAR_DEFAULT_WIDTH,

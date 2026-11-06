@@ -19,7 +19,7 @@ import {
   type TranscriptLiveText
 } from './subAgentTranscriptEvents'
 import { useUIStore } from './uiStore'
-import { useViewerTabStore } from './viewerTabStore'
+import { useDetailPanelStore } from './detailPanelStore'
 
 export type SideChatStatus = 'starting' | 'ready' | 'expired'
 
@@ -104,10 +104,11 @@ function chatByThread(threadId: string): SideChat | undefined {
 
 function isTabVisible(chat: SideChat): boolean {
   const ui = useUIStore.getState()
-  return ui.detailPanelVisible
-    && ui.activeDetailTab.kind === 'viewer'
-    && ui.activeDetailTab.id === chat.tabId
-    && useViewerTabStore.getState().currentThreadId === chat.parentThreadId
+  const panel = useDetailPanelStore.getState().getCurrentPanel()
+  return ui.responsiveLayout === 'full' && panel.detailPanelPreferredVisible
+    && panel.activeDetailTab.kind === 'viewer'
+    && panel.activeDetailTab.id === chat.tabId
+    && useDetailPanelStore.getState().currentThreadId === chat.parentThreadId
 }
 
 function update(key: string, change: (chat: SideChat) => SideChat): void {
@@ -192,18 +193,18 @@ function onNotification(method: string, params: Record<string, unknown>): void {
 }
 
 function closeTab(chat: SideChat): void {
-  useViewerTabStore.getState().closeTab(chat.parentThreadId, chat.tabId)
-  const ui = useUIStore.getState()
-  if (ui.activeDetailTab.kind !== 'viewer' || ui.activeDetailTab.id !== chat.tabId) return
-  const viewer = useViewerTabStore.getState()
+  useDetailPanelStore.getState().closeTab(chat.parentThreadId, chat.tabId)
+  const active = useDetailPanelStore.getState().getCurrentPanel().activeDetailTab
+  if (active.kind !== 'viewer' || active.id !== chat.tabId) return
+  const viewer = useDetailPanelStore.getState()
   if (viewer.currentThreadId !== chat.parentThreadId) return
   const nextTabId = viewer.getThreadState(chat.parentThreadId).activeTabId
-  if (nextTabId) ui.setActiveViewerTab(nextTabId)
-  else ui.closeViewerTab()
+  if (nextTabId) useDetailPanelStore.getState().setActiveViewerTab(nextTabId)
+  else useDetailPanelStore.getState().closeViewerTab()
 }
 
 function hasTab(chat: SideChat): boolean {
-  return useViewerTabStore.getState().getThreadState(chat.parentThreadId).tabs.some((tab) => tab.id === chat.tabId)
+  return useDetailPanelStore.getState().getThreadState(chat.parentThreadId).tabs.some((tab) => tab.id === chat.tabId)
 }
 
 function ensureListening(): void {
@@ -224,7 +225,7 @@ function ensureListening(): void {
       return { chats }
     })
   })
-  useViewerTabStore.subscribe(() => {
+  useDetailPanelStore.subscribe(() => {
     for (const chat of useSideChatStore.getState().chats.values()) {
       if (!hasTab(chat)) useSideChatStore.getState().discard(chat.key)
     }
@@ -279,9 +280,9 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     ensureListening()
     const key = crypto.randomUUID()
     const ordinal = Math.max(0, ...sideChatsOf(get().chats, parentThreadId).map((chat) => chat.ordinal)) + 1
-    const tabId = useViewerTabStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
-    if (useViewerTabStore.getState().currentThreadId === parentThreadId) {
-      useUIStore.getState().setActiveViewerTab(tabId)
+    const tabId = useDetailPanelStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
+    if (useDetailPanelStore.getState().currentThreadId === parentThreadId) {
+      useDetailPanelStore.getState().setActiveViewerTab(tabId)
     }
     set((state) => {
       const chats = new Map(state.chats)

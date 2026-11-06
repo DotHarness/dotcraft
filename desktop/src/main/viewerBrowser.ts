@@ -1,9 +1,12 @@
 import { BrowserGuestRegistry } from './browserGuestRegistry'
-import { app, BrowserWindow, nativeImage, shell } from 'electron'
+import { BrowserPageLifecycle, type BrowserPageEntry, type BrowserPageParams, type BrowserRestoreValidator } from './browserPageLifecycle'
+import { BrowserPageSnapshotStore } from './browserPageSnapshotStore'
+import { app, BrowserWindow, shell } from 'electron'
+import { bindBrowserPageEvents, type BrowserTabRuntime } from './browserPageEvents'
 import { join } from 'node:path'
 import { BrowserDownloads } from './browserDownloads'
 import { fileURLToPath } from 'url'
-import type { BrowserEventPayload } from '../shared/viewer/types'
+import type { BrowserEventPayload, BrowserRestoreResult } from '../shared/viewer/types'
 import { viewerUrlToPath } from './viewerFileProtocol'
 import { BrowserSessionPolicy, bindBrowserPageSession, browserLoadUrl, assertBrowserPageNavigation } from './browserSessionPolicy'
 import { BrowserGuestNavigation, classifyTabNavigation, extractScheme, normalizeBrowserUrl } from './browserGuestNavigation'
@@ -17,30 +20,12 @@ const START_URL = 'about:blank'
 const VIEWER_SCHEME = 'dotcraft-viewer:'
 const DEFAULT_START_TITLE = 'DotCraft Browser'
 
-interface BrowserTabRuntime {
-  tabId: string
-  threadId?: string
-  workspacePath: string
-  page: Electron.WebContents
-  desiredVisible: boolean
-  visible: boolean
-  boundsInitialized: boolean
-  currentUrl: string
-  title: string
-  faviconDataUrl?: string
-  automationSessionName?: string
-  automationActive?: boolean
-  authPopups: Set<BrowserWindow>
-}
-
-interface WindowRuntime {
-  tabs: Map<string, BrowserTabRuntime>
-  activeTabId: string | null
-}
-
 export interface BrowserSnapshot {
   tabId: string
   threadId?: string
+  projectKey?: string
+  browserStorageId?: string
+  suspended?: boolean
   currentUrl: string
   title: string
   faviconDataUrl?: string
@@ -69,10 +54,6 @@ function emitBrowserEvent(win: BrowserWindow, payload: BrowserEventPayload): voi
   win.webContents.send(BROWSER_EVENT_CHANNEL, payload)
 }
 
-function historyOf(webContents: Electron.WebContents): Electron.NavigationHistory {
-  return webContents.navigationHistory
-}
-
 function ensureDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
 }
@@ -97,11 +78,65 @@ function escapeHtml(input: string): string {
 export class ViewerBrowserManager {
   readonly hosts = new BrowserGuestRegistry()
   private downloads: BrowserDownloads | null = null
-  private readonly byWindowId = new Map<number, WindowRuntime>()
-  private readonly navigation = new BrowserGuestNavigation(emitBrowserEvent)
+  private readonly byWindowId = new Map<number, Map<string, BrowserTabRuntime>>()
+  private readonly creating = new Map<BrowserPageEntry, Promise<BrowserSnapshot>>()
+  private snapshotStore?: BrowserPageSnapshotStore
+  private readonly pages: BrowserPageLifecycle
+
+  constructor(options: { snapshotStore?: BrowserPageSnapshotStore; now?: () => number; budget?: number } = {}) {
+    this.snapshotStore = options.snapshotStore
+    this.pages = new BrowserPageLifecycle(
+      () => this.snapshotStore ??= new BrowserPageSnapshotStore(join(app.getPath('userData'), 'browser-page-states.json')),
+      entry => this.releasePage(entry, true),
+      tabId => this.downloads?.hasActiveDownload(tabId) === true,
+      options.now, options.budget
+    )
+  }
+
+  registerPersistenceOwner(win: BrowserWindow): void { this.pages.registerPersistenceOwner(win) }
+  setRestoreValidator(validator: BrowserRestoreValidator): void { this.pages.setRestoreValidator(validator) }
+  setForegroundScope(win: BrowserWindow, scope: { projectKey: string; threadId?: string }): void { this.pages.setForeground(win, scope) }
+  restoreState(win: BrowserWindow, params: Omit<BrowserPageParams, 'tabId'> & { tabs: Array<{ tabId: string; browserStorageId: string; initialUrl?: string }> }): BrowserRestoreResult[] {
+    return this.pages.restoreState(win, params)
+  }
+
+  async ensureTabWebContents(win: BrowserWindow, tabId: string): Promise<Electron.WebContents> {
+    const entry = this.pages.get(win, tabId)
+    if (!entry) throw new Error(`Browser tab is no longer available: ${tabId}`)
+    const previousAutomation = entry.automation
+    entry.automation = true
+    try { await this.createTab(win, entry.params) } catch (error) {
+      entry.automation = previousAutomation
+      throw error
+    }
+    const page = this.getTabWebContents(win, tabId)
+    if (!page) throw new Error(`Browser tab is no longer available: ${tabId}`)
+    return page
+  }
+
+  suspendTab(win: BrowserWindow, tabId: string): boolean {
+    return this.pages.trySuspend(win, tabId)
+  }
+
+  private releasePage(entry: BrowserPageEntry, suspended: boolean): void {
+    const { win, owner } = entry
+    const runtime = this.byWindowId.get(win.id)
+    const tab = runtime?.get(owner.tabId)
+    runtime?.delete(owner.tabId)
+    if (tab) {
+      for (const popup of tab.authPopups) if (!popup.isDestroyed()) popup.destroy()
+      tab.authPopups.clear()
+    }
+    this.hosts.remove(win, owner.tabId)
+    if (suspended) this.emit(win, {
+      tabId: owner.tabId, threadId: owner.threadId, projectKey: owner.projectKey,
+      browserStorageId: entry.browserStorageId, type: 'suspended', suspended: true
+    })
+  }
+  private readonly navigation = new BrowserGuestNavigation((win, payload) => this.emit(win, payload))
   private readonly sessions = new BrowserSessionPolicy((event, item, page) => {
     for (const runtime of this.byWindowId.values()) {
-      for (const tab of runtime.tabs.values()) {
+      for (const tab of runtime.values()) {
         if (tab.page.id === page.id) {
           this.userDownloads().start(item, { tabId: tab.tabId, threadId: tab.threadId })
           return
@@ -116,113 +151,98 @@ export class ViewerBrowserManager {
     this.startPageHint = hint.trim() || this.startPageHint
   }
 
-  async createTab(win: BrowserWindow, params: {
-    tabId: string
-    threadId?: string
-    workspacePath: string
-    initialUrl?: string
-    sessionUrl?: string
-    allowFileScheme?: boolean
-    skipStartPageLoad?: boolean
-    automation?: boolean
-  }): Promise<BrowserSnapshot> {
+  async createTab(win: BrowserWindow, params: BrowserPageParams): Promise<BrowserSnapshot> {
+    const entry = this.pages.prepare(win, params)
+    const pending = this.creating.get(entry)
+    if (pending) return pending
+    const existing = this.getTab(win, params.tabId)
+    if (existing && !existing.page.isDestroyed()) return this.snapshotFromRuntime(existing)
+    const creation = this.createPage(entry).finally(() => { this.creating.delete(entry) })
+    this.creating.set(entry, creation)
+    return creation
+  }
+
+  private async createPage(entry: BrowserPageEntry): Promise<BrowserSnapshot> {
+    const { win, params } = entry
     const runtime = this.ensureWindowRuntime(win)
-    const existing = runtime.tabs.get(params.tabId)
-    if (existing) {
-      if (params.threadId && !existing.threadId) existing.threadId = params.threadId
-      return this.snapshotFromRuntime(existing)
-    }
-
-    const { partition, kind } = this.sessions.select(win, params.workspacePath, params.sessionUrl ?? params.initialUrl ?? START_URL)
-
-    const page = await this.hosts.request(win, params.tabId, partition, params.automation)
-    if (page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
-    const attached = runtime.tabs.get(params.tabId)
-    if (attached) return this.snapshotFromRuntime(attached)
-    const tabRuntime: BrowserTabRuntime = {
-      tabId: params.tabId,
-      threadId: params.threadId,
-      workspacePath: params.workspacePath,
-      page,
-      desiredVisible: false,
-      visible: false,
-      boundsInitialized: false,
-      currentUrl: START_URL,
-      title: DEFAULT_START_TITLE,
-      authPopups: new Set()
-    }
-    runtime.tabs.set(params.tabId, tabRuntime)
-    bindBrowserPageSession(page, kind, params.allowFileScheme === true)
-    this.bindWebContentsEvents(win, tabRuntime)
-
-    const desired = normalizeBrowserUrl(params.initialUrl ?? '') ?? START_URL
-    if (desired === START_URL && params.skipStartPageLoad !== true) {
-      const startPageUrl = ensureDataUrl(buildStartPageHtml(this.startPageHint))
-      void loadOrReport({
-        tabId: params.tabId,
-        threadId: params.threadId,
-        url: START_URL,
-        load: () => page.loadURL(startPageUrl),
-        emit: (payload) => emitBrowserEvent(win, payload)
+    const initialUrl = entry.snapshot?.url ?? params.initialUrl ?? START_URL
+    const { partition, kind } = this.sessions.select(win, params.workspacePath, params.sessionUrl ?? initialUrl)
+    entry.restoring = true
+    try {
+      const page = await this.hosts.request(win, params.tabId, partition, entry.automation)
+      if (!this.pages.current(entry) || page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
+      const tab: BrowserTabRuntime = {
+        tabId: params.tabId, threadId: params.threadId,
+        projectKey: entry.owner.projectKey, browserStorageId: entry.browserStorageId, page,
+        desiredVisible: false, boundsInitialized: false,
+        currentUrl: initialUrl, title: entry.snapshot?.title ?? DEFAULT_START_TITLE,
+        faviconDataUrl: entry.snapshot?.faviconDataUrl, automationActive: entry.automation, authPopups: new Set()
+      }
+      runtime.set(params.tabId, tab)
+      entry.page = page
+      bindBrowserPageSession(page, kind, params.allowFileScheme === true)
+      this.bindWebContentsEvents(win, tab)
+      let restored = false
+      if (entry.snapshot) restored = await this.pages.restore(entry, page)
+      if (!restored) {
+        const desired = normalizeBrowserUrl(entry.snapshot ? initialUrl : params.initialUrl ?? initialUrl) ?? START_URL
+        if (entry.snapshot) {
+          await this.pages.validateNavigation(entry, desired, kind)
+          if (!this.pages.current(entry) || page.isDestroyed()) throw new Error('Browser page closed.')
+          await loadOrReport({ tabId: params.tabId, threadId: params.threadId, url: desired,
+            load: () => page.loadURL(browserLoadUrl(desired)), throwOnFailure: true,
+            emit: payload => this.emit(win, payload) })
+          if (!this.pages.current(entry) || page.isDestroyed()) throw new Error('Browser page closed.')
+          tab.currentUrl = page.getURL() || desired
+        } else if (desired === START_URL && params.skipStartPageLoad !== true) {
+          void loadOrReport({ tabId: params.tabId, threadId: params.threadId, url: START_URL,
+            load: () => page.loadURL(ensureDataUrl(buildStartPageHtml(this.startPageHint))),
+            emit: payload => this.emit(win, payload) })
+        } else void this.navigate(win, { tabId: params.tabId, url: desired })
+      }
+      this.emit(win, {
+        tabId: tab.tabId, threadId: tab.threadId, projectKey: tab.projectKey, browserStorageId: tab.browserStorageId,
+        type: 'restored', suspended: false, url: tab.currentUrl, title: tab.title
       })
-    } else {
-      void this.navigate(win, { tabId: params.tabId, url: desired })
+      return this.snapshotFromRuntime(tab)
+    } catch (error) {
+      if (this.pages.current(entry)) {
+        this.releasePage(entry, false)
+        entry.page = undefined
+      }
+      throw error
+    } finally {
+      entry.restoring = false
+      this.pages.enforce(win)
     }
-
-    emitBrowserEvent(win, {
-      tabId: params.tabId,
-      threadId: params.threadId,
-      type: 'page-title-updated',
-      title: DEFAULT_START_TITLE
-    })
-    return this.snapshotFromRuntime(tabRuntime)
   }
 
   destroyTab(win: BrowserWindow, tabId: string): void {
-    const runtime = this.byWindowId.get(win.id)
-    if (!runtime) {
-      this.hosts.remove(win, tabId)
-      return
+    const entry = this.pages.get(win, tabId)
+    this.pages.close(win, tabId, true)
+    if (entry) this.releasePage(entry, false)
+    else this.hosts.remove(win, tabId)
+    this.pages.enforce(win)
+  }
+
+  destroyThreadTabs(win: BrowserWindow, scope: { projectKey: string; threadId: string }): void {
+    for (const entry of this.pages.entries(win)) {
+      if (entry.owner.projectKey === scope.projectKey && entry.owner.threadId === scope.threadId) this.destroyTab(win, entry.owner.tabId)
     }
-    const tab = runtime.tabs.get(tabId)
-    if (!tab) {
-      this.hosts.remove(win, tabId)
-      return
-    }
-    for (const popup of tab.authPopups) {
-      if (!popup.isDestroyed()) popup.destroy()
-    }
-    tab.authPopups.clear()
-    this.hosts.remove(win, tabId)
-    runtime.tabs.delete(tabId)
-    if (runtime.activeTabId === tabId) runtime.activeTabId = null
+    this.pages.forgetThread(win, scope.projectKey, scope.threadId)
   }
 
   destroyAllTabs(win: BrowserWindow): void {
-    const runtime = this.byWindowId.get(win.id)
-    if (!runtime) return
-    for (const tabId of [...runtime.tabs.keys()]) {
-      this.destroyTab(win, tabId)
-    }
+    const entries = this.pages.entries(win)
+    this.pages.disposeWindow(win)
+    for (const entry of entries) this.releasePage(entry, false)
     this.hosts.clear(win)
     this.byWindowId.delete(win.id)
   }
 
-  async createAutomationTab(win: BrowserWindow, params: {
-    tabId: string
-    threadId?: string
-    workspacePath: string
-    initialUrl?: string
-    sessionUrl?: string
-    allowFileScheme?: boolean
-  }): Promise<BrowserSnapshot> {
+  async createAutomationTab(win: BrowserWindow, params: BrowserPageParams): Promise<BrowserSnapshot> {
     return await this.createTab(win, {
-      tabId: params.tabId,
-      threadId: params.threadId,
-      workspacePath: params.workspacePath,
-      initialUrl: params.initialUrl,
-      sessionUrl: params.sessionUrl,
-      allowFileScheme: params.allowFileScheme,
+      ...params,
       skipStartPageLoad: true,
       automation: true
     })
@@ -234,30 +254,16 @@ export class ViewerBrowserManager {
     return tab.page
   }
 
-  listAutomationTargetTabs(win: BrowserWindow, threadId: string): BrowserSnapshot[] {
-    const runtime = this.byWindowId.get(win.id)
-    return runtime ? [...runtime.tabs.values()]
-      .filter(tab => tab.threadId === threadId && !tab.page.isDestroyed())
-      .map(tab => this.snapshotFromRuntime(tab)) : []
+  listAutomationTargetTabs(win: BrowserWindow, threadId: string, projectKey?: string): BrowserSnapshot[] {
+    return this.pages.entries(win).filter(entry => entry.owner.threadId === threadId && (projectKey === undefined || entry.owner.projectKey === projectKey))
+      .map(entry => this.snapshotState(win, entry.owner.tabId)!)
   }
 
   rebindThread(win: BrowserWindow, fromThreadId: string, toThreadId: string): void {
-    for (const tab of this.byWindowId.get(win.id)?.tabs.values() ?? []) {
+    this.pages.rebindThread(win, fromThreadId, toThreadId)
+    for (const tab of this.byWindowId.get(win.id)?.values() ?? []) {
       if (tab.threadId === fromThreadId) tab.threadId = toThreadId
     }
-  }
-
-  getAutomationTargetTab(win: BrowserWindow, threadId: string): BrowserSnapshot | null {
-    const runtime = this.byWindowId.get(win.id)
-    if (!runtime) return null
-    const active = runtime.activeTabId ? runtime.tabs.get(runtime.activeTabId) : null
-    if (active?.threadId === threadId && !active.page.isDestroyed()) {
-      return this.snapshotFromRuntime(active)
-    }
-    const recent = [...runtime.tabs.values()].reverse().find((tab) => (
-      tab.threadId === threadId && !tab.page.isDestroyed()
-    ))
-    return recent ? this.snapshotFromRuntime(recent) : null
   }
 
   async loadAutomationUrl(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
@@ -269,9 +275,10 @@ export class ViewerBrowserManager {
       threadId: tab.threadId,
       url: target,
       load: () => tab.page.loadURL(target),
-      emit: (payload) => emitBrowserEvent(win, payload),
+      emit: (payload) => this.emit(win, payload),
       throwOnFailure: true
     })
+    if (this.getTab(win, params.tabId) !== tab || tab.page.isDestroyed()) return
     tab.currentUrl = tab.page.getURL() || tab.currentUrl
   }
 
@@ -284,7 +291,7 @@ export class ViewerBrowserManager {
     const navigationDecision = classifyTabNavigation(tab, normalized)
     if (navigationDecision === 'external-handoff') {
       await shell.openExternal(normalized)
-      emitBrowserEvent(win, { tabId: params.tabId, threadId: tab.threadId, type: 'external-handoff', url: normalized })
+      this.emit(win, { tabId: params.tabId, threadId: tab.threadId, type: 'external-handoff', url: normalized })
       return
     }
     if (navigationDecision === 'new-tab') {
@@ -292,7 +299,7 @@ export class ViewerBrowserManager {
       return
     }
     if (navigationDecision !== 'allow') {
-      emitBrowserEvent(win, {
+      this.emit(win, {
         tabId: params.tabId,
         threadId: tab.threadId,
         type: 'blocked-navigation',
@@ -306,22 +313,23 @@ export class ViewerBrowserManager {
       threadId: tab.threadId,
       url: normalized,
       load: () => tab.page.loadURL(browserLoadUrl(normalized)),
-      emit: (payload) => emitBrowserEvent(win, payload)
+      emit: (payload) => this.emit(win, payload)
     })
+    if (this.getTab(win, params.tabId) !== tab || tab.page.isDestroyed()) return
     tab.currentUrl = tab.page.getURL() || tab.currentUrl
   }
 
   goBack(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    const history = historyOf(tab.page)
+    const history = tab.page.navigationHistory
     if (history.canGoBack()) history.goBack()
   }
 
   goForward(win: BrowserWindow, tabId: string): void {
     const tab = this.getTab(win, tabId)
     if (!tab) return
-    const history = historyOf(tab.page)
+    const history = tab.page.navigationHistory
     if (history.canGoForward()) history.goForward()
   }
 
@@ -365,19 +373,21 @@ export class ViewerBrowserManager {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
     tab.desiredVisible = params.visible
-    tab.visible = params.visible && tab.boundsInitialized
-    this.hosts.update(win, tab.tabId, { visible: tab.visible })
+    const entry = this.pages.get(win, params.tabId)
+    if (entry) entry.visible = params.visible
+    this.hosts.update(win, tab.tabId, { visible: params.visible && tab.boundsInitialized })
+    this.pages.enforce(win)
   }
 
   setActiveTab(win: BrowserWindow, tabId: string): void {
     const runtime = this.byWindowId.get(win.id)
     if (!runtime) return
-    runtime.activeTabId = tabId
-    for (const tab of runtime.tabs.values()) {
+    this.pages.select(win, tabId)
+    for (const tab of runtime.values()) {
       const visible = tab.tabId === tabId
       this.setVisible(win, { tabId: tab.tabId, visible })
     }
-    const active = runtime.tabs.get(tabId)
+    const active = runtime.get(tabId)
     if (!active) return
     this.emitHistoryFlags(win, active)
   }
@@ -400,7 +410,10 @@ export class ViewerBrowserManager {
   }
 
   setCaptureSurface(win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void {
+    const entry = this.pages.get(win, tabId)
+    if (entry) entry.capture = size !== null
     this.hosts.setCaptureSurface(win, tabId, size)
+    this.pages.enforce(win)
   }
 
   setAutomationState(win: BrowserWindow, params: BrowserAutomationStateParams): void {
@@ -408,6 +421,8 @@ export class ViewerBrowserManager {
     if (!tab) return
     const wasActive = tab.automationActive === true
     tab.automationActive = params.active
+    const entry = this.pages.get(win, params.tabId)
+    if (entry) entry.automation = params.active
     this.hosts.update(win, tab.tabId, { automation: params.active })
     if (params.active) this.hosts.cursors.activate(win, tab.tabId)
     else if (params.release) this.hosts.cursors.release(win, tab.tabId)
@@ -415,7 +430,7 @@ export class ViewerBrowserManager {
     if (params.sessionName !== undefined) {
       tab.automationSessionName = params.sessionName
     }
-    emitBrowserEvent(win, {
+    this.emit(win, {
       tabId: params.tabId,
       threadId: tab.threadId,
       type: params.active ? (wasActive ? 'automation-updated' : 'automation-started') : 'automation-stopped',
@@ -423,6 +438,7 @@ export class ViewerBrowserManager {
       sessionName: tab.automationSessionName,
       action: params.action
     })
+    this.pages.enforce(win)
   }
 
   async moveMouse(win: BrowserWindow, params: BrowserAutomationMoveParams): Promise<void> {
@@ -432,8 +448,18 @@ export class ViewerBrowserManager {
 
   snapshotState(win: BrowserWindow, tabId: string): BrowserSnapshot | null {
     const tab = this.getTab(win, tabId)
-    if (!tab) return null
-    return this.snapshotFromRuntime(tab)
+    if (tab && !tab.page.isDestroyed()) return this.snapshotFromRuntime(tab)
+    const entry = this.pages.get(win, tabId)
+    if (!entry) return null
+    const snapshot = entry.snapshot
+    return {
+      tabId, threadId: entry.owner.threadId, projectKey: entry.owner.projectKey, browserStorageId: entry.browserStorageId,
+      suspended: true, currentUrl: snapshot?.url ?? entry.params.initialUrl ?? START_URL,
+      title: snapshot?.title ?? DEFAULT_START_TITLE, faviconDataUrl: snapshot?.faviconDataUrl,
+      canGoBack: (snapshot?.navigation.index ?? 0) > 0,
+      canGoForward: snapshot ? snapshot.navigation.index < snapshot.navigation.entries.length - 1 : false,
+      loading: false
+    }
   }
 
   feedbackTarget(win: BrowserWindow, tabId: string): { page: Electron.WebContents; tabId: string; threadId?: string } {
@@ -448,7 +474,10 @@ export class ViewerBrowserManager {
         (records) => {
           for (const id of this.byWindowId.keys()) {
             const win = BrowserWindow.fromId(id)
-            if (win && !win.isDestroyed()) win.webContents.send('viewer:browser:feedback', { type: 'downloads', records })
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('viewer:browser:feedback', { type: 'downloads', records })
+              this.pages.enforce(win)
+            }
           }
         }, (path) => shell.openPath(path)
       )
@@ -456,11 +485,28 @@ export class ViewerBrowserManager {
     return this.downloads
   }
 
+  private emit(win: BrowserWindow, payload: BrowserEventPayload): void {
+    const entry = this.pages.get(win, payload.tabId)
+    emitBrowserEvent(win, { ...payload,
+      ...(entry ? { projectKey: entry.owner.projectKey, browserStorageId: entry.browserStorageId } : {}) })
+  }
+
+  private checkpoint(win: BrowserWindow, tab: BrowserTabRuntime): void {
+    const entry = this.pages.get(win, tab.tabId)
+    if (!entry || entry.page !== tab.page) return
+    entry.faviconDataUrl = tab.faviconDataUrl
+    this.pages.checkpoint(entry)
+    this.pages.enforce(win)
+  }
+
   private snapshotFromRuntime(tab: BrowserTabRuntime): BrowserSnapshot {
-    const history = historyOf(tab.page)
+    const history = tab.page.navigationHistory
     return {
       tabId: tab.tabId,
       threadId: tab.threadId,
+      projectKey: tab.projectKey,
+      browserStorageId: tab.browserStorageId,
+      suspended: false,
       currentUrl: tab.currentUrl,
       title: tab.title,
       faviconDataUrl: tab.faviconDataUrl,
@@ -470,19 +516,16 @@ export class ViewerBrowserManager {
     }
   }
 
-  private ensureWindowRuntime(win: BrowserWindow): WindowRuntime {
+  private ensureWindowRuntime(win: BrowserWindow): Map<string, BrowserTabRuntime> {
     const existing = this.byWindowId.get(win.id)
     if (existing) return existing
-    const created: WindowRuntime = {
-      tabs: new Map(),
-      activeTabId: null
-    }
+    const created = new Map<string, BrowserTabRuntime>()
     this.byWindowId.set(win.id, created)
     return created
   }
 
   private getTab(win: BrowserWindow, tabId: string): BrowserTabRuntime | null {
-    return this.byWindowId.get(win.id)?.tabs.get(tabId) ?? null
+    return this.byWindowId.get(win.id)?.get(tabId) ?? null
   }
 
   private requireTab(win: BrowserWindow, tabId: string): BrowserTabRuntime {
@@ -494,8 +537,8 @@ export class ViewerBrowserManager {
   }
 
   private emitHistoryFlags(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    const history = historyOf(tab.page)
-    emitBrowserEvent(win, {
+    const history = tab.page.navigationHistory
+    this.emit(win, {
       tabId: tab.tabId,
       threadId: tab.threadId,
       type: 'update-history-flags',
@@ -505,69 +548,19 @@ export class ViewerBrowserManager {
   }
 
   private bindWebContentsEvents(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    const wc = tab.page
-
-    wc.on('did-start-loading', () => {
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'did-start-loading' })
-      this.emitHistoryFlags(win, tab)
-    })
-    wc.on('did-stop-loading', () => {
-      tab.currentUrl = wc.getURL() || tab.currentUrl
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'did-stop-loading', url: tab.currentUrl })
-      this.emitHistoryFlags(win, tab)
-    })
-    wc.on('did-navigate', (_event, url) => {
-      tab.currentUrl = url
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'did-navigate', url })
-      this.emitHistoryFlags(win, tab)
-    })
-    wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      if (!isMainFrame || errorCode === -3) return
-      emitBrowserEvent(win, {
-        tabId: tab.tabId,
-        threadId: tab.threadId,
-        type: 'did-fail-load',
-        url: validatedURL,
-        message: errorDescription,
-        errorCode,
-        errorDescription,
-        validatedURL,
-        finalURL: tab.page.getURL(),
-        isMainFrame
-      })
-    })
-    wc.on('page-title-updated', (event, title) => {
-      event.preventDefault()
-      tab.title = title || DEFAULT_START_TITLE
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'page-title-updated', title: tab.title })
-    })
-    wc.on('page-favicon-updated', async (_event, favicons) => {
-      const first = favicons[0]
-      if (!first) return
-      try {
-        const res = await fetch(first)
-        if (!res.ok) return
-        const data = Buffer.from(await res.arrayBuffer())
-        const image = nativeImage.createFromBuffer(data)
-        if (image.isEmpty()) return
-        tab.faviconDataUrl = image.toDataURL()
-        emitBrowserEvent(win, {
-          tabId: tab.tabId,
-          threadId: tab.threadId,
-          type: 'page-favicon-updated',
-          faviconDataUrl: tab.faviconDataUrl
-        })
-      } catch {
-        // Best-effort favicon loading.
+    bindBrowserPageEvents(tab, {
+      current: () => this.getTab(win, tab.tabId) === tab,
+      emit: payload => this.emit(win, payload),
+      history: () => this.emitHistoryFlags(win, tab),
+      checkpoint: () => this.checkpoint(win, tab),
+      destroyed: () => {
+        this.byWindowId.get(win.id)?.delete(tab.tabId)
+        const entry = this.pages.get(win, tab.tabId)
+        if (entry?.page === tab.page) entry.page = undefined
       }
     })
-    wc.on('render-process-gone', () => {
-      emitBrowserEvent(win, { tabId: tab.tabId, threadId: tab.threadId, type: 'crashed' })
-    })
-
     this.navigation.bind(win, tab)
   }
-
 }
 
 export const viewerBrowserManager = new ViewerBrowserManager()

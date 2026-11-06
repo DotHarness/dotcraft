@@ -8,7 +8,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useComposerContextStore } from '../../../stores/composerContextStore'
 import { useFileEditorStore } from '../../../stores/fileEditorStore'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { lineHasComment, useLineCommentDraftStore } from '../../../stores/lineCommentDraftStore'
 import { modelReviewCommentsForFile, parseModelReviewComments } from '../../../utils/modelReviewComments'
 import { LineCommentCard, ModelLineCommentCard, lineCommentLabel } from '../../code/LineCommentCard'
@@ -83,8 +83,8 @@ export function FileEditorComments({
   preview: boolean
 }): JSX.Element | null {
   const t = useT()
-  const threadId = useViewerTabStore((state) => state.currentThreadId)
-  const workspacePath = useViewerTabStore((state) => state.currentWorkspacePath)
+  const threadId = useDetailPanelStore((state) => state.currentThreadId)
+  const workspacePath = useDetailPanelStore((state) => state.currentWorkspacePath)
   const turns = useConversationStore((state) => state.turns)
   const contexts = useComposerContextStore((state) => state.getContexts(threadId ?? ''))
   const drafts = useLineCommentDraftStore((state) => (threadId ? state.getDrafts(threadId) : EMPTY))

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { openConversationLink } from '../utils/conversationDeepLink'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -36,12 +36,12 @@ describe('openConversationLink', () => {
         openExternal: shellOpenExternalMock
       }
     })
-    useViewerTabStore.setState({
+    useDetailPanelStore.setState({
       byThread: new Map(),
       currentThreadId: 'thread-1',
       currentWorkspacePath: 'C:/repo'
     })
-    useUIStore.setState({
+    setRendererTestState({
       detailPanelPreferredVisible: false,
       detailPanelVisible: false,
       responsiveLayout: 'full',
@@ -61,18 +61,18 @@ describe('openConversationLink', () => {
     })
     expect(ok).toBe(true)
     expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
-    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
+    expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
       kind: 'file',
       absolutePath: 'C:/repo/README.md',
       navigationHint: { line: 7, column: 2 }
     })
     expect(classifyMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
-    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(1)
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
+    expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs).toHaveLength(1)
+    expect(getRendererTestState().detailPanelPreferredVisible).toBe(true)
   })
 
   it('focuses existing browser tab by normalized URL', async () => {
-    const existingId = useViewerTabStore.getState().openBrowser({
+    const existingId = useDetailPanelStore.getState().openBrowser({
       threadId: 'thread-1',
       initialUrl: 'https://example.com/'
     })
@@ -83,7 +83,7 @@ describe('openConversationLink', () => {
       t
     })
     expect(ok).toBe(true)
-    const state = useViewerTabStore.getState().getThreadState('thread-1')
+    const state = useDetailPanelStore.getState().getThreadState('thread-1')
     expect(state.tabs).toHaveLength(1)
     expect(state.activeTabId).toBe(existingId)
   })
@@ -102,7 +102,7 @@ describe('openConversationLink', () => {
       forceNew: true,
       t
     })
-    const tabs = useViewerTabStore.getState().getThreadState('thread-1').tabs
+    const tabs = useDetailPanelStore.getState().getThreadState('thread-1').tabs
     expect(tabs).toHaveLength(2)
   })
 
@@ -123,7 +123,7 @@ describe('openConversationLink', () => {
 
     expect(ok).toBe(true)
     expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'D:/reference/outside.png' })
-    const tab = useViewerTabStore.getState().getThreadState('thread-1').tabs[0]
+    const tab = useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]
     expect(tab).toMatchObject({
       kind: 'file',
       absolutePath: 'D:/reference/outside.png',
@@ -155,7 +155,7 @@ describe('openConversationLink', () => {
         t
       })
       expect(ok).toBe(true)
-      expect(useViewerTabStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
+      expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
         absolutePath: 'D:/design/tokens/colors.md',
         relativePath: 'tokens/colors.md'
       })
@@ -165,7 +165,7 @@ describe('openConversationLink', () => {
   })
 
   it('hands off external links without opening panel and toasts on unsupported links', async () => {
-    useUIStore.getState().setDetailPanelVisible(false)
+    getRendererTestState().setDetailPanelVisible(false)
     const ok = await openConversationLink({
       target: 'mailto:test@example.com',
       workspacePath: 'C:/repo',
@@ -174,7 +174,7 @@ describe('openConversationLink', () => {
     })
     expect(ok).toBe(true)
     expect(shellOpenExternalMock).toHaveBeenCalledWith('mailto:test@example.com')
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
+    expect(getRendererTestState().detailPanelPreferredVisible).toBe(false)
 
     const rejected = await openConversationLink({
       target: 'javascript:alert(1)',

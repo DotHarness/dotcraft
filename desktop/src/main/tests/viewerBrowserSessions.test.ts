@@ -40,6 +40,7 @@ function makePage(target: unknown) {
   let url = 'about:blank'
   return Object.assign(emitter, {
     session: target, isDestroyed: () => false, isLoading: () => false, getURL: () => url,
+    isCurrentlyAudible: () => false, isBeingCaptured: () => false,
     getUserAgent: () => 'Mozilla/5.0 Chrome/148 Safari/537.36', getTitle: () => 'Test',
     setWindowOpenHandler: vi.fn(), loadURL: vi.fn(async (next: string) => { url = next }),
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }, close: vi.fn()

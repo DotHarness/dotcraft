@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { BrowserWindow } from 'electron'
 import {
@@ -8,6 +9,7 @@ import {
   type BrowserUseBackendRequestHandler
 } from './browserUseBackendServer'
 import { viewerBrowserManager } from './viewerBrowser'
+import { observeBrowserUseTab } from './browserUseTabObservation'
 import { assertBrowserPageNavigation } from './browserSessionPolicy'
 import { BrowserScreenshot, type BrowserScreenshotContext } from './browserScreenshot'
 import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
@@ -94,22 +96,20 @@ interface BrowserUseViewerHost {
     tabId: string
     threadId?: string
     workspacePath: string
+    projectKey?: string
     initialUrl?: string
     sessionUrl?: string
     allowFileScheme?: boolean
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
-  listAutomationTargetTabs?(win: BrowserWindow, threadId: string): Array<{ tabId: string; currentUrl: string; title: string; loading: boolean }>
-  getAutomationTargetTab?(win: BrowserWindow, threadId: string): {
-    tabId: string
-    currentUrl: string
-    title: string
-    loading: boolean
-  } | null
+  ensureTabWebContents(win: BrowserWindow, tabId: string): Promise<Electron.WebContents>
+  listAutomationTargetTabs(win: BrowserWindow, threadId: string, projectKey?: string): Array<{ tabId: string; currentUrl: string; title: string; loading: boolean }>
   loadAutomationUrl(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void>
   destroyTab(win: BrowserWindow, tabId: string): void
   snapshotState(win: BrowserWindow, tabId: string): {
     tabId: string
+    browserStorageId?: string
+    projectKey?: string
     currentUrl: string
     title: string
     loading: boolean
@@ -221,6 +221,7 @@ interface BrowserUseThreadRuntime {
   lifecycle: BrowserTabLifecycle
   owner: BrowserWindow
   workspacePath: string
+  projectKey?: string
   sessionName?: string
   display?: (imageLike: unknown) => Promise<void>
   tabs: Map<string, BrowserUseTabRuntime>
@@ -329,7 +330,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     handleBrowserUseBackendRequest: (method, params, context) =>
       this.handleBrowserUseBackendRequest(method, params, context)
   })
-  private nextTabId = 1
   private nextBackendTabId = 1
   private nextApprovalId = 1
   private policyHost: BrowserUsePolicyHost | null = null
@@ -368,6 +368,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   async prepareNodeRepl(owner: BrowserWindow, params: {
     threadId: string
     workspacePath?: string
+    projectKey?: string
     evaluationId?: string
     signal?: AbortSignal
     browserSession?: BrowserSessionMetadata
@@ -377,6 +378,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }> {
     await this.backendServer.ensureStarted()
     const runtime = this.getOrCreateRuntime(owner, params.threadId, params.workspacePath)
+    runtime.projectKey = params.projectKey
     runtime.owner = owner
     runtime.logs = []
     runtime.images = []
@@ -422,9 +424,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     for (const tab of runtime.tabs.values()) {
       try {
         this.webContentsFor(tab.owner, tab.id).stop()
-      } catch {
-        // Best effort: stopping a destroyed or unavailable tab should not block cancellation.
-      }
+      } catch {}
       this.setAutomationState(runtime, tab, false)
     }
     return { ok: true }
@@ -456,12 +456,12 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
   }
 
-  reset(threadId: string): { ok: boolean } {
+  reset(threadId: string, options?: { preserveTabs?: boolean }): { ok: boolean } {
     const runtime = this.runtimes.get(threadId)
     if (!runtime) return { ok: false }
     for (const tab of [...runtime.tabs.values()]) {
       this.detachDebugger(tab)
-      if (tab.adopted || tab.userOwned) {
+      if (options?.preserveTabs || tab.adopted || tab.userOwned) {
         this.releaseTab(runtime, tab)
       } else {
         this.closeTab(tab)
@@ -869,8 +869,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private backendUserTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
-    const candidate = this.viewerHost.getAutomationTargetTab?.(runtime.owner, runtime.threadId)
-    const candidates = this.viewerHost.listAutomationTargetTabs?.(runtime.owner, runtime.threadId) ?? (candidate ? [candidate] : [])
+    const candidates = this.viewerHost.listAutomationTargetTabs(runtime.owner, runtime.threadId, runtime.projectKey)
     for (const page of candidates) {
       if (!runtime.tabs.has(page.tabId)) this.registerTab(runtime.owner, runtime, page.tabId, true)
     }
@@ -879,15 +878,22 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return tabs
   }
 
-  private backendClaimUserTab(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Record<string, unknown> {
+  private async backendClaimUserTab(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const tab = this.backendTabForParams(runtime, params)
     const backendTabId = this.backendTabIdFor(runtime, tab)
     if (runtime.recentUserBackendTabIds.size > 0 && !runtime.recentUserBackendTabIds.has(backendTabId)) {
       throw new Error('Cannot claim browser tab: pass a tab id from the current session latest getUserTabs result.')
     }
+    this.setAutomationState(runtime, tab, true, 'claim')
+    try {
+      if (!this.viewerHost.getTabWebContents(tab.owner, tab.id)) await this.viewerHost.ensureTabWebContents(tab.owner, tab.id)
+      this.observeTab(runtime, tab, this.webContentsFor(tab.owner, tab.id))
+    } catch (error) {
+      this.setAutomationState(runtime, tab, false)
+      throw error
+    }
     tab.adopted = true
     runtime.selectedTabId = tab.id
-    this.setAutomationState(runtime, tab, true, 'claim')
     this.applyPendingViewport(runtime, tab)
     return this.backendTabSnapshot(runtime, tab)
   }
@@ -1617,7 +1623,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const visible = options.visible ?? runtime.browserVisible
     const normalizedInitial = initialUrl ? normalizeBrowserUseUrl(initialUrl) : null
     if (initialUrl && !normalizedInitial) throw new Error(`Invalid browser URL: ${initialUrl}`)
-    const id = `browser-${sanitizeThreadId(runtime.threadId)}-${this.nextTabId++}`
+    const id = `browser-${sanitizeThreadId(runtime.threadId)}-${randomUUID()}`
     if (normalizedInitial) {
       await this.ensureNavigationAllowed(owner, runtime, id, normalizedInitial)
     }
@@ -1626,6 +1632,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       tabId: id,
       threadId: runtime.threadId,
       workspacePath: runtime.workspacePath || owner.getTitle(),
+      ...(runtime.projectKey ? { projectKey: runtime.projectKey } : {}),
       initialUrl: 'about:blank',
       sessionUrl: normalizedInitial ?? 'about:blank',
       allowFileScheme: true
@@ -1668,7 +1675,12 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private emitOpen(owner: BrowserWindow, payload: BrowserUseOpenPayload): void {
     if (owner.isDestroyed() || owner.webContents.isDestroyed()) return
-    owner.webContents.send(BROWSER_USE_OPEN_CHANNEL, payload)
+    const snapshot = this.viewerHost.snapshotState(owner, payload.tabId)
+    owner.webContents.send(BROWSER_USE_OPEN_CHANNEL, {
+      ...payload,
+      ...(snapshot?.browserStorageId ? { browserStorageId: snapshot.browserStorageId } : {}),
+      ...(snapshot?.projectKey ? { projectKey: snapshot.projectKey } : {})
+    })
   }
 
   private emitClose(owner: BrowserWindow, payload: BrowserUseClosePayload): void {
@@ -1722,23 +1734,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private attachDebugger(tab: BrowserUseTabRuntime): boolean {
     const wc = this.webContentsFor(tab.owner, tab.id)
-    const debuggerApi = wc.debugger as Electron.Debugger & {
-      on?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
-      off?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
-    }
-    if (!debuggerApi) {
-      throw new Error(`Browser tab ${tab.id} does not expose Electron debugger/CDP.`)
-    }
+    const debuggerApi = wc.debugger
     const fresh = !tab.cdpAttached || !debuggerApi.isAttached()
     if (fresh) {
       debuggerApi.attach('1.3')
       tab.cdpAttached = true
     }
-    if (!tab.debuggerMessageHandler && typeof debuggerApi.on === 'function') {
+    if (!tab.debuggerMessageHandler) {
       tab.debuggerMessageHandler = (...args: unknown[]) => this.handleDebuggerMessage(tab, args)
       debuggerApi.on('message', tab.debuggerMessageHandler)
     }
-    if (!tab.debuggerDetachHandler && typeof debuggerApi.on === 'function') {
+    if (!tab.debuggerDetachHandler) {
       tab.debuggerDetachHandler = (...args: unknown[]) => {
         tab.cdpAttached = false
         this.screenshots.reset(wc)
@@ -1750,7 +1756,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
       debuggerApi.on('detach', tab.debuggerDetachHandler)
     }
-    if (!tab.webContentsFailLoadHandler && typeof wc.on === 'function') {
+    if (!tab.webContentsFailLoadHandler) {
       tab.webContentsFailLoadHandler = (...args: unknown[]) => {
         const failure = this.navigationFailureFromWebContentsArgs(tab, args)
         if (failure) this.recordNavigationFailure(tab, failure)
@@ -1765,22 +1771,18 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     try {
       const wc = this.webContentsFor(tab.owner, tab.id)
       this.screenshots.reset(wc)
-      const debuggerApi = wc.debugger as Electron.Debugger & {
-        off?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
-      }
-      if (tab.debuggerMessageHandler && typeof debuggerApi?.off === 'function') {
+      const debuggerApi = wc.debugger
+      if (tab.debuggerMessageHandler) {
         debuggerApi.off('message', tab.debuggerMessageHandler)
       }
-      if (tab.debuggerDetachHandler && typeof debuggerApi?.off === 'function') {
+      if (tab.debuggerDetachHandler) {
         debuggerApi.off('detach', tab.debuggerDetachHandler)
       }
-      if (tab.webContentsFailLoadHandler && typeof wc.off === 'function') {
+      if (tab.webContentsFailLoadHandler) {
         wc.off('did-fail-load', tab.webContentsFailLoadHandler)
       }
-      if (debuggerApi?.isAttached()) debuggerApi.detach()
-    } catch {
-      // Best effort only. Browser tab teardown should not be blocked by debugger cleanup.
-    } finally {
+      if (debuggerApi.isAttached()) debuggerApi.detach()
+    } catch {} finally {
       tab.cdpAttached = false
       tab.debuggerMessageHandler = undefined
       tab.debuggerDetachHandler = undefined
@@ -2327,7 +2329,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       if (userOwned) existing.exposedToRenderer = true
       return existing
     }
-    const wc = this.webContentsFor(owner, id)
+    const wc = this.viewerHost.getTabWebContents(owner, id)
     this.closedTabIdsByOwner.get(owner)?.delete(id)
     const tab: BrowserUseTabRuntime = {
       id,
@@ -2341,29 +2343,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
     runtime.tabs.set(id, tab)
 
-    const onConsole = (_event: unknown, level: number, message: string) => {
-      const levelNames = ['debug', 'info', 'warn', 'error'] as const
-      tab.logs.push({
-        level: levelNames[level as number] ?? String(level ?? 'log'),
-        message,
-        timestamp: new Date().toISOString(),
-        url: wc.getURL()
-      })
-    }
-    const onDestroyed = () => {
-      tab.disposeListeners?.()
-      this.detachDebugger(tab)
-      runtime.tabs.delete(id)
-      this.forgetBackendTab(runtime, tab)
-      if (runtime.selectedTabId === id) runtime.selectedTabId = null
-    }
-    wc.on('console-message', onConsole)
-    wc.once('destroyed', onDestroyed)
-    tab.disposeListeners = () => {
-      wc.off('console-message', onConsole)
-      wc.off('destroyed', onDestroyed)
-    }
+    if (wc && !wc.isDestroyed()) this.observeTab(runtime, tab, wc)
     return tab
+  }
+
+  private observeTab(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime, page: Electron.WebContents): void {
+    observeBrowserUseTab(tab, page, () => {
+      this.detachDebugger(tab)
+      runtime.tabs.delete(tab.id)
+      this.forgetBackendTab(runtime, tab)
+      if (runtime.selectedTabId === tab.id) runtime.selectedTabId = null
+    })
   }
 
   private tabSnapshot(tab: BrowserUseTabRuntime): { url: string; title: string; loading: boolean } {

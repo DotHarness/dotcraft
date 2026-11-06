@@ -5,7 +5,7 @@ import { useAutomationsStore } from '../../stores/automationsStore'
 import { useSideChatStore } from '../../stores/sideChatStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import type { AppLocale } from '../../../shared/locales/types'
 import type { ConversationItem } from '../../types/conversation'
 import { findSideChat, showSideChatOfThread } from '../../utils/sideChat'
@@ -114,12 +114,12 @@ export function MessageOriginLine({
           return
         }
         if (kind === 'workflow' && refId && activeThreadId) {
-          const tabId = useViewerTabStore.getState().openWorkflow({
+          const tabId = useDetailPanelStore.getState().openWorkflow({
             threadId: activeThreadId,
             runId: refId,
             initialLabel: translate(locale, 'workflow.tab')
           })
-          useUIStore.getState().setActiveViewerTab(tabId)
+          useDetailPanelStore.getState().setActiveViewerTab(tabId)
           return
         }
         setActiveMainView('automations')
@@ -156,7 +156,6 @@ export function MessageOriginLine({
   )
 }
 
-/** Persistent note in the message action row for a user-authored goal. */
 export function SentAsGoalMarker(): JSX.Element {
   const locale = useLocale()
 

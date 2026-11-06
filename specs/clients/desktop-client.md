@@ -146,9 +146,9 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 
 **Ownership**
 
-- Foreground workspace state owns the composer, settings, capabilities, tools, active thread subscription, and server-initiated interactive requests. Secondary workspace state may update thread summaries and compact runtime indicators only.
+- Foreground workspace state owns the composer, settings, capabilities, tools and active renderer subscription. Secondary workspaces update thread summaries and compact runtime indicators, while existing thread-bound browser work retains its originating connection and approval path without changing the foreground UI.
 - For local projects whose AppServer is already running, Desktop may open a bounded number of secondary connections per window (LRU). Excess workspaces remain cold until selected.
-- Secondary connections load thread summaries and consume only thread-list and runtime notifications; they do not receive turn, item, job, configuration, MCP, or server-request streams.
+- Secondary connections normally load thread summaries and compact runtime notifications, not foreground renderer streams. A bound local browser turn is the narrow exception: its originating connection retains the required turn lifecycle and handles Node REPL evaluation/cancellation in its own context until cleanup, as defined in [Thread Panels](../features/desktop-thread-panels.md). Active browser leases are exempt from the idle secondary connection budget; unrelated background tools are not enabled.
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
 - Foreground and secondary rows show the unread dot from the thread's server read receipt ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from `thread/list` and updated by `thread/readState/changed`. Desktop marks a thread read only while it is open in a focused window. Promoting a project keeps its receipts.
@@ -1132,7 +1132,7 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 **Ownership**
 
 - The right-side viewer panel coexists with the changes, plan, and terminal tabs and hosts native file viewers, embedded browser tabs, and terminals.
-- It belongs to the conversation surface: an open thread and Welcome show it; other main views hide it without changing its saved state.
+- It belongs to the conversation surface: an open thread and Welcome show it; other main views hide it without changing its saved state. [Thread Panels](../features/desktop-thread-panels.md) owns per-project/thread tabs, selection, visibility, durable recovery and resource lifetime. Thread/project switches change presentation, not ownership; transcript warm-cache release never closes panel resources.
 - On Welcome, the panel belongs to the foreground project's Welcome draft (open state, tabs, unsent comments). It offers only what works without a thread (files, browser, terminal), and comments and files added from it attach to the Welcome composer. When the first message creates the thread, that panel state moves to the thread with live terminal and browser sessions intact, and Welcome starts fresh.
 
 **File links**

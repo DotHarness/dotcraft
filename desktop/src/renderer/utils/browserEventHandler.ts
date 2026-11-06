@@ -1,7 +1,6 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { BrowserEventPayload } from '../../shared/viewer/types'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 
 interface BrowserEventHandlerOptions {
   locale: AppLocale
@@ -12,11 +11,17 @@ export function handleBrowserEvent(
   event: BrowserEventPayload,
   { locale, workspacePath }: BrowserEventHandlerOptions
 ): void {
-  const state = useViewerTabStore.getState()
-  const threadId = event.threadId ?? state.currentThreadId
-  if (!threadId) return
+  const state = useDetailPanelStore.getState()
+  const owner = state.getScopeForTab(event.tabId)
+  if (!owner || (event.projectKey !== undefined && event.projectKey !== owner.projectKey)) return
+  const threadId = owner.threadId
+  if (event.browserStorageId) state.updateBrowserTab(threadId, event.tabId, { browserStorageId: event.browserStorageId })
 
   switch (event.type) {
+    case 'suspended':
+    case 'restored':
+      state.updateBrowserTab(threadId, event.tabId, { suspended: event.suspended ?? event.type === 'suspended', loading: false })
+      return
     case 'did-start-loading':
       state.updateBrowserTab(threadId, event.tabId, {
         loading: true,
@@ -111,26 +116,34 @@ function handleRequestNewBrowserTab(
 ): void {
   if (!event.url || !workspacePath) return
 
-  const state = useViewerTabStore.getState()
-  const sourceTab = state.getThreadState(threadId).tabs.find((tab) => tab.id === event.tabId)
+  const state = useDetailPanelStore.getState()
+  const owner = state.getScopeForTab(event.tabId)
+  if (!owner) return
+  const sourcePanel = state.getPanel(owner.threadId, owner.projectKey)
+  const sourceTab = sourcePanel.tabs.find((tab) => tab.id === event.tabId)
   if (sourceTab?.kind !== 'browser') return
 
-  const shouldActivate = threadId === currentThreadId
+  const shouldActivate = threadId === currentThreadId && owner.projectKey === state.currentProjectKey
   const newTabId = state.openBrowser({
     threadId,
+    projectKey: owner.projectKey,
     initialUrl: event.url,
     initialLabel: translate(locale, 'viewer.newBrowserTab'),
     activate: shouldActivate
   })
 
   if (shouldActivate) {
-    useUIStore.getState().setActiveViewerTab(newTabId)
+    useDetailPanelStore.getState().setActiveViewerTab(newTabId)
   }
 
+  const created = state.getPanel(owner.threadId, owner.projectKey).tabs.find(tab => tab.id === newTabId)
+  if (created?.kind !== 'browser') return
   void window.api.workspace.viewer.browser.create({
     tabId: newTabId,
     threadId,
-    workspacePath,
+    workspacePath: sourcePanel.browserWorkspacePath || workspacePath,
+    projectKey: owner.projectKey,
+    browserStorageId: created.browserStorageId,
     initialUrl: event.url
-  })
+  }).then(snapshot => state.updateBrowserTab(threadId, newTabId, { browserStorageId: snapshot.browserStorageId }))
 }

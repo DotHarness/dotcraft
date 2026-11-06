@@ -61,7 +61,23 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
     screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView },
-    workspace: { ...WORKSPACE_DEFAULT, ...overrides.workspace }
+    workspace: {
+      ...WORKSPACE_DEFAULT,
+      ...overrides.workspace,
+      viewer: {
+        ...overrides.workspace?.viewer,
+        panelState: {
+          read: () => Promise.resolve(null),
+          update: () => Promise.resolve(),
+          ...overrides.workspace?.viewer?.panelState
+        },
+        browser: {
+          setForegroundScope: () => Promise.resolve(),
+          restoreState: () => Promise.resolve([]),
+          ...overrides.workspace?.viewer?.browser
+        }
+      }
+    }
   }) as Api
   Object.defineProperty(window, 'api', { configurable: true, value: api })
   return api

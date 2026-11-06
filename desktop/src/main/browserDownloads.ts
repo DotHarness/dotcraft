@@ -26,6 +26,10 @@ export class BrowserDownloads {
     this.persist()
   }
 
+  hasActiveDownload(tabId: string): boolean {
+    return this.records.some(record => record.tabId === tabId && this.items.has(record.id))
+  }
+
   snapshot(): BrowserDownloadRecord[] {
     return this.records.map((record) => ({ ...record }))
   }

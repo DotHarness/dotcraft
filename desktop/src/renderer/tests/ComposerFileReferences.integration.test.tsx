@@ -16,7 +16,7 @@ import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
 import { useVoiceStore } from '../voice/voiceStore'
@@ -92,7 +92,7 @@ describe('file references in real composer draft lifecycles', () => {
     useSkillsStore.setState({ skills: [], loading: false, error: null })
     useToastStore.setState({ toasts: [] })
     useVoiceStore.setState({ initialized: true, recording: null, finalizing: null })
-    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(workspacePath) })
+    useDetailPanelStore.setState({ welcomeScopeId: welcomeScopeKey(workspacePath) })
     useUIStore.setState({
       activeMainView: 'conversation',
       composerPrefill: null,
@@ -240,7 +240,7 @@ describe('file references in real composer draft lifecycles', () => {
     savePlainComposerDraft(welcomeScopeKey(workspacePath), 'First welcome')
     savePlainComposerDraft(welcomeScopeKey(otherProject), 'Second welcome')
     useComposerFileReferenceStore.getState().request(filePath)
-    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
+    useDetailPanelStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
     useComposerFileReferenceStore.getState().request(workspacePath + '/src/second.ts')
 
     const second = renderWelcome(otherProject)
@@ -252,7 +252,7 @@ describe('file references in real composer draft lifecycles', () => {
     expect(useComposerFileReferenceStore.getState().pendingByScope.has(welcomeScopeKey(workspacePath))).toBe(true)
     second.unmount()
 
-    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(workspacePath) })
+    useDetailPanelStore.setState({ welcomeScopeId: welcomeScopeKey(workspacePath) })
     renderWelcome()
     await waitFor(() => expect(segments()).toEqual([
       { type: 'text', value: 'First welcome ' },
@@ -310,7 +310,7 @@ describe('file references in real composer draft lifecycles', () => {
     act(() => useComposerFileReferenceStore.getState().request(filePath))
     const pending = useComposerFileReferenceStore.getState().pendingByScope
     const otherProject = 'other-project'
-    useViewerTabStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
+    useDetailPanelStore.setState({ welcomeScopeId: welcomeScopeKey(otherProject) })
     savePlainComposerDraft(welcomeScopeKey(otherProject), 'Other project draft')
 
     renderWelcome(otherProject)

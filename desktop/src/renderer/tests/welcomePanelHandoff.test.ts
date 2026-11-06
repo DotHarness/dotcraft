@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
+import { getRendererTestState, setRendererTestState } from './panelTestState'
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiffAnnotationContext } from '../../shared/composerContext'
 import { useComposerContextStore } from '../stores/composerContextStore'
 import { useLineCommentDraftStore } from '../stores/lineCommentDraftStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { handOffWelcomePanel } from '../utils/welcomePanelHandoff'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -33,14 +34,13 @@ describe('handOffWelcomePanel', () => {
     rebindTerminalThread.mockClear()
     installDesktopApiMock({ workspace: { viewer: { browser: { rebindThread }, terminal: { rebindThread: rebindTerminalThread } } } })
     useThreadStore.setState({ activeThreadId: null })
-    useViewerTabStore.setState({
+    useDetailPanelStore.setState({
       byThread: new Map(),
       currentThreadId: WELCOME,
       welcomeScopeId: WELCOME,
       currentWorkspacePath: '/workspace/path'
     })
-    useUIStore.setState({
-      detailPanelPreferredVisibleByThread: {},
+    setRendererTestState({
       detailPanelPreferredVisible: false,
       detailPanelVisible: false,
       responsiveLayout: 'full',
@@ -52,16 +52,16 @@ describe('handOffWelcomePanel', () => {
   })
 
   it('moves the open Welcome panel, its sessions and unsent comments to the new thread', () => {
-    const viewer = useViewerTabStore.getState()
+    const viewer = useDetailPanelStore.getState()
     const browserTabId = viewer.openBrowser({ threadId: WELCOME })
     const terminalTabId = viewer.openTerminal({ threadId: WELCOME, cwd: '/workspace/path' })
-    useUIStore.getState().setActiveViewerTab(terminalTabId)
+    useDetailPanelStore.getState().setActiveViewerTab(terminalTabId)
     useLineCommentDraftStore.getState().open(WELCOME, lineComment('draft-1'))
     useComposerContextStore.getState().addContext(WELCOME, lineComment('saved-1'))
 
     handOffWelcomePanel(WELCOME, THREAD)
 
-    const viewerState = useViewerTabStore.getState()
+    const viewerState = useDetailPanelStore.getState()
     expect(viewerState.currentThreadId).toBe(THREAD)
     expect(viewerState.getThreadState(THREAD).tabs.map((tab) => tab.id)).toEqual([browserTabId, terminalTabId])
     expect(viewerState.getThreadState(THREAD).activeTabId).toBe(terminalTabId)
@@ -71,23 +71,23 @@ describe('handOffWelcomePanel', () => {
     expect(useComposerContextStore.getState().getContexts(THREAD).map((context) => context.id)).toEqual(['saved-1'])
 
     useThreadStore.setState({ activeThreadId: THREAD })
-    useUIStore.getState().syncDetailPanelForThread(THREAD, terminalTabId)
-    expect(useUIStore.getState().detailPanelVisible).toBe(true)
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: terminalTabId })
+    useDetailPanelStore.getState().onThreadSwitched(THREAD)
+    expect(getRendererTestState().detailPanelVisible).toBe(true)
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: terminalTabId })
   })
 
   it('leaves the next Welcome visit with a closed, empty panel', () => {
-    const tabId = useViewerTabStore.getState().openTerminal({ threadId: WELCOME, cwd: '/workspace/path' })
-    useUIStore.getState().setActiveViewerTab(tabId)
+    const tabId = useDetailPanelStore.getState().openTerminal({ threadId: WELCOME, cwd: '/workspace/path' })
+    useDetailPanelStore.getState().setActiveViewerTab(tabId)
     useLineCommentDraftStore.getState().open(WELCOME, lineComment('draft-1'))
 
     handOffWelcomePanel(WELCOME, THREAD)
-    useUIStore.getState().syncDetailPanelForThread(WELCOME, null)
+    useDetailPanelStore.getState().onThreadSwitched(WELCOME)
 
-    expect(useViewerTabStore.getState().getThreadState(WELCOME).tabs).toEqual([])
+    expect(useDetailPanelStore.getState().getThreadState(WELCOME).tabs).toEqual([])
     expect(useLineCommentDraftStore.getState().getDrafts(WELCOME)).toEqual([])
     expect(useComposerContextStore.getState().getContexts(WELCOME)).toEqual([])
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(getRendererTestState().detailPanelVisible).toBe(false)
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'launcher' })
   })
 })

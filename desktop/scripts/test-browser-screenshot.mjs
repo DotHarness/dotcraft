@@ -25,7 +25,7 @@ guestHost.startBrowserGuestHost(window.testBrowserHost);document.getElementById(
 </script></body></html>`)
 await writeFile(join(directory, 'preload.cjs'), `const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('testBrowserHost',{
- list:()=>ipcRenderer.invoke('test:list'),bind:p=>ipcRenderer.invoke('test:bind',p),failed:p=>ipcRenderer.invoke('test:failed',p),
+ list:()=>ipcRenderer.invoke('test:list'),
  onEvent:callback=>{const listener=(_event,p)=>callback(p);ipcRenderer.on('viewer:browser:host-event',listener);return()=>ipcRenderer.removeListener('viewer:browser:host-event',listener)}
 });`)
 
@@ -76,8 +76,7 @@ try {
   owner = new BrowserWindow({width:1000,height:800,show:false,webPreferences:{preload:join(${JSON.stringify(directory)},'preload.cjs'),contextIsolation:true,sandbox:true,webviewTag:true}})
   hosts.attachWindow(owner)
   ipcMain.handle('test:list', () => hosts.list(owner))
-  ipcMain.handle('test:bind', (_event, params) => hosts.bind(owner, params.tabId, params.webContentsId))
-  ipcMain.handle('test:failed', (_event, params) => { throw new Error(params.message) })
+
   const ready = hosts.request(owner, 'tab', 'screenshot-validation')
   await owner.loadFile(join(${JSON.stringify(directory)}, 'owner.html'))
   const page = await ready

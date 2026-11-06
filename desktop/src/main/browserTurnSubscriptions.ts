@@ -5,7 +5,6 @@ interface BrowserSubscription {
   ready?: Promise<void>
 }
 
-/** Keeps a browser turn's existing thread stream alive until its terminal notification. */
 export class BrowserTurnSubscriptions {
   private readonly threads = new Map<string, BrowserSubscription>()
 
@@ -35,7 +34,15 @@ export class BrowserTurnSubscriptions {
     const state = this.state(threadId)
     state.turnId = turnId
     if (!state.ready) {
-      state.ready = this.rawRequest('thread/subscribe', { threadId, replayRecent: false }).then(() => undefined)
+      const ready = this.rawRequest('thread/subscribe', { threadId, replayRecent: false }).then(() => undefined).catch(error => {
+        if (state.ready === ready) {
+          state.ready = undefined
+          state.turnId = undefined
+          if (!state.wanted && this.threads.get(threadId) === state) this.threads.delete(threadId)
+        }
+        throw error
+      })
+      state.ready = ready
     }
     return state.ready
   }
@@ -52,6 +59,8 @@ export class BrowserTurnSubscriptions {
       await this.rawRequest('thread/unsubscribe', { threadId })
     }
   }
+
+  get retained(): boolean { return [...this.threads.values()].some(state => state.turnId != null) }
 
   clear(): void { this.threads.clear() }
 

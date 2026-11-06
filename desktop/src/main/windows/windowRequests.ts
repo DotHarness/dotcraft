@@ -8,13 +8,13 @@ import {
   type DesktopAppServerRequestOptions
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
-import { nodeReplManager, type NodeReplApprovalRequest } from '../nodeReplManager'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
 import { NEW_TASK_OFFER_ATTENTION } from '../windowAttentionNotifier'
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
+import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWorkspaceNodeReplRequest } from './windowNodeReplRequests'
 
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime): DesktopAppServerRequestOptions {
   return {
@@ -99,52 +99,6 @@ export async function handleServerRequestInMain(
       ctx.getProtocolWorkspacePath(),
       ctx.desktopThreadToolOptions()
     )
-  }
-
-  if (method === 'ext/nodeRepl/evaluate') {
-    const p = (params ?? {}) as {
-      threadId?: string
-      turnId?: string
-      evaluationId?: string
-      browserSession?: Record<string, unknown>
-      code?: string
-      timeoutMs?: number
-    }
-    if (!p.threadId || typeof p.code !== 'string') {
-      return { error: 'Invalid Node REPL evaluate request.', images: [], logs: [] }
-    }
-    const browserTurnId = p.browserSession?.turnId ?? p.turnId
-    const browserClient = ctx.wireClient
-    const browserOwner = ctx.mainWindow
-    const browserWorkspace = ctx.currentWorkspacePath
-    if (browserClient && typeof browserTurnId === 'string') {
-      await browserClient.retainBrowserTurn(p.threadId, browserTurnId)
-    }
-    const threadId = p.threadId
-    return nodeReplManager.evaluate(browserOwner, {
-      threadId,
-      turnId: p.turnId,
-      evaluationId: p.evaluationId,
-      browserSession: p.browserSession,
-      code: p.code,
-      timeoutMs: p.timeoutMs,
-      workspacePath: browserWorkspace,
-      requestApproval: browserClient
-        ? async (request: NodeReplApprovalRequest) => {
-            const result = await browserClient.sendRequest<{ approved?: boolean }>(
-              'ext/nodeRepl/requestApproval',
-              { threadId, ...request },
-              null
-            )
-            return result?.approved === true
-          }
-        : undefined
-    })
-  }
-
-  if (method === 'ext/nodeRepl/cancel') {
-    const p = (params ?? {}) as { threadId?: string; evaluationId?: string }
-    return p.threadId && p.evaluationId ? nodeReplManager.cancel(p.threadId, p.evaluationId) : { ok: false }
   }
 
   return undefined
@@ -232,6 +186,11 @@ export async function handleWorkspaceServerRequest(
   canUseForegroundMainHandlers: boolean,
   canBridgeInteractiveToRenderer: boolean
 ): Promise<unknown> {
+  if (!isCurrentWorkspaceRequestSource(ctx, entry)) {
+    throw new Error('Workspace request source is no longer active.')
+  }
+  if (isWorkspaceNodeReplRequest(method)) return handleWorkspaceNodeReplRequest(ctx, entry, method, params)
+  canUseForegroundMainHandlers = canUseForegroundMainHandlers && entry.role === 'foreground' && ctx.wireClient === entry.client
   const isInteractive = isRendererInteractiveServerRequest(method)
 
   if (!canUseForegroundMainHandlers && !isInteractive) {

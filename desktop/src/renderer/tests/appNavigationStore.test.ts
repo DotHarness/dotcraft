@@ -1,3 +1,4 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
@@ -8,7 +9,6 @@ import {
   type AppNavigationLocation
 } from '../stores/appNavigationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
 import { usePluginStore } from '../stores/pluginStore'
 
 const conversationLocation: AppNavigationLocation = {
@@ -23,7 +23,7 @@ beforeEach(() => {
   stopAppNavigationHistory()
   useThreadStore.getState().reset()
   usePluginStore.setState({ plugins: [] })
-  useUIStore.setState({
+  setRendererTestState({
     activeMainView: 'conversation',
     activeSettingsTab: 'general',
     selectedChannelKey: null,
@@ -47,14 +47,14 @@ describe('app navigation history', () => {
       canGoBack: true,
       canGoForward: true
     })
-    expect(useUIStore.getState()).toMatchObject({
+    expect(getRendererTestState()).toMatchObject({
       activeMainView: 'settings',
       activeSettingsTab: 'appearance'
     })
 
     history.goForward()
     expect(useAppNavigationStore.getState().index).toBe(2)
-    expect(useUIStore.getState().activeMainView).toBe('channels')
+    expect(getRendererTestState().activeMainView).toBe('channels')
 
     history.goBack()
     useAppNavigationStore.getState().push({ kind: 'desktopPlugin', view: 'desktop-plugin:test:replacement' })
@@ -84,8 +84,8 @@ describe('app navigation history', () => {
   it('batches a multi-store navigation and ignores suppressed state repair', async () => {
     const cleanup = startAppNavigationHistory('fixture-workspace')
 
-    useUIStore.getState().setActiveSettingsTab('appearance')
-    useUIStore.getState().setActiveMainView('settings')
+    getRendererTestState().setActiveSettingsTab('appearance')
+    getRendererTestState().setActiveMainView('settings')
     await Promise.resolve()
 
     expect(useAppNavigationStore.getState().entries).toHaveLength(2)
@@ -95,7 +95,7 @@ describe('app navigation history', () => {
     })
 
     runWithoutAppNavigationRecording(() => {
-      useUIStore.getState().setActiveSettingsTab('general')
+      getRendererTestState().setActiveSettingsTab('general')
     })
     await Promise.resolve()
     expect(useAppNavigationStore.getState().entries).toHaveLength(2)
@@ -112,11 +112,11 @@ describe('app navigation history', () => {
     history.goBack()
 
     expect(useAppNavigationStore.getState().index).toBe(0)
-    expect(useUIStore.getState().activeMainView).toBe('settings')
+    expect(getRendererTestState().activeMainView).toBe('settings')
 
     history.push({ kind: 'agents' })
     history.push({ kind: 'channels', selection: null })
     history.goBack()
-    expect(useUIStore.getState().activeMainView).toBe('agents')
+    expect(getRendererTestState().activeMainView).toBe('agents')
   })
 })

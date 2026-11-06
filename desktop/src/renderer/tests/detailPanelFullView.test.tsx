@@ -1,3 +1,5 @@
+import { getRendererTestState, setRendererTestState } from './panelTestState'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
 import { handleFindShortcut } from '../find/findShortcut'
@@ -6,19 +8,19 @@ import { useFindStore } from '../stores/findStore'
 import { useThreadStore } from '../stores/threadStore'
 import { DETAIL_DEFAULT_WIDTH_RATIO, useUIStore } from '../stores/uiStore'
 
-const ui = () => useUIStore.getState()
+const ui = () => getRendererTestState()
 
 beforeEach(() => {
   installDesktopApiMock({ platform: 'win32', window: { toggleMaximize: vi.fn().mockResolvedValue(false) } })
   Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1916 })
+  useDetailPanelStore.getState().reset()
   useThreadStore.getState().reset()
   useThreadStore.setState({ activeThreadId: 'thread-1' })
-  useUIStore.setState({
+  setRendererTestState({
     activeMainView: 'conversation',
     sidebarPreferredCollapsed: false,
     sidebarCollapsed: false,
     detailPanelPreferredVisible: true,
-    detailPanelPreferredVisibleByThread: {},
     detailPanelVisible: true,
     detailPanelFullView: false,
     detailPanelWidth: 600,
@@ -32,7 +34,7 @@ beforeEach(() => {
 
 describe('detail panel full view state', () => {
   it('reveals a hidden panel with content when entering full view', () => {
-    useUIStore.setState({ detailPanelPreferredVisible: false, detailPanelVisible: false })
+    setRendererTestState({ detailPanelPreferredVisible: false, detailPanelVisible: false })
 
     ui().toggleDetailPanelFullView()
 
@@ -41,33 +43,32 @@ describe('detail panel full view state', () => {
   })
 
   it('does not enter full view while the panel only shows the launcher', () => {
-    useUIStore.setState({ activeDetailTab: { kind: 'launcher' }, openSystemTabs: [] })
+    setRendererTestState({ activeDetailTab: { kind: 'launcher' }, openSystemTabs: [] })
 
     ui().toggleDetailPanelFullView()
 
     expect(ui().detailPanelFullView).toBe(false)
   })
 
-  it('does not enter full view while the responsive layout suppresses the panel', () => {
-    ui().setResponsiveLayout('no-detail')
-
-    ui().toggleDetailPanelFullView()
-
-    expect(ui().detailPanelFullView).toBe(false)
-  })
-
-  it.each([
-    ['hiding the panel', () => ui().toggleDetailPanel()],
-    ['leaving the conversation', () => ui().setActiveMainView('settings')],
-    ['closing the last tab', () => ui().closeSystemTab('changes')],
-    ['narrowing the window', () => ui().setResponsiveLayout('no-detail')],
-    ['switching threads', () => ui().syncDetailPanelForThread('thread-2', 'viewer-1')]
-  ])('exits full view when %s', (_name, action) => {
+  it('preserves full-view preference while responsive layout suppresses the panel', () => {
     ui().setDetailPanelFullView(true)
+    ui().setResponsiveLayout('no-detail')
     expect(ui().detailPanelFullView).toBe(true)
+    expect(ui().detailPanelVisible).toBe(false)
+    ui().setResponsiveLayout('full')
+    expect(ui().detailPanelVisible).toBe(true)
+  })
 
-    action()
+  it('keeps full-view state when hiding the panel or leaving the conversation', () => {
+    ui().setDetailPanelFullView(true)
+    ui().toggleDetailPanel()
+    ui().setActiveMainView('settings')
+    expect(ui().detailPanelFullView).toBe(true)
+  })
 
+  it('clears full view when its last tab closes', () => {
+    ui().setDetailPanelFullView(true)
+    ui().closeSystemTab('changes')
     expect(ui().detailPanelFullView).toBe(false)
   })
 })

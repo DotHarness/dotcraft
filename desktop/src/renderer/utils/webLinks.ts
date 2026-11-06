@@ -2,8 +2,7 @@ import type { LinkOpenTarget } from '../../shared/desktopSettings'
 import { bareHostname, isPublicHostname } from '../../shared/linkPreviews'
 import { useLinkPreferencesStore } from '../stores/linkPreferencesStore'
 import { addToast } from '../stores/toastStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 
 type Translator = (key: string) => string
 
@@ -40,17 +39,15 @@ function preferredLinkOpenTarget(url: string): LinkOpenTarget {
 }
 
 function openUrlInBrowserTab(params: { threadId: string; url: string; forceNew: boolean }): void {
-  const viewerStore = useViewerTabStore.getState()
-  const ui = useUIStore.getState()
+  const viewerStore = useDetailPanelStore.getState()
   const focused = params.forceNew ? null : viewerStore.focusBrowserTabByUrl({ threadId: params.threadId, url: params.url })
   const tabId = focused ?? viewerStore.openBrowser({
     threadId: params.threadId,
     initialUrl: params.url,
-    initialLabel: params.url,
-    forceNew: true
+    initialLabel: params.url
   })
-  ui.setActiveViewerTab(tabId)
-  ui.setDetailPanelVisible(true)
+  useDetailPanelStore.getState().setActiveViewerTab(tabId)
+  useDetailPanelStore.getState().setDetailPanelVisible(true)
 }
 
 export async function openWebLink(params: {

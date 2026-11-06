@@ -8,7 +8,7 @@ import { sideChatsOf, useSideChatStore, type SideChat, type SideChatPrompt } fro
 import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { isSubAgentThread } from './subAgentThreads'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -47,12 +47,12 @@ export function openActiveSideChat(t: Translate): boolean {
 }
 
 export function reopenSideChat(chat: SideChat, t: Translate): void {
-  useViewerTabStore.getState().closeTab(chat.parentThreadId, chat.tabId)
+  useDetailPanelStore.getState().closeTab(chat.parentThreadId, chat.tabId)
   void openSideChat(chat.parentThreadId, t)
 }
 
 function showSideChat(chat: SideChat): void {
-  useUIStore.getState().setActiveViewerTab(chat.tabId)
+  useDetailPanelStore.getState().setActiveViewerTab(chat.tabId)
   useSideChatStore.getState().requestFocus(chat.key)
 }
 
@@ -73,13 +73,13 @@ export function showSideChatOfThread(threadId: string): void {
 export function showMainThreadOf(chat: SideChat): void {
   useThreadStore.getState().setActiveThreadId(chat.parentThreadId)
   useUIStore.getState().setActiveMainView('conversation')
-  useUIStore.getState().setDetailPanelFullView(false)
+  useDetailPanelStore.getState().setDetailPanelFullView(false)
 }
 
 function currentSideChat(parentThreadId: string): SideChat | null {
   const chats = sideChatsOf(useSideChatStore.getState().chats, parentThreadId)
     .filter((chat) => chat.status !== 'expired')
-  const active = useUIStore.getState().activeDetailTab
+  const active = useDetailPanelStore.getState().getCurrentPanel().activeDetailTab
   const shown = active.kind === 'viewer' ? chats.find((chat) => chat.tabId === active.id) : undefined
   return shown ?? chats.sort((a, b) => b.ordinal - a.ordinal)[0] ?? null
 }

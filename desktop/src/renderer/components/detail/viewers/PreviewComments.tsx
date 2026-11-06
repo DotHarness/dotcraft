@@ -3,7 +3,7 @@ import type { FileAnnotationContext, LineCommentContext } from '../../../../shar
 import { useT } from '../../../contexts/LocaleContext'
 import { useComposerContextStore } from '../../../stores/composerContextStore'
 import { fileTargetHasComment, useLineCommentDraftStore } from '../../../stores/lineCommentDraftStore'
-import { useViewerTabStore } from '../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { LineCommentCard } from '../../code/LineCommentCard'
 import { Button } from '../../ui/Button'
 import './preview-comments.css'
@@ -35,7 +35,7 @@ interface FileAnnotations {
 }
 
 export function useFileAnnotations(path: string): FileAnnotations {
-  const threadId = useViewerTabStore((state) => state.currentThreadId)
+  const threadId = useDetailPanelStore((state) => state.currentThreadId)
   const contexts = useComposerContextStore((state) => state.getContexts(threadId ?? ''))
   const pending = useLineCommentDraftStore((state) => (threadId ? state.getDrafts(threadId) : EMPTY))
   const saved = contexts.filter(isFileAnnotation(path))

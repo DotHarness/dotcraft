@@ -1,3 +1,4 @@
+import { setRendererTestState } from './panelTestState'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -7,7 +8,6 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { applyThreadHistoryHead, beginThreadHistory, useThreadHistoryStore } from '../stores/threadHistoryStore'
-import { useUIStore } from '../stores/uiStore'
 import { useToastStore } from '../stores/toastStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import type { ThreadGoal } from '../types/thread'
@@ -118,7 +118,7 @@ describe('InputComposer custom command expansion', () => {
     useThreadStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     useComposerDraftStore.setState({ draftsByThread: {} })
-    useUIStore.setState({
+    setRendererTestState({
       activeMainView: 'conversation',
       sidebarCollapsed: false,
       sidebarWidth: 240,

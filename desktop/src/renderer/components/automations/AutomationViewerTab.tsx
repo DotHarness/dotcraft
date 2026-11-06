@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CalendarClock } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useAutomationsStore } from '../../stores/automationsStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { useDetailPanelTabClose } from '../layout/useDetailPanelTabClose'
@@ -13,7 +13,7 @@ const noop = (): void => {}
 
 export function AutomationViewerTab({ tabId }: { tabId: string }): JSX.Element | null {
   const t = useT()
-  const automationId = useViewerTabStore((state) => {
+  const automationId = useDetailPanelStore((state) => {
     const tab = state.getThreadState(state.currentThreadId ?? '').tabs.find((item) => item.id === tabId)
     return tab?.kind === 'automation' ? tab.automationId : null
   })

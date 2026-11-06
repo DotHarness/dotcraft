@@ -1,4 +1,4 @@
-import type { BrowserHostApi, BrowserHostDescriptor } from '../../shared/viewer/browserHost'
+import { BROWSER_GUEST_BOOTSTRAP_PREFIX, type BrowserHostApi, type BrowserHostDescriptor } from '../../shared/viewer/browserHost'
 import { createBrowserCursorOverlay, type BrowserCursorOverlay } from './browserCursorOverlay'
 import { layoutBrowserGuest } from './browserGuestLayout'
 
@@ -24,16 +24,7 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
       const page = document.createElement('webview') as Electron.WebviewTag
       container.className = 'dc-browser-guest'
       page.setAttribute('partition', host.partition)
-      page.setAttribute('src', 'about:blank')
-      const onReady = () => {
-        page.removeEventListener('dom-ready', onReady)
-        void api.bind({ tabId: host.tabId, webContentsId: page.getWebContentsId() }).catch(error => {
-          if (!stopped && guests.get(host.tabId)?.page === page) {
-            void api.failed({ tabId: host.tabId, message: String(error) })
-          }
-        })
-      }
-      page.addEventListener('dom-ready', onReady)
+      page.setAttribute('src', `${BROWSER_GUEST_BOOTSTRAP_PREFIX}${host.bootstrapToken}`)
       container.append(page)
       guest = {
         container,

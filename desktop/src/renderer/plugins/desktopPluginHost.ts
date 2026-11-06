@@ -1,3 +1,4 @@
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import type {
   DesktopPluginHost,
   DesktopPluginSettingsMutation,
@@ -201,7 +202,7 @@ export function createDesktopPluginHost(
         return listDesktopPluginOpenTargets()
       },
       openDetailPanel(tab) {
-        useUIStore.getState().setActiveDetailTab(tab)
+        useDetailPanelStore.getState().setActiveDetailTab(tab)
       },
       openAutomation(automationId) {
         openAutomation(automationId)

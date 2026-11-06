@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
-import { useUIStore } from '../../stores/uiStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { addToast } from '../../stores/toastStore'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -76,9 +75,9 @@ export function useDirTree(): DirTree {
 
 export function useOpenDirEntry(): (entry: DirEntryWire) => Promise<void> {
   const t = useT()
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-  const openFile = useViewerTabStore((s) => s.openFile)
-  const setActiveViewerTab = useUIStore((s) => s.setActiveViewerTab)
+  const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
+  const openFile = useDetailPanelStore((s) => s.openFile)
+  const setActiveViewerTab = useDetailPanelStore((s) => s.setActiveViewerTab)
 
   return useCallback(async (entry: DirEntryWire): Promise<void> => {
     if (!currentThreadId) return

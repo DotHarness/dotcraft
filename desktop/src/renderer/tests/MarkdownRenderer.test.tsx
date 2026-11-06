@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { setRendererTestState } from './panelTestState'
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
@@ -8,8 +9,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useOpenTargetsStore } from '../stores/openTargetsStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const mermaidMock = vi.hoisted(() => ({
@@ -76,12 +76,12 @@ describe('MarkdownRenderer', () => {
     useConversationStore.getState().reset()
     useConversationStore.setState({ workspacePath: 'F:/workspace' })
     useThreadStore.setState({ activeThreadId: 'thread-1' })
-    useViewerTabStore.setState({
+    useDetailPanelStore.setState({
       byThread: new Map(),
       currentThreadId: 'thread-1',
       currentWorkspacePath: 'F:/workspace'
     })
-    useUIStore.setState({
+    setRendererTestState({
       activeDetailTab: { kind: 'system', id: 'changes' },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
@@ -193,7 +193,7 @@ describe('MarkdownRenderer', () => {
       fireEvent.click(anchor, { detail: 1 })
       expect(authorizeFile).not.toHaveBeenCalled()
       expect(openExternal).not.toHaveBeenCalled()
-      expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
+      expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
     }
   )
 

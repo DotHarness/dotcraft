@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EnvironmentDocument } from '../../shared/projectActions'
 import { setUpProject } from '../components/projectActions/projectSetup'
 import { useThreadStore } from '../stores/threadStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const WORKSPACE = 'C:\\repo'
@@ -48,7 +48,7 @@ beforeEach(() => {
     activeThread: { id: 'thread-1', worktree: { path: WORKTREE, environmentPath: null } } as never,
     threadList: []
   })
-  useViewerTabStore.setState({ byThread: new Map() })
+  useDetailPanelStore.setState({ byThread: new Map() })
 })
 
 describe('setUpProject', () => {
@@ -63,7 +63,7 @@ describe('setUpProject', () => {
     expect(api.selectWorktreeEnvironment).toHaveBeenCalledWith({ workspacePath: WORKSPACE, environmentId: ID })
     expect(api.sendRequest).toHaveBeenCalledWith('worktree/setEnvironment', { path: WORKTREE, environmentPath: PATH })
     expect(api.prepareSetup).toHaveBeenCalledWith({ workspacePath: WORKSPACE, environmentId: ID, worktreePath: WORKTREE })
-    const terminal = useViewerTabStore.getState().getThreadState('thread-1').tabs.find((tab) => tab.kind === 'terminal')
+    const terminal = useDetailPanelStore.getState().getThreadState('thread-1').tabs.find((tab) => tab.kind === 'terminal')
     expect(terminal).toMatchObject({ cwd: WORKTREE, pendingRun: { command: 'npm install', env: ENV } })
   })
 
@@ -76,6 +76,6 @@ describe('setUpProject', () => {
     expect(api.select).not.toHaveBeenCalled()
     expect(api.selectWorktreeEnvironment).not.toHaveBeenCalled()
     expect(api.prepareSetup).not.toHaveBeenCalled()
-    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
+    expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
   })
 })

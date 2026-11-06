@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { welcomeScopeKey } from '../utils/detailPanelScope'
 
 function selectScope(scopeId: string | null): void {
   useThreadStore.setState({ activeThreadId: scopeId?.startsWith('welcome:') ? null : scopeId })
-  useViewerTabStore.setState({ welcomeScopeId: scopeId?.startsWith('welcome:') ? scopeId : null })
+  useDetailPanelStore.setState({ welcomeScopeId: scopeId?.startsWith('welcome:') ? scopeId : null })
 }
 
 describe('pending file references across scopes', () => {

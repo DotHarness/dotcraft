@@ -60,6 +60,9 @@ export interface BrowserViewerTab extends ViewerTabBase {
   automationActive?: boolean
   automationSessionName?: string
   lastAutomationAction?: string
+  browserStorageId?: string
+  projectKey?: string
+  suspended?: boolean
 }
 
 export interface TerminalExitState {
@@ -264,10 +267,15 @@ export type BrowserEventType =
   | 'automation-started'
   | 'automation-updated'
   | 'automation-stopped'
+  | 'suspended'
+  | 'restored'
 
 export interface BrowserEventPayload {
   tabId: string
   threadId?: string
+  projectKey?: string
+  browserStorageId?: string
+  suspended?: boolean
   type: BrowserEventType
   url?: string
   title?: string
@@ -288,9 +296,23 @@ export interface BrowserEventPayload {
 export interface BrowserUseOpenPayload {
   threadId: string
   tabId: string
+  projectKey?: string
+  browserStorageId?: string
   initialUrl: string
   title?: string
   focusMode: 'first-open' | 'none'
+}
+
+export interface BrowserRestoreResult {
+  tabId: string
+  browserStorageId: string
+  status: 'already-live' | 'snapshot-ready' | 'missing' | 'owned-by-another-window'
+  suspended?: boolean
+  currentUrl?: string
+  title?: string
+  faviconDataUrl?: string
+  canGoBack?: boolean
+  canGoForward?: boolean
 }
 
 export interface BrowserUseClosePayload {

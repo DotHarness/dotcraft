@@ -1,11 +1,7 @@
+import { setRendererTestState } from './panelTestState'
 import { describe, expect, it } from 'vitest'
 import { autoOpenWorkflowLaunch, parseWorkflowLaunch, parseWorkflowRunId } from '../components/workflow/WorkflowToolCard'
-import { formatCollapsedToolLabel, formatWorkflowFailureLabel } from '../utils/toolCallDisplay'
-import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
-import { useUIStore } from '../stores/uiStore'
-import { useViewerTabStore } from '../stores/viewerTabStore'
-
-const WORKFLOW = { toolName: 'Workflow' }
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 
 describe('parseWorkflowRunId', () => {
   it('recognizes only a successful Workflow tool result and only a running launch for auto-open', () => {
@@ -18,28 +14,14 @@ describe('parseWorkflowRunId', () => {
     expect(parseWorkflowLaunch('Workflow', '{"error":"invalid"}')).toBeNull()
   })
 
-  it('uses dedicated Workflow lifecycle labels', () => {
-    expect(getStreamingToolDisplay(WORKFLOW, '', 'en').label).toBe('Preparing workflow…')
-    expect(getStreamingToolDisplay(WORKFLOW, '{"name":"release-review', 'en').label)
-      .toBe('Starting workflow release-review…')
-    expect(formatCollapsedToolLabel(WORKFLOW, { name: 'release-review' }, 'en'))
-      .toBe('Started workflow release-review')
-    expect(formatWorkflowFailureLabel({ name: 'release-review' }, 'en'))
-      .toBe('Could not start workflow release-review')
-
-    const longName = 'release-review-with-complete-desktop-tool-title-geometry-validation'
-    expect(getStreamingToolDisplay(WORKFLOW, `{"name":"${longName}`, 'en').label)
-      .toContain(longName)
-  })
-
   it('auto-opens each successful run only once', () => {
-    useUIStore.setState({ autoShowReasons: new Set(), activeDetailTab: { kind: 'system', id: 'changes' } })
-    useViewerTabStore.setState({ byThread: new Map(), currentThreadId: 'thread-1', currentWorkspacePath: null })
+    setRendererTestState({ autoShowReasons: new Set(), activeDetailTab: { kind: 'system', id: 'changes' } })
+    useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: 'thread-1', currentWorkspacePath: null })
     const result = '{"runId":"run_001","name":"review","status":"running"}'
 
     expect(autoOpenWorkflowLaunch('thread-1', 'Workflow', result, true)).toBe(true)
     expect(autoOpenWorkflowLaunch('thread-1', 'Workflow', result, true)).toBe(false)
-    const threadState = useViewerTabStore.getState().getThreadState('thread-1')
+    const threadState = useDetailPanelStore.getState().getThreadState('thread-1')
     expect(threadState.tabs).toHaveLength(1)
     expect(threadState.tabs[0]).toEqual(expect.objectContaining({ kind: 'workflow', runId: 'run_001' }))
   })

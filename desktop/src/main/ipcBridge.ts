@@ -29,6 +29,7 @@ import { registerDesktopAppHandlers } from './ipcDesktopApps'
 import { registerGitHandlers } from './ipcGit'
 import { cancelWindowServerRequests } from './ipcServerRequests'
 import { registerViewerBrowserHandlers } from './ipcViewerBrowser'
+import { registerThreadPanelStateHandlers } from './threadPanelStateIpc'
 import { registerWindowHandlers } from './ipcWindow'
 import { registerWorkspaceHandlers } from './ipcWorkspace'
 import { registerWorkspaceFileHandlers } from './ipcWorkspaceFiles'
@@ -92,6 +93,7 @@ export function registerIpcHandlers(
   registerWorkspaceFileHandlers(context)
   registerDesktopAppHandlers(context)
   registration.disposeProjectActions = registerViewerBrowserHandlers(context)
+  registerThreadPanelStateHandlers(context)
   handleSafe('settings:get', () => {
     return callbacks.getSettings()
   })
@@ -186,7 +188,6 @@ export function shouldShowTaskCompletionNotification(win: BrowserWindow, setting
   return !win.isFocused()
 }
 
-/** Job results also raise a native OS notification, subject to the Desktop notification setting. */
 export function broadcastNotification(
   win: BrowserWindow,
   method: string,
@@ -206,9 +207,7 @@ export function broadcastNotification(
       if (Notification.isSupported()) {
         new Notification({ title: jobName, body }).show()
       }
-    } catch {
-      /* ignore — notification optional */
-    }
+    } catch {}
   }
   if (!win.isDestroyed()) {
     win.webContents.send('appserver:notification', {

@@ -1,5 +1,5 @@
+import { useDetailPanelStore } from './detailPanelStore'
 import { create } from 'zustand'
-import { useUIStore } from './uiStore'
 
 export interface BoardFocus {
   threadId: string
@@ -28,7 +28,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
   openTopic(threadId, topicId, messageId = null) {
     set({ focus: { threadId, topicId, messageId, key: (get().focus?.key ?? 0) + 1 } })
-    useUIStore.getState().setActiveDetailTab('board')
+    useDetailPanelStore.getState().setActiveDetailTab('board')
   },
 
   clearFocus(key) {

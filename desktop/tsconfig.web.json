@@ -24,6 +24,8 @@
     "src/preload/index.ts",
     "src/preload/desktopPet.ts",
     "src/preload/notificationDispatcher.ts",
+    "src/preload/viewerPanelState.ts",
+    "src/preload/viewerBrowserLifecycle.ts",
     "src/shared/**/*"
   ],
   "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]

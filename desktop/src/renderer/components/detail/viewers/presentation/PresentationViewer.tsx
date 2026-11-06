@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReadPresentationResult } from '../../../../../shared/viewer/presentation'
 import type { FileViewerTab } from '../../../../../shared/viewer/types'
 import { useT } from '../../../../contexts/LocaleContext'
-import { useViewerTabStore } from '../../../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../../../stores/detailPanelStore'
 import { Skeleton } from '../../../ui/Skeleton'
 import { FileChangedNotice } from '../FileChangedNotice'
 import type { FilePreviewProps } from '../filePreview'
@@ -43,15 +43,15 @@ export function PresentationViewer({ absolutePath, relativePath, tabId }: FilePr
   const { version, stale, refresh } = useViewerFileVersion(absolutePath)
   const [attempt, setAttempt] = useState(0)
   const data = usePresentationData(absolutePath, version, attempt)
-  const threadId = useViewerTabStore((state) => state.currentThreadId)
-  const reveal = useViewerTabStore((state) => {
+  const threadId = useDetailPanelStore((state) => state.currentThreadId)
+  const reveal = useDetailPanelStore((state) => {
     if (!state.currentThreadId) return null
     const tab = state.getThreadState(state.currentThreadId).tabs.find((entry) => entry.id === tabId)
     return (tab as FileViewerTab | undefined)?.pendingReveal ?? null
   })
   const onRevealed = useCallback(
     (revision: number) => {
-      if (threadId) useViewerTabStore.getState().clearPendingReveal(threadId, tabId, revision)
+      if (threadId) useDetailPanelStore.getState().clearPendingReveal(threadId, tabId, revision)
     },
     [threadId, tabId]
   )

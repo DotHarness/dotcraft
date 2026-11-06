@@ -8,7 +8,7 @@ import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -23,7 +23,7 @@ export function WorkspaceExplorer(): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
-  const activeFilePath = useViewerTabStore((s) => {
+  const activeFilePath = useDetailPanelStore((s) => {
     if (!s.currentThreadId) return null
     const state = s.getThreadState(s.currentThreadId)
     const active = state.tabs.find((tab) => tab.id === state.activeTabId)
@@ -100,7 +100,6 @@ export function WorkspaceExplorer(): JSX.Element {
     return () => { cancelled = true }
   }, [explorerRevealPath, rootKey, roots, loadDir, expandDirs, consumeExplorerReveal])
 
-  // Scroll the revealed row into view once it has rendered.
   useEffect(() => {
     if (scrollTargetKey && scrollRowRef.current) {
       scrollRowRef.current.scrollIntoView({ block: 'center' })

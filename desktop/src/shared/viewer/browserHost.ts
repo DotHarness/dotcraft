@@ -6,8 +6,11 @@ export interface BrowserHostCursor {
   animate?: boolean
 }
 
+export const BROWSER_GUEST_BOOTSTRAP_PREFIX = 'about:blank#dotcraft-browser-host='
+
 export interface BrowserHostDescriptor {
   tabId: string
+  bootstrapToken: string
   partition: string
   visible: boolean
   automation: boolean
@@ -24,8 +27,6 @@ export type BrowserHostEvent =
 
 export interface BrowserHostApi {
   list(): Promise<BrowserHostDescriptor[]>
-  bind(params: { tabId: string; webContentsId: number }): Promise<void>
-  failed(params: { tabId: string; message: string }): Promise<void>
   cursorArrived(params: { tabId: string; moveSequence: number }): Promise<void>
   onEvent(callback: (event: BrowserHostEvent) => void): () => void
 }
