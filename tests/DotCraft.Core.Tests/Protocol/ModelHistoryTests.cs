@@ -89,7 +89,7 @@ public sealed class ModelHistoryTests : IDisposable
         var reencoded = JsonSerializer.SerializeToElement(codec.Encode(restored, "turn_fixture"), SessionJsonOptions.Default);
 
         Assert.True(JsonElement.DeepEquals(expected, reencoded));
-        Assert.Equal(10, restored.Contents.Count);
+        Assert.Equal(12, restored.Contents.Count);
         Assert.DoesNotContain(restored.Contents, static content => content is ToolCallArgumentsDeltaContent);
         var data = Assert.IsType<DataContent>(restored.Contents[2]);
         Assert.Equal("AQID", data.Base64Data.ToString());
@@ -503,7 +503,7 @@ public sealed class ModelHistoryTests : IDisposable
     {
         var restored = ModelHistoryJson.Decode(ModelHistoryJson.Encode(CreateComprehensiveMessage()));
 
-        Assert.Equal(10, restored.Contents.Count);
+        Assert.Equal(12, restored.Contents.Count);
         Assert.Equal("protected", restored.Contents.OfType<TextReasoningContent>().Single().ProtectedData);
         Assert.Equal("AQID", Assert.IsType<DataContent>(restored.Contents[2]).Base64Data.ToString());
     }
@@ -574,6 +574,17 @@ public sealed class ModelHistoryTests : IDisposable
             new DeferredToolReferenceContent("fixture__LookupRecords")
             {
                 AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "fixture" }
+            },
+            new WebSearchToolCallContent("ws_fixture") { Queries = ["fixture search", "second query"] },
+            new WebSearchToolResultContent("ws_fixture")
+            {
+                Outputs =
+                [
+                    new UriContent("https://example.invalid/search", "text/html")
+                    {
+                        AdditionalProperties = new AdditionalPropertiesDictionary { ["title"] = "Fixture result" }
+                    }
+                ]
             },
             new ToolCallArgumentsDeltaContent
             {

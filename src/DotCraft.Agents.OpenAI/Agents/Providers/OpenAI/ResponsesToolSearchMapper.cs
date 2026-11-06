@@ -477,6 +477,14 @@ internal static partial class ResponsesToolSearchMapper
                         }
                         break;
 
+                    case WebSearchToolCallContent:
+                        break;
+
+                    case WebSearchToolResultContent searchResult:
+                        FlushMessage();
+                        input.Add(ResponsesWebSearchMetadata.Read(searchResult));
+                        break;
+
                     case FunctionCallContent call:
                         FlushMessage();
                         var customCall = TryCreateCustomToolCallItem(call, supportsFreeformTools, out var customItem);
@@ -557,6 +565,8 @@ internal static partial class ResponsesToolSearchMapper
     {
         foreach (var item in input.OfType<JsonObject>())
         {
+            if (ReadJsonString(item, "type") == "web_search_call")
+                continue;
             if (!item.TryGetPropertyValue("id", out var idNode))
                 continue;
 

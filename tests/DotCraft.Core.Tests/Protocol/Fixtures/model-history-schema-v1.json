@@ -96,6 +96,31 @@
         "toolName": "fixture__LookupRecords",
         "additionalProperties": { "source": "fixture" }
       }
+    },
+    {
+      "kind": "web_search_call",
+      "payload": {
+        "callId": "ws_fixture",
+        "queries": ["fixture search", "second query"],
+        "additionalProperties": null
+      }
+    },
+    {
+      "kind": "web_search_result",
+      "payload": {
+        "callId": "ws_fixture",
+        "outputs": [
+          {
+            "kind": "uri",
+            "payload": {
+              "uri": "https://example.invalid/search",
+              "mediaType": "text/html",
+              "additionalProperties": { "title": "Fixture result" }
+            }
+          }
+        ],
+        "additionalProperties": null
+      }
     }
   ]
 }

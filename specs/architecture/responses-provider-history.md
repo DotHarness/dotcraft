@@ -212,6 +212,30 @@ on its encrypted completion fragment so MEAI content coalescing, model-history p
 outbound mapping retain one identity. Missing or invalid item IDs do not suppress the Assistant
 message boundary.
 
+### Hosted web search
+
+A provider-executed `web_search_call` is a native history item, not a client tool invocation.
+Completed raw items use the existing canonical append path and remain in subsequent Responses
+input, including after cold resume. No local search or synthetic function output is produced.
+
+MEAI projects each native item into `WebSearchToolCallContent` and `WebSearchToolResultContent`.
+Both are assistant-authored even when SDK updates omit a role. Call progress and completion may
+arrive separately; the adapter leaves coalescing to the existing aggregation pipeline. The completed
+Result alone carries `openai.responses.web_search = { version: 1, item: <native item> }` in its
+content extension properties, so the Call/Result pair never duplicates the native item on replay.
+Provider response-item ids remain content-scoped and are not promoted to message ids.
+
+Direct MEAI mapping and neutral-history replacements prefer this envelope, then an available native
+SDK raw item. They preserve the original id, status, action, encrypted content, and item order rather
+than inferring an action from query strings or result links. Informational Call-only progress emits
+no request item. A Result with missing, invalid, or unsupported replay metadata fails with
+`responses_web_search_metadata_invalid`; it never becomes an unsupported-content placeholder.
+Canonical generations remain authoritative and are not regenerated from their MEAI projection.
+
+Search envelopes follow the existing provider/model/protocol origin boundary: private native items
+from another origin are not sent to the target provider. They are excluded from display-history
+projections, ordinary context exports, search indexes, and diagnostic text.
+
 ## Recovery and privacy
 
 Unknown capability versions or malformed records required by the active generation produce the
