@@ -57,7 +57,8 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
       threadId,
       workspacePath: viewer.currentWorkspacePath!,
       projectKey: viewer.currentProjectKey,
-      browserStorageId: tab.browserStorageId
+      browserStorageId: tab.browserStorageId,
+      restore: tab.restore ?? 'none'
     })
     return
   }

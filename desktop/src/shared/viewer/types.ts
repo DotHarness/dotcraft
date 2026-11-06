@@ -45,6 +45,8 @@ export interface FileViewerTab extends ViewerTabBase {
   wordWrap?: boolean
 }
 
+export type BrowserRestoreIntent = 'none' | 'required'
+
 export interface BrowserViewerTab extends ViewerTabBase {
   kind: 'browser'
   target: string
@@ -61,6 +63,7 @@ export interface BrowserViewerTab extends ViewerTabBase {
   automationSessionName?: string
   lastAutomationAction?: string
   browserStorageId?: string
+  restore?: BrowserRestoreIntent
   projectKey?: string
   suspended?: boolean
 }

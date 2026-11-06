@@ -1,4 +1,4 @@
-import type { BrowserRestoreResult } from '../../shared/viewer/types'
+import type { BrowserRestoreResult, ViewerTab } from '../../shared/viewer/types'
 import type { PanelScope, PanelCheckpoint, PanelStateApi } from '../../shared/viewer/panelState'
 import { panelScopeKey } from '../../shared/viewer/panelState'
 import { normalizePanelCheckpoint, toPanelCheckpoint } from '../../shared/viewer/panelCheckpoint'
@@ -71,7 +71,9 @@ export function startDetailPanelPersistence(api: PanelStateApi, restoreBrowserSt
       if (saved) {
         const changed = current !== initial
         const closed = closedTabs.get(key) ?? new Set<string>()
-        const tabs = saved.tabs.filter(tab => !closed.has(tab.id))
+        const tabs: ViewerTab[] = saved.tabs.filter(tab => !closed.has(tab.id)).map(tab => tab.kind === 'browser'
+          ? { ...tab, restore: 'required' as const }
+          : tab)
         for (const tab of changed ? current.tabs : []) {
           const index = tabs.findIndex(item => item.id === tab.id)
           if (index < 0) tabs.push(tab)

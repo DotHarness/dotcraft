@@ -126,7 +126,8 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
       initialLabel = 'New Tab',
       activate = true,
       projectKey,
-      browserStorageId
+      browserStorageId,
+      restore
     }) {
       const state = get()
       const threadState = state.getThreadState(threadId, projectKey)
@@ -139,6 +140,7 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
             ...tab,
             target: target ?? tab.target,
             ...(browserStorageId ? { browserStorageId } : {}),
+            ...(restore ? { restore } : {}),
             currentUrl: initialUrl,
             title: initialLabel || tab.title,
             label: initialLabel || tab.label
@@ -161,6 +163,7 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
         id: requestedId,
         kind: 'browser',
         browserStorageId: browserStorageId ?? `browser:${crypto.randomUUID()}`,
+        restore: restore ?? 'none',
         target: target ?? `browser-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`,
         label: initialLabel,
         currentUrl: initialUrl,

@@ -141,6 +141,7 @@ describe('handleBrowserEvent', () => {
       workspacePath: WORKSPACE_PATH,
       projectKey: '',
       browserStorageId: newTab?.kind === 'browser' ? newTab.browserStorageId : undefined,
+      restore: 'none',
       initialUrl: 'https://example.com/popup'
     })
   })
@@ -170,6 +171,7 @@ describe('handleBrowserEvent', () => {
       workspacePath: WORKSPACE_PATH,
       projectKey: '',
       browserStorageId: newTab?.kind === 'browser' ? newTab.browserStorageId : undefined,
+      restore: 'none',
       initialUrl: 'https://example.com/background-popup'
     })
   })

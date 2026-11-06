@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
+import { computerUseManager } from '../computerUse/runtime'
 import { nodeReplManager, type NodeReplApprovalRequest } from '../nodeReplManager'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -31,6 +32,7 @@ export function ownsWorkspaceNodeReplThread(entry: WorkspaceConnectionEntry, thr
 export function releaseWorkspaceNodeReplBindings(entry: WorkspaceConnectionEntry): void {
   for (const [threadId, binding] of bindings) {
     if (binding.entry !== entry) continue
+    if (binding.turnId) computerUseManager.handleTurnEnded(threadId, binding.turnId)
     bindings.delete(threadId)
     nodeReplManager.reset(threadId, { preserveBrowserTabs: true })
   }
@@ -42,6 +44,7 @@ export function handleWorkspaceNodeReplNotification(entry: WorkspaceConnectionEn
   if (typeof threadId !== 'string') return
   const binding = bindings.get(threadId)
   if (binding?.entry !== entry) return
+  if (binding.turnId) computerUseManager.handleTurnEnded(threadId, binding.turnId)
   bindings.delete(threadId)
   nodeReplManager.reset(threadId)
   if (binding.turnId) void entry.client.releaseBrowserTurn(threadId, binding.turnId).catch(console.warn)
@@ -104,11 +107,10 @@ export async function handleWorkspaceNodeReplRequest(
   const client = entry.client
   const workspacePath = entry.localWorkspacePath ?? entry.workspacePath
   try {
-    const turnId = p.browserSession?.turnId ?? p.turnId
-    if (typeof turnId === 'string') {
-      binding.turnId = turnId
-      await client.retainBrowserTurn(threadId, turnId)
-    }
+    const sessionTurnId = p.browserSession?.turnId
+    const turnId = p.turnId ?? (typeof sessionTurnId === 'string' ? sessionTurnId.trim() || undefined : undefined)
+    binding.turnId = turnId ?? evaluationId
+    if (turnId !== undefined) await client.retainBrowserTurn(threadId, turnId)
     if (!isCurrentWorkspaceRequestSource(ctx, entry) || ctx.mainWindow !== owner || bindings.get(threadId) !== binding) {
       throw new Error('Workspace request source changed before Node REPL evaluation.')
     }

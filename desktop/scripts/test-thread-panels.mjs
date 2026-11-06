@@ -32,6 +32,7 @@ try {
   const main = `
     import assert from 'node:assert/strict'
     import { once } from 'node:events'
+    import { randomUUID } from 'node:crypto'
     import { join } from 'node:path'
     import { app, BrowserWindow, ipcMain, protocol } from 'electron'
     import { ViewerBrowserManager } from ${JSON.stringify(join(desktop, 'src/main/viewerBrowser.ts'))}
@@ -90,6 +91,16 @@ try {
         assert.equal(restored.navigationHistory.canGoBack(),true)
         console.log('PASS ordinary page suspension preserves navigation history')
         const other=await makeWindow()
+        const freshStorageId='browser:'+randomUUID()
+        const fresh=await manager.createTab(other,{tabId:'secondary-fresh',threadId:'b',projectKey:'/workspace/b',
+          workspacePath:'/workspace/b',browserStorageId:freshStorageId,restore:'none',initialUrl:base+'/secondary'})
+        const freshPage=manager.getTabWebContents(other,'secondary-fresh')
+        if(freshPage.isLoading()) await once(freshPage,'did-stop-loading')
+        assert.equal(fresh.browserStorageId,freshStorageId)
+        assert.equal(freshPage.getURL(),base+'/secondary')
+        assert.notEqual(freshPage.id,restored.id)
+        assert.equal(manager.snapshotState(win,params.tabId).browserStorageId,created.browserStorageId)
+        console.log('PASS secondary window creates an independent fresh page with a renderer storage identity')
         assert.equal(manager.restoreState(other,{...params,tabs:[{tabId:params.tabId,browserStorageId:created.browserStorageId} ]})[0].status,'owned-by-another-window')
         manager.destroyAllTabs(other);other.destroy()
         panels.update(scope,{version:1,tabs:[{id:params.tabId,kind:'browser',label:'Saved',target:params.tabId,
@@ -104,7 +115,7 @@ try {
         const result=manager.restoreState(win,{...params,tabs:[{tabId:tab.id,browserStorageId:tab.browserStorageId}]})
         assert.equal(result[0].status,'snapshot-ready')
         assert.equal(manager.getTabWebContents(win,tab.id),null,'restore metadata must not eagerly create a page')
-        await manager.createTab(win,{...params,browserStorageId:tab.browserStorageId,initialUrl:tab.currentUrl})
+        await manager.createTab(win,{...params,browserStorageId:tab.browserStorageId,restore:'required',initialUrl:tab.currentUrl})
         const page=manager.getTabWebContents(win,tab.id)
         assert.equal(page.getURL(),base+'/two')
         assert.equal(page.navigationHistory.canGoBack(),true)

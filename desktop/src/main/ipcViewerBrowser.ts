@@ -1,15 +1,14 @@
 import { app, BrowserWindow, session } from 'electron'
 import { translate } from '../shared/locales'
-import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
+import type { BrowserRestoreIntent, BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
 import { registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { browserUseManager } from './browserUseManager'
 import { checkChromeSetup, installChromeNativeHost, openChromeWindow, type ChromeOpenRequest } from './chromeSetup'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
-import { assertWorkspaceOrChatFolder } from './ipcBridgePaths'
 import { registerProjectActionsHandlers } from './projectActions/projectActionsIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { registerViewerTerminalHandlers } from './viewerTerminalIpc'
-import { assertBrowserRestoreScope } from './browserRestoreScope'
+import { assertBrowserScope } from './browserScope'
 
 export function registerViewerBrowserHandlers(context: WindowIpcContext): () => void {
   const { handleSafe, workspacePath, callbacks, ipc, owner } = context
@@ -27,19 +26,20 @@ export function registerViewerBrowserHandlers(context: WindowIpcContext): () => 
   registerBrowserFeedbackIpc(viewerBrowserManager, ipc)
   handleSafe(
     'viewer:browser:create',
-    async (event, params: { tabId: string; threadId?: string; workspacePath: string; projectKey?: string; browserStorageId?: string; initialUrl?: string }) => {
+    async (event, params: { tabId: string; threadId?: string; workspacePath: string; projectKey?: string; browserStorageId?: string; initialUrl?: string; restore?: BrowserRestoreIntent }) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win || win.isDestroyed()) {
         throw new Error('Browser window not available')
       }
-      assertWorkspaceOrChatFolder(params.workspacePath, workspacePath, mainLocale(callbacks), owner.webContents.id)
+      assertBrowserScope(context, params)
       return viewerBrowserManager.createTab(win, {
         tabId: params.tabId,
-        ...(params.threadId ? { threadId: params.threadId } : {}),
+        threadId: params.threadId,
         workspacePath: params.workspacePath,
-        ...(params.projectKey ? { projectKey: params.projectKey } : {}),
-        ...(params.browserStorageId ? { browserStorageId: params.browserStorageId } : {}),
-        ...(params.initialUrl ? { initialUrl: params.initialUrl } : {})
+        projectKey: params.projectKey,
+        browserStorageId: params.browserStorageId,
+        restore: params.restore,
+        initialUrl: params.initialUrl
       })
     }
   )
@@ -51,7 +51,7 @@ export function registerViewerBrowserHandlers(context: WindowIpcContext): () => 
   }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || win.isDestroyed()) throw new Error('Browser window not available')
-    assertBrowserRestoreScope(context, params)
+    assertBrowserScope(context, params)
     return viewerBrowserManager.restoreState(win, params)
   })
   handleSafe('viewer:browser:set-foreground-scope', (event, params: { projectKey: string; threadId?: string }) => {

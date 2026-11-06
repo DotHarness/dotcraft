@@ -43,7 +43,7 @@ export function useDetailPanelLifecycle(params: { projectKey: string; workspaceP
   }, [projectKey, workspacePath, browserWorkspacePath, threadId, welcomeScopeId])
   useEffect(() => {
     const manager = startDetailPanelPersistence(window.api.workspace.viewer.panelState, async (scope, session) => {
-      const tabs = session.tabs.flatMap(tab => tab.kind === 'browser' && tab.browserStorageId
+      const tabs = session.tabs.flatMap(tab => tab.kind === 'browser' && tab.restore === 'required' && tab.browserStorageId
         ? [{
           tabId: tab.id,
           browserStorageId: tab.browserStorageId,

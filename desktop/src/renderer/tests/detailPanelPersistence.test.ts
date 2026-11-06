@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BrowserRestoreResult } from '../../shared/viewer/types'
 import type { PanelCheckpoint, PanelScope } from '../../shared/viewer/panelState'
-import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { useDetailPanelStore, type PanelSession } from '../stores/detailPanelStore'
 import { startDetailPanelPersistence } from '../stores/detailPanelPersistence'
 const scope: PanelScope = {
   projectKey: '/project-a',
@@ -42,7 +43,7 @@ function deferred<T>() {
   }
 }
 
-function setup(read: () => Promise<PanelCheckpoint | null>, restore = vi.fn(async () => [])) {
+function setup(read: () => Promise<PanelCheckpoint | null>, restore: (scope: PanelScope, panel: PanelSession) => Promise<BrowserRestoreResult[]> = vi.fn(async () => [])) {
   const update = vi.fn(async (_scope: PanelScope, _checkpoint: PanelCheckpoint | null) => { })
   const manager = startDetailPanelPersistence({
     read,
@@ -93,6 +94,36 @@ describe('panel checkpoint hydration', () => {
       }
     }))
   })
+  it('publishes restored intent before browser registration while preserving a concurrent fresh tab', async () => {
+    const read = deferred<PanelCheckpoint | null>()
+    const registration = deferred<BrowserRestoreResult[]>()
+    const published = deferred<PanelSession>()
+    const restore = vi.fn((_scope: PanelScope, _panel: PanelSession) => registration.promise)
+    const fixture = setup(() => read.promise, restore)
+    const pending = fixture.manager.hydrate(scope)
+    const freshId = store().openBrowser({ threadId: scope.threadId })
+    const unsubscribe = useDetailPanelStore.subscribe(state => {
+      const panel = state.getPanel(scope.threadId, scope.projectKey)
+      if (panel.tabs.some(tab => tab.id === 'browser')) published.resolve(panel)
+    })
+    try {
+      read.resolve(saved())
+      const panel = await published.promise
+      expect(panel.tabs.find(tab => tab.id === 'browser')).toMatchObject({ browserStorageId: 'storage-a', restore: 'required' })
+      expect(panel.tabs.find(tab => tab.id === freshId)).toMatchObject({ restore: 'none' })
+      expect(restore).toHaveBeenCalledWith(scope, panel)
+      expect(fixture.update).not.toHaveBeenCalled()
+      registration.resolve([])
+      await pending
+      const checkpoint = fixture.update.mock.calls.at(-1)?.[1]!
+      expect(checkpoint.tabs.every(tab => !('restore' in tab))).toBe(true)
+    } finally {
+      unsubscribe()
+      registration.resolve([])
+      await pending
+    }
+  })
+
   it('restores only the owning scope after the user switches to another project', async () => {
     const read = deferred<PanelCheckpoint | null>()
     const fixture = setup(() => read.promise)

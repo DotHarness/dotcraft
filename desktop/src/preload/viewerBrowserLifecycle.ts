@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron'
-import type { BrowserRestoreResult } from '../shared/viewer/types'
+import type { BrowserRestoreIntent, BrowserRestoreResult } from '../shared/viewer/types'
 
 export interface BrowserCreateParams {
   tabId: string
@@ -7,6 +7,7 @@ export interface BrowserCreateParams {
   workspacePath: string
   projectKey?: string
   browserStorageId?: string
+  restore?: BrowserRestoreIntent
   initialUrl?: string
 }
 export interface BrowserSnapshot {

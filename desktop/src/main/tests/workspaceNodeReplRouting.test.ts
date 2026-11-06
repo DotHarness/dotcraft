@@ -7,7 +7,7 @@ const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: v
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: runtime }))
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }))
 vi.mock('../chatFoldersIpc', () => ({ createChatFolderFromSettings: vi.fn() }))
-vi.mock('../computerUse/runtime', () => ({ computerUseManager: {}, rememberAlwaysAllowedApp: vi.fn() }))
+vi.mock('../computerUse/runtime', () => ({ computerUseManager: { handleTurnEnded: vi.fn() }, rememberAlwaysAllowedApp: vi.fn() }))
 vi.mock('../desktopRuntimeThreadTools', () => ({ handleDesktopRuntimeThreadToolCall: vi.fn(), resetDesktopThreadToolBindings: vi.fn() }))
 vi.mock('../ipcBridge', () => ({ broadcastServerRequest: vi.fn(), createServerRequestBridge: vi.fn() }))
 vi.mock('../viewerTerminal', () => ({ viewerTerminalManager: {} }))

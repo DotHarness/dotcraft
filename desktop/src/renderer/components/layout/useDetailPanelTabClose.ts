@@ -80,17 +80,7 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
     } else if (closing.kind === 'terminal') {
       void window.api.workspace.viewer.terminal.dispose({ tabId: closing.id })
     }
-    const latestTabs = useDetailPanelStore.getState().getThreadState(threadId).tabs
     useDetailPanelStore.getState().closeTab(threadId, tabId)
-    if (useDetailPanelStore.getState().currentThreadId !== threadId) return true
-    const remaining = latestTabs.filter((tab) => tab.id !== tabId)
-    const active = useDetailPanelStore.getState().getCurrentPanel().activeDetailTab
-    if (active.kind === 'viewer' && active.id === tabId) {
-      const index = latestTabs.findIndex((tab) => tab.id === tabId)
-      const next = index > 0 ? remaining[index - 1] : remaining[0]
-      if (next) useDetailPanelStore.getState().setActiveViewerTab(next.id)
-      else useDetailPanelStore.getState().closeViewerTab()
-    }
     return true
   }
 

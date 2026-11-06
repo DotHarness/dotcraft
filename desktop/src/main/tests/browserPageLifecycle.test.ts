@@ -138,10 +138,32 @@ describe('browser page lifecycle', () => {
     expect(f.lifecycle.restoreState(f.win, { ...params, projectKey: 'project:b' })[0].status).toBe('owned-by-another-window')
   })
 
+  it('creates a fresh secondary-window page with its renderer-allocated storage identity', () => {
+    const f = fixture()
+    const other = window(2)
+    const browserStorageId = `browser:${crypto.randomUUID()}`
+    const entry = f.lifecycle.prepare(other, { tabId: 'fresh', workspacePath: '/workspace/b', projectKey: 'project:b',
+      threadId: 'thread', browserStorageId, restore: 'none' })
+    expect(entry).toMatchObject({ browserStorageId, owner: { projectKey: 'project:b', threadId: 'thread', tabId: 'fresh' } })
+    expect(entry.snapshot).toBeUndefined()
+    expect(f.store.owner(browserStorageId)).toBeUndefined()
+    expect(f.lifecycle.prepare(other, { ...entry.params, restore: 'required' })).toBe(entry)
+  })
+
+  it('does not reuse a durable page identity as a fresh page', () => {
+    const f = fixture()
+    const entry = f.add('saved')
+    f.lifecycle.checkpoint(entry)
+    f.lifecycle.disposeWindow(f.win)
+    for (const win of [f.win, window(2)]) {
+      expect(() => f.lifecycle.prepare(win, { ...entry.params, restore: 'none' })).toThrow('identity already belongs to a saved page')
+    }
+  })
+
   it('does not bypass other-window ownership when the saved snapshot is missing', () => {
     const f = fixture()
     const other = window(2)
-    const params = { tabId: 'missing', workspacePath: '/workspace/a', threadId: 'thread', browserStorageId: 'missing-snapshot' }
+    const params = { tabId: 'missing', workspacePath: '/workspace/a', threadId: 'thread', browserStorageId: 'missing-snapshot', restore: 'required' as const }
     expect(f.lifecycle.restoreState(other, { ...params, tabs: [params] })[0].status).toBe('owned-by-another-window')
     expect(() => f.lifecycle.prepare(other, params)).toThrow('owned by another window')
     expect(f.lifecycle.entries(other)).toEqual([])

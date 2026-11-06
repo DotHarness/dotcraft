@@ -80,27 +80,32 @@ export const createTabUpdates: StateCreator<DetailPanelStore, [], [], Pick<Detai
       const idx = tabs.findIndex((t) => t.id === tabId)
       if (idx === -1) return
       const newTabs = computeLabels(tabs.filter((_, i) => i !== idx))
-      let newActiveTabId: string | null = threadState.activeTabId
-      if (threadState.activeTabId === tabId) {
-        if (idx > 0) {
-          newActiveTabId = tabs[idx - 1]!.id
-        } else if (idx < tabs.length - 1) {
-          newActiveTabId = tabs[idx + 1]!.id
-        } else {
-          newActiveTabId = null
-        }
+      const nextViewerId = tabs[idx - 1]?.id ?? tabs[idx + 1]?.id ?? null
+      let activeDetailTab = threadState.activeDetailTab
+      const closingSelected = activeDetailTab.kind === 'viewer' && activeDetailTab.id === tabId
+      const activeTabId = closingSelected || threadState.activeTabId === tabId
+        ? nextViewerId
+        : threadState.activeTabId
+      if (closingSelected) {
+        activeDetailTab = nextViewerId
+          ? { kind: 'viewer', id: nextViewerId }
+          : threadState.openSystemTabs.length
+            ? {
+                kind: 'system',
+                id: threadState.openSystemTabs.includes(threadState.lastActiveSystemTab)
+                  ? threadState.lastActiveSystemTab
+                  : threadState.openSystemTabs.at(-1)!
+              }
+            : { kind: 'launcher' }
       }
-      set((s) => {
-        const next = new Map(s.byThread)
-        next.set(get().scopeKey(threadId, owner?.projectKey), {
-          ...threadState,
-          tabs: newTabs,
-          activeTabId: newActiveTabId
-        })
-        return {
-          byThread: next
-        }
-      })
+      state.patchPanel({
+        tabs: newTabs,
+        activeTabId,
+        activeDetailTab,
+        ...(!newTabs.length && !threadState.openSystemTabs.length
+          ? { detailPanelPreferredVisible: false, detailPanelFullView: false }
+          : {})
+      }, threadId, owner?.projectKey)
     },
 
     setActiveTab(threadId, tabId) {

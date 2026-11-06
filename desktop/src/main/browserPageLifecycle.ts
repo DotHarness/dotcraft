@@ -3,7 +3,7 @@ import type { BrowserWindow, WebContents } from 'electron'
 import { browserPageAuthority, browserSessionKind } from './browserSessionPolicy'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import { BrowserPageSnapshotStore, sameBrowserPageOwner, type BrowserPageOwner, type BrowserPageSnapshotData } from './browserPageSnapshotStore'
-import type { BrowserRestoreResult } from '../shared/viewer/types'
+import type { BrowserRestoreIntent, BrowserRestoreResult } from '../shared/viewer/types'
 
 export interface BrowserPageParams {
   tabId: string
@@ -11,6 +11,7 @@ export interface BrowserPageParams {
   workspacePath: string
   projectKey?: string
   browserStorageId?: string
+  restore?: BrowserRestoreIntent
   initialUrl?: string
   sessionUrl?: string
   allowFileScheme?: boolean
@@ -72,13 +73,15 @@ export class BrowserPageLifecycle {
       }
     }
     let snapshot: BrowserPageSnapshotData | undefined
-    if (params.browserStorageId && this.initialOwner !== undefined) {
+    if (params.restore === 'required') {
       if (win.id !== this.initialOwner) throw new Error('Browser page is owned by another window or tab.')
       const savedOwner = this.store().owner(id)
       if (savedOwner && !sameBrowserPageOwner(savedOwner, owner)) {
         throw new Error('Browser page is owned by another window or tab.')
       }
       snapshot = this.store().get(id, owner)
+    } else if (params.browserStorageId && this.store().owner(id)) {
+      throw new Error('Browser page identity already belongs to a saved page.')
     }
     const entry: BrowserPageEntry = {
       win, owner, params: { ...params, projectKey: owner.projectKey, browserStorageId: id }, browserStorageId: id,
@@ -106,10 +109,10 @@ export class BrowserPageLifecycle {
       if (savedOwner && !sameBrowserPageOwner(savedOwner, owner)) return { ...tab, status: 'owned-by-another-window' }
       const snapshot = this.store().get(tab.browserStorageId, owner)
       if (!snapshot) {
-        this.prepare(win, { ...params, ...tab })
+        this.prepare(win, { ...params, ...tab, restore: 'required' })
         return { ...tab, status: 'missing' }
       }
-      this.prepare(win, { ...params, ...tab, initialUrl: snapshot.url })
+      this.prepare(win, { ...params, ...tab, initialUrl: snapshot.url, restore: 'required' })
       return { ...tab, status: 'snapshot-ready', suspended: true, currentUrl: snapshot.url, title: snapshot.title, faviconDataUrl: snapshot.faviconDataUrl,
         canGoBack: snapshot.navigation.index > 0, canGoForward: snapshot.navigation.index < snapshot.navigation.entries.length - 1 }
     })

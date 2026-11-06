@@ -1,4 +1,4 @@
-import type { ViewerTab, ViewerContentClass, FileNavigationHint, BrowserViewerTab, TerminalViewerTab } from '../../shared/viewer/types'
+import type { ViewerTab, ViewerContentClass, FileNavigationHint, BrowserViewerTab, TerminalViewerTab, BrowserRestoreIntent } from '../../shared/viewer/types'
 import type { PanelScope, PanelSystemTab, PanelActiveTab } from '../../shared/viewer/panelState'
 import type { FileReveal } from './viewerTabLabels'
 
@@ -46,6 +46,7 @@ export interface ViewerTabActions {
     activate?: boolean
     projectKey?: string
     browserStorageId?: string
+    restore?: BrowserRestoreIntent
   }): string
   openTerminal(params: {
     threadId: string

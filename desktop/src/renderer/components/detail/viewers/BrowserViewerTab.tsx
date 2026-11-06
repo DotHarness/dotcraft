@@ -30,6 +30,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const feedback = useBrowserFeedback(tabId)
   const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
   const existsTab = useDetailPanelStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)))
+  const restore = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.restore ?? 'none')
   const loading = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.loading ?? false)
   const canGoBack = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoBack ?? false)
   const canGoForward = useDetailPanelStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoForward ?? false)
@@ -67,6 +68,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       workspacePath,
       projectKey: scope?.projectKey,
       ...(found?.browserStorageId ? { browserStorageId: found.browserStorageId } : {}),
+      restore,
       initialUrl
     }).then((snapshot) => {
       if (disposed) return
@@ -89,7 +91,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       if (!disposed) updateBrowserTab(currentThreadId, tabId, { errorMessage: String(error instanceof Error ? error.message : error) })
     })
     return () => { disposed = true }
-  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, scope?.projectKey, t, feedback.initialize])
+  }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, scope?.projectKey, restore, t, feedback.initialize])
 
   useEffect(() => {
     if (!existsTab) return

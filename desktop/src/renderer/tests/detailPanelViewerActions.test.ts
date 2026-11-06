@@ -119,7 +119,7 @@ describe('openBrowser / updateBrowserTab', () => {
     expect(threadState.tabs.find((item) => item.id === id)).toMatchObject({
       kind: 'browser',
       currentUrl: 'https://example.com',
-
+      restore: 'none',
       canGoBack: false,
       canGoForward: false
     })

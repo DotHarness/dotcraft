@@ -3,7 +3,7 @@ import { mainLocale } from './ipcBridgeContracts'
 import { assertWorkspaceOrChatFolder } from './ipcBridgePaths'
 import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
-export function assertBrowserRestoreScope(
+export function assertBrowserScope(
   { workspacePath, callbacks, owner }: Pick<WindowIpcContext, 'workspacePath' | 'callbacks' | 'owner'>,
   params: { workspacePath: string; projectKey?: string }
 ): void {
@@ -18,5 +18,5 @@ export function assertBrowserRestoreScope(
   const known = catalog.some(project =>
     project.kind !== 'remote' && normalizeWorkspaceProjectKey(project.projectId ?? project.path) === projectKey &&
     sameWorkspaceProjectKey(project.path, params.workspacePath))
-  if (!known) throw new Error('Browser restore scope does not belong to this window project catalog.')
+  if (!known) throw new Error('Browser scope does not belong to this window project catalog.')
 }

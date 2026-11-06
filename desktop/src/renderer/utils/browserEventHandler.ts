@@ -144,6 +144,7 @@ function handleRequestNewBrowserTab(
     workspacePath: sourcePanel.browserWorkspacePath || workspacePath,
     projectKey: owner.projectKey,
     browserStorageId: created.browserStorageId,
+    restore: created.restore ?? 'none',
     initialUrl: event.url
   }).then(snapshot => state.updateBrowserTab(threadId, newTabId, { browserStorageId: snapshot.browserStorageId }))
 }

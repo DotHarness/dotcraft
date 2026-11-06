@@ -59,6 +59,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
         workspacePath: panels.currentWorkspacePath!,
         projectKey: panels.currentProjectKey,
         browserStorageId: tab.browserStorageId,
+        restore: tab.restore ?? 'none',
         initialUrl: url
       })
     } catch (err) {
