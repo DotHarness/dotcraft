@@ -6,6 +6,8 @@ import type { ComposerFileAttachment, ConversationTurn, ImageAttachment, InputPa
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { createOptimisticUserMessage } from '../utils/inputPresentation'
 import { parsePendingApproval, parseUserInputRequest } from '../utils/interactiveRequestParsing'
+import { runtimeWorkspaceRootsFor } from '../utils/workspaceRuntimeRoots'
+import { useThreadStore } from './threadStore'
 import { useComposerContextStore } from './composerContextStore'
 import { useComposerDraftStore } from './composerDraftStore'
 import { useConnectionStore } from './connectionStore'
@@ -26,6 +28,7 @@ export type SideChatStatus = 'starting' | 'ready' | 'expired'
 export interface SideChat {
   key: string
   parentThreadId: string
+  identityWorkspacePath: string | undefined
   threadId: string | null
   tabId: string
   ordinal: number
@@ -243,12 +246,14 @@ async function request<M extends keyof ClientRequestMethods>(
     : window.api.appServer.sendRequest(method, params)
 }
 
-async function forkSideChat(key: string, parentThreadId: string): Promise<string | null> {
+async function forkSideChat(key: string, parentThreadId: string, identityWorkspacePath: string | undefined): Promise<string | null> {
   try {
+    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityWorkspacePath)
     const result = await request(key, 'thread/fork', {
       threadId: parentThreadId,
       ephemeral: true,
-      sideChat: true
+      sideChat: true,
+      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
     }) as { thread?: { id?: string } }
     const threadId = result.thread?.id ?? null
     if (!threadId) throw new Error('thread/fork returned no thread')
@@ -278,6 +283,11 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
 
   async open(parentThreadId, { label, prompt, contexts }) {
     ensureListening()
+    const { activeThread, threadList } = useThreadStore.getState()
+    const parent = activeThread?.id === parentThreadId
+      ? activeThread
+      : threadList.find((candidate) => candidate.id === parentThreadId)
+    const identityWorkspacePath = parent?.workspacePath
     const key = crypto.randomUUID()
     const ordinal = Math.max(0, ...sideChatsOf(get().chats, parentThreadId).map((chat) => chat.ordinal)) + 1
     const tabId = useDetailPanelStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
@@ -289,6 +299,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       chats.set(key, {
         key,
         parentThreadId,
+        identityWorkspacePath,
         threadId: null,
         tabId,
         ordinal,
@@ -304,7 +315,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     })
     if (contexts?.length) useComposerContextStore.getState().setContexts(key, contexts)
     connectionByKey.set(key, window.api.appServer.getConnectionKey())
-    const ready = forkSideChat(key, parentThreadId)
+    const ready = forkSideChat(key, parentThreadId, identityWorkspacePath)
     readyByKey.set(key, ready)
     get().requestFocus(key)
     if (prompt) await get().send(key, buildComposerInputParts({ ...prompt, threadId: parentThreadId }))
@@ -340,7 +351,13 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     try {
       const threadId = await (readyByKey.get(key) ?? Promise.resolve(chat.threadId))
       if (!threadId) throw new Error('The side chat is not ready.')
-      await request(key, 'turn/start', { threadId, input: inputParts, clientUserMessageId })
+      const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(chat.identityWorkspacePath)
+      await request(key, 'turn/start', {
+        threadId,
+        input: inputParts,
+        clientUserMessageId,
+        ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
+      })
     } catch (error) {
       update(key, (current) => ({
         ...current,

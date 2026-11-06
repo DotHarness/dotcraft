@@ -18,6 +18,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useGitStore } from '../stores/gitStore'
 import { useVoiceStore } from '../voice/voiceStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 
@@ -25,6 +26,22 @@ vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(),
 
 const sendRequest = vi.fn()
 const onOptimisticEcho = vi.fn()
+const workspaceRoots = ['X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
+
+function setLocalProject(): void {
+  useWorkspaceProjectsStore.setState({ projects: [{
+    kind: 'local',
+    path: workspaceRoots[0],
+    secondaryFolders: workspaceRoots.slice(1),
+    name: 'workspace',
+    state: 'foreground',
+    running: true,
+    loaded: true,
+    threadCount: 0,
+    threads: [],
+    pinned: false
+  }] })
+}
 
 function renderComposer(): void {
   render(
@@ -63,6 +80,7 @@ describe('InputComposer follow-up routing', () => {
     useProvidersStore.getState().reset()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
     useGitStore.getState().reset()
     useComposerPreferencesStore.setState({ followUpQueueMode: 'steer', saving: false })
     useComposerDraftStore.setState({ draftsByThread: {} })
@@ -86,12 +104,42 @@ describe('InputComposer follow-up routing', () => {
     expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
   })
 
-  it('does not notify when a maintenance submission is only enqueued', async () => {
+  it('synchronizes Project roots before queueing a maintenance submission without notifying', async () => {
+    setLocalProject()
     useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
+    let resume!: () => void
+    sendRequest.mockImplementation((method: string) => method === 'thread/resume'
+      ? new Promise<void>((resolve) => { resume = resolve })
+      : Promise.resolve({}))
     renderComposer()
     fireEvent.keyDown(draft('after compaction'), { key: 'Enter', code: 'Enter' })
 
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.objectContaining({ threadId: 'thread-1' })))
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('thread/resume', {
+      threadId: 'thread-1', runtimeWorkspaceRoots: workspaceRoots
+    }))
+    expect(sendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+    await act(async () => resume())
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.objectContaining({
+      threadId: 'thread-1', clientUserMessageId: expect.any(String), input: [{ type: 'text', text: 'after compaction' }]
+    })))
+    expect(onOptimisticEcho).not.toHaveBeenCalled()
+  })
+
+  it('restores the queued draft without enqueueing when workspace synchronization fails', async () => {
+    setLocalProject()
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: 'queue' })
+    sendRequest.mockImplementation((method: string) => method === 'thread/resume'
+      ? Promise.reject(new Error('workspace update failed'))
+      : Promise.resolve({}))
+    renderComposer()
+    const textbox = draft('keep this request')
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))
+    expect(sendRequest).toHaveBeenCalledWith('thread/resume', { threadId: 'thread-1', runtimeWorkspaceRoots: workspaceRoots })
+    expect(sendRequest).not.toHaveBeenCalledWith('turn/enqueue', expect.anything())
+    expect(useConversationStore.getState().queuedInputs).toEqual([])
+    expect(textbox).toHaveTextContent('keep this request')
     expect(onOptimisticEcho).not.toHaveBeenCalled()
   })
 
@@ -127,6 +175,7 @@ describe('InputComposer follow-up routing', () => {
   })
 
   it.each(['idle', 'running'] as const)('notifies for goal input only when it starts a turn from %s', async (status) => {
+    setLocalProject()
     useConversationStore.setState({ turnStatus: status, activeTurnId: status === 'running' ? 'turn-123' : null })
     useConnectionStore.setState({ capabilities: { threadGoals: true } })
     let setGoal!: (result: unknown) => void
@@ -155,7 +204,10 @@ describe('InputComposer follow-up routing', () => {
       await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({ sentAsGoal: true })))
       expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
     } else {
-      await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.objectContaining({ sentAsGoal: true })))
+      await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.objectContaining({
+        sentAsGoal: true, clientUserMessageId: expect.any(String), input: [{ type: 'text', text: 'Finish this objective' }]
+      })))
+      expect(sendRequest).toHaveBeenCalledWith('thread/resume', { threadId: 'thread-1', runtimeWorkspaceRoots: workspaceRoots })
       expect(onOptimisticEcho).not.toHaveBeenCalled()
     }
   })
@@ -181,10 +233,12 @@ describe('InputComposer follow-up routing', () => {
       threadId: 'thread-1', orderedQueuedInputIds: ['first', 'edited', 'last']
     }))
     expect(sendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
+    expect(sendRequest).not.toHaveBeenCalledWith('thread/resume', expect.anything())
     expect(onOptimisticEcho).not.toHaveBeenCalled()
   })
 
   it.each(['queue', 'steer'] as const)('echoes a %s input and restores its draft and attachments on failure without fallback', async (mode) => {
+    setLocalProject()
     useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
     useConversationStore.setState({ turns: [{
       id: 'turn-123', threadId: 'thread-1', status: 'running', items: [], startedAt: '2025-01-01T00:00:00Z'
@@ -224,6 +278,7 @@ describe('InputComposer follow-up routing', () => {
     }))
     expect(sendRequest).not.toHaveBeenCalledWith(mode === 'queue' ? 'turn/steer' : 'turn/enqueue', expect.anything())
     expect(sendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    if (mode === 'steer') expect(sendRequest).not.toHaveBeenCalledWith('thread/resume', expect.anything())
     expect(onOptimisticEcho).toHaveBeenCalledTimes(mode === 'steer' ? 1 : 0)
   })
 

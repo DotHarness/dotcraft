@@ -21,6 +21,7 @@ while the configured approval policy remains authoritative.
 
 - A local Project has one primary folder and zero or more secondary folders.
 - New chats start in the primary folder.
+- Project identity is explicit: source folder membership never determines which Project owns a chat.
 - Secondary folders are runtime content roots, never discovery roots.
 - Thread state ownership, the working directory, and runtime access boundaries are separate
   concepts.
@@ -53,7 +54,13 @@ order. `cwd` remains the source of relative paths.
 
 - **New chat:** `cwd` is the Project primary folder and the runtime roots are all attached folders.
 - **Folder added or removed:** Desktop sends the full current roots array on the next
-  `thread/resume` or `turn/start`; the new value is sticky for later turns.
+  `turn/start`, including a single-root array when the last secondary folder is removed. The new
+  value is sticky for later turns. Before queueing user input, Desktop updates the workspace through
+  `thread/resume` because `turn/enqueue` does not accept workspace overrides.
+- **History opened:** reading and subscribing to a thread does not change its workspace; the next
+  submitted Turn synchronizes its Project roots.
+- **Side chat:** the fork and each new Turn synchronize roots using the parent chat's captured
+  Project identity, not the currently foreground Project. Steering a running Turn does not update roots.
 - **Primary changed:** existing chats keep their `cwd` and their original `workspacePath`; new
   chats use the new primary. Desktop still synchronizes the roots.
 - **The chat's `cwd` folder was removed:** Desktop sends the current primary as `cwd` together with
@@ -62,8 +69,10 @@ order. `cwd` remains the source of relative paths.
 - **Worktree:** the worktree replaces only the ordinary cwd root; secondary roots are preserved and
   the persisted roots are not rewritten.
 
-Inactive threads are never mutated in the background; the AppServer request that activates a
-thread is the synchronization boundary.
+Inactive threads are never mutated in the background; an explicit workspace update or Turn submission
+is the synchronization boundary. Desktop resolves Project roots from its existing project identity,
+separately from the thread's effective cwd, and uses that same Project selection for the Files tree.
+Remote and default Chat workspaces do not inherit roots from local Project folder membership.
 
 ## 5. Discovery and Runtime Access
 

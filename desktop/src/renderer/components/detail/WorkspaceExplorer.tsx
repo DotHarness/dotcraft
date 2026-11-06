@@ -11,6 +11,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { useThreadStore } from '../../stores/threadStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
@@ -22,6 +23,8 @@ import { DirTreePlaceholder, DirTreeRow, DirTreeSkeleton, dirKey as norm, useDir
 export function WorkspaceExplorer(): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const identityWorkspacePath = useThreadStore((s) => s.activeThread?.workspacePath) ?? workspacePath
+  const effectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath) ?? workspacePath
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const activeFilePath = useDetailPanelStore((s) => {
     if (!s.currentThreadId) return null
@@ -32,7 +35,10 @@ export function WorkspaceExplorer(): JSX.Element {
   const explorerRevealPath = useUIStore((s) => s.explorerRevealPath)
   const consumeExplorerReveal = useUIStore((s) => s.consumeExplorerReveal)
 
-  const roots = useMemo(() => viewerRootsFor(workspacePath), [workspacePath, projects])
+  const roots = useMemo(
+    () => viewerRootsFor(effectiveWorkspacePath, identityWorkspacePath),
+    [effectiveWorkspacePath, identityWorkspacePath, projects]
+  )
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
   const root = selectedRoot && roots.includes(selectedRoot)
     ? selectedRoot

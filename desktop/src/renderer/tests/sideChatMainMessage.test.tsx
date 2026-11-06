@@ -13,6 +13,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 const chat: SideChat = {
   key: 'side-key',
   parentThreadId: 'thread-main',
+  identityWorkspacePath: undefined,
   threadId: 'thread-side',
   tabId: 'tab-side',
   ordinal: 1,

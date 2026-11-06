@@ -31,6 +31,17 @@ describe('viewerRoots', () => {
     expect(viewerRootsFor('')).toEqual([])
   })
 
+  it('uses the explicit project identity for a worktree without adding the original checkout', () => {
+    useWorkspaceProjectsStore.setState({
+      projects: [
+        project('X:/work/other', ['X:/work/app', 'X:/work/worktree']),
+        project('X:/work/app', ['X:/work/private'])
+      ]
+    })
+
+    expect(viewerRootsFor('X:/work/worktree', 'X:/work/app')).toEqual(['X:/work/worktree', 'X:/work/private'])
+  })
+
   it('picks the longest containing root case-insensitively and derives the relative path', () => {
     const roots = ['X:/work', 'X:/work/shared']
     expect(containingRoot('x:\\work\\shared\\src\\a.ts', roots)).toBe('X:/work/shared')

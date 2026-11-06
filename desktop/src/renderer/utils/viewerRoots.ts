@@ -1,17 +1,17 @@
-import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { runtimeWorkspaceRootsFor } from './workspaceRuntimeRoots'
 
 const norm = (value: string): string => value.replace(/\\/g, '/').replace(/\/+$/, '')
 
-export function viewerRootsFor(workspacePath: string | null | undefined): string[] {
+export function viewerRootsFor(
+  workspacePath: string | null | undefined,
+  identityWorkspacePath: string | null | undefined = workspacePath
+): string[] {
   const primary = workspacePath?.trim()
   if (!primary) return []
   const key = normalizeWorkspaceProjectKey(primary)
-  const project = useWorkspaceProjectsStore.getState().projects.find((entry) =>
-    entry.kind !== 'remote' &&
-    [entry.path, ...(entry.secondaryFolders ?? [])].some((folder) => normalizeWorkspaceProjectKey(folder) === key)
-  )
-  const folders = project ? [project.path, ...(project.secondaryFolders ?? [])] : []
+  const projectRoots = runtimeWorkspaceRootsFor(identityWorkspacePath)
+  const folders = projectRoots?.slice(1) ?? []
   const roots = [primary]
   const seen = new Set([key])
   for (const folder of folders) {

@@ -10,6 +10,7 @@ import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { sendComposerFollowUp } from '../../utils/composerFollowUp'
+import { enqueueTurn } from '../../utils/enqueueTurn'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -976,7 +977,8 @@ function InputComposerCore({
       }
       if (isBusyForInput) {
         const { inputParts } = buildComposerInputParts({ text: objective })
-        await window.api.appServer.sendRequest('turn/enqueue', {
+        await enqueueTurn({
+          identityWorkspacePath: workspacePath,
           clientUserMessageId: crypto.randomUUID(),
           threadId,
           input: inputParts,
@@ -1183,7 +1185,7 @@ function InputComposerCore({
       conversation.setQueuedInputs([...conversation.queuedInputs, echo])
       if (mode === 'steer') onOptimisticEcho?.()
       try {
-        const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, activeTurnId, input: parts })
+        const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, identityWorkspacePath: workspacePath, activeTurnId, input: parts })
         if (placeEdited) await placeEditedSubmission(result)
       } catch (err) {
         const latest = useConversationStore.getState()

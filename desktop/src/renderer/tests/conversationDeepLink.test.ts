@@ -5,6 +5,7 @@ import { openConversationLink } from '../utils/conversationDeepLink'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { useThreadStore } from '../stores/threadStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const classifyMock = vi.fn()
@@ -50,6 +51,7 @@ describe('openConversationLink', () => {
       activeDetailTab: { kind: 'system', id: 'changes' }
     })
     useToastStore.setState({ toasts: [] })
+    useThreadStore.getState().reset()
   })
 
   it('opens file links with line and column hints in the viewer and shows the detail panel', async () => {
@@ -132,7 +134,12 @@ describe('openConversationLink', () => {
     })
   })
 
-  it('shows files in attached Project folders relative to their own folder', async () => {
+  it('uses the owning Project for attached files while the thread works in a worktree', async () => {
+    useThreadStore.setState({ threadList: [{
+      id: 'thread-1', workspacePath: 'C:/repo', effectiveWorkspacePath: 'C:/worktree',
+      displayName: null, status: 'active', originChannel: 'dotcraft-desktop',
+      createdAt: '2026-11-06T00:00:00Z', lastActiveAt: '2026-11-06T00:00:00Z'
+    }] })
     useWorkspaceProjectsStore.setState({
       projects: [{
         kind: 'local',
@@ -150,7 +157,7 @@ describe('openConversationLink', () => {
     try {
       const ok = await openConversationLink({
         target: 'D:/design/tokens/colors.md',
-        workspacePath: 'C:/repo',
+        workspacePath: 'C:/worktree',
         threadId: 'thread-1',
         t
       })

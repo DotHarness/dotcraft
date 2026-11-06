@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useThreadStore } from '../stores/threadStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useSideChatStore } from '../stores/sideChatStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { parseSideSlashCommand, withoutSideCommand } from '../utils/sideChat'
@@ -55,6 +57,8 @@ beforeEach(() => {
     }
   })
   useSideChatStore.getState().reset()
+  useThreadStore.getState().reset()
+  useWorkspaceProjectsStore.getState().reset()
   useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: 'parent' })
   useConnectionStore.setState({ status: 'connected' })
 })
@@ -62,6 +66,7 @@ beforeEach(() => {
 afterEach(() => {
   useSideChatStore.getState().reset()
   useDetailPanelStore.setState({ byThread: new Map(), currentThreadId: null })
+  useWorkspaceProjectsStore.getState().reset()
   vi.unstubAllGlobals()
 })
 
@@ -106,6 +111,41 @@ describe('side chats', () => {
       ['turn-1', 'completed', ['user-1', 'agent-1']]
     ])
     expect(unread).toBe(true)
+  })
+
+  it('refreshes its parent project roots without following a different foreground project', async () => {
+    useThreadStore.setState({ threadList: [{
+      id: 'parent', workspacePath: 'X:/app', effectiveWorkspacePath: 'X:/worktree',
+      displayName: null, status: 'active', originChannel: 'dotcraft-desktop',
+      createdAt: '2026-11-06T00:00:00Z', lastActiveAt: '2026-11-06T00:00:00Z'
+    }] })
+    const project = {
+      kind: 'local' as const, path: 'X:/app', name: 'app', state: 'foreground' as const,
+      running: true, loaded: true, threadCount: 1, threads: [], pinned: false,
+      secondaryFolders: ['X:/shared']
+    }
+    const other = { ...project, path: 'X:/other', secondaryFolders: ['X:/app'] }
+    useWorkspaceProjectsStore.setState({ projects: [other, project] })
+    const key = await openSideChat('Check the shared code.')
+
+    expect(sendRequest).toHaveBeenCalledWith('thread/fork', {
+      threadId: 'parent', ephemeral: true, sideChat: true, runtimeWorkspaceRoots: ['X:/app', 'X:/shared']
+    })
+    expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({
+      runtimeWorkspaceRoots: ['X:/app', 'X:/shared']
+    }))
+    emit('turn/completed', { turn: { id: 'turn-1', threadId: 'side-1', status: 'completed' } })
+
+    useThreadStore.setState({ activeThread: null, threadList: [] })
+    useWorkspaceProjectsStore.setState({
+      foregroundProjectId: 'X:/other', projects: [other, { ...project, secondaryFolders: ['X:/private'] }]
+    })
+    await useSideChatStore.getState().send(key, {
+      inputParts: [{ type: 'text', text: 'Check again.' }], visibleText: 'Check again.'
+    })
+    expect(sendConnectionRequest).toHaveBeenLastCalledWith('workspace-a', 'turn/start', expect.objectContaining({
+      threadId: 'side-1', runtimeWorkspaceRoots: ['X:/app', 'X:/private']
+    }))
   })
 
   it('guides the running side chat turn instead of starting another one', async () => {

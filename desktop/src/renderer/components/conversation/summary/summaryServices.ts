@@ -107,7 +107,7 @@ export interface SummaryServices {
   }
   readonly workspaces: {
     readImageAttachment(path: string): Promise<string>
-    roots(workspacePath: string): string[]
+    roots(workspacePath: string, threadId: string): string[]
   }
   readonly ui: {
     showError(message: string): void
@@ -199,7 +199,13 @@ export const desktopSummaryServices: SummaryServices = {
       }
       return loadLocalImageDataUrl(path)
     },
-    roots: viewerRootsFor
+    roots(workspacePath, threadId) {
+      const { activeThread, threadList } = useThreadStore.getState()
+      const thread = activeThread?.id === threadId
+        ? activeThread
+        : threadList.find((candidate) => candidate.id === threadId)
+      return viewerRootsFor(thread?.effectiveWorkspacePath ?? workspacePath, thread?.workspacePath ?? workspacePath)
+    }
   },
   ui: {
     showError: (message) => {

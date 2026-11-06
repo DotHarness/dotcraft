@@ -681,9 +681,7 @@ function ConversationWelcomeCore({
       : null
     const config = chatFolder?.config ?? welcomeThreadConfiguration
 
-    // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
-    // worktree/createAndStart does not accept runtime roots, so the first turn
-    // establishes them instead.
+    // worktree/createAndStart does not accept runtime roots; its first turn establishes them.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
     const nameField = displayName ? { displayName } : {}

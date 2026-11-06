@@ -24,6 +24,7 @@ function setTurn(status: ConversationTurn['status'], next = false): void {
   const chat: SideChat = {
     key: KEY,
     parentThreadId: 'thread-1',
+    identityWorkspacePath: WORKSPACE,
     threadId: 'side-1',
     tabId: 'tab-1',
     ordinal: 1,
