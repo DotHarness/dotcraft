@@ -26,6 +26,7 @@ public sealed class AppServerProcess : IAsyncDisposable
     private readonly ManagedChildProcess? _managedChild;
     private readonly int _processId;
     private readonly Task _stderrForwarderTask;
+    private readonly CancellationTokenSource _stderrStop = new();
     private readonly StringBuilder _stderrBuffer = new();
     private readonly Lock _stderrLock = new();
     private readonly ILogger? _logger;
@@ -325,15 +326,10 @@ public sealed class AppServerProcess : IAsyncDisposable
             _exitCode = null;
         }
 
-        // Drain stderr forwarder
-        try
-        {
-            await _stderrForwarderTask;
-        }
-        catch
-        {
-            // ignored
-        }
+        // Descendants can retain stderr after the AppServer exits.
+        await _stderrStop.CancelAsync();
+        await _stderrForwarderTask;
+        _stderrStop.Dispose();
 
         if (_managedChild is not null)
         {
@@ -448,7 +444,7 @@ public sealed class AppServerProcess : IAsyncDisposable
     {
         try
         {
-            while (await _process.StandardError.ReadLineAsync() is { } line)
+            while (await _process.StandardError.ReadLineAsync(_stderrStop.Token) is { } line)
             {
                 AppendStderrLine(line);
                 _logger?.LogWarning(

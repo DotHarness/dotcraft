@@ -251,6 +251,8 @@ Closing a local client does not stop a healthy managed AppServer or cancel start
 
 Hub shutdown emits `hub.stopping`, ends SSE streams, and closes satellite control and data connections and their listener before waiting for the HTTP API to stop. It then stops the AppServers and services it manages concurrently, releases local state, and removes `hub.lock` last, so a replacement Hub never manages processes the previous one still owns.
 
+AppServer supervision stops stderr forwarding after the process exit wait, cancelling any pending read rather than waiting for pipe EOF. Descendants can retain the pipe after the AppServer exits; their handles must not prevent supervisor cleanup or Hub ownership release.
+
 Desktop has one application update coordinator. It stops new starts and retries and cancels its local work without treating SSE lifetimes as an idle barrier before Hub shutdown. Once stopping begins, Hub rejects new ensure/restart/service-start admission and cancels incomplete starts before disposing registries. Hub owns shutdown of its managed processes and streams. The Hub lock's executable identity selects the installation; shutdown and any bounded force fallback target the captured process identity, not whichever process later owns discovery. Process identity must include a defense against PID reuse. Other runtimes are not stopped merely because they own the user-scoped Hub lock. The installer retains its final file-use check.
 
 ### Product-owned local services
