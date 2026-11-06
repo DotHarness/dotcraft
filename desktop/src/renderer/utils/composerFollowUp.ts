@@ -1,19 +1,21 @@
 import type { FollowUpQueueMode } from '../../shared/desktopSettings'
 import type { InputPart, QueuedTurnInput } from '../types/conversation'
+import { enqueueTurn } from './enqueueTurn'
 
-/** The server's queue after an enqueue, or null for a steer. */
 export type ComposerFollowUpResult = { queuedInput?: QueuedTurnInput; queuedInputs?: QueuedTurnInput[] } | null
 
 export async function sendComposerFollowUp({
   clientUserMessageId = crypto.randomUUID(),
   mode,
   threadId,
+  identityWorkspacePath,
   activeTurnId,
   input
 }: {
   clientUserMessageId?: string
   mode: FollowUpQueueMode
   threadId: string
+  identityWorkspacePath: string
   activeTurnId: string | null
   input: InputPart[]
 }): Promise<ComposerFollowUpResult> {
@@ -30,5 +32,5 @@ export async function sendComposerFollowUp({
     })
     return null
   }
-  return await window.api.appServer.sendRequest('turn/enqueue', { threadId, input, clientUserMessageId, sender: undefined }) as ComposerFollowUpResult
+  return await enqueueTurn({ identityWorkspacePath, threadId, input, clientUserMessageId, sender: undefined }) as ComposerFollowUpResult
 }

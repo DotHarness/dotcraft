@@ -50,7 +50,7 @@ export interface IpcHandlerCallbacks {
   getWorkspaceProjects?: () => WorkspaceProjectsPayload
   removeProject?: (workspacePath: string) => Promise<void>
   saveLocalProject?: (params: {
-    previousPath?: string
+    projectPath?: string
     primaryFolder: string
     secondaryFolders: string[]
     name?: string

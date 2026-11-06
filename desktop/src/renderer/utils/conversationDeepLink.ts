@@ -1,5 +1,6 @@
 import { resolveConversationLink, type LinkRejectReason } from '../../shared/viewer/linkResolver'
 import type { FileNavigationHint } from '../../shared/viewer/types'
+import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { useDetailPanelStore, type FileReveal } from '../stores/detailPanelStore'
 import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
@@ -21,8 +22,13 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, '/')
 }
 
-export function deriveRelativePathForViewer(absolutePath: string, workspacePath: string): string {
-  const root = containingRoot(absolutePath, viewerRootsFor(workspacePath))
+export function deriveRelativePathForViewer(
+  absolutePath: string,
+  workspacePath: string,
+  identityWorkspacePath: string = workspacePath,
+  worktreeSourcePath?: string
+): string {
+  const root = containingRoot(absolutePath, viewerRootsFor(workspacePath, identityWorkspacePath, worktreeSourcePath))
   return root ? relativeToRoot(absolutePath, root) : normalizePath(absolutePath)
 }
 
@@ -41,7 +47,16 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
   const authorized = await window.api.workspace.viewer.authorizeFile({ absolutePath: params.absolutePath })
   const absolutePath = authorized.absolutePath
   const classified = await window.api.workspace.viewer.classify({ absolutePath })
-  const relativePath = deriveRelativePathForViewer(absolutePath, params.workspacePath)
+  const { activeThread, threadList } = useThreadStore.getState()
+  const thread = activeThread?.id === params.threadId
+    ? activeThread
+    : threadList.find((candidate) => candidate.id === params.threadId)
+  const worktreeSourcePath = thread?.worktree
+    ? (activeThread?.id === params.threadId ? activeThread.configuration?.cwd : undefined) ?? thread.worktree.sourceWorkspacePath
+    : undefined
+  const relativePath = deriveRelativePathForViewer(
+    absolutePath, params.workspacePath, thread?.workspacePath, worktreeSourcePath
+  )
   const tabId = useDetailPanelStore.getState().openFile({
     threadId: params.threadId,
     absolutePath,

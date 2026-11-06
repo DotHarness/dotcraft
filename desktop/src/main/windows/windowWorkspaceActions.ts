@@ -93,13 +93,10 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       await ctx.removeLocalProject(workspacePath)
     },
     saveLocalProject: async (params) => {
-      await ctx.app.localProjects.open(params.primaryFolder.trim())
-      const primaryFolder = saveLocalProjectDetails(ctx.settings, params)
+      await ctx.app.localProjects.open(params.projectPath?.trim() || params.primaryFolder.trim())
+      saveLocalProjectDetails(ctx.settings, params)
       ctx.app.persistWindowSettings(ctx.settings)
       ctx.emitWorkspaceProjects()
-      if (params.previousPath && !ctx.isSameWorkspacePath(params.previousPath, primaryFolder)) {
-        await ctx.app.localProjects.remove(params.previousPath)
-      }
     },
     restartWorkspace: async (workspacePath: string) => {
       const hubClient = ctx.app.createHubClient(ctx.settings)

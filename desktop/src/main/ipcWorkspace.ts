@@ -71,7 +71,7 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
     async (
       _event,
       params: {
-        previousPath?: string
+        projectPath?: string
         primaryFolder: string
         secondaryFolders: string[]
         name?: string
@@ -90,13 +90,16 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
       if (!isDirectory) {
         throw new Error(`Primary folder does not exist: ${primaryFolder}`)
       }
+      const projectPath = typeof params?.projectPath === 'string' && params.projectPath.trim()
+        ? params.projectPath.trim()
+        : primaryFolder
       await callbacks.saveLocalProject?.({
-        previousPath: typeof params?.previousPath === 'string' ? params.previousPath : undefined,
+        projectPath,
         primaryFolder,
         secondaryFolders: Array.isArray(params?.secondaryFolders) ? params.secondaryFolders : [],
         name: typeof params?.name === 'string' ? params.name : undefined
       })
-      return { path: primaryFolder }
+      return { path: projectPath }
     }
   )
 

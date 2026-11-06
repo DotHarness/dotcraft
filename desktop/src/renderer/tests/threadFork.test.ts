@@ -14,14 +14,15 @@ describe('runThreadFork', () => {
     vi.mocked(createForkWorktreeThread).mockReset()
   })
 
-  it('looks up the worktree environment in the source thread project, not the execution workspace', async () => {
+  it.each([false, true])('separates environment discovery from state identity (worktree=%s)', async (worktree) => {
     const source = {
       id: 'source',
       workspacePath: 'C:/projects/app',
-      worktree: { path: 'C:/projects/app/.craft/worktrees/feature', sourceWorkspacePath: 'C:/projects/app' }
+      effectiveWorkspacePath: worktree ? 'C:/worktrees/feature' : 'C:/projects/library',
+      ...(worktree ? { worktree: { path: 'C:/worktrees/feature', sourceWorkspacePath: 'C:/projects/library' } } : {})
     } as unknown as ThreadSummary
     useThreadStore.setState({ activeThreadId: 'source', activeThread: source, threadList: [source] } as never)
-    useConversationStore.setState({ workspacePath: 'C:/projects/app/.craft/worktrees/feature', remoteWorkspaceActive: false } as never)
+    useConversationStore.setState({ workspacePath: source.effectiveWorkspacePath, remoteWorkspaceActive: false })
     vi.mocked(createForkWorktreeThread).mockResolvedValue({ id: 'fork' } as ThreadSummary)
 
     await runThreadFork({ threadId: 'source', mode: 'worktree', t: (key) => key })
@@ -29,6 +30,7 @@ describe('runThreadFork', () => {
     expect(createForkWorktreeThread).toHaveBeenCalledWith(expect.objectContaining({
       sourceThreadId: 'source',
       workspacePath: 'C:/projects/app',
+      sourceWorkspacePath: 'C:/projects/library',
       local: true
     }))
   })

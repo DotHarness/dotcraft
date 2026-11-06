@@ -7,6 +7,7 @@ import { translate } from '../shared/locales'
 import { forgeReferences } from './forgeReferences'
 import { applyGitPatch } from './gitApplyPatch'
 import { runGitCommand } from './gitCommand'
+import { viewerRootsFor } from './viewerFileProtocol'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
 import {
   assertGitInspectionPath,
@@ -28,6 +29,9 @@ interface GitBranchListResult {
 
 export function registerGitHandlers(context: WindowIpcContext): void {
   const { handleSafe, workspacePath, callbacks, owner } = context
+  const requireGitWorkspacePath = (requestedPath: string): string => assertGitWorkspacePath(
+    requestedPath, workspacePath, mainLocale(callbacks), viewerRootsFor(workspacePath, requestedPath, owner.webContents.id)
+  )
   handleSafe('file:write', async (_event, absPath: string, content: string) => {
     const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
     await fs.mkdir(path.dirname(resolved), { recursive: true })
@@ -67,7 +71,7 @@ export function registerGitHandlers(context: WindowIpcContext): void {
 
   handleSafe('git:commit', async (_event, wsPath: string, files: string[], message: string): Promise<string> => {
     const locale = mainLocale(callbacks)
-    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const gitWorkspacePath = requireGitWorkspacePath(wsPath)
     if (!Array.isArray(files)) {
       throw new Error(translate(locale, 'ipc.noGitChangesToCommit'))
     }
@@ -91,11 +95,10 @@ export function registerGitHandlers(context: WindowIpcContext): void {
     return commit.stdout.trim()
   })
   handleSafe('git:applyPatch', async (_event, wsPath: string, patchText: string, options: GitApplyPatchOptions) =>
-    applyGitPatch(assertGitWorkspacePath(wsPath, workspacePath, mainLocale(callbacks)), patchText, options)
+    applyGitPatch(requireGitWorkspacePath(wsPath), patchText, options)
   )
   handleSafe('git:branch', async (_event, wsPath: string): Promise<string | null> => {
-    const locale = mainLocale(callbacks)
-    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const gitWorkspacePath = requireGitWorkspacePath(wsPath)
     try {
       await runGitCommand(gitWorkspacePath, ['rev-parse', '--is-inside-work-tree'])
       const branch = (await runGitCommand(gitWorkspacePath, ['branch', '--show-current'])).stdout.trim()
@@ -166,8 +169,7 @@ export function registerGitHandlers(context: WindowIpcContext): void {
     (_event, host: unknown, url: unknown): Promise<string | null> => forgeReferences.getAuthorAvatar(host, url)
   )
   handleSafe('git:listBranches', async (_event, wsPath: string): Promise<GitBranchListResult> => {
-    const locale = mainLocale(callbacks)
-    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const gitWorkspacePath = requireGitWorkspacePath(wsPath)
     await runGitCommand(gitWorkspacePath, ['rev-parse', '--is-inside-work-tree'])
     const current = (await runGitCommand(gitWorkspacePath, ['branch', '--show-current'])).stdout.trim() || null
     const detachedHead = current
@@ -187,15 +189,13 @@ export function registerGitHandlers(context: WindowIpcContext): void {
     return { current, detachedHead, branches }
   })
   handleSafe('git:checkoutBranch', async (_event, wsPath: string, branchName: string): Promise<void> => {
-    const locale = mainLocale(callbacks)
-    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const gitWorkspacePath = requireGitWorkspacePath(wsPath)
     const branch = typeof branchName === 'string' ? branchName.trim() : ''
     if (!branch) throw new Error('Branch name is required.')
     await runGitCommand(gitWorkspacePath, ['switch', branch])
   })
   handleSafe('git:createAndCheckoutBranch', async (_event, wsPath: string, branchName: string): Promise<void> => {
-    const locale = mainLocale(callbacks)
-    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const gitWorkspacePath = requireGitWorkspacePath(wsPath)
     const branch = typeof branchName === 'string' ? branchName.trim() : ''
     if (!branch) throw new Error('Branch name is required.')
     await runGitCommand(gitWorkspacePath, ['check-ref-format', '--branch', branch])

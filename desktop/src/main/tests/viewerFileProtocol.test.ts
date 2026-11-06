@@ -31,6 +31,7 @@ import {
   handleViewerFileRequest as handleViewerFileRequestForOwner,
   installViewerProtocolHandlerForSession,
   isPathInsideViewerRoots,
+  resolveScopedViewerFileForAccess,
   resolveViewerFileForAccess,
   viewerRootsFor,
   viewerUrlToPath
@@ -55,7 +56,7 @@ beforeEach(() => {
   chatRoots = () => []
   release = registerWindowFileAccess(OWNER, {
     getWorkspaceRoot: () => workspaceRoot,
-    getSecondaryRoots: root => secondaryRoots(root),
+    getWorkspaceRoots: root => [root, ...secondaryRoots(root)],
     getChatFolderRoots: () => chatRoots()
   })
   netFetchMock.mockReset()
@@ -201,7 +202,7 @@ describe('window-scoped protocol authorization', () => {
     const win = { webContents: { id: ownerId, session: targetSession } } as Electron.BrowserWindow
     const dispose = bindViewerWindow(win, {
       getWorkspaceRoot: () => root,
-      getSecondaryRoots: () => secondary,
+      getWorkspaceRoots: () => [root, ...secondary],
       getChatFolderRoots: () => chats
     })
     return { targetSession, dispose, request: (request: Request) => handlers.get(VIEWER_SCHEME)!(request) }
@@ -255,6 +256,48 @@ describe('window-scoped protocol authorization', () => {
     } finally {
       first.dispose()
       second.dispose()
+    }
+  })
+
+  it('refreshes full content roots for existing foreground and scoped contexts without authorizing the state anchor', async () => {
+    const anchor = createTempDir()
+    const previousSecondary = createTempDir()
+    const primary = createTempDir()
+    const secondary = createTempDir()
+    const files = [anchor, previousSecondary, primary, secondary].map(root => join(root, 'content.txt'))
+    for (const file of files) writeFileSync(file, 'content')
+    let roots = [anchor, previousSecondary]
+    const handlers = new Map<string, (request: Request) => Promise<Response>>()
+    const targetSession = {
+      protocol: { handle: (scheme: string, handler: (request: Request) => Promise<Response>) => handlers.set(scheme, handler) }
+    } as unknown as Electron.Session
+    const dispose = registerWindowFileAccess(11, {
+      getWorkspaceRoot: () => anchor,
+      getWorkspaceRoots: identity => identity === anchor ? roots : [identity]
+    })
+    installViewerProtocolHandlerForSession(targetSession, 11, anchor)
+    const status = async (file: string, scoped: boolean) => {
+      const request = new Request(buildViewerUrl(file))
+      return (await (scoped ? handlers.get(VIEWER_SCHEME)!(request) : handleViewerFileRequestForOwner(request, 11))).status
+    }
+    try {
+      for (const file of files.slice(0, 2)) {
+        expect(await status(file, false)).toBe(200)
+        expect(await status(file, true)).toBe(200)
+      }
+      roots = [primary, secondary]
+      for (const file of files.slice(0, 2)) {
+        expect(await status(file, false)).toBe(403)
+        expect(await status(file, true)).toBe(403)
+        await expect(resolveScopedViewerFileForAccess(file, anchor, 11)).rejects.toThrow('denied')
+      }
+      for (const file of files.slice(2)) {
+        expect(await status(file, false)).toBe(200)
+        expect(await status(file, true)).toBe(200)
+        await expect(resolveScopedViewerFileForAccess(file, anchor, 11)).resolves.toBe(realpathSync.native(file))
+      }
+    } finally {
+      dispose()
     }
   })
 

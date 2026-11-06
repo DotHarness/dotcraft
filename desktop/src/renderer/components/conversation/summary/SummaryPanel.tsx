@@ -232,7 +232,7 @@ export function SummaryPanel({
         services={services}
         threadId={threadId}
         workspacePath={workspacePath}
-        roots={workspacePath ? services.workspaces.roots(workspacePath) : []}
+        roots={workspacePath ? services.workspaces.roots(workspacePath, threadId) : []}
         changes={changes}
       />
     </div>

@@ -1017,9 +1017,8 @@ const api = {
       return ipcRenderer.invoke('workspace:create-local-project', params)
     },
 
-    /** A `previousPath` that differs from `primaryFolder` reassigns the Project identity. */
     saveLocalProject(params: {
-      previousPath?: string
+      projectPath?: string
       primaryFolder: string
       secondaryFolders: string[]
       name?: string

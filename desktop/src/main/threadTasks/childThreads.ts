@@ -10,9 +10,15 @@ const WORKTREE_CREATION_TIMEOUT_MS = 180_000
 
 type JsonObject = Record<string, unknown>
 
+export interface ThreadTaskWorkspace {
+  cwd: string
+  runtimeWorkspaceRoots: string[]
+}
+
 export interface ThreadTaskConnection {
   ownerId?: number
   workspacePath: string
+  getProjectWorkspace?: () => ThreadTaskWorkspace | undefined
   request<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T>
   createChatFolder?: (firstMessage: string) => Promise<string>
 }
@@ -56,7 +62,8 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
     throw new Error('No Desktop workspace is currently open.')
   }
   const options = spec.options ?? {}
-  const config: JsonObject = {}
+  const workspace = connection.getProjectWorkspace?.()
+  const config: JsonObject = { ...workspace }
   const model = options.model ?? spec.defaults.model
   if (model) {
     config.model = model
@@ -96,7 +103,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
 
   const callerThreadId = spec.callerThreadId?.trim()
   if (callerThreadId) params.spawnedFromThreadId = callerThreadId
-  if (connection.createChatFolder) {
+  if (connection.createChatFolder && !workspace) {
     params.cwd = await connection.createChatFolder(spec.folderSeed)
     config.developerInstructions = STANDALONE_CHAT_INSTRUCTIONS
   }

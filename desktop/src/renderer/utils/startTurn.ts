@@ -9,7 +9,7 @@ import { isLineCommentContext } from '../../shared/messageComments'
 import { buildComposerInputParts } from './composeInputParts'
 import { generateThreadTitle, threadTitleRequest, type ThreadTitleRequest } from './threadTitleGeneration'
 import { getFallbackThreadName } from './threadFallbackName'
-import { runtimeWorkspaceRootsFor } from './workspaceRuntimeRoots'
+import { threadWorkspaceUpdateFor } from './workspaceRuntimeRoots'
 
 interface StartTurnParams {
   clientUserMessageId?: string
@@ -118,8 +118,7 @@ export async function submitOptimisticTurn(
 ): Promise<void> {
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
-    // Updating runtime roots replaces the root list without changing the thread's working directory.
-    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    const workspaceUpdate = threadWorkspaceUpdateFor(threadId, identityPath)
     if (echo.title?.rename) {
       await window.api.appServer.sendRequest('thread/rename', {
         threadId,
@@ -131,7 +130,7 @@ export async function submitOptimisticTurn(
       input: echo.inputParts,
       clientUserMessageId: echo.clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
-      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
+      ...workspaceUpdate
     })
     const res = result as { turn?: { id?: string } }
     if (res.turn?.id && echo.onScreen) {
@@ -153,11 +152,11 @@ export async function reissueFailedTurn({
   identityWorkspacePath
 }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath'>): Promise<void> {
   const identityPath = identityWorkspacePath ?? workspacePath
-  const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+  const workspaceUpdate = threadWorkspaceUpdateFor(threadId, identityPath)
   await window.api.appServer.sendRequest('turn/start', {
     threadId,
     input: [],
-    ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
+    ...workspaceUpdate
   })
 }
 

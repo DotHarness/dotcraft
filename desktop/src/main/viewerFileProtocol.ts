@@ -160,7 +160,7 @@ function contextRootsFor(context: WindowFileAccess, targetPath?: string): string
       if (chatFolder) break
     }
   }
-  for (const candidate of [workspaceRoot, ...(context.getSecondaryRoots?.(workspaceRoot) ?? []), ...(chatFolder ? [chatFolder] : [])]) {
+  for (const candidate of [...context.getWorkspaceRoots(workspaceRoot), ...(chatFolder ? [chatFolder] : [])]) {
     if (!candidate) continue
     const resolved = path.resolve(candidate)
     const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved

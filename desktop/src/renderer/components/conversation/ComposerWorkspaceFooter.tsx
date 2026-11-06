@@ -44,6 +44,7 @@ export type ComposerWorkspaceMode = 'local' | 'worktree'
 
 interface ComposerWorkspaceFooterProps {
   workspacePath: string
+  sourceWorkspacePath?: string
   mode: ComposerWorkspaceMode
   variant: 'welcome' | 'thread'
   remoteWorkspace?: boolean
@@ -79,6 +80,7 @@ function currentBranchLabel(branches: GitBranchListSnapshot | null): string | nu
 
 export function ComposerWorkspaceFooter({
   workspacePath,
+  sourceWorkspacePath = workspacePath,
   mode,
   variant,
   remoteWorkspace = false,
@@ -128,7 +130,7 @@ export function ComposerWorkspaceFooter({
       ? t('workspaceFooter.handoffUnavailableWithQueuedMessages')
       : null
   const { foregroundIsChat, selectedProject } = projectChoices
-  const branchActionPath = workspacePath.trim()
+  const branchActionPath = sourceWorkspacePath.trim()
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const ensureSourceControl = useSourceControlStore((s) => s.ensure)
   const sourceControlWorkspacePath = useSourceControlStore((s) => s.workspacePath)

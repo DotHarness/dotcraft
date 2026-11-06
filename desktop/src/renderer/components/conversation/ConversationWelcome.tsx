@@ -78,7 +78,8 @@ import {
 } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
-import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
+import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
+import { useWelcomeWorkspace } from './useWelcomeWorkspace'
 import { WelcomeHeading } from './WelcomeHeading'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
@@ -197,13 +198,13 @@ function ConversationWelcomeCore({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalComposeMode, setGoalComposeMode] = useState(false)
-  const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
-  const [welcomeBaseRef, setWelcomeBaseRef] = useState<string | null>(null)
-  const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
-  const [welcomeChangelist, setWelcomeChangelist] = useState<string>('default')
-  useEffect(() => {
-    setWelcomeChangelist('default')
-  }, [identityPath])
+  const {
+    sourceWorkspacePath,
+    welcomeWorkspaceMode, changeWelcomeWorkspaceMode,
+    welcomeBaseRef, setWelcomeBaseRef,
+    welcomeWorktreeBranchName, setWelcomeWorktreeBranchName,
+    welcomeChangelist, setWelcomeChangelist
+  } = useWelcomeWorkspace(identityPath)
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const workspaceConfig = useConfig()
@@ -610,13 +611,6 @@ function ConversationWelcomeCore({
     }
   }, [flushWelcomeDraft])
 
-  const changeWelcomeWorkspaceMode = useCallback((nextMode: ComposerWorkspaceMode): void => {
-    setWelcomeWorkspaceMode(nextMode)
-    if (nextMode === 'local') {
-      setWelcomeWorktreeBranchName(null)
-    }
-  }, [])
-
   const switchWelcomeWorkspace = useCallback(async (nextWorkspacePath: string): Promise<void> => {
     if (nextWorkspacePath === workspacePath) return
     flushWelcomeDraft()
@@ -679,18 +673,18 @@ function ConversationWelcomeCore({
     const chatFolder = startsInChatFolder(identityPath, remoteWorkspace)
       ? await chatFolderThreadStart(firstMessage, welcomeThreadConfiguration)
       : null
-    const config = chatFolder?.config ?? welcomeThreadConfiguration
-
-    // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
-    // worktree/createAndStart does not accept runtime roots, so the first turn
-    // establishes them instead.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    const config = {
+      ...(chatFolder?.config ?? welcomeThreadConfiguration),
+      ...(runtimeWorkspaceRoots ? { cwd: runtimeWorkspaceRoots[0] } : {})
+    }
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
     const nameField = displayName ? { displayName } : {}
 
     const thread = welcomeWorkspaceMode === 'worktree' && !chatFolder
       ? await createWelcomeWorktreeThread({
           workspacePath: identityPath,
+          sourceWorkspacePath,
           local: !remoteWorkspace,
           params: {
             identity,
@@ -719,6 +713,7 @@ function ConversationWelcomeCore({
     return thread
   }, [
     identityPath,
+    sourceWorkspacePath,
     remoteWorkspace,
     welcomeBaseRef,
     welcomeChangelist,
@@ -1455,7 +1450,8 @@ function ConversationWelcomeCore({
                   context={desktopPluginSurfaceContext}
                   workspace={openingWorkspace ? <WelcomeFooterSkeleton /> : (
                     <ComposerWorkspaceFooter
-                      workspacePath={workspacePath}
+                      workspacePath={identityPath}
+                      sourceWorkspacePath={sourceWorkspacePath}
                       mode={welcomeWorkspaceMode}
                       variant="welcome"
                       remoteWorkspace={remoteWorkspace}

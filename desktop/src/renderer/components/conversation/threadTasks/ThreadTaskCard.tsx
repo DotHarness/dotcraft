@@ -9,6 +9,7 @@ import { addToast } from '../../../stores/toastStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { buildComposerInputParts } from '../../../utils/composeInputParts'
 import { startTurnWithOptimisticUI } from '../../../utils/startTurn'
+import { enqueueTurn } from '../../../utils/enqueueTurn'
 import { Button } from '../../ui/Button'
 import { ContextMenu, type ContextMenuPosition } from '../../ui/ContextMenu'
 import { IconButton } from '../../ui/IconButton'
@@ -214,7 +215,8 @@ async function sendHere(task: ThreadTask, fallbackThreadName: string): Promise<v
     })
   } else {
     const { inputParts } = buildComposerInputParts({ text })
-    await window.api.appServer.sendRequest('turn/enqueue', {
+    await enqueueTurn({
+      identityWorkspacePath: task.workspacePath,
       clientUserMessageId: crypto.randomUUID(),
       threadId: task.threadId,
       input: inputParts

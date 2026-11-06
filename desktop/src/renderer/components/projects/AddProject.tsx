@@ -1,7 +1,6 @@
 import { useCallback, useState, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
-import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { ProjectDialog, type FolderEntry, type ProjectDialogResult } from './ProjectDialog'
 
@@ -28,9 +27,9 @@ interface DialogState {
 }
 
 function toFolderEntries(project: WorkspaceProjectSummary): FolderEntry[] {
-  const secondary = Array.isArray(project.secondaryFolders) ? project.secondaryFolders : []
+  const secondary = project.secondaryFolders ?? []
   return [
-    { id: 'primary', path: project.path },
+    { id: 'primary', path: project.primaryFolder ?? project.path },
     ...secondary.map((path, index) => ({ id: `secondary-${index}`, path }))
   ]
 }
@@ -75,19 +74,12 @@ export function useAddProjectFlow(): AddProjectFlow {
           await window.api.workspace.switch(path)
         }
       } else if (state.project) {
-        const primaryFolder = result.folders[0].path
-        const primaryChanged = !sameWorkspaceProjectKey(primaryFolder, state.project.path)
         await window.api.workspace.saveLocalProject({
-          previousPath: state.project.path,
-          primaryFolder,
+          projectPath: state.project.identityWorkspacePath ?? state.project.path,
+          primaryFolder: result.folders[0].path,
           secondaryFolders,
           name: result.name.trim() || undefined
         })
-        // The active project's live connection points at the old primary; re-open
-        // the new primary so the foreground workspace follows the change.
-        if (state.active && primaryChanged) {
-          await window.api.workspace.switch(primaryFolder)
-        }
       }
       setState(null)
     } catch (err) {
