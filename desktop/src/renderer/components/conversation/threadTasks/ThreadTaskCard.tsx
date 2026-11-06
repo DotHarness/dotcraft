@@ -76,7 +76,7 @@ function OutcomeRow({ task }: { task: ThreadTask }): JSX.Element {
   if (task.state === 'started' && task.childThreadId) return <StartedRow task={task} childThreadId={task.childThreadId} />
   return (
     <div className={`${css.row} ${css.line}`} data-state={task.state}>
-      <span className={css.lineTitle}>{task.title}</span>
+      <RunningShimmer active={task.state === 'accepted' || task.state === 'starting'} className={css.lineTitle}>{task.title}</RunningShimmer>
       <span className={css.status}>{statusLabel(t, task)}</span>
     </div>
   )
