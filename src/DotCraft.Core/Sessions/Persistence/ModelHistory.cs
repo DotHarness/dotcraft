@@ -19,7 +19,6 @@ internal interface IRolloutReplayer
 #pragma warning disable MEAI001 // Persist the complete runtime usage contract, including preview counters.
 internal sealed class ModelHistoryCodec
 {
-    // Model history schema v1 was established on 2026-08-25.
     public const int CurrentSchemaVersion = 1;
 
     private const int CurrentResultSchemaVersion = 1;
@@ -120,6 +119,18 @@ internal sealed class ModelHistoryCodec
                 Result = EncodeFunctionResult(value.Result),
                 AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
             }),
+            WebSearchToolCallContent value => CreateContent("web_search_call", new PersistedWebSearchCallContent
+            {
+                CallId = value.CallId,
+                Queries = value.Queries?.ToList(),
+                AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
+            }),
+            WebSearchToolResultContent value => CreateContent("web_search_result", new PersistedWebSearchResultContent
+            {
+                CallId = value.CallId,
+                Outputs = value.Outputs?.Select(EncodeContent).ToList(),
+                AdditionalProperties = SerializeAdditionalProperties(value.AdditionalProperties)
+            }),
             ErrorContent value => CreateContent("error", new PersistedErrorContent
             {
                 Message = value.Message,
@@ -199,6 +210,8 @@ internal sealed class ModelHistoryCodec
             "data" => DecodeData(content),
             "function_call" => DecodeFunctionCall(content),
             "function_result" => DecodeFunctionResult(content),
+            "web_search_call" => DecodeWebSearchCall(content),
+            "web_search_result" => DecodeWebSearchResult(content),
             "error" => DecodeError(content),
             "uri" => DecodeUri(content),
             "usage" => DecodeUsage(content),
@@ -261,6 +274,27 @@ internal sealed class ModelHistoryCodec
         var payload = DeserializePayload<PersistedFunctionResultContent>(content);
         return ApplyAdditionalProperties(
             new FunctionResultContent(payload.CallId, DecodeFunctionResult(payload.Result)),
+            payload.AdditionalProperties);
+    }
+
+    private static AIContent DecodeWebSearchCall(ModelHistoryContent content)
+    {
+        var payload = DeserializePayload<PersistedWebSearchCallContent>(content);
+        return ApplyAdditionalProperties(
+            new WebSearchToolCallContent(payload.CallId) { Queries = payload.Queries },
+            payload.AdditionalProperties);
+    }
+
+    private static AIContent DecodeWebSearchResult(ModelHistoryContent content)
+    {
+        var payload = DeserializePayload<PersistedWebSearchResultContent>(content);
+        if (payload.Outputs?.Any(static output => output is null) == true)
+            throw new JsonException("Model history web search result contains a null output entry.");
+        return ApplyAdditionalProperties(
+            new WebSearchToolResultContent(payload.CallId)
+            {
+                Outputs = payload.Outputs?.Select(DecodeContent).ToList()
+            },
             payload.AdditionalProperties);
     }
 
@@ -549,6 +583,20 @@ internal sealed class PersistedFunctionResultContent : PersistedModelContentPayl
     public required string CallId { get; init; }
 
     public required PersistedFunctionResult Result { get; init; }
+}
+
+internal sealed class PersistedWebSearchCallContent : PersistedModelContentPayload
+{
+    public required string CallId { get; init; }
+
+    public required List<string>? Queries { get; init; }
+}
+
+internal sealed class PersistedWebSearchResultContent : PersistedModelContentPayload
+{
+    public required string CallId { get; init; }
+
+    public required List<ModelHistoryContent>? Outputs { get; init; }
 }
 
 internal sealed class PersistedFunctionResult

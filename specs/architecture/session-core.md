@@ -775,6 +775,8 @@ Every content value is `{ kind, payload }` with schema version 1. The payload un
 | `data` | `base64Data`, `mediaType`, `name` |
 | `function_call` | `callId`, `name`, `arguments`, `informationalOnly`, `namespace`, `providerFlatName` |
 | `function_result` | `callId`, versioned result union |
+| `web_search_call` | `callId`, nullable `queries` |
+| `web_search_result` | `callId`, nullable `outputs` (ordered contents from this union) |
 | `error` | `message`, `errorCode`, `details` |
 | `uri` | `uri`, `mediaType` |
 | `usage` | standard token counts and `additionalCounts` |
@@ -782,6 +784,7 @@ Every content value is `{ kind, payload }` with schema version 1. The payload un
 
 - Only version 1 is written or read; unknown versions are rejected through bounded replay. Rollout records are never migrated or rewritten.
 - A function result is either `json` (any JSON value) or `contents` (an ordered list from the same content union). Binary data is stored once as base64; derived data URIs are not duplicated.
+- Hosted web-search calls and results are informational assistant content, not client function calls. Their queries, outputs, and extension properties round-trip without executing a local tool or synthesizing a function result. The provider adapter owns any native replay metadata stored in their extension properties.
 - Function-call `namespace` and `providerFlatName` are strong fields even when also present in extension properties. A conflict between them makes the content invalid, and replay applies its whole-Turn fallback rather than choosing one.
 - Message- and content-level extension properties round-trip as JSON; runtime object identity is not preserved. Raw provider representations and runtime exception objects are never persisted.
 - Streaming tool-argument deltas are transient and never written. Any other unsupported runtime content fails the write; the writer never silently drops an unknown content type.

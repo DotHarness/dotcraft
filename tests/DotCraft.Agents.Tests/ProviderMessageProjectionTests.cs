@@ -28,7 +28,12 @@ public sealed class ProviderMessageProjectionTests
                 ["dotcraft.tool.provider_flat_name"] = "search__lookup"
             }
         };
-        var message = new ChatMessage(ChatRole.Assistant, [reasoning, text, call])
+        var searchCall = new WebSearchToolCallContent("ws_private") { Queries = ["private query"] };
+        var searchResult = new WebSearchToolResultContent("ws_private")
+        {
+            AdditionalProperties = new() { ["openai.responses.web_search"] = "private replay item" }
+        };
+        var message = new ChatMessage(ChatRole.Assistant, [reasoning, text, call, searchCall, searchResult])
         {
             MessageId = "msg_private", RawRepresentation = new object()
         };
@@ -37,6 +42,7 @@ public sealed class ProviderMessageProjectionTests
         var projected = Assert.Single(ProviderMessageProjection.Project([message], new(provider, protocol, model)));
         Assert.Equal("answer", Assert.Single(projected.Contents.OfType<TextContent>()).Text);
         Assert.Empty(projected.Contents.OfType<TextReasoningContent>());
+        Assert.DoesNotContain(projected.Contents, content => content is WebSearchToolCallContent or WebSearchToolResultContent);
         Assert.Null(projected.MessageId);
         Assert.Null(projected.RawRepresentation);
         Assert.Null(projected.AdditionalProperties);
@@ -50,6 +56,9 @@ public sealed class ProviderMessageProjectionTests
         Assert.Equal("encrypted", reasoning.ProtectedData);
         Assert.Equal("private", text.AdditionalProperties!["signature"]);
         Assert.Equal("msg_private", message.MessageId);
+        var sameOrigin = Assert.Single(ProviderMessageProjection.Project([message], Source));
+        Assert.Same(searchCall, Assert.Single(sameOrigin.Contents.OfType<WebSearchToolCallContent>()));
+        Assert.Same(searchResult, Assert.Single(sameOrigin.Contents.OfType<WebSearchToolResultContent>()));
         Assert.Equal("encrypted", Assert.Single(
             ProviderMessageProjection.Project([message], Source)[0].Contents.OfType<TextReasoningContent>()).ProtectedData);
     }

@@ -96,9 +96,6 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     {
         using var routingIdentityScope = OpenAIResponsesRoutingIdentityScope.Set(
             OpenAIResponsesCodexMetadata.ResolveRoutingIdentity());
-        // All openai-responses traffic flows through _toolSearchTransport.CreateResponseStreamingAsync
-        // so the SDK-built CreateResponseOptions reaches the wire verbatim with all caller patches
-        // (prompt_cache_key, client_metadata, tool_choice, reasoning) intact.
         var preparedOptions = ResponsesToolSearchMapper.PreparePromptCacheOptions(options);
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         var requestContext = ProviderRequestContextScope.Current;
@@ -166,6 +163,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                 }
             }
             reasoning.Apply(update);
+            ResponsesWebSearchMetadata.Apply(update);
             ResponsesToolSearchMapper.ApplyRecordedFunctionCallState(update, callState);
             yield return SuppressProviderContinuation(update);
         }
