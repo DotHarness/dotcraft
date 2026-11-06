@@ -19,21 +19,12 @@ public sealed class BuiltInPluginDeployer(
 {
     public const string MarkerFile = ".builtin";
 
-    /// <summary>
-    /// Deploys configured built-in plugins into the plugin root.
-    /// </summary>
     public IReadOnlyList<PluginDiagnostic> Deploy()
         => DeployCore(targetPluginIds: null);
 
-    /// <summary>
-    /// Deploys one configured built-in plugin into the plugin root.
-    /// </summary>
     public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginId)
         => DeployPlugins([pluginId]);
 
-    /// <summary>
-    /// Deploys the named built-in plugins in one pass, so the sources behind them resolve once.
-    /// </summary>
     public IReadOnlyList<PluginDiagnostic> DeployPlugins(IReadOnlyCollection<string> pluginIds)
     {
         var targets = pluginIds
@@ -148,16 +139,16 @@ public sealed class BuiltInPluginDeployer(
             File.WriteAllText(Path.Combine(tempRoot, MarkerFile), markerText);
 
             if (Directory.Exists(targetRoot))
-                Directory.Move(targetRoot, backupRoot);
+                PluginDirectoryMover.Move(targetRoot, backupRoot);
             try
             {
-                Directory.Move(tempRoot, targetRoot);
+                PluginDirectoryMover.Move(tempRoot, targetRoot);
                 committed = true;
             }
             catch
             {
                 if (!Directory.Exists(targetRoot) && Directory.Exists(backupRoot))
-                    Directory.Move(backupRoot, targetRoot);
+                    PluginDirectoryMover.Move(backupRoot, targetRoot);
                 throw;
             }
         }
@@ -178,7 +169,6 @@ public sealed class BuiltInPluginDeployer(
         }
         catch
         {
-            // The committed target remains authoritative; stale staging is harmless.
         }
     }
 

@@ -9,12 +9,6 @@ public sealed class LocalPluginInstaller(string pluginsPath)
 {
     private static readonly Lock InstallLock = new();
 
-    /// <summary>
-    /// Validates the plugin directory at <paramref name="sourcePath"/> and, when valid,
-    /// copies it into the plugin root. On success the result carries the
-    /// installed plugin id; on failure it carries diagnostics with at least one error and
-    /// nothing is written.
-    /// </summary>
     public LocalPluginInstallResult Install(string sourcePath)
     {
         var diagnostics = new List<PluginDiagnostic>();
@@ -122,16 +116,16 @@ public sealed class LocalPluginInstaller(string pluginsPath)
         {
             CopyDirectory(sourceRoot, tempRoot);
             if (Directory.Exists(targetRoot))
-                Directory.Move(targetRoot, backupRoot);
+                PluginDirectoryMover.Move(targetRoot, backupRoot);
             try
             {
-                Directory.Move(tempRoot, targetRoot);
+                PluginDirectoryMover.Move(tempRoot, targetRoot);
                 committed = true;
             }
             catch
             {
                 if (!Directory.Exists(targetRoot) && Directory.Exists(backupRoot))
-                    Directory.Move(backupRoot, targetRoot);
+                    PluginDirectoryMover.Move(backupRoot, targetRoot);
                 throw;
             }
         }
@@ -152,7 +146,6 @@ public sealed class LocalPluginInstaller(string pluginsPath)
         }
         catch
         {
-            // The committed target remains authoritative; stale staging is harmless.
         }
     }
 
@@ -222,8 +215,4 @@ public sealed class LocalPluginInstaller(string pluginsPath)
     }
 }
 
-/// <summary>
-/// Outcome of a <see cref="LocalPluginInstaller.Install"/> call: the installed plugin id
-/// (null when validation failed) plus any diagnostics produced while validating or copying.
-/// </summary>
 public sealed record LocalPluginInstallResult(string? PluginId, IReadOnlyList<PluginDiagnostic> Diagnostics);

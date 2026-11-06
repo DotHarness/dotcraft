@@ -297,6 +297,11 @@ into `<craft-home>/plugins/<pluginId>`; registry availability never installs any
 validates the marketplace entry and the target manifest id. DotCraft never executes code directly
 from a registry URL.
 
+Catalog and local-folder installs stage copies beside the destination before renaming them into
+place. On Windows, installation renames (including backup and rollback) retry access-denied and
+sharing-violation failures up to five times, waiting 100, 200, 300, 400, and 500 ms. Other errors
+and exhausted retries propagate normally; staging paths and rollback behavior are unchanged.
+
 Installed built-in and registry plugins carry a `.builtin` marker holding a fingerprint of the
 source directory. Marked directories are DotCraft-owned and may be refreshed or removed by DotCraft
 lifecycle operations; unmarked directories are user-owned and never overwritten or removed
