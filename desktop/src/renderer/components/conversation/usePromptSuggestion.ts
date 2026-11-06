@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useConfigValue } from '../../stores/configStore'
 import { useConversationStore } from '../../stores/conversationStore'
+import { usePromptSuggestionStore } from '../../stores/promptSuggestionStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../../utils/promptSuggestion'
 import { hasTurnResponseContent } from '../../utils/turnPresentation'
 
 interface PromptSuggestionOptions {
@@ -17,72 +17,38 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   accept: () => string | null
 } {
   const enabled = useConfigValue('PromptSuggestions.Enabled') === true
-  const [suggestion, setSuggestion] = useState<string | null>(null)
   const turns = useConversationStore((state) => state.turns)
   const turnDiffs = useConversationStore((state) => state.turnDiffs)
   const turnStatus = useConversationStore((state) => state.turnStatus)
   const queuedCount = useConversationStore((state) => state.queuedInputs.length)
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
-  const activeRequest = useRef<AbortController | null>(null)
-  const lastStatus = useRef(turnStatus)
-  const lastThreadId = useRef(threadId)
-  const requestedTurns = useRef(new Set<string>())
-  const visibleRef = useRef(visible)
-  visibleRef.current = visible
+  const entry = usePromptSuggestionStore((state) => state.entries.get(threadId))
+  const lastTurn = turns.at(-1)
+  const currentTurn = lastTurn?.threadId === threadId ? lastTurn : null
+  const eligibleTurn = currentTurn?.status === 'completed'
+    && hasTurnResponseContent(currentTurn, (turnDiffs.get(currentTurn.id)?.files.length ?? 0) > 0)
+    ? currentTurn : null
+  const available = enabled && canSuggest && activeThreadId === threadId && turnStatus === 'idle' && queuedCount === 0
+  const suggestion = available && visible && entry?.turnId === eligibleTurn?.id ? entry?.suggestion ?? null : null
 
   const dismiss = useCallback((): void => {
-    activeRequest.current?.abort()
-    activeRequest.current = null
-    setSuggestion(null)
-  }, [])
+    if (currentTurn) usePromptSuggestionStore.getState().dismiss(threadId, currentTurn.id)
+  }, [currentTurn, threadId])
 
   const accept = useCallback((): string | null => {
-    const value = suggestion
     dismiss()
-    return value
+    return suggestion
   }, [dismiss, suggestion])
 
   useEffect(() => {
-    if (!enabled || !canSuggest || activeThreadId !== threadId || queuedCount > 0 || turnStatus !== 'idle') {
-      dismiss()
-    }
-  }, [activeThreadId, canSuggest, dismiss, enabled, queuedCount, threadId, turnStatus])
-
-  useEffect(() => {
-    if (lastThreadId.current !== threadId) {
-      lastThreadId.current = threadId
-      lastStatus.current = turnStatus
-      requestedTurns.current.clear()
-      dismiss()
+    if (!enabled || activeThreadId !== threadId || !currentTurn) return
+    const store = usePromptSuggestionStore.getState()
+    if (turnStatus !== 'idle' || queuedCount > 0 || !eligibleTurn) {
+      store.invalidate(threadId)
       return
     }
-    const wasRunning = lastStatus.current === 'running'
-    lastStatus.current = turnStatus
-    if (!wasRunning || turnStatus !== 'idle') return
-    const lastTurn = turns.at(-1)
-    if (lastTurn?.status !== 'completed' || requestedTurns.current.has(lastTurn.id)) return
-    if (!hasTurnResponseContent(lastTurn, (turnDiffs.get(lastTurn.id)?.files.length ?? 0) > 0)) return
-    requestedTurns.current.add(lastTurn.id)
-    if (!enabled || !canSuggest || !visibleRef.current || activeThreadId !== threadId || queuedCount > 0) return
+    if (canSuggest && visible) store.request(threadId, eligibleTurn.id)
+  }, [activeThreadId, canSuggest, currentTurn, eligibleTurn, enabled, queuedCount, threadId, turnStatus, visible])
 
-    dismiss()
-    const controller = new AbortController()
-    activeRequest.current = controller
-    let diagnostic: PromptSuggestionDiagnostic = {
-      parentThreadId: threadId, parentTurnId: lastTurn.id, threadId: null, turnId: null, outcome: 'requested'
-    }
-    void generatePromptSuggestion(threadId, lastTurn.id, controller.signal, (event) => { diagnostic = event }).then((value) => {
-      if (!controller.signal.aborted && activeRequest.current === controller) {
-        if (value) logPromptSuggestion({ ...diagnostic, outcome: 'displayed', textLength: value.length })
-        setSuggestion(value)
-        activeRequest.current = null
-      } else {
-        logPromptSuggestion({ ...diagnostic, outcome: 'stale' })
-      }
-    })
-  }, [activeThreadId, canSuggest, dismiss, enabled, queuedCount, threadId, turnStatus, turns, turnDiffs])
-
-  useEffect(() => dismiss, [dismiss, threadId])
-
-  return { suggestion: visible ? suggestion : null, dismiss, accept }
+  return { suggestion, dismiss, accept }
 }

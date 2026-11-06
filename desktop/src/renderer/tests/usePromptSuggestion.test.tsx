@@ -1,12 +1,20 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Activity, type PropsWithChildren } from 'react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePromptSuggestion } from '../components/conversation/usePromptSuggestion'
 import { useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useConversationStore } from '../stores/conversationStore'
+import {
+  activateThreadConversation,
+  createThreadConversation,
+  getThreadConversation,
+  releaseThreadConversation
+} from '../stores/conversationStore'
+import { initPromptSuggestionStore, usePromptSuggestionStore } from '../stores/promptSuggestionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 import type { ConversationTurn } from '../types/conversation'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
@@ -15,37 +23,163 @@ const completedTurn: ConversationTurn = {
   id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-09-27T00:00:00Z',
   items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-09-27T00:00:01Z' }]
 }
+let stopSuggestions: () => void
+
+function selectThread(threadId: string): void {
+  activateThreadConversation(threadId)
+  useThreadStore.setState({ activeThreadId: threadId })
+}
+
+function completeThread(threadId = 'thread-1', turn = completedTurn): void {
+  getThreadConversation(threadId)!.setState({ turnStatus: 'idle', turns: [turn] })
+}
+
+function useActiveSuggestion({ canSuggest = true, visible = true } = {}) {
+  const threadId = useThreadStore((state) => state.activeThreadId)!
+  return usePromptSuggestion({ threadId, canSuggest, visible })
+}
 
 beforeEach(() => {
   generate.mockReset().mockResolvedValue('Add a regression test')
-  useConversationStore.getState().reset()
+  installDesktopApiMock({ appServer: { onNotification: () => () => undefined, sendRequest: vi.fn(async () => ({})) } })
+  usePromptSuggestionStore.getState().reset()
   useThreadStore.getState().reset()
-  useThreadStore.setState({ activeThreadId: 'thread-1' })
-  useConversationStore.setState({
+  createThreadConversation('thread-1').setState({
     turnStatus: 'running',
-    turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'running', startedAt: '2026-09-27T00:00:00Z', items: [] }]
+    turns: [{ ...completedTurn, status: 'running', items: [] }]
   })
+  createThreadConversation('thread-2')
+  selectThread('thread-1')
   useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
   useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
+  stopSuggestions = initPromptSuggestionStore()
+})
+
+afterEach(() => {
+  cleanup()
+  stopSuggestions()
+  activateThreadConversation(null)
+  releaseThreadConversation('thread-1')
+  releaseThreadConversation('thread-2')
 })
 
 describe('conversation prompt suggestion lifecycle', () => {
-  it('generates once after a successful turn and offers editable text', async () => {
-    const { result } = renderHook(() => usePromptSuggestion({
-      threadId: 'thread-1', canSuggest: true, visible: true
-    }))
-    await act(async () => { await Promise.resolve() })
+  it('generates once, hides while typing, and remembers acceptance after remounting', async () => {
+    const hook = renderHook(({ visible }) => useActiveSuggestion({ visible }), { initialProps: { visible: true } })
+    act(() => completeThread())
 
-    act(() => useConversationStore.setState({
-      turnStatus: 'idle',
-      turns: [completedTurn]
-    }))
-
-    await waitFor(() => expect(result.current.suggestion).toBe('Add a regression test'))
-    expect(generate).toHaveBeenCalledOnce()
+    await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
     expect(generate).toHaveBeenCalledWith('thread-1', 'turn-1', expect.any(AbortSignal), expect.any(Function))
-    act(() => expect(result.current.accept()).toBe('Add a regression test'))
-    expect(result.current.suggestion).toBeNull()
+    hook.rerender({ visible: false })
+    expect(hook.result.current.suggestion).toBeNull()
+    hook.rerender({ visible: true })
+    expect(hook.result.current.suggestion).toBe('Add a regression test')
+    act(() => expect(hook.result.current.accept()).toBe('Add a regression test'))
+    expect(hook.result.current.suggestion).toBeNull()
+    hook.unmount()
+
+    const restored = renderHook(() => useActiveSuggestion())
+    expect(restored.result.current.suggestion).toBeNull()
+    expect(generate).toHaveBeenCalledOnce()
+  })
+
+  it('retains a prediction across Activity hiding, temporary composer unavailability, and unmounting', async () => {
+    completeThread()
+    let mode: 'visible' | 'hidden' = 'visible'
+    const wrapper = ({ children }: PropsWithChildren) => <Activity mode={mode}>{children}</Activity>
+    const hook = renderHook(({ canSuggest }) => useActiveSuggestion({ canSuggest }), {
+      initialProps: { canSuggest: true }, wrapper
+    })
+    await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
+
+    mode = 'hidden'
+    hook.rerender({ canSuggest: true })
+    mode = 'visible'
+    hook.rerender({ canSuggest: false })
+    expect(hook.result.current.suggestion).toBeNull()
+    hook.rerender({ canSuggest: true })
+    expect(hook.result.current.suggestion).toBe('Add a regression test')
+    hook.unmount()
+
+    const restored = renderHook(() => useActiveSuggestion())
+    expect(restored.result.current.suggestion).toBe('Add a regression test')
+    expect(generate).toHaveBeenCalledOnce()
+  })
+
+  it('restores each thread prediction even when it arrives in the background without mixing results', async () => {
+    let resolveFirst!: (value: string | null) => void
+    generate.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValue('Run the formatter')
+    completeThread()
+    const hook = renderHook(() => useActiveSuggestion())
+
+    act(() => {
+      selectThread('thread-2')
+      completeThread('thread-2', { ...completedTurn, id: 'turn-2', threadId: 'thread-2' })
+    })
+    await waitFor(() => expect(hook.result.current.suggestion).toBe('Run the formatter'))
+    await act(async () => resolveFirst('Check the parser'))
+    expect(hook.result.current.suggestion).toBe('Run the formatter')
+    act(() => selectThread('thread-1'))
+    expect(hook.result.current.suggestion).toBe('Check the parser')
+    act(() => selectThread('thread-2'))
+    expect(hook.result.current.suggestion).toBe('Run the formatter')
+    expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not generate on background completion and catches up when that thread becomes editable', async () => {
+    const hook = renderHook(({ canSuggest }) => useActiveSuggestion({ canSuggest }), {
+      initialProps: { canSuggest: true }
+    })
+    act(() => selectThread('thread-2'))
+    act(() => completeThread())
+    expect(generate).not.toHaveBeenCalled()
+
+    hook.rerender({ canSuggest: false })
+    act(() => selectThread('thread-1'))
+    expect(generate).not.toHaveBeenCalled()
+    hook.rerender({ canSuggest: true })
+    await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
+    expect(generate).toHaveBeenCalledOnce()
+  })
+
+  it('reuses a pending prediction across navigation and ignores its late result after a newer turn', async () => {
+    let resolveOld!: (value: string | null) => void
+    generate.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
+    completeThread()
+    const hook = renderHook(() => useActiveSuggestion())
+    const oldSignal = generate.mock.calls[0][2]
+
+    act(() => selectThread('thread-2'))
+    expect(hook.result.current.suggestion).toBeNull()
+    act(() => selectThread('thread-1'))
+    hook.unmount()
+    const restored = renderHook(() => useActiveSuggestion())
+    expect(oldSignal.aborted).toBe(false)
+    expect(generate).toHaveBeenCalledOnce()
+
+    const nextTurn = { ...completedTurn, id: 'turn-next' }
+    act(() => getThreadConversation('thread-1')!.setState({
+      turnStatus: 'running', turns: [completedTurn, { ...nextTurn, status: 'running', items: [] }]
+    }))
+    expect(oldSignal.aborted).toBe(true)
+    act(() => completeThread('thread-1', nextTurn))
+    await waitFor(() => expect(restored.result.current.suggestion).toBe('Add a regression test'))
+    await act(async () => resolveOld('Outdated suggestion'))
+    expect(restored.result.current.suggestion).toBe('Add a regression test')
+    expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not regenerate an empty prediction after returning', async () => {
+    generate.mockResolvedValue(null)
+    completeThread()
+    const hook = renderHook(() => useActiveSuggestion())
+    await act(async () => { await Promise.resolve() })
+    hook.unmount()
+
+    const restored = renderHook(() => useActiveSuggestion())
+    expect(restored.result.current.suggestion).toBeNull()
+    expect(generate).toHaveBeenCalledOnce()
   })
 
   it('does not request another suggestion when a trailing notification completes without output', () => {
@@ -53,34 +187,28 @@ describe('conversation prompt suggestion lifecycle', () => {
       id: 'turn-notice', threadId: 'thread-1', status: 'running', startedAt: '2026-09-27T00:00:02Z',
       items: [{ id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed', text: 'Background command finished', createdAt: '2026-09-27T00:00:02Z' }]
     }
-    useConversationStore.setState({ turns: [completedTurn, notification] })
-    const { result } = renderHook(() => usePromptSuggestion({ threadId: 'thread-1', canSuggest: true, visible: true }))
-
-    act(() => useConversationStore.setState({
+    getThreadConversation('thread-1')!.setState({ turns: [completedTurn, notification] })
+    const hook = renderHook(() => useActiveSuggestion())
+    act(() => getThreadConversation('thread-1')!.setState({
       turnStatus: 'idle', turns: [completedTurn, { ...notification, status: 'completed' }]
     }))
 
     expect(generate).not.toHaveBeenCalled()
-    expect(result.current.suggestion).toBeNull()
+    expect(hook.result.current.suggestion).toBeNull()
   })
 
-  it('cancels a pending suggestion when suggestions become unavailable', async () => {
-    let requestSignal: AbortSignal | null = null
-    generate.mockImplementation(async (_threadId, _turnId, signal) => {
-      requestSignal = signal
-      return await new Promise<string | null>(() => {})
-    })
-    const { rerender } = renderHook(({ canSuggest }) => usePromptSuggestion({
-      threadId: 'thread-1', canSuggest, visible: true
-    }), { initialProps: { canSuggest: true } })
-    await act(async () => { await Promise.resolve() })
+  it.each(['disabled', 'workspace reset'] as const)('cancels a pending prediction when settings are %s without a mounted composer', (change) => {
+    generate.mockImplementation(() => new Promise(() => {}))
+    completeThread()
+    const hook = renderHook(() => useActiveSuggestion())
+    const signal = generate.mock.calls[0][2]
+    hook.unmount()
+    expect(signal.aborted).toBe(false)
 
-    act(() => useConversationStore.setState({
-      turnStatus: 'idle',
-      turns: [completedTurn]
-    }))
-    await waitFor(() => expect(requestSignal).not.toBeNull())
-    rerender({ canSuggest: false })
-    expect(requestSignal?.aborted).toBe(true)
+    act(() => {
+      if (change === 'disabled') useConfigStore.setState({ config: { PromptSuggestions: { Enabled: false } } })
+      else useConfigStore.getState().reset()
+    })
+    expect(signal.aborted).toBe(true)
   })
 })
