@@ -144,6 +144,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   chatsSectionCollapsed?: boolean
   summaryHidden?: boolean
   environmentSetupTipDismissed?: boolean
+  feedbackSurveyShown?: boolean
   chatsFolder?: string
   chatsFolderHistory?: string[]
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
@@ -369,6 +370,10 @@ function normalizeSummaryHidden(settings: AppSettings): boolean | undefined {
 
 function normalizeEnvironmentSetupTipDismissed(settings: AppSettings): boolean | undefined {
   return settings.environmentSetupTipDismissed === true ? true : undefined
+}
+
+function normalizeFeedbackSurveyShown(settings: AppSettings): boolean | undefined {
+  return settings.feedbackSurveyShown === true ? true : undefined
 }
 
 function normalizeSidebarThreadOrderSettings(settings: AppSettings): void {
@@ -624,6 +629,7 @@ export function loadSettings(): AppSettings {
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
       raw.summaryHidden = normalizeSummaryHidden(raw)
       raw.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(raw)
+      raw.feedbackSurveyShown = normalizeFeedbackSurveyShown(raw)
       raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
       raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
@@ -691,6 +697,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
     settings.summaryHidden = normalizeSummaryHidden(settings)
     settings.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(settings)
+    settings.feedbackSurveyShown = normalizeFeedbackSurveyShown(settings)
     settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
     settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)

@@ -1627,6 +1627,7 @@ const api = {
       chatsSectionCollapsed?: boolean
       summaryHidden?: boolean
       environmentSetupTipDismissed?: boolean
+      feedbackSurveyShown?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
@@ -1718,6 +1719,7 @@ const api = {
       chatsSectionCollapsed?: boolean
       summaryHidden?: boolean
       environmentSetupTipDismissed?: boolean
+      feedbackSurveyShown?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode

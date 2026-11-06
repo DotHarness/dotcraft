@@ -1,5 +1,5 @@
 ---
-version: "0.9.10"
+version: "0.10.3"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1637,6 +1637,29 @@ their tool rows.
   never sidebar marks.
 - The created-chat card keeps its form. While the chat it opened runs, its
   subtitle carries the running shimmer; nothing else changes.
+
+### Feedback prompt
+
+After sustained use, DotCraft asks once how the session is going. The question is
+one row at the end of the transcript, in its flow, so it covers nothing and scrolls
+with the conversation.
+
+- The row is plain text in the conversation's body style, with Bad, Fine, and Good
+  as ghost buttons and a frameless dismiss on its trailing edge. It has no frame,
+  fill, icon, or entrance motion, and stays 28px tall unless the column is too narrow
+  for one line.
+- It asks at most once per installation. Appearing counts, so a question the user
+  ignores never returns. There is no sampling and no reminder.
+- It appears when a Desktop chat goes idle after a completed turn, with at least five
+  turns started and ten minutes passed since that chat was opened, while the window
+  is visible. Sub-agent, channel, hidden, failed, and stopped turns do not qualify.
+- The row hides while a turn runs and leaves with the chat when the user switches
+  away.
+- A rating replaces the row with one thanks line and one ghost action: Star on GitHub
+  after Good, Tell us more after Bad or Fine, which opens a prefilled new issue the
+  user reviews before posting. The line leaves when that action is pressed, when it
+  is dismissed, or when the next turn starts.
+- Nothing is sent anywhere. The rating only chooses the follow-up.
 
 ### Interactive tool UI
 

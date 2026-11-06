@@ -20,6 +20,7 @@ import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { RunningTurnChangesPill } from './RunningTurnChangesPill'
 import { StreamRetryNotice } from './StreamRetryNotice'
 import { ChannelBindingCodeCard } from './ChannelBindingCodeCard'
+import { FeedbackSurvey } from './FeedbackSurvey'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
@@ -357,6 +358,8 @@ function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps):
           {streamRetry && <StreamRetryNotice status={streamRetry} />}
 
           {activeThreadId && <ChannelBindingCodeCard threadId={activeThreadId} />}
+
+          {activeThreadId && <FeedbackSurvey key={activeThreadId} threadId={activeThreadId} />}
 
           {/* Retains the stack's trailing gap above the bottom clearance. */}
           <div />
