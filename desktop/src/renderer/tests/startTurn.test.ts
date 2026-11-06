@@ -14,6 +14,8 @@ describe('startTurnWithOptimisticUI thread naming', () => {
     vi.stubGlobal('window', {})
     installDesktopApiMock({ appServer: { sendRequest } })
     sendRequest.mockResolvedValue({ turn: { id: 'turn-1' } })
+    useConversationStore.getState().reset()
+    useThreadStore.getState().reset()
   })
 
   it.each([
@@ -22,8 +24,6 @@ describe('startTurnWithOptimisticUI thread naming', () => {
     ['Attachment message', '', { images: [image], files: [file] }],
     ['Review this change set', 'Review this change set', { files: [file] }]
   ])('names the thread %j', async (expected, text, attachments) => {
-    useConversationStore.getState().reset()
-    useThreadStore.getState().reset()
     useThreadStore.setState({
       threadList: [{
         id: 'thread-1',
@@ -49,8 +49,6 @@ describe('startTurnWithOptimisticUI thread naming', () => {
   })
 
   it('names an untitled thread from the user text before the turn starts', async () => {
-    useConversationStore.getState().reset()
-    useThreadStore.getState().reset()
     useThreadStore.setState({
       threadList: [{
         id: 'thread-1',
@@ -74,5 +72,70 @@ describe('startTurnWithOptimisticUI thread naming', () => {
     expect(methods.indexOf('thread/rename')).toBeLessThan(methods.indexOf('turn/start'))
     expect(sendRequest).toHaveBeenCalledWith('thread/rename', { threadId: 'thread-1', displayName: 'Tighten the retry loop' })
     expect(useThreadStore.getState().threadList[0]?.displayName).toBe('Tighten the retry loop')
+  })
+})
+
+describe('startTurnWithOptimisticUI echo notification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('window', {})
+    installDesktopApiMock({ appServer: { sendRequest } })
+    sendRequest.mockResolvedValue({ turn: { id: 'turn-1' } })
+    useConversationStore.getState().reset()
+    useThreadStore.getState().reset()
+  })
+
+  const input = {
+    threadId: 'thread-1',
+    workspacePath: 'X:\\fixtures\\workspace',
+    text: 'Continue the work',
+    fallbackThreadName: 'Message',
+    renameThreadFromText: false
+  }
+
+  it('notifies after the local message exists and before the RPC resolves, without notifying on promotion', async () => {
+    let resolveStart!: (result: { turn: { id: string } }) => void
+    sendRequest.mockImplementation(() => new Promise((resolve) => { resolveStart = resolve }))
+    const onOptimisticEcho = vi.fn(() => {
+      expect(useConversationStore.getState().turns).toMatchObject([{
+        threadId: input.threadId,
+        items: [{ type: 'userMessage', text: input.text, clientUserMessageId: 'message-1' }]
+      }])
+    })
+
+    const pending = startTurnWithOptimisticUI({
+      ...input,
+      clientUserMessageId: 'message-1',
+      onOptimisticEcho
+    })
+
+    expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
+    expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({ threadId: input.threadId }))
+
+    resolveStart({ turn: { id: 'turn-1' } })
+    await pending
+
+    expect(useConversationStore.getState().activeTurnId).toBe('turn-1')
+    expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not notify or submit when input parts are empty', async () => {
+    const onOptimisticEcho = vi.fn()
+
+    await startTurnWithOptimisticUI({ ...input, text: '', onOptimisticEcho })
+
+    expect(onOptimisticEcho).not.toHaveBeenCalled()
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(useConversationStore.getState().turns).toEqual([])
+  })
+
+  it('submits without notifying when the turn is off screen', async () => {
+    const onOptimisticEcho = vi.fn()
+
+    await startTurnWithOptimisticUI({ ...input, onScreen: false, onOptimisticEcho })
+
+    expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({ threadId: input.threadId }))
+    expect(onOptimisticEcho).not.toHaveBeenCalled()
+    expect(useConversationStore.getState().turns).toEqual([])
   })
 })

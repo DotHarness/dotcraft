@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-const AT_BOTTOM_THRESHOLD = 20 // px from bottom to be considered "at bottom"
+const AT_BOTTOM_THRESHOLD = 20
 
 interface UseAutoScrollResult {
   scrollRef: React.RefObject<HTMLDivElement | null>
@@ -11,15 +11,12 @@ interface UseAutoScrollResult {
 export function useAutoScroll(contentLength: number): UseAutoScrollResult {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const isAtBottomRef = useRef(true)
-  // Set just before we programmatically move scrollTop. The browser fires the
-  // resulting `scroll` event asynchronously, so it must be told apart from a
-  // genuine user scroll — see handleScroll.
-  const programmaticScrollRef = useRef(false)
+  const programmaticScrollTopRef = useRef<number | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
 
   const updateAtBottom = useCallback((next: boolean) => {
     isAtBottomRef.current = next
-    setIsAtBottom((current) => current === next ? current : next)
+    setIsAtBottom(next)
   }, [])
 
   const scrollToBottom = useCallback(() => {
@@ -27,38 +24,27 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
     if (!el) return
     const nextScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
     if (Math.abs(el.scrollTop - nextScrollTop) > 1) {
-      // Mark this write so its echoed `scroll` event doesn't get mistaken for the
-      // user leaving the bottom. By the time the event arrives, streaming may have
-      // grown scrollHeight further, making the position look "not at bottom" — and
-      // acting on that would permanently disable auto-scroll mid-stream.
-      programmaticScrollRef.current = true
       el.scrollTop = nextScrollTop
+      programmaticScrollTopRef.current = el.scrollTop
     }
     updateAtBottom(true)
-  }, [updateAtBottom])
-
-  const syncAtBottomFromElement = useCallback((el: HTMLDivElement) => {
-    updateAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD)
   }, [updateAtBottom])
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
 
-    function handleScroll(): void {
-      if (!el) return
-      // Ignore the echo from our own scrollToBottom write — only genuine user
-      // scrolls should be able to turn auto-scroll off.
-      if (programmaticScrollRef.current) {
-        programmaticScrollRef.current = false
-        return
-      }
-      syncAtBottomFromElement(el)
+    const handleScroll = (): void => {
+      const programmaticTop = programmaticScrollTopRef.current
+      programmaticScrollTopRef.current = null
+      // Ignore delayed echoes even after content grows, but not a user's newer position.
+      if (programmaticTop !== null && Math.abs(el.scrollTop - programmaticTop) <= 1) return
+      updateAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD)
     }
 
     el.addEventListener('scroll', handleScroll, { passive: true })
     return () => el.removeEventListener('scroll', handleScroll)
-  }, [syncAtBottomFromElement])
+  }, [updateAtBottom])
 
   useLayoutEffect(() => {
     if (isAtBottomRef.current) {
@@ -70,7 +56,7 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
   // without changing the coarse contentLength signal.
   useEffect(() => {
     const el = scrollRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
+    if (!el) return
 
     const target = el.firstElementChild ?? el
     const observer = new ResizeObserver(() => {

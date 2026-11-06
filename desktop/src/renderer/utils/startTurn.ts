@@ -17,7 +17,6 @@ interface StartTurnParams {
   workspacePath: string
   identityWorkspacePath?: string
   text: string
-  /** Replaces the parts otherwise built from text, segments, contexts and attachments. */
   inputParts?: InputPart[]
   contexts?: ComposerContextRecord[]
   segments?: ComposerDraftSegment[]
@@ -30,7 +29,7 @@ interface StartTurnParams {
   throwOnStartError?: boolean
   /** False when the turn belongs to a thread the user is no longer looking at. */
   onScreen?: boolean
-  /** Marks this submission as the one that established the thread goal (durable "sent as goal"). */
+  onOptimisticEcho?: () => void
   sentAsGoal?: boolean
   title?: ThreadTitleRequest
 }
@@ -59,6 +58,7 @@ export function echoOptimisticTurn({
   renameThreadFromText = true,
   sentAsGoal = false,
   onScreen = true,
+  onOptimisticEcho,
   title: namedTitle
 }: StartTurnParams): OptimisticTurn | null {
   const built = providedInputParts ? null : buildComposerInputParts({ text, threadId, segments, files, images, contexts })
@@ -99,7 +99,10 @@ export function echoOptimisticTurn({
     items: [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)],
     startedAt: new Date().toISOString()
   }
-  if (onScreen) useConversationStore.getState().addOptimisticTurn(optimisticTurn)
+  if (onScreen) {
+    useConversationStore.getState().addOptimisticTurn(optimisticTurn)
+    onOptimisticEcho?.()
+  }
   return { optimisticTurnId, clientUserMessageId, inputParts, onScreen, title }
 }
 
@@ -115,9 +118,7 @@ export async function submitOptimisticTurn(
 ): Promise<void> {
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
-    // Keep the multi-folder project's runtime roots in sync (sticky). Sending only
-    // runtimeWorkspaceRoots is a complete replacement with no cwd retargeting, so
-    // the thread's existing working directory is preserved.
+    // Updating runtime roots replaces the root list without changing the thread's working directory.
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     if (echo.title?.rename) {
       await window.api.appServer.sendRequest('thread/rename', {

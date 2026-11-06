@@ -13,6 +13,7 @@ import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
 import { ConversationFindSurface } from '../../find/ConversationFindSurface'
 import { useAutoScroll } from '../../hooks/useAutoScroll'
+import { useScrollToLatestOnSend, type ComposerSendScrollRequest } from '../../hooks/useComposerSendScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -34,7 +35,6 @@ import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
 import { ConversationAsides } from './conversationAside/ConversationAside'
 
-/** Module-level scroll position cache — ephemeral, not persisted to storage. */
 const scrollPositionCache = new Map<string, number>()
 
 const NEAR_BOTTOM_THRESHOLD = 50
@@ -42,11 +42,8 @@ const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
 const CHANGES_PILL_CELL_PX = 32
 const CHANGES_PILL_BOTTOM_GAP_PX = 4
-/** Resting gap reserved below the last message so it never sits flush against the
- *  composer (and clears the dock's top edge when a dock is present). */
 export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const NO_HISTORY_GAPS: HistoryGap[] = []
-
 
 interface InlineEditState {
   threadId: string
@@ -95,17 +92,21 @@ function getStoreConversationVisualizations(): VisualizationEntry[] {
   return collectConversationVisualizations(useConversationStore.getState().turns)
 }
 
-export function MessageStream(): JSX.Element {
+interface MessageStreamProps {
+  sendScrollRequest?: ComposerSendScrollRequest | null
+}
+
+export function MessageStream({ sendScrollRequest = null }: MessageStreamProps): JSX.Element {
   return (
     <ConversationImagesContext.Provider value={getStoreConversationImages}>
       <ConversationVisualizationsContext.Provider value={getStoreConversationVisualizations}>
-        <MessageStreamContent />
+        <MessageStreamContent sendScrollRequest={sendScrollRequest} />
       </ConversationVisualizationsContext.Provider>
     </ConversationImagesContext.Provider>
   )
 }
 
-function MessageStreamContent(): JSX.Element {
+function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps): JSX.Element {
   const t = useT()
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
@@ -133,8 +134,6 @@ function MessageStreamContent(): JSX.Element {
       || turn.items.some(isVisibleUserMessage))), [turns, turnDiffs, supersededRetryTurnIds])
   const visibleTurnIds = useMemo(() => new Set(visibleTurns.map((turn) => turn.id)), [visibleTurns])
   const threadList = useThreadStore((s) => s.threadList)
-  // Origin of a thread spawned by another thread (Desktop CreateThread). Drives the
-  // "From another thread" pill on the first user message; null for normal threads.
   const threadOrigin = useMemo(() => {
     const self = threadList.find((t) => t.id === activeThreadId)
     const parentId = self ? getSpawnedFromThreadId(self) : null
@@ -163,6 +162,7 @@ function MessageStreamContent(): JSX.Element {
   useAutomationRunReveal(scrollRef)
   useToolCallReveal(scrollRef)
   useHistoryGapLoading(scrollRef, historyGaps, turns.length)
+  useScrollToLatestOnSend(sendScrollRequest, scrollToBottom)
   // The dock floats over the bottom of the scroll region, so its height is reserved
   // below the last message and the scroll-to-bottom button is lifted by the same amount.
   const dockHeightPx = estimateQueuedInputDockHeightPx(queuedInputCount)
@@ -358,7 +358,7 @@ function MessageStreamContent(): JSX.Element {
 
           {activeThreadId && <ChannelBindingCodeCard threadId={activeThreadId} />}
 
-          {/* Bottom anchor for auto-scroll */}
+          {/* Retains the stack's trailing gap above the bottom clearance. */}
           <div />
         </ConversationColumn>
       </div>

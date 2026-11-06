@@ -144,7 +144,6 @@ interface InputComposerProps {
   modelLoading?: boolean
   modelDisabled?: boolean
   remoteWorkspace?: boolean
-  /** When true, model/list reported that the upstream API does not support listing; show a read-only label. */
   modelListUnsupportedEndpoint?: boolean
   modelCatalogError?: boolean
   modelCatalogErrorMessage?: string | null
@@ -153,26 +152,17 @@ interface InputComposerProps {
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onSpeedChange?: (value: InferenceSpeedWire) => void
   onModelCatalogRetry?: () => void
-  /**
-   * Hides the workspace/worktree footer, the approval-policy picker and the ChatGPT badge
-   * for embedded composers; the core input (attach, plan, reasoning, model, send) is kept.
-   */
   minimalChrome?: boolean
-  /** Overrides the thread-profile-derived name — the Agent Builder thread has no profile id. */
   mascotName?: string
-  /** `sideChat` sends through `submitOverride` to a side chat and hides every control that acts on the active thread. */
   variant?: 'default' | 'agentBuilder' | 'sideChat'
   placeholder?: string
   /** One-shot text injection request from an external empty state or suggestion. */
   prefillRequest?: { id: number; text: string } | null
   onBeforeSend?: () => Promise<void> | void
-  /**
-   * InputComposer still owns rich-input serialization, but the caller owns the destination
-   * thread/RPC. Used by the Agent Builder intro before a hidden builder thread exists.
-   */
+  onOptimisticEcho?: () => void
+  /** The caller owns submission; the composer still serializes input and restores failed drafts. */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
   runtime?: ComposerRuntime
-  /** Focuses the editor whenever the value changes. */
   focusRequest?: number
   /** Discards voice work when this pre-thread Composer unmounts. */
   transientVoiceOrigin?: boolean
@@ -238,6 +228,7 @@ function InputComposerCore({
   placeholder,
   prefillRequest = null,
   onBeforeSend,
+  onOptimisticEcho,
   submitOverride,
   runtime,
   focusRequest,
@@ -635,7 +626,6 @@ function InputComposerCore({
     restoredSubmissionId.current = undefined
     latestDraftRef.current = emptyComposerDraftSnapshot()
     let restoreTimer: number | undefined
-    // A one-shot prefill (e.g. "Try in chat") takes precedence over a saved draft.
     if (isSideChat || !useUIStore.getState().composerPrefill) {
       const draft = useComposerDraftStore.getState().getDraft(id)
       if (draft && threadComposerDraftHasContent(draft)) {
@@ -873,9 +863,7 @@ function InputComposerCore({
       addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
       try {
         await ensureCurrentGoal()
-      } catch {
-        // Best-effort refresh only.
-      }
+      } catch {}
       return false
     } finally {
       setGoalBusy(false)
@@ -907,9 +895,7 @@ function InputComposerCore({
       addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
       try {
         await ensureCurrentGoal()
-      } catch {
-        // Best-effort refresh only.
-      }
+      } catch {}
       return false
     } finally {
       setGoalBusy(false)
@@ -930,9 +916,7 @@ function InputComposerCore({
       addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
       try {
         await ensureCurrentGoal()
-      } catch {
-        // Best-effort refresh only.
-      }
+      } catch {}
       return false
     } finally {
       setGoalBusy(false)
@@ -968,8 +952,6 @@ function InputComposerCore({
     window.setTimeout(() => richRef.current?.focus(), 0)
   }, [canUseThreadGoals, showGoalUnavailable])
 
-  // Flattens the rich input and attachments into one objective string, then submits it
-  // as a normal turn so the agent starts on it and the message gets the goal badge.
   const sendGoalFromComposer = useCallback(async (): Promise<void> => {
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
@@ -1014,6 +996,7 @@ function InputComposerCore({
           fileFallbackThreadName: t('toast.fileReferenceMessage'),
           attachmentFallbackThreadName: t('toast.attachmentMessage'),
           throwOnStartError: true,
+          onOptimisticEcho,
           sentAsGoal: true
         })
       }
@@ -1025,7 +1008,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, t])
+  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, onOptimisticEcho, t])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1198,6 +1181,7 @@ function InputComposerCore({
       }
       const conversation = useConversationStore.getState()
       conversation.setQueuedInputs([...conversation.queuedInputs, echo])
+      if (mode === 'steer') onOptimisticEcho?.()
       try {
         const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, activeTurnId, input: parts })
         if (placeEdited) await placeEditedSubmission(result)
@@ -1221,7 +1205,8 @@ function InputComposerCore({
           identityWorkspacePath: workspacePath,
           text: expandedPrompt,
           fallbackThreadName: t('cmd.init'),
-          throwOnStartError: true
+          throwOnStartError: true,
+          onOptimisticEcho
         })
       } catch (err) {
         restoreComposerSubmission(submission)
@@ -1402,7 +1387,8 @@ function InputComposerCore({
         fallbackThreadName: t('toast.imageMessage'),
         fileFallbackThreadName: t('toast.fileReferenceMessage'),
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
-        throwOnStartError: true
+        throwOnStartError: true,
+        onOptimisticEcho
       })
       clearEditPosition()
     } catch (err) {
@@ -1425,7 +1411,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,

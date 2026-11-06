@@ -34,6 +34,7 @@ import { useComposerProvider } from '../conversation/useComposerProvider'
 import { Spinner } from '../ui/Spinner'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { useComposerSendScroll } from '../../hooks/useComposerSendScroll'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -93,6 +94,11 @@ export function ConversationPanel({
     s.pendingProjectThreadOpen != null && sameWorkspaceProjectKey(s.pendingProjectThreadOpen.projectKey, projectKey))
   const hasPendingChannelBinding = useChannelBindingStore((s) => activeThreadId != null && s.pendingByThread[activeThreadId] != null)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
+  const { scrollRequest, onOptimisticEcho } = useComposerSendScroll(
+    projectKey ?? protocolWorkspacePath,
+    activeThreadId,
+    !isAgentBuilder && activeThread != null && selectedConversationViewKey == null
+  )
   const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
   const activeEffectiveWorkspacePath =
     activeThread?.effectiveWorkspacePath?.trim() || threadStateWorkspacePath
@@ -313,7 +319,7 @@ export function ConversationPanel({
       ) : openingThread ? (
         loadingIndicator
       ) : hasContent ? (
-        <MessageStream />
+        <MessageStream sendScrollRequest={scrollRequest} />
       ) : isAgentBuilder ? (
         <AgentBuilderChatEmptyState
           onPick={(text) => {
@@ -366,6 +372,7 @@ export function ConversationPanel({
           variant={variant}
           prefillRequest={composerPrefillRequest}
           onBeforeSend={onBeforeSend}
+          onOptimisticEcho={onOptimisticEcho}
           modelName={modelControls.modelName}
           providerId={modelControls.providerId}
           providerOptions={modelControls.providerOptions}
