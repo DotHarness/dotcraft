@@ -3,6 +3,7 @@ import type { JSX, ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
+import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { SegmentedControl } from './ui/SegmentedControl'
 
@@ -10,11 +11,9 @@ type PersonalizationSegment = 'personalization' | 'subAgents'
 
 export function PersonalizationPanelShell({
   segment,
-  description,
   children
 }: {
   segment: PersonalizationSegment
-  description: ReactNode
   children: ReactNode
 }): JSX.Element {
   const t = useT()
@@ -22,7 +21,14 @@ export function PersonalizationPanelShell({
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <SettingsPageHeader title={t('settings.tab.personalization')} description={description} />
+      <SettingsPageHeader
+        title={t('settings.tab.personalization')}
+        description={
+          <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.tab.personalization">
+            {t('settings.personalization.description')}
+          </SettingsDescriptionWithLearnMore>
+        }
+      />
       {subAgentEnabled && (
         <div>
           <SegmentedControl<PersonalizationSegment>

@@ -8,7 +8,6 @@ import { PresetProfileDetail } from './subAgents/PresetProfileDetail'
 import { CustomProfileEditor } from './subAgents/CustomProfileEditor'
 import { SubAgentList } from './subAgents/SubAgentList'
 import { PersonalizationPanelShell } from '../PersonalizationPanelShell'
-import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
 import {
   isPresetProfileName,
   type SubAgentProfileEntryWire,
@@ -263,14 +262,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
 
   if (!enabled) {
     return (
-      <PersonalizationPanelShell
-        segment="subAgents"
-        description={
-          <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
-            {t('settings.subAgents.description')}
-          </SettingsDescriptionWithLearnMore>
-        }
-      >
+      <PersonalizationPanelShell segment="subAgents">
         <SettingsGroup title={t('settings.group.workspaceSettings')}>
           <SettingsRow>
             <div style={noticeStyle('warning')}>{t('settings.subAgents.unsupported')}</div>
@@ -334,14 +326,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   }
 
   return (
-    <PersonalizationPanelShell
-      segment="subAgents"
-      description={
-        <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
-          {t('settings.subAgents.description')}
-        </SettingsDescriptionWithLearnMore>
-      }
-    >
+    <PersonalizationPanelShell segment="subAgents">
       <SettingsGroup title={t('settings.group.workspaceSettings')}>
         <SettingsRow
           label={t('settings.subAgents.settings.resumeTitle')}

@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
+import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import {
   settingsHintStyle,
   settingsLabelStyle,
@@ -41,6 +42,11 @@ export function SubAgentList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <SettingsGroup
         title={t('settings.subAgents.list.presetSection')}
+        description={
+          <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
+            {t('settings.subAgents.description')}
+          </SettingsDescriptionWithLearnMore>
+        }
         flush
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

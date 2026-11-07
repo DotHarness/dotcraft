@@ -1747,11 +1747,14 @@ foreground workspace in place and Settings stays open. A setting that writes to 
 workspace configuration lives in the Workspace group, never under General.
 
 Search sits directly below Back to app. It is the composed search control without a
-frame: `36px` tall, pill radius, a `--bg-hover` fill, and a transparent `1px` border
-that moves to `--border-active` on focus, so focusing changes no geometry. The field
-does not take focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace
-the navigation until the query is cleared; each result names its page, and a result
-in the Workspace group also names the workspace.
+frame: `36px` tall, pill radius, and a `--bg-hover` fill. The field does not take
+focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace the navigation
+until the query is cleared; each result names its page, and a result in the Workspace
+group also names the workspace.
+
+A page's title and description describe the whole page, so switching a segmented
+control inside it changes neither. Text about one segment belongs to a group in that
+segment.
 
 ### Settings groups
 

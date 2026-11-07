@@ -1834,14 +1834,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'personalization' && (
               <GeneralPanel>
-              <PersonalizationPanelShell
-                  segment="personalization"
-                  description={
-                    <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.tab.personalization">
-                      {t('settings.personalization.description')}
-                    </SettingsDescriptionWithLearnMore>
-                  }
-                >
+              <PersonalizationPanelShell segment="personalization">
                 {configManagementEnabled && <CodeModeSettingsGroup />}
 
                 <SettingsGroup title={t('settings.group.permissions')}>
