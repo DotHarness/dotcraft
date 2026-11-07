@@ -7,8 +7,15 @@ import { getStreamingToolDisplay } from './streamingToolDisplay'
 import { collectMemoryFileNames, formatMemoryUpdatedLabel } from './memoryToolDisplay'
 import { summarizeSkillActivity, type SkillActivity } from './skillOperationDisplay'
 import { isBoardReadOperation } from './boardToolDisplay'
+import {
+  DESKTOP_TOOL_OPERATIONS,
+  formatDesktopToolLabel,
+  resolveDesktopToolOperation,
+  type DesktopToolOperation
+} from './desktopToolDisplay'
 import { formatNodeReplSurfaceLabel, getNodeReplSurface } from './nodeReplToolDisplay'
 import { formatWebSearchLabel } from './webSearchDisplay'
+import { isToolExecutionFailure } from './toolCallDisplay'
 
 function getPathArgument(item: ConversationItem): string {
   const args = item.arguments
@@ -67,13 +74,15 @@ function getWriteCounts(items: ConversationItem[], itemDiffs: ReadonlyMap<string
   return { createdCount: createdPaths.size, modifiedCount: modifiedPaths.size }
 }
 
-type ActivityPart = 'browser' | 'chrome' | 'computer' | 'skill' | 'tool' | 'write' | 'memory' | 'recall' | 'explore' | 'board' | 'boardUpdate' | 'shell' | 'search' | 'fetch'
+type ActivityPart = 'browser' | 'chrome' | 'computer' | 'skill' | 'tool' | DesktopToolOperation | 'write' | 'memory' | 'recall' | 'explore' | 'board' | 'boardUpdate' | 'shell' | 'search' | 'fetch'
 
-const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 'skill', 'tool', 'write', 'memory', 'recall', 'explore', 'board', 'boardUpdate', 'shell', 'search', 'fetch']
+const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 'skill', 'tool', ...DESKTOP_TOOL_OPERATIONS, 'write', 'memory', 'recall', 'explore', 'board', 'boardUpdate', 'shell', 'search', 'fetch']
 
 function getActivityPart(item: ConversationItem): ActivityPart | null {
   if (item.type === 'reasoningContent') return null
   if (item.type === 'webSearch') return 'search'
+  const desktopOperation = resolveDesktopToolOperation(item, item.arguments)
+  if (desktopOperation) return desktopOperation
   const memory = resolveMemoryOperation(item)
   if (memory === 'update') return 'memory'
   if (memory === 'recall') return 'recall'
@@ -133,6 +142,7 @@ function formatActivityPart(
     case 'shell': return translate(locale, plural(count, 'toolCall.activity.ran.one', 'toolCall.activity.ran.other'))
     case 'search': return translate(locale, 'toolCall.activity.searchedWeb')
     case 'fetch': return translate(locale, plural(count, 'toolCall.activity.fetched.one', 'toolCall.activity.fetched.other'))
+    default: return formatDesktopToolLabel(part, items.every(isToolExecutionFailure) ? 'failed' : 'completed', locale)
   }
 }
 

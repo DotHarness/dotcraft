@@ -2,7 +2,26 @@ import type { ToolGroupLabel } from './toolGroups'
 import type { TurnChanges } from './turnChanges'
 import type { ImageSource, UserSegment } from './userSegments'
 
+export const DESKTOP_TOOL_VERBS = [
+  'chatRead',
+  'chatsListed',
+  'chatsSearched',
+  'chatMessaged',
+  'chatCreated',
+  'chatRenamed',
+  'chatArchived',
+  'chatRestored',
+  'chatPinned',
+  'chatUnpinned',
+  'terminalRead',
+  'terminalsListed',
+  'suggestionDismissed',
+] as const
+
+export type DesktopToolVerb = (typeof DESKTOP_TOOL_VERBS)[number]
+
 export type ToolVerb =
+  | DesktopToolVerb
   | 'ran'
   | 'edited'
   | 'read'
@@ -25,7 +44,7 @@ export type ToolVerb =
   | 'agentFinished'
   | 'agentInterrupted'
 
-export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'other'
+export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'chat' | 'newChat' | 'archive' | 'dismiss' | 'other'
 
 export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow'
 
@@ -124,6 +143,7 @@ export type TranscriptEntry =
       added?: number
       removed?: number
       skill?: { name: string; file: string | null }
+      threadId?: string
     }
   | { kind: 'toolGroup'; id: string; label: ToolGroupLabel; icon: ToolIcon; failed: boolean; active: boolean; children: ToolEntry[] }
   | {

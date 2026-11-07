@@ -462,6 +462,8 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   target and output. A running tool reads in the present tense using Desktop's wording, with
   elapsed time. In-progress text (running tools, streaming reasoning, generating images) uses
   Desktop's shimmer treatment, still under reduced motion.
+- Desktop's runtime thread tools read as Desktop names them, in progress, done, or failed, with no
+  details; a line for reading or messaging a chat opens that chat when it is on this computer's list.
 - A file tool call marked as a Skill operation ([Skills](../architecture/skills.md#51-presentation))
   reads as Desktop words it, naming the Skill. Tapping the line shows its target and output, and
   the Skill name opens the `skillFile` it carries in File.

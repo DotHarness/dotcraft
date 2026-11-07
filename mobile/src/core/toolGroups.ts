@@ -1,12 +1,12 @@
-import type { ToolEntry, ToolVerb, TranscriptEntry } from './transcriptTypes'
+import { DESKTOP_TOOL_VERBS, type DesktopToolVerb, type ToolEntry, type ToolVerb, type TranscriptEntry } from './transcriptTypes'
 
-export type ToolGroupPart = 'calledTool' | 'created' | 'edited' | 'explored' | 'ran' | 'searchedWeb' | 'fetched'
+export type ToolGroupPart = 'calledTool' | 'created' | 'edited' | 'explored' | 'ran' | 'searchedWeb' | 'fetched' | DesktopToolVerb
 
-export type ToolGroupLabel = { part: ToolGroupPart; many: boolean }[]
+export type ToolGroupLabel = { part: ToolGroupPart; many: boolean; failed?: boolean }[]
 
-type GroupKind = 'tool' | 'write' | 'explore' | 'shell' | 'search' | 'fetch'
+type GroupKind = 'tool' | DesktopToolVerb | 'write' | 'explore' | 'shell' | 'search' | 'fetch'
 
-const GROUP_ORDER: readonly GroupKind[] = ['tool', 'write', 'explore', 'shell', 'search', 'fetch']
+const GROUP_ORDER: readonly GroupKind[] = ['tool', ...DESKTOP_TOOL_VERBS, 'write', 'explore', 'shell', 'search', 'fetch']
 
 const OWN_ROW_VERBS = new Set<ToolVerb>([
   'spawned',
@@ -22,7 +22,12 @@ const OWN_ROW_VERBS = new Set<ToolVerb>([
   'agentInterrupted',
 ])
 
+function isDesktopToolVerb(verb: ToolVerb): verb is DesktopToolVerb {
+  return (DESKTOP_TOOL_VERBS as readonly ToolVerb[]).includes(verb)
+}
+
 function groupKind(item: ToolEntry): GroupKind {
+  if (isDesktopToolVerb(item.verb)) return item.verb
   if (item.category === 'web') return item.web === 'fetch' ? 'fetch' : 'search'
   return item.category ?? 'tool'
 }
@@ -61,6 +66,8 @@ function groupLabel(kinds: Map<GroupKind, ToolEntry[]>): ToolGroupLabel {
         return { part: 'searchedWeb', many }
       case 'fetch':
         return { part: 'fetched', many }
+      default:
+        return { part: kind, many: false, failed: entries.every((entry) => entry.failed) }
     }
   })
 }

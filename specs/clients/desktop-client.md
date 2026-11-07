@@ -659,6 +659,11 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
+**Presentation**
+
+- Each tool reads as what it did, in progress, done, or failed (Reading chat, Read chat, Couldn't read chat), never by its tool name, and has its own icon. A call streaming its arguments already reads as in progress. Archive and pin tools read by the requested state, so unarchiving reads as restoring.
+- These rows have no expanded detail. A row for reading or messaging a chat opens that chat. In a collapsed summary, calls join by what they did, one phrase each.
+
 **Behavior**
 
 - Tools call ordinary AppServer methods. `SetThreadPinned` only updates Desktop settings; proposals and offers are Desktop-local state.

@@ -1,5 +1,7 @@
 import { translate, type AppLocale } from '../../shared/locales'
+import type { ConversationItem } from '../types/conversation'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
+import { formatDesktopToolLabel, resolveDesktopToolOperation } from './desktopToolDisplay'
 import { formatSkillViewRunningLabel } from './skillViewToolDisplay'
 import {
   extractBoardArguments,
@@ -72,12 +74,17 @@ function subAgentLabel(locale: AppLocale, key: string): StreamingToolDisplay {
  * and may be invalid JSON. Untrusted tools get a placeholder that never contains it.
  */
 export function getStreamingToolDisplay(
-  item: ToolKindSource,
+  item: ToolKindSource & Partial<Pick<ConversationItem, 'type' | 'pluginNamespace'>>,
   argumentsPreview: string | null | undefined,
   locale: AppLocale
 ): StreamingToolDisplay {
   const toolName = item.toolName ?? 'tool'
   const rawArgs = argumentsPreview ?? ''
+  const desktopOperation = resolveDesktopToolOperation(item, {
+    archived: !/"archived"\s*:\s*false/.test(rawArgs),
+    pinned: !/"pinned"\s*:\s*false/.test(rawArgs)
+  })
+  if (desktopOperation) return { label: formatDesktopToolLabel(desktopOperation, 'active', locale) }
   const kind = resolveToolKind(item)
   if (kind == null) {
     return { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }

@@ -17,6 +17,7 @@ import {
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
+import { formatDesktopToolLabel, getDesktopToolIcon, resolveDesktopToolOperation } from './desktopToolDisplay'
 import { formatMemoryRecallLabel } from './memoryToolDisplay'
 import { formatSkillViewLabel } from './skillViewToolDisplay'
 import { formatSkillOperationLabel } from './skillOperationDisplay'
@@ -230,11 +231,13 @@ function formatExploredLabel(args: ToolArgs, locale: AppLocale): string {
 }
 
 export function formatCollapsedToolLabel(
-  item: ToolKindSource,
+  item: ToolKindSource & Partial<Pick<ConversationItem, 'type' | 'pluginNamespace'>>,
   args: ToolArgs,
   locale: AppLocale
 ): string {
   const toolName = item.toolName ?? 'tool'
+  const desktopOperation = resolveDesktopToolOperation(item, args)
+  if (desktopOperation) return formatDesktopToolLabel(desktopOperation, 'completed', locale)
   const kind = resolveToolKind(item)
   const memory = resolveMemoryOperation(item)
   if (memory === 'recall') return formatMemoryRecallLabel(args, locale)
@@ -307,8 +310,11 @@ export interface ToolRowIcon {
 
 export function getToolRowIcon(
   item: Pick<ConversationItem, 'type' | 'toolName' | 'presentation' | 'source' | 'errorCode' | 'executionStatus'>
+    & Partial<Pick<ConversationItem, 'pluginNamespace' | 'arguments'>>
 ): ToolRowIcon {
   if (item.type === 'webSearch') return { icon: Globe }
+  const desktopOperation = resolveDesktopToolOperation(item, item.arguments)
+  if (desktopOperation) return { icon: getDesktopToolIcon(desktopOperation) }
   const kind = resolveToolKind(item)
   if (isShellCommandKind(kind)) {
     if (item.errorCode === 'tool_approval_rejected') return { icon: ShieldAlert, tone: 'warning' }

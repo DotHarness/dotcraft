@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useContext, useEffect, useState } from 'react'
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
@@ -27,7 +27,8 @@ import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
-import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard } from './TimelineMarkers'
+import type { DesktopToolVerb } from '../../core/transcriptTypes'
+import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
 import { TurnWork } from './TurnWork'
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
@@ -40,6 +41,10 @@ const TOOL_ICON: Record<ToolIcon, IconName> = {
   edit: 'pencil',
   web: 'globe',
   agent: 'bot',
+  chat: 'messageSquareText',
+  newChat: 'messageSquarePlus',
+  archive: 'archive',
+  dismiss: 'x',
   other: 'wrench',
 }
 
@@ -65,6 +70,19 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   stoppingWorkflow: 'tool.stoppingWorkflow',
   agentFinished: 'tool.agentFinished',
   agentInterrupted: 'tool.agentInterrupted',
+  chatRead: 'tool.chatRead',
+  chatsListed: 'tool.chatsListed',
+  chatsSearched: 'tool.chatsSearched',
+  chatMessaged: 'tool.chatMessaged',
+  chatCreated: 'tool.chatCreated',
+  chatRenamed: 'tool.chatRenamed',
+  chatArchived: 'tool.chatArchived',
+  chatRestored: 'tool.chatRestored',
+  chatPinned: 'tool.chatPinned',
+  chatUnpinned: 'tool.chatUnpinned',
+  terminalRead: 'tool.terminalRead',
+  terminalsListed: 'tool.terminalsListed',
+  suggestionDismissed: 'tool.suggestionDismissed',
 }
 
 const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
@@ -80,6 +98,35 @@ const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
   spawned: 'tool.live.spawned',
   messaged: 'tool.live.messaged',
   listedAgents: 'tool.live.listedAgents',
+  chatRead: 'tool.live.chatRead',
+  chatsListed: 'tool.live.chatsListed',
+  chatsSearched: 'tool.live.chatsSearched',
+  chatMessaged: 'tool.live.chatMessaged',
+  chatCreated: 'tool.live.chatCreated',
+  chatRenamed: 'tool.live.chatRenamed',
+  chatArchived: 'tool.live.chatArchived',
+  chatRestored: 'tool.live.chatRestored',
+  chatPinned: 'tool.live.chatPinned',
+  chatUnpinned: 'tool.live.chatUnpinned',
+  terminalRead: 'tool.live.terminalRead',
+  terminalsListed: 'tool.live.terminalsListed',
+  suggestionDismissed: 'tool.live.suggestionDismissed',
+}
+
+const TOOL_FAILED_TEXT: Record<DesktopToolVerb, MessageId> = {
+  chatRead: 'tool.failed.chatRead',
+  chatsListed: 'tool.failed.chatsListed',
+  chatsSearched: 'tool.failed.chatsSearched',
+  chatMessaged: 'tool.failed.chatMessaged',
+  chatCreated: 'tool.failed.chatCreated',
+  chatRenamed: 'tool.failed.chatRenamed',
+  chatArchived: 'tool.failed.chatArchived',
+  chatRestored: 'tool.failed.chatRestored',
+  chatPinned: 'tool.failed.chatPinned',
+  chatUnpinned: 'tool.failed.chatUnpinned',
+  terminalRead: 'tool.failed.terminalRead',
+  terminalsListed: 'tool.failed.terminalsListed',
+  suggestionDismissed: 'tool.failed.suggestionDismissed',
 }
 
 const TOOL_PENDING_TEXT: Partial<Record<ToolVerb, MessageId>> = {
@@ -112,10 +159,23 @@ const PART_TEXT: Record<ToolGroupPart, readonly [MessageId, MessageId]> = {
   ran: ['toolGroup.ran.one', 'toolGroup.ran.other'],
   searchedWeb: ['toolGroup.searchedWeb', 'toolGroup.searchedWeb'],
   fetched: ['toolGroup.fetched.one', 'toolGroup.fetched.other'],
+  chatRead: ['tool.chatRead', 'tool.chatRead'],
+  chatsListed: ['tool.chatsListed', 'tool.chatsListed'],
+  chatsSearched: ['tool.chatsSearched', 'tool.chatsSearched'],
+  chatMessaged: ['tool.chatMessaged', 'tool.chatMessaged'],
+  chatCreated: ['tool.chatCreated', 'tool.chatCreated'],
+  chatRenamed: ['tool.chatRenamed', 'tool.chatRenamed'],
+  chatArchived: ['tool.chatArchived', 'tool.chatArchived'],
+  chatRestored: ['tool.chatRestored', 'tool.chatRestored'],
+  chatPinned: ['tool.chatPinned', 'tool.chatPinned'],
+  chatUnpinned: ['tool.chatUnpinned', 'tool.chatUnpinned'],
+  terminalRead: ['tool.terminalRead', 'tool.terminalRead'],
+  terminalsListed: ['tool.terminalsListed', 'tool.terminalsListed'],
+  suggestionDismissed: ['tool.suggestionDismissed', 'tool.suggestionDismissed'],
 }
 
 function groupText(label: ToolGroupLabel, i18n: I18n): string {
-  return i18n.phrases(label.map(({ part, many }) => i18n.t(PART_TEXT[part][many ? 1 : 0])))
+  return i18n.phrases(label.map(({ part, many, failed }) => i18n.t(failed ? TOOL_FAILED_TEXT[part as DesktopToolVerb] : PART_TEXT[part][many ? 1 : 0])))
 }
 
 function liveText(entry: ToolEntry, t: I18n['t']): string {
@@ -381,8 +441,12 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   const { t, around } = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
+  const links = useContext(ThreadLinksContext)
   const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
-  const pendingText = entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
+  const pendingText = entry.failed && entry.verb in TOOL_FAILED_TEXT
+    ? TOOL_FAILED_TEXT[entry.verb as DesktopToolVerb]
+    : entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
+  const threadId = links ? entry.threadId : undefined
   const subject = entry.skill ? (
     <SkillChip name={entry.skill.name} path={entry.skill.file ?? undefined} />
   ) : (
@@ -393,9 +457,9 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
     <View style={styles.toolBlock}>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        disabled={entry.details.length === 0}
-        onPress={() => setOpen((value) => !value)}
+        accessibilityState={threadId ? undefined : { expanded: open }}
+        disabled={entry.details.length === 0 && !threadId}
+        onPress={() => (threadId ? links?.open(threadId) : setOpen((value) => !value))}
         style={styles.tool}
       >
         <Icon

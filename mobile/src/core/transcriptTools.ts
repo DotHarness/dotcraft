@@ -1,6 +1,6 @@
 import { isComplete, type HistoryItem } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
-import type { PlanTodo, ToolCategory, ToolDetail, ToolEntry, ToolIcon, ToolVerb, TranscriptEntry } from './transcriptTypes'
+import type { DesktopToolVerb, PlanTodo, ToolCategory, ToolDetail, ToolEntry, ToolIcon, ToolVerb, TranscriptEntry } from './transcriptTypes'
 
 const CATEGORIES: Record<string, ToolCategory> = {
   'core.read-file': 'explore',
@@ -173,6 +173,32 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
   }
 }
 
+const DESKTOP_TOOLS: Record<string, { verb: DesktopToolVerb; icon: ToolIcon; opensThread?: boolean }> = {
+  ReadThread: { verb: 'chatRead', icon: 'chat', opensThread: true },
+  ListThreadItems: { verb: 'chatRead', icon: 'chat', opensThread: true },
+  ReadThreadItem: { verb: 'chatRead', icon: 'chat', opensThread: true },
+  ListThreads: { verb: 'chatsListed', icon: 'chat' },
+  SearchThreadMessages: { verb: 'chatsSearched', icon: 'search' },
+  SendMessageToThread: { verb: 'chatMessaged', icon: 'chat', opensThread: true },
+  CreateThread: { verb: 'chatCreated', icon: 'newChat' },
+  SetThreadTitle: { verb: 'chatRenamed', icon: 'edit' },
+  SetThreadArchived: { verb: 'chatArchived', icon: 'archive' },
+  SetThreadPinned: { verb: 'chatPinned', icon: 'chat' },
+  ReadTerminal: { verb: 'terminalRead', icon: 'terminal' },
+  ListTerminalTabs: { verb: 'terminalsListed', icon: 'terminal' },
+  DismissProposal: { verb: 'suggestionDismissed', icon: 'dismiss' },
+}
+
+function desktopToolOf(item: HistoryItem, input: Record<string, unknown>) {
+  const namespace = str(item.payload.namespace)
+  if (item.type === 'mcpToolCall' || (namespace && namespace !== 'desktop')) return null
+  const tool = Object.hasOwn(DESKTOP_TOOLS, str(item.payload.toolName)) ? DESKTOP_TOOLS[str(item.payload.toolName)] : null
+  if (!tool) return null
+  if (tool.verb === 'chatArchived' && input.archived === false) return { ...tool, verb: 'chatRestored' as const }
+  if (tool.verb === 'chatPinned' && input.pinned === false) return { ...tool, verb: 'chatUnpinned' as const }
+  return tool
+}
+
 const CODE_MODE_TOOL_NAMES = new Set(['CodeMode', 'CodeModeWait'])
 const HIDDEN_COORDINATION_PRESENTATIONS = new Set(['core.send-user-message-async'])
 
@@ -327,9 +353,12 @@ export function toolEntry(
   const kind = toolKind(item, result)
   if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item) || isHiddenCoordinationTool(item, result)) return null
   const id = entryId(item)
+  const desktopTool = desktopToolOf(item, args(item.payload))
   const input = item.type === 'toolCall' ? args(item.payload) : {}
   const background = kind === 'shell' && item.type === 'toolCall' ? shellBackground(execution, result) : null
-  let shape: ToolShape = item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
+  let shape: ToolShape = desktopTool
+    ? { verb: desktopTool.verb, target: '' }
+    : item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
   if (background && !turnRunning) shape = { ...shape, verb: background === 'running' ? 'backgroundStarted' : 'backgroundStopped' }
   const presentation = presentationOf(item, result)
   const skill = item.type === 'toolCall' ? skillOf(presentation) : null
@@ -339,7 +368,7 @@ export function toolEntry(
     kind: 'tool' as const,
     id,
     verb: shape.verb,
-    icon: toolIcon(kind, result),
+    icon: desktopTool?.icon ?? toolIcon(kind, result),
     images: imagesOf(result),
     startedAt: item.createdAt,
     category: CATEGORIES[presentation.id] ?? null,
@@ -349,6 +378,10 @@ export function toolEntry(
     live,
     failed: !live && (result?.payload.success === false || result?.status === 'failed' || item.status === 'failed'),
     ...(skill ? { skill: { name: skill.name, file: skill.file } } : {}),
+  }
+  if (desktopTool) {
+    const threadId = desktopTool.opensThread && !base.failed ? str(args(item.payload).threadId).trim() : ''
+    return { ...base, subject: '', details: [], ...(threadId ? { threadId } : {}) }
   }
   if (!shape.target && !isComplete(item)) return { ...base, subject: null, details: [] }
   return {

@@ -72,3 +72,30 @@ describe('skill operations on file tools', () => {
     expect(entry?.skill).toBeUndefined()
   })
 })
+
+describe('Desktop runtime tools', () => {
+  function dynamic(toolName: string, payload: Record<string, unknown>, status = 'completed'): HistoryItem {
+    return { id: 'd1', turnId: 't1', type: 'dynamicToolCall', status, createdAt: '2026-11-07T00:00:00Z', payload: { toolName, namespace: 'desktop', ...payload } } as unknown as HistoryItem
+  }
+
+  it('reads as what it did, without details, and links to the chat it read', () => {
+    const entry = toolEntry(dynamic('ReadThread', { arguments: { threadId: 'thread_a' }, success: true }), undefined, undefined, false)
+    expect(entry).toMatchObject({ verb: 'chatRead', details: [], threadId: 'thread_a', live: false, failed: false })
+  })
+
+  it('keeps a failed read from linking anywhere', () => {
+    const entry = toolEntry(dynamic('ReadThread', { arguments: { threadId: 'thread_a' }, success: false }), undefined, undefined, false)
+    expect(entry).toMatchObject({ verb: 'chatRead', failed: true })
+    expect(entry?.threadId).toBeUndefined()
+  })
+
+  it('follows the requested state for archive', () => {
+    const entry = toolEntry(dynamic('SetThreadArchived', { arguments: { threadId: 'thread_a', archived: false }, success: true }), undefined, undefined, false)
+    expect(entry?.verb).toBe('chatRestored')
+  })
+
+  it('leaves the same tool name from another namespace as a generic tool', () => {
+    const entry = toolEntry(dynamic('ReadThread', { namespace: 'acme', arguments: {}, success: true }), undefined, undefined, false)
+    expect(entry?.verb).toBe('used')
+  })
+})

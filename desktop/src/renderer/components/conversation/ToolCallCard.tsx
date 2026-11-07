@@ -20,7 +20,9 @@ import {
   getToolRowIcon,
   isToolExecutionFailure
 } from '../../utils/toolCallDisplay'
+import { resolveDesktopToolOperation } from '../../utils/desktopToolDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
+import { DesktopToolRow } from './DesktopToolRow'
 import {
   resolveMemoryOperation,
   resolveSkillOperation,
@@ -425,6 +427,11 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   if (builderField && !isRunning) {
     return <AgentBuilderEditCard item={item} field={builderField} locale={locale} />
+  }
+
+  const desktopOperation = resolveDesktopToolOperation(item, args)
+  if (desktopOperation) {
+    return <DesktopToolRow item={item} operation={desktopOperation} running={isRunning} success={success} locale={locale} />
   }
 
   const rowIcon = rendererFamily === 'subagent' ? undefined : getToolRowIcon(item)
