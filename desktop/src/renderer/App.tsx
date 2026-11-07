@@ -30,6 +30,7 @@ import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolu
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
 import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
 import { normalizeThreadRuntime } from './utils/threadRuntime'
+import { usePairedComputerNotices } from './hooks/usePairedComputerNotices'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
@@ -494,6 +495,7 @@ function WindowFrame({
 export function App(): JSX.Element {
   useUserInputAutoResolutionBridge()
   useSatelliteNotices()
+  usePairedComputerNotices()
   useEffect(() => bootstrapSatellites(), [])
   const locale = useLocale()
   const localeRef = useRef(locale)

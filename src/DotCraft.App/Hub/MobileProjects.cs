@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace DotCraft.Hub;
 
-internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerRegistry appServers, HubPaths paths)
+internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerRegistry appServers, HubPaths paths, HubEventBus events)
 {
     private const string ChatsDisplayName = "Chats";
 
@@ -20,6 +20,18 @@ internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerR
 
     public KnownProject? Find(string projectId) =>
         Known().FirstOrDefault(project => string.Equals(project.Project.ProjectId, projectId, StringComparison.Ordinal));
+
+    public MobileProject Add(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+            throw new HubProtocolException(
+                "invalidRequest",
+                "The folder path must be absolute.",
+                StatusCodes.Status400BadRequest);
+        var added = projects.Open(path);
+        events.Publish("projects.changed");
+        return (Find(ProjectId(added.Path)) ?? throw ProjectNotFound()).Project;
+    }
 
     public async Task<MobileProject> EnsureAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -75,6 +87,7 @@ internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerR
                 new MobileProject(
                     ProjectId(project.Path),
                     Path.GetFileName(project.Path),
+                    project.Path,
                     MobileProjectKinds.Project,
                     running.Contains(project.Path),
                     project.LastOpenedAt));
@@ -82,7 +95,7 @@ internal sealed class MobileProjects(ProjectRegistry projects, ManagedAppServerR
 
         yield return new KnownProject(
             chats,
-            new MobileProject(ProjectId(chats), ChatsDisplayName, MobileProjectKinds.Chats, running.Contains(chats), null));
+            new MobileProject(ProjectId(chats), ChatsDisplayName, chats, MobileProjectKinds.Chats, running.Contains(chats), null));
     }
 
     private static HubProtocolException ProjectNotFound() =>

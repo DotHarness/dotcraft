@@ -1,4 +1,5 @@
-import type { PinnedNative, PinnedSocketEvent, PinnedSocketOptions } from './pinned'
+import type { PinnedSocketOptions } from '@dotcraft/sdk/gateway'
+import type { PinnedNative, PinnedSocketEvent } from './pinned'
 
 export type SocketEnd =
   | { kind: 'closed'; code: number; reason: string }

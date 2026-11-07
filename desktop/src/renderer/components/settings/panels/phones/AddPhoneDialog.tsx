@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type JSX } from 'react'
-import { CircleCheck, RefreshCw, Smartphone } from 'lucide-react'
+import { Check, CircleCheck, Copy, Monitor, RefreshCw, Smartphone } from 'lucide-react'
 
 import { Button } from '../../../ui/Button'
 import { ModalHeader } from '../../../ui/ModalHeader'
@@ -9,7 +9,7 @@ import { useMobileStore } from '../../../../stores/mobileStore'
 import { pairingSecondsLeft } from '../../../../../shared/mobile'
 import { PairingQrCode } from './PairingQrCode'
 import { PhonesDialog, PhonesDialogFailure } from './PhonesDialog'
-import { failureReason, formatCountdown } from './phonesFormat'
+import { failureReason, formatCountdown, isPhonePlatform } from './phonesFormat'
 
 function useSecondTick(active: boolean): void {
   const [, setTick] = useState(0)
@@ -29,6 +29,7 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   const denyPairing = useMobileStore((state) => state.denyPairing)
   const titleId = useId()
   const minted = useRef(false)
+  const [copiedPairingId, setCopiedPairingId] = useState<string | null>(null)
 
   const secondsLeft = pairing.step === 'code' ? pairingSecondsLeft(pairing.pairing) : 0
   const counting = pairing.step === 'code' && secondsLeft > 0
@@ -49,6 +50,11 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
 
   const restart = (): void => void startPairing()
 
+  function copyLink(pairingId: string, link: string): void {
+    void navigator.clipboard?.writeText(link).catch(() => undefined)
+    setCopiedPairingId(pairingId)
+  }
+
   let body: JSX.Element
   if (pairing.step === 'error') {
     body = (
@@ -60,7 +66,11 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   } else if (pairing.step === 'request') {
     body = (
       <div className="dc-add-phone__request" role="status">
-        <Smartphone size={32} strokeWidth={1.7} aria-hidden />
+        {isPhonePlatform(pairing.platform) ? (
+          <Smartphone size={32} strokeWidth={1.7} aria-hidden />
+        ) : (
+          <Monitor size={32} strokeWidth={1.7} aria-hidden />
+        )}
         <strong>{t('settings.phones.pair.requestTitle', { name: pairing.displayName })}</strong>
         <span>{t('settings.phones.pair.requestDescription')}</span>
       </div>
@@ -87,6 +97,17 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
           >
             <Skeleton width={184} height={184} radius={8} />
           </div>
+        )}
+        {pairing.step === 'code' && !expired && (
+          <Button
+            variant="secondary"
+            iconLeft={
+              copiedPairingId === pairing.pairing.pairingId ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />
+            }
+            onClick={() => copyLink(pairing.pairing.pairingId, pairing.pairing.qrPayload)}
+          >
+            {t(copiedPairingId === pairing.pairing.pairingId ? 'settings.phones.pair.linkCopied' : 'settings.phones.pair.copyLink')}
+          </Button>
         )}
         <p className="dc-add-phone__note">{t('settings.phones.pair.note')}</p>
         <p className="dc-add-phone__status" role={counting ? 'timer' : 'status'}>
@@ -153,7 +174,7 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
       onClose={close}
       header={(
         <ModalHeader
-          icon={<Smartphone size={18} aria-hidden />}
+          icon={<Monitor size={18} aria-hidden />}
           title={t('settings.phones.pair.title')}
           titleId={titleId}
           onClose={close}

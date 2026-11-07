@@ -260,6 +260,25 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       })
     }
   }
+  for (const { computer, project: deviceProject } of ctx.app.pairedComputers.savedProjects()) {
+    const saved = ctx.buildDeviceRemoteProject(computer, deviceProject, undefined, '')
+    if (saved.projectId === ctx.activeRemoteProject?.projectId) continue
+    projects.push({
+      projectId: saved.projectId,
+      kind: 'remote',
+      path: saved.displayPath,
+      identityWorkspacePath: saved.identityWorkspacePath,
+      name: saved.name,
+      state: 'cold',
+      running: false,
+      loaded: false,
+      threadCount: 0,
+      threads: [],
+      pinnedThreadIds: ctx.getPinnedThreadIdsForProject(saved.projectId),
+      pinned: ctx.isProjectPinned(saved.projectId),
+      remote: saved.remote
+    })
+  }
   if (ctx.activeRemoteProject) {
     const entry = ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId)
     const state: WorkspaceProjectState = entry?.errorMessage

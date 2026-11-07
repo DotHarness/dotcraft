@@ -28,7 +28,7 @@ import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
 import { systemEventSignals, turnSignals } from './signals'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
-import { GatewayError, type GatewayClient } from './gateway'
+import { GatewayError, type GatewayClient } from '@dotcraft/sdk/gateway'
 import {
   emptyHistory,
   type HistoryEvent,

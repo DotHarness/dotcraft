@@ -41,9 +41,9 @@ function resolveModuleWsConfig(
 ): { wsUrl: string; token?: string } {
   const mode = resolveConnectionMode(settings)
   if (mode === 'remote') {
-    if (settings.activeRemoteStack || settings.activeRemoteProject) {
+    if (settings.activeRemoteStack || settings.activeRemoteProject || settings.activeRemoteDevice) {
       if (!runtime?.wsUrl?.trim()) {
-        throw new Error('Remote AppServer SSH forward is not connected.')
+        throw new Error('Remote AppServer forward is not connected.')
       }
       return runtime.token?.trim()
         ? { wsUrl: runtime.wsUrl.trim(), token: runtime.token.trim() }

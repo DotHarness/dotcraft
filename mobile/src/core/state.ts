@@ -4,7 +4,7 @@ import type { BackgroundTask, TaskSource, TaskSources } from './backgroundTasks'
 import { chatState, needsYou, type ChatState } from './chatState'
 import { applyContext, type ContextUpdate, type ContextUsage } from './contextUsage'
 import type { ReferenceEntry } from './draft'
-import type { RelayInfo } from './gateway'
+import type { RelayInfo } from '@dotcraft/sdk/gateway'
 import {
   applyDeltas,
   applyEvent,
@@ -16,7 +16,7 @@ import {
   type HistoryEvent,
   type TurnPageEntry,
 } from './history'
-import type { PairingOffer } from './pairing'
+import type { PairingOffer } from '@dotcraft/sdk/gateway'
 import type { ApprovalPolicy } from './threadConfig'
 
 export interface ComputerRecord {

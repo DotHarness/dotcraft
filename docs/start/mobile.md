@@ -17,13 +17,13 @@ The app is available for Android only for now.
 
 ## Pair your phone
 
-1. On your computer, open DotCraft Desktop and go to **Settings → Connections → Phones**.
-2. Turn on **Allow phones to control this computer**.
-3. Select **Add phone**. A QR code appears. It works once and expires in 10 minutes.
+1. On your computer, open DotCraft Desktop and go to **Settings → Connections → Control this PC** (**Control this Mac** on macOS).
+2. Turn on **Allow other devices to control this computer**.
+3. Select **Add device**. A QR code appears. It works once and expires in 10 minutes.
 4. Open DotCraft on your phone and scan the code.
 5. Back on the computer, check that it names your phone and choose **Allow**.
 
-The phone then appears under **Paired phones**. A paired phone can do anything you can do in DotCraft on that computer, so pair only your own phones. Remove a phone from the same list when you stop using it.
+The phone then appears under **Devices that can control this computer**. A paired phone can do anything you can do in DotCraft on that computer, so pair only your own phones. Remove a phone from the same list when you stop using it.
 
 The phone needs to be on the same network as the computer, or on the same private network, such as Tailscale. To use it on other networks, see [Access from anywhere](#access-from-anywhere).
 
@@ -47,6 +47,6 @@ The live session ends on its own after two minutes with nothing running or waiti
 
 ## Access from anywhere
 
-At home or in the office, the phone connects to the computer directly over your network. To use it on other networks, run a relay on a server that both can reach, then enter the relay address and token on the computer under **Settings → Connections → Phones → Access from anywhere**. The relay only passes encrypted data along and never sees your chats.
+At home or in the office, the phone connects to the computer directly over your network. To use it on other networks, run a relay on a server that both can reach, then enter the relay address and token on the computer under **Settings → Connections → Control this PC → Access from anywhere**. The relay only passes encrypted data along and never sees your chats.
 
 Phones paired earlier pick up the relay the next time they're on the same network as the computer. To run the relay, see [Access from anywhere](../contribute/lifecycle/hub#access-from-anywhere) in the Hub guide.

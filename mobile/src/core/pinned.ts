@@ -1,23 +1,4 @@
-export interface PinnedRequest {
-  url: string
-  method: 'GET' | 'POST' | 'DELETE'
-  headers: Record<string, string>
-  body?: string
-  fingerprint: string
-  tunnel?: string
-}
-
-export interface PinnedResponse {
-  status: number
-  body: string
-}
-
-export interface PinnedSocketOptions {
-  url: string
-  headers: Record<string, string>
-  fingerprint: string
-  tunnel?: string
-}
+import type { PinnedRequest, PinnedResponse, PinnedSocketOptions } from '@dotcraft/sdk/gateway'
 
 export type PinnedSocketEvent =
   | { type: 'open'; id: string }
@@ -33,5 +14,4 @@ export interface PinnedNative {
   subscribe(listener: (event: PinnedSocketEvent) => void): () => void
 }
 
-export const PIN_MISMATCH = 'ERR_PINNING_MISMATCH'
 export const HTTP_REJECTED = 'ERR_HTTP'

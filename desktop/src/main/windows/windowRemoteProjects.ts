@@ -11,6 +11,7 @@ import type { WorkspaceRemoteProjectMetadata } from '../../shared/workspaceProje
 import type { WorkspaceStatusPayload } from '../../shared/workspaceSetup'
 import { isDefaultChatWorkspace } from '../defaultChatWorkspace'
 import { type AppSettings, type ConnectionMode } from '../settings'
+import type { StoredComputer, StoredProject } from '../pairedComputers/pairedComputersStorage'
 import { DOTCRAFT_INSTALL_SCRIPT } from '../sshMachines/installScript'
 import { listRemoteProviders } from '../sshMachines/remoteProviderList'
 import { SSH_MACHINES_CHANGED_CHANNEL } from '../sshMachines/sshMachinesIpc'
@@ -150,6 +151,51 @@ export function buildSshRemoteProject(
   }
 }
 
+export function deviceRemoteProjectId(_ctx: DesktopWindowRuntime, computerId: string, projectId: string): string {
+  return `remote:device:${computerId}:${projectId}`
+}
+
+export function buildDeviceRemoteProject(
+  ctx: DesktopWindowRuntime,
+  computer: Pick<StoredComputer, 'computerId' | 'name'>,
+  project: StoredProject,
+  endpoint?: string,
+  localWorkspacePath: string = ctx.currentWorkspacePath
+): ActiveRemoteProject {
+  const projectId = ctx.deviceRemoteProjectId(computer.computerId, project.projectId)
+  const remote: WorkspaceRemoteProjectMetadata = {
+    source: 'device',
+    displayPath: project.path,
+    ...(endpoint ? { endpoint } : {}),
+    hostId: computer.computerId,
+    serverName: computer.name,
+    appServerWorkspacePath: project.path,
+    projectName: project.displayName,
+    remoteProjectId: project.projectId
+  }
+  return {
+    projectId,
+    source: 'device',
+    name: project.displayName,
+    identityWorkspacePath: project.path,
+    displayPath: project.path,
+    ...(endpoint ? { endpoint } : {}),
+    localWorkspacePath,
+    remote,
+    status: {
+      source: 'device',
+      projectId,
+      displayName: project.displayName,
+      ...(endpoint ? { endpoint } : {}),
+      hostId: computer.computerId,
+      serverName: computer.name,
+      appServerWorkspacePath: project.path,
+      projectName: project.displayName,
+      remoteProjectId: project.projectId
+    }
+  }
+}
+
 export function buildEndpointRemoteProject(
   ctx: DesktopWindowRuntime,
   source: 'manual' | 'cli',
@@ -252,6 +298,10 @@ export function buildInitialRemoteProject(
   const sshProject = ctx.resolveActiveSshProject(settings)
   if (sshProject)
     return ctx.buildSshRemoteProject(sshProject.machine, sshProject.project, undefined, localWorkspacePath)
+  const device = settings.activeRemoteDevice
+    ? ctx.app.pairedComputers.find(settings.activeRemoteDevice.computerId, settings.activeRemoteDevice.projectId)
+    : null
+  if (device) return ctx.buildDeviceRemoteProject(device.computer, device.project, undefined, localWorkspacePath)
   const stack = ctx.resolveActiveRemoteStack(settings)
   return stack ? ctx.buildServersRemoteProject(stack.host, stack.stack, undefined, localWorkspacePath) : null
 }

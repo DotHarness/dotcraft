@@ -23,6 +23,12 @@ function strictApi<T extends object>(overrides: T, path = 'window.api'): T {
 }
 
 /** The app shell, Settings and the composer all mount the bridge, so it is never strict. */
+const PAIRED_COMPUTERS_DEFAULT: ApiOverrides<Api>['pairedComputers'] = {
+  list: () => Promise.resolve([]),
+  refresh: () => Promise.resolve(),
+  onEvent: () => () => undefined
+}
+
 const SATELLITES_DEFAULT: ApiOverrides<Api>['satellites'] = {
   list: () => Promise.resolve({ supported: false, satellites: [] }),
   shareStatus: () => Promise.resolve({ installed: false, peers: [] }),
@@ -59,6 +65,7 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
     ...overrides,
     appServer: { ...HAS_DESKTOP_THREAD_TOOLS_DEFAULT, ...overrides.appServer },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
+    pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
     screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView },
     workspace: {

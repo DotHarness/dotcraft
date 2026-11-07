@@ -1,6 +1,7 @@
 import { DotCraftWireClient, TransportClosed } from '@dotcraft/sdk/wire'
 import { describe, expect, it } from 'vitest'
-import type { PinnedNative, PinnedSocketEvent, PinnedSocketOptions } from './pinned'
+import type { PinnedSocketOptions } from '@dotcraft/sdk/gateway'
+import type { PinnedNative, PinnedSocketEvent } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import { PinnedSockets } from './sockets'
 

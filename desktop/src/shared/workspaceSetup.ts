@@ -27,7 +27,7 @@ export interface WorkspaceUserConfigDefaults {
 }
 
 export interface RemoteWorkspaceStatusPayload {
-  source?: 'servers' | 'ssh' | 'manual' | 'cli'
+  source?: 'servers' | 'ssh' | 'device' | 'manual' | 'cli'
   projectId?: string
   displayName?: string
   endpoint?: string

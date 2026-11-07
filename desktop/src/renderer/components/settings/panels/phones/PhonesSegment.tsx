@@ -19,7 +19,7 @@ import { PhoneRow } from './PhoneRow'
 import { RelayGroup } from './RelayGroup'
 import { failureReason } from './phonesFormat'
 
-function PhonesNotice({ title, reason, action }: { title: string; reason: string; action?: ReactNode }): JSX.Element {
+export function PhonesNotice({ title, reason, action }: { title: string; reason: string; action?: ReactNode }): JSX.Element {
   return (
     <div style={s.banner} role="alert">
       <span className="dc-phones-banner__glyph" aria-hidden>

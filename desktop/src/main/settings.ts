@@ -79,6 +79,11 @@ export interface ActiveRemoteProjectSettings {
   projectId: string
 }
 
+export interface ActiveRemoteDeviceSettings {
+  computerId: string
+  projectId: string
+}
+
 export interface BrowserUseSettings {
   approvalMode?: BrowserUseApprovalMode
   blockedDomains?: string[]
@@ -127,6 +132,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   remote?: RemoteConnectionSettings
   activeRemoteStack?: ActiveRemoteStackSettings
   activeRemoteProject?: ActiveRemoteProjectSettings
+  activeRemoteDevice?: ActiveRemoteDeviceSettings
   theme?: UiTheme
   accent?: string
   themeSeeds?: Record<ThemeVariant, ThemeSeedOverrides>
@@ -499,6 +505,16 @@ function normalizeActiveRemoteProject(settings: AppSettings): ActiveRemoteProjec
   return machineId && projectId ? { machineId, projectId } : undefined
 }
 
+function normalizeActiveRemoteDevice(settings: AppSettings): ActiveRemoteDeviceSettings | undefined {
+  const raw = settings.activeRemoteDevice
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const computerId = typeof raw.computerId === 'string' ? raw.computerId.trim() : ''
+  const projectId = typeof raw.projectId === 'string' ? raw.projectId.trim() : ''
+  return computerId && projectId ? { computerId, projectId } : undefined
+}
+
 function normalizePinnedSectionCollapsed(settings: AppSettings): boolean | undefined {
   return settings.pinnedSectionCollapsed === true ? true : undefined
 }
@@ -657,6 +673,7 @@ export function loadSettings(): AppSettings {
       raw.createdSatelliteInviteIds = normalizeCreatedSatelliteInviteIds(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       raw.activeRemoteProject = normalizeActiveRemoteProject(raw)
+      raw.activeRemoteDevice = normalizeActiveRemoteDevice(raw)
       raw.pet = normalizePetSetting(raw.pet)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
@@ -726,6 +743,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.pet = normalizePetSetting(settings.pet)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     settings.activeRemoteProject = normalizeActiveRemoteProject(settings)
+    settings.activeRemoteDevice = normalizeActiveRemoteDevice(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
   }

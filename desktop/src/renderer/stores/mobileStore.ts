@@ -12,7 +12,7 @@ export type PairingFlow =
   | { step: 'idle' }
   | { step: 'creating' }
   | { step: 'code'; pairing: MobilePairing }
-  | { step: 'request'; pairing: MobilePairing; displayName: string; allowing: boolean }
+  | { step: 'request'; pairing: MobilePairing; displayName: string; platform: MobileDevice['platform']; allowing: boolean }
   | { step: 'error'; failure: MobileFailure }
   | { step: 'paired'; displayName: string }
 
@@ -155,7 +155,15 @@ export const useMobileStore = create<MobileStore>((set, get) => ({
       case 'pairingRequested': {
         const { pairing } = get()
         if (pairing.step === 'code' && pairing.pairing.pairingId === event.pairingId) {
-          set({ pairing: { step: 'request', pairing: pairing.pairing, displayName: event.displayName, allowing: false } })
+          set({
+            pairing: {
+              step: 'request',
+              pairing: pairing.pairing,
+              displayName: event.displayName,
+              platform: event.platform,
+              allowing: false
+            }
+          })
         }
         return
       }

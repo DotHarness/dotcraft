@@ -13,6 +13,7 @@ import { registerSatellitesHandlers } from './satellites/satellitesIpc'
 import { registerScreenViewHandlers } from './screenView/screenViewIpc'
 import type { AppSettings } from './settings'
 import { resolveTaskCompletionNotificationMode } from './settings'
+import { registerPairedComputersHandlers } from './pairedComputers/pairedComputersIpc'
 import { registerSshMachinesHandlers } from './sshMachines/sshMachinesIpc'
 import { viewerTextWatchManager } from './viewerTextWatch'
 import {
@@ -111,6 +112,21 @@ export function registerIpcHandlers(
       leaveRemoteProject: callbacks.onLeaveRemoteProject,
       connectDockerDeployment: callbacks.onConnectDockerDeployment,
       disconnectDockerDeployment: callbacks.onDisconnectDockerDeployment
+    })
+  }
+
+  const pairedComputers = callbacks.getPairedComputersManager?.()
+  if (pairedComputers) {
+    registerPairedComputersHandlers({
+      handleSafe,
+      manager: pairedComputers,
+      openProject: async (computerId, projectId) => {
+        if (!callbacks.onOpenPairedComputerProject) throw new Error('Remote projects cannot be opened in this window.')
+        await callbacks.onOpenPairedComputerProject(computerId, projectId)
+      },
+      leaveProject: async (computerId, projectId) => {
+        await callbacks.onLeavePairedComputerProject?.(computerId, projectId)
+      }
     })
   }
 

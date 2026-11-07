@@ -1,5 +1,5 @@
 import { useMemo, useState, type JSX, type ReactNode } from 'react'
-import { Cloud, Folder, FolderPlus, MessageCircle, Server } from 'lucide-react'
+import { Cloud, Folder, FolderPlus, MessageCircle, Server, Monitor } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
@@ -33,6 +33,7 @@ export function projectIcon(project: WorkspaceProjectSummary): ReactNode {
   if (project.kind !== 'remote') {
     return <Folder size={14} strokeWidth={1.8} aria-hidden />
   }
+  if (project.remote?.source === 'device') return <Monitor size={14} strokeWidth={1.8} aria-hidden />
   return project.remote?.source === 'servers' || project.remote?.source === 'ssh'
     ? <Server size={14} strokeWidth={1.8} aria-hidden />
     : <Cloud size={14} strokeWidth={1.8} aria-hidden />

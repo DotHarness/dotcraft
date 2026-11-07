@@ -81,14 +81,24 @@ export async function applyConnectionSettings(
     }
     await ctx.probeRemoteAppServerConnection(resolved.connectUrl)
     ctx.closeActiveRemoteForwards()
-    await ctx.updateSettings({ ...draft, activeRemoteStack: undefined, activeRemoteProject: undefined })
+    await ctx.updateSettings({
+      ...draft,
+      activeRemoteStack: undefined,
+      activeRemoteProject: undefined,
+      activeRemoteDevice: undefined
+    })
     await ctx.connectToAppServer(ctx.currentWorkspacePath)
     return
   }
 
   await ctx.teardownRuntime('apply local connection settings before reconnect')
   ctx.closeActiveRemoteForwards()
-  await ctx.updateSettings({ ...draft, activeRemoteStack: undefined, activeRemoteProject: undefined })
+  await ctx.updateSettings({
+    ...draft,
+    activeRemoteStack: undefined,
+    activeRemoteProject: undefined,
+    activeRemoteDevice: undefined
+  })
   const hubClient = ctx.app.createHubClient(ctx.settings)
   const restarted = await hubClient.restartAppServer(ctx.currentWorkspacePath, resolveDotCraftRuntimeTools())
   await ctx.connectViaWebSocket(ctx.currentWorkspacePath, ctx.getManagedAppServerEndpoint(restarted))
@@ -104,6 +114,12 @@ export function closeSettingsRemoteForwards(ctx: DesktopWindowRuntime, settings:
   if (projectRef?.machineId && projectRef.projectId) {
     ctx.sshMachinesManager?.closeProjectForward(projectRef.machineId, projectRef.projectId)
   }
+  if (settings.activeRemoteDevice) closeDeviceBridge(ctx)
+}
+
+function closeDeviceBridge(ctx: DesktopWindowRuntime): void {
+  ctx.activeDeviceBridge?.close()
+  ctx.activeDeviceBridge = null
 }
 
 export function closeActiveRemoteForwards(
@@ -135,6 +151,7 @@ export async function disconnectActiveRemoteProject(
     ctx.sshMachinesManager?.closeProjectForward(project.remote.hostId, project.remote.remoteProjectId)
   }
   ctx.disposeActiveRemoteConnection()
+  closeDeviceBridge(ctx)
   ctx.setActiveRemoteProject(null)
   ctx.lastRemoteStackLocalPort = null
 
@@ -148,7 +165,8 @@ export async function disconnectActiveRemoteProject(
   await ctx.updateSettings({
     connectionMode: 'local',
     activeRemoteStack: undefined,
-    activeRemoteProject: undefined
+    activeRemoteProject: undefined,
+    activeRemoteDevice: undefined
   })
   ctx.emitWorkspaceProjects()
 
@@ -201,12 +219,16 @@ export async function connectDockerDeployment(
     )
   }
 
-  ctx.closeSettingsRemoteForwards({ activeRemoteProject: ctx.settings.activeRemoteProject })
+  ctx.closeSettingsRemoteForwards({
+    activeRemoteProject: ctx.settings.activeRemoteProject,
+    activeRemoteDevice: ctx.settings.activeRemoteDevice
+  })
   await ctx.updateSettings({
     connectionMode: 'remote',
     remote: undefined,
     activeRemoteStack: { hostId: host.id, stackId: stack.id },
-    activeRemoteProject: undefined
+    activeRemoteProject: undefined,
+    activeRemoteDevice: undefined
   })
   await ctx.connectToAppServer(ctx.remoteForegroundAnchorPath())
   return { localPort: ctx.lastRemoteStackLocalPort ?? result.localPort }
@@ -265,6 +287,7 @@ export async function openSshRemoteProject(
   const previousProject = ctx.settings.activeRemoteProject
   ctx.closeSettingsRemoteForwards({
     activeRemoteStack: ctx.settings.activeRemoteStack,
+    activeRemoteDevice: ctx.settings.activeRemoteDevice,
     activeRemoteProject:
       previousProject && (previousProject.machineId !== machineId || previousProject.projectId !== projectId)
         ? previousProject
@@ -274,7 +297,47 @@ export async function openSshRemoteProject(
     connectionMode: 'remote',
     remote: undefined,
     activeRemoteStack: undefined,
-    activeRemoteProject: { machineId, projectId }
+    activeRemoteProject: { machineId, projectId },
+    activeRemoteDevice: undefined
   })
   await ctx.connectToAppServer(ctx.remoteForegroundAnchorPath())
+}
+
+export async function openPairedComputerProject(
+  ctx: DesktopWindowRuntime,
+  computerId: string,
+  projectId: string
+): Promise<void> {
+  if (ctx.argv.includes('--remote')) {
+    throw new Error('Remote projects cannot be opened while Desktop was launched with --remote.')
+  }
+  const opened = await ctx.app.pairedComputers.openProject(computerId, projectId)
+  try {
+    await ctx.probeRemoteAppServerConnection(opened.bridge.wsUrl)
+  } finally {
+    opened.bridge.close()
+  }
+  ctx.closeSettingsRemoteForwards({
+    activeRemoteStack: ctx.settings.activeRemoteStack,
+    activeRemoteProject: ctx.settings.activeRemoteProject,
+    activeRemoteDevice: ctx.settings.activeRemoteDevice
+  })
+  await ctx.updateSettings({
+    connectionMode: 'remote',
+    remote: undefined,
+    activeRemoteStack: undefined,
+    activeRemoteProject: undefined,
+    activeRemoteDevice: { computerId, projectId }
+  })
+  await ctx.connectToAppServer(ctx.remoteForegroundAnchorPath())
+}
+
+export async function leavePairedComputerProject(
+  ctx: DesktopWindowRuntime,
+  computerId: string,
+  projectId?: string
+): Promise<void> {
+  const ref = ctx.settings.activeRemoteDevice
+  if (ref?.computerId !== computerId || (projectId && ref.projectId !== projectId)) return
+  await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
 }

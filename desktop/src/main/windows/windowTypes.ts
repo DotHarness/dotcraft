@@ -48,6 +48,7 @@ export interface RemoteConnectionDiagnostic {
 
 export interface ConnectViaWebSocketOptions {
   onReady?: () => void
+  onInitialFailure?: (error: unknown) => void
   autoReconnect?: boolean
   initializeTimeoutMs?: number | null
   initialDisconnectIsError?: boolean

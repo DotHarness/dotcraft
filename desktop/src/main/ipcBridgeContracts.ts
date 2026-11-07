@@ -16,6 +16,7 @@ import type {
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import type { DesktopHubClient } from './desktopHub'
 import type { AppSettings, BinarySource } from './settings'
+import type { PairedComputersManager } from './pairedComputers/pairedComputersManager'
 import type { SshMachinesManager } from './sshMachines/sshMachinesManager'
 import type { WindowIpcMain } from './windowIpc'
 
@@ -39,6 +40,9 @@ export interface IpcHandlerCallbacks {
   onDisconnectDockerDeployment?: (machineId: string, stackId: string) => Promise<void>
   onOpenRemoteProject?: (machineId: string, projectId: string) => Promise<void>
   onLeaveRemoteProject?: (machineId: string, projectId: string) => Promise<void>
+  getPairedComputersManager?: () => PairedComputersManager
+  onOpenPairedComputerProject?: (computerId: string, projectId: string) => Promise<void>
+  onLeavePairedComputerProject?: (computerId: string, projectId?: string) => Promise<void>
   onDisconnectRemoteProject?: () => Promise<void>
   getSettings: () => AppSettings
   /** Absent leaves the satellite channels unregistered. */

@@ -124,7 +124,7 @@ div.dc-add-phone__qr[aria-busy='true'] {
 }
 
 .dc-add-phone__note {
-  max-width: 36ch;
+  max-width: 44ch;
   margin: 6px 0 0;
   color: var(--text-secondary);
   font-size: var(--type-secondary-size);

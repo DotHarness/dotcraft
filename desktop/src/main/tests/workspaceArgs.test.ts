@@ -71,6 +71,12 @@ describe('workspace argument resolution', () => {
     expect(resolve([NO_WORKSPACE_ARG])).toBeNull()
   })
 
+  it('anchors a saved remote project on Chats when that is where it was opened', () => {
+    const device = { activeRemoteDevice: { computerId: 'c', projectId: 'p' }, lastForegroundEntry: 'chats' as const }
+    expect(resolveStartupWorkspacePath(device, ['electron'], () => false, defaultChatsPath, 'remote')).toBe(defaultChatsPath)
+    expect(resolveStartupWorkspacePath({ lastForegroundEntry: 'chats' }, ['electron'], () => false, defaultChatsPath, 'remote')).toBeNull()
+  })
+
   it('does not restore Chats for remote endpoint startup', () => {
     expect(resolveStartupWorkspacePath(
       { lastForegroundEntry: 'chats' },

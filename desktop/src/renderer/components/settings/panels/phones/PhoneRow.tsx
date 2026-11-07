@@ -1,5 +1,5 @@
 import { useRef, type JSX } from 'react'
-import { Smartphone } from 'lucide-react'
+import { Monitor, Smartphone } from 'lucide-react'
 
 import { MoreActionsButton } from '../../../ui/MoreActionsButton'
 import { useLocale, useT } from '../../../../contexts/LocaleContext'
@@ -7,7 +7,7 @@ import { lastSeenLabel } from '../../../../../shared/satellites'
 import type { MobileDevice } from '../../../../../shared/mobile'
 import { StatusIndicator, statusTextStyle } from '../settingsStatusStyles'
 import * as s from '../connections/connectionsStyles'
-import { addedDay, platformLabel } from './phonesFormat'
+import { addedDay, isPhonePlatform, platformLabel } from './phonesFormat'
 
 export function PhoneRow({
   device,
@@ -31,7 +31,7 @@ export function PhoneRow({
   return (
     <div style={{ ...s.listRow, cursor: 'default', borderTop: first ? 'none' : '1px solid var(--border-default)' }}>
       <span style={s.listRowIcon} aria-hidden>
-        <Smartphone size={17} />
+        {isPhonePlatform(device.platform) ? <Smartphone size={17} /> : <Monitor size={17} />}
       </span>
       <span className="dc-satellite-row__text">
         <span className="dc-satellite-row__title">

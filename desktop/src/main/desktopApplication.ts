@@ -1,3 +1,4 @@
+import { hostname, release } from 'os'
 import { app, BrowserWindow, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { normalizeNewTaskPromptMode } from '../shared/threadTasks'
@@ -13,6 +14,10 @@ import { DesktopUpdatePreparation } from './desktopUpdatePreparation'
 import { DesktopWindowManager } from './desktopWindowManager'
 import { LocalProjectList } from './localProjects'
 import { disposeMobileHubBridge } from './mobile/mobileHubBridge'
+import { broadcastPairedComputerEvent } from './pairedComputers/pairedComputersIpc'
+import { PairedComputersManager } from './pairedComputers/pairedComputersManager'
+import { createFileStorage, createSafeStorageVault } from './pairedComputers/pairedComputersStorage'
+import { openPinnedWebSocket, pinnedRequest } from './pairedComputers/pinnedTransport'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { nodeReplManager } from './nodeReplManager'
 import { disposeSatellitesHubBridge } from './satellites/satellitesHubBridge'
@@ -33,6 +38,7 @@ const WINDOW_CONNECTION_SETTINGS = new Set<keyof AppSettings>([
   'connectionMode',
   'remote',
   'activeRemoteProject',
+  'activeRemoteDevice',
   'activeRemoteStack'
 ])
 
@@ -67,6 +73,7 @@ export class DesktopApplication implements DesktopApplicationServices {
   private updater: AppUpdateService | null = null
   private tray: DesktopTray | null = null
   private updateTimer: ReturnType<typeof setTimeout> | null = null
+  private pairedComputersManager: PairedComputersManager | null = null
   private disposing: Promise<void> | null = null
 
   constructor() {
@@ -97,6 +104,32 @@ export class DesktopApplication implements DesktopApplicationServices {
     void this.tray.refresh()
     this.updateTimer = setTimeout(() => this.getAppUpdateService().start(), 1_200)
     this.updateTimer.unref()
+  }
+
+  get pairedComputers(): PairedComputersManager {
+    this.pairedComputersManager ??= new PairedComputersManager({
+      storage: createFileStorage(),
+      vault: createSafeStorageVault(),
+      native: { request: pinnedRequest },
+      openSocket: openPinnedWebSocket,
+      ownComputerId: async () => (await this.createHubClient(this.settings).getMobile()).computerId ?? null,
+      appVersion: app.getVersion(),
+      enforceVersion: app.isPackaged,
+      device: {
+        displayName: hostname(),
+        platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux',
+        osVersion: release()
+      },
+      onEvent: (event) => {
+        broadcastPairedComputerEvent(event)
+        if (event.kind !== 'changed') return
+        for (const window of this.windows.values()) window.emitWorkspaceProjects()
+      },
+      onRemoved: (computerId) => {
+        for (const window of this.windows.values()) window.handlePairedComputerRemoved(computerId)
+      }
+    })
+    return this.pairedComputersManager
   }
 
   createHubClient = (settings: AppSettings): DesktopHubClient => {
@@ -211,6 +244,7 @@ export class DesktopApplication implements DesktopApplicationServices {
     this.localProjects.stop()
     disposeMobileHubBridge()
     disposeSatellitesHubBridge()
+    this.pairedComputersManager?.dispose()
   }
 
   private exitFromTray = async (): Promise<void> => {

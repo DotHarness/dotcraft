@@ -48,9 +48,9 @@ It records which AppServer process owns the workspace and prevents multiple loca
 
 When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it removes the lock and continues. If the lock points to a still-running AppServer with a healthy WebSocket endpoint, Hub reuses that endpoint instead of starting a duplicate process. When the lock points to a live AppServer that Hub cannot safely reuse, close the Desktop or CLI process holding that workspace, or stop the workspace runtime from the tray, then reopen it.
 
-## Phone access
+## Device access
 
-When phone access is on in **Settings → Connections → Phones**, Hub also runs the mobile gateway: an HTTPS listener that paired phones reach over your local or private network. It accepts connections only from loopback and private network addresses, and phones trust only the certificate whose fingerprint they received when pairing. Two settings in the global `~/.craft/config.json` control where it listens:
+When device access is on in **Settings → Connections → Control this PC**, Hub also runs the device gateway: an HTTPS listener that paired phones and computers reach over your local or private network. It accepts connections only from loopback and private network addresses, and devices trust only the certificate whose fingerprint they received when pairing. Two settings in the global `~/.craft/config.json` control where it listens:
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
@@ -65,11 +65,11 @@ When phone access is on in **Settings → Connections → Phones**, Hub also run
 }
 ```
 
-If another program holds the port, turning phone access on fails and Hub does not try another port. Free the port, or set `Hub.MobilePort` and restart Hub. The gateway contract is defined by the [DotCraft Mobile spec](https://github.com/DotHarness/dotcraft/blob/main/specs/clients/mobile.md).
+If another program holds the port, turning device access on fails and Hub does not try another port. Free the port, or set `Hub.MobilePort` and restart Hub. The gateway contract is defined by the [Device Gateway spec](https://github.com/DotHarness/dotcraft/blob/main/specs/protocols/device-gateway.md).
 
 ### Access from anywhere
 
-A relay lets paired phones reach the computer from other networks. Run it on a server that both the computer and the phone can reach, behind a reverse proxy that serves public HTTPS. The relay only forwards encrypted bytes: the phone still speaks TLS to the gateway with its pinned certificate and device credential, so the relay never sees a credential, a project, or a chat.
+A relay lets paired devices reach the computer from other networks. Run it on a server that both the computer and the device can reach, behind a reverse proxy that serves public HTTPS. The relay only forwards encrypted bytes: the device still speaks TLS to the gateway with its pinned certificate and device credential, so the relay never sees a credential, a project, or a chat.
 
 The Compose template in a DotCraft source checkout runs the relay with a Caddy proxy that obtains a certificate for your host name:
 
@@ -93,7 +93,7 @@ dotcraft relay serve --listen http://127.0.0.1:47620 --token <token>
 
 The token can come from the `DOTCRAFT_RELAY_TOKEN` environment variable instead of `--token`.
 
-On the computer, open **Settings → Connections → Phones → Access from anywhere** and enter the relay address, such as `https://relay.example.com`, and the token. While phone access is on, Hub keeps an outbound connection to the relay and reconnects when it drops. New pairing codes include the relay. Phones paired earlier pick it up the next time they connect on the same network.
+On the computer, open **Settings → Connections → Control this PC → Access from anywhere** and enter the relay address, such as `https://relay.example.com`, and the token. While device access is on, Hub keeps an outbound connection to the relay and reconnects when it drops. New pairing codes include the relay. Devices paired earlier pick it up the next time they connect on the same network.
 
 ## Desktop and the tray
 

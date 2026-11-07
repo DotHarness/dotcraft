@@ -6,6 +6,7 @@
 }
 
 .message {
+  overflow-wrap: anywhere;
   margin: 0;
   color: var(--text-secondary);
   font-size: 13px;

@@ -43,7 +43,7 @@ describe('local Project identity', () => {
     const context = {
       settings: reloaded,
       currentWorkspacePath: anchor,
-      app: { localProjects: { list: () => [{ path: anchor }] } },
+      app: { localProjects: { list: () => [{ path: anchor }] }, pairedComputers: { savedProjects: () => [] } },
       getWorkspaceConnection: () => ({ connected: true, threads: [thread] }),
       isWorkspaceForeground: () => true,
       localProjectId: normalizeWorkspaceProjectKey,

@@ -28,7 +28,7 @@ export interface InitialWorkspaceStatusPayload {
 }
 
 export interface InitialRemoteWorkspaceStatusPayload {
-  source?: 'servers' | 'ssh' | 'manual' | 'cli'
+  source?: 'servers' | 'ssh' | 'device' | 'manual' | 'cli'
   projectId?: string
   displayName?: string
   endpoint?: string
@@ -106,7 +106,7 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
   const raw = value as Record<string, unknown>
-  const source = raw.source === 'manual' || raw.source === 'cli' || raw.source === 'servers' || raw.source === 'ssh'
+  const source = raw.source === 'manual' || raw.source === 'cli' || raw.source === 'servers' || raw.source === 'ssh' || raw.source === 'device'
     ? raw.source
     : undefined
   const projectId = typeof raw.projectId === 'string' ? raw.projectId.trim() : ''

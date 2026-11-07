@@ -5,6 +5,7 @@ import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
 import { IconButton } from '../ui/IconButton'
 import styles from './ProjectDialog.module.css'
 
@@ -20,8 +21,17 @@ export interface ProjectDialogResult {
   folders: FolderEntry[]
 }
 
+export interface ProjectDeviceOption {
+  id: string
+  label: string
+}
+
+const THIS_COMPUTER = 'this-computer'
+
 interface ProjectDialogProps {
   mode: 'create' | 'edit'
+  remoteDevices?: ProjectDeviceOption[]
+  onSubmitRemote?: (deviceId: string, path: string) => void
   initialName: string
   initialFolders: FolderEntry[]
   busy: boolean
@@ -49,6 +59,8 @@ function samePath(a: string, b: string): boolean {
 
 export function ProjectDialog({
   mode,
+  remoteDevices = [],
+  onSubmitRemote,
   initialName,
   initialFolders,
   busy,
@@ -61,11 +73,16 @@ export function ProjectDialog({
   const [name, setName] = useState(initialName)
   const [folders, setFolders] = useState<FolderEntry[]>(initialFolders)
   const [picking, setPicking] = useState(false)
+  const [deviceId, setDeviceId] = useState(THIS_COMPUTER)
+  const [remotePath, setRemotePath] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
 
   const isEdit = mode === 'edit'
   const primaryName = folders[0] ? basename(folders[0].path) : ''
-  const canSubmit = isEdit ? folders.length > 0 : name.trim().length > 0 || folders.length > 0
+  const remoteDevice = remoteDevices.find((device) => device.id === deviceId)
+  const canSubmit = remoteDevice
+    ? remotePath.trim().length > 0
+    : isEdit ? folders.length > 0 : name.trim().length > 0 || folders.length > 0
 
   useEffect(() => {
     nameRef.current?.focus()
@@ -78,8 +95,12 @@ export function ProjectDialog({
 
   const submit = useCallback((): void => {
     if (!canSubmit || busy) return
+    if (remoteDevice) {
+      onSubmitRemote?.(remoteDevice.id, remotePath.trim())
+      return
+    }
     onSubmit({ name: name.trim() || primaryName, folders })
-  }, [busy, canSubmit, folders, name, onSubmit, primaryName])
+  }, [busy, canSubmit, folders, name, onSubmit, onSubmitRemote, primaryName, remoteDevice, remotePath])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -148,6 +169,44 @@ export function ProjectDialog({
         </ModalFooter>
       )}
     >
+      {!isEdit && remoteDevices.length > 0 && (
+        <div className={styles.field}>
+          <div className={styles.label}>{t('addProject.deviceLabel')}</div>
+          <Select
+            ariaLabel={t('addProject.deviceLabel')}
+            value={deviceId}
+            disabled={busy}
+            options={[
+              { value: THIS_COMPUTER, label: t('addProject.thisComputer') },
+              ...remoteDevices.map((device) => ({ value: device.id, label: device.label }))
+            ]}
+            onValueChange={(value) => setDeviceId(value)}
+          />
+        </div>
+      )}
+
+      {remoteDevice ? (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="project-remote-path">
+            {t('addProject.remotePathLabel')}
+          </label>
+          <Input
+            id="project-remote-path"
+            mono
+            value={remotePath}
+            disabled={busy}
+            placeholder="/home/you/project"
+            onChange={(event) => setRemotePath(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && canSubmit) {
+                event.preventDefault()
+                submit()
+              }
+            }}
+          />
+          <p className={styles.hint}>{t('addProject.remotePathHint', { name: remoteDevice.label })}</p>
+        </div>
+      ) : (<>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="project-name">
           {t('addProject.nameLabel')}
@@ -201,6 +260,7 @@ export function ProjectDialog({
           </div>
         )}
       </div>
+      </>)}
     </ModalDialog>
   )
 }
