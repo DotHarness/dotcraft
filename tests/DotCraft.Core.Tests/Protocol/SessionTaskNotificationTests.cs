@@ -133,46 +133,6 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task WakeLoop_IsHeldAfterTheLimitAndDeliveredWithTheNextUserInput()
-    {
-        await using var harness = await CreateHarnessAsync(config => config.Tools.BackgroundTasks.MaxConsecutiveWakes = 1);
-        await harness.RunUserTurnAsync("start the build");
-
-        await harness.Service.NotifyBackgroundTaskEndedAsync(
-            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000001", "first") with { StartTurnId = "turn_001" });
-        var woken = await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
-        await harness.Service.NotifyBackgroundTaskEndedAsync(
-            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000002", "second") with { StartTurnId = woken.Turns[^1].Id });
-        await Task.Delay(300);
-
-        var held = await harness.Service.GetThreadAsync(harness.ThreadId);
-        Assert.Equal(2, held.TurnCount);
-        Assert.Equal("term_000000000002", Assert.Single(held.QueuedInputs).TriggerRefId);
-
-        await harness.RunUserTurnAsync("status?");
-
-        var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
-        Assert.Equal(3, thread.TurnCount);
-        Assert.Contains(thread.Turns[^1].Items, item => item.AsUserMessage?.TriggerRefId == "term_000000000002");
-        Assert.Empty(thread.QueuedInputs);
-    }
-
-    [Fact]
-    public async Task WakeLimit_DoesNotHoldNotificationsWhoseWokenTurnsStartedNoTask()
-    {
-        await using var harness = await CreateHarnessAsync(config => config.Tools.BackgroundTasks.MaxConsecutiveWakes = 1);
-        await harness.RunUserTurnAsync("start two builds");
-
-        await harness.Service.NotifyBackgroundTaskEndedAsync(
-            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000001", "first") with { StartTurnId = "turn_001" });
-        await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
-        await harness.Service.NotifyBackgroundTaskEndedAsync(
-            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000002", "second") with { StartTurnId = "turn_001" });
-
-        await WaitForThreadAsync(harness, t => t.TurnCount == 3 && t.Turns[^1].Status == TurnStatus.Completed);
-    }
-
-    [Fact]
     public async Task AgentMessage_WakesAnIdleRootWithTheMessage()
     {
         await using var harness = await CreateHarnessAsync();

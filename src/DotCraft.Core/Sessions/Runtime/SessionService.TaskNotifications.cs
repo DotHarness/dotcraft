@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using DotCraft.Sessions.Wire;
 using Microsoft.Extensions.Logging;
@@ -11,15 +10,9 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
     internal const string SubAgentTaskTriggerKind = "subagent";
     internal const string WorkflowTriggerKind = "workflow";
 
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _taskStartingTurns =
-        new(StringComparer.Ordinal);
-
     public async Task<string?> NotifyBackgroundTaskEndedAsync(BackgroundTaskEnding ending, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(ending);
-        if (!string.IsNullOrWhiteSpace(ending.StartTurnId))
-            _taskStartingTurns.GetOrAdd(ending.OwnerThreadId, static _ => new(StringComparer.Ordinal))
-                .TryAdd(ending.StartTurnId, 0);
 
         try
         {
@@ -65,7 +58,7 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
 
         if (!ending.MayWake || thread.Status != ThreadStatus.Active)
             return (queued.Id, false);
-        var wake = await MayWakeForTaskNotificationsAsync(thread, ct).ConfigureAwait(false);
+        var wake = MayWakeForTaskNotifications();
         if (!wake)
             logger?.LogInformation("Holding notification for background task {TaskId} on thread {ThreadId}", ending.TaskId, thread.Id);
         return (queued.Id, wake);
@@ -83,32 +76,11 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
         input.TriggerKind is TerminalTriggerKind or SubAgentTaskTriggerKind or WorkflowTriggerKind
         && !string.IsNullOrEmpty(input.TriggerStatus);
 
-    private static bool IsTaskNotificationTurn(SessionTurn turn) =>
-        turn.Input?.AsUserMessage is { TriggerKind: TerminalTriggerKind or SubAgentTaskTriggerKind or WorkflowTriggerKind } message
-        && !string.IsNullOrEmpty(message.TriggerStatus);
-
-    private async Task<bool> MayWakeForTaskNotificationsAsync(SessionThread thread, CancellationToken ct)
-    {
-        var settings = (_appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config).Tools.BackgroundTasks;
-        if (!string.Equals(settings.CompletionDelivery, "wake", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var limit = Math.Max(0, settings.MaxConsecutiveWakes);
-        if (limit == 0)
-            return false;
-        _taskStartingTurns.TryGetValue(thread.Id, out var startingTurns);
-        var loopTurns = 0;
-        await foreach (var turn in ReadTurnsAsync(thread, ThreadHistorySortDirection.Descending, includeItems: false, ct)
-                           .ConfigureAwait(false))
-        {
-            if (!IsTaskNotificationTurn(turn) || startingTurns?.ContainsKey(turn.Id) != true)
-                break;
-            if (++loopTurns >= limit)
-                return false;
-        }
-
-        return true;
-    }
+    private bool MayWakeForTaskNotifications() =>
+        string.Equals(
+            (_appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config).Tools.BackgroundTasks.CompletionDelivery,
+            "wake",
+            StringComparison.OrdinalIgnoreCase);
 
     private static string BuildTaskNotificationDisplayText(BackgroundTaskEnding ending)
     {

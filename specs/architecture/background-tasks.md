@@ -196,12 +196,10 @@ final status, or `waitingForInput` for a stall. Clients do not present these inp
 - An Agent whose Turn was cancelled because its parent's Turn was cancelled notifies the parent as
   a user stop, but the notification does not start a Turn.
 
-`Tools.BackgroundTasks.CompletionDelivery` selects `wake` (default) or `off`. With `off`,
-notifications are queued but never start a Turn. A wake loop is bounded by
-`Tools.BackgroundTasks.MaxConsecutiveWakes` (default 3): when the Thread's last N Turns were each
-started by notifications and each started another background task, the next notification is queued
-without starting a Turn and is delivered with the next user input. A notification is never dropped.
-Agent messages are not bounded.
+`Tools.BackgroundTasks.CompletionDelivery` selects `wake` (default) or `off`. With `wake`,
+completion notifications continue to wake an idle Thread regardless of how many preceding Turns
+were started by task notifications. With `off`, notifications stay queued until the Thread's next
+Turn. A notification is never dropped.
 
 An Agent's ending reaches its parent only as a task notification; Agent messages travel through the
 mailbox (§4.2).

@@ -677,9 +677,6 @@ public sealed partial class AppConfig
     {
         [ConfigField(Hint = "wake | off")]
         public string CompletionDelivery { get; set; } = "wake";
-
-        [ConfigField(Min = 0)]
-        public int MaxConsecutiveWakes { get; set; } = 3;
     }
 
     [ConfigSection("Tools.Lsp", DisplayName = "Tools > LSP", Order = 24)]

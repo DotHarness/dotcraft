@@ -154,7 +154,6 @@ public static partial class SubAgentSessionControl
             TaskId = path,
             Kind = BackgroundTaskKinds.Agent,
             OwnerThreadId = parentThreadId,
-            StartTurnId = runningChild.ParentTurnId,
             Label = label,
             Status = status,
             KindStatus = kindStatus!,
