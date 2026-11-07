@@ -1114,23 +1114,23 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 
 - use `--bg-primary`, `--bg-secondary`, or dedicated input tokens such as
   `--composer-input-background`;
-- use `--border-default` for the rest state;
-- use `--border-active` for the focus border, never `--accent`;
+- use `--border-default` for a bordered field's rest state;
+- use `--border-active` for a bordered field's focus border, never `--accent`;
 - use `--text-primary` for values and secondary/dimmed tokens for placeholders;
 - do not use brand or semantic fills for ordinary input backgrounds.
 
 ### Focus and hover
 
-A field's focus indicator is its own border, and nothing else. Focus moves the
-border to the neutral `--border-active`; it never turns accent and never adds an
-outline, ring, or glow, which would read as a second frame. Typing is not an
-accent moment. The global focus-visible outline remains only for elements with no
-focus treatment of their own. This holds for every field shape below and for
-composed fields.
+A bordered field's focus indicator is its own border, and nothing else. Focus
+moves the border to the neutral `--border-active`; it never turns accent and never
+adds an outline, ring, or glow, which would read as a second frame. Typing is not
+an accent moment. A field with no border at rest gains none on focus: the caret
+marks it. The global focus-visible outline remains only for elements with no focus
+treatment of their own. This holds for every field shape below and for composed
+fields.
 
 Fields carry no hover state. The pointer usually rests inside the field it just
 focused, so a hover border would hide the focus border exactly when it matters.
-Whatever a field's resting shape, the focus border wins while it has focus.
 
 ### Field shapes
 
@@ -1138,9 +1138,8 @@ Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
 
 - bordered at rest with `--border-default`, moving to `--border-active` on focus.
   This is the default, and dense multi-field forms use it.
-- frameless at rest, showing the `--border-active` border only on focus. A simple action
-  dialog's single message or objective input (commit message, thread goal) is the
-  reference.
+- frameless: no border in any state. A simple action dialog's single message or
+  objective input (commit message, thread goal) is the reference.
 - bare: no frame, fill, or sizing of its own, for the inner field of a composed
   control (a search row, a combo box, an input with a trailing action). The shell
   paints the frame and owns the focus state. A bare field never appears alone.
@@ -1168,9 +1167,9 @@ cancel (including on scroll or resize). The system file chooser stays native.
 ### Search and filters
 
 Search is one composed control: a pill-radius shell with the search glyph and a
-bare field. When filters exist, one compact filter icon sits beside the shell at
-its height and opens filter dimensions as submenus; pages do not put a row of
-selects beside search. While any filter applies, the icon shows the neutral
+bare field. The shell looks the same at rest and on focus. When filters exist,
+one compact filter icon sits beside the shell at its height and opens filter
+dimensions as submenus; pages do not put a row of selects beside search. While any filter applies, the icon shows the neutral
 active tone. Filter dimensions use leading icons only when every peer has one;
 the selected option uses a trailing check.
 

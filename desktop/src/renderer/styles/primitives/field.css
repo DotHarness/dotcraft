@@ -1,7 +1,7 @@
-/* The focus affordance is the field's own border, never an outline, so `outline: none`
-   here plus the :focus-visible rule below keep the global outline off fields while
-   leaving it for elements with no focus treatment of their own. Sizing lives here, not
-   at the call site, so a field never sets `flex` and cannot collapse in a column. */
+/* A field never shows an outline, so `outline: none` here plus the :focus-visible rule
+   below keep the global outline off fields while leaving it for elements with no focus
+   treatment of their own. Sizing lives here, not at the call site, so a field never
+   sets `flex` and cannot collapse in a column. */
 .dc-field {
   width: 100%;
   height: var(--button-height);
@@ -39,7 +39,7 @@
 }
 
 /* The prominent single message/objective input in an action dialog: same field,
-   frameless at rest so the focus border is the only frame the user ever sees. */
+   with no frame in any state. */
 .dc-field[data-frameless] {
   border-color: transparent;
 }
@@ -60,15 +60,15 @@
   border-radius: 10px;
 }
 
-/* The focus border is the field's whole focus affordance, so nothing may outrank
-   it while the field has focus — not a hover state, and not the frameless shape.
-   It is listed after the shapes and names the frameless one explicitly. */
 .dc-field:focus,
-.dc-field:focus-visible,
-.dc-field[data-frameless]:focus,
-.dc-field[data-frameless]:focus-visible {
+.dc-field:focus-visible {
   border-color: var(--border-active);
   outline: none;
+}
+
+.dc-field[data-frameless]:focus,
+.dc-field[data-frameless]:focus-visible {
+  border-color: transparent;
 }
 
 /* The inner field of a composed control (search row, combo box, input with a

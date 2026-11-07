@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type JSX, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type CSSProperties, type JSX, type KeyboardEvent } from 'react'
 import { Search, X } from 'lucide-react'
 
 import { useT } from '../../contexts/LocaleContext'
@@ -16,7 +16,6 @@ export function SettingsSearchField({
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
 }): JSX.Element {
   const t = useT()
-  const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -38,11 +37,7 @@ export function SettingsSearchField({
   }, [])
 
   return (
-    <div
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={() => setFocused(false)}
-      style={{ ...shellStyle, borderColor: focused ? 'var(--border-active)' : 'transparent' }}
-    >
+    <div style={shellStyle}>
       <Search size={15} aria-hidden style={{ flexShrink: 0 }} />
       <Input
         bare
@@ -82,7 +77,6 @@ const shellStyle: CSSProperties = {
   gap: '8px',
   padding: '0 11px',
   borderRadius: '999px',
-  border: '1px solid transparent',
   backgroundColor: 'var(--bg-hover)',
   color: 'var(--text-secondary)'
 }

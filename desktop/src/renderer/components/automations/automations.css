@@ -313,14 +313,10 @@
 .dc-automation-title {
   height: auto !important;
   padding: 8px 0 16px !important;
-  border-color: transparent !important;
   border-radius: 0 !important;
   background: transparent !important;
   font-size: 14px !important;
 }
-
-.dc-automation-title:focus,
-.dc-automation-title:focus-visible { border-color: transparent !important; outline: none; }
 
 .dc-automation-prompt {
   width: 100%;

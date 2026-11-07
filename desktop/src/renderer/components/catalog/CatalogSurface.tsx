@@ -213,17 +213,8 @@ export function CatalogSearchBox({
   onChange: (value: string) => void
   style?: CSSProperties
 }): JSX.Element {
-  const [focused, setFocused] = useState(false)
   return (
-    <div
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={() => setFocused(false)}
-      style={{
-        ...styles.searchBox,
-        ...style,
-        borderColor: focused ? 'var(--border-active)' : style?.borderColor ?? 'var(--border-default)'
-      }}
-    >
+    <div style={{ ...styles.searchBox, ...style }}>
       <Search size={15} aria-hidden />
       <Input
         bare
