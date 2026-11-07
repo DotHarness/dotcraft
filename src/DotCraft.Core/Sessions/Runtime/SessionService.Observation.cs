@@ -14,8 +14,7 @@ public sealed partial class SessionService
         if (!_runtimeRegistry.TryGetRuntime(id, out var runtime))
             throw new InvalidOperationException($"Thread '{id}' has no loaded runtime.");
 
-        if (view != ThreadObservationView.Metadata)
-            await PrepareObservationPlanAsync(runtime, ct);
+        await PrepareObservationStateAsync(runtime, ct);
         return await runtime.Commands.InvokeAsync(commandCt =>
         {
             commandCt.ThrowIfCancellationRequested();
@@ -30,8 +29,7 @@ public sealed partial class SessionService
                 controls, runtime.Maintenance?.Kind, view, summaryTools ?? [], ct, runtime.Generation);
             observation.Refresh = async (nextView, tools, respond, refreshCt, selection) =>
             {
-                if (nextView != ThreadObservationView.Metadata)
-                    await PrepareObservationPlanAsync(runtime, refreshCt);
+                await PrepareObservationStateAsync(runtime, refreshCt);
                 var response = await runtime.Commands.InvokeAsync(refreshCommandCt =>
                 {
                     refreshCommandCt.ThrowIfCancellationRequested();

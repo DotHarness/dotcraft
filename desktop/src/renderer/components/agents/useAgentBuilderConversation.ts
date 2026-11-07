@@ -8,6 +8,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
+import { openThreadState, releaseThreadState } from '../../stores/threadState'
+import type { Thread } from '../../types/thread'
 import type { AppServerResponseOptions } from '../../../shared/appServerBoundary'
 import type { InputPart } from '../../types/conversation'
 import {
@@ -73,6 +75,7 @@ function releaseObservation(observation: BuilderObservation | null): void {
   if (!observation?.threadId || observation.released) return
   observation.released = true
   void rpc(observation, 'thread/unsubscribe', { threadId: observation.threadId }).catch(() => {})
+  releaseThreadState(observation.threadId)
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -266,8 +269,9 @@ export function useAgentBuilderConversation({
           return
         }
 
+        openThreadState(newThreadId)
         useThreadStore.getState().setActiveThreadId(newThreadId)
-        useThreadStore.getState().setActiveThread(null)
+        useThreadStore.getState().setActiveThread({ ...res.thread, turns: [] } as unknown as Thread)
         setCurrentThreadId(newThreadId)
 
         await rpc(owned, 'turn/start', {

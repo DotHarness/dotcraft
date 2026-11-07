@@ -442,7 +442,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       return patchDetail(state, action.key, (history) => replaceTurnItems(history, action.turnId, action.items, action.nextCursor))
     case 'currentPlan': {
       const detail = state.details[action.key]
-      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, currentPlan: action.content } } } : state
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, currentPlan: action.content, currentPlanTurnId: null } } } : state
     }
     case 'chatConfig': {
       const detail = state.details[action.key]

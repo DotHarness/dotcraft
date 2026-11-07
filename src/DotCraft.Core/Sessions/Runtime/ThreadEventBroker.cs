@@ -53,6 +53,21 @@ internal sealed class ThreadEventBroker(string threadId)
         }
     }
 
+    public bool HasContextUsage(long runtimeGeneration)
+    {
+        lock (_publicationLock)
+            return !_closed && _runtimeGeneration == runtimeGeneration && _current.HasContextUsage;
+    }
+
+    public void SeedContextUsageIfMissing(ContextUsageSnapshot? usage, long runtimeGeneration)
+    {
+        lock (_publicationLock)
+        {
+            if (_closed || _runtimeGeneration != runtimeGeneration) return;
+            _current.SeedContextUsageIfMissing(usage);
+        }
+    }
+
     public bool HasPlan(long runtimeGeneration)
     {
         lock (_publicationLock)
@@ -505,6 +520,7 @@ internal sealed class ThreadObservationRefresh(
     CancellationToken ct)
 {
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
     public Task Completion => _completion.Task;
 
     public async Task ExecuteAsync()
@@ -513,7 +529,12 @@ internal sealed class ThreadObservationRefresh(
         {
             ct.ThrowIfCancellationRequested();
             snapshot.EnsureCurrent();
-            await respond(snapshot);
+            Task? response = null;
+            if (_executionContext is null)
+                response = respond(snapshot);
+            else
+                ExecutionContext.Run(_executionContext, _ => response = respond(snapshot), null);
+            await response!;
             _completion.TrySetResult();
         }
         catch (OperationCanceledException)

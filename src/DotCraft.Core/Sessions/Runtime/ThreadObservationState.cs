@@ -13,6 +13,9 @@ internal sealed class ThreadObservationState
     private IReadOnlyList<QueuedTurnInput> _queuedInputs = [];
     private DotCraft.Memory.StructuredPlan? _plan;
     public bool PlanPrepared { get; private set; }
+    public bool HasContextUsage => _contextUsage is not null;
+
+    public void SeedContextUsageIfMissing(ContextUsageSnapshot? usage) => _contextUsage ??= usage;
 
     public void UpdatePlan(DotCraft.Memory.StructuredPlan? plan)
     {

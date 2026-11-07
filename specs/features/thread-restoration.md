@@ -42,7 +42,7 @@ Execution policy, provider-native history, canonical rollout storage, read-recei
 
 Core retains the latest published Turn with its Item lifecycle, cumulative streaming text, argument previews, progress, diff, usage, and pending request identities. Configuration, plan, and queued input are captured with the view.
 
-Metadata copies no Item payloads. Summary copies selected Items. Full copies the requested complete content. These views apply to every Turn status.
+Metadata copies no Item payloads but retains thread-level plan and context usage. Summary copies selected Items. Full copies the requested complete content. These views apply to every Turn status.
 
 The latest terminal head remains available until durable history can supply it. Older Turns belong to persistent history. Releasing the runtime releases its current view.
 
@@ -130,7 +130,7 @@ Requests are parked by logical identity during client restoration. Resolved or w
 
 Plan confirmation is separate from an approval/input request. Eligibility uses current Plan mode, the latest completed Turn's successful CreatePlan call/result, current plan content, and local dismissal state.
 
-Apply those values together before exposing the choice. Approvals and questions take precedence. Accepting implementation confirms the scoped mode change before submitting the implementation instruction. A target or mode change superseding that operation prevents submission. Older history cannot revive a consumed choice.
+Apply those values together before exposing the choice. A revised plan becomes actionable after its own successful planning Turn completes. Approvals and questions take precedence. Accepting implementation confirms the scoped mode change before submitting the implementation instruction. A target or mode change superseding that operation prevents submission. Older history cannot revive a consumed choice.
 
 ## 6. Client Workflows
 
@@ -144,7 +144,7 @@ Apply those values together before exposing the choice. Approvals and questions 
 
 Drafts retain their existing loading behavior. Action readiness follows the applied current state, not RPC Promise settlement or completion of all history reads.
 
-Late results are scoped to their thread, workspace, and connection lifetime.
+Replacing the transcript resets pagination and invalidates prior history reads. Late results are scoped to their thread, workspace, and connection lifetime.
 
 ### 6.2 Warm and background observations
 

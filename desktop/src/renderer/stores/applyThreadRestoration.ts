@@ -1,6 +1,6 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { getThreadConversation } from './conversationStore'
-import { applyThreadHistoryHead } from './threadHistoryStore'
+import { restartThreadHistory } from './threadHistoryStore'
 import { useThreadStore } from './threadStore'
 import type { Thread } from '../types/thread'
 import { wireTurnToConversationTurn } from '../types/conversation'
@@ -25,7 +25,7 @@ export function applyThreadRestoration(result: ThreadResumeResult): void {
   for (const request of approvals) threads.parkApproval(threadId, request)
   if (input && pending.has(String(input.rawParams.requestId))) threads.parkUserInput(threadId, input)
 
-  applyThreadHistoryHead(threadId, turns, result.initialTurnsPage?.nextCursor ?? null)
+  restartThreadHistory(threadId, turns, result.initialTurnsPage?.nextCursor ?? null)
   store.getState().setTurns(turns)
   const runtime = runtimeSnapshotFromThread(thread)
   const activeTurn = turns.find(turn => turn.id === current.turnId)

@@ -98,53 +98,59 @@ internal sealed class TurnRequestHandler(
                 ct);
         }
 
-        var events = WithNonInteractiveFallback(sessionService.SubmitInputAsync(
-            p.ThreadId,
-            content,
-            sender,
-            messages,
-            CancellationToken.None,
-            new SessionInputSnapshot
-            {
-                ClientUserMessageId = p.ClientUserMessageId,
-                NativeInputParts = materializedInput.NativeInputParts,
-                MaterializedInputParts = materializedInput.MaterializedInputParts,
-                DisplayText = materializedInput.DisplayText,
-                SentAsGoal = p.SentAsGoal
-            }));
+        await connection.RunThreadNotificationAsync(p.ThreadId, _ => AdmitTurnAsync(), ct);
+        return AppServerTypedResult<Contract.TurnStartResult>.Written;
 
-        var enumerator = events.GetAsyncEnumerator(CancellationToken.None);
-        var drainOwnsEnumerator = false;
-        try
+        async Task AdmitTurnAsync()
         {
-            while (await enumerator.MoveNextAsync())
-            {
-                if (enumerator.Current is { EventType: SessionEventType.TurnStarted, TurnPayload: { } startedTurn })
+            var events = WithNonInteractiveFallback(sessionService.SubmitInputAsync(
+                p.ThreadId,
+                content,
+                sender,
+                messages,
+                CancellationToken.None,
+                new SessionInputSnapshot
                 {
-                    try
+                    ClientUserMessageId = p.ClientUserMessageId,
+                    NativeInputParts = materializedInput.NativeInputParts,
+                    MaterializedInputParts = materializedInput.MaterializedInputParts,
+                    DisplayText = materializedInput.DisplayText,
+                    SentAsGoal = p.SentAsGoal
+                }));
+
+            var enumerator = events.GetAsyncEnumerator(CancellationToken.None);
+            var drainOwnsEnumerator = false;
+            try
+            {
+                while (await enumerator.MoveNextAsync())
+                {
+                    if (enumerator.Current is { EventType: SessionEventType.TurnStarted, TurnPayload: { } startedTurn })
                     {
-                        await responseWriter.WriteResponseAsync(
-                            msg.Id,
-                            new Contract.TurnStartResult
-                            {
-                                Turn = AppServerContractMapper.ToContract(
-                                    startedTurn.ToWire(includeItems: false) with { Items = [] })
-                            }, ct);
+                        try
+                        {
+                            await responseWriter.WriteResponseAsync(
+                                msg.Id,
+                                new Contract.TurnStartResult
+                                {
+                                    Turn = AppServerContractMapper.ToContract(
+                                        startedTurn.ToWire(includeItems: false) with { Items = [] })
+                                }, ct);
+                        }
+                        catch (OperationCanceledException) { }
+                        catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
+                        _ = DrainTurnEventsAsync(enumerator);
+                        drainOwnsEnumerator = true;
+                        return;
                     }
-                    catch (OperationCanceledException) { }
-                    catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
-                    _ = DrainTurnEventsAsync(enumerator);
-                    drainOwnsEnumerator = true;
-                    return AppServerTypedResult<Contract.TurnStartResult>.Written;
                 }
+                throw new AppServerException(AppServerErrors.InternalErrorCode,
+                    "Execution completed without admitting a Turn.");
             }
-            throw new AppServerException(AppServerErrors.InternalErrorCode,
-                "Execution completed without admitting a Turn.");
-        }
-        finally
-        {
-            if (!drainOwnsEnumerator)
-                await enumerator.DisposeAsync();
+            finally
+            {
+                if (!drainOwnsEnumerator)
+                    await enumerator.DisposeAsync();
+            }
         }
     }
 

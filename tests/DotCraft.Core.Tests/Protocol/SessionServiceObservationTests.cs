@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using DotCraft.Sessions;
+using DotCraft.Memory;
+using DotCraft.Persistence;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -62,6 +64,40 @@ public sealed class SessionServiceObservationTests : SessionServiceRuntimeSignal
         Assert.Equal(1, await service.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow.AddHours(1), TimeSpan.FromMinutes(30)));
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await service.ObserveThreadAsync(thread.Id));
         Assert.Null(service.TryGetLoadedThread(thread.Id));
+    }
+
+    [Fact]
+    public async Task MetadataObservation_RestoresPlanAndContextAfterUnloadAndRefreshesPublishedState()
+    {
+        using var database = new WorkspaceStateDatabase(_tempDir);
+        var plans = new PlanStore(_tempDir, database);
+        using var client = new ControlledStreamingClient();
+        await using var factory = CreateAgentFactory(client, planStore: plans);
+        using var service = CreateService(factory, client);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await plans.SaveStructuredPlanAsync(thread.Id, new StructuredPlan { Title = "saved plan", Content = "Plan content" });
+        await using var store = new ThreadStore(_tempDir, database);
+        await store.SaveContextUsageTokensAsync(thread.Id, 1234, source: "history_estimate", isEstimate: true);
+        Assert.Equal(1, await service.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow.AddHours(1), TimeSpan.FromMinutes(30)));
+        await service.ResumeThreadAsync(thread.Id);
+
+        using var observation = await service.ObserveThreadAsync(thread.Id);
+        Assert.Equal("saved plan", observation.Snapshot.Plan!.Title);
+        Assert.Equal(1234, observation.Snapshot.ContextUsage!.Tokens);
+        Assert.True(observation.Snapshot.ContextUsage.IsEstimate);
+
+        await plans.SaveStructuredPlanAsync(thread.Id, new StructuredPlan { Title = "updated plan" });
+        var pump = DrainAsync(observation.Events);
+        ThreadObservationSnapshot? refreshed = null;
+        await observation.RefreshAsync(ThreadObservationView.Metadata, [], snapshot =>
+        {
+            refreshed = snapshot;
+            return Task.CompletedTask;
+        });
+        Assert.Equal("updated plan", refreshed!.Plan!.Title);
+        Assert.Equal(1234, refreshed.ContextUsage!.Tokens);
+        observation.Dispose();
+        await pump;
     }
 
     private sealed class ControlledStreamingClient : IChatClient

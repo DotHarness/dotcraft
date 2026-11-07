@@ -226,7 +226,9 @@ public sealed class ThreadObservationStateTests
         var running = Capture(state);
         Assert.Equal(30, running.Turn!.TokenUsage!.InputTokens);
         Assert.Equal(7, running.Turn.TokenUsage.OutputTokens);
+        state.SeedContextUsageIfMissing(new ContextUsageSnapshot { Tokens = 100 });
         Assert.Equal(400, running.ContextUsage!.Tokens);
+        Assert.Equal(400, Capture(state).ContextUsage!.Tokens);
         Assert.Equal("current diff", running.Diff);
 
         PublishItem(state, Item("plan-call", ItemType.ToolCall,

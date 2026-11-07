@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { useAgentBuilderConversation } from '../components/agents/useAgentBuilderConversation'
-import { useConversationStore } from '../stores/conversationStore'
+import { getThreadConversation, useConversationStore } from '../stores/conversationStore'
+import { useThreadRestoration } from '../hooks/useThreadRestoration'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
@@ -48,6 +50,11 @@ function Harness({
       {result.error && <span>{result.error}</span>}
     </div>
   )
+}
+
+function RestoringHarness(): JSX.Element {
+  useThreadRestoration({ workspaceIdentity: 'workspace-a', workspaceKey: 'workspace-a', protocolWorkspacePath: 'workspace-a', locale: 'en' })
+  return <Harness />
 }
 
 function PassiveHarness(): JSX.Element {
@@ -156,6 +163,33 @@ describe('useAgentBuilderConversation', () => {
     })
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
     expect(useThreadStore.getState().activeThreadId).toBe('builder-thread')
+  })
+
+  it('initializes its hidden conversation before admission and releases it with its owner', async () => {
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setThreadList([], 'workspace-a')
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/start') return { thread: {
+        id: 'builder-thread', configuration: { agentBuilderTargetId: 'draft-agent' },
+        metadata: { 'dotcraft.internal': 'agent-builder' }
+      } }
+      if (method === 'turn/start') {
+        const conversation = getThreadConversation('builder-thread')
+        expect(conversation).toBeDefined()
+        conversation!.getState().onTurnStarted({
+          id: 'builder-turn', threadId: 'builder-thread', status: 'running', startedAt: '2026-11-07T00:00:00Z'
+        })
+      }
+      return {}
+    })
+    const { unmount } = render(<RestoringHarness />)
+    await waitFor(() => expect(getThreadConversation('builder-thread')?.getState().activeTurnId).toBe('builder-turn'))
+    expect(useThreadStore.getState().threadList).toEqual([])
+    expect(useThreadStore.getState().activeThread?.configuration?.agentBuilderTargetId).toBe('draft-agent')
+
+    unmount()
+    expect(getThreadConversation('builder-thread')).toBeUndefined()
+    expect(useThreadStore.getState().activeThreadId).toBe('previous-thread')
   })
 
   it('releases its acquired owner when draft initialization fails without starting a turn', async () => {
