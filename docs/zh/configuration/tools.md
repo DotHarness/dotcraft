@@ -35,7 +35,6 @@
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Tools.BackgroundTasks.CompletionDelivery` | `wake` 会在 agent 启动的后台命令、subagent 或工作流结束时通知它，线程空闲时会开启新的回合。`off` 则把通知留到 agent 的下一个回合 | `wake` |
-| `Tools.BackgroundTasks.MaxConsecutiveWakes` | 当每个回合都又启动了新的后台工作时，后台工作结束最多能连续自动开启几个回合。超过后，通知会等你发下一条消息 | `3` |
 
 ## Web
 

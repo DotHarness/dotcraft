@@ -76,7 +76,6 @@ public sealed partial class SessionService
             TaskId = terminal.SessionId,
             Kind = BackgroundTaskKinds.Shell,
             OwnerThreadId = terminal.ThreadId,
-            StartTurnId = terminal.TurnId,
             Label = task.Label,
             Status = stalled ? BackgroundTaskStatus.WaitingForInput : task.Status,
             KindStatus = stalled ? BackgroundTaskStatus.WaitingForInput : terminal.Status,

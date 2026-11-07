@@ -59,6 +59,34 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SequentialBackgroundCommands_KeepWakingTheThreadWithoutUserInput()
+    {
+        var commands = Enumerable.Range(0, 4).Select(_ =>
+        {
+            var command = GatedEchoCommand("done", out var releasePath);
+            return (Command: command, ReleasePath: releasePath);
+        }).ToArray();
+        var chatClient = new NoticeAwareChatClient(
+            commands[0].Command,
+            OperatingSystem.IsWindows() ? "powershell" : "sh",
+            commands.Skip(1).Select(command => command.Command).ToArray());
+        await using var harness = await CreateHarnessAsync(chatClient);
+        await harness.RunTurnAsync();
+
+        for (var index = 0; index < commands.Length; index++)
+        {
+            await File.WriteAllTextAsync(commands[index].ReleasePath, "");
+            await WaitForThreadAsync(harness,
+                t => t.TurnCount == index + 2 && t.Turns[^1].Status == TurnStatus.Completed);
+        }
+
+        var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
+        Assert.Equal(commands.Length, chatClient.ReceivedNotices.Count);
+        Assert.All(thread.Turns, turn => Assert.Equal(TurnStatus.Completed, turn.Status));
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
     public async Task ClientStop_WakesTheThreadWithAUserStopNotice()
     {
         var chatClient = new NoticeAwareChatClient(LongRunningCommand());
@@ -167,7 +195,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 
     private string GatedEchoCommand(string text, out string releasePath)
     {
-        releasePath = Path.Combine(_tempDir, "release-command");
+        releasePath = Path.Combine(_tempDir, "release-command-" + Guid.NewGuid().ToString("N"));
         return OperatingSystem.IsWindows()
             ? $"while (-not (Test-Path -LiteralPath '{releasePath.Replace("'", "''")}')) {{ Start-Sleep -Milliseconds 20 }}; Write-Output '{text}'"
             : $"until [ -f '{releasePath}' ]; do sleep 0.02; done; echo '{text}'";
@@ -216,8 +244,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         }
     }
 
-    private sealed class NoticeAwareChatClient(string command, string? shell = null) : IChatClient
+    private sealed class NoticeAwareChatClient(string command, string? shell = null, params string[] followupCommands) : IChatClient
     {
+        private readonly Queue<string> _commands = new([command, .. followupCommands]);
         private int _calls;
 
         public ConcurrentQueue<string> ReceivedNotices { get; } = new();
@@ -236,21 +265,21 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
             await Task.Yield();
             var messages = chatMessages.ToList();
             var call = Interlocked.Increment(ref _calls);
+            var shouldStartCommand = call == 1;
             var notice = messages.LastOrDefault(message => message.Text.Contains(NoticeTag, StringComparison.Ordinal));
             if (notice != null && !ReceivedNotices.Contains(notice.Text))
             {
                 ReceivedNotices.Enqueue(notice.Text);
-                yield return new ChatResponseUpdate(ChatRole.Assistant, "noted");
-                yield break;
+                shouldStartCommand = true;
             }
 
-            if (call == 1)
+            if (shouldStartCommand && _commands.TryDequeue(out var nextCommand))
             {
                 yield return new ChatResponseUpdate(ChatRole.Assistant,
                 [
-                    new FunctionCallContent("call-build", "Exec", new Dictionary<string, object?>
+                    new FunctionCallContent($"call-build-{call}", "Exec", new Dictionary<string, object?>
                     {
-                        ["command"] = command,
+                        ["command"] = nextCommand,
                         ["shell"] = shell ?? TestShell,
                         ["runInBackground"] = true,
                         ["yieldTimeMs"] = 100

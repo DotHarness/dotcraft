@@ -35,7 +35,6 @@ Background commands, subagents, and workflows report back to the agent when they
 | Field | Description | Default |
 |---|---|---|
 | `Tools.BackgroundTasks.CompletionDelivery` | `wake` tells the agent when a background command, subagent, or workflow it started finishes, starting a new turn if the thread is idle. `off` holds the notice until the agent's next turn | `wake` |
-| `Tools.BackgroundTasks.MaxConsecutiveWakes` | How many turns in a row finished background work can start on its own when each of those turns starts more background work. After that, the notice waits for your next message | `3` |
 
 ## Web
 

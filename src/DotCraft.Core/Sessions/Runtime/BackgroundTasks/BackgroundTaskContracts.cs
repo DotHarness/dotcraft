@@ -131,8 +131,6 @@ public sealed record BackgroundTaskEnding
 
     public required string OwnerThreadId { get; init; }
 
-    public string? StartTurnId { get; init; }
-
     public required string Label { get; init; }
 
     /// <summary><see cref="BackgroundTaskStatus"/> value, or <c>waitingForInput</c> for a stall.</summary>

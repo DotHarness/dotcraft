@@ -523,7 +523,6 @@ public sealed partial class DynamicWorkflowService
             TaskId = run.RunId,
             Kind = BackgroundTaskKinds.Workflow,
             OwnerThreadId = run.ParentThreadId,
-            StartTurnId = run.ParentTurnId,
             Label = run.Name,
             Status = status,
             KindStatus = run.Status,

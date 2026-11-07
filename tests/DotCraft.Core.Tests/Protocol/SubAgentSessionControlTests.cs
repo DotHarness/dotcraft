@@ -1018,7 +1018,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Empty(pending);
         Assert.Equal(BackgroundTaskKinds.Agent, ending.Kind);
         Assert.Equal(context.ParentThread.Id, ending.OwnerThreadId);
-        Assert.Equal(context.ParentTurnId, ending.StartTurnId);
         Assert.Equal(expectedStatus, ending.Status);
         Assert.Equal(expectedResult, ending.Result);
         Assert.Equal(isCancelled, ending.StoppedByUser);
