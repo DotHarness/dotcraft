@@ -123,6 +123,6 @@ If the named provider is missing or cannot generate images, the tool is not offe
 |---|---|---|
 | `Tools.CodeMode.Mode` | Scripted tool calls: `only`, `on`, or `off` | `only` |
 
-`Tools.CodeMode.Mode` controls scripted tool calls. The `CodeMode` tool runs one JavaScript program that calls the conversation's other tools and returns only what the model needs, so batches of calls take one model round trip and large intermediate results stay out of context. With `only`, every tool a script can call leaves the model's direct tool list and is reached through `CodeMode`. `on` adds `CodeMode` and keeps every tool directly callable, and `off` removes it. In Desktop, change it under **Settings › General › Tools**.
+`Tools.CodeMode.Mode` controls scripted tool calls. The `CodeMode` tool runs one JavaScript program that calls the conversation's other tools and returns only what the model needs, so batches of calls take one model round trip and large intermediate results stay out of context. With `only`, every tool a script can call leaves the model's direct tool list and is reached through `CodeMode`. `on` adds `CodeMode` and keeps every tool directly callable, and `off` removes it. In Desktop, change it under **Settings › Personalization › Tools**.
 
 Scripts run in a worker process started from the DotCraft executable. If the worker cannot start, `on` falls back to direct tools, while `only` fails the turn with `code_mode_unavailable`; use `on` or `off` where the host cannot launch it.

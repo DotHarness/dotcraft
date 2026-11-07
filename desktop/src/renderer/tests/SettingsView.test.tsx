@@ -476,6 +476,7 @@ describe('SettingsView', () => {
     const confirm = vi.fn().mockResolvedValue(true)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
 
+    useUIStore.setState({ activeSettingsTab: 'personalization' })
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
@@ -493,6 +494,7 @@ describe('SettingsView', () => {
     const confirm = vi.fn().mockResolvedValue(false)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
 
+    useUIStore.setState({ activeSettingsTab: 'personalization' })
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement

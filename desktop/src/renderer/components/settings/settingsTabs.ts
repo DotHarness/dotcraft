@@ -2,7 +2,6 @@ import {
   Anchor,
   Archive,
   BarChart3,
-  Bot,
   Cable,
   Cpu,
   Download,
@@ -32,14 +31,12 @@ export interface SettingsTabDefinition {
   group: SettingsTabGroup
 }
 
-export type SettingsTabGroup = 'personal' | 'integrations' | 'coding'
+export type SettingsTabGroup = 'personal' | 'integrations' | 'workspace'
 
 export interface SettingsTabOptions {
-  personalizationAvailable: boolean
   sourceControlEnabled: boolean
   mcpEnabled: boolean
   hooksEnabled: boolean
-  subAgentEnabled: boolean
   sessionImportEnabled: boolean
 }
 
@@ -54,49 +51,26 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
     { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
     { id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive, group: 'personal' },
-    { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' }
-  )
-
-  if (options.personalizationAvailable) {
-    tabs.push({
-      id: 'personalization',
-      label: t('settings.tab.personalization'),
-      icon: SlidersHorizontal,
-      group: 'personal'
-    })
-  }
-  tabs.push(
+    { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' },
     { id: 'voice', label: t('settings.tab.voice'), icon: Mic, group: 'personal' },
-    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' }
+    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' },
+    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
+    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' },
+    { id: 'connections', label: t('settings.tab.connections'), icon: Cable, group: 'integrations' },
+    { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal, group: 'workspace' }
   )
 
   if (options.mcpEnabled) {
-    tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon, group: 'integrations' })
+    tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon, group: 'workspace' })
   }
-  tabs.push(
-    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
-    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' }
-  )
-
   if (options.hooksEnabled) {
-    tabs.push({
-      id: 'hooks',
-      label: t('settings.tab.hooks'),
-      icon: Anchor,
-      group: 'coding'
-    })
+    tabs.push({ id: 'hooks', label: t('settings.tab.hooks'), icon: Anchor, group: 'workspace' })
   }
-  tabs.push(
-    { id: 'connections', label: t('settings.tab.connections'), icon: Cable, group: 'coding' },
-    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' }
-  )
+  tabs.push({ id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'workspace' })
   if (options.sourceControlEnabled) {
-    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
+    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'workspace' })
   }
-  tabs.push({ id: 'worktrees', label: t('settings.tab.worktrees'), icon: FolderGit2, group: 'coding' })
-  if (options.subAgentEnabled) {
-    tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot, group: 'coding' })
-  }
+  tabs.push({ id: 'worktrees', label: t('settings.tab.worktrees'), icon: FolderGit2, group: 'workspace' })
 
   return tabs
 }

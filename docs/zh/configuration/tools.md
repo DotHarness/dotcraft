@@ -123,6 +123,6 @@
 |---|---|---|
 | `Tools.CodeMode.Mode` | 脚本化工具调用：`only`、`on` 或 `off` | `only` |
 
-`Tools.CodeMode.Mode` 控制脚本化工具调用。`CodeMode` 工具运行一段 JavaScript 程序，在程序里调用对话中的其他工具，只把模型需要的结果返回给它。这样一批调用只需要一次模型往返，大段中间结果也不会进入上下文。设为 `only` 时，脚本能调用的工具都会从模型的直接工具列表中移除，只能通过 `CodeMode` 调用。`on` 会加入 `CodeMode`，同时保留所有工具的直接调用，`off` 则不提供 `CodeMode`。在 Desktop 中，可以在 **设置 › 常规 › 工具** 中修改。
+`Tools.CodeMode.Mode` 控制脚本化工具调用。`CodeMode` 工具运行一段 JavaScript 程序，在程序里调用对话中的其他工具，只把模型需要的结果返回给它。这样一批调用只需要一次模型往返，大段中间结果也不会进入上下文。设为 `only` 时，脚本能调用的工具都会从模型的直接工具列表中移除，只能通过 `CodeMode` 调用。`on` 会加入 `CodeMode`，同时保留所有工具的直接调用，`off` 则不提供 `CodeMode`。在 Desktop 中，可以在 **设置 › 个性化 › 工具** 中修改。
 
 脚本在由 DotCraft 可执行文件启动的工作进程中运行。如果工作进程无法启动，`on` 会退回为直接调用工具，而 `only` 会让本轮以 `code_mode_unavailable` 失败。宿主无法启动工作进程时，请改用 `on` 或 `off`。

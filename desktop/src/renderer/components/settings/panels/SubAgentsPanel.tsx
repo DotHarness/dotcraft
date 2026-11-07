@@ -7,7 +7,7 @@ import { NativeProfileDetail } from './subAgents/NativeProfileDetail'
 import { PresetProfileDetail } from './subAgents/PresetProfileDetail'
 import { CustomProfileEditor } from './subAgents/CustomProfileEditor'
 import { SubAgentList } from './subAgents/SubAgentList'
-import { SettingsPanelShell } from '../SettingsPanelShell'
+import { PersonalizationPanelShell } from '../PersonalizationPanelShell'
 import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
 import {
   isPresetProfileName,
@@ -263,8 +263,8 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
 
   if (!enabled) {
     return (
-      <SettingsPanelShell
-        title={t('settings.subAgents.title')}
+      <PersonalizationPanelShell
+        segment="subAgents"
         description={
           <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
             {t('settings.subAgents.description')}
@@ -276,7 +276,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
             <div style={noticeStyle('warning')}>{t('settings.subAgents.unsupported')}</div>
           </SettingsRow>
         </SettingsGroup>
-      </SettingsPanelShell>
+      </PersonalizationPanelShell>
     )
   }
 
@@ -334,8 +334,8 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   }
 
   return (
-    <SettingsPanelShell
-      title={t('settings.subAgents.title')}
+    <PersonalizationPanelShell
+      segment="subAgents"
       description={
         <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
           {t('settings.subAgents.description')}
@@ -369,6 +369,6 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
         onToggleEnabled={handleToggleEnabled}
         onAddCustom={handleAddCustom}
       />
-    </SettingsPanelShell>
+    </PersonalizationPanelShell>
   )
 }

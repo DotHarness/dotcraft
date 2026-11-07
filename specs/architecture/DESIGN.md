@@ -1738,6 +1738,22 @@ in a worktree carries the 14px worktree glyph in `--text-dimmed`. The
 status slot holds one item, in priority order: pending request, running spinner,
 unread dot, then the branch's pull request glyph.
 
+### Settings navigation
+
+The Settings sidebar groups pages by what a setting changes: Personal and
+Integrations hold what belongs to the whole Desktop, and Workspace holds what
+belongs to one workspace. The Workspace group opens with a picker row naming the
+foreground workspace (or Chats, when no project is open). The picker switches the
+foreground workspace in place and Settings stays open. A setting that writes to the
+workspace configuration lives in the Workspace group, never under General.
+
+Search sits directly below Back to app. It is the composed search control without a
+frame: `36px` tall, pill radius, a `--bg-hover` fill, and a transparent `1px` border
+that moves to `--border-active` on focus, so focusing changes no geometry. The field
+does not take focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace
+the navigation until the query is cleared; each result names its page, and a result
+in the Workspace group also names the workspace.
+
 ### Settings groups
 
 A settings group is a heading over a card, not a card with a heading in it. The

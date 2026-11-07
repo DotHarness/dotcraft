@@ -36,7 +36,7 @@ export function SettingsGroup({
       {(title || description || headerAction) && (
         <header style={headerStyle(Boolean(headerAction), Boolean(description))}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {title && <h2 style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
+            {title && <h2 data-settings-label style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
             {description && <div style={settingsDescriptionStyle()}>{description}</div>}
           </div>
           {headerAction && <div style={headerActionStyle(Boolean(description))}>{headerAction}</div>}
@@ -99,7 +99,7 @@ export function SettingsRow({
         {(label || description) && (
           <div>
             {label && (
-              <label htmlFor={htmlFor} style={settingsLabelStyle()}>
+              <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
                 {label}
               </label>
             )}
@@ -116,7 +116,7 @@ export function SettingsRow({
     <div className="dc-settings-row" onContextMenu={onContextMenu} style={{ ...rowStyle(), alignItems: align, ...style }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {label && (
-          <label htmlFor={htmlFor} style={settingsLabelStyle()}>
+          <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
             {label}
           </label>
         )}

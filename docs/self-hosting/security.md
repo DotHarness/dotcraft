@@ -16,7 +16,7 @@ In a new workspace:
 
 ## Choose how much the agent does on its own
 
-In Desktop, open **Settings → General → Permissions**. **Default permissions** sets how new conversations in this workspace handle approvals:
+In Desktop, open **Settings → Personalization → Permissions**. **Default permissions** sets how new conversations in this workspace handle approvals:
 
 - **Ask for approval**: every action listed above asks you first.
 - **Full access**: every action that would ask is approved automatically.

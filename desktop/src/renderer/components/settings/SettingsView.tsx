@@ -66,6 +66,7 @@ import {
   settingsSectionLabelStyle as sectionLabelStyle
 } from './settingsTypography'
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
+import { PersonalizationPanelShell } from './PersonalizationPanelShell'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
@@ -936,13 +937,13 @@ export function SettingsView({
 
   useEffect(() => {
     const unavailable = (activeSettingsTab === 'mcp' && !mcpEnabled)
-      || (activeSettingsTab === 'subAgents' && !subAgentEnabled)
       || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
       || (activeSettingsTab === 'hooks' && !hooksEnabled)
       || (activeSettingsTab === 'import' && !sessionImportEnabled)
       || (isDesktopPluginSettingsTab(activeSettingsTab) && !activeDesktopPluginSettingsPage)
-    if (!unavailable) return
-    runWithoutAppNavigationRecording(() => setActiveSettingsTab('general'))
+    const subAgentsUnavailable = activeSettingsTab === 'subAgents' && !subAgentEnabled
+    if (!unavailable && !subAgentsUnavailable) return
+    runWithoutAppNavigationRecording(() => setActiveSettingsTab(subAgentsUnavailable ? 'personalization' : 'general'))
     replaceCurrentAppNavigationLocation()
   }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
 
@@ -998,17 +999,10 @@ export function SettingsView({
   }, [isMac])
 
   useEffect(() => {
-    let fallback: 'general' | 'personalization' | null = null
-    if (!personalizationAvailable && activeSettingsTab === 'personalization') {
-      fallback = 'general'
-    }
-    if (!dreamsCapabilityEnabled && activeSettingsTab === 'dreams') {
-      fallback = personalizationAvailable ? 'personalization' : 'general'
-    }
-    if (!fallback) return
-    runWithoutAppNavigationRecording(() => setActiveSettingsTab(fallback))
+    if (dreamsCapabilityEnabled || activeSettingsTab !== 'dreams') return
+    runWithoutAppNavigationRecording(() => setActiveSettingsTab('personalization'))
     replaceCurrentAppNavigationLocation()
-  }, [activeSettingsTab, dreamsCapabilityEnabled, personalizationAvailable])
+  }, [activeSettingsTab, dreamsCapabilityEnabled])
 
   useEffect(() => {
     let cancelled = false
@@ -1626,6 +1620,20 @@ export function SettingsView({
 
                   <ChatsFolderRow />
 
+                  <SettingsRow
+                    label={t('settings.personalization.showThinkingContent')}
+                    description={t('settings.personalization.showThinkingContentHint')}
+                    control={
+                      <PillSwitch
+                        checked={showThinkingContent}
+                        aria-label={t('settings.personalization.showThinkingContent')}
+                        onChange={(checked) => {
+                          void handleShowThinkingContentToggle(checked)
+                        }}
+                      />
+                    }
+                  />
+
                   {isMac && (
                     <SettingsRow
                       label={t('settings.general.showInMenuBar')}
@@ -1650,44 +1658,6 @@ export function SettingsView({
                   <NewTaskBehaviorRow />
                   <InstantInterruptRow />
                 </SettingsGroup>
-
-                {configManagementEnabled && <CodeModeSettingsGroup />}
-
-                <SettingsGroup title={t('settings.group.permissions')}>
-                  <SettingsRow
-                    label={t('settings.permissions.workspaceDefault.label')}
-                    description={t('settings.permissions.workspaceDefault.description')}
-                    htmlFor="settings-default-approval-policy"
-                    control={
-                      <SettingsSelect
-                        id="settings-default-approval-policy"
-                        value={defaultApprovalPolicy}
-                        disabled={defaultApproval.pending}
-                        ariaLabel={t('settings.permissions.workspaceDefault.label')}
-                        onValueChange={(nextPolicy) => {
-                          return handleDefaultApprovalPolicyChange(nextPolicy as VisibleApprovalPolicy)
-                        }}
-                        style={{ width: SETTINGS_SELECT_WIDTH }}
-                        menuMinWidth={APPROVAL_MENU_MIN_WIDTH}
-                        options={[
-                          {
-                            value: 'default',
-                            label: t('settings.permissions.default.label'),
-                            description: t('settings.permissions.default.description'),
-                            icon: <Hand size={15} strokeWidth={1.9} />
-                          },
-                          {
-                            value: 'autoApprove',
-                            label: t('settings.permissions.fullAccess.label'),
-                            description: t('settings.permissions.fullAccess.description'),
-                            icon: <OctagonAlert size={15} strokeWidth={1.9} />
-                          }
-                        ]}
-                      />
-                    }
-                  />
-                </SettingsGroup>
-
               </SettingsPanelShell>
               </GeneralPanel>
             )}
@@ -1862,20 +1832,57 @@ export function SettingsView({
               </GeneralPanel>
             )}
 
-            {personalizationAvailable && activeSettingsTab === 'personalization' && (
+            {activeSettingsTab === 'personalization' && (
               <GeneralPanel>
-              <SettingsPanelShell
-                  title={t('settings.tab.personalization')}
+              <PersonalizationPanelShell
+                  segment="personalization"
                   description={
                     <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.tab.personalization">
                       {t('settings.personalization.description')}
                     </SettingsDescriptionWithLearnMore>
                   }
                 >
+                {configManagementEnabled && <CodeModeSettingsGroup />}
+
+                <SettingsGroup title={t('settings.group.permissions')}>
+                  <SettingsRow
+                    label={t('settings.permissions.workspaceDefault.label')}
+                    description={t('settings.permissions.workspaceDefault.description')}
+                    htmlFor="settings-default-approval-policy"
+                    control={
+                      <SettingsSelect
+                        id="settings-default-approval-policy"
+                        value={defaultApprovalPolicy}
+                        disabled={defaultApproval.pending}
+                        ariaLabel={t('settings.permissions.workspaceDefault.label')}
+                        onValueChange={(nextPolicy) => {
+                          return handleDefaultApprovalPolicyChange(nextPolicy as VisibleApprovalPolicy)
+                        }}
+                        style={{ width: SETTINGS_SELECT_WIDTH }}
+                        menuMinWidth={APPROVAL_MENU_MIN_WIDTH}
+                        options={[
+                          {
+                            value: 'default',
+                            label: t('settings.permissions.default.label'),
+                            description: t('settings.permissions.default.description'),
+                            icon: <Hand size={15} strokeWidth={1.9} />
+                          },
+                          {
+                            value: 'autoApprove',
+                            label: t('settings.permissions.fullAccess.label'),
+                            description: t('settings.permissions.fullAccess.description'),
+                            icon: <OctagonAlert size={15} strokeWidth={1.9} />
+                          }
+                        ]}
+                      />
+                    }
+                  />
+                </SettingsGroup>
+
+                {configManagementEnabled && (
                 <SettingsGroup
                   title={t('settings.personalization.group.conversation')}
                 >
-                  {configManagementEnabled && (
                     <SettingsRow
                       label={t('settings.personalization.promptSuggestions')}
                       description={t('settings.personalization.promptSuggestionsHint')}
@@ -1888,21 +1895,8 @@ export function SettingsView({
                         />
                       }
                     />
-                  )}
-                  <SettingsRow
-                    label={t('settings.personalization.showThinkingContent')}
-                    description={t('settings.personalization.showThinkingContentHint')}
-                    control={
-                      <PillSwitch
-                        checked={showThinkingContent}
-                        aria-label={t('settings.personalization.showThinkingContent')}
-                        onChange={(checked) => {
-                          void handleShowThinkingContentToggle(checked)
-                        }}
-                      />
-                    }
-                  />
                 </SettingsGroup>
+                )}
                 {configManagementEnabled && (
                   <SettingsGroup
                     title={t('settings.personalization.group.skills')}
@@ -1955,7 +1949,7 @@ export function SettingsView({
                       : null}
                   />
                 )}
-              </SettingsPanelShell>
+              </PersonalizationPanelShell>
               </GeneralPanel>
             )}
 
