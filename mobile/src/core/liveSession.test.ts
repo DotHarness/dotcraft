@@ -260,7 +260,7 @@ describe('background tasks during a live session', () => {
 
     harness.session.setForeground(false)
     expect(notifier.statuses.at(-1)).toMatchObject({ running: 0, needsYou: 0, tasks: 2, focus: { chat: { key }, tasks: 2 } })
-    await waitFor(() => computer.calls.filter((call) => call.method === 'thread/subscribe' && call.params.threadId === threadId).length === 2)
+    expect(computer.calls.filter((call) => call.method === 'thread/resume' && call.params.threadId === threadId)).toHaveLength(1)
     expect(harness.timers.delays()).not.toContain(LIVE_END_MS)
 
     computer.background.finishTerminal('term_docs_dev')

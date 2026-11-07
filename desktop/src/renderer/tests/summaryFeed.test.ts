@@ -6,6 +6,15 @@ function wireItem(id: string, turnId: string, createdAt: string) {
   return { id, turnId, type: 'toolCall', status: 'completed', createdAt, payload: { callId: id, toolName: 'ReadFile' } }
 }
 
+function historyPage(entries: Array<{ turnId: string; item: unknown }>) {
+  const turns = new Map<string, { id: string; items: unknown[] }>()
+  for (const { turnId, item } of entries) {
+    if (!turns.has(turnId)) turns.set(turnId, { id: turnId, items: [] })
+    turns.get(turnId)!.items.push(item)
+  }
+  return { data: [...turns.values()].reverse(), nextCursor: null }
+}
+
 function createHost(responses: Record<string, (params: any) => unknown>) {
   const notifications = new Map<string, (params: any) => void>()
   const services = {
@@ -31,7 +40,7 @@ describe('Summary feed', () => {
   it('merges live items that arrive during history loading without duplicates', async () => {
     let releaseHistory: (value: unknown) => void = () => undefined
     const { services, notify } = createHost({
-      'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
+      'thread/turns/list': () => new Promise((resolve) => { releaseHistory = resolve }),
       'thread/read': () => ({ thread: { plan: null } }),
       'automation/list': () => ({ automations: [] })
     })
@@ -40,13 +49,10 @@ describe('Summary feed', () => {
 
     notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') })
     notify('item/completed', { threadId: 'thread-2', turnId: 'x', item: wireItem('z', 'x', '2026-10-01T10:05:00Z') })
-    releaseHistory({
-      data: [
-        { turnId: 't1', item: wireItem('a', 't1', '2026-10-01T10:00:00Z') },
-        { turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') }
-      ],
-      nextCursor: null
-    })
+    releaseHistory(historyPage([
+      { turnId: 't1', item: wireItem('a', 't1', '2026-10-01T10:00:00Z') },
+      { turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') }
+    ]))
     await settle()
 
     expect(state!.items.map((item) => item.id)).toEqual(['a', 'b'])
@@ -55,10 +61,9 @@ describe('Summary feed', () => {
 
   it('keeps items of different turns that share an item id', async () => {
     const { services, notify } = createHost({
-      'thread/items/list': () => ({
-        data: [{ turnId: 't1', item: wireItem('item_001', 't1', '2026-10-01T10:00:00Z') }],
-        nextCursor: null
-      }),
+      'thread/turns/list': () => historyPage([
+        { turnId: 't1', item: wireItem('item_001', 't1', '2026-10-01T10:00:00Z') }
+      ]),
       'thread/read': () => ({ thread: { plan: null } }),
       'automation/list': () => ({ automations: [] })
     })
@@ -93,26 +98,23 @@ describe('Summary feed', () => {
   })
 
   it('drops items of turns removed by a rollback when the next turn starts', async () => {
+    let rolledBack = false
     const { services, notify } = createHost({
-      'thread/items/list': () => ({
-        data: [
-          { turnId: 't1', item: wireItem('a', 't1', '2026-10-01T10:00:00Z') },
-          { turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') }
-        ],
-        nextCursor: null
-      }),
-      'thread/turns/list': () => ({
+      'thread/turns/list': () => rolledBack ? {
         data: [
           { id: 't3', startedAt: '2026-10-01T10:06:00Z' },
           { id: 't1', startedAt: '2026-10-01T09:59:00Z' }
-        ],
-        nextCursor: null
-      })
+        ], nextCursor: null
+      } : historyPage([
+        { turnId: 't1', item: wireItem('a', 't1', '2026-10-01T10:00:00Z') },
+        { turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') }
+      ])
     })
     let state: SummaryState | null = null
     const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
+    rolledBack = true
     notify('turn/started', { turn: { id: 't3', threadId: 'thread-1' } })
     await settle()
 
@@ -197,7 +199,7 @@ describe('Summary feed', () => {
   it('reports ready only after every initial read settles, even when one fails', async () => {
     let releaseItems: (value: unknown) => void = () => undefined
     const { services } = createHost({
-      'thread/items/list': () => new Promise((resolve) => { releaseItems = resolve }),
+      'thread/turns/list': () => new Promise((resolve) => { releaseItems = resolve }),
       'workflow/run/list': () => Promise.reject(new Error('unsupported'))
     })
     let state: SummaryState | null = null
@@ -237,7 +239,7 @@ describe('Summary feed', () => {
   it('settles a completed Exec result even while history is still loading', async () => {
     let releaseHistory!: (value: unknown) => void
     const { services, notify } = createHost({
-      'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
+      'thread/turns/list': () => new Promise((resolve) => { releaseHistory = resolve }),
       'terminal/list': () => ({ terminals: [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
     })
     let state: SummaryState | null = null
@@ -267,7 +269,7 @@ describe('Summary feed', () => {
   ])('settles direct Exec from its %s commandExecution %s payload without a terminal notification', async (delivery, status) => {
     let releaseHistory!: (value: unknown) => void
     const { services, notify } = createHost({
-      'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
+      'thread/turns/list': () => new Promise((resolve) => { releaseHistory = resolve }),
       'thread/read': () => ({ thread: { runtime: { activeTurnId: 't1' } } }),
       'terminal/list': () => ({ terminals: [{ sessionId: 'shell-session', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
     })
@@ -297,7 +299,7 @@ describe('Summary feed', () => {
         exitCode: status === 'completed' ? 0 : null
       }
     }
-    if (delivery === 'history') releaseHistory({ data: [{ turnId: 't1', item: command }], nextCursor: null })
+    if (delivery === 'history') releaseHistory(historyPage([{ turnId: 't1', item: command }]))
     else {
       notify('item/completed', { threadId: 'thread-1', turnId: 't1', item: command })
       if (delivery === 'foreground') notify('item/completed', returned)

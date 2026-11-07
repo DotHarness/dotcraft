@@ -14,7 +14,8 @@ internal sealed class WorktreeRequestHandler(
     IAppConfigMonitor? appConfigMonitor,
     string? hostWorkspacePath,
     AgentProfileThreadConfigResolver profileResolver,
-    Func<SessionThread, bool, bool, CancellationToken, Task<SessionWireThread>> projectThreadAsync) : IAppServerDomainHandler
+    Func<SessionThread, bool, bool, CancellationToken, Task<SessionWireThread>> projectThreadAsync,
+    Func<SessionThread, Func<SessionWireThread, Task>, CancellationToken, Task> attachCreatedThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -78,20 +79,20 @@ internal sealed class WorktreeRequestHandler(
         var thread = result.Thread;
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
-        var responseWire = await projectThreadAsync(thread, false, false, ct);
-        var notificationWire = responseWire;
-
-        await responseWriter.SendNotificationAfterResponseAsync(
-            request.Message.Id,
-            new Contract.WorktreeCreateAndForkResult
-            {
-                Thread = AppServerContractMapper.ToContract(responseWire),
-                Worktree = WorktreeContractMapper.ToContract(result.Worktree),
-                Setup = ToContract(result.Setup)
-            },
-            Contract.AppServerRpc.ThreadStarted,
-            new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(notificationWire) },
-            ct);
+        await attachCreatedThreadAsync(thread, async responseWire =>
+        {
+            await responseWriter.SendNotificationAfterResponseAsync(
+                request.Message.Id,
+                new Contract.WorktreeCreateAndForkResult
+                {
+                    Thread = AppServerContractMapper.ToContract(responseWire),
+                    Worktree = WorktreeContractMapper.ToContract(result.Worktree),
+                    Setup = ToContract(result.Setup)
+                },
+                Contract.AppServerRpc.ThreadStarted,
+                new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(responseWire) },
+                ct);
+        }, ct);
 
         return null;
     }
@@ -143,18 +144,20 @@ internal sealed class WorktreeRequestHandler(
         var thread = result.Thread;
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
-        var startedWire = await projectThreadAsync(thread, true, false, ct);
-        await responseWriter.SendNotificationAfterResponseAsync(
-            request.Message.Id,
-            new Contract.WorktreeCreateAndStartResult
-            {
-                Thread = AppServerContractMapper.ToContract(startedWire),
-                Worktree = WorktreeContractMapper.ToContract(result.Worktree),
-                Setup = ToContract(result.Setup)
-            },
-            Contract.AppServerRpc.ThreadStarted,
-            new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
-            ct);
+        await attachCreatedThreadAsync(thread, async startedWire =>
+        {
+            await responseWriter.SendNotificationAfterResponseAsync(
+                request.Message.Id,
+                new Contract.WorktreeCreateAndStartResult
+                {
+                    Thread = AppServerContractMapper.ToContract(startedWire),
+                    Worktree = WorktreeContractMapper.ToContract(result.Worktree),
+                    Setup = ToContract(result.Setup)
+                },
+                Contract.AppServerRpc.ThreadStarted,
+                new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
+                ct);
+        }, ct);
 
         return null;
     }

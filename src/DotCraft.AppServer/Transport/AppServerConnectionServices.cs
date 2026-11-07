@@ -33,8 +33,7 @@ public sealed record AppServerConnectionServices
     public string ServerVersion { get; init; } = "0.1.0";
 
     /// <summary>
-    /// Fallback decision used by <see cref="AppServerEventDispatcher"/> when non-interactive
-    /// approval resolution cannot be derived from thread policy.
+    /// The initiating connection's approval decision when thread policy does not specify one.
     /// </summary>
     public SessionApprovalDecision DefaultApprovalDecision { get; init; } = SessionApprovalDecision.Reject;
 

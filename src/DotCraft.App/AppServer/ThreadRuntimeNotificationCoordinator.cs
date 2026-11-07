@@ -1,14 +1,13 @@
 using System.Collections.Concurrent;
 using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Aggregates thread runtime signals and delivers committed snapshots to each transport in order.
-/// </summary>
 internal sealed class ThreadRuntimeNotificationCoordinator
 {
+    private readonly ConcurrentDictionary<Task, byte> _pendingDeliveries = new();
     private readonly object _signalGate = new();
     private readonly ConcurrentDictionary<string, RuntimeFacts> _threadRuntime = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _notificationQueues = new();
@@ -136,7 +135,7 @@ internal sealed class ThreadRuntimeNotificationCoordinator
             .OfType<Task>()
             .ToArray();
 
-        await Task.WhenAll(queues).ConfigureAwait(false);
+        await Task.WhenAll(queues.Concat(_pendingDeliveries.Keys)).ConfigureAwait(false);
     }
 
     private void Broadcast(
@@ -168,7 +167,39 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                             RemoveTransport(candidate);
                         }),
                     LazyThreadSafetyMode.ExecutionAndPublication));
-            queue.Value.Enqueue(Contract.AppServerRpc.ThreadStatusChanged.Name, parameters);
+            var delivery = DeliverAsync();
+            _pendingDeliveries.TryAdd(delivery, 0);
+            _ = delivery.ContinueWith(completed => _pendingDeliveries.TryRemove(completed, out _),
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+            async Task DeliverAsync()
+            {
+                try
+                {
+                    await connection.RunThreadNotificationAsync(threadId, snapshot =>
+                    {
+                        if (snapshot is null)
+                        {
+                            queue.Value.Enqueue(Contract.AppServerRpc.ThreadStatusChanged.Name, parameters);
+                            return Task.CompletedTask;
+                        }
+
+                        snapshot.EnsureCurrent();
+                        return transport.NotifyAsync(Contract.AppServerRpc.ThreadStatusChanged,
+                            new Contract.ThreadStatusChangedNotification
+                            {
+                                ThreadId = threadId,
+                                Runtime = AppServerContractMapper.ToContract(snapshot.Runtime.ToWireRuntimeState())
+                            }, CancellationToken.None);
+                    });
+                }
+                catch (OperationCanceledException) { }
+                catch
+                {
+                    activeTransports.TryRemove(transport, out _);
+                    RemoveTransport(transport);
+                }
+            }
         }
     }
 

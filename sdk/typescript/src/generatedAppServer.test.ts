@@ -51,7 +51,7 @@ test("generated method maps type and execute a low-level request", async () => {
 
   const params: ClientRequestMethods["initialize"]["params"] = {
     clientInfo: { name: "fixture-client", version: "1.0" },
-    capabilities: { threadSubscriptions: true },
+    capabilities: { threadManagement: true },
   };
   const pending = client.request("initialize", params);
   const request = transport.written[0];
@@ -61,7 +61,7 @@ test("generated method maps type and execute a low-level request", async () => {
     id: request.id,
     result: {
       serverInfo: { name: "fixture-server", version: "1.0", protocolVersion: "1" },
-      capabilities: { threadManagement: true, threadSubscriptions: true },
+      capabilities: { threadManagement: true },
     },
   });
 

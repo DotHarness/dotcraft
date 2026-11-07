@@ -17,7 +17,7 @@ const SCROLL_ANCHOR_MS = 350
 interface TurnActivitySummaryProps {
   status: TurnActivityStatus
   collapsible?: boolean
-  children?: ReactNode
+  children?: ReactNode | ((state: { open: boolean; expanded: boolean }) => ReactNode)
   threadId: string
   turnId: string
   startedAt?: string
@@ -100,7 +100,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     )}
     {children ? (
       <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>
-        <div className={styles.bodyContent}>{mounted.current ? children : null}</div>
+        <div className={styles.bodyContent}>{mounted.current ? typeof children === 'function' ? children({ open, expanded }) : children : null}</div>
       </div>
     ) : null}
   </div>

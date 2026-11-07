@@ -1,3 +1,5 @@
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
+import { normalizeRemoteFileTransferProgress } from '../utils/remoteToolHostDisplay'
 import {
   wireItemToConversationItem,
   wireTurnToConversationTurn,
@@ -14,6 +16,35 @@ export interface TranscriptLiveText {
 export interface TranscriptTimeline {
   turns: ConversationTurn[]
   live: TranscriptLiveText | null
+}
+
+export function restoreTranscript(result: ClientRequestMethods['thread/resume']['result']): TranscriptTimeline {
+  const current = result.currentState
+  const turns = [...(result.initialTurnsPage?.data ?? [])].reverse().map(raw => {
+    const turn = wireTurnToConversationTurn(raw as Record<string, unknown>)
+    if (turn.id !== current.turnId) return turn
+    return {
+      ...turn,
+      items: turn.items.map(item => ({
+        ...item,
+        ...((item.type === 'agentMessage' || item.type === 'reasoningContent') && item.status !== 'completed'
+          ? { status: 'streaming' as const } : {}),
+        ...(current.toolArguments?.[item.id] != null ? { argumentsPreview: current.toolArguments[item.id] } : {}),
+        ...(current.toolProgress?.[item.id] ? {
+          transferProgress: normalizeRemoteFileTransferProgress(current.toolProgress[item.id].progress) ?? undefined
+        } : {})
+      }))
+    }
+  })
+  const active = turns.find(turn => turn.id === current.turnId)
+  const item = active?.items.findLast(candidate =>
+    candidate.status !== 'completed' && (candidate.type === 'agentMessage' || candidate.type === 'reasoningContent'))
+  const live: TranscriptLiveText | null = item ? {
+    itemId: item.id,
+    kind: item.type as TranscriptLiveText['kind'],
+    text: item.type === 'agentMessage' ? item.text ?? '' : item.reasoning ?? ''
+  } : null
+  return { turns, live }
 }
 
 const TERMINAL_TURN_STATUS: Record<string, ConversationTurn['status']> = {

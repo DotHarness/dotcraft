@@ -306,12 +306,12 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
         {expandable ? <Disclosure open={open} /> : null}
         <View style={[styles.rule, { backgroundColor: colors.borderDefault }]} />
       </Pressable>
-      {open && entry.pendingTurnId !== undefined ? <TurnWork turnId={entry.pendingTurnId} /> : null}
       {open
         ? entry.children.map((child, index) => (
             <TranscriptLine key={child.id} entry={child} previous={entry.children[index - 1]} workspacePath={workspacePath} />
           ))
         : null}
+      {open && entry.pendingTurnId !== undefined ? <TurnWork turnId={entry.pendingTurnId} /> : null}
     </View>
   )
 }

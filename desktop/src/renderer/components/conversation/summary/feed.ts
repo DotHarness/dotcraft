@@ -1,4 +1,5 @@
 import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
+import { THREAD_OPENING_PAGE } from '../../../utils/threadHistory'
 import { diffTotals, rolledBackTurns, toSummaryItem, type FileChanges, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
 import { createTerminalFeed, type SummaryTerminal } from './terminalFeed'
@@ -51,7 +52,6 @@ interface WorkflowRunSnapshot {
   readonly startedAt?: string
 }
 
-const ITEM_PAGE_LIMIT = 100
 const TURN_PAGE_LIMIT = 100
 const WORKFLOW_PAGE_LIMIT = 50
 
@@ -145,27 +145,20 @@ export function startSummaryFeed(
     }
   }
 
-  const readItemsPage = (cursor: string | null) => services.appServer.request('thread/items/list', {
-    threadId,
-    sortDirection: 'ascending',
-    limit: ITEM_PAGE_LIMIT,
-    cursor
-  })
-
   const loadHistory = async (): Promise<void> => {
     const loaded: SummaryItem[] = []
-    let cursor: string | null = null
     try {
-      do {
-        const page = await readItemsPage(cursor)
-        if (disposed) return
-        for (const entry of page.data ?? []) {
-          terminals.observeCommandExecution(entry.item, entry.turnId)
-          const item = toSummaryItem(entry.item, entry.turnId)
+      const page = await services.appServer.request('thread/turns/list', {
+        threadId, sortDirection: 'descending', ...THREAD_OPENING_PAGE
+      })
+      if (disposed) return
+      for (const turn of [...(page.data ?? [])].reverse()) {
+        for (const raw of turn.items ?? []) {
+          terminals.observeCommandExecution(raw, turn.id)
+          const item = toSummaryItem(raw, turn.id)
           if (item) loaded.push(item)
         }
-        cursor = page.nextCursor ?? null
-      } while (cursor)
+      }
     } catch {
       loaded.length = 0
     } finally {

@@ -37,9 +37,12 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnStart_RespondsThenStreamsNotificationsInOrder()
+    public async Task TurnStart_WhenAttached_StreamsNotificationsInOrder()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await _h.Transport.ReadNextSentAsync();
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
@@ -67,6 +70,9 @@ public sealed class AppServerTurnTests : IDisposable
     public async Task TurnStart_ReasoningDelta_IncludesDeltaKindReasoningContent()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await _h.Transport.ReadNextSentAsync();
         var turn = AppServerTestHarness.MakeTurn(thread.Id);
 
         var events = new SessionEvent[]
@@ -111,6 +117,9 @@ public sealed class AppServerTurnTests : IDisposable
         await harness.InitializeAsync(streamingSupport: false);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
@@ -260,6 +269,9 @@ public sealed class AppServerTurnTests : IDisposable
     public async Task TurnStart_ToolCallArgumentsDelta_EmitsNotificationWithExpectedShape()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await _h.Transport.ReadNextSentAsync();
         _h.Service.EnqueueSubmitEvents(
             thread.Id,
             AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));

@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useComputerLink, useComputerSelector } from '../../app-state/SessionContext'
-import { awaitsPlanConfirmation, isLive } from '../../core/chatState'
-import { waitingDecisions } from '../../core/decisions'
+import { isLive } from '../../core/chatState'
+import { implementationTurn, waitingDecisions } from '../../core/decisions'
 import { plainMessage } from '../../core/draft'
 import { chatTasks } from '../../core/backgroundTasks'
 import { chatKey, computerStatus, isReachable, projectById, stateOf, type ComputerState, type PendingRequest } from '../../core/state'
@@ -51,7 +51,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         workspacePath: detail?.effectiveWorkspacePath ?? null,
         catchingUp: !detail || (detail.loading && detail.history.items.length === 0),
         hasHistory: (detail?.history.turns.length ?? 0) > 0,
-        lastTurnId: detail?.history.turns.at(-1)?.id,
+        restored: detail?.loading === false,
+        planTurn: implementationTurn(detail, computer.chats[key]?.runtime ?? null),
         pending: computer.pending[key] ?? NO_PENDING,
         taskSources: computer.tasks[key],
       }
@@ -89,7 +90,9 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const { chat, project, computer, status, pending, workspacePath } = state
   const online = isReachable(status)
   const live = online && (project?.running ?? false)
-  const ready = state.phase === 'ready'
+  const waitingForRequest = (chat?.runtime?.waitingOnApproval && !pending.some((request) => request.kind === 'approval'))
+    || (chat?.runtime?.waitingOnInput && !pending.some((request) => request.kind === 'question'))
+  const ready = state.phase === 'ready' && state.restored && !waitingForRequest && !chat?.archived
   const chatState = chat ? stateOf(chat) : 'done'
   const working = isLive(chatState)
   const activeTurnId = chat?.runtime?.activeTurnId ?? null
@@ -102,12 +105,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const controls: ChatControls = { ...configured, providerId: configured.providerId ?? models?.defaultProviderId ?? null }
   const references = useReferences(projectId, ready)
   const planMode = state.config?.mode === 'plan'
-  const planTurn = awaitsPlanConfirmation(chat?.runtime ?? null, state.config?.mode) ? (state.lastTurnId ?? key) : null
+  const planTurn = state.planTurn
   const decisions = useMemo(
     () => waitingDecisions(pending, planTurn !== dismissedPlan ? planTurn : null),
     [pending, planTurn, dismissedPlan],
   )
-  const decision = live ? (decisions[0] ?? null) : null
+  const decision = live && state.restored && !chat?.archived ? (decisions[0] ?? null) : null
   const insets = useSafeAreaInsets()
   const canPlan = offersPlanMode(state.config, chat?.profileId)
   const selectRunningChanges = useCallback(
@@ -147,7 +150,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     [computer.id, projectId, router, session],
   )
   const canCompact = ready && models?.canCompact === true && state.hasHistory && !working && !chat?.runtime?.maintenanceKind
-  const docked = !catchingUp && live && !decision
+  const docked = !catchingUp && live && !decision && !chat?.archived
   const inset = docked ? dockHeight : insets.bottom
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
   const projectName = project ? projectTitle(project, t) : ''

@@ -27,7 +27,7 @@ public sealed partial class SessionService
         SessionItem item;
         SessionItem? commandExecutionItem = null;
         bool emitStarted;
-        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
+        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id, runtimeGeneration: runtime.Generation);
         var memory = ResolveMemoryPresentation(
             registration.Definition,
             arguments,
@@ -184,7 +184,7 @@ public sealed partial class SessionService
 
         var completedAt = DateTimeOffset.UtcNow;
         var durationMs = Math.Max(0L, (long)duration.TotalMilliseconds);
-        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
+        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id, runtimeGeneration: runtime.Generation);
         if (!result.Success && IsTrustedShellExec(registration.Definition))
         {
             CommandExecutionTracker.CompletePendingFailureByCallId(

@@ -39,7 +39,12 @@ beforeEach(() => {
     return {}
   })
   sendServerResponse = vi.fn(async () => {})
-  sendConnectionRequest = vi.fn((_key: string, method: string, params: unknown) => sendRequest(method, params))
+  sendConnectionRequest = vi.fn(async (_key: string, method: string, params: unknown, _timeout?: number,
+    options?: { onResponse?: (result: unknown) => void }) => {
+    const result = await sendRequest(method, params)
+    options?.onResponse?.(result)
+    return result
+  })
   vi.stubGlobal('window', {
     setTimeout,
     clearTimeout,
@@ -147,7 +152,7 @@ describe('side chats', () => {
     })
     expect(sendConnectionRequest).toHaveBeenLastCalledWith('workspace-a', 'turn/start', expect.objectContaining({
       threadId: 'side-1', runtimeWorkspaceRoots: ['X:/lib', 'X:/app', 'X:/private']
-    }))
+    }), undefined, expect.objectContaining({ attachmentOwner: `sidechat:${key}` }))
     expect(sendRequest.mock.calls.at(-1)![1]).not.toHaveProperty('cwd')
     emit('turn/completed', { turn: { id: 'turn-2', threadId: 'side-1', status: 'completed' } })
 
@@ -252,14 +257,14 @@ describe('side chats', () => {
   })
 
   it('keeps using the connection it was opened on after the workspace switches', async () => {
-    await openSideChat('Where is Retry called?')
+    const key = await openSideChat('Where is Retry called?')
 
     useDetailPanelStore.getState().onWorkspaceSwitched('/workspace-b')
 
-    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/fork', expect.anything())
-    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'turn/start', expect.anything())
+    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/fork', expect.anything(), undefined, expect.objectContaining({ attachmentOwner: `sidechat:${key}` }))
+    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'turn/start', expect.anything(), undefined, expect.objectContaining({ attachmentOwner: `sidechat:${key}` }))
     await vi.waitFor(() =>
-      expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/delete', { threadId: 'side-1' }))
+      expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/delete', { threadId: 'side-1' }, undefined, expect.objectContaining({ attachmentOwner: `sidechat:${key}` })))
   })
 
   it('closes the tab when the server deletes the side chat', async () => {

@@ -196,7 +196,6 @@ export interface ClientRequestMethods {
   "thread/search": { params: Models.ThreadSearchParams; result: Models.ThreadSearchResult };
   "thread/searchOccurrences": { params: Models.ThreadSearchOccurrencesParams; result: Models.ThreadSearchOccurrencesResult };
   "thread/start": { params: Models.ThreadStartParams; result: Models.ThreadStartResult };
-  "thread/subscribe": { params: Models.ThreadSubscribeParams; result: Models.RpcEmpty };
   "thread/turns/list": { params: Models.ThreadTurnsListParams; result: Models.ThreadTurnsListResult };
   "thread/unarchive": { params: Models.ThreadUnarchiveParams; result: Models.RpcEmpty };
   "thread/unsubscribe": { params: Models.ThreadUnsubscribeParams; result: Models.RpcEmpty };

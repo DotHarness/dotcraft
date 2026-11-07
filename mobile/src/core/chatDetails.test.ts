@@ -53,7 +53,7 @@ describe('changes', () => {
   it('rebuilds a reopened finished turn from recorded file changes and takes a running turn from its live diff', async () => {
     const { state, opened } = await connected()
     const done = await opened('Rename the settings segments')
-    expect(state().details[done].history.diffs).toBeUndefined()
+    expect(Object.keys(state().details[done].history.diffs ?? {})).toEqual([state().details[done].history.turns.at(-1)!.id])
     expect(runningTurnChanges(state().details[done].history, state().details[done].workspacePath)).toBeNull()
     const reply = buildTranscript(state().details[done].history, state().details[done].workspacePath).at(-1)
     expect(reply?.kind === 'assistant' && reply.changes?.files.map((file) => [file.path, file.added, file.removed])).toEqual([

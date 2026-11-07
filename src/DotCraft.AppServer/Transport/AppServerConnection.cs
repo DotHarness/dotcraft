@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
@@ -22,8 +23,37 @@ public sealed class AppServerConnection
     private string? _appPrincipalId;
     private string? _appPrincipalAppId;
 
-    // Active passive thread subscriptions: threadId → CancellationTokenSource
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
+    private readonly ConcurrentDictionary<string, ThreadObservation> _observations = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<ThreadObservation?>> _openingObservations = new(StringComparer.Ordinal);
+
+    internal void BeginObservation(string threadId) =>
+        _openingObservations[threadId] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    internal void CompleteObservation(string threadId, ThreadObservation? observation)
+    {
+        if (_openingObservations.TryRemove(threadId, out var ready))
+            ready.TrySetResult(observation);
+    }
+
+    internal void SetObservation(string threadId, ThreadObservation observation) =>
+        _observations[threadId] = observation;
+
+    internal void RemoveObservation(string threadId, ThreadObservation observation) =>
+        _observations.TryRemove(new KeyValuePair<string, ThreadObservation>(threadId, observation));
+
+    public async Task RunThreadNotificationAsync(
+        string threadId,
+        Func<ThreadObservationSnapshot?, Task> send,
+        CancellationToken ct = default)
+    {
+        if (_openingObservations.TryGetValue(threadId, out var opening))
+            await opening.Task.WaitAsync(ct);
+        if (_observations.TryGetValue(threadId, out var observation) && HasSubscription(threadId))
+            await observation.RefreshAsync(ThreadObservationView.Metadata, [], snapshot => send(snapshot), ct);
+        else
+            await send(null);
+    }
 
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
@@ -289,6 +319,9 @@ public sealed class AppServerConnection
         _appPrincipalId = null;
         _appPrincipalAppId = null;
         _closedTcs.TrySetResult();
+        foreach (var threadId in _openingObservations.Keys)
+            CompleteObservation(threadId, null);
+        CancelAllSubscriptions();
     }
 
     /// <summary>Signals active MCP App Views for a rolled-back thread to close.</summary>
@@ -314,10 +347,6 @@ public sealed class AppServerConnection
     public bool SupportsApproval =>
         _clientCapabilities?.ApprovalSupport != false;
 
-    /// <summary>
-    /// Returns <c>true</c> if the client can handle model-initiated user input requests.
-    /// Defaults to false so legacy clients are not sent an unknown server request.
-    /// </summary>
     public bool SupportsRequestUserInput =>
         _clientCapabilities?.RequestUserInputSupport == true;
 
@@ -379,22 +408,18 @@ public sealed class AppServerConnection
     // Thread subscriptions
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Registers a passive subscription for the given thread.
-    /// Returns <c>false</c> if a subscription already exists (duplicate subscribe is a no-op).
-    /// </summary>
     public bool TryAddSubscription(string threadId, CancellationTokenSource cts)
     {
-        if (!_subscriptions.TryAdd(threadId, cts))
+        if (_isClosed || !_subscriptions.TryAdd(threadId, cts))
             return false;
-
+        if (_isClosed)
+        {
+            TryCancelSubscription(threadId, cts);
+            return false;
+        }
         return true;
     }
 
-    /// <summary>
-    /// Cancels and removes the passive subscription for the given thread.
-    /// Returns <c>false</c> if no subscription was found.
-    /// </summary>
     public bool TryCancelSubscription(string threadId)
     {
         if (!_subscriptions.TryRemove(threadId, out var cts))
@@ -405,10 +430,16 @@ public sealed class AppServerConnection
         return true;
     }
 
-    /// <summary>
-    /// Returns <c>true</c> if the connection has an active passive subscription for the given thread.
-    /// </summary>
     public bool HasSubscription(string threadId) => _subscriptions.ContainsKey(threadId);
+
+    internal bool TryCancelSubscription(string threadId, CancellationTokenSource expected)
+    {
+        if (!_subscriptions.TryRemove(new KeyValuePair<string, CancellationTokenSource>(threadId, expected)))
+            return false;
+        expected.Cancel();
+        expected.Dispose();
+        return true;
+    }
 
     /// <summary>
     /// Cancels all active subscriptions. Called on connection close or dispose.

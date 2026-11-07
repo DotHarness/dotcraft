@@ -16,10 +16,14 @@ vi.mock('../threadPanelStateIpc', () => ({ forgetThreadPanelState: vi.fn() }))
 import { refreshSecondaryWorkspaceConnections } from '../windows/windowSecondaryConnections'
 
 function fixture(count: number) {
-  const leases = Array.from({ length: count }, () => new BrowserTurnSubscriptions(async () => ({})))
+  const leases = Array.from({ length: count }, () => new BrowserTurnSubscriptions(async (_method, _params, onResponse) => {
+    const result = { currentState: { turnId: 'turn', turnStatus: 'inProgress' } }
+    onResponse?.(result)
+    return result
+  }))
   const entries = leases.map((lease, i) => ({
     key: `/project/${i}`, workspacePath: `/project/${i}`, role: 'secondary',
-    client: { get hasRetainedBrowserTurns() { return lease.retained } }
+    client: { get hasRetainedThreadAttachments() { return lease.retained } }
   })) as WorkspaceConnectionEntry[]
   const connections = new Map(entries.map(entry => [entry.key, entry]))
   const disposed: string[] = []

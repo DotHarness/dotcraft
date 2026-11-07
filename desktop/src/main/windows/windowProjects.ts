@@ -126,26 +126,14 @@ export function findWorkspaceConnectionByClient(
   return [...ctx.workspaceConnections.values()].find((entry) => entry.client === client)
 }
 
-export function threadIdFromRequestParams(_ctx: DesktopWindowRuntime, params: unknown): string | null {
-  if (!params || typeof params !== 'object') return null
-  const threadId = (params as { threadId?: unknown }).threadId
-  return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null
-}
-
-export function releaseConnectionThreadSubscriptions(
+export function releaseConnectionViewAttachments(
   ctx: DesktopWindowRuntime,
   entry: WorkspaceConnectionEntry,
   reason: string
 ): void {
-  const threadIds = [...entry.subscribedThreadIds]
-  entry.subscribedThreadIds.clear()
-  for (const threadId of threadIds) {
-    entry.client.sendRequest('thread/unsubscribe', { threadId }).catch((error: unknown) => {
-      if (!ctx.runtimeIsStopping()) {
-        console.warn(`[desktop] failed to unsubscribe ${threadId} during ${reason}`, error)
-      }
-    })
-  }
+  void entry.client.releaseViewAttachments().catch((error: unknown) => {
+    if (!ctx.runtimeIsStopping()) console.warn(`[desktop] failed to release view attachments during ${reason}`, error)
+  })
 }
 
 export function observeAppServerRequestCompletion(
@@ -162,19 +150,6 @@ export function observeAppServerRequestCompletion(
     ctx.emitWorkspaceProjects()
     return
   }
-  if (method !== 'thread/subscribe' && method !== 'thread/unsubscribe') return
-  const threadId = ctx.threadIdFromRequestParams(params)
-  if (!threadId) return
-
-  if (method === 'thread/subscribe') {
-    entry.subscribedThreadIds.add(threadId)
-    if (entry.role !== 'foreground' || ctx.wireClient !== client) {
-      ctx.releaseConnectionThreadSubscriptions(entry, 'late secondary subscribe')
-    }
-    return
-  }
-
-  entry.subscribedThreadIds.delete(threadId)
 }
 
 export function makeThreadListIdentity(
@@ -368,7 +343,6 @@ export function disposeWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
   if (ctx.wireClient === entry.client) {
     ctx.wireClient = null
   }
-  entry.subscribedThreadIds.clear()
   entry.client.dispose()
   ctx.workspaceConnections.delete(entry.key)
 

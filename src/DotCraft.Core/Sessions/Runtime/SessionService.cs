@@ -122,7 +122,7 @@ public sealed partial class SessionService(
 
     public event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
 
-    private readonly ThreadManager _runtimeRegistry = new();
+    private readonly ThreadManager _runtimeRegistry = new(agentFactory.PlanStore);
     private readonly Lock _threadLoadGatesLock = new();
     private readonly Dictionary<string, ThreadLoadGate> _threadLoadGates = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
@@ -720,9 +720,8 @@ public sealed partial class SessionService(
 
     public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
         string threadId,
-        bool replayRecent = false,
         CancellationToken ct = default)
-        => ThreadAccess.Subscribe(threadId, replayRecent, ct);
+        => ThreadAccess.Subscribe(threadId, ct);
 
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await ThreadAccess.GetThreadAsync(threadId, ct);
@@ -903,6 +902,8 @@ public sealed partial class SessionService(
         var survivingSession = await TryLoadSurvivingModelHistoryAsync(thread, ct);
         await SaveContextUsageFromSessionAsync(thread, survivingSession, ct);
         await ResetReadStateAfterRollbackAsync(thread);
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            runtime.Broker.ResetCurrentState(thread, runtime.Generation);
         ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.HistoryRolledBack, null);
         return thread;
     }

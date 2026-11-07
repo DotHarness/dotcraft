@@ -82,6 +82,10 @@ internal static class WorkspaceStateSchema
                     item_json TEXT NOT NULL,
                     tool_call INTEGER NOT NULL DEFAULT 0,
                     user_text TEXT,
+                    summary_kind INTEGER NOT NULL DEFAULT 0,
+                    summary_call_id TEXT,
+                    summary_namespace TEXT,
+                    summary_tool_name TEXT,
                     PRIMARY KEY(thread_id, turn_id, item_id),
                     FOREIGN KEY(thread_id, turn_id)
                         REFERENCES thread_turns(thread_id, turn_id) ON DELETE CASCADE
@@ -371,6 +375,10 @@ internal static class WorkspaceStateSchema
         }
         EnsureColumn(connection, "thread_items", "tool_call", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "thread_items", "user_text", "TEXT");
+        EnsureColumn(connection, "thread_items", "summary_kind", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "thread_items", "summary_call_id", "TEXT");
+        EnsureColumn(connection, "thread_items", "summary_namespace", "TEXT");
+        EnsureColumn(connection, "thread_items", "summary_tool_name", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "model", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
@@ -390,6 +398,9 @@ internal static class WorkspaceStateSchema
                 CREATE INDEX IF NOT EXISTS idx_thread_items_user_text
                     ON thread_items(thread_id, turn_id, rollout_ordinal, user_text)
                     WHERE user_text IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_thread_items_summary
+                    ON thread_items(thread_id, turn_id, rollout_ordinal, item_id, summary_kind,
+                                    summary_call_id, summary_namespace, summary_tool_name);
                 """;
         usageIndexes.ExecuteNonQuery();
     }

@@ -20,7 +20,6 @@ export interface ServerCapabilities {
   threadFork?: boolean
   sideChat?: boolean
   gitWorktrees?: boolean
-  threadSubscriptions?: boolean
   approvalFlow?: boolean
   modeSwitch?: boolean
   configOverride?: boolean

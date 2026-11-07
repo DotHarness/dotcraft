@@ -145,7 +145,7 @@ public sealed partial class AppServerRunWorker(
                 run.AppServerEndpoint,
                 timeout.Token,
                 endpointResolver.ResolveConfiguredToken());
-            await client.SubscribeThreadAsync(run.ThreadId, timeout.Token);
+            await client.ResumeThreadAsync(run.ThreadId, null, null, timeout.Token);
             try
             {
                 await client.InterruptTurnAsync(run.ThreadId, run.TurnId, timeout.Token);
@@ -478,7 +478,6 @@ public sealed partial class AppServerRunWorker(
 
             boundThreadId = threadId;
 
-            await client.SubscribeThreadAsync(threadId, runToken);
             runCoordinator.RegisterRun(runId, client, threadId, null);
             registered = true;
             await discussionSessions.WaitForIdleTurnAsync(threadId, runToken);

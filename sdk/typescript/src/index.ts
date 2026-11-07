@@ -13,6 +13,7 @@ export type {
   DotCraftRunResult,
   EnqueueOptions,
   GetOrCreateThreadOptions,
+  ForkThreadOptions,
   ListThreadOptions,
   QueuedInputResult,
   ResumeThreadOptions,
@@ -20,12 +21,10 @@ export type {
   RunOptions,
   SenderContext,
   StartThreadOptions,
-  SubscribeOptions,
   ThreadIdentityOptions,
   ThreadHistoryPageOptions,
   ThreadItemPageOptions,
   ThreadManager,
-  ThreadSubscription,
   UserInputHandler,
 } from "./dotcraft.js";
 export {

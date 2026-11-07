@@ -28,7 +28,6 @@ public sealed class AppServerHandshakeTests : IDisposable
 
         var caps = result.GetProperty("capabilities");
         Assert.True(caps.GetProperty("threadManagement").GetBoolean());
-        Assert.True(caps.GetProperty("threadSubscriptions").GetBoolean());
         Assert.True(caps.GetProperty("approvalFlow").GetBoolean());
         Assert.True(caps.GetProperty("requestUserInput").GetBoolean());
         Assert.True(caps.GetProperty("modeSwitch").GetBoolean());

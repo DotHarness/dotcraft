@@ -14,7 +14,8 @@ const ALWAYS = new Set(['userMessage', 'agentMessage', 'error', 'systemNotice', 
 
 /** Adds summary Items to a Turn page the way the AppServer does for `itemsView: "summary"`. */
 export function withSummaries<T extends { id: string }, I extends FakeItem>(turns: T[], items: I[], params: Record<string, unknown>): T[] {
-  if (params.itemsView !== 'summary') return turns
+  if (params.itemsView === 'full') return turns.map((turn) => ({ ...turn, itemsView: 'full', items: items.filter((item) => item.turnId === turn.id) }))
+  if (params.itemsView !== 'summary') return turns.map((turn) => ({ ...turn, itemsView: 'none' }))
   const tools = (params.summaryTools as SummaryTool[] | undefined) ?? []
   return turns.map((turn) => {
     const own = items.filter((item) => item.turnId === turn.id)

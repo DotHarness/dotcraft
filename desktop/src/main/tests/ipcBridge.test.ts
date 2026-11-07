@@ -141,13 +141,10 @@ import {
 import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
-import { unwrapAppServerResult } from '../../shared/appServerError'
-import { applyWorkspaceThreadListRequestResult, beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
 import { registerWindowFileAccess } from '../windowFileAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
-import { getForegroundWorkspaceClient, type WorkspaceConnectionRole } from '../workspaceConnectionRouting'
 
 type IpcCallbacks = Parameters<typeof registerIpcHandlers>[2]
 type ExecFileCallback = (
@@ -169,6 +166,7 @@ function createIpcCallbacks(overrides: Partial<IpcCallbacks> = {}): IpcCallbacks
     updateSettings: vi.fn(),
     getLocalProjectPaths: vi.fn(() => []),
     getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
+    getConnectionContext: () => ({ workspacePath: '/workspace' }),
     getWorkspaceStatus: vi.fn(() => ({ status: 'ready', workspacePath: '/workspace', hasUserConfig: false, providers: [] })),
     ...overrides
   }
@@ -343,208 +341,6 @@ describe('registerIpcHandlers', () => {
     existsSyncMock.mockReturnValue(true)
   })
 
-  it('keeps a connection-keyed request on its connection after another workspace comes to the foreground', async () => {
-    const clientA = { sendRequest: vi.fn().mockResolvedValue({}) }
-    const clientB = { sendRequest: vi.fn().mockResolvedValue({}) }
-    const keys = new Map<unknown, string>([[clientA, 'project-a'], [clientB, 'project-b']])
-    let foreground: unknown = clientA
-    const handlers = registerHandlersForTest('/project-a', () => foreground as never, createIpcCallbacks({
-      getConnectionKey: (client) => keys.get(client) ?? null,
-      getConnectionClient: (key) => ([...keys].find(([, candidate]) => candidate === key)?.[0] ?? null) as never
-    }))
-
-    const key = await handlers.get('appserver:get-connection-key')?.({})
-    foreground = clientB
-    await handlers.get('appserver:send-connection-request')?.({}, key, 'thread/delete', { threadId: 'side-1' })
-
-    expect(key).toBe('project-a')
-    expect(clientA.sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'side-1' }, undefined)
-    expect(clientB.sendRequest).not.toHaveBeenCalled()
-  })
-
-  it('routes RPC by foreground ownership without disabling keyed background requests', async () => {
-    const clientA = { sendRequest: vi.fn().mockResolvedValue({}) }
-    const clientB = { sendRequest: vi.fn().mockResolvedValue({}) }
-    const entryA = { client: clientA, role: 'foreground' as WorkspaceConnectionRole }
-    const entryB = { client: clientB, role: 'foreground' as WorkspaceConnectionRole }
-    const connections = new Map([['a', entryA]])
-    let currentKey = 'a'
-    let wireClient: typeof clientA | null = clientA
-    const win = { isDestroyed: () => false }
-    const handlers = registerHandlersForTest('/b', () => getForegroundWorkspaceClient({
-      appQuitting: false, mainWindow: win, wireClient, connection: connections.get(currentKey)
-    }) as never, createIpcCallbacks({
-      getConnectionKey: (client) => client === (clientA as never) ? 'a' : 'b',
-      getConnectionClient: (key) => (connections.get(key)?.client ?? null) as never
-    }))
-    const invoke = (channel: string, ...args: unknown[]) => Promise.resolve(handlers.get(channel)?.({}, ...args))
-    entryA.role = 'secondary'
-    currentKey = 'b'
-    const blocked = await invoke('appserver:send-request', 'config/read', {})
-    expect(() => unwrapAppServerResult(blocked)).toThrow('AppServer is not connected')
-    wireClient = null
-    for (const channel of ['appserver:send-request', 'appserver:send-request-raw']) {
-      const result = await invoke(channel, 'config/value/write', { keyPath: 'ProviderId', value: 'deepseek' })
-      expect(() => unwrapAppServerResult(result)).toThrow('AppServer is not connected')
-    }
-    expect(await invoke('appserver:model-list')).toBeNull()
-    expect(await invoke('appserver:get-connection-key')).toBeNull()
-    expect(clientA.sendRequest).not.toHaveBeenCalled()
-
-    await invoke('appserver:send-connection-request', 'a', 'thread/read', { threadId: 'background-a' })
-    expect(clientA.sendRequest).toHaveBeenCalledWith('thread/read', { threadId: 'background-a' }, undefined)
-    clientA.sendRequest.mockClear()
-
-    connections.set('b', entryB)
-    wireClient = clientB
-    await invoke('appserver:send-request', 'config/read', {})
-    await invoke('appserver:model-list', 'deepseek')
-    expect(clientB.sendRequest).toHaveBeenCalledWith('config/read', {}, undefined)
-    expect(clientB.sendRequest).toHaveBeenCalledWith('model/list', { providerId: 'deepseek' }, 20_000)
-    expect(await invoke('appserver:get-connection-key')).toBe('b')
-    expect(clientA.sendRequest).not.toHaveBeenCalled()
-
-    entryB.role = 'secondary'
-    entryA.role = 'foreground'
-    currentKey = 'a'
-    wireClient = clientA
-    await invoke('appserver:send-request', 'config/read', {})
-    expect(clientA.sendRequest).toHaveBeenCalledOnce()
-    expect(await invoke('appserver:get-connection-key')).toBe('a')
-  })
-
-  it('recovers each project cache through the originating client when foreground projects switch during list loads', async () => {
-    let resolveA!: (result: { data: unknown[] }) => void
-    const resultA = { data: [{ id: 'running-a', runtime: { state: 'running' } }] }
-    const resultB = { data: [{ id: 'running-b', runtime: { state: 'running' } }] }
-    const clientA = { sendRequest: vi.fn(() => new Promise<{ data: unknown[] }>((resolve) => { resolveA = resolve })) }
-    const clientB = { sendRequest: vi.fn().mockResolvedValue(resultB) }
-    const entryA = { workspacePath: '/project-a', threads: [], errorMessage: 'thread/list timed out' }
-    const entryB = { workspacePath: '/project-b', threads: [], errorMessage: 'thread/list timed out' }
-    const entries = new Map([[clientA, entryA], [clientB, entryB]])
-    let foreground = clientA
-    const onStarted = vi.fn((client, method, params) => {
-      const entry = entries.get(client)
-      return entry ? beginWorkspaceThreadListRequest(entry, method, params) : undefined
-    })
-    const onCompleted = vi.fn((client, method, params, result, generation) => {
-      const entry = entries.get(client)
-      if (entry) applyWorkspaceThreadListRequestResult(entry, method, params, result, generation)
-    })
-    const handlers = registerHandlersForTest('/project-a', () => foreground as never, createIpcCallbacks({
-      onAppServerRequestStarted: onStarted,
-      onAppServerRequestCompleted: onCompleted
-    }))
-    const params = (workspacePath: string) => ({ identity: { workspacePath }, scope: 'workspace', includeSubAgents: true })
-    const pendingA = handlers.get('appserver:send-request')?.({}, 'thread/list', params('/project-a'))
-
-    foreground = clientB
-    await expect(handlers.get('appserver:send-request')?.({}, 'thread/list', params('/project-b'))).resolves.toEqual(resultB)
-    resolveA(resultA)
-    await expect(pendingA).resolves.toEqual(resultA)
-
-    expect(onCompleted).toHaveBeenCalledWith(clientA, 'thread/list', params('/project-a'), resultA, expect.any(Number))
-    expect(onCompleted).toHaveBeenCalledWith(clientB, 'thread/list', params('/project-b'), resultB, expect.any(Number))
-    expect(entryA.threads).toEqual(resultA.data)
-    expect(entryB.threads).toEqual(resultB.data)
-    expect(entryA.errorMessage).toBeUndefined()
-    expect(entryB.errorMessage).toBeUndefined()
-    foreground = clientA
-    expect(entries.get(foreground)?.threads).toEqual(resultA.data)
-    foreground = clientB
-    expect(entries.get(foreground)?.threads).toEqual(resultB.data)
-  })
-
-  it('captures foreground list generations before dispatch and rejects out-of-order IPC completions', async () => {
-    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'prior timeout' }
-    const params = { identity: { workspacePath: '/workspace' }, scope: 'workspace', includeSubAgents: true }
-    const resolvers: Array<(result: { data: unknown[] }) => void> = []
-    const onStarted = vi.fn((_client, method, requestParams) => beginWorkspaceThreadListRequest(entry, method, requestParams))
-    const onCompleted = vi.fn((_client, method, requestParams, result, generation) =>
-      applyWorkspaceThreadListRequestResult(entry, method, requestParams, result, generation)
-    )
-    const client = {
-      sendRequest: vi.fn(() => {
-        expect(onStarted).toHaveBeenCalledTimes(resolvers.length + 1)
-        return new Promise<{ data: unknown[] }>((resolve) => resolvers.push(resolve))
-      })
-    }
-    const handlers = registerHandlersForTest('/workspace', () => client as never, createIpcCallbacks({
-      onAppServerRequestStarted: onStarted,
-      onAppServerRequestCompleted: onCompleted
-    }))
-    const older = handlers.get('appserver:send-request')?.({}, 'thread/list', params)
-    const newer = handlers.get('appserver:send-request')?.({}, 'thread/list', params)
-    const result = { data: [{ id: 'existing' }, { id: 'newly-loaded' }] }
-
-    resolvers[1](result)
-    await expect(newer).resolves.toEqual(result)
-    expect(entry.threads).toEqual(result.data)
-    resolvers[0]({ data: [{ id: 'existing' }] })
-    await older
-
-    expect(entry.threads).toEqual(result.data)
-    expect(entry.errorMessage).toBeUndefined()
-    expect(onCompleted.mock.results.map((call) => call.value)).toEqual([true, false])
-  })
-
-  it('carries JSON-RPC code and data to the preload-side Error and drops a cyclic cause that cannot cross IPC', async () => {
-    const rpcError = Object.assign(new Error('Workspace is busy.'), {
-      name: 'JsonRpcError',
-      code: 'jsonRpcError',
-      rpcCode: -32101,
-      data: {
-        code: 'remote_workspace_busy',
-        messageKey: 'error.remoteToolHost.workspaceBusy',
-        params: { owner: 'other' },
-        fallbackText: 'That folder is in use.'
-      }
-    })
-    const sendRequest = vi.fn().mockRejectedValue(rpcError)
-    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-
-    const outcome = await handlers.get('appserver:send-request')?.({}, 'thread/list', {})
-
-    try {
-      unwrapAppServerResult(outcome)
-      expect.unreachable('the envelope must reject')
-    } catch (error) {
-      const failure = error as Error & { code?: string; rpcCode?: number; data?: Record<string, unknown> }
-      expect(failure).not.toBeInstanceOf(Error)
-      expect(String(failure)).toBe('Workspace is busy.')
-      expect(failure.message).toBe('Workspace is busy.')
-      expect(failure.name).toBe('JsonRpcError')
-      expect(failure.code).toBe('jsonRpcError')
-      expect(failure.rpcCode).toBe(-32101)
-      expect(failure.data).toEqual({
-        code: 'remote_workspace_busy',
-        messageKey: 'error.remoteToolHost.workspaceBusy',
-        params: { owner: 'other' },
-        fallbackText: 'That folder is in use.'
-      })
-    }
-
-    const data: Record<string, unknown> = { code: 'remote_host_unavailable' }
-    data.self = data
-    const cyclicRequest = vi.fn().mockRejectedValue(
-      Object.assign(new Error('Machine is offline.'), { rpcCode: -32100, data })
-    )
-    const cyclicHandlers = registerHandlersForTest('/workspace', () => ({ sendRequest: cyclicRequest } as never))
-
-    const cyclicOutcome = await cyclicHandlers.get('appserver:send-request')?.({}, 'thread/list', {})
-
-    expect(() => structuredClone(cyclicOutcome)).not.toThrow()
-    try {
-      unwrapAppServerResult(cyclicOutcome)
-      expect.unreachable('the envelope must reject')
-    } catch (error) {
-      const failure = error as Error & { rpcCode?: number; data?: unknown }
-      expect(failure.message).toBe('Machine is offline.')
-      expect(failure.rpcCode).toBe(-32100)
-      expect(failure.data).toBeUndefined()
-    }
-  })
-
   it('proxies Desktop extension App Surface GET requests through the resolved endpoint', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
@@ -700,60 +496,6 @@ describe('registerIpcHandlers', () => {
     expect(shell.openExternal).toHaveBeenCalledWith('workflow://open/board')
   })
 
-  it('observes successful AppServer requests after forwarding them', async () => {
-    const result = { subscribed: true }
-    const client = {
-      sendRequest: vi.fn().mockResolvedValue(result)
-    }
-    const onAppServerRequestCompleted = vi.fn()
-    const handlers = registerHandlersForTest('/workspace', () => client as never, createIpcCallbacks({
-      onAppServerRequestCompleted
-    }))
-    const params = { threadId: 'thread_1' }
-
-    await expect(
-      handlers.get('appserver:send-request')?.({}, 'thread/subscribe', params, 20_000)
-    ).resolves.toBe(result)
-
-    expect(client.sendRequest).toHaveBeenCalledWith('thread/subscribe', params, 20_000)
-    expect(onAppServerRequestCompleted).toHaveBeenCalledWith(
-      client,
-      'thread/subscribe',
-      params,
-      result,
-      undefined
-    )
-  })
-
-  it('never lets the renderer request the ChatGPT access token', async () => {
-    const client = {
-      sendRequest: vi.fn().mockResolvedValue({ isAuthenticated: true })
-    }
-    const handlers = registerHandlersForTest('/workspace', () => client as never)
-    const params = { providerId: 'openai', includeToken: true, refreshToken: true }
-
-    await handlers.get('appserver:send-request')?.({}, 'provider/auth/status', params)
-    await handlers.get('appserver:send-request-raw')?.({}, 'provider/auth/status', params)
-
-    expect(client.sendRequest).toHaveBeenCalledTimes(2)
-    for (const call of client.sendRequest.mock.calls) {
-      expect(call[1]).toMatchObject({ providerId: 'openai' })
-      expect(call[1]).not.toHaveProperty('includeToken')
-      expect(call[1]).not.toHaveProperty('refreshToken')
-    }
-  })
-
-  it('identifies an AppServer request rejected before connection', async () => {
-    const handlers = registerHandlersForTest('/workspace', () => null)
-
-    const outcome = await handlers.get('appserver:send-request')?.({}, 'command/list', {
-      privateValue: 'hidden'
-    })
-
-    expect(() => unwrapAppServerResult(outcome))
-      .toThrow('AppServer is not connected (command/list)')
-  })
-
   it('defers model listing until connected and forwards the trimmed provider id', async () => {
     await expect(
       registerHandlersForTest('/workspace', () => null).get('appserver:model-list')?.({}, 'openrouter')
@@ -765,35 +507,6 @@ describe('registerIpcHandlers', () => {
 
     await expect(handlers.get('appserver:model-list')?.({}, ' openrouter ')).resolves.toBe(result)
     expect(sendRequest).toHaveBeenCalledWith('model/list', { providerId: 'openrouter' }, 20_000)
-  })
-
-  it('enriches raw Desktop thread starts with identity and existing runtime tools', async () => {
-    const client = {
-      sendRequest: vi.fn().mockResolvedValue({ thread: { id: 'thread-1' } })
-    }
-    const handlers = registerHandlersForTest('/workspace', () => client as never)
-
-    await handlers.get('appserver:send-request-raw')?.(
-      {},
-      'thread/start',
-      { displayName: 'Plugin thread' },
-      20_000
-    )
-
-    expect(client.sendRequest).toHaveBeenCalledWith(
-      'thread/start',
-      expect.objectContaining({
-        displayName: 'Plugin thread',
-        identity: {
-          channelName: 'dotcraft-desktop',
-          userId: 'local',
-          channelContext: 'workspace:/workspace',
-          workspacePath: '/workspace'
-        },
-        dynamicTools: expect.any(Array)
-      }),
-      20_000
-    )
   })
 
   it('git:commit filters missing and ignored paths before staging and committing', async () => {
@@ -1472,13 +1185,13 @@ describe('task completion notifications', () => {
       body: 'Done with task'
     })
     expect(notificationShowMock).toHaveBeenCalledOnce()
-    expect(shown.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(shown.webContents.send).toHaveBeenCalledWith('appserver:delivery', { kind: 'notification', payload: {
       method: 'system/jobResult',
       params: {
         jobName: 'Scheduled task',
         result: '**Done** with `task`'
       }
-    })
+    } })
 
     vi.mocked(Notification).mockClear()
     const suppressed = createWindow(false)
@@ -1487,10 +1200,10 @@ describe('task completion notifications', () => {
     })
 
     expect(Notification).not.toHaveBeenCalled()
-    expect(suppressed.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(suppressed.webContents.send).toHaveBeenCalledWith('appserver:delivery', { kind: 'notification', payload: {
       method: 'system/jobResult',
       params: { jobName: 'Automation', result: 'Done' }
-    })
+    } })
   })
 
   it('tags forwarded notifications with workspace and foreground state and forwards interactive requests without a native notification', () => {
@@ -1500,17 +1213,17 @@ describe('task completion notifications', () => {
     broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b')
     broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b', false)
 
-    expect(win.webContents.send).toHaveBeenNthCalledWith(1, 'appserver:notification', {
+    expect(win.webContents.send).toHaveBeenNthCalledWith(1, 'appserver:delivery', { kind: 'notification', payload: {
       method: 'thread/status/changed',
       params,
       workspacePath: 'F:/workspace-b'
-    })
-    expect(win.webContents.send).toHaveBeenNthCalledWith(2, 'appserver:notification', {
+    } })
+    expect(win.webContents.send).toHaveBeenNthCalledWith(2, 'appserver:delivery', { kind: 'notification', payload: {
       method: 'thread/status/changed',
       params,
       workspacePath: 'F:/workspace-b',
       foreground: false
-    })
+    } })
 
     const request = createServerRequestBridge(undefined, win)
     const payload = { bridgeId: request.bridgeId, method: 'item/approval/request', params: { reason: 'Run a command' } }

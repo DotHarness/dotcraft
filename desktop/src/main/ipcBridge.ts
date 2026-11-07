@@ -210,11 +210,14 @@ export function broadcastNotification(
     } catch {}
   }
   if (!win.isDestroyed()) {
-    win.webContents.send('appserver:notification', {
-      method,
-      params,
-      ...(workspacePath !== undefined ? { workspacePath } : {}),
-      ...(foreground !== undefined ? { foreground } : {})
+    win.webContents.send('appserver:delivery', {
+      kind: 'notification',
+      payload: {
+        method,
+        params,
+        ...(workspacePath !== undefined ? { workspacePath } : {}),
+        ...(foreground !== undefined ? { foreground } : {})
+      }
     })
   }
 }

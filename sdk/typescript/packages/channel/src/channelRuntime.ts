@@ -245,7 +245,7 @@ export class ThreadResolver {
     const threadId = this.threadMap.get(lookup.identityKey);
     if (threadId) {
       try {
-        const thread = await client.threadRead(threadId);
+        const thread = await client.threadResume(threadId, { additionalContext, chat: lookup.chat });
         if (thread.status === "active") {
           this.emit({ action: "cache_hit", ...lookup, threadId: thread.id });
           return thread;
@@ -265,9 +265,7 @@ export class ThreadResolver {
     });
     const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread = additionalContext || lookup.chat
-        ? await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat })
-        : await client.threadRead(reusable.id);
+      const thread = await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat });
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({ action: "listed_active", ...lookup, threadId: thread.id });
       return thread;
@@ -294,7 +292,7 @@ export class ThreadResolver {
     const additionalContext = this.getRuntimeAdditionalContext?.();
 
     try {
-      const latest = await client.threadRead(staleThreadId);
+      const latest = await client.threadResume(staleThreadId, { additionalContext, chat: lookup.chat });
       if (latest.status === "active") {
         this.threadMap.set(lookup.identityKey, latest.id);
         this.emit({ action: "recovered_stale_active", ...lookup, staleThreadId, threadId: latest.id });
@@ -313,9 +311,7 @@ export class ThreadResolver {
     });
     const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread = additionalContext || lookup.chat
-        ? await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat })
-        : await client.threadRead(reusable.id);
+      const thread = await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat });
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({ action: "recovered_listed_active", ...lookup, staleThreadId, threadId: thread.id });
       return thread;

@@ -51,6 +51,7 @@ export interface ChatSummary {
   runtime: ThreadRuntimeState | null
   lastTurnFailed: boolean
   profileId: string | null
+  archived?: boolean
   spawnedFrom?: string | null
   readState: ThreadReadState | null
 }
@@ -58,6 +59,8 @@ export interface ChatSummary {
 export interface ChatDetail {
   loading: boolean
   loadingOlder?: boolean
+  currentPlanTurnId?: string | null
+  currentPlan?: string | null
   history: ChatHistory
   profileName: string | null
   config: ThreadConfiguration | null
@@ -185,9 +188,14 @@ export type ComputerAction =
   | { type: 'chatPatched'; key: string; patch: Partial<Omit<ChatSummary, 'key' | 'projectId' | 'threadId'>> }
   | { type: 'chatRemoved'; key: string }
   | { type: 'detailLoading'; key: string }
+  | { type: 'detailPreview'; key: string; history: ChatHistory }
+  | { type: 'detailReady'; key: string }
   | {
       type: 'detailLoaded'
       key: string
+      loading?: boolean
+      currentPlanTurnId?: string | null
+  currentPlan?: string | null
       history: ChatHistory
       profileName: string | null
       config: ThreadConfiguration | null
@@ -196,6 +204,7 @@ export type ComputerAction =
       context: ContextUsage | null
     }
   | { type: 'chatConfig'; key: string; config: ThreadConfiguration }
+  | { type: 'currentPlan'; key: string; content: string | null }
   | { type: 'context'; key: string; update: ContextUpdate }
   | {
       type: 'capabilities'
@@ -211,7 +220,7 @@ export type ComputerAction =
   | { type: 'historyBatch'; key: string; deltas: Extract<HistoryEvent, { kind: 'delta' }>[] }
   | { type: 'olderLoading'; key: string; value: boolean }
   | { type: 'olderLoaded'; key: string; cursor: string; turns: TurnPageEntry[]; olderCursor: string | null }
-  | { type: 'turnItemsLoaded'; key: string; turnId: string; items: SessionItem[] }
+  | { type: 'turnItemsLoaded'; key: string; turnId: string; items: SessionItem[]; nextCursor?: string | null }
   | { type: 'echo'; key: string; echo: Echo }
   | { type: 'echoDropped'; key: string; clientId: string }
   | { type: 'pendingAdded'; key: string; request: PendingRequest }
@@ -395,13 +404,23 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
         },
       }
     }
+    case 'detailPreview': {
+      const detail = state.details[action.key]
+      return detail?.loading ? { ...state, details: { ...state.details, [action.key]: { ...detail, history: action.history } } } : state
+    }
+    case 'detailReady': {
+      const detail = state.details[action.key]
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, loading: false } } } : state
+    }
     case 'detailLoaded':
       return {
         ...state,
         details: {
           ...state.details,
           [action.key]: {
-            loading: false,
+            loading: action.loading ?? false,
+            currentPlanTurnId: action.currentPlanTurnId ?? null,
+            currentPlan: action.currentPlan ?? null,
             history: action.history,
             profileName: action.profileName,
             config: action.config,
@@ -420,7 +439,11 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       if (state.details[action.key]?.history.olderCursor !== action.cursor) return state
       return patchDetail(state, action.key, (history) => prependTurns(history, action.turns, action.olderCursor))
     case 'turnItemsLoaded':
-      return patchDetail(state, action.key, (history) => replaceTurnItems(history, action.turnId, action.items))
+      return patchDetail(state, action.key, (history) => replaceTurnItems(history, action.turnId, action.items, action.nextCursor))
+    case 'currentPlan': {
+      const detail = state.details[action.key]
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, currentPlan: action.content } } } : state
+    }
     case 'chatConfig': {
       const detail = state.details[action.key]
       return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, config: action.config } } } : state

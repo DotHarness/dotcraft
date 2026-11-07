@@ -260,6 +260,7 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
                     sessionService.SubAgentBoardChangedForBroadcast = null;
                     sessionService.ThreadReadStateChangedForBroadcast = null;
                     sessionService.ThreadTokenUsageUpdatedForBroadcast = null;
+                    sessionService.Dispose();
                 }
             }
             catch (Exception ex)

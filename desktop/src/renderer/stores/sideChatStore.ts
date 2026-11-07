@@ -1,4 +1,5 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
+import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
 import { create } from 'zustand'
 import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
@@ -240,12 +241,14 @@ function ensureListening(): void {
 async function request<M extends keyof ClientRequestMethods>(
   key: string,
   method: M,
-  params: ClientRequestMethods[M]['params']
+  params: ClientRequestMethods[M]['params'],
+  onResponse?: AppServerResponseOptions<ClientRequestMethods[M]['result']>['onResponse']
 ): Promise<ClientRequestMethods[M]['result']> {
   const connection = await connectionByKey.get(key)
-  return connection
-    ? window.api.appServer.sendConnectionRequest(connection, method, params)
-    : window.api.appServer.sendRequest(method, params)
+  if (!connection) throw new Error('The side chat connection is unavailable.')
+  return window.api.appServer.sendConnectionRequest(
+    connection, method, params, undefined, { attachmentOwner: `sidechat:${key}`, onResponse }
+  )
 }
 
 async function forkSideChat(
@@ -262,22 +265,23 @@ async function forkSideChat(
       ephemeral: true,
       sideChat: true,
       ...workspaceUpdate
-    }) as { thread?: { id?: string } }
-    const threadId = result.thread?.id ?? null
+    }, (result) => {
+      const threadId = result.thread?.id
+      if (!threadId) return
+      update(key, (current) => ({
+        ...current,
+        threadId,
+        cwd: workspaceUpdate.cwd ?? cwd,
+        status: current.status === 'starting' ? 'ready' : current.status,
+        turns: current.turns.map((turn) => turn.threadId ? turn : { ...turn, threadId })
+      }))
+    })
+    const threadId = result.thread?.id
     if (!threadId) throw new Error('thread/fork returned no thread')
-    const chat = useSideChatStore.getState().chats.get(key)
-    if (!chat) {
-      void request(key, 'thread/delete', { threadId }).catch(() => {})
+    if (!useSideChatStore.getState().chats.has(key)) {
+      await request(key, 'thread/delete', { threadId })
       return null
     }
-    update(key, (current) => ({
-      ...current,
-      threadId,
-      cwd: workspaceUpdate.cwd ?? cwd,
-      status: current.status === 'starting' ? 'ready' : current.status,
-      turns: current.turns.map((turn) => turn.threadId ? turn : { ...turn, threadId })
-    }))
-    void request(key, 'thread/subscribe', { threadId }).catch(() => {})
     return threadId
   } catch (error) {
     const chat = useSideChatStore.getState().chats.get(key)
@@ -468,8 +472,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     for (const timer of deltaTimers.values()) clearTimeout(timer)
     deltaTimers.clear()
     pendingDeltas.clear()
-    readyByKey.clear()
-    connectionByKey.clear()
+    for (const key of get().chats.keys()) get().discard(key)
     set({ chats: new Map(), focusRequest: null })
   }
 }))

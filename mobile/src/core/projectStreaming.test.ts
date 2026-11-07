@@ -17,6 +17,9 @@ class StreamingComputer extends FakeComputer {
   readonly eventSinks = new Map<string, FakeSocketSink>()
   readonly delayedReads: (() => void)[] = []
   pauseReads = false
+  pauseProfiles = false
+  readonly delayedProfiles: (() => void)[] = []
+  afterItemsRead?: () => void
 
   constructor() {
     super({ id: 'stream-pc', name: 'Stream PC', version: '0.9.4', port: 47610, fingerprint: 'a'.repeat(64),
@@ -36,8 +39,11 @@ class StreamingComputer extends FakeComputer {
   }
 
   override receive(id: string, text: string): void {
-    if (this.pauseReads && JSON.parse(text).method === 'thread/items/list') this.delayedReads.push(() => super.receive(id, text))
+    const method = JSON.parse(text).method
+    if (this.pauseReads && method === 'thread/resume') this.delayedReads.push(() => super.receive(id, text))
+    else if (this.pauseProfiles && method === 'agent/profiles/list') this.delayedProfiles.push(() => super.receive(id, text))
     else super.receive(id, text)
+    if (method === 'thread/items/list') this.afterItemsRead?.()
   }
 
   publish(method: string, params: Record<string, unknown>): void {
@@ -76,6 +82,74 @@ async function connected() {
 }
 
 describe('project streaming', () => {
+  it('keeps the summary preview read-only until the resume snapshot, mode and staged requests/deltas have been applied', async () => {
+    const computer = new StreamingComputer()
+    const source = computer.thread('a').thread
+    source.profileId = 'reviewer'
+    source.config = { mode: 'plan' }
+    const item = computer.addItem(source, 'turn', 'agentMessage', { text: 'preview' }, 'started')
+    computer.pauseReads = true
+    computer.pauseProfiles = true
+    const harness = createHarness([computer])
+    active.push(harness)
+    await harness.session.boot()
+    await waitFor(() => harness.computerState().link === 'online' && !harness.computerState().syncing)
+    const key = keyOf('a')
+    harness.link().openChat(key)
+    await waitFor(() => computer.delayedReads.length === 1 && harness.computerState().details[key]?.history.items.length === 1)
+    expect(harness.computerState().details[key]).toMatchObject({ loading: true, config: null })
+    item.payload.text = 'snapshot'
+    computer.pauseReads = false
+    computer.delayedReads.shift()!()
+    await waitFor(() => computer.delayedProfiles.length === 1)
+    computer.delta('a', item, ' + live')
+    computer.ask('a', { kind: 'approval', requestId: 'restored', approvalType: 'shell', operation: 'run', target: '', reason: '' })
+    await settled()
+    expect(harness.computerState().details[key].history.items[0].payload.text).toBe('preview')
+    expect(harness.computerState().pending[key]).toBeUndefined()
+    computer.pauseProfiles = false
+    computer.delayedProfiles.shift()!()
+    await waitFor(() => harness.computerState().details[key]?.loading === false)
+    expect(harness.computerState().details[key].config?.mode).toBe('plan')
+    expect(harness.computerState().details[key].history.items[0].payload.text).toBe('snapshot + live')
+    expect(harness.computerState().pending[key].map((request) => request.requestId)).toEqual(['restored'])
+    expect(harness.computerState().chats[key].runtime?.waitingOnApproval).toBe(true)
+  })
+
+  it('applies a current Item page before its following deltas and keeps omitted Items', async () => {
+    const { computer, harness, text } = await connected()
+    const reasoning = computer.started('a', 'reasoningContent')
+    const reply = computer.started('a')
+    await settled()
+    computer.delta('a', reply, 'existing reply')
+    await settled()
+    reasoning.payload.text = 'server baseline'
+    computer.afterItemsRead = () => computer.delta('a', reasoning, ' + live')
+    await harness.link().loadTurnItems(keyOf('a'), 'turn')
+    await settled()
+    harness.timers.fire(50)
+    expect(text('a', reasoning)).toBe('server baseline + live')
+    expect(text('a', reply)).toBe('existing reply')
+  })
+
+  it('ensures send has an applied resume on this connection before turn admission', async () => {
+    const computer = new StreamingComputer()
+    computer.thread('a').thread.turns = []
+    computer.pauseReads = true
+    const harness = createHarness([computer])
+    active.push(harness)
+    await harness.session.boot()
+    await waitFor(() => harness.computerState().link === 'online' && !harness.computerState().syncing)
+    const sending = harness.link().send(keyOf('a'), { text: 'go', files: [], photos: [], references: [] })
+    await waitFor(() => computer.delayedReads.length === 1)
+    expect(computer.calls.filter((call) => call.method === 'turn/start')).toHaveLength(0)
+    computer.pauseReads = false
+    computer.delayedReads.shift()!()
+    await sending
+    expect(computer.calls.filter((call) => ['thread/resume', 'turn/start'].includes(call.method)).map((call) => call.method)).toEqual(['thread/resume', 'turn/start'])
+    expect(harness.computerState().details[keyOf('a')].loading).toBe(false)
+  })
+
   it('applies 1,000 deltas in 100 fixed windows, with the same final history as individual events', async () => {
     const { computer, harness, history } = await connected()
     const message = computer.started('a')
@@ -153,7 +227,7 @@ describe('project streaming', () => {
     computer.delta('a', a, ' captured')
     await settled()
     harness.link().closeChat(keyOf('a'))
-    expect(text('a', a)).toBe('accepted captured')
+    expect(text('a', a)).not.toContain(' captured')
     const cancelled = history()
     computer.pauseReads = false
     for (const read of computer.delayedReads.splice(0)) read()
@@ -161,25 +235,18 @@ describe('project streaming', () => {
     expect(history()).toBe(cancelled)
   })
 
-  it('flushes before a catch-up snapshot and keeps captured text from being duplicated', async () => {
+  it('reuses a warm attached view while new deltas continue without another restore', async () => {
     const { computer, harness, text } = await connected()
     const a = computer.started('a')
     await settled()
     computer.delta('a', a, 'before')
     await settled()
-    computer.pauseReads = true
-    const refreshing = Promise.all([harness.link().refresh(keyOf('a')), harness.link().refresh(keyOf('a'))])
-    await waitFor(() => computer.delayedReads.length > 0)
+    const restores = computer.calls.filter((call) => call.method === 'thread/resume').length
+    harness.link().openChat(keyOf('a'))
+    harness.link().closeChat(keyOf('a'))
     await settled()
-    expect(computer.delayedReads).toHaveLength(1)
-    expect(text('a', a)).toBe('before')
+    expect(computer.calls.filter((call) => call.method === 'thread/resume')).toHaveLength(restores)
     computer.delta('a', a, ' during')
-    await settled()
-    computer.pauseReads = false
-    for (const read of computer.delayedReads.splice(0)) read()
-    await refreshing
-    expect(text('a', a)).toBe('before during')
-    computer.publish('item/completed', { threadId: 'a', turnId: 'turn', item: { ...a, status: 'completed', completedAt: STAMP } })
     await settled()
     harness.timers.fire(50)
     expect(text('a', a)).toBe('before during')

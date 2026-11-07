@@ -839,7 +839,7 @@ public sealed class AcpBridgePipeIntegrationTests
             {
                 jsonrpc = "2.0",
                 method = DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted,
-                @params = new { threadId }
+                @params = new { turn = new { id = "turn_runtime_tools", threadId, status = "completed" } }
             }, ct);
         }, ct);
 

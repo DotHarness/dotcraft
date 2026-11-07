@@ -32,9 +32,9 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 | --- | --- |
 | 连接 | `ConnectLocalAsync()`、`ConnectLocalChatAsync()`、`ConnectRemoteAsync()`、`ConnectAsync()` |
 | 关闭 | `DisposeAsync()` / `await using` |
-| Thread | `Threads.StartAsync()`、`ResumeAsync()`、`ListAsync()`、`ReadAsync()`、`ListTurnsAsync()`、`ListItemsAsync()` |
+| Thread | `Threads.StartAsync()`、`ResumeAsync()`、`ForkAsync()`、`ListAsync()`、`ReadAsync()`、`ListTurnsAsync()`、`ListItemsAsync()` |
 | Run | `RunAsync()`、`RunStreamedAsync()`、`EnqueueAsync()`、`InterruptAsync()` |
-| Thread 状态 | `Snapshot`、`RefreshAsync()`、`SubscribeAsync()`、`UnsubscribeAsync()`、`SetModeAsync()`、`ArchiveAsync()`、`DeleteAsync()` |
+| Thread 状态 | `Snapshot`、`RefreshAsync()`、`UnsubscribeAsync()`、`SetModeAsync()`、`ArchiveAsync()`、`DeleteAsync()` |
 | Provider 和模型 | `Providers.ListAsync()`、`Models.GetCatalogAsync()` |
 | 模型配置 | `Threads.ReadModelConfigurationAsync()`、`UpdateModelConfigurationAsync()` |
 | Agent Profile | `AgentProfiles.ListAsync()`、`ReadAsync()`、`ValidateAsync()`、`UpsertAsync()`、`RemoveAsync()`、`RefreshThreadAsync()` |
@@ -66,13 +66,14 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 ```csharp
 Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default);
 Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default);
+Task<DotCraftThread> ForkAsync(ThreadForkParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, CancellationToken cancellationToken = default);
 ```
 
-`ReadAsync()` 和 `DotCraftThread.RefreshAsync()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`ListTurnsAsync()` 读取不含 Item 的 Turn 元数据，`ListItemsAsync()` 跨 Thread 或按可选的 `ThreadItemsListParams.TurnId` 读取 Item。两种分页请求都接受 opaque cursor、limit 和排序方向。
+`ReadAsync()` 和 `DotCraftThread.RefreshAsync()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`ListTurnsAsync()` 按 `itemsView` 读取 Turn 元数据或摘要，`ListItemsAsync()` 跨 Thread 或按可选的 `ThreadItemsListParams.TurnId` 读取 Item。两种分页请求都接受 opaque cursor、limit 和排序方向。
 
 `DotCraftThread` 的 `RunAsync()` 和 `RunStreamedAsync()` 接受文本或 `IReadOnlyList<InputPart>`。`RunOptions` 控制 sender context、raw event 收集、busy 时排队，以及失败终态是否抛出异常。Cancellation 会在获知活动 turn ID 后中断它。
 
@@ -144,10 +145,10 @@ Wire 状态包括 `Connecting`、`Initializing`、`Ready`、`Disconnected`、`Re
 - 重连使用指数退避，最多排队 1024 个新调用。
 - 进行中的调用会失败且绝不重放。
 - 初始化完成后才会释放排队调用。
-- Handler 注册会跨重连保留，但 thread subscription 和运行时工具资源不会保留。
+- Handler 注册会跨重连保留。连接上的观察和工具需要恢复。
 - 活动 run 会以 `RunDisconnectedException` 失败，`turn/start` 绝不重放。
 
-重连不会替应用重建这些资源。继续工作前先读取或恢复 thread、重新订阅，并重新注册运行时工具 handler。
+释放观察或重连后，高层 handle 在下一次 run 前自动 resume，并携带原有工具声明。Raw Wire 的恢复步骤见[线程与运行](./runs)。
 
 Dispose 本地高层 client 只关闭 AppServer 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 

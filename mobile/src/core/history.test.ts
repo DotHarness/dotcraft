@@ -53,14 +53,14 @@ describe('history catch-up', () => {
     ])
   })
 
-  it('freezes a message seen mid-stream until its final snapshot, so captured deltas cannot double or garble it', () => {
+  it('continues snapshot text with only post-boundary deltas and waits for a final Item for an unknown stream', () => {
     const pages = historyFromTurns(
       [{ turn: turn('t1', 'running'), items: [item('m', 'agentMessage', { text: 'Partial' }, { status: 'started', completedAt: null })] }],
       null,
     )
-    const doubled = apply(pages, { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: 'Partial' })
-    expect(buildTranscript(doubled)).toMatchObject([
-      { kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true },
+    const continued = apply(pages, { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: ' continuation' })
+    expect(buildTranscript(continued)).toMatchObject([
+      { kind: 'assistant', id: 't1/m', text: 'Partial continuation', streaming: true },
       { kind: 'thinking' },
     ])
 

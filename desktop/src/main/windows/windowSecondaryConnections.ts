@@ -164,7 +164,7 @@ export function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
   if (previous && previous.client !== entry.client) {
     previous.role = 'secondary'
     previous.lastUsedAt = Date.now()
-    ctx.releaseConnectionThreadSubscriptions(previous, 'workspace demote')
+    ctx.releaseConnectionViewAttachments(previous, 'workspace demote')
   }
 
   entry.role = 'foreground'
@@ -176,7 +176,6 @@ export function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
   ctx.setActiveRemoteProject(null)
   ctx.previousLocalForegroundWorkspacePath = null
   ctx.lastRemoteStackLocalPort = null
-  ctx.resetThreadToolState()
   ctx.reregisterIpcForWorkspace(entry.workspacePath)
 
   ctx.emitCurrentWorkspaceStatus(entry.workspacePath)
@@ -229,8 +228,7 @@ export function createSecondaryWorkspaceConnection(
     connected: false,
     connecting: true,
     lastUsedAt: Date.now(),
-    threads: [],
-    subscribedThreadIds: new Set()
+    threads: []
   }
   ctx.workspaceConnections.set(key, entry)
   ctx.emitWorkspaceProjects()
@@ -390,7 +388,7 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   for (const project of candidates) {
     const key = ctx.normalizeWorkspaceConnectionKey(project.path)
     const existing = ctx.workspaceConnections.get(key)
-    if (existing?.client.hasRetainedBrowserTurns) {
+    if (existing?.client.hasRetainedThreadAttachments) {
       allowedKeys.add(key)
       continue
     }
@@ -408,7 +406,7 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
     if (entry.role !== 'secondary') continue
     // Default Chat has its own connection owner outside the project list.
     if (isDefaultChatWorkspace(entry.workspacePath)) continue
-    if (!allowedKeys.has(entry.key) && !entry.client.hasRetainedBrowserTurns) {
+    if (!allowedKeys.has(entry.key) && !entry.client.hasRetainedThreadAttachments) {
       ctx.disposeWorkspaceConnection(entry)
     }
   }

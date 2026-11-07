@@ -66,7 +66,12 @@ export function createFakeHistoryServer(
     const last = start + step * (data.length - 1)
     const more = data.length > 0 && last + step >= 0 && last + step < turns.length
     return {
-      data,
+      data: data.map(turn => params.itemsView === 'none' ? turn : {
+        ...turn,
+        itemsView: params.itemsView,
+        items: itemsFor(turn),
+        itemCount: itemsFor(turn).length
+      }),
       nextCursor: more ? `next:${last}:${direction}` : null,
       backwardsCursor: data.length > 0 ? `back:${start}` : null
     }

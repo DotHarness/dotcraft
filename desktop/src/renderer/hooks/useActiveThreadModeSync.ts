@@ -2,12 +2,14 @@ import { useEffect } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import type { ThreadMode } from '../types/conversation'
 import { useThreadStore } from '../stores/threadStore'
+import { useConnectionStore } from '../stores/connectionStore'
 
 interface PendingModeChange {
   observedMode: ThreadMode | null
 }
 
 interface ModeScope {
+  connectionEpoch: number
   workspaceKey: string
   threadId: string | null
   confirmedMode: ThreadMode | null
@@ -29,8 +31,9 @@ function synchronizeMode(): ModeScope {
   const mode = threads.activeThread?.id === threadId
     ? configuredMode(threads.activeThread.configuration)
     : null
-  if (!scope || scope.workspaceKey !== workspaceKey || scope.threadId !== threadId) {
-    scope = { workspaceKey, threadId, confirmedMode: null, metadataMode: null, pending: null }
+  const connectionEpoch = useConnectionStore.getState().connectionEpoch
+  if (!scope || scope.workspaceKey !== workspaceKey || scope.threadId !== threadId || scope.connectionEpoch !== connectionEpoch) {
+    scope = { workspaceKey, connectionEpoch, threadId, confirmedMode: null, metadataMode: null, pending: null }
   }
   if (mode != null && mode !== scope.metadataMode) {
     scope.metadataMode = mode
@@ -44,6 +47,7 @@ function synchronizeMode(): ModeScope {
 function isSelected(target: ModeScope): boolean {
   return scope === target
     && workspaceKey === target.workspaceKey
+    && useConnectionStore.getState().connectionEpoch === target.connectionEpoch
     && useThreadStore.getState().activeThreadId === target.threadId
 }
 

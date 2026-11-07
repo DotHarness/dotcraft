@@ -196,7 +196,6 @@ Without the busy option, starting a second turn raises `TurnInProgressError` or 
 | --- | --- | --- |
 | Latest snapshot | `snapshot()` | `Snapshot` |
 | Re-read state | `refresh()` | `RefreshAsync()` |
-| Subscribe | `subscribe()` | `SubscribeAsync()` |
 | Unsubscribe | `unsubscribe()` | `UnsubscribeAsync()` |
 | Enqueue input | `enqueue()` | `EnqueueAsync()` |
 | Interrupt a turn | `interrupt()` | `InterruptAsync()` |
@@ -204,7 +203,7 @@ Without the busy option, starting a second turn raises `TurnInProgressError` or 
 | Archive | `archive()` | `ArchiveAsync()` |
 | Delete | `delete()` | `DeleteAsync()` |
 
-`subscribe({ replayRecent: true })` and its language equivalents replay recent events, not a complete current-state snapshot. Call `refresh` or `read` for authoritative header state, and use the history page methods for persisted Turns and Items.
+Starting, resuming, and forking a thread attach to events automatically. `unsubscribe` releases observation while execution continues. `refresh` and `read` read the header; Turn and Item pages provide history.
 
 ## Stream events
 
@@ -229,15 +228,9 @@ Stopping iteration does not reliably interrupt server work. To stop the turn, ab
 
 ## Recover after disconnect
 
-Reconnect restores the Wire transport, repeats initialization, and preserves local handler registrations. It does not replay in-flight requests or `turn/start`. It also does not recreate thread subscriptions or runtime tool bindings.
+Reconnect restores the Wire transport, repeats initialization, and preserves local handler registrations. It does not replay in-flight requests or `turn/start`.
 
-After reconnect:
-
-1. Resubscribe if the application needs thread events.
-2. Read or refresh the Thread header.
-3. Read the latest Turn and Item pages when the application displays history. Start from a new page instead of reusing a cursor from the previous connection.
-4. Rebind runtime tools when resuming the thread.
-5. Start the next operation from server state.
+High-level handles resume before the next run with their original tool declarations. Raw Wire callers resume explicitly and apply the returned state before handling subsequent events and requests.
 
 An active .NET run fails with `RunDisconnectedException`. Do not assume a request that lost its response was never received by AppServer.
 

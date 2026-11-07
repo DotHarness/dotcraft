@@ -187,7 +187,7 @@ describe('desktop runtime thread tools', () => {
       threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: '/w/chart.html'
     })
 
-    expect(vi.mocked(plainClient.sendRequest).mock.calls[0]).toEqual(['thread/resume', { threadId: 'thread-old' }])
+    expect(vi.mocked(plainClient.sendRequest).mock.calls[0]).toEqual(['thread/resume', { threadId: 'thread-old' }, undefined])
   })
 
   it('shares one visualization resume across concurrent opens in the same thread', async () => {
@@ -420,7 +420,6 @@ describe('desktop runtime thread tools', () => {
     }))
     expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual([
       'thread/read',
-      'thread/resume',
       'turn/start',
       'turn/enqueue'
     ])

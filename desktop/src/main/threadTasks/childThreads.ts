@@ -95,6 +95,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
     )
     const thread = requireThread(result.thread, 'worktree/createAndStart')
     if (result.setup?.status === 'failed') {
+      await connection.request('thread/unsubscribe', { threadId: thread.id })
       const tail = result.setup.outputTail?.trim()
       throw new Error(tail ? `The worktree environment setup failed: ${tail}` : 'The worktree environment setup failed.')
     }
@@ -117,12 +118,17 @@ export async function startChildTurn(
   threadId: string,
   text: string
 ): Promise<JsonObject | null> {
-  const result = await connection.request<{ turn?: JsonObject }>('turn/start', {
-    threadId,
-    input: [{ type: 'text', text }],
-    identity: desktopIdentity(connection.workspacePath)
-  })
-  return result.turn ?? null
+  try {
+    const result = await connection.request<{ turn?: JsonObject }>('turn/start', {
+      threadId,
+      input: [{ type: 'text', text }],
+      identity: desktopIdentity(connection.workspacePath)
+    })
+    return result.turn ?? null
+  } catch (error) {
+    await connection.request('thread/unsubscribe', { threadId })
+    throw error
+  }
 }
 
 function requireThread(thread: ChildThreadWire | undefined, method: string): ChildThreadWire {

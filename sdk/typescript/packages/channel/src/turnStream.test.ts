@@ -9,7 +9,11 @@ const turn = { threadId: "t", turnId: "turn-1", channelContext: "c" };
 
 async function* events(items: Array<{ method: string; params?: Record<string, unknown> }>): AsyncIterableIterator<JsonRpcMessage> {
   for (const item of items) {
-    yield JsonRpcMessage.fromDict(item);
+    const params = item.params ?? {};
+    const identity = item.method.startsWith("turn/")
+      ? { ...params, turn: { id: turn.turnId, threadId: turn.threadId, ...(params.turn as object) } }
+      : { threadId: turn.threadId, turnId: turn.turnId, ...params };
+    yield JsonRpcMessage.fromDict({ method: item.method, params: identity });
   }
 }
 
@@ -57,6 +61,20 @@ test("consumeTurnStream reports item activity and the completed outcome", async 
     "text:completed:a",
     "tool:started:tool-1",
   ]);
+});
+
+test("consumeTurnStream ignores other threads and non-target terminals", async () => {
+  const { calls, handlers } = recorder();
+  const outcome = await consumeTurnStream(events([
+    { method: "turn/completed", params: { turn: { id: "B", threadId: "other-thread" } } },
+    { method: "turn/failed", params: { turn: { id: "old", threadId: "t" } } },
+    { method: "item/started", params: { threadId: "other-thread", item: { id: "wrong-thread", type: "toolCall" } } },
+    { method: "item/started", params: { turnId: "old", item: { id: "wrong-turn", type: "toolCall" } } },
+    { method: "item/started", params: { item: { id: "target", type: "toolCall" } } },
+    { method: "turn/completed", params: { turn: { id: "turn-1", threadId: "t" } } },
+  ]), turn, handlers);
+  assert.deepEqual(outcome, { status: "completed" });
+  assert.deepEqual(calls, ["tool:started:target"]);
 });
 
 test("consumeTurnStream reports stream retries for its Turn only", async () => {

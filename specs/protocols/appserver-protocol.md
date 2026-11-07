@@ -180,7 +180,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 |-------|-------------|
 | `threadManagement` | Thread CRUD. |
 | `threadFork` / `sideChat` | `thread/fork`; side-chat forks through `thread/fork.sideChat`. |
-| `threadSubscriptions` | Passive `thread/subscribe` observers. |
 | `threadGoals` | The full goal contract: `thread/goal/*`, goal notifications, prompt-visible goal context, accounting, budget transitions, and goal tools. Automatic idle continuation still depends on server config. |
 | `manualCompaction` | `thread/compact/start`. |
 | `threadMaintenanceInterrupt` | `thread/maintenance/interrupt`. |
@@ -241,7 +240,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 
 Thread methods correspond to `ISessionService` thread lifecycle operations in [Session Core, Section 5.1](../architecture/session-core.md#51-thread-lifecycle).
 
-`thread/start`, `thread/resume`, and `thread/fork` return `{ thread, instructionSources }`. `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
+`thread/start` and `thread/fork` return `{ thread, instructionSources }`; `thread/resume` additionally returns required `currentState` and its requested `initialTurnsPage` (Section 4.2). `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
 
 The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, `contextUsage`, and `originApp` (see [Section 4.4](#44-threadread) and [Section 4.3](#43-threadlist)).
 
@@ -331,17 +330,32 @@ Approval policy:
 
 ### 4.2 `thread/resume`
 
-Resume an active (non-archived) thread; Session Core loads it and reconstructs the agent session. Params: `threadId`, plus optional `dynamicTools`, `additionalContext`, `chat`, `cwd`, and `runtimeWorkspaceRoots`. The server emits `thread/resumed`.
+Prepare or reuse an active (non-archived) thread's runtime and attach the requesting connection at an ordered current-state boundary. Params: `threadId`, plus optional `dynamicTools`, `additionalContext`, `chat`, `cwd`, `runtimeWorkspaceRoots`, and `initialTurnsPage`. Resume is an execution-preparation operation even when no transcript page is requested. A warm resume without binding overrides reuses the loaded runtime, configuration, instruction sources, Agent and tool resources rather than rebuilding them.
+
+`initialTurnsPage?: { limit?, itemsView?: "none" | "summary" | "full", summaryTools? }` requests the newest descending Turn page under the normal Turn-page limits and summary-tool rules. Its default view is `summary`. Omitting this parameter requests header/current metadata and attachment without materializing or copying Turn Items. View selection happens before database payload reads, hydration, copying, and serialization, including for a running Turn. `full` covers selected Turns, not the complete thread history.
+
+**Result**: `{ thread, instructionSources, currentState, initialTurnsPage? }`. `thread` is a header without embedded history. `initialTurnsPage`, when requested, is `{ data: Turn[], nextCursor?, backwardsCursor? }`. Required `currentState` contains:
+
+- Optional `turnId`, `turnStatus`, and `planTurnId`, plus required `itemCount`.
+- Optional `toolArguments: Record<itemId, string>` for cumulative argument-preview text.
+- Optional `toolProgress: Record<itemId, { callId, toolName, progress: JSON }>` and `diff`.
+- Required `pendingRequests: [{ method, requestId, itemId, turnId, isBlocking }]` using current logical request identities.
+
+`currentState` does not duplicate Turn Items. The Thread header supplies its existing runtime, mode, plan, queued-input, and context-usage projections. Metadata-only restoration does not hydrate Item payloads.
+
+The snapshot and observation are captured in the same thread-event order. The successful response precedes subsequent feed delivery, and an update is represented in the snapshot or a later delta, not both. An initial page prepared outside that boundary is reconciled with the current head and its cursors before publication. Capacity is reserved for a head not yet in durable history; continuation always starts at the first omitted durable boundary. A repeated resume refreshes the same observation, not another event pump. Clients apply the response as state and stage later events until that application finishes; a resolved RPC promise alone is not UI readiness.
 
 **Binding replacement**:
 
-- `dynamicTools` (requires `capabilities.dynamicToolRebind`): omitted means no change, but only for the binding's current owning connection generation; a non-owning connection must submit a non-empty authorized replacement to take over. `[]` clears when the caller has thread authority. A non-empty array is validated completely and replaces atomically; failure leaves the previous binding. A successful change invalidates the next Turn snapshot.
+- `dynamicTools` (requires `capabilities.dynamicToolRebind`): omission preserves existing bindings and does not transfer ownership. A non-owning connection must submit a non-empty authorized replacement to take over. `[]` clears when the caller has thread authority. A non-empty array is validated completely and replaces atomically; failure leaves the previous binding. A successful change invalidates the next Turn snapshot.
 - `additionalContext`: omitted keeps the binding; `{}` clears it; otherwise replaces it for this connection.
-- `chat`: replaces the adapter chat binding.
+- `chat`: replaces the adapter chat binding; omission preserves it.
 
-**Cold-load recovery**: when resume cold-loads a persisted thread whose sole non-terminal turn is `running`, `waitingApproval`, or `waitingInput`, the prior process no longer owns it. Before returning or emitting `thread/resumed`, the server persists the Turn as `cancelled` and emits `turn/cancelled` with reason `"interrupted"`. If persistence fails, `thread/resume` fails and the thread is not cached. Existing Items, usage, and error data are kept; no response or error Items are created, and the Turn's interactive requests are not replayed. Threads already loaded in the process are unaffected.
+**Cold-load recovery**: resume restores the required execution context and resources, reusing a valid model-context checkpoint and required newer suffix when available rather than reconstructing full display history for a small page. A Turn abandoned by a prior process is persisted as `cancelled` with interrupted state before the response. It is restored as state, not emitted as a new user-visible execution result. Existing Items, usage and errors are retained; dead interactive requests are not restored. Persistence failure fails resume without caching a partially recovered thread. Loaded runtimes are unaffected.
 
-**Pending request replay**: for a loaded thread paused in `waitingApproval` or `waitingInput`, the server re-delivers unresolved `item/approval/request` or `item/tool/requestUserInput` requests to the resuming connection when it declared the capability. The returned snapshot already contains completed assistant and reasoning Items emitted before the blocking call. Replay reuses the logical `requestId` (the JSON-RPC `id` may be fresh), is idempotent per connection for `method + threadId + turnId + requestId`, and sends multiple approvals for one thread serially so a reply timeout does not run while a prompt waits behind another.
+**Pending interactions**: after the response, capability-appropriate unresolved approval/input requests are delivered with their existing logical `method + threadId + turnId + requestId` identity; the JSON-RPC envelope id may be fresh. Waiting flags keep ordinary submission gated until the matching request entity is available. Multiple approvals retain serial presentation without blocking unrelated feed events. A request resolved or withdrawn elsewhere is not recreated. Interaction readiness does not wait for full history; a referenced Item is hydrated individually when needed.
+
+Archived viewing uses `thread/read` and paged history, not resume. The complete restoration and ownership contract is defined in [Thread Restoration and Observation](../features/thread-restoration.md).
 
 ### 4.2.1 `thread/fork`
 
@@ -456,19 +470,17 @@ Items appear in stored order. Duplicate IDs do not duplicate results; missing ID
 
 Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread must not be archived or contain a `running` or `waitingApproval` turn. Only conversation history changes; workspace files and other side effects are not reverted. A read receipt whose `firstUnread` Turn is removed becomes read and publishes `thread/readState/changed`. Result: `{ thread }` (header). Clients invalidate cursors and reload history. Every other connection subscribed to the thread receives `thread/rolledBack` `{ threadId }` after the rollback commits, so clients holding the thread's history discard it; the caller already has the new header.
 
-### 4.6 `thread/subscribe`
+### 4.6 Thread observation lifecycle
 
-Subscribe the connection to future events for a thread; multiple passive subscribers may observe one thread. Params: `threadId`, `replayRecent` (default `false`; when `true` the server may replay a small recent buffer of turn, item, and supplemental events). Result: `{}`.
+`thread/start`, `thread/resume`, and `thread/fork` attach the calling connection before handing off the successful response and subsequent events. `worktree/createAndStart` and `worktree/fork` attach once the new thread actually exists; a deferred creation ticket is not an attachment. Fork attaches to the child, not its source, and copied history is restored state rather than new execution.
 
-Subscribing only registers the connection for the thread's live events. It does not load the thread, replay its rollout, build an agent, or run cold-load recovery; operations that execute or change the thread (`thread/resume`, `turn/start`, and similar) load it. A missing thread ends the subscription.
+A connection owns at most one feed per thread; authorized connections observe independently. Header/list/history queries do not attach or construct an Agent. All Turn/Item events use the established thread feed, including events for Turns initiated by another connection. Observation is delivery ownership, not authority to replace another connection's execution bindings.
 
-After subscribing, the connection may receive `thread/*`, `turn/*`, and `item/*` notifications for turns it did not originate. Lifecycle status changes, including `thread/archived` and `thread/unarchived`, are never replayed; reconnecting clients read current status from `thread/read` or `thread/list`.
-
-If a thread loaded in the process is paused in `waitingApproval` or `waitingInput`, unresolved interactive requests are re-delivered with the same rules as `thread/resume`. Unsubscribing or switching threads never resolves, rejects, or answers an outstanding request.
+Clients register local capture before start/fork/resume and preserve response/event application order. Actual local consumers share the observation: foreground/warm views, active native execution resources and background work release their own requirement, and the connection detaches only after its final owner releases it. A metadata-only rejoin without binding overrides can recover a retained resource's current Turn; if it is already terminal or no longer active, cleanup completes from that snapshot.
 
 ### 4.7 `thread/unsubscribe`
 
-Remove the connection's passive subscription. Params: `threadId`. Result: `{}`. Closing the connection implicitly unsubscribes all of its subscriptions.
+Idempotently release the connection's observation. Params: `threadId`. Result: `{}`. Closing a connection releases all its observations. Release does not cancel execution, archive the thread, or answer, reject, or resolve pending approval/input requests.
 
 ### 4.8 `thread/archive`
 
@@ -656,7 +668,7 @@ The response returns immediately with the initial Turn (`running`, empty `items`
 
 **Execution ownership**: for persisted server-managed threads the AppServer, not the submitting transport, owns a started turn. If the connection drops, the server keeps consuming the turn so it completes or fails normally; the client recovers by reconnecting, subscribing, and reloading the header and history.
 
-**Interaction with `thread/subscribe`**: when the calling connection already subscribes to the thread, turn notifications are delivered through the subscription rather than a separate inline path (the response still precedes `turn/started`). The server keeps an internal drain for the submitted turn so connection loss neither stops execution nor strands approvals. Clients that render from subscription events should subscribe before `turn/start` and should not merge inline, replayed, and local streaming state without a stable identity to deduplicate. See [Section 6.10](#610-notification-delivery-guarantees).
+**Observation and admission**: `turn/start` does not attach the connection and does not reject an otherwise valid admission-only request because the caller is unattached. Notifications are delivered only through established thread feeds; callers expecting a stream register capture and ensure start/fork/resume attachment first. The response precedes `turn/started`. A run filters by the Turn id returned by its own request before reducing output or terminal state; another Turn ending does not close a shared feed. Internal execution draining and non-interactive policy remain independent of delivery. See [Section 6.10](#610-notification-delivery-guarantees).
 
 #### `InputPart`
 
@@ -805,7 +817,7 @@ Carries the **complete latest snapshot** of the Turn's aggregated diff of tool-m
 - Only `WriteFile` and `EditFile` edits are tracked, including those of in-process SubAgents during the Turn; shell-made changes are not.
 - Emitted right after the `item/completed` of the `toolResult` that changed the aggregate, and once more before `turn/completed` or `turn/cancelled` if it changed since the last emission. Identical snapshots are not re-sent.
 - An empty `diff` means the edits cancel out or the aggregate is unavailable (edit on a Remote Tool Host, size cap exceeded, tracking invalidated). Clients then fall back to per-call `fileChange` diffs in `toolResult.structuredContent` ([Session Core, ToolResult](../architecture/session-core.md#toolresult)).
-- Not persisted; reloads rebuild changes from per-call diffs, composing each file's sequential diffs into one. Included in `thread/subscribe` replay.
+- Not persisted; historical changes are rebuilt from per-call diffs, composing each file's sequential diffs into one. The current diff is restored in `thread/resume.currentState` and subsequent changes arrive on the attached feed.
 
 #### `thread/queue/updated`
 
@@ -965,11 +977,11 @@ Delivers a server-managed automation run's result out of band: `source` (`"autom
 
 ### 6.10 Notification Delivery Guarantees
 
-The server delivers each event notification **at most once per connection**, however many delivery paths exist. When a connection subscribed to a thread calls `turn/start` on it, the subscription dispatcher is the sole delivery path for all turn-scoped notifications (`turn/*`, `turn/diff/updated`, `item/*` including deltas and usage, `subagent/progress`, `system/event`). The `turn/start` response still arrives before the first `turn/started`.
+The server delivers each event notification **at most once per connection** through the attached thread feed. That feed is the sole path for turn-scoped notifications (`turn/*`, `turn/diff/updated`, `item/*` including deltas and usage, `subagent/progress`, `system/event`), whether or not the observer initiated the Turn. `turn/start` itself neither attaches nor rejects a valid response-only admission because the caller is unattached. Callers expecting events ensure observation first; the response precedes `turn/started`. Resume's current snapshot and later feed events share one ordered boundary (Section 4.2).
 
 Workspace broadcasts (`thread/started`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`, `thread/readState/changed`) are outside this rule.
 
-Delivery is best-effort per connection. A transport write failure stops writes to that client but never stops the server from draining an already-started persisted turn. Passive subscriptions are cancelled with their connection; the internal active-turn drain continues. Outstanding interactive requests belong to their thread and resolve only through a client response, the non-interactive fallback for a turn started by a client without the capability ([Section 7.4](#74-clients-without-approval-support), [Section 7.5](#75-model-initiated-user-input-requests)), or the end of their turn ([Section 7.6](#76-pending-requests-and-multiple-connections)); a write failure, disconnect, or `thread/unsubscribe` never answers them. Returning clients recover through `thread/read`, fresh history pages, `thread/list`, fresh subscriptions, and server replay of unresolved requests on `thread/subscribe` or `thread/resume`.
+Delivery is best-effort per connection. A transport write failure stops writes to that client but never stops the server from draining an already-started persisted turn. Observations are released with their connection; the internal active-turn drain continues. Outstanding interactive requests belong to their thread and resolve only through a client response, the non-interactive fallback for a turn started by a client without the capability ([Section 7.4](#74-clients-without-approval-support), [Section 7.5](#75-model-initiated-user-input-requests)), or the end of their turn ([Section 7.6](#76-pending-requests-and-multiple-connections)); a write failure, disconnect, or `thread/unsubscribe` never answers them. Returning clients use `thread/resume` for an ordered current snapshot, observation, and delivery of unresolved requests. Read-only or archived views use header/list/history queries without attachment.
 
 ## 7. Approval Flow
 
@@ -1037,7 +1049,7 @@ The server never sends the request to a connection without `requestUserInputSupp
 
 An interactive `item/approval/request` or `item/tool/requestUserInput` belongs to its thread, not to the connection that started the turn; several connections (for example a desktop window and a phone) may watch one thread.
 
-- Every subscribed connection with the matching capability receives the pending request, live or through replay on `thread/subscribe` or `thread/resume`. Replay keeps the original `requestId`. A connection receives each request at most once, unless it answered with an error or an invalid result (which answers nothing), in which case its next subscription receives it again. Replayed approvals of one thread are sent one at a time.
+- Every attached connection with the matching capability receives the pending request, live or through restoration after `thread/resume`. Restoration keeps the original `requestId`. A connection receives each request at most once, unless it answered with an error or an invalid result (which answers nothing), in which case its next resume receives it again. Pending approvals of one thread are delivered one at a time.
 - The request stays pending until the first valid response from any connection, until the thread's effective approval policy changes to `autoApprove` or `deny` ([Section 4.13](#413-threadconfigupdate)), or until its turn completes, fails, or is cancelled. It is never resolved because no connection holds it — not when none is subscribed, not when the last holder disconnects, and not on a write failure. A later subscriber can still answer it.
 - When a turn ends with requests pending, approvals resolve as `cancel` (the operation does not run) and user-input requests resolve with empty answers.
 - On every resolution the server stops waiting on all connections, and each subscriber receives `item/approval/resolved` or `item/tool/requestUserInput/resolved` and must dismiss its prompt. A late response is ignored without error.
@@ -1343,7 +1355,7 @@ Each JSON-RPC message is exactly one complete text frame; messages are never spl
 
 ### 15.7 Reconnection
 
-There is no transport-level session resumption. After reconnecting, a client performs the full handshake again and re-registers its subscriptions. Turns in progress keep running; events emitted while disconnected are not replayed unless `thread/subscribe` uses `replayRecent`. Pending interactive requests stay pending ([Section 7.6](#76-pending-requests-and-multiple-connections)) and are replayed on resubscription.
+There is no transport-level session resumption. After reconnecting, a client performs the full handshake and resumes only threads required by its actual consumers. Resume restores current state at the ordered feed boundary rather than re-emitting missed lifecycle transitions. Turns in progress keep running. Pending interactive requests remain pending ([Section 7.6](#76-pending-requests-and-multiple-connections)) and are restored with their logical identities after the response. Archived views use read/paged history instead.
 
 Clients reconnect with exponential backoff with jitter (1 s to 30 s), including when they start before the server is reachable, and complete the handshake before issuing normal requests.
 

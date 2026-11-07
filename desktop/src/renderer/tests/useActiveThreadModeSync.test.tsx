@@ -80,6 +80,7 @@ describe('active thread mode synchronization', () => {
         payload: { callId: 'exec-nested-plan', toolName: 'CreatePlan', success: true, result: 'saved' }
       }
     })
+    conversation.onPlanUpdated({ title: 'Plan', overview: '', content: 'Implement it', todos: [] })
     conversation.onTurnCompleted({
       id: 'plan-turn', threadId: 'thread-1', status: 'completed',
       startedAt: '2026-10-24T00:00:00Z', completedAt: '2026-10-24T00:01:00Z', items: []

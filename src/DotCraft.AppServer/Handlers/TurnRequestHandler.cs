@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Commands.Core;
-using DotCraft.Logging;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -19,9 +18,7 @@ internal sealed class TurnRequestHandler(
     CommandRegistry commandRegistry,
     SkillsLoader? skillsLoader,
     TraceStore? traceStore,
-    SessionStreamDebugLogger? streamDebugLogger,
     SessionApprovalDecision defaultApprovalDecision,
-    AppServerThreadWireProjector threadProjector,
     ILogger<TurnRequestHandler>? logger) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -87,30 +84,7 @@ internal sealed class TurnRequestHandler(
             }
         }
 
-        var initialTurnTcs = new TaskCompletionSource<SessionWireTurn>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        async Task OnTurnStarted(SessionWireTurn initialTurn)
-        {
-            var responsePayload = new Contract.TurnStartResult
-            {
-                Turn = AppServerContractMapper.ToContract(initialTurn)
-            };
-            try
-            {
-                await responseWriter.WriteResponseAsync(msg.Id, responsePayload, ct);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                // Client disconnected before the response could be delivered; keep draining.
-            }
-            catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex))
-            {
-                // Client disconnected before the response could be delivered; keep draining.
-            }
-
-            initialTurnTcs.TrySetResult(initialTurn);
-        }
 
         using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, p.ThreadId));
 
@@ -139,80 +113,42 @@ internal sealed class TurnRequestHandler(
                 SentAsGoal = p.SentAsGoal
             }));
 
-        if (connection.HasSubscription(p.ThreadId))
+        var enumerator = events.GetAsyncEnumerator(CancellationToken.None);
+        var drainOwnsEnumerator = false;
+        try
         {
-            var subscribedEnumerator = events.GetAsyncEnumerator(CancellationToken.None);
-            var drainOwnsEnumerator = false;
-            try
+            while (await enumerator.MoveNextAsync())
             {
-                while (await subscribedEnumerator.MoveNextAsync())
+                if (enumerator.Current is { EventType: SessionEventType.TurnStarted, TurnPayload: { } startedTurn })
                 {
-                    var evt = subscribedEnumerator.Current;
-                    if (evt.EventType == SessionEventType.TurnStarted && evt.TurnPayload is { } startedTurn)
+                    try
                     {
-                        var wireTurn = startedTurn.ToWire(includeItems: false) with { Items = [] };
-                        try
-                        {
-                            await responseWriter.WriteResponseAsync(
-                                msg.Id,
-                                new Contract.TurnStartResult
-                                {
-                                    Turn = AppServerContractMapper.ToContract(wireTurn)
-                                },
-                                ct);
-                        }
-                        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-                        {
-                            // The response is best-effort after disconnect; keep draining below.
-                        }
-                        catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex))
-                        {
-                            // The response is best-effort after disconnect; keep draining below.
-                        }
-
-                        _ = DrainSubscribedTurnEventsAsync(subscribedEnumerator);
-                        drainOwnsEnumerator = true;
-                        break;
+                        await responseWriter.WriteResponseAsync(
+                            msg.Id,
+                            new Contract.TurnStartResult
+                            {
+                                Turn = AppServerContractMapper.ToContract(
+                                    startedTurn.ToWire(includeItems: false) with { Items = [] })
+                            }, ct);
                     }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
+                    _ = DrainTurnEventsAsync(enumerator);
+                    drainOwnsEnumerator = true;
+                    return AppServerTypedResult<Contract.TurnStartResult>.Written;
                 }
             }
-            finally
-            {
-                if (!drainOwnsEnumerator)
-                    await subscribedEnumerator.DisposeAsync();
-            }
-
-            return AppServerTypedResult<Contract.TurnStartResult>.Written;
+            throw new AppServerException(AppServerErrors.InternalErrorCode,
+                "Execution completed without admitting a Turn.");
         }
-
-        var dispatcher = new AppServerEventDispatcher(
-            events,
-            connection,
-            transport,
-            sessionService,
-            OnTurnStarted,
-            streamDebugLogger: streamDebugLogger,
-            enrichThreadWire: threadProjector.EnrichForNotification);
-
-        var dispatchTask = dispatcher.RunAsync(CancellationToken.None);
-
-        _ = dispatchTask.ContinueWith(t =>
+        finally
         {
-            if (t.IsFaulted)
-                initialTurnTcs.TrySetException(t.Exception!.GetBaseException());
-            else if (t.IsCanceled)
-                initialTurnTcs.TrySetCanceled(ct);
-            else
-                initialTurnTcs.TrySetException(new AppServerException(
-                    AppServerErrors.InternalErrorCode,
-                    "Event dispatch completed without emitting a TurnStarted event."));
-        }, TaskContinuationOptions.ExecuteSynchronously);
-
-        await initialTurnTcs.Task;
-        return AppServerTypedResult<Contract.TurnStartResult>.Written;
+            if (!drainOwnsEnumerator)
+                await enumerator.DisposeAsync();
+        }
     }
 
-    private async Task DrainSubscribedTurnEventsAsync(IAsyncEnumerator<SessionEvent> events)
+    private async Task DrainTurnEventsAsync(IAsyncEnumerator<SessionEvent> events)
     {
         try
         {
@@ -222,7 +158,7 @@ internal sealed class TurnRequestHandler(
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Subscribed turn drain failed");
+            logger?.LogError(ex, "Turn execution drain failed");
         }
         finally
         {

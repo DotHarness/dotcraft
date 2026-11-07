@@ -45,5 +45,5 @@ export function makeServerInfo(name: string, version: string, protocolVersion: s
 }
 
 export function makeServerCapabilities(): ServerCapabilities {
-  return { protocolVersion: "1", version: "1", threadManagement: true, threadSubscriptions: true };
+  return { protocolVersion: "1", version: "1", threadManagement: true };
 }

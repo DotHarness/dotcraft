@@ -172,6 +172,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
         var newThreadId = newThread.GetProperty("id").GetString();
         Assert.False(string.IsNullOrWhiteSpace(newThreadId));
         Assert.NotEqual(existing.Id, newThreadId);
+        Assert.True(_h.Connection.HasSubscription(newThreadId!));
         Assert.Equal("active", newThread.GetProperty("status").GetString());
 
         var oldThread = await _h.Service.GetThreadAsync(existing.Id);

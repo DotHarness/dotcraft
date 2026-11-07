@@ -20,6 +20,8 @@ export interface HistoryTurn {
   completedAt?: string | null
   /** Set while only the Turn's summary Items are loaded. */
   summary?: { itemCount: number }
+  itemsCursor?: string | null
+  loadedItemIds?: string[]
 }
 
 export interface Echo {
@@ -38,7 +40,6 @@ export interface ChatHistory {
   olderCursor?: string | null
 }
 
-/** One Turn read with every one of its Items, so a page never holds part of a Turn. */
 export interface TurnPageEntry {
   turn: SessionTurn
   items: SessionItem[]
@@ -99,13 +100,9 @@ function turnFromWire(turn: SessionTurn): HistoryTurn {
   }
 }
 
-function isStreamable(item: HistoryItem): boolean {
-  return item.type === 'agentMessage' || item.type === 'reasoningContent'
-}
-
 function pageItem(item: SessionItem): HistoryItem {
   const entry = itemFromWire(item)
-  return isStreamable(entry) && !isComplete(entry) ? { ...entry, partial: true } : entry
+  return entry
 }
 
 /** The newest page of whole Turns, oldest first. */
@@ -130,8 +127,7 @@ export function prependTurns(history: ChatHistory, page: TurnPageEntry[], olderC
   }
 }
 
-/** Replaces a summarized Turn's Items with all of its Items at the Turn's place. */
-export function replaceTurnItems(history: ChatHistory, turnId: string, items: SessionItem[]): ChatHistory {
+export function replaceTurnItems(history: ChatHistory, turnId: string, items: SessionItem[], nextCursor: string | null = null): ChatHistory {
   const turn = history.turns.find((candidate) => candidate.id === turnId)
   if (!turn?.summary) return history
   const first = history.items.findIndex((item) => item.turnId === turnId)
@@ -139,11 +135,19 @@ export function replaceTurnItems(history: ChatHistory, turnId: string, items: Se
   const at = first >= 0 ? first : history.items.findIndex((item) => later.has(item.turnId))
   const rest = history.items.filter((item) => item.turnId !== turnId)
   const position = at < 0 ? rest.length : at
+  const existing = history.items.filter((item) => item.turnId === turnId)
+  const merged = new Map(items.map((item) => [item.id, pageItem(item)]))
+  for (const item of existing) {
+    const read = merged.get(item.id)
+    if (!read || (isComplete(item) && !isComplete(read))) merged.set(item.id, item)
+  }
+  const loadedIds = [...new Set([...(turn.loadedItemIds ?? []), ...items.map((item) => item.id)])]
+  const order = [...new Set([...loadedIds, ...existing.map((item) => item.id)])]
   const { summary: _summary, ...loaded } = turn
   return {
     ...history,
-    items: [...rest.slice(0, position), ...items.map(pageItem), ...rest.slice(position)],
-    turns: history.turns.map((candidate) => (candidate === turn ? loaded : candidate)),
+    items: [...rest.slice(0, position), ...order.map((id) => merged.get(id)!), ...rest.slice(position)],
+    turns: history.turns.map((candidate) => (candidate === turn ? { ...(nextCursor ? turn : loaded), itemsCursor: nextCursor, loadedItemIds: loadedIds } : candidate)),
   }
 }
 
@@ -155,7 +159,11 @@ function upsertItem(history: ChatHistory, incoming: HistoryItem): ChatHistory {
   const clientId = clientIdOf(incoming)
   const echoes = clientId ? history.echoes.filter((echo) => echo.clientId !== clientId) : history.echoes
   const index = indexOf(history, incoming.turnId, incoming.id)
-  if (index < 0) return { ...history, items: [...history.items, incoming], echoes }
+  if (index < 0) return {
+    ...history, items: [...history.items, incoming], echoes,
+    turns: history.turns.map((turn) => turn.id === incoming.turnId && turn.summary
+      ? { ...turn, summary: { itemCount: turn.summary.itemCount + 1 } } : turn),
+  }
   const existing = history.items[index]
   if (!isComplete(incoming) && isComplete(existing)) return { ...history, echoes }
   const next = isComplete(incoming)
@@ -214,7 +222,7 @@ function upsertTurn(history: ChatHistory, turn: HistoryTurn): ChatHistory {
   const index = history.turns.findIndex((entry) => entry.id === turn.id)
   const turns = [...history.turns]
   if (index < 0) turns.push(turn)
-  else turns[index] = turn
+  else turns[index] = { ...turns[index], ...turn }
   return { ...history, turns }
 }
 

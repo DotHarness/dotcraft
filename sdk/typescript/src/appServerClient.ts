@@ -1,6 +1,7 @@
 /** High-level AppServer operations built on the pure JSON-RPC Wire client. */
 
-import { DotCraftWireClient, type NotificationHandler } from "./client.js";
+import { DotCraftWireClient, type WireResponseHandlers } from "./client.js";
+import { captureThreadEvents } from "./threadEvents.js";
 import { JsonRpcMessage } from "./models.js";
 import type {
   ClientRequestMethods,
@@ -8,12 +9,41 @@ import type {
   SessionThread,
   SessionTurn,
   ThreadItemsListResult,
+  ThreadResumeParams,
+  ThreadResumeResult,
+  ThreadForkParams,
   ThreadListResult,
   ThreadSummary,
   ThreadTurnsListResult,
 } from "./generated/appserver/index.js";
 
 export class InternalAppServerClient extends DotCraftWireClient {
+  private readonly attachedThreads = new Set<string>();
+
+  constructor(...args: ConstructorParameters<typeof DotCraftWireClient>) {
+    super(...args);
+    this.onStateChanged((state) => {
+      if (state !== "ready") this.attachedThreads.clear();
+    });
+  }
+
+  override async requestRaw<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null, responseHandlers?: WireResponseHandlers<T>): Promise<T> {
+    return await super.requestRaw<T>(method, params, timeoutMs, { ...responseHandlers, onResponse: (result) => {
+      if (method === "thread/unsubscribe") {
+        this.attachedThreads.delete((params as { threadId: string }).threadId);
+      } else if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
+        const thread = (result as { thread?: SessionThread }).thread;
+        if (thread) this.attachedThreads.add(thread.id);
+      }
+      responseHandlers?.onResponse?.(result);
+    } });
+  }
+
+  async ensureThreadAttached(threadId: string, params?: Parameters<InternalAppServerClient["threadResume"]>[1]): Promise<ThreadResumeResult | undefined> {
+    if (!this.attachedThreads.has(threadId)) return await this.threadResume(threadId, params);
+    return undefined;
+  }
+
   override async initialize(opts: Parameters<DotCraftWireClient["initialize"]>[0]) {
     if (opts.approvalSupport && !this.hasServerRequestHandler("item/approval/request")) {
       throw new Error("approvalSupport requires an approval request handler");
@@ -34,7 +64,7 @@ export class InternalAppServerClient extends DotCraftWireClient {
     config?: Record<string, unknown> | null;
     dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  }): Promise<SessionThread> {
+  }, onResponse?: (thread: SessionThread) => void): Promise<SessionThread> {
     const identity: Record<string, unknown> = { channelName: params.channelName, userId: params.userId };
     if (params.workspacePath) identity.workspacePath = params.workspacePath;
     if (params.channelContext) identity.channelContext = params.channelContext;
@@ -43,18 +73,26 @@ export class InternalAppServerClient extends DotCraftWireClient {
     if (params.config) payload.config = params.config;
     if (params.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
     if (params.additionalContext) payload.additionalContext = params.additionalContext;
-    const result = await this.request("thread/start", payload as ClientRequestMethods["thread/start"]["params"]);
+    const result = await this.request("thread/start", payload as ClientRequestMethods["thread/start"]["params"], undefined, {
+      onResponse: (result) => onResponse?.(result.thread),
+    });
     return result.thread;
   }
 
-  async threadResume(threadId: string, params?: {
+  async threadResume(threadId: string, params?: Omit<ThreadResumeParams, "threadId" | "dynamicTools"> & {
     dynamicTools?: unknown[] | null;
-    additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  }): Promise<SessionThread> {
-    const payload: Record<string, unknown> = { threadId };
-    if (params?.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
-    if (params?.additionalContext != null) payload.additionalContext = params.additionalContext;
-    const result = await this.request("thread/resume", payload as ClientRequestMethods["thread/resume"]["params"]);
+  }, onResponse?: (result: ThreadResumeResult) => void): Promise<ThreadResumeResult> {
+    return await this.request("thread/resume", { ...params, threadId } as ThreadResumeParams, undefined, { onResponse });
+  }
+
+  async threadFork(threadId: string, params: Omit<ThreadForkParams, "threadId"> = {}, onResponse?: (thread: SessionThread) => void): Promise<SessionThread> {
+    const result = await this.request("thread/fork", { ...params, threadId }, undefined, {
+      onResponse: (result) => {
+        if (!result.thread) throw new Error("thread/fork did not return a thread.");
+        onResponse?.(result.thread);
+      },
+    });
+    if (!result.thread) throw new Error("thread/fork did not return a thread.");
     return result.thread;
   }
 
@@ -108,7 +146,6 @@ export class InternalAppServerClient extends DotCraftWireClient {
     return await this.request("thread/items/list", params);
   }
 
-  async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }
   async threadUnsubscribe(threadId: string): Promise<void> { await this.request("thread/unsubscribe", { threadId }); }
   async threadArchive(threadId: string): Promise<void> { await this.request("thread/archive", { threadId }); }
   async threadDelete(threadId: string): Promise<void> { await this.request("thread/delete", { threadId }); }
@@ -141,36 +178,7 @@ export class InternalAppServerClient extends DotCraftWireClient {
     return await this.request("command/execute", payload) as Record<string, unknown>;
   }
 
-  streamEvents(threadId: string, terminalMethods: readonly string[] = ["turn/completed", "turn/failed", "turn/cancelled"]): AsyncIterableIterator<JsonRpcMessage> {
-    const queue: JsonRpcMessage[] = [];
-    let resolveWait: (() => void) | null = null;
-    const methods = [
-      "thread/started", "thread/renamed", "thread/resumed", "thread/archived", "thread/unarchived",
-      "thread/status/changed", "thread/queue/updated", "turn/started", "turn/completed", "turn/failed", "turn/cancelled",
-      "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/delta", "item/toolCall/argumentsDelta",
-      "item/approval/resolved", "subagent/progress", "item/usage/delta", "system/event", "plan/updated",
-    ];
-    const unsubscribe = methods.map((method) => this.onRaw(method, (async (params) => {
-      if ("threadId" in params && params.threadId !== threadId) return;
-      queue.push(JsonRpcMessage.fromDict({ method, params }));
-      resolveWait?.();
-      resolveWait = null;
-    }) satisfies NotificationHandler));
-    let finished = false;
-    const cleanup = (): void => {
-      if (finished) return;
-      finished = true;
-      unsubscribe.forEach((remove) => remove());
-    };
-    return {
-      next: async () => {
-        while (queue.length === 0) await new Promise<void>((resolve) => { resolveWait = resolve; });
-        const value = queue.shift()!;
-        if (value.method && terminalMethods.includes(value.method)) cleanup();
-        return { value, done: false };
-      },
-      return: async () => { cleanup(); return { value: undefined, done: true }; },
-      [Symbol.asyncIterator]() { return this; },
-    };
+  streamEvents(threadId: string): AsyncIterableIterator<JsonRpcMessage> {
+    return captureThreadEvents(this, threadId);
   }
 }

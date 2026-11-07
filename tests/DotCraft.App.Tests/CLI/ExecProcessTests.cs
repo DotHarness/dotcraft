@@ -156,6 +156,11 @@ public sealed class ExecProcessTests : ExecProcessTestBase
 
         Assert.Equal(0, result.ExitCode);
         Assert.Empty(server.ParamsOf("thread/start"));
+        var resume = Assert.Single(server.ParamsOf("thread/resume"));
+        Assert.Equal("thread_9", resume["threadId"]!.GetValue<string>());
+        Assert.Null(resume["initialTurnsPage"]);
+        Assert.True(server.Requests.ToList().FindIndex(r => r.Method == "thread/resume")
+            < server.Requests.ToList().FindIndex(r => r.Method == "turn/start"));
         var turn = Assert.Single(server.ParamsOf("turn/start"));
         Assert.Equal("thread_9", turn["threadId"]!.GetValue<string>());
         Assert.Equal("follow up", TurnText(server));
@@ -178,6 +183,7 @@ public sealed class ExecProcessTests : ExecProcessTestBase
         Assert.Equal("cli", list["identity"]!["channelName"]!.GetValue<string>());
         Assert.Equal("local", list["identity"]!["userId"]!.GetValue<string>());
         Assert.Null(list["identity"]!["workspacePath"]);
+        Assert.Equal("thread_7", Assert.Single(server.ParamsOf("thread/resume"))["threadId"]!.GetValue<string>());
         Assert.Equal("thread_7", Assert.Single(server.ParamsOf("turn/start"))["threadId"]!.GetValue<string>());
         Assert.Equal("next step", TurnText(server));
         Assert.Contains("[CLI] Thread: thread_7", result.StandardError, StringComparison.Ordinal);
@@ -244,7 +250,9 @@ public sealed class ExecProcessTests : ExecProcessTestBase
             update["config"]));
 
         var methods = server.Requests.Select(r => r.Method).ToList();
-        Assert.True(methods.IndexOf("thread/config/update") < methods.IndexOf("turn/start"));
+        Assert.True(methods.IndexOf("thread/config/update") < methods.IndexOf("thread/resume"));
+        Assert.True(methods.IndexOf("thread/resume") < methods.IndexOf("turn/start"));
+        Assert.Single(server.ParamsOf("thread/resume"));
     }
 
     [Fact]
@@ -298,6 +306,9 @@ public sealed class ExecProcessTests : ExecProcessTestBase
 
         Assert.Equal(0, result.ExitCode);
         Assert.Single(server.ParamsOf("thread/read"));
+        Assert.Single(server.ParamsOf("thread/resume"));
+        var methods = server.Requests.Select(r => r.Method).ToList();
+        Assert.True(methods.IndexOf("thread/config/update") < methods.IndexOf("thread/resume"));
         var update = Assert.Single(server.ParamsOf("thread/config/update"));
         Assert.True(JsonNode.DeepEquals(
             new JsonObject

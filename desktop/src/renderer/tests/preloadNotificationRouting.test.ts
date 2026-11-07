@@ -57,15 +57,15 @@ describe('preload bridge', () => {
     const stopRaw = api.appServer.onNotificationRaw(raw)
 
     const known = { method: KNOWN_METHOD, params: { turnInputTokens: 150 } }
-    emit('appserver:notification', known)
-    emit('appserver:notification', { method: UNKNOWN_METHOD, params: { any: true } })
+    emit('appserver:delivery', { kind: 'notification', payload: known })
+    emit('appserver:delivery', { kind: 'notification', payload: { method: UNKNOWN_METHOD, params: { any: true } } })
 
     expect(typed).toHaveBeenCalledTimes(1)
     expect(typed).toHaveBeenCalledWith(known)
     expect(raw).toHaveBeenCalledTimes(2)
 
     stopRaw()
-    emit('appserver:notification', known)
+    emit('appserver:delivery', { kind: 'notification', payload: known })
     expect(raw).toHaveBeenCalledTimes(2)
     expect(typed).toHaveBeenCalledTimes(2)
     stopTyped()

@@ -282,6 +282,7 @@ public sealed partial class SessionService
             if (!ephemeral)
                 await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
 
+            owner.ThreadDeletedForBroadcast?.Invoke(threadId);
             if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
                 await removedRuntime.DisposeAsync();
             owner._runtimeRegistry.ForgetBroker(threadId);
@@ -292,8 +293,6 @@ public sealed partial class SessionService
             owner.ForgetContextPages(threadId);
             // Strictly after the deleting observation above, so a thread-scoped contributor still sees its own thread's deletion.
             owner.ContributionLifecycle.ReleaseThreadContributions(threadId);
-
-            owner.ThreadDeletedForBroadcast?.Invoke(threadId);
         }
 
         private void PublishThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)

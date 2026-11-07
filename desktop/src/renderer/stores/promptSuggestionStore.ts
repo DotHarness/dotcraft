@@ -3,11 +3,10 @@ import { readConfigValue, useConfigStore } from './configStore'
 import type { ConversationTurn } from '../types/conversation'
 import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../utils/promptSuggestion'
 
-type SuggestionTurn = Pick<ConversationTurn, 'id' | 'startedAt'>
+type SuggestionTurn = Pick<ConversationTurn, 'id'>
 
 interface PromptSuggestionEntry {
   turnId: string
-  startedAt: number
   suggestion: string | null
   controller: AbortController | null
 }
@@ -26,12 +25,11 @@ export const usePromptSuggestionStore = create<PromptSuggestionStore>((set, get)
 
   request(threadId, turn) {
     const turnId = turn.id
-    const startedAt = Date.parse(turn.startedAt)
     const previous = get().entries.get(threadId)
-    if (previous && (previous.turnId === turnId || startedAt <= previous.startedAt)) return
+    if (previous?.turnId === turnId) return
     previous?.controller?.abort()
     const controller = new AbortController()
-    const entry: PromptSuggestionEntry = { turnId, startedAt, suggestion: null, controller }
+    const entry: PromptSuggestionEntry = { turnId, suggestion: null, controller }
     set((state) => ({ entries: new Map(state.entries).set(threadId, entry) }))
     let diagnostic: PromptSuggestionDiagnostic = {
       parentThreadId: threadId, parentTurnId: turnId, threadId: null, turnId: null, outcome: 'requested'
@@ -51,14 +49,14 @@ export const usePromptSuggestionStore = create<PromptSuggestionStore>((set, get)
     if (entry && (entry.turnId !== turn.id || (!entry.controller && entry.suggestion === null))) return
     entry?.controller?.abort()
     set((state) => ({ entries: new Map(state.entries).set(threadId, {
-      turnId: turn.id, startedAt: Date.parse(turn.startedAt), suggestion: null, controller: null
+      turnId: turn.id, suggestion: null, controller: null
     }) }))
   },
 
   invalidate(threadId, turn) {
     const entry = get().entries.get(threadId)
     if (!entry || (!entry.controller && entry.suggestion === null)) return
-    if (turn && (turn.id === entry.turnId || Date.parse(turn.startedAt) <= entry.startedAt)) return
+    if (turn?.id === entry.turnId) return
     get().forget(threadId)
   },
 

@@ -231,7 +231,7 @@ A client that displays multiple workspaces routes each notification with the wor
 | `item/tool/requestUserInput` | The thread enters a waiting-input state. Desktop replaces the normal composer with a question composer and disables normal submission. |
 | `item/tool/requestUserInput/resolved` | The question composer clears and the thread resumes normal rendering. |
 
-If the user switches away while a request is pending, Desktop parks it on that thread, badges the thread as needing an answer, and restores the same composer on return. Switching threads is not a dismissal and never sends an empty response. A request replayed through `thread/subscribe` or `thread/resume` with the same logical identity (see [Interactive Request Restore](#532-interactive-request-restore)) restores the actionable composer rather than appearing as new.
+If the user switches away while a request is pending, Desktop parks it on that thread, badges the thread as needing an answer, and restores the same composer on return. Switching threads is not a dismissal and never sends an empty response. A current request restored after `thread/resume` with the same logical identity (see [Interactive Request Restore](#532-interactive-request-restore)) restores the actionable composer rather than appearing as new.
 
 ### 4.5 Supplemental Events
 
@@ -298,52 +298,47 @@ When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` dur
 
 ### 5.3 Resume or Open an Existing Thread
 
-Selecting a thread starts one coordinated subscription and paged-hydration operation (5.3.1). If the thread is not turn-capable, the user sees why and which actions remain allowed.
+Selecting an active thread starts one coordinated restoration, observation and paged-hydration operation (5.3.1). Archived viewing uses read/paged history without resume or Agent activation. If the thread is not turn-capable, the user sees why and which actions remain allowed.
 
 The conversation never blanks while it restores. A thread present in the thread list opens at once with its header and composer, using the list summary until the header read lands; only the transcript area waits, with an indicator revealed after 400ms. Submitting before the thread is ready keeps the message in the composer and says the conversation is still loading.
 
-Leaving a thread keeps it **warm**: its subscription stays open and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 threads are warm per foreground connection. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
+Leaving a thread keeps it **warm**: its observation stays attached and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 threads are warm per foreground connection. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
 
 ### 5.3.1 Desktop Thread Restore Pipeline
 
-Selecting a thread opens a new restore generation and clears the previous one. These invariants hold for every restore; page count, direction, and size are client choices.
+Selecting a thread opens a restore generation. The [Thread Restoration and Observation](../features/thread-restoration.md) boundary owns current-state recovery and feed attachment.
 
-1. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads, so updates racing the first page are observable.
-2. The thread header and newest Turn page are then read concurrently and merged into a chronological store by stable Turn and Item id.
-3. Turn pages are read in the summary view ([Thread History Loading](../features/thread-history-loading.md)); a Turn that is not completed is hydrated with all its Items before it renders. A summarized Turn renders as its folded form and loads all its Items when its process is opened or a reveal targets it, showing skeleton tool rows until they arrive and an error with retry if they fail; it then stays fully loaded while its history is held.
-4. Replayed approval or user-input composers are not exposed until subscription readiness and the header and page reads for the current generation complete.
-5. Results belonging to an older restore generation (reads, subscription operations, interactive request results) are ignored.
-6. Subscription updates overwrite loaded entities by stable id; an unloaded Item is appended at the head without duplicating a concurrent page result.
-7. History is read on demand, not drained. Loaded history is one or more segments of whole Turns; the newest ends at the live head. A gap before or between segments reserves space and loads a page from its nearer side as it approaches the viewport. Jumping to an unloaded Turn loads a segment around it. Adjacent segments merge, and inserting a page above the viewport preserves the visible scroll anchor. Listing Turn metadata for navigation is not a history read.
-8. Switching threads keeps the left thread's loaded segments with its warm state; releasing a warm thread drops them. Live-only output buffers are bounded per thread independently of persisted history.
-9. A subscription target is (foreground workspace identity, connection epoch, `threadId`). Desktop subscribes only after the thread is present in that workspace's authoritative thread list.
-10. Subscription operations for the same target are serialized; a delayed `thread/unsubscribe` never cancels a newer `thread/subscribe` for that target. Different targets, including the same `threadId` in two workspaces, never block one another.
-11. Switching threads or workspaces, disconnecting, or closing the window clears the active generation so late async work cannot subscribe through another workspace connection or restore UI into the wrong thread. Switching workspaces, disconnecting, or closing the window also releases every warm thread of that connection. An unsubscribe queued for an older connection is never sent through the new one.
+1. Reuse a ready warm attached view. Otherwise show cached history or a parallel read-only preview while resuming with `initialTurnsPage: { limit: 5, itemsView: "summary", summaryTools }`.
+2. Apply mode, runtime, current interaction state, and the opening page at the ordered response boundary before releasing staged updates. Action readiness follows that application; drafts retain their loading behavior.
+3. Load detail in 100-Item pages with four workers and at most two preview jobs. Preserve cursors and summary Items. Viewport demand and explicit expansion drive continuation.
+4. Keep loaded history in segments. Gaps load from the nearer viewport edge; navigation loads a segment around the selected Turn. Adjacent segments merge and insertion preserves the scroll anchor.
+5. Scope restoration and late results to foreground workspace, connection epoch, and thread id. Start/fork and worktree creation attach when a real thread id exists.
+6. Warm views retain their state until eviction. Native execution and background tasks retain observation independently of navigation. The final owner releases the attachment.
+7. Rejoining a native Turn uses metadata-only resume. An already-ended Turn triggers cleanup from the returned state.
 
-`thread/read` is the current header, the Turn/Item list methods are persisted display history, and `thread/subscribe` is the live channel. A conversation still in the creating state of [5.2](#52-start-a-new-conversation) enters this pipeline only once its thread id exists.
+`thread/read` and Turn/Item pages are queries. `thread/resume` supplies the authoritative current view and attached feed. A creating conversation enters this pipeline once its thread id exists; viewing an archived transcript stays query-only.
 
 ### 5.3.2 Interactive Request Restore
 
 Pending approval and user-input requests belong to the active turn and survive ordinary navigation.
 
 - Switching away is not a decline, cancel, empty answer, or dismissal.
-- A request that arrives while its thread is not the active fully-restored thread is parked on its thread. Parked requests activate when the thread is reopened warm, or otherwise after the current generation's header and head-page hydration complete.
-- Requests are matched by logical identity `method + threadId + turnId + requestId`; a fresh JSON-RPC envelope id does not make a new request. A replay restores the actionable composer once, without duplicate cards, queue entries, or decisions.
+- A request arriving before the selected authoritative view is applied is parked on its thread. Once that view is ready, the matching current request becomes actionable without waiting for older pages or full-process hydration. Current waiting flags keep ordinary submission and plan implementation gated until the matching entity is available; draft editability does not permit submission.
+- Requests are matched by logical identity `method + threadId + turnId + requestId`; a fresh JSON-RPC envelope id does not make a new request. Restoration exposes the actionable composer once, without duplicate cards, queue entries, or decisions.
 - Multiple pending approvals for one turn form a queue; the next becomes actionable only after the prior is submitted or resolved.
 - Local submission state belongs to one logical request and never leaks to another.
 - A successful local response may be acknowledged immediately, but the thread stays running or waiting per server state until a resolved, completed, or reconciled snapshot says otherwise.
 
 ### 5.3.3 Snapshot and Realtime Reconciliation
 
-Desktop receives thread truth through durable header/history reads and realtime notifications, and converges when they race.
+Desktop restores the current view through the ordered resume response and subsequent feed. Independent header/history previews never supersede that boundary or newer realtime state. Applying restored state does not invoke execution lifecycle handlers, re-notify completion, change unread state, or consume pending prompt suggestions.
 
 - A stale header or page never regresses newer realtime state. Merging preserves observed terminal evidence for the same item or call: completed tool executions and results, resolved approvals, completed user-input responses, final agent messages, and terminal turn status. A tool with terminal evidence never returns to "awaiting result".
 - A terminal turn state clears running and waiting indicators even if the local view still showed live tools or composers.
-- `thread/status/changed` is a summary signal, not conversation history. Desktop uses it as a reconciliation trigger: if the server says the active thread is idle while Desktop still shows activity, Desktop reloads the header and newest pages.
-- An active thread with a parked request keeps retrying head-page reconciliation on reconnect and metadata refresh; a failed read keeps the request parked and never synthesizes a response.
-- If completion notifications are missed after a response, the next reconcile restores completed tools, final output, and terminal state without the user switching away.
+- `thread/status/changed` updates runtime indicators; Turn and Item events update the live transcript.
+- Reconnect restores current interactions. Failed restoration keeps their requests parked.
 - Subagent token counts sum the child's turn `tokenUsage` and rise with `thread/tokenUsage/updated`; they never decrease. Subagent elapsed time derives from `runtime.activeTurnStartedAt` and shows unknown when unavailable.
-- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect creates a new subscription and never reuses pre-disconnect cursors.
+- Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect resumes actual active owners at a new ordered boundary and invalidates pre-disconnect cursors. Archived threads remain query-only.
 - Reconciliation is scoped to the active foreground thread and workspace.
 - Conversation updates apply whether or not the window is visible; showing a hidden or minimized window reads nothing.
 
@@ -401,7 +396,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **Plans**
 
 - Plan updates stay associated with the active thread and reflect the latest complete snapshot. While `CreatePlan` arguments stream, the plan surface renders a live draft that is replaced by the snapshot on `plan/updated`. Plan overviews render Markdown. A to-do list without a plan is labeled as progress. Plan updates and `CreatePlan` drafts refresh the plan surface without opening or switching the detail panel.
-- When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the composer with a plan-confirmation composer, regardless of later output in that Turn. The confirmation appears without switching threads, survives thread switches and restarts, and clears when the next Turn starts.
+- Plan confirmation uses current Plan mode, the latest completed Turn's successful `CreatePlan`, its matching plan, and local consumption state. Pending approvals/questions take precedence. The choice survives navigation until consumed or superseded. Acceptance confirms the scoped Agent-mode change before sending the implementation instruction, following [Thread Restoration](../features/thread-restoration.md#55-plan-implementation-choice).
 - The active composer mode follows explicit configuration metadata from `thread/updated`, thread reads, and thread restoration, including changes made by another client. Metadata without a mode does not reset it. Synchronization preserves drafts and dismissed plan confirmations; local optimistic mode requests and their callbacks remain scoped to the originating workspace and thread. When explicit mode changes arrive during a pending request, its success reconciles the latest observed mode instead of overwriting it; unchanged pre-request metadata does not undo a successful optimistic change. Plan acceptance does not start implementation if a newer observed mode supersedes the requested Agent mode.
 
 **Discussion board**

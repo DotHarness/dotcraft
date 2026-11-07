@@ -63,7 +63,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
     if (previous?.role === 'foreground') {
       previous.role = 'secondary'
       previous.lastUsedAt = Date.now()
-      ctx.releaseConnectionThreadSubscriptions(previous, 'remote foreground connect')
+      ctx.releaseConnectionViewAttachments(previous, 'remote foreground connect')
     }
   } else if (preserveLocalConnections) {
     const existingConnection = ctx.getWorkspaceConnection(workspacePath)
@@ -78,7 +78,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
       if (previous) {
         previous.role = 'secondary'
         previous.lastUsedAt = Date.now()
-        ctx.releaseConnectionThreadSubscriptions(previous, 'workspace demote')
+        ctx.releaseConnectionViewAttachments(previous, 'workspace demote')
       }
     } else if (ctx.currentWorkspacePath === workspacePath) {
       await ctx.teardownRuntime('reconnect current local workspace before new connect')

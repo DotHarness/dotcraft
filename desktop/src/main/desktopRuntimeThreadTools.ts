@@ -62,11 +62,14 @@ interface DesktopThreadFunctionAuthoring {
 }
 
 export interface AppServerRequestClient {
-  sendRequest<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T>
+  sendRequest<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null, attachmentOwner?: string, onResponse?: (result: T) => void, onError?: (error: unknown) => void): Promise<T>
 }
 
 export interface DesktopAppServerRequestOptions {
   ownerId?: number
+  attachmentOwner?: string
+  onResponse?: (result: unknown) => void
+  onError?: (error: unknown) => void
   supportsDynamicToolRebind?: boolean
   settingsHost?: DesktopThreadToolSettingsHost
   createChatFolder?: (firstMessage: string) => Promise<string>
@@ -396,7 +399,7 @@ export function threadTaskConnection(
     ownerId: options.ownerId,
     workspacePath,
     getProjectWorkspace: () => options.projectWorkspaceFor?.(client, workspacePath),
-    request: (method, params, timeoutMs) => sendDesktopAppServerRequest(client, method, params, timeoutMs, options),
+    request: (method, params, timeoutMs) => sendDesktopAppServerRequest(client, method, params, timeoutMs, { ...options, attachmentOwner: 'task' }),
     ...(options.createChatFolder ? { createChatFolder: options.createChatFolder } : {})
   }
 }
@@ -452,7 +455,7 @@ async function listThreadsTool(
 async function sendMessageToThreadTool(
   client: AppServerRequestClient,
   args: Record<string, unknown>,
-  options: DesktopAppServerRequestOptions
+  _options: DesktopAppServerRequestOptions
 ): Promise<DynamicToolCallResult> {
   const threadId = requiredNonEmptyString(args, 'threadId')
   if (threadId.ok === false) return threadId.error
@@ -484,13 +487,7 @@ async function sendMessageToThreadTool(
 
   const input = [{ type: 'text', text: prompt.value }]
   try {
-    const turnResult = await sendDesktopAppServerRequest<{ turn?: JsonObject }>(
-      client,
-      'turn/start',
-      { threadId: threadId.value, input },
-      undefined,
-      options
-    )
+    const turnResult = await client.sendRequest<{ turn?: JsonObject }>('turn/start', { threadId: threadId.value, input })
     return ok(`Sent message to thread ${threadId.value}.`, {
       threadId: threadId.value,
       turn: turnResult.turn ?? null,
@@ -502,13 +499,7 @@ async function sendMessageToThreadTool(
       throw error
     }
     try {
-      const queueResult = await sendDesktopAppServerRequest<{ queuedInput?: unknown }>(
-        client,
-        'turn/enqueue',
-        { threadId: threadId.value, input },
-        undefined,
-        options
-      )
+      const queueResult = await client.sendRequest<{ queuedInput?: unknown }>('turn/enqueue', { threadId: threadId.value, input })
       return ok(`Queued message for thread ${threadId.value}.`, {
         threadId: threadId.value,
         queuedInput: queueResult.queuedInput ?? null,

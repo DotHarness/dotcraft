@@ -3481,7 +3481,6 @@ export interface ServerCapabilities {
   threadGoals?: boolean;
   threadMaintenanceInterrupt?: boolean;
   threadManagement: boolean;
-  threadSubscriptions: boolean;
   toolCatalog?: boolean;
   usageTelemetry?: boolean;
   visualizations?: boolean;
@@ -4634,6 +4633,15 @@ export interface ThreadOriginPresentation {
   [key: string]: unknown;
 }
 
+export interface ThreadPendingRequestState {
+  isBlocking: boolean;
+  itemId: string;
+  method: string;
+  requestId: string;
+  turnId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadPluginPolicy {
   allow?: string[] | null;
   deny?: string[] | null;
@@ -4723,17 +4731,39 @@ export interface ThreadRenamedNotification {
   [key: string]: unknown;
 }
 
+export interface ThreadResumeCurrentState {
+  diff?: string | null;
+  itemCount: number;
+  pendingRequests: ThreadPendingRequestState[];
+  planTurnId?: string | null;
+  toolArguments?: Record<string, string> | null;
+  toolProgress?: Record<string, ThreadToolProgressState> | null;
+  turnId?: string | null;
+  turnStatus?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadResumeInitialTurnsPageParams {
+  itemsView?: string | null;
+  limit?: number | null;
+  summaryTools?: ThreadSummaryTool[] | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadResumeParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
   chat?: ChannelChat | null;
   cwd?: string | null;
   dynamicTools?: RuntimeDynamicToolDeclaration[] | null;
+  initialTurnsPage?: ThreadResumeInitialTurnsPageParams | null;
   runtimeWorkspaceRoots?: string[] | null;
   threadId: string;
   [key: string]: unknown;
 }
 
 export interface ThreadResumeResult {
+  currentState: ThreadResumeCurrentState;
+  initialTurnsPage?: ThreadTurnsListResult | null;
   instructionSources: string[];
   thread: SessionThread;
   [key: string]: unknown;
@@ -4881,12 +4911,6 @@ export interface ThreadStatusChangedNotification {
   [key: string]: unknown;
 }
 
-export interface ThreadSubscribeParams {
-  replayRecent?: boolean | null;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
 export interface ThreadSummary {
   appBindings?: ThreadAppBindingSummary[] | null;
   channelContext?: string | null;
@@ -4938,6 +4962,13 @@ export interface ThreadToolPolicy {
   allow?: string[] | null;
   allowedAgentControlTools?: string[] | null;
   deny?: string[] | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadToolProgressState {
+  callId: string;
+  progress: JsonValue;
+  toolName: string;
   [key: string]: unknown;
 }
 

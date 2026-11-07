@@ -196,7 +196,6 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 | --- | --- | --- |
 | 最新 snapshot | `snapshot()` | `Snapshot` |
 | 重新读取状态 | `refresh()` | `RefreshAsync()` |
-| 订阅 | `subscribe()` | `SubscribeAsync()` |
 | 取消订阅 | `unsubscribe()` | `UnsubscribeAsync()` |
 | 排队输入 | `enqueue()` | `EnqueueAsync()` |
 | 中断 turn | `interrupt()` | `InterruptAsync()` |
@@ -204,7 +203,7 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 | 归档 | `archive()` | `ArchiveAsync()` |
 | 删除 | `delete()` | `DeleteAsync()` |
 
-`subscribe({ replayRecent: true })` 及各语言对应形式只回放近期事件，不返回完整的当前状态。调用 `refresh` 或 `read` 获取权威头部状态，通过历史分页方法获取持久化的 Turn 和 Item。
+创建、恢复和 fork thread 会自动接入事件。`unsubscribe` 释放观察，执行继续保留。`refresh` 和 `read` 读取头部，历史通过 Turn 和 Item 分页获取。
 
 ## 读取流式事件
 
@@ -229,15 +228,9 @@ TypeScript 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type` 中使用
 
 ## 断线后恢复
 
-重连会恢复 Wire 传输、重新初始化并保留本地 handler 注册。它不会重放进行中的请求或 `turn/start`，也不会重建 thread subscription 或运行时工具绑定。
+重连会恢复 Wire 传输、重新初始化并保留本地 handler 注册。它不会重放进行中的请求或 `turn/start`。
 
-重连后：
-
-1. 应用需要 thread 事件时重新订阅。
-2. 读取或刷新 Thread 头部。
-3. 如果应用展示历史，重新读取最新的 Turn 和 Item 页，不复用上一个连接的 cursor。
-4. 恢复 thread 时重新绑定运行时工具。
-5. 从服务端状态启动下一项操作。
+高层 handle 在下一次 run 前自动 resume，并携带原有工具声明。Raw Wire 调用方自行 resume，并先应用返回状态，再处理后续事件和请求。
 
 活动的 .NET run 会以 `RunDisconnectedException` 失败。不要因为请求响应丢失就假定 AppServer 从未收到请求。
 

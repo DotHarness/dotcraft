@@ -9,14 +9,7 @@ using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Consumes a <see cref="SessionEvent"/> stream from <see cref="ISessionService.SubmitInputAsync"/>
-/// or <see cref="ISessionService.SubscribeThreadAsync"/> and fans each event out as a JSON-RPC
-/// notification to the connected client.
-///
-/// Approval and user-input requests are sent to a capable client on a background path, so the
-/// event stream keeps draining and observes their resolution while the user takes time to answer.
-/// </summary>
+/// <summary>Interactive requests run independently so a pending answer does not block event delivery.</summary>
 public sealed class AppServerEventDispatcher
 {
     private readonly IAsyncEnumerable<SessionEvent> _events;
@@ -26,12 +19,6 @@ public sealed class AppServerEventDispatcher
     private readonly AppServerInteractiveRequestSender _interactiveRequests;
     private bool _transportUnavailable;
 
-    /// <summary>
-    /// Called when the first <see cref="SessionEventType.TurnStarted"/> event arrives.
-    /// The dispatcher awaits this delegate before sending the <c>turn/started</c> notification,
-    /// so the caller can send the <c>turn/start</c> response first and guarantee correct ordering.
-    /// </summary>
-    private readonly Func<SessionWireTurn, Task>? _onTurnStarted;
 
     /// <summary>
     /// Optional enricher applied to full thread wires before they are sent as <c>thread/started</c>
@@ -45,24 +32,17 @@ public sealed class AppServerEventDispatcher
     /// <param name="connection">Connection state for opt-out filtering and capability checks.</param>
     /// <param name="transport">Transport for sending notifications and approval requests.</param>
     /// <param name="sessionService">Session service for resolving approvals.</param>
-    /// <param name="onTurnStarted">
-    /// Optional async callback invoked (and awaited) when the first <c>TurnStarted</c> event
-    /// is received. The dispatcher waits for this to complete before sending the notification,
-    /// ensuring the <c>turn/start</c> response reaches the client before <c>turn/started</c>.
-    /// </param>
     public AppServerEventDispatcher(
         IAsyncEnumerable<SessionEvent> events,
         AppServerConnection connection,
         IAppServerTransport transport,
         ISessionService sessionService,
-        Func<SessionWireTurn, Task>? onTurnStarted = null,
         SessionStreamDebugLogger? streamDebugLogger = null,
         Func<SessionWireThread, SessionWireThread>? enrichThreadWire = null)
     {
         _events = events;
         _connection = connection;
         _transport = transport;
-        _onTurnStarted = onTurnStarted;
         _streamDebugLogger = streamDebugLogger;
         _enrichThreadWire = enrichThreadWire;
         _interactiveRequests = new AppServerInteractiveRequestSender(
@@ -93,9 +73,6 @@ public sealed class AppServerEventDispatcher
     {
         _interactiveRequests.ObserveResolution(evt);
 
-        // Fix 7: Do not send any server-initiated notifications until the client has
-        // sent the `initialized` notification signalling readiness. The TurnStarted
-        // case is exempt because it also signals the turn/start response callback.
         var method = evt.ToWireMethodName();
 
         if (evt.ItemPayload?.Type == ItemType.ToolExecution && !_connection.SupportsToolExecutionLifecycle)
@@ -108,12 +85,6 @@ public sealed class AppServerEventDispatcher
         switch (evt.EventType)
         {
             case SessionEventType.TurnStarted:
-                // Give the turn/start handler a chance to send its response first,
-                // guaranteeing the response arrives before the notification.
-                if (_onTurnStarted != null && evt.TurnPayload is { } turn)
-                    await InvokeOnTurnStartedAsync(turn.ToWire(includeItems: false) with { Items = [] }, ct);
-
-                // Only send the turn/started notification when client is ready
                 if (CanSendToClient(method))
                     await SendNotificationAsync(method, BuildParams(evt), ct);
                 break;
@@ -579,21 +550,6 @@ public sealed class AppServerEventDispatcher
         && _connection.IsClientReady
         && _connection.ShouldSendNotification(method);
 
-    private async Task InvokeOnTurnStartedAsync(SessionWireTurn turn, CancellationToken ct)
-    {
-        try
-        {
-            await _onTurnStarted!(turn);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            MarkTransportUnavailable();
-        }
-        catch (Exception ex) when (IsTransportUnavailableException(ex))
-        {
-            MarkTransportUnavailable();
-        }
-    }
 
     private async Task SendNotificationAsync(string method, object? @params, CancellationToken ct)
     {

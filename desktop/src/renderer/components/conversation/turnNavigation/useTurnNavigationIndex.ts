@@ -3,7 +3,7 @@ import { useConversationStore } from '../../../stores/conversationStore'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useThreadHistoryStore } from '../../../stores/threadHistoryStore'
 import { wireItemToConversationItem } from '../../../types/conversation'
-import { listThreadTurns, readTurnItems, type HistoryRequest } from '../../../utils/threadHistory'
+import { listThreadTurns, readHistoryPreview, type HistoryRequest } from '../../../utils/threadHistory'
 import {
   buildNavigationEntries,
   derivePreviewEntries,
@@ -86,7 +86,14 @@ export function useTurnNavigationIndex(): TurnNavigationIndex {
     const requested = previewRequestsRef.current.turnIds
     if (requested.has(entry.turnId)) return
     requested.add(entry.turnId)
-    void readTurnItems(requestAppServer, threadId, entry.turnId)
+    const position = entry.position
+    void readHistoryPreview(async () => {
+      const cursor = position.offset === 0 ? position.backwardsCursor
+        : (await listThreadTurns(requestAppServer, threadId, position.backwardsCursor, 'descending', position.offset)).nextCursor
+      if (!cursor || !isCurrentGeneration(generation)) return []
+      const page = await listThreadTurns(requestAppServer, threadId, cursor, 'descending', 1, 'summary')
+      return page.turns.find(turn => turn.id === entry.turnId)?.items ?? []
+    }, () => isCurrentGeneration(generation))
       .then((items): TurnPreview => ({
         status: 'loaded',
         entries: derivePreviewEntries(items.map(wireItemToConversationItem))

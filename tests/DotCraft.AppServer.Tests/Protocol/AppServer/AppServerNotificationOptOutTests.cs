@@ -20,6 +20,9 @@ public sealed class AppServerNotificationOptOutTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(streamingSupport: streamingSupport, optOutMethods: [.. optOutMethods]);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.TurnStart, new

@@ -117,7 +117,7 @@ export function installBuilderHost(): void {
     turnCount = 0
     return { thread: { id: threadId, workspacePath: DEMO_WORKSPACE_PATH } }
   })
-  onRequest('thread/subscribe', () => ({}))
+  onRequest('thread/unsubscribe', () => ({}))
   onRequest('thread/read', (params) => ({ thread: { id: params.threadId, turns: [] } }))
   onRequest('agent/profiles/builderDraft/update', (params) => {
     draftMarkdown = String(params.rawContent ?? '')

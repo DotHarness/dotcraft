@@ -370,7 +370,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ThreadSkillsPolicy))]
 [JsonSerializable(typeof(AppServer.ThreadSpawnEdge))]
 [JsonSerializable(typeof(AppServer.ThreadStatusChangedNotification))]
-[JsonSerializable(typeof(AppServer.ThreadSubscribeParams))]
 [JsonSerializable(typeof(AppServer.ThreadTokenUsage))]
 [JsonSerializable(typeof(AppServer.ThreadTokenUsageUpdatedNotification))]
 [JsonSerializable(typeof(AppServer.ThreadToolPolicy))]

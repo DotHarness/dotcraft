@@ -151,7 +151,7 @@ public sealed class ConformanceFixtureTests
                 ServerInfo = new ServerInfo { Name = "dotcraft", Version = "test", ProtocolVersion = "1" },
                 Capabilities = new ServerCapabilities
                 {
-                    ThreadManagement = true, ThreadSubscriptions = true, DynamicToolRebind = true
+                    ThreadManagement = true, DynamicToolRebind = true
                 }
             }
         });

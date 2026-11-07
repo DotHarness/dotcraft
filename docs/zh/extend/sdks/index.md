@@ -52,7 +52,7 @@ TypeScript 还提供 Channel Adapter profile，.NET 不提供。
 
 本地高层 client 先请求 [Hub](../../contribute/lifecycle/hub) 确保工作区 AppServer 可用，再直接连接 AppServer。关闭 SDK 连接不会停止由 Hub 管理的 AppServer。
 
-重连只恢复 Wire 传输和初始化，不会重放进行中的请求，也不会重建 thread subscription、活动 run 或运行时工具绑定。恢复步骤见[线程与运行](./runs)。
+重连恢复 Wire 传输和初始化，不重放进行中的请求或活动 run。高层 thread handle 会在下一次 run 前恢复观察并重新绑定声明的工具。Raw Wire 调用方需自行完成这一步。恢复步骤见[线程与运行](./runs)。
 
 ## 语言参考
 

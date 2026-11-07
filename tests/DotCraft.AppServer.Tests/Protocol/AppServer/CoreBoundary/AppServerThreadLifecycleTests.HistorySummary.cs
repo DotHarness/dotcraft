@@ -16,6 +16,7 @@ public sealed partial class AppServerThreadLifecycleTests
         var turn = Assert.Single(thread.Turns);
         AddItem(turn, "reasoning", ItemType.ReasoningContent, new ReasoningContentPayload { Text = "thinking" });
         AddToolPair(turn, "read", "ReadFile", null, structuredContent: null);
+        AddItem(turn, "execution", ItemType.ToolExecution, new ToolExecutionPayload { CallId = "read", ToolName = "ReadFile" });
         AddToolPair(turn, "write", "WriteFile", null, new JsonObject { ["kind"] = "fileChange", ["changes"] = new JsonArray() });
         AddToolPair(turn, "plan", "CreatePlan", null, structuredContent: null);
         AddItem(turn, "command", ItemType.CommandExecution, new CommandExecutionPayload { Command = "dotnet test", CallId = "read" });
@@ -45,7 +46,7 @@ public sealed partial class AppServerThreadLifecycleTests
     }
 
     [Fact]
-    public async Task ThreadTurnsList_Summary_KeepsEveryItemWhenWorkFollowsTheLastMessage()
+    public async Task ThreadTurnsList_Summary_SelectsCandidatesWhenWorkFollowsTheLastMessage()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(thread, "turn_001", "keep going");
@@ -60,9 +61,9 @@ public sealed partial class AppServerThreadLifecycleTests
 
         Assert.Equal("summary", summary.GetProperty("itemsView").GetString());
         Assert.Equal(
-            ["turn_001_user", "progress", "read_call", "read_result", "reasoning", "notice"],
+            ["turn_001_user", "progress", "notice"],
             summary.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetString()!));
-        Assert.Equal(summary.GetProperty("items").GetArrayLength(), summary.GetProperty("itemCount").GetInt32());
+        Assert.Equal(6, summary.GetProperty("itemCount").GetInt32());
     }
 
     [Fact]

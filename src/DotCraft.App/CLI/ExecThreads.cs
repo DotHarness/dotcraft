@@ -29,6 +29,11 @@ internal static class ExecThreads
             ?? throw new InvalidOperationException("AppServer returned a thread with no id.");
     }
 
+    public static async Task ResumeAsync(AppServerWireClient wire, string threadId, CancellationToken ct)
+    {
+        await RequestAsync(wire, AppServerMethodNames.ThreadResume, new { threadId }, ct).ConfigureAwait(false);
+    }
+
     public static async Task<string> FindLatestAsync(AppServerWireClient wire, CancellationToken ct)
     {
         var result = await RequestAsync(wire, AppServerMethodNames.ThreadList, new

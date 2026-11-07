@@ -17,7 +17,9 @@ import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraf
 import { providerUsage } from './accountUsage'
 import type { Timers } from './backoff'
 import { StreamBatch } from './streamBatch'
-import { readTurnItems, readTurnPage } from './projectHistory'
+import { ProjectHistoryLoader } from './projectHistory'
+import { restoreChat, withEchoes } from './projectRestoration'
+import { ReadQueue } from './readQueue'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
 import type { BackgroundTask } from './backgroundTasks'
 import { BackgroundTaskSync } from './backgroundTaskSync'
@@ -28,12 +30,8 @@ import { systemEventSignals, turnSignals } from './signals'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
 import {
-  applyEvents,
   emptyHistory,
-  historyFromTurns,
-  restoreEchoes,
   type HistoryEvent,
-  type HistoryItem,
 } from './history'
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
@@ -44,7 +42,7 @@ import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
 
-const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated', 'terminal/outputDelta']
+const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'terminal/outputDelta']
 
 const COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -113,9 +111,11 @@ export class ProjectConnection {
   private readyValue = false
   private readonly held = new Map<string, { resolve: (result: object) => void; reject: (error: Error) => void }>()
   private readonly subscribed = new Set<string>()
-  private readonly capturing = new Map<string, HistoryEvent[]>()
+  private readonly capturing = new Map<string, (() => void)[]>()
   private readonly syncing = new Map<string, Promise<void>>()
-  private readonly loadingOlder = new Set<string>()
+  private readonly previews = new ReadQueue(2)
+  private readonly history: ProjectHistoryLoader
+  private readonly modeChanges = new Map<string, number>()
   private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
   private readonly catalogs = new Map<string, Promise<void>>()
@@ -126,6 +126,8 @@ export class ProjectConnection {
   private readonly readStateChangedAt = new Map<string, number>()
 
   constructor(private readonly options: ProjectConnectionOptions) {
+    this.history = new ProjectHistoryLoader(options.projectId, options.store, () => this.requireClient(),
+      (threadId) => this.stream.flush(threadId))
     this.stream = new StreamBatch((threadId, deltas) => {
       if (this.subscribed.has(threadId)) this.store.dispatch({ type: 'historyBatch', key: this.key(threadId), deltas })
     }, options.timers)
@@ -173,7 +175,6 @@ export class ProjectConnection {
     transport.onEnd((end) => {
       if (this.client !== client) return
       this.stream.flush()
-      for (const threadId of [...this.capturing.keys()]) this.flushCaptured(threadId)
       this.client = null
       this.readyValue = false
       this.held.clear()
@@ -220,7 +221,6 @@ export class ProjectConnection {
 
   async close(): Promise<void> {
     this.stream.flush()
-    for (const threadId of [...this.capturing.keys()]) this.flushCaptured(threadId)
     this.closing = true
     this.readyValue = false
     this.held.clear()
@@ -241,9 +241,12 @@ export class ProjectConnection {
       client.on(method, (params) => {
         if (this.client !== client || this.closing) return
         const scope = params as { threadId?: string; thread?: { id: string }; turn?: { threadId: string } }
-        const threadId = scope.threadId ?? scope.thread?.id ?? scope.turn?.threadId
+        const threadId = scope.turn?.threadId ?? scope.thread?.id ?? scope.threadId
         if (threadId && method !== 'item/agentMessage/delta' && method !== 'item/reasoning/delta') this.stream.flush(threadId)
-        handler(params)
+        const apply = () => handler(params)
+        const staged = threadId ? this.capturing.get(threadId) : undefined
+        if (staged) staged.push(apply)
+        else apply()
       })
     client.registerServerRequestHandler('item/approval/request', (_id, params) =>
       this.hold<ApprovalResponseResult>(params.threadId, {
@@ -276,8 +279,13 @@ export class ProjectConnection {
     on('thread/started', ({ thread }) => this.threadSeen(thread))
     on('thread/updated', ({ thread }) => {
       if (thread.configuration && this.subscribed.has(thread.id)) {
+        this.modeChanges.set(thread.id, (this.modeChanges.get(thread.id) ?? 0) + 1)
         this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
+        this.store.dispatch({ type: 'currentPlan', key: this.key(thread.id), content: thread.plan?.content ?? null })
       }
+    })
+    on('plan/updated', ({ threadId, content }) => {
+      if (threadId) this.store.dispatch({ type: 'currentPlan', key: this.key(threadId), content: content ?? null })
     })
     on('thread/readState/changed', ({ threadId, readState }) => this.applyReadState(threadId, readState))
     on('thread/renamed', ({ threadId, displayName }) => {
@@ -288,7 +296,13 @@ export class ProjectConnection {
     const turn = (failed: boolean | null) => (params: TurnNotification) => {
       this.route(params.turn.threadId, { kind: 'turn', turn: params.turn })
       this.signal(params.turn.threadId, (signals) => turnSignals(signals, params.turn))
-      this.patch(params.turn.threadId, { updatedAt: now(), ...(failed === null ? {} : { lastTurnFailed: failed }) })
+      const runtime = this.store.getState().chats[this.key(params.turn.threadId)]?.runtime
+      const matches = !runtime?.activeTurnId || runtime.activeTurnId === params.turn.id
+      const terminal = failed !== null && runtime?.activeTurnId === params.turn.id
+      this.patch(params.turn.threadId, {
+        updatedAt: now(), ...(failed === null || !matches ? {} : { lastTurnFailed: failed }),
+        ...(terminal ? { runtime: { ...runtime, running: false, busy: false, activeTurnId: null, waitingOnApproval: false, waitingOnInput: false } } : {}),
+      })
     }
     on('turn/started', turn(null))
     on('turn/completed', turn(false))
@@ -356,8 +370,8 @@ export class ProjectConnection {
     })
   }
 
-  private threadSeen(thread: SessionThread): void {
-    if (isHidden(thread)) return
+  private threadSeen(thread: SessionThread, visible = false): void {
+    if (isHidden(thread) && !visible) return
     const key = this.key(thread.id)
     const previous = this.store.getState().chats[key]
     this.store.dispatch({
@@ -367,6 +381,7 @@ export class ProjectConnection {
         projectId: this.projectId,
         threadId: thread.id,
         title: thread.displayName ?? previous?.title ?? null,
+        archived: thread.status === 'archived',
         updatedAt: thread.lastActiveAt,
         runtime: thread.runtime,
         lastTurnFailed: previous?.lastTurnFailed ?? false,
@@ -380,7 +395,7 @@ export class ProjectConnection {
   private route(threadId: string, event: HistoryEvent): void {
     if (this.closing || !this.client) return
     const buffer = this.capturing.get(threadId)
-    if (buffer) buffer.push(event)
+    if (buffer) buffer.push(() => this.route(threadId, event))
     else if (this.subscribed.has(threadId)) {
       if (event.kind === 'delta') this.stream.push(threadId, event)
       else this.store.dispatch({ type: 'history', key: this.key(threadId), event })
@@ -391,9 +406,8 @@ export class ProjectConnection {
     const events = this.capturing.get(threadId)
     if (!events) return false
     this.capturing.delete(threadId)
-    const key = this.key(threadId)
-    const detail = this.store.getState().details[key]
-    if (detail) this.store.dispatch({ type: 'detailLoaded', key, ...detail, history: applyEvents(detail.history, events) })
+    for (const apply of events) apply()
+    this.stream.flush(threadId)
     return true
   }
 
@@ -403,7 +417,10 @@ export class ProjectConnection {
     this.ensureSummary(threadId)
     return new Promise<R>((resolve, reject) => {
       this.held.set(request.requestId, { resolve: resolve as (result: object) => void, reject })
-      this.store.dispatch({ type: 'pendingAdded', key: this.key(threadId), request })
+      const apply = () => this.store.dispatch({ type: 'pendingAdded', key: this.key(threadId), request })
+      const staged = this.capturing.get(threadId)
+      if (staged) staged.push(apply)
+      else apply()
     })
   }
 
@@ -451,9 +468,10 @@ export class ProjectConnection {
     return this.subscribed.has(threadId)
   }
 
-  syncChat(threadId: string): Promise<void> {
+  syncChat(threadId: string, refresh = false): Promise<void> {
     const current = this.syncing.get(threadId)
-    if (current && this.capturing.has(threadId)) return current
+    if (current) return current
+    if (!refresh && this.subscribed.has(threadId)) return Promise.resolve()
     const loading = this.readChat(threadId).finally(() => {
       if (this.syncing.get(threadId) === loading) this.syncing.delete(threadId)
     })
@@ -465,78 +483,51 @@ export class ProjectConnection {
     const client = this.requireClient()
     const key = this.key(threadId)
     this.stream.flush(threadId)
-    const buffer: HistoryEvent[] = []
+    const buffer: (() => void)[] = []
     this.capturing.set(threadId, buffer)
+    const current = () => this.client === client && this.capturing.get(threadId) === buffer
     this.store.dispatch({ type: 'detailLoading', key })
     try {
-      if (!this.subscribed.has(threadId)) {
-        await client.request('thread/subscribe', { threadId })
-        if (this.client !== client || this.capturing.get(threadId) !== buffer) return
-        this.subscribed.add(threadId)
+      const summary = this.store.getState().chats[key]
+      const restored = await restoreChat(client, threadId, Boolean(summary && !summary.archived), current,
+        (history) => this.store.dispatch({ type: 'detailPreview', key, history }),
+        (id) => this.profileName(client, id), (read) => this.previews.run(read), () => { if (current()) buffer.length = 0 })
+      if (!current()) {
+        if (this.client === client && !this.capturing.has(threadId) && !this.subscribed.has(threadId)) {
+          void client.request('thread/unsubscribe', { threadId }).catch(() => undefined)
+        }
+        return
       }
-      const [read, page] = await Promise.all([client.request('thread/read', { threadId }), readTurnPage(client, threadId, null)])
-      const thread = read.thread
-      const profileId = thread.configuration?.agentProfileId
-      const profileName = profileId ? await this.profileName(client, profileId) : null
-      if (this.client !== client || this.capturing.get(threadId) !== buffer) return
-      const history = restoreEchoes(
-        applyEvents(historyFromTurns(page.turns, page.nextCursor), buffer),
-        this.store.getState().details[key]?.history.echoes ?? [],
-      )
-      this.threadSeen(thread)
-      this.patch(threadId, { lastTurnFailed: !thread.runtime.running && page.turns.at(-1)?.turn.status === 'failed' })
-      this.store.dispatch({
-        type: 'detailLoaded',
-        key,
-        history,
-        profileName,
-        config: thread.configuration ?? null,
-        workspacePath: thread.workspacePath || null,
-        effectiveWorkspacePath: thread.effectiveWorkspacePath || null,
-        context: contextUsageOf(thread.contextUsage),
-      })
-      this.dropAnswered(key, history.items)
-      void this.tasks?.load(threadId).catch(() => undefined)
+      const { thread, currentState } = restored
+      if (currentState) this.subscribed.add(threadId)
+      const detail = withEchoes(restored.detail, this.store.getState().details[key])
+      this.threadSeen(thread, true)
+      this.patch(threadId, { lastTurnFailed: !thread.runtime.running && detail.history.turns.at(-1)?.status === 'failed' })
+      this.store.dispatch({ type: 'detailLoaded', key, ...detail })
+      const pending = new Set(currentState?.pendingRequests.map((request) => request.requestId))
+      for (const request of this.store.getState().pending[key] ?? []) {
+        if (!pending.has(request.requestId)) this.store.dispatch({ type: 'pendingRemoved', key, requestId: request.requestId })
+      }
+      this.flushCaptured(threadId)
+      this.store.dispatch({ type: 'detailReady', key })
+      if (currentState) void this.tasks?.load(threadId).catch(() => undefined)
     } catch (error) {
-      const existing = this.store.getState().details[key]
-      if (existing && this.client === client && this.capturing.get(threadId) === buffer) this.flushCaptured(threadId)
+      if (current()) {
+        this.capturing.delete(threadId)
+        if (!this.subscribed.has(threadId)) void client.request('thread/unsubscribe', { threadId }).catch(() => undefined)
+      }
       throw error
     } finally {
-      if (this.capturing.get(threadId) === buffer) this.capturing.delete(threadId)
+      if (current()) this.capturing.delete(threadId)
     }
   }
 
-  /** Reads all Items of a summarized Turn of an open chat and puts them at the Turn's place. */
-  async loadTurnItems(threadId: string, turnId: string): Promise<void> {
-    const items = await readTurnItems(this.requireClient(), threadId, turnId)
-    this.store.dispatch({ type: 'turnItemsLoaded', key: this.key(threadId), turnId, items })
+  loadTurnItems(threadId: string, turnId: string): Promise<void> {
+    return this.history.loadTurnItems(threadId, turnId)
   }
 
-  /** Loads the next page of older whole Turns of an open chat; one load per chat at a time. */
-  async loadOlder(threadId: string): Promise<void> {
-    const key = this.key(threadId)
-    const cursor = this.store.getState().details[key]?.history.olderCursor
-    if (!cursor || this.loadingOlder.has(threadId)) return
-    this.loadingOlder.add(threadId)
-    this.store.dispatch({ type: 'olderLoading', key, value: true })
-    try {
-      const page = await readTurnPage(this.requireClient(), threadId, cursor)
-      this.store.dispatch({ type: 'olderLoaded', key, cursor, turns: page.turns, olderCursor: page.nextCursor })
-    } finally {
-      this.loadingOlder.delete(threadId)
-      this.store.dispatch({ type: 'olderLoading', key, value: false })
-    }
-  }
-
-  private dropAnswered(key: string, items: HistoryItem[]): void {
-    const answered = new Set(
-      items.filter((item) => item.type === 'approvalResponse' || item.type === 'userInputResponse').map((item) => item.payload.requestId),
-    )
-    for (const { requestId } of this.store.getState().pending[key] ?? []) {
-      if (!answered.has(requestId)) continue
-      this.held.delete(requestId)
-      this.store.dispatch({ type: 'pendingRemoved', key, requestId })
-    }
+  loadOlder(threadId: string): Promise<void> {
+    return this.history.loadOlder(threadId)
   }
 
   async markRead(threadId: string, current: ThreadReadState): Promise<void> {
@@ -562,7 +553,8 @@ export class ProjectConnection {
 
   async unsubscribe(threadId: string): Promise<void> {
     this.stream.flush(threadId)
-    const capturing = this.flushCaptured(threadId)
+    const capturing = this.capturing.delete(threadId)
+    this.syncing.delete(threadId)
     if (!this.subscribed.delete(threadId) && !capturing) return
     await this.client?.request('thread/unsubscribe', { threadId }).catch(() => undefined)
   }
@@ -583,13 +575,14 @@ export class ProjectConnection {
       effectiveWorkspacePath: thread.effectiveWorkspacePath || null,
       context: contextUsageOf(thread.contextUsage),
     })
-    await client.request('thread/subscribe', { threadId: thread.id })
     this.subscribed.add(thread.id)
     return key
   }
 
   async send(threadId: string, draft: MessageDraft): Promise<void> {
+    await this.syncChat(threadId)
     const client = this.requireClient()
+    if (!this.subscribed.has(threadId)) throw new Error('The chat is read-only.')
     const { files, photos } =
       draft.files.length + draft.photos.length > 0 ? await this.upload(client, threadId, draft) : { files: [], photos: [] }
     const input = inputParts(draft, files, photos)
@@ -642,6 +635,7 @@ export class ProjectConnection {
     shown: InputPart[],
     runtime: ThreadRuntimeState | null,
   ): Promise<void> {
+    if (this.client !== client || !this.subscribed.has(threadId) || this.store.getState().details[this.key(threadId)]?.loading) throw new NotConnectedError()
     const key = this.key(threadId)
     const method = followUpMethod(runtime)
     const clientUserMessageId = newId()
@@ -736,12 +730,17 @@ export class ProjectConnection {
   }
 
   async setMode(threadId: string, mode: 'plan' | 'agent'): Promise<void> {
-    await this.requireClient().request('thread/mode/set', { threadId, mode })
+    const client = this.requireClient()
+    const observed = this.modeChanges.get(threadId)
+    await client.request('thread/mode/set', { threadId, mode })
+    if (this.client !== client || this.modeChanges.get(threadId) !== observed) return
     const key = this.key(threadId)
     this.store.dispatch({ type: 'chatConfig', key, config: { ...this.store.getState().details[key]?.config, mode } })
   }
 
   async retry(threadId: string): Promise<void> {
+    await this.syncChat(threadId)
+    if (!this.subscribed.has(threadId)) throw new Error('The chat is read-only.')
     await this.requireClient().request('turn/start', { threadId, input: [] })
   }
 
@@ -769,6 +768,8 @@ export class ProjectConnection {
     const { thread } = await this.requireClient().request('thread/fork', { threadId })
     if (!thread) throw new Error('The fork response did not include a thread.')
     this.threadSeen(thread)
+    this.subscribed.add(thread.id)
+    await this.readChat(thread.id)
     return this.key(thread.id)
   }
 

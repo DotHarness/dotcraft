@@ -20,9 +20,14 @@ public sealed class VisualizationRuntimeRegistry(
     public bool BindThread(
         SessionThread thread,
         IAppServerTransport transport,
-        AppServerConnection connection)
+        AppServerConnection connection,
+        bool replaceExisting = true)
     {
-        if (!connection.SupportsVisualizations)
+        if (!connection.SupportsVisualizations || connection.IsClosed)
+            return false;
+
+        if (_bindings.TryGetValue(thread.Id, out var existing) && !existing.Connection.IsClosed
+            && (!replaceExisting || ReferenceEquals(existing.Connection, connection)))
             return false;
 
         string directory;
@@ -34,8 +39,11 @@ public sealed class VisualizationRuntimeRegistry(
         {
             return false;
         }
-        _bindings[thread.Id] = new Binding(transport, connection, directory);
-        return true;
+        var candidate = new Binding(transport, connection, directory);
+        var binding = _bindings.AddOrUpdate(thread.Id, candidate, (_, current) =>
+            ReferenceEquals(current.Connection, connection) || (!replaceExisting && !current.Connection.IsClosed)
+                ? current : candidate);
+        return ReferenceEquals(binding, candidate);
     }
 
     /// <summary>Removes bindings owned by a disconnected transport.</summary>
@@ -45,7 +53,7 @@ public sealed class VisualizationRuntimeRegistry(
         foreach (var pair in _bindings.ToArray())
         {
             if (ReferenceEquals(pair.Value.Transport, transport)
-                && _bindings.TryRemove(pair.Key, out _))
+                && _bindings.TryRemove(pair))
             {
                 removed.Add(pair.Key);
             }

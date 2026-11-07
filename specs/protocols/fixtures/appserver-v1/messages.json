@@ -24,7 +24,7 @@
           "id": 1,
           "result": {
             "serverInfo": { "name": "dotcraft", "version": "fixture", "protocolVersion": "1" },
-            "capabilities": { "threadManagement": true, "threadSubscriptions": true }
+            "capabilities": { "threadManagement": true }
           }
         },
         { "jsonrpc": "2.0", "method": "initialized", "params": {} }
@@ -131,7 +131,8 @@
               "runtime": {},
               "queuedInputs": []
             },
-            "instructionSources": ["/workspace/sample/AGENTS.md"]
+            "instructionSources": ["/workspace/sample/AGENTS.md"],
+            "currentState": { "itemCount": 0, "pendingRequests": [] }
           }
         }
       ]

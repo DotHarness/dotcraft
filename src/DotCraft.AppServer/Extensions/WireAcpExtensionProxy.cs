@@ -46,11 +46,16 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     /// <summary>
     /// Binds a thread to the transport that created it so <c>ext/acp/*</c> calls route correctly.
     /// </summary>
-    public void BindThread(string threadId, IAppServerTransport transport, AppServerConnection connection)
+    public bool BindThread(string threadId, IAppServerTransport transport, AppServerConnection connection,
+        bool replaceExisting = true)
     {
-        if (!connection.HasAcpExtensions)
-            return;
-        _byThread[threadId] = new AcpThreadBinding(threadId, transport, connection);
+        if (!connection.HasAcpExtensions || connection.IsClosed)
+            return false;
+        var candidate = new AcpThreadBinding(threadId, transport, connection);
+        var binding = _byThread.AddOrUpdate(threadId, candidate, (_, current) =>
+            ReferenceEquals(current.Connection, connection) || (!replaceExisting && !current.Connection.IsClosed)
+                ? current : candidate);
+        return ReferenceEquals(binding, candidate);
     }
 
     /// <summary>
@@ -61,7 +66,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         foreach (var kv in _byThread.ToArray())
         {
             if (ReferenceEquals(kv.Value.Transport, transport))
-                _byThread.TryRemove(kv.Key, out _);
+                _byThread.TryRemove(kv);
         }
     }
 

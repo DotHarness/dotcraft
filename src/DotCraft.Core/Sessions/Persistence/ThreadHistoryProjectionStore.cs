@@ -383,18 +383,29 @@ internal sealed partial class ThreadHistoryProjectionStore(
         ThreadHistorySortDirection direction)
     {
         using var connection = stateDatabase.OpenConnection();
+        return QueryTurns(connection, null, threadId, cursor, limit, direction);
+    }
+
+    private static ThreadHistoryPage<SessionTurn> QueryTurns(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction)
+    {
         using var command = connection.CreateCommand();
-        var comparison = CursorComparison(cursor, direction);
+        command.Transaction = transaction;
+        var cursorFilter = cursor.HasValue ? $"AND rollout_ordinal {CursorComparison(cursor, direction)} $cursor" : "";
         var order = direction == ThreadHistorySortDirection.Ascending ? "ASC" : "DESC";
         command.CommandText = $"""
             SELECT rollout_ordinal, turn_json FROM thread_turns
             WHERE thread_id = $thread_id
-              AND ($has_cursor = 0 OR rollout_ordinal {comparison} $cursor)
+              {cursorFilter}
             ORDER BY rollout_ordinal {order}
             LIMIT $limit
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$has_cursor", cursor.HasValue ? 1 : 0);
         command.Parameters.AddWithValue("$cursor", cursor?.RolloutOrdinal ?? 0);
         command.Parameters.AddWithValue("$limit", limit + 1);
         using var reader = command.ExecuteReader();

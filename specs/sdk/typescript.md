@@ -152,11 +152,11 @@ Applications that persist cross-user sessions should specify `userId` explicitly
 
 ## 8. Thread API
 
-`DotCraftThread` represents one server-backed thread with `id` and `identity`, and provides `snapshot`, `refresh`, `listTurns`, `listItems`, `subscribe`, `unsubscribe`, `run`, `runStreamed`, `enqueue`, `interrupt`, `setMode`, `archive`, `delete`, and `onToolCall(namespace, name, handler)`.
+`DotCraftThread` represents one server-backed thread with `id` and `identity`, and provides `snapshot`, `refresh`, `listTurns`, `listItems`, `unsubscribe`, `run`, `runStreamed`, `enqueue`, `interrupt`, `setMode`, `archive`, `delete`, and `onToolCall(namespace, name, handler)`.
 
 The thread caches the latest known snapshot and updates it when a mutation or lifecycle notification provides a new thread payload. `refresh()` forces a header read; persisted Turns and Items are read separately through bounded history pages.
 
-`subscribe()` maps to `thread/subscribe`. `runStreamed()` may use a scoped subscription or temporary event stream, but must not deliver duplicate events when the connection already holds an active subscription for the thread, per the AppServer at-most-once rule.
+Start/fork attach automatically. Resume prepares a cold runtime or reuses a warm one without taking over omitted bindings, and returns required current state plus an optional bounded initial Turn page. Omitting `initialTurnsPage` is metadata-only and never materializes Turn Items. Header/history reads do not attach or prepare execution; archived viewing uses those queries. `unsubscribe()` releases the connection observation, not execution or pending prompts. Shared local owners retain one connection/thread observation until final release. `runStreamed()` registers capture before ensuring attachment through resume and never creates a second delivery path.
 
 ## 9. Run API
 
@@ -168,11 +168,11 @@ The thread caches the latest known snapshot and updates it when a mutation or li
 
 ### 9.2 `run()`
 
-`run()` prepares input, subscribes or prepares event capture before `turn/start`, starts the turn, consumes events until `turn/completed`, `turn/failed`, or `turn/cancelled`, and returns the result. `turn/failed` raises `TurnFailedError` by default.
+`run()` prepares input and local event capture, ensures an attached feed on the current connection through creation/fork or metadata-only resume, then calls `turn/start`. It filters by typed thread identity and the exact Turn id returned by that call before reducing output or accepting a terminal event, and returns that Turn's result. `turn/failed` raises `TurnFailedError` by default.
 
 ### 9.3 `runStreamed()`
 
-`runStreamed()` prepares event capture before `turn/start`, starts the turn, yields normalized events as they arrive, and yields one terminal event with the final result or failure. If the caller stops iterating before the run is terminal, the SDK unregisters its handlers but does not interrupt the server turn unless the caller aborts or calls `interrupt()`.
+`runStreamed()` uses the same capture, ensure-resume and returned-Turn filtering contract, yields matching normalized events, and yields one terminal result or failure. Another thread or Turn cannot contaminate or complete it, and a shared feed does not close when any arbitrary Turn ends. If the caller stops iterating before the run is terminal, the SDK unregisters its handlers and releases its observation ownership without interrupting execution or detaching another actual consumer. Only abort or explicit `interrupt()` requests interruption.
 
 ### 9.4 Abort Semantics
 

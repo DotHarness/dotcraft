@@ -4,6 +4,19 @@
   "title": "ThreadResumeResult",
   "type": "object",
   "properties": {
+    "currentState": {
+      "$ref": "./ThreadResumeCurrentState.schema.json"
+    },
+    "initialTurnsPage": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadTurnsListResult.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "instructionSources": {
       "type": "array",
       "items": {
@@ -16,6 +29,7 @@
   },
   "additionalProperties": true,
   "required": [
+    "currentState",
     "instructionSources",
     "thread"
   ]

@@ -28,17 +28,24 @@ public sealed class AppServerNodeReplTests
     }
 
     [Fact]
-    public async Task ThreadResume_WithNodeReplAndBrowserUseCapabilities_BindsExistingThreadAndRefreshesAgent()
+    public async Task ThreadResume_WithNodeReplCapabilities_PreservesExistingBindingsWithoutRefreshingAgent()
     {
         var proxy = new WireNodeReplProxy();
         using var harness = new AppServerTestHarness(wireNodeReplProxy: proxy);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         await harness.InitializeAsync(nodeReplBrowserUse: true);
+        proxy.BindThread(thread.Id, harness.Transport, harness.Connection);
 
         var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await harness.ExecuteRequestAsync(msg);
 
-        Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
+        Assert.DoesNotContain(thread.Id, harness.Service.RefreshedThreadAgents);
+        AssertThreadNodeReplAvailable(proxy, thread.Id);
+
+        proxy.UnbindTransport(harness.Transport);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        Assert.Equal([thread.Id], harness.Service.RefreshedThreadAgents);
         AssertThreadNodeReplAvailable(proxy, thread.Id);
     }
 

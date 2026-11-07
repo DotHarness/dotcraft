@@ -44,8 +44,7 @@ public sealed class AppServerRequestHandler(
                                                                   ?? new ModelProviderRegistry([]));
 
     /// <summary>
-    /// Fallback decision used by <see cref="AppServerEventDispatcher"/> when non-interactive
-    /// approval resolution cannot be derived from thread policy.
+    /// The initiating connection's approval decision when thread policy does not specify one.
     /// </summary>
     private readonly SessionApprovalDecision _defaultApprovalDecision = services.DefaultApprovalDecision;
 
@@ -71,6 +70,13 @@ public sealed class AppServerRequestHandler(
     private AppServerResponseWriter? _responseWriter;
     private AppServerThreadWireProjector? _threadProjector;
     private AgentProfileThreadConfigResolver? _profileResolver;
+    private ThreadRequestHandler? _threadHandler;
+
+    private ThreadRequestHandler ThreadHandler => _threadHandler ??=
+        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder,
+            ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath,
+            ProfileResolver, services.StreamDebugLogger, services.ThreadSubscribers,
+            services.LoggerFactory?.CreateLogger<ThreadRequestHandler>());
 
     private WorkspaceConfigEditor WorkspaceConfig => _workspaceConfig ??=
         new WorkspaceConfigEditor(services.AppConfigMonitor, services.WorkspaceCraftPath);
@@ -198,11 +204,12 @@ public sealed class AppServerRequestHandler(
             () => services.AppConfigMonitor?.Current ?? WorkspaceConfig.LoadCurrentMergedConfig(),
             services.ModelProviderRegistry,
             services.AppBindingService,
-            (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
+            ResponseWriter,
+            ThreadHandler.AttachCreatedThreadAsync),
         new ThreadRecoveryRequestHandler(sessionService),
-        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, services.StreamDebugLogger, services.ThreadSubscribers, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
-        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
-        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync),
+        ThreadHandler,
+        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, services.TraceStore, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
+        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync, ThreadHandler.AttachCreatedThreadAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
         new SubAgentBoardRequestHandler(sessionService),
         new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService),

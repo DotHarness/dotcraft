@@ -34,7 +34,6 @@ internal sealed class InitializeRequestHandler(
         var capabilities = new ServerCapabilitySnapshot
         {
             ThreadManagement = true,
-            ThreadSubscriptions = true,
             ThreadGoals = threadProjector.GoalsCapabilityEnabled(),
             ThreadFork = true,
             SideChat = true,

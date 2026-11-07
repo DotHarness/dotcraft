@@ -1,56 +1,91 @@
-import type { ThreadItemsListResult } from '@dotcraft/sdk/contracts'
+import type { ThreadItemsListResult, ThreadTurnsListResult } from '@dotcraft/sdk/contracts'
 import type { DotCraftWireClient } from '@dotcraft/sdk/wire'
 import type { TurnPageEntry } from './history'
+import { ReadQueue } from './readQueue'
+import { chatKey, type ComputerAction, type ComputerState } from './state'
+import type { Store } from './store'
 
-const TURN_PAGE = 5
-const TURN_ITEM_PAGE = 100
-/** Tools whose results stay outside a folded Turn, so its summary keeps their calls. */
-const SUMMARY_TOOLS = [
-  { name: 'CreatePlan' },
-  { name: 'Workflow' },
-  { name: 'Automation' },
-  { name: 'CreateThread', namespace: 'desktop' },
-  { name: 'SendMessageToThread', namespace: 'desktop' },
-]
-
-export async function readTurnPage(
-  client: DotCraftWireClient,
-  threadId: string,
-  cursor: string | null,
-): Promise<{ turns: TurnPageEntry[]; nextCursor: string | null }> {
-  const page = await client.request('thread/turns/list', {
-    threadId,
-    limit: TURN_PAGE,
-    sortDirection: 'descending',
-    itemsView: 'summary',
-    summaryTools: SUMMARY_TOOLS,
-    ...(cursor ? { cursor } : {}),
-  })
-  const turns = await Promise.all(
-    [...page.data].reverse().map(async (turn) =>
-      turn.itemsView === 'summary' && turn.status === 'completed'
-        ? { turn, items: turn.items ?? [] }
-        : { turn: { ...turn, itemsView: null, itemCount: null }, items: await readTurnItems(client, threadId, turn.id) },
-    ),
-  )
-  return { turns, nextCursor: page.nextCursor ?? null }
+export const OPENING_TURNS_PAGE = {
+  limit: 5,
+  itemsView: 'summary',
+  summaryTools: [
+    { name: 'CreatePlan' },
+    { name: 'Workflow' },
+    { name: 'Automation' },
+    { name: 'CreateThread', namespace: 'desktop' },
+    { name: 'SendMessageToThread', namespace: 'desktop' },
+  ],
 }
 
-export async function readTurnItems(client: DotCraftWireClient, threadId: string, turnId: string): Promise<TurnPageEntry['items']> {
-  const items: TurnPageEntry['items'] = []
-  let cursor: string | null = null
-  do {
-    const page: ThreadItemsListResult = await client.request('thread/items/list', {
-      threadId,
-      turnId,
-      limit: TURN_ITEM_PAGE,
-      sortDirection: 'ascending',
-      ...(cursor ? { cursor } : {}),
-    })
-    items.push(...page.data.map((entry) => entry.item))
-    const next: string | null = page.nextCursor ?? null
-    if (next !== null && next === cursor) throw new Error(`thread/items/list returned an unchanged cursor for turn ${turnId}`)
-    cursor = next
-  } while (cursor !== null)
-  return items
+export function turnPage(page: ThreadTurnsListResult): { turns: TurnPageEntry[]; nextCursor: string | null } {
+  return { turns: [...page.data].reverse().map((turn) => ({ turn, items: turn.items ?? [] })), nextCursor: page.nextCursor ?? null }
+}
+
+export async function readTurnPage(client: DotCraftWireClient, threadId: string, cursor: string | null) {
+  return turnPage(await client.request('thread/turns/list', {
+    threadId, ...OPENING_TURNS_PAGE, sortDirection: 'descending', ...(cursor ? { cursor } : {}),
+  }))
+}
+
+function itemPage(page: ThreadItemsListResult) {
+  return { items: page.data.map((entry) => entry.item), nextCursor: page.nextCursor ?? null }
+}
+
+export async function readTurnItems(
+  client: DotCraftWireClient, threadId: string, turnId: string, cursor?: string | null,
+  onResponse?: (page: ReturnType<typeof itemPage>) => void,
+) {
+  const page = await client.request('thread/items/list', {
+    threadId, turnId, limit: 100, sortDirection: 'ascending', ...(cursor ? { cursor } : {}),
+  }, undefined, { onResponse: (result) => onResponse?.(itemPage(result)) })
+  return itemPage(page)
+}
+
+export class ProjectHistoryLoader {
+  private readonly workers = new ReadQueue(4)
+  private readonly items = new Map<string, Promise<void>>()
+  private readonly older = new Set<string>()
+
+  constructor(
+    private readonly projectId: string,
+    private readonly store: Store<ComputerState, ComputerAction>,
+    private readonly client: () => DotCraftWireClient,
+    private readonly beforeApply: (threadId: string) => void,
+  ) {}
+
+  loadTurnItems(threadId: string, turnId: string): Promise<void> {
+    const slot = JSON.stringify([threadId, turnId])
+    const pending = this.items.get(slot)
+    if (pending) return pending
+    const client = this.client()
+    const loading = this.workers.run(async () => {
+      if (this.client() !== client) return
+      const key = chatKey(this.projectId, threadId)
+      const turn = this.store.getState().details[key]?.history.turns.find((entry) => entry.id === turnId)
+      if (!turn?.summary) return
+      await readTurnItems(client, threadId, turnId, turn.itemsCursor, (page) => {
+        if (this.client() !== client) return
+        this.beforeApply(threadId)
+        this.store.dispatch({ type: 'turnItemsLoaded', key, turnId, ...page })
+      })
+    }).finally(() => this.items.delete(slot))
+    this.items.set(slot, loading)
+    return loading
+  }
+
+  async loadOlder(threadId: string): Promise<void> {
+    const client = this.client()
+    const key = chatKey(this.projectId, threadId)
+    const cursor = this.store.getState().details[key]?.history.olderCursor
+    if (!cursor || this.older.has(threadId)) return
+    this.older.add(threadId)
+    this.store.dispatch({ type: 'olderLoading', key, value: true })
+    try {
+      const page = await readTurnPage(client, threadId, cursor)
+      if (this.client() === client) this.store.dispatch({ type: 'olderLoaded', key, cursor, turns: page.turns, olderCursor: page.nextCursor })
+    } finally {
+      this.older.delete(threadId)
+      this.store.dispatch({ type: 'olderLoading', key, value: false })
+    }
+  }
 }

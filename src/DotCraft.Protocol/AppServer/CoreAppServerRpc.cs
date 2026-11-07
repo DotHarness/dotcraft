@@ -269,7 +269,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<ThreadStatusChangedNotification> ThreadStatusChanged = new("thread/status/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", notificationOptOut: true);
 
-    public static readonly RpcRequest<ThreadSubscribeParams, global::DotCraft.Protocol.RpcEmpty> ThreadSubscribe = new("thread/subscribe", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
     public static readonly RpcNotification<ThreadTokenUsageUpdatedNotification> ThreadTokenUsageUpdated = new("thread/tokenUsage/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", notificationOptOut: true);
 

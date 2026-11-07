@@ -61,10 +61,11 @@ describe('question answers', () => {
 describe('waiting decisions', () => {
   const approval: PendingRequest = { kind: 'approval', requestId: 'a', approvalType: 'shell', operation: 'ls', target: '', targetLabel: null, reason: '' }
 
-  it('queues requests in arrival order and adds a pending plan confirmation last', () => {
+  it('keeps approvals before questions and a pending plan confirmation last', () => {
     expect(waitingDecisions([approval], null).map((decision) => decision.requestId)).toEqual(['a'])
     expect(waitingDecisions([approval], 'turn_002').map((decision) => decision.kind)).toEqual(['approval', 'plan'])
     expect(waitingDecisions([], 'turn_002')).toEqual([{ kind: 'plan', requestId: 'plan:turn_002' }])
+    expect(waitingDecisions([{ kind: 'question', requestId: 'q', isBlocking: true, questions: [] }, approval], null).map((request) => request.kind)).toEqual(['approval', 'question'])
   })
 
   it('counts two requests waiting in one chat and keeps the turn waiting until both are answered', async () => {

@@ -33,8 +33,6 @@ internal sealed partial class ThreadRequestHandler(
     private const int ThreadListDefaultPageLimit = 50;
     private const int ThreadListMaxPageLimit = 100;
     private const string ThreadListCursorKind = "thread-list";
-    private readonly object _pendingInteractiveReplayLock = new();
-    private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
 
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -55,7 +53,6 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadContextUsageRead, HandleThreadContextUsageReadAsync);
         table.Map(Contract.AppServerRpc.ThreadMaintenanceInterrupt, HandleThreadMaintenanceInterruptAsync);
         table.Map(Contract.AppServerRpc.ThreadRollback, HandleThreadRollbackAsync);
-        table.Map(Contract.AppServerRpc.ThreadSubscribe, HandleThreadSubscribeAsync);
         table.Map(Contract.AppServerRpc.ThreadUnsubscribe, HandleThreadUnsubscribeAsync);
         table.Map(Contract.AppServerRpc.ThreadArchive, HandleThreadArchiveAsync);
         table.Map(Contract.AppServerRpc.ThreadUnarchive, HandleThreadUnarchiveAsync);
@@ -124,17 +121,19 @@ internal sealed partial class ThreadRequestHandler(
         threadBinder.BindChat(thread.Id, chat);
 
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
-        var startedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
-        await responseWriter.SendNotificationAfterResponseAsync(
-            msg.Id,
-            new Contract.ThreadStartResult
-            {
-                Thread = AppServerContractMapper.ToContract(startedWire),
-                InstructionSources = instructionSources
-            },
-            Contract.AppServerRpc.ThreadStarted,
-            new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
-            ct);
+        await AttachCreatedThreadAsync(thread, async startedWire =>
+        {
+            await responseWriter.SendNotificationAfterResponseAsync(
+                msg.Id,
+                new Contract.ThreadStartResult
+                {
+                    Thread = AppServerContractMapper.ToContract(startedWire),
+                    InstructionSources = instructionSources
+                },
+                Contract.AppServerRpc.ThreadStarted,
+                new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
+                ct);
+        }, ct);
 
         return AppServerTypedResult<Contract.ThreadStartResult>.Written;
     }
@@ -188,80 +187,25 @@ internal sealed partial class ThreadRequestHandler(
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
-        var responseWire = await threadProjector.ProjectAsync(thread, false, false, ct);
-        var notificationWire = responseWire;
-
-        await responseWriter.SendNotificationAfterResponseAsync(
-            msg.Id,
-            new Contract.ThreadForkResult
-            {
-                Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
-                    AppServerContractMapper.ToContract(responseWire)),
-                InstructionSources = instructionSources
-            },
-            Contract.AppServerRpc.ThreadStarted,
-            new Contract.ThreadNotification
-            {
-                Thread = AppServerContractMapper.ToContract(notificationWire)
-            },
-            ct);
+        await AttachCreatedThreadAsync(thread, async responseWire =>
+        {
+            await responseWriter.SendNotificationAfterResponseAsync(
+                msg.Id,
+                new Contract.ThreadForkResult
+                {
+                    Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
+                        AppServerContractMapper.ToContract(responseWire)),
+                    InstructionSources = instructionSources
+                },
+                Contract.AppServerRpc.ThreadStarted,
+                new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(responseWire) },
+                ct);
+        }, ct);
 
         return AppServerTypedResult<Contract.ThreadForkResult>.Written;
     }
 
-    private async Task<AppServerTypedResult<Contract.ThreadResumeResult>> HandleThreadResumeAsync(
-        AppServerTypedRequest<Contract.ThreadResumeParams> request,
-        CancellationToken ct)
-    {
-        var msg = request.Message;
-        var p = request.Params;
-        var dynamicTools = WorktreeContractMapper.ToDynamicTools(p.DynamicTools);
-        var additionalContext = WorktreeContractMapper.ToAdditionalContext(p.AdditionalContext);
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
-        var chat = threadBinder.ValidateChat(p.Chat);
 
-        var thread = await sessionService.ResumeThreadAsync(p.ThreadId, ct);
-        if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
-        {
-            thread = await sessionService.UpdateThreadWorkspaceAsync(
-                p.ThreadId,
-                p.Cwd,
-                p.RuntimeWorkspaceRoots,
-                ct);
-        }
-        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
-        threadBinder.BindChat(thread.Id, chat);
-
-        var resumedBy = connection.ClientInfo?.Name ?? "appserver";
-        var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
-        var resumedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
-        var responseResult = new Contract.ThreadResumeResult
-        {
-            Thread = AppServerContractMapper.ToContract(resumedWire),
-            InstructionSources = instructionSources
-        };
-        var notifParams = new Contract.ThreadNotification
-        {
-            Thread = AppServerContractMapper.ToContract(resumedWire),
-            ResumedBy = resumedBy
-        };
-
-        if (connection.HasSubscription(p.ThreadId))
-        {
-            await responseWriter.WriteResponseAsync(msg.Id, responseResult, ct);
-            SchedulePendingInteractiveRequestReplay(p.ThreadId);
-            return AppServerTypedResult<Contract.ThreadResumeResult>.Written;
-        }
-
-        await responseWriter.SendNotificationAfterResponseAsync(
-            msg.Id,
-            responseResult,
-            Contract.AppServerRpc.ThreadResumed,
-            notifParams,
-            ct);
-        SchedulePendingInteractiveRequestReplay(p.ThreadId);
-        return AppServerTypedResult<Contract.ThreadResumeResult>.Written;
-    }
 
     private async Task<AppServerTypedResult<Contract.ThreadListResult>> HandleThreadListAsync(
         AppServerTypedRequest<Contract.ThreadListParams> request,
@@ -504,50 +448,7 @@ internal sealed partial class ThreadRequestHandler(
         });
     }
 
-    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadSubscribeAsync(
-        AppServerTypedRequest<Contract.ThreadSubscribeParams> request,
-        CancellationToken ct)
-    {
-        var msg = request.Message;
-        var p = request.Params;
-        var threadId = Require(p.ThreadId, "'threadId' is required.");
 
-        var subCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        if (!connection.TryAddSubscription(threadId, subCts))
-        {
-            subCts.Dispose();
-            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
-            SchedulePendingInteractiveRequestReplay(threadId);
-            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
-        }
-
-        var events = sessionService.SubscribeThreadAsync(
-            threadId,
-            ValueOrDefault(p.ReplayRecent) ?? false,
-            subCts.Token);
-
-        var dispatcher = new AppServerEventDispatcher(
-            events,
-            connection,
-            transport,
-            sessionService,
-            streamDebugLogger: streamDebugLogger,
-            enrichThreadWire: threadProjector.EnrichForNotification);
-        _ = dispatcher.RunAsync(subCts.Token)
-            .ContinueWith(t =>
-            {
-                connection.TryCancelSubscription(threadId);
-                if (t.IsFaulted)
-                    logger?.LogError(
-                        t.Exception?.GetBaseException(),
-                        "AppServer subscription failed for thread {ThreadId}",
-                        threadId);
-            }, TaskContinuationOptions.ExecuteSynchronously);
-
-        await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
-        SchedulePendingInteractiveRequestReplay(threadId);
-        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
-    }
 
     private Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadUnsubscribeAsync(
         AppServerTypedRequest<Contract.ThreadUnsubscribeParams> request,
@@ -560,151 +461,7 @@ internal sealed partial class ThreadRequestHandler(
             AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new()));
     }
 
-    private void SchedulePendingInteractiveRequestReplay(string threadId)
-    {
-        Task replayTask;
-        lock (_pendingInteractiveReplayLock)
-        {
-            if (_pendingInteractiveReplayTasks.TryGetValue(threadId, out var existingReplay)
-                && !existingReplay.IsCompleted)
-                return;
 
-            replayTask = Task.Run(() => ReplayPendingInteractiveRequestsAsync(threadId));
-            _pendingInteractiveReplayTasks[threadId] = replayTask;
-        }
-
-        _ = replayTask.ContinueWith(
-            task =>
-            {
-                lock (_pendingInteractiveReplayLock)
-                {
-                    if (_pendingInteractiveReplayTasks.TryGetValue(threadId, out var currentReplay)
-                        && ReferenceEquals(currentReplay, task))
-                    {
-                        _pendingInteractiveReplayTasks.Remove(threadId);
-                    }
-                }
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-    }
-
-    private async Task ReplayPendingInteractiveRequestsAsync(string threadId)
-    {
-        try
-        {
-            if (sessionService.TryGetLoadedThread(threadId) is { } thread)
-                await ReplayPendingInteractiveRequestsAsync(thread);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Pending interactive request replay failed for thread {ThreadId}", threadId);
-        }
-    }
-
-    private async Task ReplayPendingInteractiveRequestsAsync(SessionThread thread)
-    {
-        var sender = CreateInteractiveRequestSender();
-        foreach (var turn in thread.Turns)
-        {
-            if (turn.Status == TurnStatus.WaitingApproval)
-            {
-                foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn).ToArray())
-                {
-                    if (!await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest))
-                        return;
-                }
-            }
-            else if (turn.Status == TurnStatus.WaitingInput
-                && TryFindPendingUserInputRequest(turn, out var userInputItem, out var userInputRequest))
-            {
-                await ReplayUserInputRequestAsync(sender, thread.Id, turn.Id, userInputItem.Id, userInputRequest);
-            }
-        }
-    }
-
-    private AppServerInteractiveRequestSender CreateInteractiveRequestSender() =>
-        new(connection, transport, sessionService);
-
-    private async Task<bool> ReplayApprovalRequestAsync(
-        AppServerInteractiveRequestSender sender,
-        string threadId,
-        string turnId,
-        string itemId,
-        ApprovalRequestPayload request)
-    {
-        try
-        {
-            return await sender.SendApprovalRequestAsync(threadId, turnId, itemId, request);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Pending approval replay failed for thread {ThreadId}", threadId);
-            return true;
-        }
-    }
-
-    private async Task ReplayUserInputRequestAsync(
-        AppServerInteractiveRequestSender sender,
-        string threadId,
-        string turnId,
-        string itemId,
-        UserInputRequestPayload request)
-    {
-        try
-        {
-            await sender.SendUserInputRequestAsync(threadId, turnId, itemId, request);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Pending user-input replay failed for thread {ThreadId}", threadId);
-        }
-    }
-
-    private static IEnumerable<(SessionItem Item, ApprovalRequestPayload Request)> FindPendingApprovalRequests(
-        SessionTurn turn)
-    {
-        foreach (var candidate in turn.Items)
-        {
-            if (candidate.Payload is not ApprovalRequestPayload approvalRequest)
-                continue;
-            if (HasApprovalResponse(turn, approvalRequest.RequestId))
-                continue;
-
-            yield return (candidate, approvalRequest);
-        }
-    }
-
-    private static bool TryFindPendingUserInputRequest(
-        SessionTurn turn,
-        out SessionItem item,
-        out UserInputRequestPayload request)
-    {
-        foreach (var candidate in turn.Items.AsEnumerable().Reverse())
-        {
-            if (candidate.Payload is not UserInputRequestPayload userInputRequest)
-                continue;
-            if (HasUserInputResponse(turn, userInputRequest.RequestId))
-                continue;
-
-            item = candidate;
-            request = userInputRequest;
-            return true;
-        }
-
-        item = null!;
-        request = null!;
-        return false;
-    }
-
-    private static bool HasApprovalResponse(SessionTurn turn, string requestId) =>
-        turn.Items.Any(item => item.Payload is ApprovalResponsePayload response
-            && string.Equals(response.RequestId, requestId, StringComparison.Ordinal));
-
-    private static bool HasUserInputResponse(SessionTurn turn, string requestId) =>
-        turn.Items.Any(item => item.Payload is UserInputResponsePayload response
-            && string.Equals(response.RequestId, requestId, StringComparison.Ordinal));
 
     private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadArchiveAsync(
         AppServerTypedRequest<Contract.ThreadArchiveParams> request,

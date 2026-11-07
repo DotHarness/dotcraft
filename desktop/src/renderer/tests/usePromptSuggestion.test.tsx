@@ -1,5 +1,4 @@
 import { Activity, type PropsWithChildren } from 'react'
-import type { KnownNotificationPayload } from '../../shared/appServerBoundary'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePromptSuggestion } from '../components/conversation/usePromptSuggestion'
@@ -13,6 +12,7 @@ import {
 } from '../stores/conversationStore'
 import { initPromptSuggestionStore, usePromptSuggestionStore } from '../stores/promptSuggestionStore'
 import { useThreadStore } from '../stores/threadStore'
+import { beginThreadRestoration, finishThreadRestoration } from '../stores/threadRestoration'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -25,7 +25,6 @@ const completedTurn: ConversationTurn = {
   items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-09-27T00:00:01Z' }]
 }
 let stopSuggestions: () => void
-let notify: (notification: KnownNotificationPayload) => void
 
 function selectThread(threadId: string): void {
   activateThreadConversation(threadId)
@@ -42,9 +41,10 @@ function useActiveSuggestion({ canSuggest = true, visible = true } = {}) {
 }
 
 beforeEach(() => {
+  finishThreadRestoration()
   generate.mockReset().mockResolvedValue('Add a regression test')
   installDesktopApiMock({ appServer: {
-    onNotification: (callback: typeof notify) => { notify = callback; return () => undefined },
+    onNotification: () => () => undefined,
     sendRequest: vi.fn(async () => ({}))
   } })
   usePromptSuggestionStore.getState().reset()
@@ -63,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   stopSuggestions()
+  finishThreadRestoration()
   activateThreadConversation(null)
   releaseThreadConversation('thread-1')
   releaseThreadConversation('thread-2')
@@ -175,7 +176,7 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(generate).toHaveBeenCalledTimes(2)
   })
 
-  it.each(['cached', 'pending'] as const)('preserves a %s prediction through a cold reopen with historical starts', async (state) => {
+  it.each(['cached', 'pending'] as const)('preserves a %s prediction across a preview and authoritative snapshot restore', async (state) => {
     let resolvePrediction!: (value: string | null) => void
     if (state === 'pending') generate.mockImplementationOnce(() => new Promise((resolve) => { resolvePrediction = resolve }))
     completeThread()
@@ -185,29 +186,18 @@ describe('conversation prompt suggestion lifecycle', () => {
     hook.unmount()
     selectThread('thread-2')
     releaseThreadConversation('thread-1')
+    const gate = beginThreadRestoration('thread-1')
     const conversation = createThreadConversation('thread-1')
     selectThread('thread-1')
     const restored = renderHook(() => useActiveSuggestion())
-
-    for (const turn of [
-      { id: 'older-turn', startedAt: '2026-09-26T23:59:00Z' },
-      { id: completedTurn.id, startedAt: completedTurn.startedAt }
-    ]) {
-      const started = { ...turn, threadId: 'thread-1', status: 'running', items: [] }
-      act(() => {
-        conversation.getState().setTurns([completedTurn])
-        notify({ method: 'turn/started', params: { turn: started } })
-        conversation.getState().onTurnStarted(started)
-      })
-      expect(signal.aborted).toBe(false)
-      expect(restored.result.current.suggestion).toBeNull()
-      act(() => conversation.getState().onTurnCompleted({
-        ...started, status: 'completed',
-        items: [{ id: 'replayed-reply', type: 'agentMessage', status: 'completed', payload: { text: 'Done.' } }]
-      }))
-      expect(signal.aborted).toBe(false)
-    }
-    act(() => conversation.getState().setTurns([completedTurn]))
+    act(() => conversation.getState().setTurns([{ ...completedTurn, id: 'preview-turn' }]))
+    expect(signal.aborted).toBe(false)
+    expect(restored.result.current.suggestion).toBeNull()
+    act(() => {
+      conversation.getState().setTurns([completedTurn])
+      finishThreadRestoration(gate)
+    })
+    expect(signal.aborted).toBe(false)
     if (state === 'pending') await act(async () => resolvePrediction('Add a regression test'))
     await waitFor(() => expect(restored.result.current.suggestion).toBe('Add a regression test'))
     expect(generate).toHaveBeenCalledOnce()

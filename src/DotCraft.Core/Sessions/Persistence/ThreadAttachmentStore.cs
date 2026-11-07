@@ -7,7 +7,7 @@ namespace DotCraft.Sessions;
 
 internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime, string botPath)
 {
-    public const int IndexVersion = 2;
+    public const int IndexVersion = 3;
 
     private readonly string _attachmentsDir = Path.Combine(botPath, "attachments");
     private readonly string _workspaceRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(botPath)))!;

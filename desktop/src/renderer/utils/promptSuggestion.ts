@@ -1,3 +1,6 @@
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
+import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
+
 const SUGGESTION_TIMEOUT_MS = 30_000
 
 const SUGGESTION_PROMPT = `Predict the user's next message in DotCraft from their original request and recent messages. Choose what they are already likely to type. Avoid steering them toward what you think they should do.
@@ -40,6 +43,14 @@ export async function generatePromptSuggestion(
   onDiagnostic?: (diagnostic: PromptSuggestionDiagnostic) => void
 ): Promise<string | null> {
   if (signal.aborted) return null
+  const connectionKey = await window.api.appServer.getConnectionKey()
+  if (!connectionKey || signal.aborted) return null
+  const attachmentOwner = `prediction:${crypto.randomUUID()}`
+  const request = <M extends keyof ClientRequestMethods>(
+    method: M, params: ClientRequestMethods[M]['params'], timeoutMs?: number,
+    onResponse?: AppServerResponseOptions<ClientRequestMethods[M]['result']>['onResponse']
+  ): Promise<ClientRequestMethods[M]['result']> =>
+    window.api.appServer.sendConnectionRequest(connectionKey, method, params, timeoutMs, { attachmentOwner, onResponse })
 
   let forkId: string | null = null
   let forkTurnId: string | null = null
@@ -83,22 +94,20 @@ export async function generatePromptSuggestion(
 
   try {
     record('requested')
-    const fork = await window.api.appServer.sendRequest('thread/fork', {
+    await request('thread/fork', {
       threadId,
       forkPoint: { turnId, position: 'after' },
       ephemeral: true,
       promptSuggestion: true,
       displayName: '[internal] Prompt suggestion'
-    }, SUGGESTION_TIMEOUT_MS)
-    forkId = fork.thread?.id ?? null
+    }, SUGGESTION_TIMEOUT_MS, result => { forkId = result.thread?.id ?? null })
     record('forked')
     if (forkId == null || signal.aborted || expired) return null
 
-    const started = await window.api.appServer.sendRequest('turn/start', {
+    await request('turn/start', {
       threadId: forkId,
       input: [{ type: 'text', text: SUGGESTION_PROMPT }]
-    }, SUGGESTION_TIMEOUT_MS)
-    forkTurnId = started.turn?.id ?? forkTurnId
+    }, SUGGESTION_TIMEOUT_MS, result => { forkTurnId = result.turn?.id ?? forkTurnId })
     record('started')
     if (signal.aborted || expired) return null
 
@@ -117,12 +126,12 @@ export async function generatePromptSuggestion(
     signal.removeEventListener('abort', onAbort)
     if (forkId != null) {
       if (!terminal && forkTurnId != null) {
-        await window.api.appServer.sendRequest('turn/interrupt', {
+        await request('turn/interrupt', {
           threadId: forkId,
           turnId: forkTurnId
         }).catch(() => {})
       }
-      await window.api.appServer.sendRequest('thread/delete', { threadId: forkId }).catch(() => {})
+      await request('thread/delete', { threadId: forkId }).catch(() => {})
     }
   }
 }

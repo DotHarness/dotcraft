@@ -17,7 +17,8 @@ internal sealed class CommandRequestHandler(
     Func<AppConfig?> currentConfig,
     ModelProviderRegistry? modelProviders,
     AppBindingService? appBindings,
-    Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
+    AppServerResponseWriter responseWriter,
+    Func<SessionThread, Func<SessionWireThread, Task>, CancellationToken, Task> attachThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -104,11 +105,16 @@ internal sealed class CommandRequestHandler(
 
         var responder = new BufferedCommandResponder();
         var result = await commandRegistry.TryExecuteAsync(rawText, context, responder);
-        SessionWireThread? switched = null;
         if (!string.IsNullOrWhiteSpace(result.ThreadId))
-            switched = await enrichThreadAsync(await sessionService.GetThreadAsync(result.ThreadId, ct), ct);
+        {
+            var switched = await sessionService.GetThreadAsync(result.ThreadId, ct);
+            await attachThreadAsync(switched,
+                wire => responseWriter.WriteResponseAsync(request.Message.Id, ProjectResult(wire), ct), ct);
+            return null;
+        }
+        return ProjectResult(null);
 
-        return new Contract.CommandExecuteResult
+        Contract.CommandExecuteResult ProjectResult(SessionWireThread? switched) => new()
         {
             Handled = result.Handled,
             Message = JoinMessages(responder.Message, result.Message),

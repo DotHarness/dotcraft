@@ -1,4 +1,4 @@
-import type { JsonRpcMessage } from "@dotcraft/sdk/wire";
+import { threadEventIdentity, type JsonRpcMessage } from "@dotcraft/sdk/wire";
 
 export interface ChannelTurn {
   threadId: string;
@@ -56,6 +56,8 @@ export async function consumeTurnStream(
 
   for await (const event of eventStream) {
     const params = (event.params as Record<string, unknown> | undefined) ?? {};
+    const identity = threadEventIdentity(event.method, params);
+    if (identity.threadId !== turn.threadId || identity.turnId !== turn.turnId) continue;
     switch (event.method) {
       case "item/started":
       case "item/completed": {
@@ -68,7 +70,7 @@ export async function consumeTurnStream(
         break;
       }
       case "system/event":
-        if (params.kind === "streamError" && (params.turnId == null || params.turnId === turn.turnId)) {
+        if (params.kind === "streamError") {
           await observe("onTurnRetrying", () => handlers.onTurnRetrying(turn));
         }
         break;

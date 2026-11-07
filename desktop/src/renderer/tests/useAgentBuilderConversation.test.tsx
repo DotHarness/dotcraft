@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { useAgentBuilderConversation } from '../components/agents/useAgentBuilderConversation'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
+const appServerSendConnectionRequest = vi.fn()
 const appServerOnNotification = vi.fn()
 type NotificationPayload = { method: string; params?: unknown }
 let notificationHandlers: Array<(payload: NotificationPayload) => void> = []
@@ -17,18 +18,21 @@ function emitNotification(payload: NotificationPayload): void {
 
 function Harness({
   onResult = vi.fn(),
-  onEditingField
+  onEditingField,
+  active = true
 }: {
   onResult?: ReturnType<typeof vi.fn>
   onEditingField?: ReturnType<typeof vi.fn>
+  active?: boolean
 }): JSX.Element {
   const result = useAgentBuilderConversation({
-    active: true,
+    active,
     onResult,
     onEditingField
   })
 
   useEffect(() => {
+    if (!active) return
     void result.start({
       targetId: 'draft-agent',
       targetSource: 'workspace',
@@ -36,7 +40,7 @@ function Harness({
       inputParts: [{ type: 'text', text: 'Build the agent from this intent.' }],
       config: { model: 'gpt-5.5' }
     }).catch(() => undefined)
-  }, [result.start])
+  }, [active, result.start])
 
   return (
     <div>
@@ -65,6 +69,12 @@ describe('useAgentBuilderConversation', () => {
       }
       return {}
     })
+    appServerSendConnectionRequest.mockImplementation(async (_key: string, method: string, params: unknown, _timeout?: number,
+      options?: { onResponse?: (result: unknown) => void }) => {
+      const result = await appServerSendRequest(method, params)
+      options?.onResponse?.(result)
+      return result
+    })
     appServerOnNotification.mockImplementation((handler: (payload: NotificationPayload) => void) => {
       notificationHandlers.push(handler)
       return () => {
@@ -75,6 +85,8 @@ describe('useAgentBuilderConversation', () => {
     installDesktopApiMock({
       appServer: {
         sendRequest: appServerSendRequest,
+        sendConnectionRequest: appServerSendConnectionRequest,
+        getConnectionKey: async () => 'workspace-a',
         onNotification: appServerOnNotification
       }
     })
@@ -112,7 +124,6 @@ describe('useAgentBuilderConversation', () => {
     expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual([
       'thread/start',
       'agent/profiles/builderDraft/update',
-      'thread/subscribe',
       'turn/start'
     ])
     expect(appServerSendRequest).toHaveBeenNthCalledWith(1, 'thread/start', {
@@ -133,10 +144,7 @@ describe('useAgentBuilderConversation', () => {
       threadId: 'builder-thread',
       rawContent: '---\nname: draft-agent\n---\n\nDraft body.\n'
     })
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(3, 'thread/subscribe', {
-      threadId: 'builder-thread'
-    })
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(4, 'turn/start', {
+    expect(appServerSendRequest).toHaveBeenNthCalledWith(3, 'turn/start', {
       threadId: 'builder-thread',
       input: [{ type: 'text', text: 'Build the agent from this intent.' }],
       identity: {
@@ -150,13 +158,13 @@ describe('useAgentBuilderConversation', () => {
     expect(useThreadStore.getState().activeThreadId).toBe('builder-thread')
   })
 
-  it('does not start the initial builder turn until the thread subscription succeeds', async () => {
+  it('releases its acquired owner when draft initialization fails without starting a turn', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/start') {
         return { thread: { id: 'builder-thread' } }
       }
-      if (method === 'thread/subscribe') {
-        throw new Error('subscribe failed')
+      if (method === 'agent/profiles/builderDraft/update') {
+        throw new Error('draft update failed')
       }
       return {}
     })
@@ -165,15 +173,31 @@ describe('useAgentBuilderConversation', () => {
 
     await waitFor(() => {
       expect(screen.getByText('error')).toBeInTheDocument()
-      expect(screen.getByText('subscribe failed')).toBeInTheDocument()
+      expect(screen.getByText('draft update failed')).toBeInTheDocument()
     })
     expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual([
       'thread/start',
       'agent/profiles/builderDraft/update',
-      'thread/subscribe'
+      'thread/unsubscribe'
     ])
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
     expect(useThreadStore.getState().activeThreadId).toBe('previous-thread')
+  })
+
+  it('releases a late creation on its original connection without taking over a newer selection', async () => {
+    let finish!: (value: unknown) => void
+    appServerSendRequest.mockImplementation((method: string) => method === 'thread/start'
+      ? new Promise(resolve => { finish = resolve }) : Promise.resolve({}))
+    render(<Harness />)
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.anything()))
+    act(() => useThreadStore.getState().setActiveThreadId('user-selected-thread'))
+    await act(async () => { finish({ thread: { id: 'late-builder' } }) })
+    await waitFor(() => expect(appServerSendConnectionRequest).toHaveBeenCalledWith(
+      'workspace-a', 'thread/unsubscribe', { threadId: 'late-builder' }, undefined,
+      expect.objectContaining({ attachmentOwner: expect.stringMatching(/^builder:/) })
+    ))
+    expect(useThreadStore.getState().activeThreadId).toBe('user-selected-thread')
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(0)
   })
 
   it('does not restore the previous active thread over a user-selected thread on unmount', async () => {

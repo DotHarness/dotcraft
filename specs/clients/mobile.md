@@ -334,14 +334,10 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
   changes (a repeated report of the same network is not a change). Only launch, foreground return,
   a network change, or a dropped connection shows connecting; background retries keep an offline
   computer offline until one succeeds.
-- **Catching up.** After any reconnect the app follows the AppServer recovery rules: read the thread
-  header, reload history head pages, and subscribe again. Subscribing replays pending approvals and
-  questions, so nothing waiting is lost. A chat showing saved history, restored at launch or reread
-  after a reconnect, keeps it on screen with pulsing placeholder lines beneath until the reread lands.
+- **Catching up.** After reconnect, resume the visible active chat and chats retained by live-session owners. Keep saved history visible while applying the current state and five-Turn summary page in feed order. Archived chats use read/paged history.
 - **Refresh.** Pulling down Home, a project, or a chat refreshes its computer until the refresh
   settles. Online, the phone reloads the project list, connects newly started projects, relists
-  chats, rereads the workspace approval default, and on a chat rereads its header and history head
-  pages. Offline, with access off, or waiting for a backoff retry, it reconnects at once and settles
+  chats, rereads the workspace approval default, and refreshes an active chat through the ordered resume boundary, or reads header/pages for an archived chat. Offline, with access off, or waiting for a backoff retry, it reconnects at once and settles
   with that attempt (or with one already running). A computer whose identity changed does nothing.
 
 ### 8.2 Screens
@@ -352,7 +348,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | Home | The selected computer: its status and a menu with **Add computer** and **Settings**; one chip per paired computer to switch selection; **Projects**, marking those not running; **Recent** chats of running projects with their state, omitted when empty; search over chat titles; and a compact composer that expands in place into New chat for the most recently used project, keeping any draft when folded back. |
 | Project | The project's chats, newest first, above the compact composer. Opening it starts a project that is not running, so its chats and model controls load; Home never starts a project by itself. |
 | New chat | The expanded composer, which is the chat's composer, so model, reasoning, approval policy, and Plan mode are set before the first message; a project switcher lists the computer's projects, most recently used first. Expanding it starts a stopped project. Send keeps the message while the chat is created, then opens the chat in place; a failed send returns the message with the error. |
-| Chat | Top bar with Back, title, project and computer, the context ring (opens Status), and the chat menu. The transcript follows Desktop's turn layout: a finished turn folds work before its final reply into one **Worked for** row (keeping steering messages, the last plan card, and generated images visible); consecutive tool calls group as on Desktop, into one row naming each kind of work done without counts, with reasoning between them never splitting a group and the trailing group of a running turn naming the call in progress; `CodeMode`, `CodeModeWait`, and `SendUserMessageAsync` calls are hidden as on Desktop, while the calls a script makes still show; a running turn ends with Desktop's working line: the thinking glyph loops while the turn works, the label shows the turn's latest reasoning title as on Desktop (its latest heading line, else the first line of its latest written paragraph), including a finished reasoning's title, for as long as the turn works, and otherwise shows Thinking when reasoning yields none; when the turn stops, or while a decision waits, the glyph fades out at once, and the line keeps its space until the next message appears; Copy follows a completed turn's final reply; a completed turn that changed files ends with an **Edited** card carrying Desktop's changes icon. While a decision waits, the decision card ends the transcript and the composer is hidden. The composer carries Add, the approval policy, and model controls; during a turn it steers and offers Stop. Pills above the composer open Changes (while a running turn has changed files), reading **Changes** with the line counts, and Background tasks (while any of the chat's background tasks runs); centered when they fit, the row scrolls sideways when they do not, so neither pill shrinks. A jump-to-latest control appears when scrolled away. History loads as on Desktop ([Thread History Loading](../features/thread-history-loading.md)): opening a chat reads its newest page of Turns as summaries, reading a Turn that is not completed in full, and scrolling near the top (or a page too short to scroll) reads the next older page, keeping the reading position. Opening a summarized turn's **Worked for** row loads its work in place, showing pulsing placeholder lines until it arrives and an error with retry if it fails; saved history keeps summarized turns as summaries. |
+| Chat | Top bar with Back, title, project and computer, the context ring (opens Status), and the chat menu. The transcript follows Desktop's turn layout: a finished turn folds work before its final reply into one **Worked for** row (keeping steering messages, the last plan card, and generated images visible); consecutive tool calls group as on Desktop, into one row naming each kind of work done without counts, with reasoning between them never splitting a group and the trailing group of a running turn naming the call in progress; `CodeMode`, `CodeModeWait`, and `SendUserMessageAsync` calls are hidden as on Desktop, while the calls a script makes still show; a running turn ends with Desktop's working line: the thinking glyph loops while the turn works, the label shows the turn's latest reasoning title as on Desktop (its latest heading line, else the first line of its latest written paragraph), including a finished reasoning's title, for as long as the turn works, and otherwise shows Thinking when reasoning yields none; when the turn stops, or while a decision waits, the glyph fades out at once, and the line keeps its space until the next message appears; Copy follows a completed turn's final reply; a completed turn that changed files ends with an **Edited** card carrying Desktop's changes icon. While a decision waits, the decision card ends the transcript and the composer is hidden. The composer carries Add, the approval policy, and model controls; during a turn it steers and offers Stop. Pills above the composer open Changes (while a running turn has changed files), reading **Changes** with the line counts, and Background tasks (while any of the chat's background tasks runs); centered when they fit, the row scrolls sideways when they do not, so neither pill shrinks. A jump-to-latest control appears when scrolled away. History follows [Thread History Loading](../features/thread-history-loading.md): a five-Turn summary opening page applies to every Turn status. Detail hydration reads at most one 100-Item page per selected Turn with at most four workers, preview hydration at most two, preserving per-Turn cursors. Scrolling and explicit expansion drive further Turn/Item pages while retaining the reading position, loading indicators and retry state. Restore never drains all cursors; saved history retains summary/partial state. |
 | Add menu | **Photo**, **File**, and **Plan mode** (checked while on). |
 | Picker | System actions, commands, and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
@@ -383,8 +379,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 
 - The phone lists and starts chats under the Desktop channel identity, so a chat started on either
   can be continued on the other.
-- New chat ensures the project's AppServer when needed, starts a thread with the project's defaults,
-  and calls `turn/start`.
+- New chat ensures the project's AppServer, registers local capture, starts a thread with the project's defaults (attaching automatically), then calls `turn/start`. Turn admission itself does not attach; clients expecting output ensure observation first.
 - A message sent during a turn uses `turn/steer` when the server accepts steering and `turn/enqueue`
   otherwise; Stop calls `turn/interrupt`.
 - The decision card shows one request at a time and counts the others waiting. Options are choice
@@ -394,6 +389,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   session**, and **Reject**, answering `item/approval/request` with `accept`, `acceptForSession`, or
   `decline`. The phone never offers `acceptAlways`; permanent grants belong on the computer. An
   approval has no dismiss.
+- Restored approvals/questions retain `method + threadId + turnId + requestId`. Park them until the selected view is applied, and gate submission until the current request is available. They remain pending across navigation and observation release.
 - A question follows Desktop's format: options as rows plus **Other** for typed text, paging through
   multiple questions; **Submit** answers `item/tool/requestUserInput` with every answer.
   **Dismiss** answers a non-blocking request with no answers and interrupts the turn for a blocking
@@ -423,9 +419,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 - **Plan mode** toggles with `thread/mode/set` (`plan` or `agent`); New chat in plan mode starts the
   thread with `mode: plan`. A successful `CreatePlan` shows as Desktop's plan card, expandable to
   the full body and to-dos, with Copy. A pending plan confirmation appears in the decision card with
-  an implement option and a row to describe adjustments: implementing switches the chat to `agent`
-  and sends "Implement the plan." as Desktop does; an adjustment is sent as feedback and stays in
-  plan mode. **Dismiss** returns the composer in plan mode. If the switch to `agent` fails, nothing
+  an implement option and a row to describe adjustments. This local choice is not an RPC request: it requires current Plan mode, the latest completed Turn's successful CreatePlan result, the matching current plan/Turn identity and unconsumed confirmation state. Approvals/questions take precedence and a running Turn cannot revive it. Implementing confirms a successful scoped change to `agent` against the latest observed mode before sending "Implement the plan." A target switch or superseding mode decision prevents sending. An adjustment is explicit feedback that stays in plan mode. **Dismiss** returns the composer in plan mode. If the switch to `agent` fails, nothing
   is sent and the failure is reported. A chat running an Agent Profile has no Plan mode, because its
   agent keeps a fixed capability scope.
 - Typing `/` at the start of a word opens the Picker with system actions, then custom commands from
@@ -524,7 +518,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
     reread on `workflow/run/updated`; paused runs count as running; Stop calls `workflow/run/stop`
     when the run's controls allow it and the capability lists `stop`.
 
-  The phone loads a chat's tasks when it opens or subscribes to the chat and reloads every known
+  The phone loads a chat's tasks when it opens or attaches to the chat and reloads every known
   chat's tasks after reconnecting to the project. Notifications are honoured for any listed chat,
   and repeated refreshes of one source for one chat coalesce into one request at a time. Background
   tasks never mark the chat itself as running.
@@ -534,8 +528,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 Text deltas are losslessly coalesced per thread in fixed 50 ms windows; subsequent deltas do not
 postpone the window. Each batch updates history once. Item and turn lifecycle changes, diffs,
 approvals, questions and terminal states flush earlier text before taking effect immediately.
-History recovery keeps its snapshot-and-replay ordering; queues from a disconnected or replaced
-connection never enter a newer connection's state.
+Restoration stages live updates and requests until the authoritative snapshot is applied, preserving response/feed order across the client boundary. A resolved RPC promise is not UI readiness. Applying restored state does not re-notify completion or replay execution effects; queues from a disconnected or replaced connection never enter newer state.
 
 The renderer subscribes to the state slices it displays. Unrelated threads and account-usage
 updates do not rebuild a chat's transcript. Unchanged item and turn projections retain their
@@ -583,11 +576,7 @@ several; tapping opens the followed chat. On Android 16 and later it requests pr
 Update with the followed chat's state as its status chip. A chat followed only for its background
 tasks shows their count and does not count as a running chat in the header.
 
-- During a live session the phone subscribes to every running or waiting chat and every chat with a
-  running background task, because pending requests and turn results reach only subscribed
-  connections ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6). So the turn a finished
-  Workflow starts reaches the phone and ends in the usual done or failed notification. Tasks started
-  while the phone was away, in a chat it has not opened since, do not keep a live session.
+- A live session retains independent observations for every actual running/waiting chat and chat with a running background task, not just the notification's followed chat. Start/fork attachment is reused; reconnect uses metadata-only resume without binding overrides for background owners. Pending requests and subsequent Turn results arrive on these attached feeds ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6), including a Turn started by a finished Workflow. Owners release observations when their live-session need ends, with final detach only after the last actual owner releases it. The phone does not resume every historical chat; tasks started while it was away in a chat not opened since do not keep a live session.
 - A new approval posts a heads-up notification naming the chat (and its computer when more than one
   is paired) with **Allow once** and **Reject** actions that answer without opening the app; its body
   opens the chat.

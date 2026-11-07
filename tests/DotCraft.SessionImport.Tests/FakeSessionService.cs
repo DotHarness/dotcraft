@@ -132,7 +132,7 @@ internal sealed class FakeSessionService : ISessionService
 
     public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(string parentThreadId, bool includeClosed = false, CancellationToken ct = default) => throw new NotSupportedException();
 
-    public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(string threadId, bool replayRecent = false, CancellationToken ct = default) => throw new NotSupportedException();
+    public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 
     public IAsyncEnumerable<SessionEvent> SubmitInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotSupportedException();
 

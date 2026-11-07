@@ -266,37 +266,16 @@ function installApi(
   const pending = new Promise<never>(() => {})
   const settingsGet = overrides.settingsGet ?? vi.fn(() => pending)
   const settingsSet = overrides.settingsSet ?? vi.fn().mockResolvedValue(undefined)
-  const legacyRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
-  // Serves the paged history methods from the legacy `thread/read(includeTurns)` mocks:
-  // one turns page per legacy read, then items served per turn from that same snapshot.
-  const historyReads = new Map<string, Promise<{ thread?: Thread }>>()
-  const historyTurns = new Map<string, NonNullable<Thread['turns']>>()
-  const appServerSendRequest = vi.fn(async (method: string, params?: Record<string, unknown>) => {
-    const threadId = typeof params?.threadId === 'string' ? params.threadId : ''
-    if (method === 'thread/turns/list') {
-      const read = legacyRequest('thread/read', { threadId, includeTurns: true }) as Promise<{ thread?: Thread }>
-      historyReads.set(threadId, read)
-      const turns = (await read).thread?.turns ?? []
-      historyTurns.set(threadId, turns)
-      return { data: turns.map(({ items: _items, ...turn }) => turn), nextCursor: null }
-    }
-    if (method === 'thread/items/list') {
-      const turn = (historyTurns.get(threadId) ?? []).find((entry) => entry.id === params?.turnId)
-      return {
-        data: (turn?.items ?? []).map((item) => ({ turnId: turn?.id, item })),
-        nextCursor: null
-      }
-    }
-    if (method === 'thread/read') {
-      const pending = historyReads.get(threadId)
-      if (pending) {
-        historyReads.delete(threadId)
-        const result = await pending
-        return { ...result, thread: result.thread ? { ...result.thread, turns: [] } : result.thread }
-      }
-      return legacyRequest(method, { ...params, includeTurns: false })
-    }
-    return legacyRequest(method, params)
+  const request = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
+  const appServerSendRequest = vi.fn(async (
+    method: string,
+    params?: Record<string, unknown>,
+    _timeout?: number,
+    options?: { onResponse?(result: unknown): void }
+  ) => {
+    const result = await request(method, params)
+    options?.onResponse?.(result)
+    return result
   })
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
   const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
@@ -430,7 +409,7 @@ function installApi(
     getReleases,
     getMediaStates,
     prefetchMedia,
-    appServerSendRequest: legacyRequest,
+    appServerSendRequest: request,
     workspaceGetStatus,
     onWorkspaceStatusChange,
     workspaceGetProjects,

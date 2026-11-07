@@ -1,4 +1,7 @@
-import { startPendingWelcomeTurn } from './utils/startPendingWelcomeTurn'
+import { useThreadRestoration } from './hooks/useThreadRestoration'
+import { applyThreadTurnRuntime } from './stores/threadTurnRuntime'
+import { resolveParkedApproval } from './stores/threadInteractiveRequests'
+import { isThreadRestoring, stageThreadNotification } from './stores/threadRestoration'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
@@ -9,7 +12,6 @@ import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore
 import { canReloadForegroundThreadList, currentForegroundThreadListKey, useForegroundThreadList } from './hooks/useForegroundThreadList'
 import {
   getThreadConversation,
-  selectLatestCreatePlanTurnId,
   useConversationStore,
   type ConversationStore,
   type PendingApproval
@@ -27,7 +29,7 @@ import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
 import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
-import { normalizeThreadRuntime, runtimeSnapshotFromThread } from './utils/threadRuntime'
+import { normalizeThreadRuntime } from './utils/threadRuntime'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
@@ -62,8 +64,7 @@ import {
 } from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { isHiddenThread } from '../shared/hiddenThreads'
-import { readAppServerErrorFields } from '../shared/appServerError'
-import { describeAppServerError, serverFallbackText } from './utils/appServerErrorText'
+import { serverFallbackText } from './utils/appServerErrorText'
 import { useSideChatStore } from './stores/sideChatStore'
 import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
@@ -101,7 +102,6 @@ import {
 } from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
-import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
 import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
 import { reloadVisualizationsReferencedBy } from './components/conversation/visualizationReloads'
@@ -118,25 +118,10 @@ import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectio
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
 import { FindOverlay } from './find/FindOverlay'
-import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
-import { readThreadHistoryHead } from './utils/threadHistory'
-import { applyThreadHistoryHead } from './stores/threadHistoryStore'
-import { openThreadState, releaseThreadState } from './stores/threadState'
 import { initPromptSuggestionStore } from './stores/promptSuggestionStore'
-import { createWarmThreads, WARM_THREAD_SWEEP_MS } from './stores/warmThreads'
 import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import { collectWebCitationSources, formatWebCitations } from './utils/webCitations'
-import {
-  createThreadSubscriptionOperationQueue,
-  isSameThreadSubscriptionTarget,
-  isThreadSubscriptionConnectionCurrent,
-  resolveActiveThreadSubscriptionTarget,
-  resolveThreadSubscriptionTarget,
-  threadSubscriptionTargetKey,
-  type ThreadSubscriptionTarget,
-  runQueuedThreadUnsubscribe
-} from './utils/threadSubscriptionCoordinator'
 import {
   isDesktopPluginMainView,
   useDesktopPluginRegistry
@@ -168,7 +153,6 @@ import type {
 const SETUP_PAGE_HANDOFF_PREP_MS = 260
 const WORKSPACE_LAUNCH_TRANSITION_MS = 620
 const WORKSPACE_LAUNCH_REVEAL_MS = 360
-const ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS = 5_000
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
   minimized: false,
@@ -183,16 +167,6 @@ const CorePluginsView = coreMainViews.skills
 const CoreSettingsView = coreMainViews.settings
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
-
-interface ThreadSubscribeEnsureOptions {
-  replayRecent?: boolean
-  forceReplay?: boolean
-}
-
-type EnsureThreadSubscribed = (
-  threadId: string,
-  options?: ThreadSubscribeEnsureOptions
-) => Promise<boolean>
 
 interface WorkspaceLaunchTransitionState {
   phase: WorkspaceLaunchTransitionPhase
@@ -361,12 +335,6 @@ function currentForegroundThreadListIdentityKey(
   const projectKey = currentForegroundThreadListKey(activeProjectKey, protocolWorkspacePath || workspacePath)
   const protocolKey = normalizeWorkspaceProjectKey(protocolWorkspacePath || workspacePath || '')
   return `${projectKey}\u0000${protocolKey}`
-}
-
-const THREAD_NOT_FOUND = -32010
-
-function isThreadNotFoundError(error: unknown): boolean {
-  return readAppServerErrorFields(error).rpcCode === THREAD_NOT_FOUND
 }
 
 function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
@@ -580,10 +548,6 @@ export function App(): JSX.Element {
   )
   const activeProjectKeyRef = useRef(activeProjectKey)
   activeProjectKeyRef.current = activeProjectKey
-  const foregroundThreadListKeyRef = useRef(foregroundThreadListKey)
-  foregroundThreadListKeyRef.current = foregroundThreadListKey
-  const foregroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
-  foregroundThreadListIdentityKeyRef.current = foregroundThreadListIdentityKey
   const foregroundChatKey = foregroundChat
     ? normalizeWorkspaceProjectKey(
       foregroundChat.projectId || foregroundChat.identityWorkspacePath || foregroundChat.path
@@ -635,68 +599,11 @@ export function App(): JSX.Element {
   const addProject = useAddProjectFlow()
   const beginAddProjectRef = useRef(addProject.beginCreate)
   beginAddProjectRef.current = addProject.beginCreate
-  const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
-  const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => Promise<boolean>) | null>(null)
   const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
-  const activeThreadSnapshotReconcileInFlightRef = useRef<{
-    threadId: string
-    scope: string
-    promise: Promise<boolean>
-  } | null>(null)
-  const activeThreadSnapshotReconcileGenerationRef = useRef(0)
-  const scheduledActiveThreadReconcileTimerRef = useRef<number | null>(null)
-  const threadRestoreGateRef = useRef<{ threadId: string; token: number } | null>(null)
-  const threadRestoreGateTokenRef = useRef(0)
   const pendingAutoWhatsNewRef = useRef<{
     releases: WhatsNewRelease[]
     markSeenVersion?: string
   } | null>(null)
-
-  const beginThreadRestoreGate = useCallback((threadId: string): number => {
-    const token = threadRestoreGateTokenRef.current + 1
-    threadRestoreGateTokenRef.current = token
-    threadRestoreGateRef.current = { threadId, token }
-    return token
-  }, [])
-
-  const clearThreadRestoreGate = useCallback((threadId?: string, token?: number): void => {
-    const gate = threadRestoreGateRef.current
-    if (!gate) return
-    if (threadId != null && gate.threadId !== threadId) return
-    if (token != null && gate.token !== token) return
-    threadRestoreGateRef.current = null
-  }, [])
-
-  const isThreadRestoreGated = useCallback((threadId: string | null): boolean => {
-    return threadId != null && threadRestoreGateRef.current?.threadId === threadId
-  }, [])
-
-  const requestActiveConversationReconcile = useCallback((
-    threadId: string | null,
-    reason: string
-  ): void => {
-    if (!threadId || useThreadStore.getState().activeThreadId !== threadId) return
-    void reconcileActiveThreadSnapshotRef.current?.(reason)
-  }, [])
-
-  const activateParkedInteractiveRequests = useCallback((threadId: string): boolean => {
-    if (useThreadStore.getState().activeThreadId !== threadId) return false
-    if (isThreadRestoreGated(threadId)) return false
-
-    const threadStore = useThreadStore.getState()
-    const parkedApprovals = threadStore.consumeParkedApprovals(threadId)
-    for (const parked of parkedApprovals) {
-      useConversationStore.getState().onApprovalRequest(parked.bridgeId, parked.rawParams)
-    }
-    const parkedUserInput = useThreadStore.getState().consumeParkedUserInput(threadId)
-    if (parkedUserInput) {
-      useConversationStore.getState().onUserInputRequest(
-        parkedUserInput.bridgeId,
-        parkedUserInput.rawParams
-      )
-    }
-    return parkedApprovals.length > 0 || parkedUserInput != null
-  }, [isThreadRestoreGated])
 
   useEffect(() => {
     const applyVisibilityState = (state: WindowVisibilityState): void => {
@@ -732,6 +639,13 @@ export function App(): JSX.Element {
   }, [])
 
   const { reloadThreadList, invalidateThreadList, loadedProjectKey } = useForegroundThreadList(activeProjectKeyRef, protocolWorkspacePathRef)
+  useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
+  const { updateWarmThread, releaseWarmThread } = useThreadRestoration({
+    workspaceIdentity: foregroundThreadListIdentityKey,
+    workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKey),
+    protocolWorkspacePath: protocolWorkspacePath || workspacePath,
+    locale
+  })
 
   useEffect(() => {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
@@ -1407,7 +1321,12 @@ export function App(): JSX.Element {
   useEffect(() => {
 
     const unsubscribe = window.api.appServer.onNotification(
-      (payload) => {
+      function applyNotification(payload) {
+        const params = (payload.params ?? {}) as Record<string, unknown>
+        const thread = (params.thread ?? params.turn ?? params.terminal) as { threadId?: string; id?: string } | undefined
+        const threadId = typeof params.threadId === 'string' ? params.threadId
+          : payload.method.startsWith('thread/') ? thread?.id : thread?.threadId
+        if (stageThreadNotification(threadId, () => applyNotification(payload))) return
         if (payload.foreground === false) {
           if (payload.method === 'thread/deleted' && payload.workspacePath) {
             const threadId = (payload.params as { threadId?: string } | undefined)?.threadId
@@ -1460,7 +1379,7 @@ export function App(): JSX.Element {
               if (useThreadStore.getState().activeThreadId === pp.thread.id) {
                 useThreadStore.getState().setActiveThread(pp.thread)
               }
-              warmThreadsRef.current.updateThread(pp.thread)
+              updateWarmThread(pp.thread)
             }
             break
           }
@@ -1491,7 +1410,7 @@ export function App(): JSX.Element {
                 console.error('Failed to reload a rolled back thread:', err)
               })
             } else {
-              releaseWarmThreadRef.current(threadId)
+              releaseWarmThread(threadId)
             }
             break
           }
@@ -1565,7 +1484,6 @@ export function App(): JSX.Element {
                     pendingApproval.locallySubmittedDecision == null &&
                     (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
                   ) {
-                    window.api.appServer.sendServerResponse(pendingApproval.bridgeId, { decision: 'decline' })
                     useConversationStore.getState().onApprovalNoLongerPending({
                       threadId,
                       turnId: pendingApproval.turnId,
@@ -1575,23 +1493,7 @@ export function App(): JSX.Element {
                   }
                 }
               }
-              const shouldReplayInteractiveRequests =
-                (runtimeSnapshot.waitingOnApproval && pendingApprovals.length === 0) ||
-                (runtimeSnapshot.waitingOnInput && conversation.pendingUserInput == null)
-              if (shouldReplayInteractiveRequests) {
-                const ensureSubscribed = ensureThreadSubscribedRef.current
-                if (ensureSubscribed) {
-                  void ensureSubscribed(threadId, { replayRecent: true, forceReplay: true })
-                    .catch((err: unknown) => console.error('thread/subscribe replay failed:', err))
-                }
-              }
               useConversationStore.getState().setMaintenanceKind(runtimeSnapshot.maintenanceKind)
-              if (conversationNeedsFullSnapshotReconcile({
-                conversation: useConversationStore.getState(),
-                runtime: runtimeSnapshot
-              })) {
-                void reconcileActiveThreadSnapshotRef.current?.('statusChanged')
-              }
             }
             break
           }
@@ -1613,6 +1515,7 @@ export function App(): JSX.Element {
             if (conversation) {
               conversation.onTurnStarted(rawTurn)
             }
+            applyThreadTurnRuntime(startedThreadId, rawTurn, true)
 
             break
           }
@@ -1624,6 +1527,7 @@ export function App(): JSX.Element {
             if (conversation) {
               conversation.onTurnCompleted(rawTurn)
             }
+            applyThreadTurnRuntime(completedThreadId, rawTurn, false)
             // Fallback: poll thread/read if sidebar still has no displayName (e.g. missed thread/renamed).
             // Primary updates come from thread/renamed broadcast and thread/read on selection.
             if (completedThreadId) {
@@ -1654,6 +1558,7 @@ export function App(): JSX.Element {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: failedThreadId }).catch(() => {})
             }
             conversationFor(failedThreadId)?.onTurnFailed(rawTurn, error)
+            applyThreadTurnRuntime(failedThreadId, rawTurn, false)
 
             break
           }
@@ -1666,6 +1571,7 @@ export function App(): JSX.Element {
               void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: cancelledThreadId }).catch(() => {})
             }
             conversationFor(cancelledThreadId)?.onTurnCancelled(rawTurn, reason)
+            applyThreadTurnRuntime(cancelledThreadId, rawTurn, false)
 
             break
           }
@@ -1914,6 +1820,7 @@ export function App(): JSX.Element {
 
           case 'item/approval/resolved': {
             const resolved = extractApprovalResolvedParams(p)
+            resolveParkedApproval(resolved.threadId, resolved.requestId)
             conversationFor(resolved.threadId)?.onApprovalResolved(resolved)
             break
           }
@@ -2075,20 +1982,16 @@ export function App(): JSX.Element {
         if (threadId && (
           threadId !== activeThreadId
           || !getThreadConversation(threadId)
-          || isThreadRestoreGated(threadId)
+          || isThreadRestoring(threadId)
         )) {
           useThreadStore.getState().parkApproval(threadId, {
             bridgeId,
             turnId,
             rawParams: p
           })
-          if (threadId === activeThreadId) {
-            requestActiveConversationReconcile(threadId, 'parked-approval-request')
-          }
           return
         }
         useConversationStore.getState().onApprovalRequest(bridgeId, p)
-        requestActiveConversationReconcile(threadId, 'approval-request')
         return
       }
       if (method === 'item/tool/requestUserInput') {
@@ -2098,20 +2001,16 @@ export function App(): JSX.Element {
         if (threadId && (
           threadId !== activeThreadId
           || !getThreadConversation(threadId)
-          || isThreadRestoreGated(threadId)
+          || isThreadRestoring(threadId)
         )) {
           useThreadStore.getState().parkUserInput(threadId, {
             bridgeId,
             turnId,
             rawParams: p
           })
-          if (threadId === activeThreadId) {
-            requestActiveConversationReconcile(threadId, 'parked-user-input-request')
-          }
           return
         }
         useConversationStore.getState().onUserInputRequest(bridgeId, p)
-        requestActiveConversationReconcile(threadId, 'user-input-request')
         return
       }
       if (method === 'mcpServer/elicitation/request') {
@@ -2334,230 +2233,6 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const prevThreadIdRef = useRef<string | null>(null)
-  const pendingWelcomeTurnRef = useRef<{ threadId: string; controller: AbortController } | null>(null)
-  const beginPendingWelcomeTurn = useCallback((threadId: string): AbortSignal => {
-    pendingWelcomeTurnRef.current?.controller.abort()
-    const controller = new AbortController()
-    pendingWelcomeTurnRef.current = { threadId, controller }
-    return controller.signal
-  }, [])
-  // Leaving the thread mid-restore must not drop its first message: start it where nobody is
-  // looking, without a signal the next navigation would abort.
-  const startPendingWelcomeTurnUnseen = useCallback((threadId: string): void => {
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch(threadId)
-    if (!pending) return
-    void startPendingWelcomeTurn({
-      threadId,
-      pending,
-      workspacePath: protocolWorkspacePathRef.current,
-      translate: (key, vars) => translate(localeRef.current, key, vars)
-    })
-  }, [])
-  /**
-   * Server-side thread subscriptions by thread id. The intent/ready/in-flight
-   * maps guard duplicate subscribes and stale completions across React
-   * StrictMode and rapid thread switches.
-   */
-  const threadSubscriptionOperationsRef = useRef(createThreadSubscriptionOperationQueue())
-  const threadSubscriptionIntentRef = useRef(new Map<string, ThreadSubscriptionTarget>())
-  const threadSubscriptionReadyRef = useRef(new Map<string, ThreadSubscriptionTarget>())
-  const threadSubscriptionInFlightRef = useRef(new Map<string, {
-    target: ThreadSubscriptionTarget
-    replayRecent: boolean
-    promise: Promise<boolean>
-  }>())
-  const warmThreadsRef = useRef(createWarmThreads())
-  const releaseWarmThreadRef = useRef<(threadId: string) => void>(() => {})
-  const activeThreadHeaderRef = useRef<Thread | null>(null)
-  const { activeThreadId, activeThread, threadList, threadListProjectKey } = useThreadStore()
-  useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
-  if (activeThread && activeThread.id === activeThreadId) activeThreadHeaderRef.current = activeThread
-  const activeThreadSubscriptionScope =
-    status === 'connected'
-      ? `${foregroundThreadListIdentityKey}\u0000${connectionEpoch}`
-      : ''
-  const activeThreadSubscriptionScopeRef = useRef(activeThreadSubscriptionScope)
-  activeThreadSubscriptionScopeRef.current = activeThreadSubscriptionScope
-  const activeThreadSubscriptionTarget = resolveActiveThreadSubscriptionTarget({
-    connected: status === 'connected',
-    activeThreadId,
-    workspaceIdentity: foregroundThreadListIdentityKey,
-    workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKey),
-    connectionEpoch,
-    threadListWorkspaceKey: normalizeWorkspaceProjectKey(threadListProjectKey),
-    threadIds: threadList.map((thread) => thread.id)
-  })
-  const activeThreadSubscriptionKey = activeThreadSubscriptionTarget
-    ? threadSubscriptionTargetKey(activeThreadSubscriptionTarget)
-    : null
-
-  const getThreadSubscriptionTarget = useCallback((threadId: string): ThreadSubscriptionTarget | null => {
-    const connection = useConnectionStore.getState()
-    const threads = useThreadStore.getState()
-    return resolveThreadSubscriptionTarget({
-      connected: connection.status === 'connected',
-      workspaceIdentity: foregroundThreadListIdentityKeyRef.current,
-      workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKeyRef.current),
-      connectionEpoch: connection.connectionEpoch,
-      threadListWorkspaceKey: normalizeWorkspaceProjectKey(threads.threadListProjectKey),
-      threadIds: threads.threadList.map((thread) => thread.id)
-    }, threadId)
-  }, [])
-
-  const getCurrentThreadSubscriptionTarget = useCallback((threadId: string): ThreadSubscriptionTarget | null => {
-    return useThreadStore.getState().activeThreadId === threadId ? getThreadSubscriptionTarget(threadId) : null
-  }, [getThreadSubscriptionTarget])
-
-  const isSubscriptionConnectionCurrent = useCallback((target: ThreadSubscriptionTarget): boolean => {
-    const connection = useConnectionStore.getState()
-    return connection.status === 'connected' && isThreadSubscriptionConnectionCurrent(target, {
-      workspaceIdentity: foregroundThreadListIdentityKeyRef.current,
-      workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKeyRef.current),
-      connectionEpoch: connection.connectionEpoch
-    })
-  }, [])
-
-  const clearThreadSubscriptionState = useCallback((threadId?: string): void => {
-    for (const subscriptions of [
-      threadSubscriptionIntentRef.current,
-      threadSubscriptionReadyRef.current,
-      threadSubscriptionInFlightRef.current
-    ]) {
-      if (threadId) subscriptions.delete(threadId)
-      else subscriptions.clear()
-    }
-  }, [])
-
-  const ensureThreadSubscribed = useCallback<EnsureThreadSubscribed>((
-    threadId: string,
-    options: ThreadSubscribeEnsureOptions = {}
-  ): Promise<boolean> => {
-    const target = getCurrentThreadSubscriptionTarget(threadId)
-    if (!target) return Promise.resolve(false)
-
-    const forceReplay = options.forceReplay === true
-    const replayRecent = options.replayRecent === true
-    const ready = threadSubscriptionReadyRef.current.get(threadId)
-    if (!forceReplay && !replayRecent && isSameThreadSubscriptionTarget(ready, target)) {
-      return Promise.resolve(true)
-    }
-
-    const inFlight = threadSubscriptionInFlightRef.current.get(threadId)
-    const needsReplaySubscribe = replayRecent || forceReplay
-    if (
-      inFlight != null &&
-      isSameThreadSubscriptionTarget(inFlight.target, target) &&
-      (!needsReplaySubscribe || inFlight.replayRecent)
-    ) {
-      return inFlight.promise
-    }
-
-    const keepReadyOnFailure = (forceReplay || replayRecent) && isSameThreadSubscriptionTarget(ready, target)
-    threadSubscriptionIntentRef.current.set(threadId, target)
-    if (!forceReplay && !replayRecent) {
-      threadSubscriptionReadyRef.current.delete(threadId)
-    }
-
-    const requestParams: { threadId: string; replayRecent?: boolean } = { threadId }
-    if (replayRecent) {
-      requestParams.replayRecent = true
-    }
-
-    let sent = false
-    let promise!: Promise<boolean>
-    const operationKey = threadSubscriptionTargetKey(target)
-    promise = threadSubscriptionOperationsRef.current
-      .enqueue(operationKey, async () => {
-        if (!isSameThreadSubscriptionTarget(getCurrentThreadSubscriptionTarget(threadId), target)) return
-        await window.api.appServer.sendRequest('thread/subscribe', requestParams)
-        sent = true
-      })
-      .then(() => {
-        const intent = threadSubscriptionIntentRef.current.get(threadId)
-        if (
-          !sent ||
-          !isSameThreadSubscriptionTarget(intent, target) ||
-          !isSameThreadSubscriptionTarget(getCurrentThreadSubscriptionTarget(threadId), target)
-        ) {
-          return false
-        }
-        threadSubscriptionReadyRef.current.set(threadId, target)
-        return true
-      })
-      .catch((err: unknown) => {
-        const intent = threadSubscriptionIntentRef.current.get(threadId)
-        if (isSameThreadSubscriptionTarget(intent, target) && !keepReadyOnFailure) {
-          threadSubscriptionReadyRef.current.delete(threadId)
-        }
-        throw err
-      })
-      .finally(() => {
-        const inFlight = threadSubscriptionInFlightRef.current.get(threadId)
-        if (isSameThreadSubscriptionTarget(inFlight?.target, target) && inFlight?.promise === promise) {
-          threadSubscriptionInFlightRef.current.delete(threadId)
-        }
-      })
-
-    threadSubscriptionInFlightRef.current.set(threadId, { target, replayRecent, promise })
-    return promise
-  }, [getCurrentThreadSubscriptionTarget])
-
-  ensureThreadSubscribedRef.current = ensureThreadSubscribed
-
-  const queueThreadUnsubscribe = useCallback((threadId: string): Promise<void> => {
-    const target = threadSubscriptionInFlightRef.current.get(threadId)?.target
-      ?? threadSubscriptionIntentRef.current.get(threadId)
-      ?? threadSubscriptionReadyRef.current.get(threadId)
-      ?? null
-    clearThreadSubscriptionState(threadId)
-    if (!target) return Promise.resolve()
-
-    return threadSubscriptionOperationsRef.current.enqueue(threadSubscriptionTargetKey(target), async () => {
-      await runQueuedThreadUnsubscribe({
-        threadId,
-        getActiveThreadId: () => useThreadStore.getState().activeThreadId,
-        isConnectionCurrent: () => isSubscriptionConnectionCurrent(target),
-        unsubscribe: async (targetThreadId) => {
-          await window.api.appServer.sendRequest('thread/unsubscribe', { threadId: targetThreadId })
-        }
-      })
-    })
-  }, [clearThreadSubscriptionState, isSubscriptionConnectionCurrent])
-
-  const releaseThread = useCallback((threadId: string): void => {
-    releaseThreadState(threadId)
-    void queueThreadUnsubscribe(threadId).catch(() => {})
-  }, [queueThreadUnsubscribe])
-  releaseWarmThreadRef.current = (threadId: string): void => {
-    if (warmThreadsRef.current.take(threadId)) releaseThread(threadId)
-  }
-
-  useEffect(() => {
-    for (const [threadId, warm] of warmThreadsRef.current.entries()) {
-      if (isSameThreadSubscriptionTarget(warm.target, getThreadSubscriptionTarget(threadId))) continue
-      warmThreadsRef.current.remove(threadId)
-      releaseThread(threadId)
-    }
-  }, [
-    activeThreadSubscriptionScope,
-    foregroundThreadListKey,
-    getThreadSubscriptionTarget,
-    releaseThread,
-    threadList,
-    threadListProjectKey
-  ])
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      for (const threadId of warmThreadsRef.current.expired(Date.now())) {
-        warmThreadsRef.current.remove(threadId)
-        releaseThread(threadId)
-      }
-    }, WARM_THREAD_SWEEP_MS)
-    return () => window.clearInterval(timer)
-  }, [releaseThread])
-
   useEffect(() => {
     const unsubscribeOpen = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
     const unsubscribeClose = window.api.workspace.viewer.browserUse.onClose(handleBrowserUseClose)
@@ -2588,461 +2263,8 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  useEffect(() => {
-    const prev = prevThreadIdRef.current
-    const curr = activeThreadId
-    if (pendingWelcomeTurnRef.current && pendingWelcomeTurnRef.current.threadId !== curr) {
-      pendingWelcomeTurnRef.current.controller.abort()
-      pendingWelcomeTurnRef.current = null
-    }
-    const convBeforeReset = useConversationStore.getState()
-    const latestCreatePlanTurnId = selectLatestCreatePlanTurnId(convBeforeReset)
-    const planApprovalDismissed = useUIStore.getState().planApprovalDismissed
-    const prevHasPendingPlanConfirmation =
-      prev != null
-      && convBeforeReset.threadMode === 'plan'
-      && convBeforeReset.turnStatus === 'idle'
-      && convBeforeReset.pendingApproval == null
-      && convBeforeReset.pendingUserInput == null
-      && latestCreatePlanTurnId != null
-      && planApprovalDismissed[latestCreatePlanTurnId] !== true
-
-    const previousRuntime = prev ? useThreadStore.getState().runtimeSnapshots.get(prev) : null
-    const previousTurnStartedAt = convBeforeReset.turnStartedAt != null
-      ? new Date(convBeforeReset.turnStartedAt).toISOString()
-      : null
-    const pendingApprovalsBeforeReset = convBeforeReset.pendingApprovals.length > 0
-      ? convBeforeReset.pendingApprovals
-      : convBeforeReset.pendingApproval != null
-        ? [convBeforeReset.pendingApproval]
-        : []
-
-    if (prev && prev !== curr && pendingApprovalsBeforeReset.length > 0) {
-      for (const pending of pendingApprovalsBeforeReset) {
-        useThreadStore.getState().parkApproval(prev, {
-          bridgeId: pending.bridgeId,
-          turnId: pending.turnId ?? convBeforeReset.activeTurnId,
-          rawParams: {
-            threadId: prev,
-            turnId: pending.turnId ?? convBeforeReset.activeTurnId,
-            itemId: pending.itemId,
-            requestId: pending.requestId,
-            locallySubmittedDecision: pending.locallySubmittedDecision,
-            approvalType: pending.approvalType,
-            operation: pending.operation,
-            target: pending.target,
-            targetLabel: pending.targetLabel,
-            reason: pending.reason
-          }
-        })
-      }
-      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
-        ...previousRuntime,
-        running: convBeforeReset.turnStatus === 'running' || convBeforeReset.turnStatus === 'waitingApproval',
-        activeTurnId: convBeforeReset.activeTurnId ?? previousRuntime?.activeTurnId ?? null,
-        activeTurnStartedAt: previousTurnStartedAt ?? previousRuntime?.activeTurnStartedAt ?? null,
-        busy: true,
-        waitingOnApproval: true,
-        waitingOnInput: false,
-        waitingOnPlanConfirmation: false
-      }), {
-        isActive: false,
-        isDesktopOrigin: true
-      })
-    }
-
-    if (prev && prev !== curr && convBeforeReset.pendingUserInput != null) {
-      const pending = convBeforeReset.pendingUserInput
-      useThreadStore.getState().parkUserInput(prev, {
-        bridgeId: pending.bridgeId,
-        turnId: pending.turnId,
-        rawParams: {
-          threadId: prev,
-          turnId: pending.turnId,
-          requestId: pending.requestId,
-          isBlocking: pending.isBlocking,
-          questions: pending.questions
-        }
-      })
-      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
-        ...previousRuntime,
-        running: convBeforeReset.turnStatus === 'running' || convBeforeReset.turnStatus === 'waitingInput',
-        activeTurnId: convBeforeReset.activeTurnId ?? pending.turnId ?? previousRuntime?.activeTurnId ?? null,
-        activeTurnStartedAt: previousTurnStartedAt ?? previousRuntime?.activeTurnStartedAt ?? null,
-        busy: true,
-        waitingOnApproval: false,
-        waitingOnInput: true,
-        waitingOnPlanConfirmation: false
-      }), {
-        isActive: false,
-        isDesktopOrigin: true
-      })
-    }
-
-    if (prev && prev !== curr && prevHasPendingPlanConfirmation) {
-      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
-        running: false,
-        activeTurnId: null,
-        activeTurnStartedAt: null,
-        waitingOnApproval: false,
-        waitingOnInput: false,
-        waitingOnPlanConfirmation: true
-      }), {
-        isActive: false,
-        isDesktopOrigin: true
-      })
-    }
-
-    const leftThreadId = prev && prev !== curr ? prev : null
-    const warm = curr && curr !== prev ? warmThreadsRef.current.take(curr) : undefined
-    const reopened = warm && curr && isSameThreadSubscriptionTarget(warm.target, getThreadSubscriptionTarget(curr))
-      ? warm
-      : undefined
-    if (warm && !reopened && curr) releaseThread(curr)
-    const leftHeader = activeThreadHeaderRef.current
-    const leftTarget = leftThreadId ? getThreadSubscriptionTarget(leftThreadId) : null
-    const leftWarm = leftThreadId && leftTarget && leftHeader?.id === leftThreadId
-      && !isHiddenThread(leftHeader)
-      && !isThreadRestoreGated(leftThreadId)
-      && isSameThreadSubscriptionTarget(threadSubscriptionReadyRef.current.get(leftThreadId), leftTarget)
-      ? { thread: leftHeader, target: leftTarget, viewedAt: Date.now() }
-      : null
-
-    openThreadState(curr)
-
-    if (leftWarm) {
-      for (const evicted of warmThreadsRef.current.keep(leftWarm)) releaseThread(evicted)
-    } else if (leftThreadId) {
-      releaseThread(leftThreadId)
-    }
-
-    if (curr && reopened) {
-      clearThreadRestoreGate()
-      const threadStore = useThreadStore.getState()
-      const summary = threadStore.threadList.find((thread) => thread.id === curr)
-      threadStore.setActiveThread({
-        ...reopened.thread,
-        ...(summary && {
-          displayName: summary.displayName,
-          status: summary.status,
-          lastActiveAt: summary.lastActiveAt,
-          runtime: summary.runtime,
-          readState: summary.readState
-        }),
-        goal: threadStore.goalSnapshots.get(curr) ?? null
-      })
-      activateParkedInteractiveRequests(curr)
-      const runtime = useThreadStore.getState().runtimeSnapshots.get(curr)
-      if (runtime && conversationNeedsFullSnapshotReconcile({ conversation: useConversationStore.getState(), runtime })) {
-        requestActiveConversationReconcile(curr, 'warm-reopen')
-      }
-    } else if (curr) {
-      const requestedId = curr
-      const restoreGateToken = beginThreadRestoreGate(requestedId)
-      performance.mark(`app:thread-switch-start:${requestedId}`)
-      const subscriptionReady = ensureThreadSubscribed(requestedId, { replayRecent: true })
-        .catch((err: unknown) => {
-          console.error('thread/subscribe failed:', err)
-          return false
-        })
-      const restoreGeneration = activeThreadSnapshotReconcileGenerationRef.current
-      readThreadHistoryHead(
-        (method, params) => window.api.appServer.sendRequest(method, params),
-        curr
-      )
-        .then(async (result) => {
-
-          if (useThreadStore.getState().activeThreadId !== requestedId) {
-            clearThreadRestoreGate(requestedId, restoreGateToken)
-            startPendingWelcomeTurnUnseen(requestedId)
-            return
-          }
-          const res = result as unknown as { thread: Thread; turnCursor: string | null }
-          const restoreWasSuperseded =
-            restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
-          if (!restoreWasSuperseded) {
-            useThreadStore.getState().setActiveThread(res.thread)
-            applyThreadHistoryHead(requestedId, res.thread.turns ?? [], res.turnCursor)
-            const runtime = res.thread.runtime
-            useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
-              isActive: true,
-              isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
-            })
-            {
-              const name = res.thread.displayName?.trim()
-              if (name) {
-                const entry = useThreadStore.getState().threadList.find((t) => t.id === requestedId)
-                if (entry && entry.displayName !== name) {
-                  useThreadStore.getState().renameThread(requestedId, name)
-                }
-              }
-            }
-            const rawTurns = (res.thread.turns ?? []) as unknown as Array<Record<string, unknown>>
-            const convTurns = rawTurns.map(wireTurnToConversationTurn)
-            performance.mark(`app:thread-switch-rendered:${requestedId}`)
-            performance.measure('app:thread-switch', `app:thread-switch-start:${requestedId}`, `app:thread-switch-rendered:${requestedId}`)
-            useConversationStore.getState().setTurns(convTurns, {
-              preserveExistingRealtime: true,
-              realtimeScopeThreadId: requestedId
-            })
-            if (res.thread.plan) {
-              useConversationStore.getState().onPlanUpdated(res.thread.plan)
-            }
-            useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
-            useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
-            useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
-            void useSubAgentStore.getState().ensureChildren(requestedId).catch(() => {})
-          }
-          if (!await subscriptionReady) {
-            clearThreadRestoreGate(requestedId, restoreGateToken)
-            if (useThreadStore.getState().activeThreadId === requestedId) {
-              useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
-            }
-            return
-          }
-          if (useThreadStore.getState().activeThreadId !== requestedId) {
-            clearThreadRestoreGate(requestedId, restoreGateToken)
-            startPendingWelcomeTurnUnseen(requestedId)
-            return
-          }
-          clearThreadRestoreGate(requestedId, restoreGateToken)
-          activateParkedInteractiveRequests(requestedId)
-
-          // Welcome composer: send first turn after historical turns are loaded so reset/setTurns do not drop optimistic UI.
-          const pendingWelcome = useUIStore.getState().consumePendingWelcomeTurnIfMatch(requestedId)
-          if (pendingWelcome != null) {
-            void startPendingWelcomeTurn({
-              threadId: requestedId,
-              pending: pendingWelcome,
-              workspacePath: protocolWorkspacePathRef.current,
-              translate: (key, vars) => translate(localeRef.current, key, vars),
-              signal: beginPendingWelcomeTurn(requestedId)
-            })
-          }
-        })
-        .catch((err: unknown) => {
-          clearThreadRestoreGate(requestedId, restoreGateToken)
-          console.error('thread/read failed:', err)
-          useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
-          if (isThreadNotFoundError(err)) {
-            useThreadStore.getState().removeThread(requestedId)
-            addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
-            return
-          }
-          useThreadStore.getState().setActiveThreadLoadError(requestedId, describeAppServerError(localeRef.current, err))
-        })
-    } else {
-      clearThreadRestoreGate()
-      useThreadStore.getState().setActiveThread(null)
-    }
-
-    prevThreadIdRef.current = curr
-    // No cleanup return here: a cleanup that resets the subscription maps defeats
-    // the StrictMode guard above. Leaving a thread is handled by the leftWarm/leftThreadId branch above.
-  }, [
-    activeThreadId,
-    activateParkedInteractiveRequests,
-    beginThreadRestoreGate,
-    clearThreadRestoreGate,
-    ensureThreadSubscribed,
-    getThreadSubscriptionTarget,
-    isThreadRestoreGated,
-    releaseThread,
-    requestActiveConversationReconcile
-  ])
-
   useActiveThreadModeSync(activeProjectKey)
   useActiveThreadReadReceipt()
-
-  useEffect(() => {
-    if (status !== 'connected') {
-      if (scheduledActiveThreadReconcileTimerRef.current != null) {
-        window.clearTimeout(scheduledActiveThreadReconcileTimerRef.current)
-        scheduledActiveThreadReconcileTimerRef.current = null
-      }
-      activeThreadSnapshotReconcileInFlightRef.current = null
-      clearThreadRestoreGate()
-      threadSubscriptionOperationsRef.current.clear()
-      clearThreadSubscriptionState()
-      return
-    }
-    if (!activeThreadId || !activeThreadSubscriptionKey) return
-    const ready = threadSubscriptionReadyRef.current.get(activeThreadId)
-    if (ready && threadSubscriptionTargetKey(ready) === activeThreadSubscriptionKey) return
-
-    ensureThreadSubscribed(activeThreadId, { replayRecent: true })
-      .catch((err: unknown) => console.error('thread/subscribe failed:', err))
-  }, [
-    activeThreadId,
-    activeThreadSubscriptionKey,
-    clearThreadRestoreGate,
-    clearThreadSubscriptionState,
-    ensureThreadSubscribed,
-    status
-  ])
-
-  const applyActiveThreadSnapshot = useCallback((
-    thread: Thread,
-    requestedId: string,
-    includeTurns: boolean
-  ): ThreadRuntimeSnapshot => {
-    const runtimeSnapshot = runtimeSnapshotFromThread(thread)
-    const threadStore = useThreadStore.getState()
-    threadStore.upsertThreads([thread])
-    threadStore.setActiveThread(thread)
-    threadStore.applyRuntimeSnapshot(requestedId, runtimeSnapshot, {
-      isActive: true,
-      isDesktopOrigin: thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
-    })
-
-    const conversation = useConversationStore.getState()
-    if (includeTurns) {
-      const rawTurns = (thread.turns ?? []) as unknown as Array<Record<string, unknown>>
-      conversation.setTurns(rawTurns.map(wireTurnToConversationTurn), {
-        preserveExistingRealtime: true,
-        realtimeScopeThreadId: requestedId
-      })
-      if (thread.plan) {
-        useConversationStore.getState().onPlanUpdated(thread.plan)
-      }
-    }
-    useConversationStore.getState().setMaintenanceKind(thread.runtime?.maintenanceKind ?? null)
-    if (Object.prototype.hasOwnProperty.call(thread, 'queuedInputs')) {
-      useConversationStore.getState().setQueuedInputs(thread.queuedInputs ?? [])
-    }
-    if (Object.prototype.hasOwnProperty.call(thread, 'contextUsage')) {
-      useConversationStore.getState().setContextUsage(thread.contextUsage ?? null)
-    }
-    return runtimeSnapshot
-  }, [])
-
-  const reconcileActiveThreadSnapshot = useCallback((reason = 'unspecified'): Promise<boolean> => {
-    const requestedId = useThreadStore.getState().activeThreadId
-    if (!requestedId) return Promise.resolve(false)
-    if (useConnectionStore.getState().status !== 'connected') return Promise.resolve(false)
-
-    const scope = activeThreadSubscriptionScopeRef.current
-    activeThreadSnapshotReconcileGenerationRef.current += 1
-    const inFlight = activeThreadSnapshotReconcileInFlightRef.current
-    if (inFlight?.threadId === requestedId && inFlight.scope === scope) {
-      return inFlight.promise
-    }
-
-    let promise!: Promise<boolean>
-    promise = (async () => {
-      try {
-        while (
-          useThreadStore.getState().activeThreadId === requestedId &&
-          activeThreadSubscriptionScopeRef.current === scope
-        ) {
-          const generation = activeThreadSnapshotReconcileGenerationRef.current
-          const result = await readThreadHistoryHead(
-            (method, params) => window.api.appServer.sendRequest(method, params),
-            requestedId
-          )
-          if (useThreadStore.getState().activeThreadId !== requestedId) return false
-          if (activeThreadSubscriptionScopeRef.current !== scope) return false
-
-          // A request arrived while this read was in flight. Discard the stale
-          // snapshot and immediately read again before releasing parked UI.
-          if (generation !== activeThreadSnapshotReconcileGenerationRef.current) continue
-
-          const res = result as unknown as {
-            thread?: Thread
-            turnCursor: string | null
-          }
-          if (!res.thread) return false
-          applyThreadHistoryHead(requestedId, res.thread.turns ?? [], res.turnCursor)
-          applyActiveThreadSnapshot(res.thread, requestedId, true)
-          activateParkedInteractiveRequests(requestedId)
-          return true
-        }
-        return false
-      } catch (err) {
-        console.error(`thread/read reconcile failed (${reason}):`, err)
-        return false
-      } finally {
-        const current = activeThreadSnapshotReconcileInFlightRef.current
-        if (current?.threadId === requestedId && current.scope === scope && current.promise === promise) {
-          activeThreadSnapshotReconcileInFlightRef.current = null
-        }
-      }
-    })()
-
-    activeThreadSnapshotReconcileInFlightRef.current = {
-      threadId: requestedId,
-      scope,
-      promise
-    }
-    return promise
-  }, [activateParkedInteractiveRequests, applyActiveThreadSnapshot])
-
-  reconcileActiveThreadSnapshotRef.current = reconcileActiveThreadSnapshot
-
-  const scheduleActiveThreadSnapshotReconcile = useCallback((): void => {
-    const scheduledThreadId = useThreadStore.getState().activeThreadId
-    if (!scheduledThreadId) return
-    if (scheduledActiveThreadReconcileTimerRef.current != null) {
-      window.clearTimeout(scheduledActiveThreadReconcileTimerRef.current)
-    }
-    scheduledActiveThreadReconcileTimerRef.current = window.setTimeout(() => {
-      scheduledActiveThreadReconcileTimerRef.current = null
-      if (useThreadStore.getState().activeThreadId !== scheduledThreadId) return
-      void reconcileActiveThreadSnapshotRef.current?.('interactive-response')
-    }, 750)
-  }, [])
-
-  useEffect(() => {
-    if (!activeThreadId || status !== 'connected') return
-
-    let disposed = false
-    let refreshInFlight = false
-    const refreshActiveThreadMetadata = async (): Promise<void> => {
-      if (refreshInFlight) return
-      // Nobody is reading a blurred window; the interval keeps ticking and resumes on focus.
-      if (!windowVisibilityStateRef.current.focused) return
-      if (useThreadStore.getState().activeThreadLoadError?.threadId === activeThreadId) return
-      refreshInFlight = true
-      const requestedId = activeThreadId
-      try {
-        const result = await window.api.appServer.sendRequest('thread/read', {
-          threadId: requestedId
-        })
-        if (disposed || useThreadStore.getState().activeThreadId !== requestedId) return
-        const res = result as unknown as { thread?: Thread }
-        if (!res.thread) return
-
-        const threadStore = useThreadStore.getState()
-        const hasParkedInteractiveRequest =
-          (threadStore.parkedApprovals.get(requestedId)?.length ?? 0) > 0 ||
-          threadStore.parkedUserInputs.has(requestedId)
-        if (hasParkedInteractiveRequest) {
-          void reconcileActiveThreadSnapshot('metadata-refresh-parked-interaction')
-          return
-        }
-
-        const runtimeSnapshot = applyActiveThreadSnapshot(res.thread, requestedId, false)
-        if (conversationNeedsFullSnapshotReconcile({
-          conversation: useConversationStore.getState(),
-          runtime: runtimeSnapshot
-        })) {
-          void reconcileActiveThreadSnapshot('metadata-refresh')
-        }
-      } catch {
-        // Best-effort metadata refresh. The existing subscription/read paths remain authoritative.
-      } finally {
-        refreshInFlight = false
-      }
-    }
-
-    const timer = window.setInterval(() => {
-      void refreshActiveThreadMetadata()
-    }, ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS)
-    return () => {
-      disposed = true
-      window.clearInterval(timer)
-    }
-  }, [activeThreadId, applyActiveThreadSnapshot, reconcileActiveThreadSnapshot, status])
 
   const isFatalError = isFatalConnectionError(status, errorType)
   const showErrorScreen = isFatalError || launchErrorScreenVisible
@@ -3351,7 +2573,6 @@ export function App(): JSX.Element {
                       identityWorkspacePath={protocolWorkspacePath || workspacePath}
                       projectKey={activeProjectKey}
                       remoteWorkspace={remoteWorkspaceActive}
-                      onInteractionResponseAccepted={scheduleActiveThreadSnapshotReconcile}
                     />
                   )
                 }

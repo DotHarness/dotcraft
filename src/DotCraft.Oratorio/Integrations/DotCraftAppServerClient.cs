@@ -26,7 +26,6 @@ public interface IDotCraftAppServerClient : IAsyncDisposable
         IReadOnlyList<RuntimeDynamicToolDeclaration>? dynamicTools,
         IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry>? runtimeAdditionalContext,
         CancellationToken ct);
-    Task SubscribeThreadAsync(string threadId, CancellationToken ct);
     Task<string?> StartTurnAsync(string threadId, string prompt, CancellationToken ct);
     Task<string?> StartTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct);
     Task<string?> EnqueueTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct);
@@ -152,9 +151,6 @@ public sealed class DotCraftAppServerClient(SdkClient client) : IDotCraftAppServ
             AdditionalContext = ToSdkAdditionalContext(runtimeAdditionalContext)
         }, ct);
     }
-
-    public Task SubscribeThreadAsync(string threadId, CancellationToken ct) =>
-        client.Threads.SubscribeAsync(threadId, cancellationToken: ct);
 
     public Task<string?> StartTurnAsync(string threadId, string prompt, CancellationToken ct) =>
         StartTurnAsync(

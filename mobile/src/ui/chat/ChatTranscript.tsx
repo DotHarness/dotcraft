@@ -118,7 +118,14 @@ export const ChatTranscript = memo(function ChatTranscript({
   const projectName = slice.project ? projectTitle(slice.project, t) : ''
   const online = isReachable(slice.status)
   const olderCursor = slice.history?.olderCursor
-  const loadTurnWork = useCallback((turnId: string) => session.loadTurnItems(chatKey, turnId), [session, chatKey])
+  const workListeners = useRef(new Set<() => void>())
+  const turnWork = useMemo(() => ({
+    load: (turnId: string) => session.loadTurnItems(chatKey, turnId),
+    subscribe(listener: () => void) {
+      workListeners.current.add(listener)
+      return () => { workListeners.current.delete(listener) }
+    },
+  }), [session, chatKey])
   const loadOlder = useCallback(() => {
     if (olderCursor && !slice.loadingOlder && live) void session.loadOlder(chatKey).catch(() => undefined)
   }, [olderCursor, slice.loadingOlder, live, session, chatKey])
@@ -136,6 +143,7 @@ export const ChatTranscript = memo(function ChatTranscript({
     [],
   )
   const track = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    for (const listener of workListeners.current) listener()
     const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
     if (contentOffset.y < OLDER_THRESHOLD) loadOlder()
     const atEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
@@ -209,7 +217,7 @@ export const ChatTranscript = memo(function ChatTranscript({
             <ChangesOpenerContext.Provider value={openChanges}>
               <ThreadLinksContext.Provider value={threadLinks}>
                 <RetryContext.Provider value={retry}>
-                  <TurnWorkContext.Provider value={loadTurnWork}>
+                  <TurnWorkContext.Provider value={turnWork}>
                     {shownLines.map((entry, index) => (
                       <TranscriptLine key={entry.id} entry={entry} previous={shownLines[index - 1]} workspacePath={slice.workspacePath} />
                     ))}

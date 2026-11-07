@@ -13,6 +13,9 @@ public sealed class AppServerSubAgentProgressTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(thread.Id, BuildTurn(
             thread.Id,
             [
@@ -54,6 +57,9 @@ public sealed class AppServerSubAgentProgressTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProgress]);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(thread.Id, BuildTurn(
             thread.Id,
             [new SubAgentProgressEntry { Label = "default-task", InputTokens = 100, OutputTokens = 50 }]));
