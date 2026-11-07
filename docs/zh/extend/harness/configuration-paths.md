@@ -23,7 +23,7 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 | --- | --- | --- | --- |
 | `WorkspacePath` | 是 | 无 | 会话与工具使用的应用 workspace。 |
 | `DataPath` | 否 | `.craft` | Workspace 内的会话、Trace、工具结果与 Runtime 状态。 |
-| `UserDataPath` | 否 | `null` | 用户级 Skill、Command、Hook、插件、插件市场与 Provider 身份验证。 |
+| `UserDataPath` | 否 | `null` | 用户级 Skill、Hook、插件、插件市场与 Provider 身份验证。 |
 
 设置一个直属子目录名即可使用不同的 workspace 数据目录：
 

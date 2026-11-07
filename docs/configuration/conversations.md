@@ -1,6 +1,6 @@
 # Conversations
 
-Queueing and interrupts while a turn runs, composer suggestions, commit attribution, context compaction, and custom commands.
+Queueing and interrupts while a turn runs, composer suggestions, commit attribution, and context compaction.
 
 ## Queue and interrupts
 
@@ -62,9 +62,3 @@ model capacity. Summary reserves and safety buffers are deducted afterward, so t
 the exact automatic-compaction trigger. Reasoning effort does not change the budget.
 
 A model's context window comes from the [model capability catalog](./models#model-capability-catalog).
-
-## Custom commands
-
-Custom commands are Markdown files rather than a `config.json` field. DotCraft loads them from the global `~/.craft/commands/` directory and the workspace `.craft/commands/` directory, and a workspace file wins a name collision. Each file becomes a `/name` command usable from the CLI, Desktop, and other entry points.
-
-A command file may open with YAML frontmatter, which is stripped before the body is sent. Inside the body, `$ARGUMENTS` expands to the full argument string and `$1` through `$9` expand to positional arguments.

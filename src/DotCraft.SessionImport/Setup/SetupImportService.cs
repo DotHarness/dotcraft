@@ -47,7 +47,6 @@ public sealed class SetupImportService(SetupImportPaths paths, IMarketplaceGitFe
                 else
                 {
                     if (SetupImportScanner.NonEmpty(candidate.TargetPath)) return;
-                    if (candidate.Category == "commands" && File.Exists(candidate.TargetPath)) return;
                     if (candidate.Category == "instructions" && SetupImportScanner.NonEmpty(Path.Combine(Path.GetDirectoryName(candidate.TargetPath)!, "AGENTS.override.md"))) return;
                     if (item.Scripts != null)
                     {

@@ -8,7 +8,6 @@ internal static class ImportDiagnostics
         "import_source_invalid" => "The source could not be read as a supported import item.",
         "import_hooks_need_trust" => "Review and trust the imported hooks before they can run.",
         "import_environment_missing" => "One or more required environment variables are missing on this host.",
-        "import_command_semantics_unsupported" => "This command uses execution or permission features that DotCraft cannot preserve.",
         "import_plugin_review" => "Review the plugin's hooks and unsupported contributions.",
         "import_plugin_content_missing" => "The selected plugin's installed content is missing.",
         "import_plugin_no_supported_content" => "The plugin does not contain a supported contribution.",

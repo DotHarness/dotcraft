@@ -1,6 +1,6 @@
 ---
 name: plugin-creator
-description: "Create, update, verify, or share a DotCraft plugin that bundles skills, commands, MCP or LSP servers, hooks, workflows, apps, settings, Desktop UI, or .NET extensions, including contributing one to the official registry. Not for a standalone skill or for installing an existing plugin."
+description: "Create, update, verify, or share a DotCraft plugin that bundles skills, MCP or LSP servers, hooks, workflows, apps, settings, Desktop UI, or .NET extensions, including contributing one to the official registry. Not for a standalone skill or for installing an existing plugin."
 ---
 
 # Plugin Creator
@@ -23,7 +23,6 @@ Choose the contributions with the least execution authority that meet the need. 
 | The user needs | Manifest field and file | Start from | Then |
 |---|---|---|---|
 | Instructions the agent follows | `"skills": "./skills/"`, `skills/<name>/SKILL.md` | `assets/template-skill.md` | Follow `$skill-creator` for its content, and add its interface metadata |
-| A prompt invoked by name | `"commands": "./commands/"`, `commands/<name>.md` | `assets/template-command.md` | |
 | Tools or data from a service | `"mcpServers": "./.mcp.json"` | `assets/template-mcp.json` | For a remote server, use `"transport": "http"` and `"url"`. See `https://www.dotcraft.net/configuration/plugins#mcp-servers` |
 | Automation on agent events | `"hooks": "./hooks/hooks.json"` | `assets/template-hooks.json`, `assets/template-hook-script.js` | Follow `$create-hooks` |
 | A scripted multi-agent procedure | `"workflows": "./workflows"` | | Follow `$workflow-authoring` |
@@ -65,7 +64,7 @@ Passing verification does not show that a plugin works. Make it active and exerc
 
 | Contribution | Evidence |
 |---|---|
-| Skills, commands | The skill loads with `SkillView`, and a realistic request follows its workflow |
+| Skills | The skill loads with `SkillView`, and a realistic request follows its workflow |
 | MCP servers | The server starts, its tools are listed, and one harmless call succeeds |
 | Hooks | After the user grants trust, the event fires and its effect is observed |
 | Workflows | The workflow is listed and a bounded run completes |

@@ -177,16 +177,24 @@ test("a command result thread becomes the conversation's current thread", async 
   assert.equal(adapter.turnStarts[0]?.threadId, "thread-2");
 });
 
-test("an expanded command is submitted as a commandRef turn", async (t) => {
+test("an expanded workflow is submitted as a text turn", async (t) => {
   const adapter = new CommandAdapter();
   t.after(() => adapter.stop());
   adapter.result = { handled: true, expandedPrompt: "Summarize abc" };
 
-  await adapter.handleMessage(message("/summarize abc"));
+  await adapter.handleMessage(message("/summarize abc", {
+    inputParts: [
+      { type: "text", text: "/summarize abc" },
+      { type: "fileRef", path: "notes.txt" },
+      { type: "text", text: "Additional context" },
+    ],
+  }));
   await waitUntil(() => adapter.turnStarts.length === 1);
 
   assert.deepEqual(adapter.turnStarts[0]?.input, [
-    { type: "commandRef", name: "summarize", rawText: "/summarize abc", argsText: "abc" },
+    { type: "text", text: "Summarize abc" },
+    { type: "fileRef", path: "notes.txt" },
+    { type: "text", text: "Additional context" },
   ]);
 });
 

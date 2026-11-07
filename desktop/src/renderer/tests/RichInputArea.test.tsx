@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { RichInputArea, type RichInputAreaHandle } from '../components/conversation/RichInputArea'
 import {
-  COMMAND_REF_CLASS,
   FILE_REF_CLASS,
   SKILL_REF_CLASS
 } from '../components/conversation/richInputConstants'
@@ -19,7 +18,6 @@ function linearize(root: Node): string {
     const el = node as HTMLElement
     if (
       el.classList.contains(FILE_REF_CLASS) ||
-      el.classList.contains(COMMAND_REF_CLASS) ||
       el.classList.contains(SKILL_REF_CLASS) ||
       el.tagName === 'BR'
     ) {
@@ -74,7 +72,7 @@ describe('RichInputArea selection helpers', () => {
           { type: 'text', value: 'A' },
           { type: 'file', relativePath: 'src/foo.ts' },
           { type: 'text', value: 'B' },
-          { type: 'command', command: '/review' },
+          { type: 'skill', skillName: 'review' },
           { type: 'text', value: 'C' },
           { type: 'skill', skillName: 'memory' }
         ]
@@ -170,7 +168,6 @@ describe('RichInputArea catalog-aware paste parsing', () => {
         ref={ref}
         onSubmit={vi.fn()}
         refCatalog={{
-          commands: [{ name: '/code-review', aliases: ['/cr'] }],
           skills: [{ name: 'memory' }]
         }}
       />
@@ -190,11 +187,10 @@ describe('RichInputArea catalog-aware paste parsing', () => {
     })
 
     expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).toBeNull()
-    expect(textbox.querySelector(`.${COMMAND_REF_CLASS}`)).toBeNull()
     expect(ref.current?.getText()).toBe('$unknown /unknown')
   })
 
-  it('turns catalog-matched pasted tokens into command and skill tags', () => {
+  it('turns catalog-matched pasted tokens into skill tags', () => {
     const ref = createRef<RichInputAreaHandle>()
 
     render(
@@ -202,7 +198,6 @@ describe('RichInputArea catalog-aware paste parsing', () => {
         ref={ref}
         onSubmit={vi.fn()}
         refCatalog={{
-          commands: [{ name: '/code-review', aliases: ['/cr'] }],
           skills: [{ name: 'memory' }]
         }}
       />
@@ -217,14 +212,13 @@ describe('RichInputArea catalog-aware paste parsing', () => {
     fireEvent.paste(textbox, {
       clipboardData: {
         items: [],
-        getData: (type: string) => type === 'text/plain' ? '/code-review $memory' : ''
+        getData: (type: string) => type === 'text/plain' ? '/memory $memory' : ''
       }
     })
 
-    expect(textbox.querySelector(`.${COMMAND_REF_CLASS}`)).not.toBeNull()
     expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
     expect(ref.current?.getSegments()).toEqual([
-      { type: 'command', command: '/code-review' },
+      { type: 'skill', skillName: 'memory' },
       { type: 'text', value: '\u00a0 ' },
       { type: 'skill', skillName: 'memory' },
       { type: 'text', value: '\u00a0' }

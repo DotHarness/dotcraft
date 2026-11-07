@@ -311,7 +311,6 @@ export const MESSAGES_JA: Catalog = {
   'plan.collapse': 'プランを折りたたむ',
   'plan.copy': 'プランをコピー',
   'references.label': 'コマンドとスキル',
-  'references.commands': 'コマンド',
   'references.skills': 'スキル',
 
   'newChat.title': '新しいチャット',

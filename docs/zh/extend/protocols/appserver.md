@@ -318,7 +318,6 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 `input` 是 tagged union，常见类型包括：
 
 - `text`：普通用户文本。
-- `commandRef`：结构化 slash command 引用。
 - `skillRef`：结构化 skill 引用。
 - `fileRef`：结构化文件引用。
 - `image`：使用 base64 `data:image/...` URL 编码的内联图片。服务端会拒绝 HTTP 和 HTTPS 图片 URL。客户端应先下载远程图片，再提交 data URL 或 `localImage`。
@@ -442,7 +441,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | 字段 | 说明 |
 |-------|-------------|
 | `message` | 展示给调用方的简短回复。`isMarkdown` 表示它是否为 Markdown。 |
-| `expandedPrompt` | 自定义命令展开得到的提示词。用 `turn/start` 提交。 |
+| `expandedPrompt` | 内置提示词命令或工作流调用生成的提示词。用 `turn/start` 提交。 |
 | `thread` | 会话新的当前 thread，由 `/new`、`/resume` 等命令返回。立即切换到 `thread.id`。 |
 | `choices` | 可选的后续操作。每个 `command` 都是完整命令，选中后就像发送者亲手输入一样执行 `command/execute`。 |
 

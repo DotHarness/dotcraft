@@ -56,9 +56,8 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 11 | Memory | Memory instructions with the own store path and each attached store's path, name, description, and access. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. |
 | 12 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
 | 13 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (§4b). |
-| 14 | Custom command summary | Available custom commands. |
-| 15 | Global prompt context | Process-wide prompt extension points. |
-| 16 | Deferred capability discovery | Included only when deferred loading is active. |
+| 14 | Global prompt context | Process-wide prompt extension points. |
+| 15 | Deferred capability discovery | Included only when deferred loading is active. |
 
 The tool-conditioned `channel-replies` section follows working style when `SendChannelMessage` is available.
 It defines visible chat reply responsibilities. Resolved chat facts stay in the `channel_chat` WorldState

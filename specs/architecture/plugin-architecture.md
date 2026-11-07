@@ -19,15 +19,14 @@ requiring the agent pipeline to know each integration's implementation details.
 Contributions:
 
 1. **Skills**: plugin-contained DotCraft-compatible `SKILL.md` directories.
-2. **Commands**: plugin-contained Markdown custom commands.
-3. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
-4. **Lifecycle Hooks**: plugin-contained hook declarations.
-5. **LSP Servers**: plugin-contained language server descriptors.
-6. **App Descriptors**: App Binding descriptors that make app connection and thread binding flows visible.
-7. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
-8. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
-9. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
-10. **Interface Metadata**: optional client-facing plugin metadata.
+2. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
+3. **Lifecycle Hooks**: plugin-contained hook declarations.
+4. **LSP Servers**: plugin-contained language server descriptors.
+5. **App Descriptors**: App Binding descriptors that make app connection and thread binding flows visible.
+6. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
+7. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
+8. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
+9. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. External reusable services use MCP.
 Thread-scoped client callbacks use the Runtime Dynamic Tool contract in
@@ -38,7 +37,7 @@ Thread-scoped client callbacks use the Runtime Dynamic Tool contract in
 The manifest lives at `<plugin-root>/.craft-plugin/plugin.json`. The supported `schemaVersion` is `1`.
 
 Manifest fields: `schemaVersion`, `id`, `version`, `displayName`, `description`, `capabilities`,
-`interface`, `skills`, `commands`, `mcpServers`, `hooks`, `lspServers`, `apps`, `desktop`,
+`interface`, `skills`, `mcpServers`, `hooks`, `lspServers`, `apps`, `desktop`,
 `workflows`, `paths`, `dotnet`, `dependencies`, `settings`.
 
 A plugin must declare at least one supported contribution (any of the contributions in §1). Each
@@ -66,7 +65,7 @@ Example:
 }
 ```
 
-### 2.1 Skills, commands, and workflows
+### 2.1 Skills and workflows
 
 `skills` points to a plugin-contained skill directory, for example `"./skills/"`. Each child
 directory can contain a DotCraft-compatible `SKILL.md`. Skills contributed by enabled plugins appear
@@ -78,9 +77,6 @@ directory. A plugin-contained skill may instead use a parent-relative path whose
 normalized target is inside the owning plugin's root `assets/` directory (for example
 `../../assets/icon.svg` from `skills/<skill-id>/`). Any other target is ignored. Non-plugin skills
 never receive this shared-assets policy.
-
-`commands` is a manifest-relative directory of Markdown custom commands. Enabled plugins contribute
-them as `<pluginId>:<relative-command-name>`. Workspace and user commands take precedence.
 
 `workflows` is a manifest-relative workflow directory; when omitted, an existing root
 `./workflows/` is used. Enabled plugins contribute its top-level `*.js` definitions as
@@ -251,7 +247,7 @@ Manifest-relative paths must:
 - Not contain `..`.
 - Resolve to a path that stays inside the plugin root.
 
-These rules apply to `skills`, `commands`, `mcpServers`, `hooks`, `settings`, `workflows`, `paths`,
+These rules apply to `skills`, `mcpServers`, `hooks`, `settings`, `workflows`, `paths`,
 interface asset paths, and other manifest-relative fields. Desktop entry and style paths also remain
 inside `./desktop/dist/`.
 

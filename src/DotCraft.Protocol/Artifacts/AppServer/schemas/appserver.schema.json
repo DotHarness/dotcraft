@@ -8067,16 +8067,6 @@
       "title": "InputPart",
       "type": "object",
       "properties": {
-        "argsText": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "context": {
           "anyOf": [
             {
@@ -8128,16 +8118,6 @@
           ]
         },
         "path": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "rawText": {
           "anyOf": [
             {
               "type": "string"

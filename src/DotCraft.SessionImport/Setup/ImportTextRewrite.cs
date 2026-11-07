@@ -43,13 +43,4 @@ internal static class ImportTextRewrite
     private static string Replace(string text, string before, string pattern, string after, string value, RegexOptions options) =>
         Regex.Replace(text, before + "(?:" + pattern + ")" + after, value,
             options | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-
-    public static bool SupportedCommand(string text)
-    {
-        if (Regex.IsMatch(text, @"!`|\$ARGUMENTS\[|\$\{(?:CLAUDE|CURSOR)_", RegexOptions.CultureInvariant)) return false;
-        if (!text.StartsWith("---", StringComparison.Ordinal)) return true;
-        var end = text.IndexOf("\n---", 3, StringComparison.Ordinal);
-        if (end < 0) return false;
-        return !Regex.IsMatch(text[3..end], @"(?m)^\s*(allowed-tools|disallowed-tools|model|context|agent|hooks|disable-model-invocation)\s*:");
-    }
 }

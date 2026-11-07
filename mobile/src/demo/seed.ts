@@ -498,13 +498,6 @@ const PROVIDERS: FakeProvider[] = [
   { id: 'local', displayName: 'Local runtime', models: [{ id: 'quill-7b' }, { id: 'quill-14b', isDefault: true }] },
 ]
 
-const COMMANDS: NonNullable<FakeComputerSeed['commands']> = [
-  { name: 'new', description: 'Start a new conversation', category: 'builtin' },
-  { name: 'code-review', description: 'Review changed files and report issues', category: 'custom' },
-  { name: 'release-check', description: 'Check that a release is ready to publish', category: 'custom' },
-  { name: 'triage', description: 'Sort open issues by area and urgency', category: 'custom' },
-]
-
 const SKILLS: NonNullable<FakeComputerSeed['skills']> = [
   { name: 'release-notes', description: 'Write release notes from merged changes', enabled: true },
   { name: 'browser', description: 'Open and inspect web pages', enabled: true },
@@ -931,7 +924,6 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     pairingCodes: ['demo-code'],
     profiles: [{ id: 'reviewer', name: 'Reviewer' }],
     providers: PROVIDERS,
-    commands: COMMANDS,
     skills: SKILLS,
     files: studioFiles(),
     tooLargeFiles: ['D:/Projects/dotcraft/artifacts/release/publish.log'],

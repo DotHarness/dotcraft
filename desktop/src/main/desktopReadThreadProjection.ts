@@ -222,8 +222,6 @@ function projectInputPart(part: JsonObject): JsonObject {
   switch (part.type) {
     case 'text':
       return { ...result, ...pick(part, ['text']) }
-    case 'commandRef':
-      return { ...result, ...pick(part, ['name', 'argsText', 'rawText']) }
     case 'skillRef':
       return { ...result, ...pick(part, ['name']) }
     case 'contextRef':

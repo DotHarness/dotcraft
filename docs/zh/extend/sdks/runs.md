@@ -99,7 +99,7 @@ TypeScript 在高层接口提供模型发现，但没有这个配置 helper。�
 
 ## 构造输入
 
-纯文本直接传入字符串。文件、图片、Skill 或 Command 使用 input part。
+纯文本直接传入字符串。文件、图片或 Skill 使用 input part。
 
 ::: code-group
 
@@ -130,9 +130,8 @@ var result = await thread.RunAsync([
 | `image` | Base64 `data:image/...` URL | `imageDataUrlPart` |
 | `localImage` | AppServer 可读取的图片路径 | `localImagePart` |
 | `skillRef` | Skill 引用 | `skillRefPart` |
-| `commandRef` | 自定义 Command 引用 | `commandRefPart` |
 
-.NET 直接构造生成的 `InputPart` contract。高层 client 不会把以 `/command`、`$skill` 或 `@file` 开头的文本自动转换为结构化 part。
+.NET 直接构造生成的 `InputPart` contract。高层 client 不会把以 `$skill` 或 `@file` 开头的文本自动转换为结构化 part。
 
 `image` part 不接受远程图片 URL。先下载图片，再发送 data URL，或发送 AppServer 可读取的 `localImage` 路径。
 

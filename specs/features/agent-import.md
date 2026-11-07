@@ -21,17 +21,15 @@ does not change source files, destination files, or session ledger checkpoints.
 
 ## Content
 
-Supported categories are `skills`, `instructions`, `commands`, `hooks`, `mcp`, `plugins`, and
+Supported categories are `skills`, `instructions`, `hooks`, `mcp`, `plugins`, and
 `sessions`. Settings, agents, memory, and Cowork are outside this contract.
 
 - Skills are complete bundles. Existing names, including enabled shared user skills, are not copied.
 - Instructions become `AGENTS.md`. Nonempty destinations or effective `AGENTS.override.md` prevent import.
-- Commands remain Markdown commands, retain namespaces and supported parameters, and never become skills.
-  Unsupported execution or permission semantics prevent importing that command.
 - Hooks import only into a missing or empty `hooks.json`. Command handlers remain untrusted.
 - MCP declarations merge missing server names into the destination scope's `McpServers` object.
   Authentication sessions are not copied. Diagnostics never contain credential values.
-- Plugins are user-scoped bundles converted to `.craft-plugin/plugin.json`. Skills, commands, hooks,
+- Plugins are user-scoped bundles converted to `.craft-plugin/plugin.json`. Skills, hooks,
   and MCP remain plugin-owned. Unsupported contributions are diagnosed; no supported contribution
   means the plugin cannot be imported. Remote fetches are noninteractive and never run install scripts.
 
@@ -39,7 +37,7 @@ Claude brand variants are replaced case-insensitively at word boundaries. Cursor
 case-sensitive word `Cursor`; Codex replaces `Codex`. Targets use `DotCraft`. Brand replacement
 applies to prose only: fenced code, inline code, and path, package, or domain forms keep the source
 name. Source instruction filenames become `AGENTS.md` everywhere. Rewriting applies to instructions,
-SKILL.md, commands, and descriptions, not arbitrary scripts or binary files. Hook paths and plugin root
+SKILL.md, and descriptions, not arbitrary scripts or binary files. Hook paths and plugin root
 variables have dedicated conversions.
 
 ## Transactions and protocol

@@ -4,7 +4,6 @@ using DotCraft.Contributions;
 using DotCraft.Runtime;
 using DotCraft.Sessions;
 using DotCraft.Skills;
-using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,7 +59,6 @@ public sealed class WorkspaceRuntimeTests
         var paths = host.Services.GetRequiredService<DotCraftPaths>();
         Assert.False(paths.UserData.IsConfigured);
         Assert.Null(host.Services.GetRequiredService<SkillsLoader>().UserSkillsPath);
-        Assert.Null(host.Services.GetRequiredService<CustomCommandLoader>().UserCommandsPath);
         Assert.False(Directory.Exists(root));
     }
 

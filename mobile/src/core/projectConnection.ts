@@ -203,7 +203,6 @@ export class ProjectConnection {
         canListModels: capabilities?.modelCatalogManagement === true,
         canFork: capabilities?.threadFork === true,
         fileSystem: capabilities?.fileSystem === true,
-        canListCommands: capabilities?.commandManagement === true,
         canListSkills: capabilities?.skillsManagement === true,
         canReadUsage: capabilities?.providerManagement === true,
         canCompact: capabilities?.manualCompaction === true,
@@ -711,16 +710,8 @@ export class ProjectConnection {
 
   private async fetchReferences(client: DotCraftWireClient): Promise<void> {
     const capabilities = client.initializeResult?.capabilities
-    const [commands, skills] = await Promise.all([
-      capabilities?.commandManagement ? client.request('command/list', { includeBuiltins: false }) : null,
-      capabilities?.skillsManagement ? client.request('skills/list', {}) : null,
-    ])
+    const skills = capabilities?.skillsManagement ? await client.request('skills/list', {}) : null
     const entries: ReferenceEntry[] = [
-      ...(commands?.commands ?? []).flatMap((command): ReferenceEntry[] => {
-        const name = command.name?.replace(/^\//, '')
-        if (!name || command.category === 'builtin') return []
-        return [{ kind: 'command', name, description: command.fallbackDescription || command.description || '' }]
-      }),
       ...(skills?.skills ?? []).flatMap((skill): ReferenceEntry[] => {
         if (!skill.name || skill.enabled === false) return []
         return [{ kind: 'skill', name: skill.name, description: skill.shortDescription || skill.description || '' }]

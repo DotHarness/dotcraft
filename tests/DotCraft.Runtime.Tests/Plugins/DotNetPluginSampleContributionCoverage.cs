@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
@@ -62,7 +61,6 @@ internal static class DotNetPluginSampleCoverage
         Effect<IThreadRuntimeSignalContributor>("The plugin's journal line for a signal published through ThreadRuntimeSignalDispatcher."),
         Effect<ICommitMessageSuggester>("The message ContributedCommitMessageSuggestService returns while the replacement is registered."),
         Effect<ISubAgentRuntimeSource>("The contributed runtime type and profile in the catalog every SubAgent site reads."),
-        Effect<ICodeCommand>("The command in CommandContributions.List, and its expansion through CommandContributions.Expand."),
         Effect<ITraceSink>("The plugin's journal line for an event recorded on TraceStore."),
 
         RegistrationOnly<IAgentContextSource>(

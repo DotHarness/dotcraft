@@ -69,7 +69,6 @@
 }
 
 .dc-ref-file,
-.dc-ref-command,
 .dc-ref-automation,
 .dc-ref-link,
 .dc-ref-thread {
@@ -80,7 +79,6 @@
   color: var(--text-primary);
 }
 
-.dc-ref-command,
 .dc-ref-skill,
 .dc-ref-automation,
 .dc-ref-link,

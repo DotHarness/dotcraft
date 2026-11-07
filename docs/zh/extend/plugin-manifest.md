@@ -42,7 +42,6 @@
 | `description` | string | 插件做什么 |
 | `capabilities` | string[] | 插件提供的贡献类型，例如 `skill`、`mcp` 或 `desktop` |
 | `skills` | path | 技能目录，每个技能一个子目录 |
-| `commands` | path | Markdown 自定义命令目录 |
 | `mcpServers` | path | MCP server 配置。默认读取根目录的 `.mcp.json` |
 | `lspServers` | path | 语言服务器配置。默认读取根目录的 `.lsp.json` |
 | `hooks` | path、array 或 object | 生命周期 hooks。默认读取根目录的 `hooks/hooks.json` |

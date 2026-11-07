@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Commands.Core;
 using DotCraft.Plugins;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
@@ -38,13 +37,12 @@ public class SerializationTests
         {
             ItemType.UserMessage, new UserMessagePayload
             {
-                Text = "/code-review $memory @src/foo.ts",
+                Text = "$memory @src/foo.ts",
                 SenderId = "u123",
                 SenderName = "Alice",
                 Images = [new UserMessageImage { Path = "/workspace/.craft/attachments/images/hello.png", MimeType = "image/png", FileName = "hello.png" }],
                 NativeInputParts =
                 [
-                    new SessionInputPart { Type = "commandRef", Name = "code-review", RawText = "/code-review" },
                     new SessionInputPart { Type = "skillRef", Name = "memory" },
                     new SessionInputPart { Type = "fileRef", Path = "src/foo.ts", DisplayPath = "src/foo.ts" }
                 ],
@@ -174,7 +172,7 @@ public class SerializationTests
             var skillPath = Path.Combine(skillDir, "SKILL.md");
             File.WriteAllText(skillPath, "---\nname: memory\ndescription: test\n---\n\nUse memory.\n");
 
-            var service = new InputMaterializationService(new CommandRegistry(), new SkillsLoader(root));
+            var service = new InputMaterializationService(new SkillsLoader(root));
             var result = service.Materialize(
             [
                 new SessionInputPart { Type = "skillRef", Name = "$memory" }
@@ -203,8 +201,6 @@ public class SerializationTests
         [
             new SessionInputPart { Type = "text", Text = "Check " },
             new SessionInputPart { Type = "fileRef", Path = "src/foo.ts", DisplayPath = "src/foo.ts" },
-            new SessionInputPart { Type = "text", Text = " then " },
-            new SessionInputPart { Type = "commandRef", Name = "code-review", ArgsText = "--fast" },
             new SessionInputPart { Type = "text", Text = " and " },
             new SessionInputPart { Type = "skillRef", Name = "$memory" },
             new SessionInputPart { Type = "text", Text = " " },
@@ -216,14 +212,14 @@ public class SerializationTests
         ]);
 
         Assert.Equal(
-            "Check @src/foo.ts then /code-review --fast and $memory $browser_use\n@Z:\\synthetic\\notes.txt\n@/synthetic/brief.md",
+            "Check @src/foo.ts and $memory $browser_use\n@Z:\\synthetic\\notes.txt\n@/synthetic/brief.md",
             text);
     }
 
     [Fact]
     public void InputMaterialization_AcceptsAbsoluteFileRefPaths()
     {
-        var service = new InputMaterializationService(new CommandRegistry(), skillsLoader: null);
+        var service = new InputMaterializationService(skillsLoader: null);
         var result = service.Materialize(
         [
             new SessionInputPart { Type = "fileRef", Path = "Z:\\synthetic\\notes.txt", DisplayPath = "Z:\\synthetic\\notes.txt" },

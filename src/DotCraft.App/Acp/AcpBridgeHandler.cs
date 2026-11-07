@@ -4,7 +4,6 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Common;
 using DotCraft.Hooks;
@@ -32,7 +31,6 @@ public sealed partial class AcpBridgeHandler(
     AcpTransport acpTransport,
     AppServerWireClient wire,
     string workspacePath,
-    CustomCommandLoader? customCommandLoader = null,
     HookRunner? hookRunner = null,
     PlanStore? planStore = null,
     AcpLogger? logger = null,
@@ -1115,18 +1113,13 @@ public sealed partial class AcpBridgeHandler(
     private async Task BroadcastSlashCommands(string sessionId)
     {
         var commands = commandRegistry?.ListCommands()
-            .Where(static command => command.Category is "custom" or "workflow")
+            .Where(static command => command.Category == "workflow")
             .Select(c => new AcpSlashCommand
             {
                 Name = c.Name.TrimStart('/'),
                 Description = string.IsNullOrWhiteSpace(c.Description) ? null : c.Description
             })
             .ToList()
-            ?? customCommandLoader?.ListCommands().Select(c => new AcpSlashCommand
-            {
-                Name = c.Name,
-                Description = string.IsNullOrWhiteSpace(c.Description) ? null : c.Description
-            }).ToList()
             ?? [];
 
         if (commands.Count == 0) return;

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Box, Terminal } from 'lucide-react'
+import { Box } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import type { CustomCommandInfo } from '../../hooks/useCustomCommandCatalog'
 import {
   resolveDesktopPluginLabel,
   type ActiveDesktopPluginCommand
@@ -37,11 +36,9 @@ interface CommandSearchPopoverProps {
   visible: boolean
   loading: boolean
   systemActions?: SlashSystemActionInfo[]
-  commands: CustomCommandInfo[]
   desktopCommands?: readonly ActiveDesktopPluginCommand[]
   skills?: SlashSkillInfo[]
   onSelectSystemAction?: (actionId: string) => void
-  onSelectCommand: (commandName: string) => void
   onSelectDesktopCommand?: (contributionKey: string) => void
   onSelectSkill?: (skillName: string) => void
   onDismiss: () => void
@@ -56,11 +53,9 @@ export function CommandSearchPopover({
   visible,
   loading,
   systemActions,
-  commands,
   desktopCommands,
   skills,
   onSelectSystemAction,
-  onSelectCommand,
   onSelectDesktopCommand,
   onSelectSkill,
   onDismiss
@@ -77,10 +72,6 @@ export function CommandSearchPopover({
     () => fuzzyFilter(systemActionList, query, (action) => [action.label, action.id, ...(action.keywords ?? [])]),
     [query, systemActionList]
   )
-  const filteredCommands = useMemo(
-    () => fuzzyFilter(commands, query, (cmd) => [cmd.name.replace(/^\/+/, ''), ...cmd.aliases.map((alias) => alias.replace(/^\/+/, ''))]),
-    [commands, query]
-  )
   const filteredDesktopCommands = useMemo(
     () => fuzzyFilter(desktopCommandList, query, (command) => [resolveDesktopPluginLabel(command.label, locale), command.id]),
     [desktopCommandList, locale, query]
@@ -93,10 +84,9 @@ export function CommandSearchPopover({
     () => [
       ...filteredSystemActions.map((action) => ({ type: 'system' as const, action })),
       ...filteredDesktopCommands.map((command) => ({ type: 'desktopCommand' as const, command })),
-      ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
       ...filteredSkills.map((skill) => ({ type: 'skill' as const, skill }))
     ],
-    [filteredCommands, filteredDesktopCommands, filteredSkills, filteredSystemActions]
+    [filteredDesktopCommands, filteredSkills, filteredSystemActions]
   )
 
   useEffect(() => {
@@ -146,7 +136,6 @@ export function CommandSearchPopover({
         if (!item) return
         if (item.type === 'system') onSelectSystemAction?.(item.action.id)
         else if (item.type === 'desktopCommand') onSelectDesktopCommand?.(item.command.contributionKey)
-        else if (item.type === 'command') onSelectCommand(item.command.name)
         else onSelectSkill?.(item.skill.name)
       }
     }
@@ -154,7 +143,7 @@ export function CommandSearchPopover({
     return () => {
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [entries, highlight, onDismiss, onSelectCommand, onSelectDesktopCommand, onSelectSkill, onSelectSystemAction, visible])
+  }, [entries, highlight, onDismiss, onSelectDesktopCommand, onSelectSkill, onSelectSystemAction, visible])
 
   if (!visible) return null
 
@@ -236,38 +225,6 @@ export function CommandSearchPopover({
                 </MentionRowIcon>
                 <span style={mentionRowNameStyle}>{highlightMatch(label, query)}</span>
                 <span style={mentionRowDescStyle}>{detail}</span>
-              </button>
-            </ActionTooltip>
-          )
-        })}
-      {!loading && filteredCommands.length > 0 && (
-        <MentionSectionHeader label={t('slashSearch.commandsGroup')} />
-      )}
-      {!loading &&
-        filteredCommands.map((cmd) => {
-          const index = entries.findIndex((entry) => entry.type === 'command' && entry.command.name === cmd.name)
-          const description = cmd.description || t('slashSearch.noDescription')
-          return (
-            <ActionTooltip key={cmd.name} label={description} wrapperStyle={{ display: 'block', width: '100%' }}>
-              <button
-                type="button"
-                role="option"
-                data-entry-index={index}
-                aria-selected={index === highlight}
-                onMouseEnter={() => {
-                  setHighlight(index)
-                }}
-                onClick={() => {
-                  onSelectCommand(cmd.name)
-                }}
-                className="dotcraft-sidebar-row-radius"
-                style={mentionRowStyle(index === highlight)}
-              >
-                <MentionRowIcon tint="var(--accent)">
-                  <Terminal size={15} strokeWidth={2} aria-hidden />
-                </MentionRowIcon>
-                <span style={mentionRowNameStyle}>{highlightMatch(cmd.name.replace(/^\/+/, ''), query)}</span>
-                <span style={mentionRowDescStyle}>{description}</span>
               </button>
             </ActionTooltip>
           )

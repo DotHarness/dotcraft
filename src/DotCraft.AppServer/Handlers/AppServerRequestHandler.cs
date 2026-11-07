@@ -2,7 +2,6 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
-using DotCraft.Commands.Custom;
 using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
@@ -34,8 +33,7 @@ public sealed class AppServerRequestHandler(
         }
 
         return CommandRegistry.CreateDefault(
-            Path.GetFileName(workspaceDataPath),
-            new CustomCommandLoader(workspaceDataPath));
+            Path.GetFileName(workspaceDataPath));
     }
 
     private readonly ChatClientRegistry _chatClientRegistry = services.ChatClientRegistry
@@ -208,7 +206,7 @@ public sealed class AppServerRequestHandler(
             ThreadHandler.AttachCreatedThreadAsync),
         new ThreadRecoveryRequestHandler(sessionService),
         ThreadHandler,
-        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, services.TraceStore, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
+        new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, services.SkillsLoader, services.TraceStore, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync, ThreadHandler.AttachCreatedThreadAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
         new SubAgentBoardRequestHandler(sessionService),

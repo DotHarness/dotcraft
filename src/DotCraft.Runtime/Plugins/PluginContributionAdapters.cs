@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
@@ -67,8 +66,6 @@ internal static class PluginContributionAdapters
                 new CommitMessageSuggesterAdapter(value, invocation),
             ISubAgentRuntimeSource value when typeof(TContract) == typeof(ISubAgentRuntimeSource) =>
                 new PluginSubAgentRuntimeSourceAdapter(value, invocation),
-            ICodeCommand value when typeof(TContract) == typeof(ICodeCommand) =>
-                new CodeCommandAdapter(value, invocation),
             ITraceSink value when typeof(TContract) == typeof(ITraceSink) =>
                 new TraceSinkAdapter(value, invocation),
             _ => throw Unsupported(typeof(TContract), "The contract is not in the plugin contribution catalog.")
@@ -383,30 +380,6 @@ internal static class PluginContributionAdapters
                 HostOwned(
                     await _target.Value.SuggestAsync(parameters, cancellationToken).ConfigureAwait(false),
                     "commit message suggestion")));
-    }
-
-    private sealed class CodeCommandAdapter : ICodeCommand
-    {
-        private readonly PluginTarget<ICodeCommand> _target;
-        private readonly PluginInvocation _invocation;
-
-        public CodeCommandAdapter(ICodeCommand target, PluginInvocation invocation)
-        {
-            _target = invocation.Capture(target);
-            _invocation = invocation;
-            Name = invocation.Invoke(() => target.Name);
-            Description = invocation.Invoke(() => target.Description);
-            Aliases = invocation.Snapshot(() => target.Aliases);
-        }
-
-        public string Name { get; }
-
-        public string Description { get; }
-
-        public IReadOnlyList<string> Aliases { get; }
-
-        public string? Expand(CommandInvocation invocation) =>
-            _invocation.Invoke(() => _target.Value.Expand(invocation));
     }
 
     private sealed class WorldStateSectionAdapter : IWorldStateSection

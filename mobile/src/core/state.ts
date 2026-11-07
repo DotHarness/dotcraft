@@ -89,7 +89,6 @@ export interface ProjectModels {
   canListModels: boolean
   canFork: boolean
   fileSystem: boolean
-  canListCommands: boolean
   canListSkills: boolean
   canReadUsage: boolean
   canCompact: boolean
@@ -209,7 +208,7 @@ export type ComputerAction =
   | {
       type: 'capabilities'
       projectId: string
-      capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage' | 'canCompact'>
+      capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListSkills' | 'canReadUsage' | 'canCompact'>
     }
   | { type: 'usage'; projectId: string; providerId: string; usage: ProviderUsage }
   | { type: 'approvalDefault'; projectId: string; policy: ApprovalPolicy }
@@ -270,7 +269,6 @@ function patchModels(state: ComputerState, projectId: string, patch: Partial<Pro
     canListModels: false,
     canFork: false,
     fileSystem: false,
-    canListCommands: false,
     canListSkills: false,
     canReadUsage: false,
     canCompact: false,

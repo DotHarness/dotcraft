@@ -37,8 +37,7 @@ public sealed partial class AcpBridgeHandler
 
             if (promptText.StartsWith('/'))
             {
-                var expanded = commandRegistry?.TryResolvePromptExpansion(promptText, sessionId)
-                    ?? customCommandLoader?.TryResolve(promptText)?.ExpandedPrompt;
+                var expanded = commandRegistry?.TryResolvePromptExpansion(promptText);
                 if (expanded != null)
                 {
                     promptText = expanded;

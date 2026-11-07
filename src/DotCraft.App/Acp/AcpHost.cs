@@ -1,6 +1,5 @@
 using DotCraft.Workspaces;
 using DotCraft.CLI;
-using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
@@ -27,7 +26,6 @@ public sealed class AcpHost(
     {
         var acpConfig = config.GetSection<AcpConfig>("Acp");
         var hookRunner = sp.GetService<HookRunner>();
-        var customCommandLoader = sp.GetService<CustomCommandLoader>();
         var commandRegistry = sp.GetService<CommandRegistry>();
 
         using var acpLogger = AcpLogger.Create(paths.Data.RootPath, config.DebugMode);
@@ -88,7 +86,6 @@ public sealed class AcpHost(
             transport,
             wire,
             paths.WorkspacePath,
-            customCommandLoader,
             hookRunner,
             planStore,
             acpLogger,

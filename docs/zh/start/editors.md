@@ -95,7 +95,7 @@ https://github.com/DotHarness/dotcraft-unity.git
 - **应用前先看 diff** — 在编辑器自己的 diff 视图里逐项审阅、逐项批准。
 - **编辑器托管的终端** — 命令跑在编辑器的终端里，沿用它的工作目录和环境。
 - **原生审批** — 写文件或执行 Shell 命令前，编辑器弹出批准或拒绝。
-- **斜杠命令与模型切换** — `.craft/commands/` 出现在编辑器的命令选择器里，模型也能就地切换。
+- **斜杠命令与模型切换** — 内置命令和工作流出现在编辑器的命令选择器里，模型也能就地切换。
 
 Agent 跑在 AppServer 里，所以工作不会随编辑器关闭而消失。DotCraft 实现的完整 ACP 方法清单，以及桥接层如何映射到 AppServer，见 [AppServer 协议](../extend/protocols/appserver)。
 

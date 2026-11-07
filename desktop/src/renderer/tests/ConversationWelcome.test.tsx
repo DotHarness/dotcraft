@@ -187,15 +187,7 @@ describe('ConversationWelcome composer', () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') {
         return {
-          commands: [
-            {
-              name: '/code-review',
-              aliases: ['/cr'],
-              description: 'Review files',
-              category: 'custom',
-              requiresAdmin: false
-            }
-          ]
+          commands: []
         }
       }
       if (method === 'skills/list') {

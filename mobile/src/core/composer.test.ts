@@ -77,16 +77,12 @@ describe('file attachments', () => {
   })
 })
 
-describe('commands and skills', () => {
-  it('lists custom commands and enabled skills only', async () => {
-    const { computer, harness, state } = await connected()
+describe('skills', () => {
+  it('lists enabled skills', async () => {
+    const { harness, state } = await connected()
     const projectId = state().projects.find((project) => project.name === 'dotcraft')!.id
     await harness.link().loadReferences(projectId)
-    expect(calls(computer, 'command/list')[0].params).toEqual({ includeBuiltins: false })
     expect(state().references[projectId].map((entry) => `${entry.kind}:${entry.name}`)).toEqual([
-      'command:code-review',
-      'command:release-check',
-      'command:triage',
       'skill:release-notes',
       'skill:browser',
       'skill:docs-guide',

@@ -86,7 +86,6 @@ public static class FallbackText
     public static string CommandCompactResult(string outcome) => Format("command.compact.result", outcome);
     public static string CommandReloadSkillsResult => Format("command.reloadSkills.result");
     public static string CommandHelpTitle => Format("command.help.title");
-    public static string CommandHelpCustomSection => Format("command.help.custom_section");
     public static string CommandHelpAdminSuffix => Format("command.help.admin_suffix");
 
     // Auth commands
@@ -186,7 +185,6 @@ public static class FallbackText
   "command.reloadSkills.description": "Reload skills changed on disk",
   "command.reloadSkills.result": "Skills reloaded. Each conversation sees the current skills list on its next request.",
   "command.help.title": "Available commands:",
-  "command.help.custom_section": "Custom commands:",
   "command.help.admin_suffix": "(admin)",
   "approval.file.operation": "Operation:",
   "approval.file.path": "Path:",

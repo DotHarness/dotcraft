@@ -29,7 +29,7 @@ import { useSkillsStore } from '../../stores/skillsStore'
 import { useAppBindingStore } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { readConfigValue, useConfig } from '../../stores/configStore'
-import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
+import { useBuiltinCommandAvailability } from '../../hooks/useBuiltinCommandAvailability'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from '../../hooks/useDelayedFlag'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
@@ -283,9 +283,8 @@ function ConversationWelcomeCore({
   const showCommandPopover = showSlashPopover || showCommandQueryPopover
   const commandPopoverQuery = commandQuery ?? slashQuery ?? ''
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, initAvailable, status: customCommandStatus } = useCustomCommandCatalog({
-    enabled: canUseCommandPicker,
-    locale
+  const { initAvailable, status: builtinCommandStatus } = useBuiltinCommandAvailability({
+    enabled: canUseCommandPicker
   })
   const skills = useSkillsStore((s) => s.skills)
   const skillsLoading = useSkillsStore((s) => s.loading)
@@ -306,10 +305,9 @@ function ConversationWelcomeCore({
   }, [draftProjectKey, setWelcomeDraftWorkspace])
   const richRefCatalog = useMemo(
     () => ({
-      commands: customCommands,
       skills: availableSkills
     }),
-    [availableSkills, customCommands]
+    [availableSkills]
   )
   const systemActions = useMemo(
     () => {
@@ -426,10 +424,6 @@ function ConversationWelcomeCore({
     richRef.current?.insertFileTag(relativePath)
   }, [])
 
-  const onSelectCommand = useCallback((commandName: string): void => {
-    richRef.current?.insertCommandTag(commandName)
-  }, [])
-
   const toggleWelcomeMode = useCallback((): void => {
     setWelcomeMode((m) => (m === 'agent' ? 'plan' : 'agent'))
   }, [])
@@ -483,8 +477,8 @@ function ConversationWelcomeCore({
     const hasStructuredSegments = Array.isArray(welcomeDraft.segments) && welcomeDraft.segments.length > 0
     const commandCatalogReady =
       !canUseCommandPicker ||
-      customCommandStatus === 'ready' ||
-      customCommandStatus === 'error'
+      builtinCommandStatus === 'ready' ||
+      builtinCommandStatus === 'error'
     const refsCatalogReady = hasStructuredSegments || (commandCatalogReady && skillCatalogReady)
     if (!refsCatalogReady) return
 
@@ -520,7 +514,7 @@ function ConversationWelcomeCore({
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
     setDraftHydrated(true)
-  }, [canUseCommandPicker, customCommandStatus, skillCatalogReady, welcomeDraftStageSeq])
+  }, [canUseCommandPicker, builtinCommandStatus, skillCatalogReady, welcomeDraftStageSeq])
 
   const contextKey = welcomeScopeKey(draftProjectKey)
   const contexts = useComposerContextStore((state) => state.getContexts(contextKey))
@@ -1230,12 +1224,10 @@ function ConversationWelcomeCore({
                     <CommandSearchPopover
                       query={commandPopoverQuery}
                       visible={showCommandPopover}
-                      loading={customCommandStatus === 'loading' || skillsLoading}
+                      loading={builtinCommandStatus === 'loading' || skillsLoading}
                       systemActions={systemActions}
-                      commands={customCommands}
                       skills={availableSkills}
                       onSelectSystemAction={onSelectSystemAction}
-                      onSelectCommand={onSelectCommand}
                       onSelectSkill={onSelectSkill}
                       onDismiss={() => {
                         if (commandQuery !== null) richRef.current?.endCommandQuery()
@@ -1246,9 +1238,7 @@ function ConversationWelcomeCore({
                       query={skillQuery ?? ''}
                       visible={showSkillPopover}
                       loading={skillsLoading}
-                      commands={[]}
                       skills={availableSkills}
-                      onSelectCommand={() => {}}
                       onSelectSkill={onSelectSkill}
                       onDismiss={() => {
                         setSkillDismissed(true)

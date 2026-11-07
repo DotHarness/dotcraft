@@ -21,7 +21,6 @@ public sealed class CommandResult
     public bool IsMarkdown { get; init; }
 
     /// <summary>
-    /// When set, the command was a custom command that expanded into a prompt.
     /// The caller should feed this prompt to the agent instead of replying directly.
     /// </summary>
     public string? ExpandedPrompt { get; init; }

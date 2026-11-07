@@ -84,8 +84,8 @@ describe('composer context recovery', () => {
   it('merges rejected Welcome references with newer structured input and attachments', async () => {
     vi.stubGlobal('window', { api: { workspace: { readImageAsDataUrl: async () => ({ dataUrl: 'data:image/png;base64,AA' }) } } })
     const image = (tempPath: string) => ({ tempPath, dataUrl: 'data:image/png;base64,AA', fileName: 'image.png', mimeType: 'image/png' })
-    useComposerDraftStore.getState().saveDraft('merge', { text: '/review @current.ts', segments: [
-      { type: 'command', command: '/review' }, { type: 'text', value: ' ' }, { type: 'file', relativePath: 'current.ts' }
+    useComposerDraftStore.getState().saveDraft('merge', { text: '$review @current.ts', segments: [
+      { type: 'skill', skillName: 'review' }, { type: 'text', value: ' ' }, { type: 'file', relativePath: 'current.ts' }
     ], files: [{ path: 'C:/new.txt', fileName: 'new.txt' }], images: [image('C:/shared.png'), image('C:/new.png')] })
     const input = buildComposerInputParts({ text: '', segments: [{ type: 'skill', skillName: 'inspect' }, { type: 'file', relativePath: 'previous.ts' }],
       files: [{ path: 'C:/old.txt', fileName: 'old.txt' }], images: [image('C:/old.png'), image('C:/shared.png')] }).inputParts
@@ -93,7 +93,7 @@ describe('composer context recovery', () => {
     const merged = useComposerDraftStore.getState().getDraft('merge')!
     expect(merged.segments).toEqual(expect.arrayContaining([
       { type: 'skill', skillName: 'inspect' }, { type: 'file', relativePath: 'previous.ts' },
-      { type: 'command', command: '/review' }, { type: 'file', relativePath: 'current.ts' },
+      { type: 'skill', skillName: 'review' }, { type: 'file', relativePath: 'current.ts' },
       { type: 'file', relativePath: 'C:/old.txt' }
     ]))
     expect(merged.files.map((file) => file.path)).toEqual(['C:/new.txt'])

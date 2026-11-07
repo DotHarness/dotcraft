@@ -65,9 +65,6 @@ function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[
       case 'fileRef':
         segments.push({ type: 'file', relativePath: part.displayPath ?? part.path })
         break
-      case 'commandRef':
-        pushCommandRefSegments(segments, part)
-        break
       case 'skillRef':
         if (part.name.trim().length > 0) {
           segments.push({ type: 'skill', skillName: part.name.trim() })
@@ -144,29 +141,6 @@ function pushComposerTextSegment(segments: ComposerDraftSegment[], value: string
     return
   }
   segments.push({ type: 'text', value })
-}
-
-function pushCommandRefSegments(
-  segments: ComposerDraftSegment[],
-  part: Extract<InputPart, { type: 'commandRef' }>
-): void {
-  const rawText = typeof part.rawText === 'string' ? part.rawText.trim() : ''
-  const name = typeof part.name === 'string' ? part.name.trim().replace(/^\/+/, '') : ''
-  const normalizedRaw = rawText.length > 0
-    ? (rawText.startsWith('/') ? rawText : `/${rawText}`)
-    : name.length > 0
-      ? `/${name}`
-      : ''
-  if (normalizedRaw.length === 0) return
-
-  const firstWhitespace = normalizedRaw.search(/\s/)
-  const command = firstWhitespace >= 0 ? normalizedRaw.slice(0, firstWhitespace) : normalizedRaw
-  const rawArgs = firstWhitespace >= 0 ? normalizedRaw.slice(firstWhitespace + 1).trim() : ''
-  const argsText = (part.argsText?.trim() || rawArgs).trim()
-  segments.push({ type: 'command', command })
-  if (argsText.length > 0) {
-    pushComposerTextSegment(segments, ` ${argsText}`)
-  }
 }
 
 export function linearLengthOfComposerEntry(entry: ComposerHistoryEntry): number {

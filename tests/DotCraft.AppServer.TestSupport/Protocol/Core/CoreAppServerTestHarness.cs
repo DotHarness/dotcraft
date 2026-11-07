@@ -3,7 +3,6 @@ using DotCraft.AppBinding;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Commands.Core;
-using DotCraft.Commands.Custom;
 using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Dreams;
@@ -127,10 +126,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 CommandRegistry = CommandRegistry.CreateDefault(
                     string.IsNullOrWhiteSpace(workspaceCraftPath)
                         ? ".agents"
-                        : Path.GetFileName(workspaceCraftPath),
-                    string.IsNullOrWhiteSpace(workspaceCraftPath)
-                        ? null
-                        : new CustomCommandLoader(workspaceCraftPath)),
+                        : Path.GetFileName(workspaceCraftPath)),
                 WorkspaceCraftPath = workspaceCraftPath,
                 HostWorkspacePath = _tempDir,
                 MemoryStore = memoryStore,

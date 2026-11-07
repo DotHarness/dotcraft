@@ -27,7 +27,6 @@
 | **Thread 生命周期** | `IThreadLifecycleContributor` | A |
 | **Turn 生命周期** | `ITurnLifecycleContributor` | A |
 | **Thread 运行时信号** | `IThreadRuntimeSignalContributor` | A |
-| **斜杠命令** | `ICodeCommand` | A |
 | **工具约束** | `IToolRestriction` | A |
 | **压缩摘要** | `ICompactionSummarizer` | B |
 | **可压缩工具** | `ICompactableToolPolicy` | A、B |
@@ -99,28 +98,6 @@ internal sealed class SummaryTool(ReviewJournal journal) : IToolSource, IToolRun
 预期内的失败请用 `ToolExecutionResult.Failed` 配一个 `ToolError` 返回，这样它的稳定错误码得以保留。抛出异常的正文会被丢弃，模型只会看到未指明的工具失败。边界两个方向都只走 JSON：宿主把参数复制进去，把文本、结构化内容和错误复制出来。
 
 需要远端执行时，在生成式工具或 `[ToolDeclaration]` 上标注 `[ToolRpc]`。手写定义则将 `RemoteToolMetadata.RpcEligibleAnnotation` 设置为 JSON `true`。插件需要仅使用执行端提供的工具服务和依赖导出完成激活，不依赖 Agent、Session 或 provider 服务。插件包准备与远端授权见[远程工具调用](../contribute/architecture/remote-tool-host#skill-与插件资源)。
-
-### Tier A —— 增加一个斜杠命令
-
-插件通过 `ICodeCommand` 贡献斜杠命令：一个名字、可选的别名、一段描述，以及把一次调用展开成本轮输入文本的 `Expand`。
-
-```csharp
-internal sealed class TriageCommand(ReviewService service) : ICodeCommand
-{
-    public string Name => "triage";
-
-    public string Description => "汇总待评审队列";
-
-    public IReadOnlyList<string> Aliases => ["tri"];
-
-    public string? Expand(CommandInvocation invocation) =>
-        service.BuildTriagePrompt(invocation.Arguments);
-}
-```
-
-贡献的命令就是一条“正文是代码”的 Markdown 自定义命令，宿主也在同样的地方伺服它：命令面板、`command/list`、`command/execute`、ACP 斜杠命令列表都会自动收录，客户端无需任何改动。它只产出模型输入——直接回复用户仍由宿主自己的命令负责。
-
-它不会遮蔽任何东西：内置命令、工作区 Markdown 命令、工作流命令在重名时都保留自己的名字。贡献之间由 `Order` 最小者取得名字，返回 `null` 表示放弃本次调用、交给下一个贡献回答。释放句柄即刻把命令从所有列举与解析中移除——贡献点是按调用读取的，不会有任何残留注册。
 
 ### Tier A —— 让模型感知变化的状态
 

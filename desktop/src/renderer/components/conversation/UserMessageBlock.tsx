@@ -1,7 +1,7 @@
 import { projectInputParts } from '../../utils/inputPresentation'
 import { SentContextAttachments } from './SentContextAttachments'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { Box, Image as ImageIcon, Pencil, Terminal } from 'lucide-react'
+import { Box, Image as ImageIcon, Pencil } from 'lucide-react'
 import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -380,8 +380,6 @@ export function UserMessageBlock({
                 >
                   {seg.label}
                 </InlineReferenceLink>
-              ) : seg.type === 'commandRef' ? (
-                <CommandRefChip key={`c-${idx}-${seg.commandText}`} commandText={seg.commandText} />
               ) : seg.type === 'threadRef' ? (
                 <ThreadRefChip key={`r-${idx}-${seg.threadId}`} threadId={seg.threadId} title={seg.title} />
               ) : (
@@ -506,24 +504,6 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
         />
       )}
     </>
-  )
-}
-
-function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
-  const label = commandText.startsWith('/') ? commandText.slice(1) : commandText
-  return (
-    <ActionTooltip label={commandText}>
-    <span
-        className="dc-ref dc-ref-command"
-        style={{
-          margin: '0 4px',
-          maxWidth: 'var(--inline-reference-max-width)'
-        }}
-      >
-      <Terminal size={12} strokeWidth={2.25} aria-hidden />
-      <span>{label}</span>
-    </span>
-    </ActionTooltip>
   )
 }
 

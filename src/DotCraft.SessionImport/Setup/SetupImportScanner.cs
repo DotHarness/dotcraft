@@ -73,22 +73,6 @@ internal sealed class SetupImportScanner(SetupImportPaths paths)
                     text: ImportTextRewrite.Apply(ReadText(instruction), source),
                     state: NonEmpty(instructionTarget) || NonEmpty(overridePath) ? "current" : "new"));
                 break;
-            case "commands":
-                if (source == "codex") break;
-                var commands = Path.Combine(root, "commands");
-                if (!Directory.Exists(commands)) break;
-                PluginContentTree.Fingerprint(commands, []);
-                foreach (var file in Directory.EnumerateFiles(commands, "*.md", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
-                {
-                    var relative = Path.GetRelativePath(commands, file);
-                    var destination = Path.Combine(target, "commands", relative);
-                    var text = ReadText(file);
-                    var supported = ImportTextRewrite.SupportedCommand(text);
-                    result.Add(Create(source, scope, category, file, destination, Path.ChangeExtension(relative, null).Replace('\\', ':').Replace('/', ':'),
-                        text: ImportTextRewrite.Apply(text, source), state: !supported ? "unsupported" : File.Exists(destination) ? "current" : "new",
-                        reason: supported ? "" : "import_command_semantics_unsupported"));
-                }
-                break;
             case "hooks":
                 var hookFile = Path.Combine(root, source == "claude-code" ? "settings.json" : "hooks.json");
                 var settings = source == "claude-code" ? ClaudeSettings(root) : ReadJson(hookFile);

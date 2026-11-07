@@ -99,7 +99,7 @@ TypeScript exposes model discovery at the high level but not this configuration 
 
 ## Build input
 
-Pass a string for plain text. Use input parts for files, images, skills, or commands.
+Pass a string for plain text. Use input parts for files, images, or skills.
 
 ::: code-group
 
@@ -130,9 +130,8 @@ var result = await thread.RunAsync([
 | `image` | Base64 `data:image/...` URL | `imageDataUrlPart` |
 | `localImage` | Image path readable by AppServer | `localImagePart` |
 | `skillRef` | Skill reference | `skillRefPart` |
-| `commandRef` | Custom command reference | `commandRefPart` |
 
-.NET constructs the generated `InputPart` contract directly. High-level clients do not convert leading `/command`, `$skill`, or `@file` text into structured parts.
+.NET constructs the generated `InputPart` contract directly. High-level clients do not convert leading `$skill` or `@file` text into structured parts.
 
 Remote image URLs are not accepted as `image` parts. Download the image first, then send a data URL or a `localImage` path readable by AppServer.
 

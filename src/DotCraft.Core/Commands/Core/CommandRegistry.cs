@@ -1,27 +1,14 @@
-using DotCraft.Commands.Custom;
 using DotCraft.Commands.Handlers;
-using DotCraft.Contributions;
 using DotCraft.Text;
-using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Commands.Core;
 
-/// <summary>
-/// Centralized command registry for built-in and custom commands.
-/// </summary>
-/// <remarks>
-/// Contributed commands are read from the registry per call rather than registered into this type, so
-/// revoking a contribution removes the command at once and no removal verb is needed here.
-/// </remarks>
 public sealed class CommandRegistry
 {
     private readonly Dictionary<string, ICommandHandler> _handlers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CommandRegistration> _registrations = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _commandToCanonical = new(StringComparer.OrdinalIgnoreCase);
-    private CustomCommandLoader? _customCommandLoader;
     private IReadOnlyList<IPromptCommandProvider> _promptCommandProviders = [];
-    private IContributionView? _contributions;
-    private ILogger? _logger;
 
     /// <summary>
     /// Registers a command handler with optional metadata.
@@ -44,22 +31,14 @@ public sealed class CommandRegistry
     }
 
     /// <summary>
-    /// Returns all known command names, including aliases and custom commands.
+    /// Returns all known command names, including aliases.
     /// </summary>
-    public IReadOnlyList<string> GetKnownCommands(string? threadId = null)
+    public IReadOnlyList<string> GetKnownCommands()
     {
         var known = new HashSet<string>(_handlers.Keys, StringComparer.OrdinalIgnoreCase);
-        foreach (var custom in EnumerateCustomCommands())
-            known.Add($"/{custom.Name}");
         foreach (var provider in _promptCommandProviders)
         foreach (var command in provider.ListCommands())
             known.Add(NormalizeCommandName(command.Name));
-        foreach (var contributed in EnumerateContributedCommands(threadId))
-        {
-            known.Add(contributed.Name);
-            foreach (var alias in contributed.Aliases)
-                known.Add(alias);
-        }
 
         return known.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
     }
@@ -67,8 +46,7 @@ public sealed class CommandRegistry
     /// <summary>
     /// Lists command metadata for help rendering and SDK discovery.
     /// </summary>
-    /// <param name="context">Optional context for thread-scoped contributions.</param>
-    public IReadOnlyList<CommandInfo> ListCommands(CommandContext? context = null)
+    public IReadOnlyList<CommandInfo> ListCommands()
     {
         var result = new List<CommandInfo>();
         foreach (var registration in _registrations.Values.OrderBy(registration => registration.Name, StringComparer.OrdinalIgnoreCase))
@@ -85,24 +63,6 @@ public sealed class CommandRegistry
             });
         }
 
-        foreach (var custom in EnumerateCustomCommands())
-        {
-            result.Add(new CommandInfo
-            {
-                Name = $"/{custom.Name}",
-                Aliases = [],
-                DescriptionKey = string.Empty,
-                FallbackDescription = string.IsNullOrWhiteSpace(custom.Description)
-                    ? "(no description)"
-                    : custom.Description,
-                Description = string.IsNullOrWhiteSpace(custom.Description)
-                    ? "(no description)"
-                    : custom.Description,
-                Category = "custom",
-                RequiresAdmin = false
-            });
-        }
-
         foreach (var provider in _promptCommandProviders)
         foreach (var command in provider.ListCommands())
         {
@@ -114,26 +74,6 @@ public sealed class CommandRegistry
                 FallbackDescription = command.Description,
                 Description = command.Description,
                 Category = command.Category,
-                RequiresAdmin = false
-            });
-        }
-
-        // Listed last and only for names nothing else already serves, matching where the contribution point is consulted.
-        var claimed = new HashSet<string>(_handlers.Keys, StringComparer.OrdinalIgnoreCase);
-        claimed.UnionWith(result.Select(info => info.Name));
-        foreach (var contributed in EnumerateContributedCommands(context?.SessionId))
-        {
-            if (!claimed.Add(contributed.Name))
-                continue;
-
-            result.Add(new CommandInfo
-            {
-                Name = contributed.Name,
-                Aliases = [.. contributed.Aliases.Where(claimed.Add)],
-                DescriptionKey = string.Empty,
-                FallbackDescription = contributed.Description,
-                Description = contributed.Description,
-                Category = CommandContributions.Category,
                 RequiresAdmin = false
             });
         }
@@ -186,10 +126,6 @@ public sealed class CommandRegistry
             return await handler.HandleAsync(context, responder);
         }
 
-        var resolved = _customCommandLoader?.TryResolve(trimmedText);
-        if (resolved != null)
-            return CommandResult.PromptExpansion(resolved.ExpandedPrompt);
-
         var rawArguments = parts.Length > 1
             ? trimmedText[(trimmedText.IndexOf(' ') + 1)..]
             : string.Empty;
@@ -200,12 +136,7 @@ public sealed class CommandRegistry
                 return CommandResult.PromptExpansion(expansion);
         }
 
-        var contributed = CommandContributions.Expand(
-            _contributions, cmd, rawArguments, context.SessionId, _logger);
-        if (contributed != null)
-            return CommandResult.PromptExpansion(contributed);
-
-        var msg = CommandHelper.FormatUnknownCommandMessage(rawText, [.. GetKnownCommands(context.SessionId)]);
+        var msg = CommandHelper.FormatUnknownCommandMessage(rawText, [.. GetKnownCommands()]);
         await responder.SendTextAsync(msg);
         return CommandResult.HandledResult();
     }
@@ -226,15 +157,10 @@ public sealed class CommandRegistry
     }
 
     /// <summary>
-    /// Tries to resolve a slash-command invocation into a prompt expansion using
-    /// custom command definitions only.
+    /// Resolves a slash-command invocation through the registered prompt providers.
     /// </summary>
-    public string? TryResolvePromptExpansion(string rawText, string? threadId = null)
+    public string? TryResolvePromptExpansion(string rawText)
     {
-        var custom = _customCommandLoader?.TryResolve(rawText)?.ExpandedPrompt;
-        if (custom != null)
-            return custom;
-
         var trimmed = rawText.Trim();
         if (!trimmed.StartsWith('/'))
             return null;
@@ -248,7 +174,7 @@ public sealed class CommandRegistry
                 return expansion;
         }
 
-        return CommandContributions.Expand(_contributions, command, arguments, threadId, _logger);
+        return null;
     }
 
     /// <summary>
@@ -266,17 +192,11 @@ public sealed class CommandRegistry
     /// </summary>
     public static CommandRegistry CreateDefault(
         string dataDirectoryName,
-        CustomCommandLoader? customCommandLoader = null,
-        IEnumerable<IPromptCommandProvider>? promptCommandProviders = null,
-        IContributionView? contributions = null,
-        ILoggerFactory? loggerFactory = null)
+        IEnumerable<IPromptCommandProvider>? promptCommandProviders = null)
     {
         var registry = new CommandRegistry
         {
-            _customCommandLoader = customCommandLoader,
-            _promptCommandProviders = promptCommandProviders?.ToArray() ?? [],
-            _contributions = contributions,
-            _logger = loggerFactory?.CreateLogger<CommandRegistry>()
+            _promptCommandProviders = promptCommandProviders?.ToArray() ?? []
         };
 
         registry.RegisterHandler(new NewCommandHandler(), new CommandRegistration
@@ -358,12 +278,6 @@ public sealed class CommandRegistry
 
         return registry;
     }
-
-    private List<CustomCommandInfo> EnumerateCustomCommands() =>
-        _customCommandLoader?.ListCommands() ?? [];
-
-    private IReadOnlyList<ContributedCommand> EnumerateContributedCommands(string? threadId) =>
-        CommandContributions.List(_contributions, threadId, _logger);
 
     private static string NormalizeCommandName(string command) =>
         command.StartsWith('/') ? command.ToLowerInvariant() : $"/{command.ToLowerInvariant()}";

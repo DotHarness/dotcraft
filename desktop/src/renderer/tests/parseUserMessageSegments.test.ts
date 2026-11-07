@@ -12,24 +12,6 @@ describe('segmentsFromNativeInputParts', () => {
     ])
   })
 
-  it('splits commandRef into a command chip and trailing args from argsText or rawText', () => {
-    expect(segmentsFromNativeInputParts([
-      { type: 'commandRef', name: 'summarize', rawText: '/summarize 一些文本', argsText: '一些文本' }
-    ])).toEqual([
-      { type: 'commandRef', commandText: '/summarize' },
-      { type: 'text', value: ' 一些文本' }
-    ])
-    expect(segmentsFromNativeInputParts([
-      { type: 'commandRef', name: 'summarize', rawText: '/summarize some text' }
-    ])).toEqual([
-      { type: 'commandRef', commandText: '/summarize' },
-      { type: 'text', value: ' some text' }
-    ])
-    expect(segmentsFromNativeInputParts([
-      { type: 'commandRef', name: 'code-review', rawText: '/code-review' }
-    ])).toEqual([{ type: 'commandRef', commandText: '/code-review' }])
-  })
-
   it('keeps fileRef displayPath separate from the real target path', () => {
     expect(segmentsFromNativeInputParts([
       { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'notes.txt' }

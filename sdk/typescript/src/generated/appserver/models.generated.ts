@@ -2052,14 +2052,12 @@ export interface InputContext {
 }
 
 export interface InputPart {
-  argsText?: string | null;
   context?: InputContext | null;
   displayPath?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
   name?: string | null;
   path?: string | null;
-  rawText?: string | null;
   text?: string | null;
   type: string;
   url?: string | null;

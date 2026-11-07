@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Tracing;
@@ -19,7 +18,6 @@ public sealed class MemoryContextProvider(
     string dotCraftPath,
     string workspacePath,
     Func<IReadOnlyList<string>>? toolNamesProvider = null,
-    CustomCommandLoader? customCommandLoader = null,
     IReadOnlyList<string>? deferredMcpServerNames = null,
     string? subAgentProfilesSection = null,
     IContextPageManager? contextPageManager = null,
@@ -36,7 +34,6 @@ public sealed class MemoryContextProvider(
         skillsLoader,
         dotCraftPath,
         workspacePath,
-        customCommandLoader,
         deferredMcpServerNames,
         subAgentProfilesSection,
         toolNamesProvider,

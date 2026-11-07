@@ -1,4 +1,3 @@
-using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Memory;
@@ -15,7 +14,6 @@ public sealed class PromptBuilder(
     SkillsLoader skillsLoader,
     string craftPath,
     string workspacePath,
-    CustomCommandLoader? customCommandLoader = null,
     IReadOnlyList<string>? deferredMcpServerNames = null,
     string? subAgentProfilesSection = null,
     Func<IReadOnlyList<string>>? toolNamesProvider = null,
@@ -38,7 +36,6 @@ public sealed class PromptBuilder(
         SkillsLoader = skillsLoader,
         CraftPath = Path.GetFullPath(craftPath),
         WorkspacePath = Path.GetFullPath(workspacePath),
-        CustomCommandLoader = customCommandLoader,
         DeferredMcpServerNames = deferredMcpServerNames,
         SubAgentProfilesSection = subAgentProfilesSection,
         SkillsPolicy = skillsPolicy,

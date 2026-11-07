@@ -30,8 +30,6 @@ public sealed record PluginManifest
 
     public string? SkillsPath { get; init; }
 
-    public string? CommandsPath { get; init; }
-
     public string? McpServersPath { get; init; }
 
     public string? LspServersPath { get; init; }
@@ -284,8 +282,7 @@ public static partial class PluginManifestParser
                 path: manifestPath));
         }
 
-        var commandsPath = ResolveOptionalManifestPath(pluginRoot, raw.Commands, "commands", raw.Id, manifestPath, diagnostics);
-        if (commandsPath == null && skillsPath == null
+        if (skillsPath == null
             && mcpServersPath == null
             && lspServersPath == null
             && appsPath == null
@@ -297,7 +294,7 @@ public static partial class PluginManifestParser
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, commands, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, or dotnet.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, or dotnet.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -322,7 +319,6 @@ public static partial class PluginManifestParser
             Paths = resolvedPaths,
             Interface = interfaceMetadata,
             SkillsPath = skillsPath,
-            CommandsPath = commandsPath,
             McpServersPath = mcpServersPath,
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
@@ -852,8 +848,6 @@ public static partial class PluginManifestParser
         public Dictionary<string, string>? Paths { get; set; }
 
         public string? Skills { get; set; }
-
-        public string? Commands { get; set; }
 
         public string? McpServers { get; set; }
 

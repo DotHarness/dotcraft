@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "displayName": "[TODO: name]",
   "description": "[TODO: one sentence stating what the plugin does]",
-  "capabilities": ["[TODO: skill, commands, mcp, lsp, apps, hooks, workflows, desktop, or dotnet]"],
+  "capabilities": ["[TODO: skill, mcp, lsp, apps, hooks, workflows, desktop, or dotnet]"],
   "interface": {
     "displayName": "[TODO: name]",
     "shortDescription": "[TODO: what the plugin does]",

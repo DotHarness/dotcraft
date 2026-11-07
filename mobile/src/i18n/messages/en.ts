@@ -309,7 +309,6 @@ export const MESSAGES_EN = {
   'plan.collapse': 'Collapse plan',
   'plan.copy': 'Copy plan',
   'references.label': 'Commands and skills',
-  'references.commands': 'Commands',
   'references.skills': 'Skills',
 
   'newChat.title': 'New chat',

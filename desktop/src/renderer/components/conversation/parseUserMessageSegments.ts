@@ -7,12 +7,11 @@ export type UserMessageSegment =
   | { type: 'text'; value: string }
   | { type: 'urlRef'; url: string; label: string }
   | { type: 'fileRef'; relativePath: string; targetPath?: string }
-  | { type: 'commandRef'; commandText: string }
   | { type: 'skillRef'; skillName: string }
   | { type: 'threadRef'; threadId: string; title: string }
 
 interface Match {
-  type: 'file' | 'url' | 'command' | 'skill'
+  type: 'file' | 'url' | 'skill'
   start: number
   end: number
   value: string
@@ -112,24 +111,6 @@ function findNextFileRef(text: string, from: number): Match | null {
   return null
 }
 
-function findNextCommandRef(text: string, from: number): Match | null {
-  let i = from
-  while (i < text.length) {
-    if (text[i] === '/' && (i === 0 || /\s/.test(text[i - 1]!))) {
-      let j = i + 1
-      while (j < text.length && !/\s/.test(text[j]!)) {
-        j += 1
-      }
-      const token = text.slice(i, j)
-      if (/^\/[a-z0-9][a-z0-9-]*$/i.test(token)) {
-        return { type: 'command', start: i, end: j, value: token }
-      }
-    }
-    i += 1
-  }
-  return null
-}
-
 function findNextSkillRef(text: string, from: number): Match | null {
   let i = from
   while (i < text.length) {
@@ -151,7 +132,7 @@ function findNextSkillRef(text: string, from: number): Match | null {
 
 /**
  * Splits user message text into plain text, URL links, @fileRef and Markdown file link segments,
- * slash-command fallback segments, skill marker segments, and thread mentions.
+ * skill marker segments, and thread mentions.
  */
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   return splitThreadMentions(text).flatMap((piece): UserMessageSegment[] => piece.type === 'thread'
@@ -165,7 +146,7 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
   let cursor = 0
 
   while (cursor < source.length) {
-    const next = [findNextMarkdownLink(source, cursor), findNextUrl(source, cursor), findNextFileRef(source, cursor), findNextCommandRef(source, cursor), findNextSkillRef(source, cursor)]
+    const next = [findNextMarkdownLink(source, cursor), findNextUrl(source, cursor), findNextFileRef(source, cursor), findNextSkillRef(source, cursor)]
       .filter((candidate): candidate is Match => candidate != null)
       .sort((a, b) => a.start - b.start)[0]
 
@@ -184,8 +165,6 @@ function parseMarkerSegments(text: string): UserMessageSegment[] {
       out.push({ type: 'fileRef', relativePath: next.value, ...(next.targetPath ? { targetPath: next.targetPath } : {}) })
     } else if (next.type === 'url') {
       out.push({ type: 'urlRef', url: next.url!, label: next.label ?? next.value })
-    } else if (next.type === 'command') {
-      out.push({ type: 'commandRef', commandText: next.value })
     } else {
       out.push({ type: 'skillRef', skillName: next.value })
     }
@@ -212,31 +191,6 @@ export function segmentsFromNativeInputParts(parts: InputPart[]): UserMessageSeg
             relativePath: displayPath,
             ...(displayPath !== part.path ? { targetPath: part.path } : {})
           })
-        }
-        break
-      case 'commandRef':
-        {
-          const name = typeof part.name === 'string' ? part.name.trim() : ''
-          if (!name) {
-            if (typeof part.rawText === 'string' && part.rawText.trim() !== '') {
-              out.push({ type: 'text', value: part.rawText })
-            }
-            break
-          }
-
-          out.push({ type: 'commandRef', commandText: `/${name}` })
-
-          let argsText = typeof part.argsText === 'string' ? part.argsText.trim() : ''
-          if (argsText.length === 0 && typeof part.rawText === 'string') {
-            const normalizedRaw = part.rawText.trim()
-            const firstWhitespace = normalizedRaw.search(/\s/)
-            if (firstWhitespace >= 0) {
-              argsText = normalizedRaw.slice(firstWhitespace + 1).trim()
-            }
-          }
-          if (argsText.length > 0) {
-            out.push({ type: 'text', value: ` ${argsText}` })
-          }
         }
         break
       case 'skillRef':
