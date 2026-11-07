@@ -2,7 +2,7 @@
 
 A .NET extension runs **inside the DotCraft process**. Where an MCP server talks to DotCraft across a boundary, a .NET extension composes the kernel from within: it contributes tools, prompt sections, middleware, and lifecycle observers through named contribution points, and it resolves host services to build those contributions out of DotCraft's own parts.
 
-This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../guide/plugins-tools); for the manifest fields every plugin shares, see [Plugin Market](./plugin-market).
+This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../guide/plugins-tools); for the manifest fields every plugin shares, see [Plugin Manifest](./plugin-manifest).
 
 > [!CAUTION]
 > A .NET extension loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
