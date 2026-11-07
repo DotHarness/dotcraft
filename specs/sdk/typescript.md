@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.4 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-07 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -31,6 +31,7 @@ This binding owns TypeScript packages, exports, Node.js requirements, high-level
 | `@dotcraft/sdk/contracts` | I/O-free generated AppServer contracts and protocol metadata. |
 | `@dotcraft/sdk/wire` | Low-level AppServer JSON-RPC client, typed operations, and raw escape hatches. |
 | `@dotcraft/sdk/hub` | Hub discovery, startup, management, and SSE helpers. |
+| `@dotcraft/sdk/gateway` | I/O-free [Device Gateway](../protocols/device-gateway.md) client and pairing URL parsing, over a transport the host supplies. |
 | `@dotcraft/sdk/app-binding` | App Binding helpers. |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helpers. |
 | `@dotcraft/sdk/testing` | SDK transport and protocol test helpers. |

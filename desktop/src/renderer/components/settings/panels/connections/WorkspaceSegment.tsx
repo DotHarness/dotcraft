@@ -88,7 +88,7 @@ export function WorkspaceSegment({
   const sshSource = useWorkspaceProjectsStore((state) => {
     const foreground = state.projects.find((project) => project.projectId === state.foregroundProjectId)
     const remote = foreground?.kind === 'remote' ? foreground.remote : undefined
-    return remote?.source === 'ssh' || remote?.source === 'servers'
+    return remote?.source === 'ssh' || remote?.source === 'servers' || remote?.source === 'device'
       ? [remote.serverName, remote.projectName ?? foreground?.name].filter(Boolean).join(' / ')
       : ''
   })

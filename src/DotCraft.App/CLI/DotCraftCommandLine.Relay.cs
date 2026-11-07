@@ -10,7 +10,7 @@ public static partial class DotCraftCommandLine
 
     private static Command CreateRelayCommand()
     {
-        var group = new Command("relay", "Run a relay that lets paired phones reach their computers from any network.");
+        var group = new Command("relay", "Run a relay that lets paired devices reach their computers from any network.");
         var listen = new Option<string>("--listen")
         {
             Description = "Address the relay listens on, behind a proxy that terminates public TLS.",

@@ -97,6 +97,8 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
     !launchedWithRemoteUrl && connectionMode === 'remote' ? ctx.resolveActiveRemoteStack(ctx.settings) : null
   const activeSshProject =
     !launchedWithRemoteUrl && connectionMode === 'remote' ? ctx.resolveActiveSshProject(ctx.settings) : null
+  const activeDevice =
+    !launchedWithRemoteUrl && connectionMode === 'remote' ? ctx.settings.activeRemoteDevice : undefined
   ctx.lastRemoteStackLocalPort = null
 
   if (launchedWithRemoteUrl) {
@@ -118,6 +120,44 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
   }
 
   if (connectionMode === 'remote') {
+    if (activeDevice) {
+      const win = ctx.mainWindow!
+      ctx.emitConnectionStatus(win, { status: 'connecting' })
+      try {
+        const opened = await ctx.app.pairedComputers.openProject(activeDevice.computerId, activeDevice.projectId)
+        if (ctx.runtimeIsStopping() || ctx.currentWorkspacePath !== workspacePath) {
+          opened.bridge.close()
+          return false
+        }
+        ctx.activeDeviceBridge?.close()
+        ctx.activeDeviceBridge = opened.bridge
+        ctx.lastRemoteStackLocalPort = opened.bridge.port
+        const project = ctx.buildDeviceRemoteProject(opened.computer, opened.project, undefined, workspacePath)
+        ctx.prepareRemoteForeground(project)
+        ctx.emitCurrentWorkspaceStatus(workspacePath)
+        await ctx.connectViaWebSocket(workspacePath, opened.bridge.wsUrl, {
+          autoReconnect: false,
+          initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
+          initialDisconnectIsError: true,
+          projectId: project.projectId,
+          projectKind: 'remote',
+          identityWorkspacePath: project.identityWorkspacePath,
+          displayPath: project.displayPath,
+          remote: project.remote,
+          remoteDiagnostic: { stage: 'paired-computer', hostName: opened.computer.name, localPort: opened.bridge.port }
+        })
+        return true
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        ctx.emitConnectionStatus(win, {
+          status: 'error',
+          errorMessage: ctx.formatRemoteConnectionError(message, { stage: 'open-paired-computer' }),
+          errorType: 'remote-config-invalid'
+        })
+      }
+      return false
+    }
+
     if (activeSshProject) {
       const win = ctx.mainWindow!
       const { machine, project: remoteProject } = activeSshProject

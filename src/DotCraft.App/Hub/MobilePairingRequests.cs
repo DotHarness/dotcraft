@@ -147,7 +147,7 @@ internal sealed class MobilePairingRequests(MobileRegistry registry, HubEventBus
 
     private static HubProtocolException Denied() => new(
         "pairingDenied",
-        "The computer declined this phone.",
+        "The computer declined this device.",
         StatusCodes.Status403Forbidden);
 
     private static HubProtocolException RequestEnded() => new(

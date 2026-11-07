@@ -72,7 +72,7 @@ export function resolveStartupWorkspacePath(
   }
 
   if (
-    connectionMode === 'local' &&
+    (connectionMode === 'local' || settings.activeRemoteProject || settings.activeRemoteDevice) &&
     !hasRemoteEndpointArg(argv) &&
     settings.lastForegroundEntry === 'chats' &&
     defaultChatWorkspacePath.trim()

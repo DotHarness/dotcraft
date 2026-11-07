@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parsePairingParams, parsePairingUrl } from './pairing'
+import { parsePairingParams, parsePairingUrl } from '@dotcraft/sdk/gateway'
 
 const FP = '3f9c1b0e5d2a4c7f8b6e1d0a9c3f5e7b2a4d6c8e0f1a3b5c7d9e2f4a6b8c0d1e'
 

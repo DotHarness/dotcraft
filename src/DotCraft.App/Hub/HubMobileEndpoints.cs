@@ -58,7 +58,7 @@ internal sealed class HubMobileListener : IAsyncDisposable
             await app.DisposeAsync();
             throw new HubProtocolException(
                 "portUnavailable",
-                $"Phone access could not use port {port}.",
+                $"Device access could not use port {port}.",
                 StatusCodes.Status409Conflict,
                 new { port, reason = ex.GetType().Name });
         }
@@ -121,6 +121,22 @@ internal static class MobileGatewayRoutes
             Authenticate(request, gateway) is not null
                 ? Protected(() => Results.Json(new MobileProjectList(gateway.Projects.List()), HubJson.Options))
                 : Unauthorized());
+
+        app.MapPost("/m/projects", async (HttpContext context) =>
+        {
+            if (Authenticate(context.Request, gateway) is null)
+                return Unauthorized();
+            MobileAddProjectRequest? body;
+            try
+            {
+                body = await context.Request.ReadFromJsonAsync<MobileAddProjectRequest>(HubJson.Options, context.RequestAborted);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                body = null;
+            }
+            return Protected(() => Results.Json(gateway.Projects.Add(body?.Path), HubJson.Options));
+        });
 
         app.MapPost("/m/projects/{projectId}/ensure", async (HttpRequest request, string projectId, CancellationToken ct) =>
         {

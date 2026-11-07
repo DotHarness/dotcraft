@@ -1,4 +1,4 @@
-import type { RelayInfo } from '../core/gateway'
+import type { RelayInfo } from '@dotcraft/sdk/gateway'
 import { FakeBackground, type FakeBackgroundSeed, type FakeWorkflowRun } from './fakeBackground'
 import { FakeFiles } from './fakeFiles'
 import { inputText } from './fakeInput'

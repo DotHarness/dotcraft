@@ -63,6 +63,14 @@ import type {
   MobileStatus,
   MobileStatusResult
 } from '../shared/mobile'
+import type {
+  AddFolderFailureCode,
+  PairedComputer,
+  PairedComputerEvent,
+  PairedComputerProject,
+  PairedComputerResult,
+  PairingFailureCode
+} from '../shared/pairedComputers'
 import {
   SCREEN_VIEW_ACK_CHANNEL,
   SCREEN_VIEW_CLOSE_CHANNEL,
@@ -1952,6 +1960,37 @@ const api = {
     }
   },
 
+  pairedComputers: {
+    list(): Promise<PairedComputer[]> {
+      return ipcRenderer.invoke('pairedComputers:list')
+    },
+    pair(link: string): Promise<PairedComputerResult<PairedComputer, PairingFailureCode>> {
+      return ipcRenderer.invoke('pairedComputers:pair', { link })
+    },
+    refresh(): Promise<void> {
+      return ipcRenderer.invoke('pairedComputers:refresh')
+    },
+    cancelPairing(): Promise<void> {
+      return ipcRenderer.invoke('pairedComputers:cancel-pairing')
+    },
+    remove(computerId: string): Promise<PairedComputerResult<null>> {
+      return ipcRenderer.invoke('pairedComputers:remove', { computerId })
+    },
+    addFolder(computerId: string, path: string): Promise<PairedComputerResult<PairedComputerProject, AddFolderFailureCode>> {
+      return ipcRenderer.invoke('pairedComputers:add-folder', { computerId, path })
+    },
+    removeProject(computerId: string, projectId: string): Promise<PairedComputerResult<null>> {
+      return ipcRenderer.invoke('pairedComputers:remove-project', { computerId, projectId })
+    },
+    openProject(computerId: string, projectId: string): Promise<PairedComputerResult<null>> {
+      return ipcRenderer.invoke('pairedComputers:open-project', { computerId, projectId })
+    },
+    onEvent(callback: (event: PairedComputerEvent) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: PairedComputerEvent): void => callback(payload)
+      ipcRenderer.on('pairedComputers:event', wrapped)
+      return () => ipcRenderer.removeListener('pairedComputers:event', wrapped)
+    }
+  },
   mobile: {
     status(): Promise<MobileStatusResult> {
       return ipcRenderer.invoke('mobile:status')

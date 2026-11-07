@@ -1,3 +1,5 @@
+import type { DevicePlatform } from "./gateway.js";
+
 export interface HubClientOptions {
   executable?: string;
   expectedExecutable?: string;
@@ -126,7 +128,7 @@ export interface HubCreateSatelliteInviteOptions {
 export interface HubMobileDevice {
   deviceId: string;
   displayName: string;
-  platform: "ios" | "android";
+  platform: DevicePlatform;
   osVersion: string;
   appVersion: string;
   pairedAt: string;
@@ -143,6 +145,7 @@ export interface HubMobileState {
   state: "off" | "on" | "failed";
   failureCode?: string;
   failureMessage?: string;
+  computerId: string | null;
   port: number;
   addresses: string[];
   devices: HubMobileDevice[];

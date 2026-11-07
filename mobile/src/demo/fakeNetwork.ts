@@ -1,4 +1,5 @@
-import type { PinnedNative, PinnedRequest, PinnedResponse, PinnedSocketEvent, PinnedSocketOptions } from '../core/pinned'
+import type { PinnedRequest, PinnedResponse, PinnedSocketOptions } from '@dotcraft/sdk/gateway'
+import type { PinnedNative, PinnedSocketEvent } from '../core/pinned'
 import type { FakeComputer } from './fakeComputer'
 
 function parse(url: string): { address: string; port: number; path: string } {

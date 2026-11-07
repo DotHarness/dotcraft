@@ -6,6 +6,7 @@ public sealed record HubMobileState(
     string State,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FailureCode,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FailureMessage,
+    string? ComputerId,
     int Port,
     IReadOnlyList<string> Addresses,
     IReadOnlyList<HubMobileDevice> Devices,
@@ -64,7 +65,7 @@ public sealed record MobileHello(
 
 public sealed record MobileHelloRelay(string Url);
 
-public sealed record MobileProject(string ProjectId, string DisplayName, string Kind, bool Running, DateTimeOffset? LastActiveAt);
+public sealed record MobileProject(string ProjectId, string DisplayName, string Path, string Kind, bool Running, DateTimeOffset? LastActiveAt);
 
 public static class MobileProjectKinds
 {
@@ -73,3 +74,8 @@ public static class MobileProjectKinds
 }
 
 public sealed record MobileProjectList(IReadOnlyList<MobileProject> Projects);
+
+public sealed class MobileAddProjectRequest
+{
+    public string? Path { get; set; }
+}

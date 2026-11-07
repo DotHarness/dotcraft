@@ -15,6 +15,14 @@ export function handleSshMachineDisconnected(ctx: DesktopWindowRuntime, machineI
   })
 }
 
+export function handlePairedComputerRemoved(ctx: DesktopWindowRuntime, computerId: string): void {
+  const project = ctx.activeRemoteProject
+  if (project?.source !== 'device' || project.remote.hostId !== computerId) return
+  void ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true }).catch((error) => {
+    console.warn('[desktop] failed to leave the project of a removed computer', error)
+  })
+}
+
 export function handleRemoteProjectEndpointChanged(
   ctx: DesktopWindowRuntime,
   machineId: string,
@@ -67,7 +75,12 @@ export function hasRecoverableActiveRemoteStack(ctx: DesktopWindowRuntime): bool
   if (ctx.resolveConnectionMode(ctx.settings) !== 'remote') return false
   const ref = ctx.settings.activeRemoteStack
   const projectRef = ctx.settings.activeRemoteProject
-  return Boolean((ref?.hostId && ref.stackId) || (projectRef?.machineId && projectRef.projectId))
+  const deviceRef = ctx.settings.activeRemoteDevice
+  return Boolean(
+    (ref?.hostId && ref.stackId) ||
+      (projectRef?.machineId && projectRef.projectId) ||
+      (deviceRef?.computerId && deviceRef.projectId)
+  )
 }
 
 export function scheduleActiveRemoteStackReconnect(ctx: DesktopWindowRuntime, reason: string): void {

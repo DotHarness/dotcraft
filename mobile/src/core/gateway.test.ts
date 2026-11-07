@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { GatewayClient, GatewayUnreachableError, tunnelUrl } from './gateway'
-import type { PinnedNative, PinnedRequest, PinnedResponse } from './pinned'
+import { GatewayClient, GatewayUnreachableError, tunnelUrl } from '@dotcraft/sdk/gateway'
+import type { PinnedRequest, PinnedResponse } from '@dotcraft/sdk/gateway'
+import type { PinnedNative } from './pinned'
 
 const FP = 'a'.repeat(64)
 

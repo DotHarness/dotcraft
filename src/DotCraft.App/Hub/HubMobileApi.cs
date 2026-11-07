@@ -50,7 +50,7 @@ internal static class HubMobileApi
                 ? Results.NoContent()
                 : throw new HubProtocolException(
                     "deviceNotFound",
-                    $"No paired phone with id '{deviceId}'.",
+                    $"No paired device with id '{deviceId}'.",
                     StatusCodes.Status404NotFound)));
     }
 
@@ -58,7 +58,7 @@ internal static class HubMobileApi
         ? Results.NoContent()
         : throw new HubProtocolException(
             "pairingNotFound",
-            $"No phone is asking to pair with '{pairingId}'.",
+            $"No device is asking to pair with '{pairingId}'.",
             StatusCodes.Status404NotFound);
 
     private static async Task<MobileRelayRequest> ReadRelayAsync(HttpRequest request)

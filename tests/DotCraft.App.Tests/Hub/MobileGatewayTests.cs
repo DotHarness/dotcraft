@@ -193,6 +193,66 @@ public sealed class MobileGatewayTests : IDisposable
         await AssertErrorAsync(await phone.Http.PostAsync($"/m/projects/{alphaId}/ensure", null), HttpStatusCode.NotFound, "projectNotFound");
     }
 
+    [Fact]
+    public async Task Device_SeesProjectPaths_AndAddsAnAbsoluteFolderToTheComputersProjects()
+    {
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        var folder = Directory.CreateDirectory(Path.Combine(_userProfile, "added-folder")).FullName;
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        using var device = await hub.PairPhoneAsync();
+
+        await AssertErrorAsync(
+            await device.Http.PostAsJsonAsync("/m/projects", new { path = "relative/folder" }),
+            HttpStatusCode.BadRequest,
+            "invalidRequest");
+        await AssertErrorAsync(
+            await device.Http.PostAsJsonAsync("/m/projects", new { path = Path.Combine(_userProfile, "missing-folder") }),
+            HttpStatusCode.NotFound,
+            "workspaceNotFound");
+
+        using var added = await device.Http.PostAsJsonAsync("/m/projects", new { path = folder });
+        added.EnsureSuccessStatusCode();
+        var project = (await device.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray()
+            .Single(item => item.GetProperty("displayName").GetString() == "added-folder");
+        Assert.Equal(folder, project.GetProperty("path").GetString());
+        Assert.Equal("project", project.GetProperty("kind").GetString());
+    }
+
+    [Theory]
+    [InlineData("windows", HttpStatusCode.Accepted)]
+    [InlineData("macos", HttpStatusCode.Accepted)]
+    [InlineData("linux", HttpStatusCode.Accepted)]
+    [InlineData("toaster", HttpStatusCode.BadRequest)]
+    public async Task Pairing_AcceptsComputerPlatforms(string platform, HttpStatusCode expected)
+    {
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        var pairing = await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/pairings");
+        var query = QueryHelpers.ParseQuery(new Uri(pairing.GetProperty("qrPayload").GetString()!).Query);
+        using var device = new MobilePhone(int.Parse(query["port"].ToString()), query["fp"].ToString());
+
+        using var response = await device.Http.PostAsJsonAsync(
+            "/m/pair",
+            new { code = query["code"].ToString(), displayName = "Studio PC", platform, osVersion = "11", appVersion = "0.10.4" });
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task State_NamesTheComputerOnceTheGatewayHasStarted()
+    {
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        Assert.False((await hub.JsonAsync(HttpMethod.Get, "/v1/mobile")).TryGetProperty("computerId", out var before)
+            && before.ValueKind == JsonValueKind.String);
+
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        using var device = await hub.PairPhoneAsync();
+
+        Assert.Equal(
+            (await device.GetJsonAsync("/m/hello")).GetProperty("computerId").GetString(),
+            (await hub.JsonAsync(HttpMethod.Get, "/v1/mobile")).GetProperty("computerId").GetString());
+    }
+
     private static async Task<string> ProjectIdAsync(MobilePhone phone, string displayName) =>
         (await phone.GetJsonAsync("/m/projects")).GetProperty("projects").EnumerateArray()
         .Single(project => project.GetProperty("displayName").GetString() == displayName)

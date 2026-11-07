@@ -1,6 +1,6 @@
 export type WorkspaceProjectState = 'foreground' | 'secondary' | 'cold' | 'connecting' | 'error'
 export type WorkspaceProjectKind = 'local' | 'remote' | 'chat'
-export type WorkspaceRemoteProjectSource = 'servers' | 'ssh' | 'manual' | 'cli'
+export type WorkspaceRemoteProjectSource = 'servers' | 'ssh' | 'device' | 'manual' | 'cli'
 
 export interface WorkspaceRemoteProjectMetadata {
   source: WorkspaceRemoteProjectSource

@@ -33,6 +33,10 @@
       "types": "./dist/hub.d.ts",
       "import": "./dist/hub.js"
     },
+    "./gateway": {
+      "types": "./dist/gateway.d.ts",
+      "import": "./dist/gateway.js"
+    },
     "./app-binding": {
       "types": "./dist/app-binding.d.ts",
       "import": "./dist/app-binding.js"

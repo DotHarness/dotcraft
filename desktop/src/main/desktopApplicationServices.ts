@@ -1,3 +1,4 @@
+import type { PairedComputersManager } from './pairedComputers/pairedComputersManager'
 import type { BrowserWindow } from 'electron'
 import type { AppSettings } from './settings'
 import type { DesktopLifecycleController } from './desktopLifecycle'
@@ -15,6 +16,7 @@ export interface DesktopApplicationServices {
   lifecycle: DesktopLifecycleController
   localProjects: LocalProjectList
   tasks: DesktopThreadTasks
+  readonly pairedComputers: PairedComputersManager
   windows: Map<number, DesktopWindowRuntime>
   notifyWindowAttention: WindowAttentionNotifier
   createHubClient(settings: AppSettings): DesktopHubClient

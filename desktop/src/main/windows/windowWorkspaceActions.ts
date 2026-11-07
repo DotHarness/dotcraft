@@ -77,6 +77,9 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     onDisconnectDockerDeployment: ctx.disconnectDockerDeployment,
     onOpenRemoteProject: ctx.openSshRemoteProject,
     onLeaveRemoteProject: ctx.leaveSshRemoteProject,
+    getPairedComputersManager: () => ctx.app.pairedComputers,
+    onOpenPairedComputerProject: ctx.openPairedComputerProject,
+    onLeavePairedComputerProject: ctx.leavePairedComputerProject,
     onDisconnectRemoteProject: () => ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true }),
     getSettings: () => ctx.settings,
     updateSettings: async (partial) => {

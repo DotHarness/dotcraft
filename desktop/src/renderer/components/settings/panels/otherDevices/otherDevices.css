@@ -1,0 +1,96 @@
+.dc-other-device-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 20px;
+  list-style: decimal;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.dc-other-device-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  overflow-wrap: anywhere;
+}
+
+.dc-other-device-target > svg {
+  flex-shrink: 0;
+}
+
+.dc-other-device-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dc-other-device-empty {
+  margin: 0;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.dc-other-device-project {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px 10px 16px;
+  box-sizing: border-box;
+}
+
+.dc-other-device-project + .dc-other-device-project {
+  border-top: 1px solid var(--border-default);
+}
+
+.dc-other-device-project__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.dc-other-device-project__text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dc-other-device-project__name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-other-device-project__path {
+  overflow: hidden;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-other-device-project[data-unavailable='true'] .dc-other-device-project__name {
+  color: var(--text-secondary);
+}
+
+.dc-other-device-project__actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}

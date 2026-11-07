@@ -1,6 +1,10 @@
-import { useCallback, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
+import { connectPairedComputers, usePairedComputersStore } from '../../stores/pairedComputersStore'
+import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { addToast } from '../../stores/toastStore'
+import { canAddProject } from '../settings/panels/ssh/sshMachinePresentation'
+import { openDeviceProject } from '../sidebar/sshRemoteProject'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { ProjectDialog, type FolderEntry, type ProjectDialogResult } from './ProjectDialog'
 
@@ -42,6 +46,22 @@ export function useAddProjectFlow(): AddProjectFlow {
   const t = useT()
   const [state, setState] = useState<DialogState | null>(null)
   const [busy, setBusy] = useState(false)
+  const creating = state?.mode === 'create'
+  const computers = usePairedComputersStore((store) => store.computers)
+  const machines = useSshMachinesStore((store) => store.machines)
+
+  useEffect(() => {
+    if (!creating) return
+    useSshMachinesStore.getState().ensureLoaded()
+    return connectPairedComputers()
+  }, [creating])
+
+  const remoteDevices = useMemo(() => [
+    ...computers
+      .filter((computer) => computer.status === 'connected')
+      .map((computer) => ({ id: `device:${computer.computerId}`, label: computer.name })),
+    ...machines.filter(canAddProject).map((machine) => ({ id: `ssh:${machine.id}`, label: machine.name }))
+  ], [computers, machines])
 
   const beginCreate = useCallback((): void => {
     setState({ mode: 'create', name: '', folders: [], project: null, active: false })
@@ -90,6 +110,28 @@ export function useAddProjectFlow(): AddProjectFlow {
     }
   }, [state, t])
 
+  const submitRemote = useCallback(async (deviceId: string, path: string): Promise<void> => {
+    setBusy(true)
+    try {
+      const separator = deviceId.indexOf(':')
+      const hostId = deviceId.slice(separator + 1)
+      if (deviceId.startsWith('device:')) {
+        const result = await window.api.pairedComputers.addFolder(hostId, path)
+        if (!result.ok) throw new Error(t('settings.otherDevices.folder.failure.title'))
+        await openDeviceProject({ computerId: hostId, projectId: result.value.projectId })
+      } else {
+        const ssh = useSshMachinesStore.getState()
+        const project = await ssh.addProject(hostId, path)
+        await ssh.openProject(hostId, project.id)
+      }
+      setState(null)
+    } catch (err) {
+      addToast(t('addProject.createFailed', { error: errorMessage(err) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }, [t])
+
   const removeProject = useCallback(async (): Promise<void> => {
     if (!state?.project) return
     setBusy(true)
@@ -106,6 +148,8 @@ export function useAddProjectFlow(): AddProjectFlow {
   const dialog = state ? (
     <ProjectDialog
       mode={state.mode}
+      remoteDevices={remoteDevices}
+      onSubmitRemote={(deviceId, path) => { void submitRemote(deviceId, path) }}
       initialName={state.name}
       initialFolders={state.folders}
       busy={busy}

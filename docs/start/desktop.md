@@ -136,7 +136,22 @@ To reach a DotCraft running on a server, enter the remote AppServer address unde
 
 Remote tool calls let your agent work on another PC while the conversation stays here. Pair the PC under **Settings → Connections → Satellites**, then select it in **Run on** below the composer. See [DotCraft Satellite](../guide/satellite) for setup and screen viewing.
 
-To follow and answer chats from your phone, pair it under **Settings → Connections → Phones**. See [Phone app](./mobile) for the download and setup.
+To work on another computer that already runs DotCraft, pair with it under **Settings → Connections → Control other devices**. See [Control another computer](#control-another-computer).
+
+To follow and answer chats from your phone, pair it under **Settings → Connections → Control this PC**. See [Phone app](./mobile) for the download and setup.
+
+## Control another computer
+
+Open projects on another computer from this Desktop. The agent and your files stay on that computer, and it works the same on your network or through a relay.
+
+1. On the other computer, go to **Settings → Connections → Control this PC** (**Control this Mac** on macOS), turn on device access, and select **Add device**.
+2. Select **Copy link** and get the link to this computer.
+3. On this computer, go to **Settings → Connections → Control other devices**, select **Add device**, and paste the link.
+4. Back on the other computer, check that it names this computer and choose **Allow**.
+
+Open a project from the computer's page, or add a folder by its path. Projects you open stay in the sidebar, and you can remove one there or from that page. A paired computer can do anything you can do in DotCraft on the computer it controls, so pair only your own.
+
+The two computers need to run the same DotCraft version or the other one newer. To reach a computer on another network, set up a relay on it, as described in [Access from anywhere](./mobile#access-from-anywhere). To install or update DotCraft on a machine, use [SSH](#run-locally-or-connect-to-a-server) instead.
 
 ## Stay on the latest version
 

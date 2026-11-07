@@ -5,7 +5,14 @@ type Translate = (key: string, vars?: Record<string, string | number>) => string
 
 const PLATFORM_NAMES: Record<MobileDevice['platform'], string> = {
   ios: 'iOS',
-  android: 'Android'
+  android: 'Android',
+  windows: 'Windows',
+  macos: 'macOS',
+  linux: 'Linux'
+}
+
+export function isPhonePlatform(platform: MobileDevice['platform']): boolean {
+  return platform === 'ios' || platform === 'android'
 }
 
 export function platformLabel(device: MobileDevice): string {

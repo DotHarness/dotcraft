@@ -13,7 +13,8 @@ import {
   Server,
   Settings,
   SquarePen,
-  Trash2
+  Trash2,
+  Monitor
 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -43,7 +44,8 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { SidebarEntryDetailsActionRow } from './SidebarEntryDetailsActionRow'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { workspacePathName } from './ThreadEntryDetails'
-import { canOpenSshProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
+import { canOpenSshProject, deviceProjectRef, openDeviceProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
+import { usePairedComputersStore } from '../../stores/pairedComputersStore'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
 import { ProjectsSectionHeader } from './ProjectsSectionHeader'
@@ -723,7 +725,9 @@ export function ProjectGlyph({
   active: boolean
 }): JSX.Element {
   const ProjectIcon = isRemoteProject(project)
-    ? (project.remote?.source === 'servers' || project.remote?.source === 'ssh' ? Server : Cloud)
+    ? (project.remote?.source === 'device'
+      ? Monitor
+      : project.remote?.source === 'servers' || project.remote?.source === 'ssh' ? Server : Cloud)
     : (collapsed ? Folder : FolderOpen)
   return (
     <span style={projectIconSlotStyle}>
@@ -789,6 +793,8 @@ function ProjectHeader({
   const label = project.name || project.path
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const sshRef = sshProjectRef(project)
+  const deviceRef = deviceProjectRef(project)
+  const savedRemote = sshRef != null || deviceRef != null
   const sshMachine = useSshProjectMachine(sshRef)
   const sshUnreachable = cold && sshMachine?.status.kind === 'failed'
   const errorLabel = (sshUnreachable ? sshMachine?.status.message : project.errorMessage) || t('projectsRail.error')
@@ -888,6 +894,15 @@ function ProjectHeader({
 
   async function openProject(): Promise<boolean> {
     if (active) return true
+    if (deviceRef) {
+      try {
+        await openDeviceProject(deviceRef)
+        return true
+      } catch (error) {
+        addToast(error instanceof Error ? error.message : String(error), 'error')
+        return false
+      }
+    }
     if (sshRef) {
       if (!canOpenSshProject(sshMachine)) return false
       try {
@@ -904,17 +919,17 @@ function ProjectHeader({
   }
 
   async function newChat(): Promise<void> {
-    if (!active && (sshRef || !isRemoteProject(project)) && !(await openProject())) return
+    if (!active && (savedRemote || !isRemoteProject(project)) && !(await openProject())) return
     useUIStore.getState().goToNewChat({ workspacePath: projectKey })
     setActiveMainView('conversation')
   }
 
   async function removeProject(): Promise<void> {
     if (active) return
-    if (isRemoteProject(project) && !sshRef) return
+    if (isRemoteProject(project) && !savedRemote) return
     const confirmed = await confirm({
       title: t('projectsRail.removeProjectTitle', { project: label }),
-      message: sshRef
+      message: savedRemote
         ? t('projectsRail.removeRemoteProjectMessage', { machine: sshMachine?.name ?? project.remote?.serverName ?? '' })
         : t('projectsRail.removeProjectMessage'),
       confirmLabel: t('projectsRail.removeProjectConfirm'),
@@ -922,6 +937,10 @@ function ProjectHeader({
       danger: true
     })
     if (!confirmed) return
+    if (deviceRef) {
+      await usePairedComputersStore.getState().removeProject(deviceRef.computerId, deviceRef.projectId)
+      return
+    }
     if (sshRef) {
       await useSshMachinesStore.getState().removeProject(sshRef.machineId, sshRef.projectId)
       return
@@ -936,7 +955,7 @@ function ProjectHeader({
 
   const remote = isRemoteProject(project)
   const menuItems: ContextMenuEntry[] = [
-    ...(!active && (!remote || (sshRef && cold))
+    ...(!active && (!remote || (savedRemote && cold))
       ? [{
           label: t('projectsRail.openProject'),
           icon: <ExternalLink size={14} aria-hidden />,
@@ -974,7 +993,7 @@ function ProjectHeader({
       }
     },
     { type: 'separator' },
-    remote && !(sshRef && cold)
+    remote && !(savedRemote && cold)
       ? {
           label: t('projectsRail.disconnectRemote'),
           icon: <LogOut size={14} aria-hidden />,

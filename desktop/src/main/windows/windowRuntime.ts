@@ -15,6 +15,7 @@ import * as windowFrame from './windowFrame'
 import * as windowLifecycle from './windowLifecycle'
 import * as windowLinks from './windowLinks'
 import * as windowProjects from './windowProjects'
+import type { AppServerBridge } from '../pairedComputers/appServerBridge'
 import * as windowRemoteActions from './windowRemoteActions'
 import * as windowRemoteConnections from './windowRemoteConnections'
 import * as windowRemoteProjects from './windowRemoteProjects'
@@ -42,6 +43,7 @@ export interface DesktopWindowState {
   activeRemoteProject: ActiveRemoteProject | null
   previousLocalForegroundWorkspacePath: string | null
   lastRemoteStackLocalPort: number | null
+  activeDeviceBridge: AppServerBridge | null
   sshMachinesManager: SshMachinesManager | null
   remoteProjectRefreshTimer: ReturnType<typeof setTimeout> | null
   connectionGeneration: number
@@ -51,6 +53,7 @@ export interface DesktopWindowState {
   hubEventAbortController: AbortController | null
   secondaryRefreshTimer: ReturnType<typeof setTimeout> | null
   pendingChromeSettingsDeepLink: boolean
+  pendingPairingLink: string | null
   pendingWorkspaceOpenThreadId: string | null
   pendingNewThreadLink: ReturnType<typeof findNewThreadDeepLink>
   prewarmedAppServer: {
@@ -122,6 +125,7 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     activeRemoteProject: null,
     previousLocalForegroundWorkspacePath: null,
     lastRemoteStackLocalPort: null,
+    activeDeviceBridge: null,
     sshMachinesManager: null,
     remoteProjectRefreshTimer: null,
     connectionGeneration: 0,
@@ -131,6 +135,7 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     hubEventAbortController: null,
     secondaryRefreshTimer: null,
     pendingChromeSettingsDeepLink: false,
+    pendingPairingLink: null,
     pendingWorkspaceOpenThreadId: findWorkspaceOpenDeepLink(argv)?.threadId ?? null,
     pendingNewThreadLink: findNewThreadDeepLink(argv),
     prewarmedAppServer: null,

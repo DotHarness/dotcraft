@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.2 |
+| **Version** | 0.10.4 |
 | **Status** | Living |
-| **Date** | 2026-11-05 |
+| **Date** | 2026-11-07 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer: user-visible flows, interaction rules, state ownership, state transitions, and recovery behavior. It does not define frontend implementation, visual design, or framework choices.
 
@@ -69,6 +69,7 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 - Remote connection changes use test-and-connect: Desktop validates the draft `ws://`/`wss://` URL and token, completes an `initialize` probe against the draft endpoint, and persists the settings and switches only after the probe succeeds. A failed probe leaves persisted settings unchanged.
 - When Desktop is launched with a transient `--remote` endpoint, persistent connection-mode switching is unavailable for that session, and Settings explains why.
 - Remote projects and Docker deployments opened from SSH Machines ([§6.10](#610-ssh-machines)) are a forwarded case of Remote mode: Desktop connects through a local SSH forward and reuses the same test-and-connect path.
+- Projects opened from paired computers ([§6.16](#616-control-other-devices)) are another case of Remote mode: Desktop connects through the [Device Gateway](../protocols/device-gateway.md), and every Remote-mode rule applies to them.
 - A Remote-mode session is a distinct foreground project identity, separate from the local workspace that initiated it. Local threads, pinned state, and welcome drafts stay isolated from the remote project.
 - Connecting to a remote project records the previous local foreground workspace. Disconnecting the remote project or selecting a local project closes the remote client and its forward and restores the previous local foreground when possible.
 - A failed connection remains recoverable without restarting Desktop.
@@ -135,7 +136,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 - Recents can optionally also list unpinned threads of loaded projects; a thread shown in two places is highlighted only where it was selected.
 - Selecting a thread in another project highlights its row immediately and removes the previous highlight, before that project is promoted and its thread list reloads. The highlight is withdrawn if the thread cannot be opened.
 - A project title's color reflects whether its workspace is started, not whether it is foreground, so switching projects does not recolor the rail.
-- The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired phone agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly.
+- The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines and paired computers, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired device agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly.
 - Local and remote projects keep distinct identities so remote threads never appear under the local workspace that initiated the remote connection.
 - A failed Hub project snapshot preserves the last successful snapshot and retries independently of the SSE subscription, including when the initial fetch failed and SSE remains connected without events. A successful empty snapshot is authoritative. Retries back off at 2, 5, 15, and then at most 30 seconds until success or shutdown; successful refreshes cancel pending retries. Concurrent invalidations must not lose a change, and stopped watchers cannot publish in-flight results.
 
@@ -152,7 +153,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
 - Foreground and secondary rows show the unread dot from the thread's server read receipt ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from `thread/list` and updated by `thread/readState/changed`. Desktop marks a thread read only while it is open in a focused window. Promoting a project keeps its receipts.
-- Remote projects are never background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting an unsaved remote project removes it from the rail; a saved SSH remote project stays listed without thread rows.
+- Remote projects are never background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting an unsaved remote project removes it from the rail; a saved remote project stays listed without thread rows.
 
 **Actions**
 
@@ -849,7 +850,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Connections**
 
-- One Connections page separates connection kinds by direction: **Workspace** (how Desktop reaches the workspace runtime), **Satellites** ([§6.11](#611-satellites)), **Share this PC** (who may run tools on this PC, §6.11), **SSH** ([§6.10](#610-ssh-machines)), and **Phones** ([§6.15](#615-phones)). Each segment owns its own model, list, and primary action and never shares state. Segments whose capability is absent show a setup state rather than disappearing, except Share this PC may be hidden when no Satellite runtime exists on the machine.
+- One Connections page separates connection kinds by direction: **Workspace** (how Desktop reaches the workspace runtime), **Control other devices** ([§6.16](#616-control-other-devices)), **Control this PC** (**Control this Mac** on macOS, who may use DotCraft on this computer, [§6.15](#615-control-this-pc)), **SSH** ([§6.10](#610-ssh-machines)), **Satellites** ([§6.11](#611-satellites)), and **Share this PC** (who may run tools on this PC, §6.11). Each segment owns its own model, list, and primary action and never shares state. Segments whose capability is absent show a setup state rather than disappearing, except Share this PC may be hidden when no Satellite runtime exists on the machine.
 - Workspace: Local mode shows Hub-managed AppServer actions including Apply & Restart; Remote mode uses Apply & Connect with validate-before-persist and hides local-only binary and restart controls ([3.1.1](#311-local-and-remote-appserver-ownership)).
 
 **Source control** (when `capabilities.sourceControlManagement` is available)
@@ -867,7 +868,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 **Notifications**
 
 - Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies only when no focused Desktop window has that workspace in the foreground, and clicking opens the chat.
-- When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, and Docker, or no tray), the window notifies itself under the same switches while unfocused.
+- When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, paired computers, and Docker, or no tray), the window notifies itself under the same switches while unfocused.
 - Each request notifies at most once; a replay after reconnect or thread switch does not notify again.
 
 **New tasks**
@@ -974,7 +975,7 @@ The SSH segment of Connections ([§6.7](#67-settings-surface)) lists machines th
 
 - A remote project is a folder on a machine. It appears in the Projects rail with remote identity ([§3.7](#37-projects-rail-thread-navigation-and-secondary-connections)), and opening it makes the machine's remote AppServer the foreground connection under [§3.1.1](#311-local-and-remote-appserver-ownership).
 - Turning a machine off or deleting it closes Desktop's connections only; work on the machine keeps running and nothing there is removed.
-- While an SSH project or deployment is the active session, the Workspace segment shows it read-only instead of an editable URL.
+- While an SSH project, deployment, or paired-computer project is the active session, the Workspace segment shows it read-only instead of an editable URL.
 
 ### 6.11 Satellites
 
@@ -1034,16 +1035,34 @@ Packaged Windows builds update themselves from GitHub Releases. Other platforms 
 - The update dialog's primary action carries the download: it shows the percentage while the update downloads, its tooltip gives the transferred size and speed, and the same action then restarts into the update. Only the release notes scroll.
 - Each release publishes `DotCraft-v<version>-win-<arch>-Setup.exe` with its `.blockmap` per Windows architecture and one `latest.yml` listing all; the updater selects the installer for the running architecture.
 
-### 6.15 Phones
+### 6.15 Control This PC
 
-The Phones segment of Connections lists phones that may control this computer and turns phone access on and off. The mobile gateway, pairing codes, and device records belong to the mobile client's spec. Desktop rules:
+The Control this PC segment of Connections lists devices that may control this computer and turns access on and off. Phones and other computers share one list. The device gateway, pairing codes, and device records belong to [Device Gateway](../protocols/device-gateway.md). Desktop rules:
 
-- The trusted host process reaches the gateway through the Hub Local API `/v1/mobile*` routes and `mobile.*` Hub events, the same plane as Satellites enrollment. The Hub bearer never reaches the renderer; pairing codes and QR payloads stay in memory while shown and are never persisted. A relay token passes from renderer to host only when saving and is never returned by Hub.
-- The segment shows a setup state when Hub is unavailable or lacks phone access. A failed start explains its `failureCode` and leaves access off.
-- The phone list stays visible while access is off, so phones can be removed (with confirmation). Adding a phone requires access on.
-- Pairing shows a code with its expiry; refreshing invalidates the previous code. When `mobile.pairingRequested` matches its code, the dialog asks whether that phone may control this computer, restating that it can do anything the user can do in DotCraft here. Allow waits for the phone and completes only on `mobile.devicePaired` whose `pairingId` matches; Decline, or `mobile.pairingCancelled` for its code, shows a fresh code. Turning access off ends a shown code.
+- The trusted host process reaches the gateway through the Hub Local API `/v1/mobile*` routes and `mobile.*` Hub events, the same plane as Satellites enrollment. The Hub bearer never reaches the renderer; pairing URLs stay in memory while shown and are never persisted. A relay token passes from renderer to host only when saving and is never returned by Hub.
+- The segment shows a setup state when Hub is unavailable or lacks device access. A failed start explains its `failureCode` and leaves access off.
+- The access switch states that a paired device can do anything the user can do in DotCraft on this computer.
+- The device list stays visible while access is off, so devices can be removed (with confirmation). Adding a device requires access on.
+- Adding a device shows the pairing URL as a QR code and as a link to copy, with its expiry; refreshing invalidates the previous code. When `mobile.pairingRequested` matches its code, the dialog asks whether the named device may control this computer, restating that it can do anything the user can do in DotCraft here. Allow waits for the device and completes only on `mobile.devicePaired` whose `pairingId` matches; Decline, or `mobile.pairingCancelled` for its code, shows a fresh code. Turning access off ends a shown code.
 - Off-network relay settings are managed through `PUT` and `DELETE /v1/mobile/relay` and reflect `relay` state; changing the relay leaves pairings unchanged.
-- In Remote mode, the segment still manages this Desktop's own Hub; phones reach that Hub's local projects, never the remote AppServer Desktop is attached to.
+- In Remote mode, the segment still manages this Desktop's own Hub; devices reach that Hub's local projects, never the remote AppServer Desktop is attached to.
+
+### 6.16 Control Other Devices
+
+The Control other devices segment of Connections lists computers this Desktop has paired with and opens their projects. Use it when the other computer already runs DotCraft; SSH ([§6.10](#610-ssh-machines)) remains how Desktop installs, updates, or deploys DotCraft on a machine. Pairing, routes, and how a computer is reached belong to [Device Gateway](../protocols/device-gateway.md). Desktop rules:
+
+- Paired computers are application-wide: all windows see the same list, and a computer is one pairing, identified by `computerId`.
+- **Add device** takes a pairing URL pasted by the user. Opening a `dotcraft://pair` link brings up the same dialog with the URL filled in; a link never starts pairing without the user confirming it here. While waiting, the dialog asks the user to allow this device on the named computer. Denial, expiry, or a used code keeps the dialog open and asks for a new link.
+- A pairing URL naming this computer's own `computerId` is refused.
+- The device credential stays in the trusted host process and in operating-system protected storage. It never reaches the renderer or plain-text settings. When protected storage is unavailable, adding a device fails and explains why; Desktop has no plain-text fallback.
+- Any endpoint Desktop opens on this PC to adapt a gateway connection binds loopback and requires a per-session secret, so another local process cannot use the credential through it.
+- While Desktop runs, it keeps one gateway event connection to each paired computer. A computer's status is **Connecting**, **Connected**, **Offline**, **Access off**, **Update required**, or **Identity changed**, following the [gateway's failure behavior](../protocols/device-gateway.md#11-failure-behavior).
+- A computer whose DotCraft version is older than this Desktop's release version reports Update required, and its projects do not open until it is updated on that computer. A newer version is accepted. An Identity changed computer offers only removal.
+- A computer's detail page lists its projects. Opening a project also adds it to the Projects rail, and a remove control takes it off; that control is disabled for a project not in the rail. The page accepts an absolute folder path on that computer, which is added through `POST /m/projects`. Desktop does not browse the computer's folders.
+- Creating a project chooses a device first: **This computer**, or a connected SSH machine or paired computer under **Remote devices**.
+- Added projects appear in the Projects rail with remote identity ([§3.7](#37-projects-rail-thread-navigation-and-secondary-connections)), keyed by `computerId` and `projectId`, and are saved locally. Opening one ensures its AppServer and makes it the foreground connection under [§3.1.1](#311-local-and-remote-appserver-ownership). A project removed on the computer is marked unavailable when the computer is connected, and can be removed from the rail.
+- A dropped connection follows the normal reconnect rules; each reconnect chooses the direct or relayed path again.
+- Removing a computer asks for confirmation, closes Desktop's connections, calls `DELETE /m/device` when reachable, and forgets its credential and saved projects. Work on the computer keeps running. A revoked computer is forgotten in the same way, and Desktop says so.
 
 ## 7. Keyboard Accessibility and Localization
 

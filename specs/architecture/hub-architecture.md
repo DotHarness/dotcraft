@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.4 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-07 |
 
-Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired phones; in both roles it relays connections as opaque byte streams.
+Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
 ## 1. Motivation
 
@@ -17,7 +17,7 @@ Multiple local clients can open the same workspace without knowing an AppServer 
 Hub acts like a local container manager:
 
 - Each workspace still has its own AppServer; Hub does not host workspace runtimes.
-- Hub does not proxy local clients' AppServer Protocol traffic. It relays Remote Tool Host sessions (§6.1) and paired phones' AppServer connections (§6.2) as opaque byte bridges that never interpret the traffic.
+- Hub does not proxy local clients' AppServer Protocol traffic. It relays Remote Tool Host sessions (§6.1) and paired devices' AppServer connections (§6.2) as opaque byte bridges that never interpret the traffic.
 - Hub helps local clients find or create the correct AppServer and then gets out of the hot path.
 
 ## 2. Design Principles
@@ -26,7 +26,7 @@ Hub acts like a local container manager:
 2. **Do not change AppServer Protocol for local coordination.** No workspace routing fields are added to AppServer methods.
 3. **Keep Hub off the conversation hot path.** After bootstrap, clients connect directly to the AppServer WebSocket endpoint.
 4. **Use stdio for supervision, WebSocket for sharing.** Hub supervises managed AppServers over stdio; local clients share them over WebSocket.
-5. **Keep Hub local and single-user.** The Hub Local API binds to loopback with same-user trust. A client on another machine reaches it only through an SSH local forward authenticated as the same OS user (§9.1). Hub may open two separate, opt-in LAN listeners: the satellite listener (Remote Tool Host pairing and transport only) and the mobile gateway (phone pairing and relay only). Each has its own route table; no `/v1/*` endpoint is reachable from either.
+5. **Keep Hub local and single-user.** The Hub Local API binds to loopback with same-user trust. A client on another machine reaches it only through an SSH local forward authenticated as the same OS user (§9.1). Hub may open two separate, opt-in LAN listeners: the satellite listener (Remote Tool Host pairing and transport only) and the device gateway (device pairing and relay only). Each has its own route table; no `/v1/*` endpoint is reachable from either.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
 7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop.
 8. **Keep product services closed and explicit.** Hub may supervise product-owned services registered by DotCraft composition; it is not a native-process extension point for plugins.
@@ -41,7 +41,7 @@ dotcraft hub
   - in-memory product service supervisor
   - lifecycle events
   - satellite peer registry and opt-in satellite listener
-  - mobile device registry and opt-in mobile gateway
+  - paired device registry and opt-in device gateway
 
 dotcraft app-server, one per workspace
   - cwd = workspace root
@@ -107,16 +107,16 @@ Transport: HTTP JSON over loopback, discovered through `~/.craft/hub/hub.lock`. 
 | `POST /v1/satellites/invites` | Mint a one-time pairing invitation and start the satellite listener when it is not running. |
 | `DELETE /v1/satellites/{peerId}` | Revoke a pairing and close its live connections. |
 | `GET /v1/satellites/{peerId}/bridge?session=...&kind=...` | WebSocket. Open one relayed session of the given kind with a paired Remote Tool Host: `tools` (the default) for a local AppServer, `screen` for a local client. A paired host without a live control connection is answered `503 satelliteOffline` before any capability check. |
-| `GET /v1/mobile` | Mobile gateway state: `off`, `on`, or `failed` with a reason, the port, advertised addresses, paired phones, and the relay with its connection state. |
-| `POST /v1/mobile/enable` | Turn the mobile gateway on and keep it on across Hub restarts. |
-| `POST /v1/mobile/disable` | Turn the mobile gateway off and close every phone connection. Paired phones are kept. |
-| `POST /v1/mobile/pairings` | Mint a phone pairing code and return its QR payload and expiry. |
-| `POST /v1/mobile/pairings/{pairingId}/allow`, `/deny` | Allow or decline the phone that asked to pair with that code. |
-| `DELETE /v1/mobile/devices/{deviceId}` | Revoke a paired phone and close its connections. |
-| `PUT /v1/mobile/relay` | Set the relay URL and token that let phones reach the gateway from other networks. |
+| `GET /v1/mobile` | Device gateway state: `off`, `on`, or `failed` with a reason, the computer id, the port, advertised addresses, paired devices, and the relay with its connection state. |
+| `POST /v1/mobile/enable` | Turn the device gateway on and keep it on across Hub restarts. |
+| `POST /v1/mobile/disable` | Turn the device gateway off and close every device connection. Paired devices are kept. |
+| `POST /v1/mobile/pairings` | Mint a pairing code and return its pairing URL and expiry. |
+| `POST /v1/mobile/pairings/{pairingId}/allow`, `/deny` | Allow or decline the device that asked to pair with that code. |
+| `DELETE /v1/mobile/devices/{deviceId}` | Revoke a paired device and close its connections. |
+| `PUT /v1/mobile/relay` | Set the relay URL and token that let devices reach the gateway from other networks. |
 | `DELETE /v1/mobile/relay` | Remove the relay. |
 
-`GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the mobile gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`. These routes serve local AppServers and local clients, never the remote machine or the phone.
+`GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the device gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`. These routes serve local AppServers and local clients, never the remote machine or a paired device.
 
 Errors use this shape:
 
@@ -161,13 +161,13 @@ Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge
 
 The control channel, its frames, heartbeats, reconnect behavior, and the pairing ceremony are specified by [Remote Tool Host](remote-tool-host.md) §8 and §9.
 
-### 6.2 Mobile gateway
+### 6.2 Device gateway
 
-The mobile gateway is a second, opt-in listener that paired phones use to reach workspace AppServers. It serves HTTPS with a self-signed certificate that phones pin, on `Hub.MobileHost` and the fixed port `Hub.MobilePort` (default `47610`), and only `/m/*` routes: pairing, a project list, project ensure, a relayed AppServer WebSocket per project, and a gateway event socket. It refuses sources outside loopback and the private, link-local, shared (100.64/10), and unique-local ranges before the TLS handshake. Turning it on or off is a Hub Local API call, and the choice survives Hub restarts.
+The device gateway is a second, opt-in listener that paired devices use to reach workspace AppServers. It serves HTTPS with a self-signed certificate that devices pin, on `Hub.MobileHost` and the fixed port `Hub.MobilePort` (default `47610`), and only `/m/*` routes: pairing, a project list, adding a project, project ensure, a relayed AppServer WebSocket per project, and a gateway event socket. It refuses sources outside loopback and the private, link-local, shared (100.64/10), and unique-local ranges before the TLS handshake. Turning it on or off is a Hub Local API call, and the choice survives Hub restarts.
 
-When a relay is configured and the gateway is on, Hub keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route to a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed phone reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
+When a relay is configured and the gateway is on, Hub keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route to a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed device reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
 
-Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCancelled`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by the mobile client contract, not by this spec.
+Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCancelled`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by [Device Gateway](../protocols/device-gateway.md), not by this spec.
 
 ## 7. Registry, Locks, and State
 
@@ -202,14 +202,14 @@ The registry is not the source of truth for workspace ownership; the live OS pro
 
 Raw peer credentials and invite ids are never written to disk. Online state and open sessions are in memory for the Hub's lifetime.
 
-### Mobile Registry
+### Device Gateway Registry
 
-`~/.craft/hub/mobile.json` stores the mobile gateway state:
+`~/.craft/hub/mobile.json` stores the device gateway state:
 
 - whether the gateway is on, so Hub turns it back on at start;
-- paired phones: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential;
+- paired devices: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential;
 - the current pairing code as its hash, its pairing id, and its expiry;
-- the computer id, 128 random bits created when the gateway first turns on, that names this computer to phones and on a relay;
+- the computer id, 128 random bits created when the gateway first turns on, that names this computer to devices and on a relay;
 - the relay URL and relay token, when configured.
 
 `~/.craft/hub/mobile-certificate.pfx` holds the gateway certificate and private key, readable only by the user where the OS allows. Raw device credentials and pairing codes are never written to disk. The relay token is stored as given because Hub presents it to the relay, so `mobile.json` is created user-readable only on Unix-like systems. Connection and relay state are in memory for the Hub's lifetime.
@@ -347,7 +347,7 @@ A client may connect to multiple managed AppServers at once. These are client co
 
 Managed endpoints bind to loopback. Hub allocates ports for the AppServer WebSocket and, when enabled, the Dashboard.
 
-The satellite listener and the mobile gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port that paired peers store — `Hub.SatellitePort` (default `47600`) and `Hub.MobilePort` (default `47610`) — and neither falls back to another port when its own is taken. The mobile relay binds nothing on the computer: Hub dials out and reaches the gateway over loopback.
+The satellite listener and the device gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port that paired peers store — `Hub.SatellitePort` (default `47600`) and `Hub.MobilePort` (default `47610`) — and neither falls back to another port when its own is taken. The relay binds nothing on the computer: Hub dials out and reaches the gateway over loopback.
 
 If optional modules are disabled or unavailable, Hub reports service status as `disabled` or `unavailable` and still starts the AppServer.
 
@@ -361,10 +361,10 @@ Hub is a same-user local coordinator, not a security boundary against malicious 
 
 - The Hub API and managed AppServer endpoints bind to loopback. The Hub API requires its bearer token on protected endpoints; managed AppServer WebSockets use per-process tokens when available.
 - The satellite listener may bind a non-loopback address. It is off by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential stored only as a hash. It uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Relayed screen frames inherit this profile.
-- The mobile gateway may bind a non-loopback address. It is off by default, serves no `/v1/*` route, refuses sources outside loopback and private ranges before TLS, and serves TLS with a self-signed certificate that phones pin by fingerprint. Every route but pairing requires a per-device bearer credential stored only as a hash; pairing codes are single-use, expire after 10 minutes, and are never stored raw. A paired phone holds the authority of the Hub's OS user; Hub authenticates the relayed AppServer connection itself, so the phone never receives a Hub or AppServer token.
-- The mobile relay connection is outbound only and authenticates with a user-chosen relay token. The relay sees only TLS ciphertext between phone and gateway; a relay or token holder can drop or refuse tunnels but cannot impersonate the gateway, because phones pin its certificate.
+- The device gateway may bind a non-loopback address. It is off by default, serves no `/v1/*` route, refuses sources outside loopback and private ranges before TLS, and serves TLS with a self-signed certificate that devices pin by fingerprint. Every route but pairing requires a per-device bearer credential stored only as a hash; pairing codes are single-use, expire after 10 minutes, and are never stored raw. A paired device holds the authority of the Hub's OS user; Hub authenticates the relayed AppServer connection itself, so the device never receives a Hub or AppServer token.
+- The relay connection is outbound only and authenticates with a user-chosen relay token. The relay sees only TLS ciphertext between device and gateway; a relay or token holder can drop or refuse tunnels but cannot impersonate the gateway, because devices pin its certificate.
 - A client on another machine reaches Hub only through an SSH local forward authenticated as the Hub's OS user (§9.1); the Hub token travels over that SSH session and is held only in the client's memory.
-- Multi-user Hub scenarios, and remote access other than satellite pairing, the mobile gateway and relay, and SSH forwarding, require a separate security design.
+- Multi-user Hub scenarios, and remote access other than satellite pairing, the device gateway and relay, and SSH forwarding, require a separate security design.
 
 ## 13. Compatibility
 

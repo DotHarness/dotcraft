@@ -1,5 +1,5 @@
 import { TransportClosed, type Transport } from '@dotcraft/sdk/wire'
-import type { PinnedSocketOptions } from './pinned'
+import type { PinnedSocketOptions } from '@dotcraft/sdk/gateway'
 import type { PinnedSockets, SocketEnd, SocketHandle } from './sockets'
 
 export class SocketOpenError extends Error {

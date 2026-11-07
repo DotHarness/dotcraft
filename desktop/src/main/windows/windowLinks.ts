@@ -1,3 +1,5 @@
+import { parsePairingUrl } from '@dotcraft/sdk/gateway'
+import { PAIRED_COMPUTERS_EVENT_CHANNEL } from '../pairedComputers/pairedComputersIpc'
 import { BrowserWindow } from 'electron'
 import {
   parseNewThreadDeepLink,
@@ -162,6 +164,17 @@ export function flushPendingNewThreadLink(ctx: DesktopWindowRuntime): void {
   })
 }
 
+export function openPairingDeepLink(ctx: DesktopWindowRuntime, link: string): void {
+  const win = ctx.mainWindow
+  if (!win || win.isDestroyed() || win.webContents.isLoading()) {
+    ctx.pendingPairingLink = link
+    return
+  }
+  ctx.pendingPairingLink = null
+  ctx.showWindowSafely(win)
+  win.webContents.send(PAIRED_COMPUTERS_EVENT_CHANNEL, { kind: 'pairingLink', link })
+}
+
 export function handleDesktopDeepLink(ctx: DesktopWindowRuntime, url: string): Promise<void> | null {
   const workspaceOpen = parseWorkspaceOpenDeepLink(url)
   if (workspaceOpen) {
@@ -171,6 +184,11 @@ export function handleDesktopDeepLink(ctx: DesktopWindowRuntime, url: string): P
 
   const newThread = parseNewThreadDeepLink(url)
   if (newThread) return ctx.handleNewThreadDeepLink(newThread)
+
+  if (parsePairingUrl(url)) {
+    ctx.openPairingDeepLink(url)
+    return Promise.resolve()
+  }
 
   const satelliteJoin = parseSatelliteJoinDeepLink(url)
   if (satelliteJoin) {

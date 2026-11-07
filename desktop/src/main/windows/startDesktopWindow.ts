@@ -144,6 +144,7 @@ export function startDesktopWindow(
       ctx.flushPendingNewThreadLink()
     }
     if (ctx.pendingChromeSettingsDeepLink) ctx.openChromeSettingsFromDeepLink()
+    if (ctx.pendingPairingLink) ctx.openPairingDeepLink(ctx.pendingPairingLink)
   })
   if (import.meta.env.DEV) {
     void win.loadURL('http://localhost:5173')

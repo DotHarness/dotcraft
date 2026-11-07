@@ -43,6 +43,15 @@ internal sealed class MobileRegistry(string filePath, TimeProvider? timeProvider
         }
     }
 
+    public string? ComputerId
+    {
+        get
+        {
+            lock (_gate)
+                return Load().ComputerId;
+        }
+    }
+
     public string EnsureComputerId()
     {
         lock (_gate)

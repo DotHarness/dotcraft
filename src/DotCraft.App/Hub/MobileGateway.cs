@@ -52,7 +52,7 @@ internal sealed class MobileGateway : IAsyncDisposable
         _events = events;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<MobileGateway>();
-        Projects = new MobileProjects(projects, appServers, paths);
+        Projects = new MobileProjects(projects, appServers, paths, events);
         Pairings = new MobilePairingRequests(registry, events);
     }
 
@@ -69,6 +69,7 @@ internal sealed class MobileGateway : IAsyncDisposable
             status.State,
             status.FailureCode,
             status.FailureMessage,
+            _registry.ComputerId,
             _config.MobilePort,
             MobileNetwork.AdvertisedAddresses(),
             [.. _registry.ListDevices().Select(device => new HubMobileDevice(
@@ -143,7 +144,7 @@ internal sealed class MobileGateway : IAsyncDisposable
     public HubMobilePairing MintPairing()
     {
         if (Volatile.Read(ref _status).State != GatewayStatus.On.State)
-            throw new HubProtocolException("gatewayOff", "Phone access is off on this computer.", StatusCodes.Status409Conflict);
+            throw new HubProtocolException("gatewayOff", "Device access is off on this computer.", StatusCodes.Status409Conflict);
 
         Pairings.Cancel();
         var (pairingId, code, expiresAt) = _registry.MintPairing();
@@ -173,10 +174,10 @@ internal sealed class MobileGateway : IAsyncDisposable
     public Task<(MobilePairResponse? Paired, string? RequestKey)> PairAsync(MobilePairRequest request, CancellationToken ct)
     {
         var displayName = request.DisplayName?.Trim();
-        if (string.IsNullOrEmpty(displayName) || request.Platform is not ("ios" or "android"))
+        if (string.IsNullOrEmpty(displayName) || request.Platform is not ("ios" or "android" or "windows" or "macos" or "linux"))
             throw new HubProtocolException(
                 "invalidRequest",
-                "A display name and a platform of 'ios' or 'android' are required.",
+                "A display name and a platform of 'ios', 'android', 'windows', 'macos', or 'linux' are required.",
                 StatusCodes.Status400BadRequest);
         if (string.IsNullOrEmpty(request.Code))
             throw new HubProtocolException(
@@ -254,15 +255,15 @@ internal sealed class MobileGateway : IAsyncDisposable
             return;
         }
 
-        using var phone = await context.WebSockets.AcceptWebSocketAsync();
-        if (Track(device.DeviceId, phone, appServer) is not { } connection)
+        using var client = await context.WebSockets.AcceptWebSocketAsync();
+        if (Track(device.DeviceId, client, appServer) is not { } connection)
         {
-            await RefuseAsync(phone, device.DeviceId);
+            await RefuseAsync(client, device.DeviceId);
             return;
         }
         try
         {
-            await SatelliteWebSocketBridge.RelayAsync(appServer, phone, connection.Stopping);
+            await SatelliteWebSocketBridge.RelayAsync(appServer, client, connection.Stopping);
         }
         finally
         {
@@ -348,7 +349,7 @@ internal sealed class MobileGateway : IAsyncDisposable
                 _accepting = false;
             var failure = ex as HubProtocolException ?? new HubProtocolException(
                 "hubInternalError",
-                "Phone access could not start.",
+                "Device access could not start.",
                 StatusCodes.Status500InternalServerError,
                 new { type = ex.GetType().Name });
             SetStatus(new GatewayStatus("failed", failure.Code, failure.Message));
