@@ -5,6 +5,7 @@ import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
 const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: runtime }))
+vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }))
 vi.mock('../chatFoldersIpc', () => ({ createChatFolderFromSettings: vi.fn() }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: { handleTurnEnded: vi.fn() }, rememberAlwaysAllowedApp: vi.fn() }))
@@ -19,7 +20,7 @@ import { handleWorkspaceNodeReplNotification } from '../windows/windowNodeReplRe
 const clients: EventEmitter[] = []
 function entry(key: string): WorkspaceConnectionEntry {
   const client = Object.assign(new EventEmitter(), {
-    retainBrowserTurn: vi.fn(async () => {}),
+    retainBrowserTurn: vi.fn(async () => true),
     releaseBrowserTurn: vi.fn(async () => {}),
     sendRequest: vi.fn(async () => ({ approved: true }))
   })
@@ -27,7 +28,7 @@ function entry(key: string): WorkspaceConnectionEntry {
   return {
     key, projectId: key, kind: 'local', workspacePath: `/identity/${key}`, localWorkspacePath: `/local/${key}`,
     wsUrl: `ws://${key}`, client: client as unknown as WorkspaceConnectionEntry['client'], role: 'foreground',
-    connected: true, connecting: false, lastUsedAt: 0, threads: [], subscribedThreadIds: new Set()
+    connected: true, connecting: false, lastUsedAt: 0, threads: []
   }
 }
 function fixture(windowId = 1) {
@@ -63,7 +64,7 @@ describe('source-bound Node REPL routing', () => {
     const { a, b, owner, evaluate, promoteB } = fixture()
     await evaluate(a, 'first')
     let retained!: () => void
-    vi.mocked(a.client.retainBrowserTurn).mockReturnValueOnce(new Promise<void>(resolve => { retained = resolve }))
+    vi.mocked(a.client.retainBrowserTurn).mockReturnValueOnce(new Promise<boolean>(resolve => { retained = () => resolve(true) }))
     const pending = evaluate(a, 'second')
     promoteB()
     retained()
@@ -82,7 +83,7 @@ describe('source-bound Node REPL routing', () => {
   it('rejects a replaced connection before evaluation admission, including a late subscription', async () => {
     const { a, ctx, evaluate } = fixture()
     let retained!: () => void
-    vi.mocked(a.client.retainBrowserTurn).mockReturnValue(new Promise<void>(resolve => { retained = resolve }))
+    vi.mocked(a.client.retainBrowserTurn).mockReturnValue(new Promise<boolean>(resolve => { retained = () => resolve(true) }))
     const pending = evaluate()
     ctx.workspaceConnections.set(a.key, entry('a'))
     retained()

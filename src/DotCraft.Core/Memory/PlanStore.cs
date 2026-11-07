@@ -23,6 +23,7 @@ public sealed class PlanStore
     };
 
     private readonly WorkspaceStateDatabase _stateRuntime;
+    internal event Action<string, StructuredPlan>? Saved;
 
     public PlanStore(string botPath)
         : this(botPath, null)
@@ -49,6 +50,7 @@ public sealed class PlanStore
             rendered,
             plan.CreatedAt == default ? DateTimeOffset.UtcNow : plan.CreatedAt,
             plan.UpdatedAt == default ? DateTimeOffset.UtcNow : plan.UpdatedAt);
+        Saved?.Invoke(sessionId, plan);
     }
 
     public Task<StructuredPlan?> LoadStructuredPlanAsync(string sessionId)

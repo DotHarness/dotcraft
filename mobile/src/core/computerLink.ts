@@ -2,6 +2,7 @@ import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { Reconnector, type Timers } from './backoff'
 import type { BackgroundTask } from './backgroundTasks'
 import { plainMessage, type MessageDraft } from './draft'
+import { implementationTurn } from './decisions'
 import { GatewayClient, GatewayUnreachableError, isUnauthorized } from './gateway'
 import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision, type CompactionResult } from './projectConnection'
 import type { PinnedSockets, SocketEnd, SocketHandle } from './sockets'
@@ -137,7 +138,7 @@ export class ComputerLink {
     if (key) {
       const { projectId, threadId } = this.split(key)
       const connection = this.connections.get(projectId)
-      if (connection?.ready) loads.push(connection.syncChat(threadId).catch(() => undefined))
+      if (connection?.ready) loads.push(connection.syncChat(threadId, true).catch(() => undefined))
     }
     await Promise.all(loads)
   }
@@ -355,7 +356,7 @@ export class ComputerLink {
   async loadOlder(key: string): Promise<void> {
     const { projectId, threadId } = this.split(key)
     const connection = this.connections.get(projectId)
-    if (connection?.ready && connection.isOpen(threadId)) await connection.loadOlder(threadId)
+    if (connection?.ready && (connection.isOpen(threadId) || this.state.chats[key]?.archived)) await connection.loadOlder(threadId)
   }
 
   async loadTurnItems(key: string, turnId: string): Promise<void> {
@@ -428,8 +429,16 @@ export class ComputerLink {
   }
 
   async implementPlan(key: string): Promise<void> {
-    await this.setMode(key, 'agent')
-    await this.send(key, plainMessage('Implement the plan.'))
+    const { projectId, threadId } = this.split(key)
+    const connection = this.connection(projectId)
+    await connection.syncChat(threadId)
+    const plan = implementationTurn(this.state.details[key], this.state.chats[key]?.runtime ?? null)
+    if (!plan) return
+    const focus = this.focusedChat
+    await connection.setMode(threadId, 'agent')
+    if (this.connections.get(projectId) !== connection || this.focusedChat !== focus || !this.views.has(key)) return
+    if (this.state.details[key]?.config?.mode !== 'agent' || this.state.details[key]?.history.turns.at(-1)?.id !== plan) return
+    await connection.send(threadId, plainMessage('Implement the plan.'))
   }
 
   async loadUsage(projectId: string, providerId: string | null): Promise<void> {

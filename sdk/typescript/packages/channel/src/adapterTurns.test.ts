@@ -25,7 +25,10 @@ class ControlledStream implements AsyncIterableIterator<JsonRpcMessage> {
   closed = false;
 
   push(method: string, params: Record<string, unknown> = {}): void {
-    this.queue.push(JsonRpcMessage.fromDict({ method, params }));
+    const identity = method.startsWith("turn/")
+      ? { ...params, turn: { id: "turn-new", threadId: "thread-1", ...(params.turn as object) } }
+      : { threadId: "thread-1", turnId: "turn-new", ...params };
+    this.queue.push(JsonRpcMessage.fromDict({ method, params: identity }));
     this.waiter?.();
     this.waiter = null;
   }
@@ -53,7 +56,10 @@ class TurnAdapter extends ChannelAdapter {
   readonly deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
   readonly hooks: string[] = [];
   readonly calls: string[] = [];
-  readonly stream = new ControlledStream();
+  readonly detached: string[] = [];
+  stream = new ControlledStream();
+  useResolver = false;
+  private readonly detachWaiters: Array<() => void> = [];
   thread: SessionThread = makeThread("thread-1", "active");
   private endedResolve: (() => void) | null = null;
   readonly ended = new Promise<void>((resolve) => { this.endedResolve = resolve; });
@@ -61,6 +67,16 @@ class TurnAdapter extends ChannelAdapter {
   constructor() {
     super(new NoopTransport(), "test-channel", "test-client", "0.0.0");
     const client = this.client as unknown as Record<string, unknown>;
+    client.threadUnsubscribe = async (threadId: string) => {
+      this.detached.push(threadId);
+      this.detachWaiters.shift()?.();
+    };
+    client.threadList = async () => [];
+    client.threadStart = async () => this.thread;
+    client.threadResume = async (threadId: string) => {
+      this.calls.push(`resume:${threadId}`);
+      return this.thread;
+    };
     client.streamEvents = () => this.stream;
     client.turnStart = async (threadId: string) => {
       this.calls.push(`start:${threadId}`);
@@ -102,8 +118,12 @@ class TurnAdapter extends ChannelAdapter {
     return { kind: "group", membership: "shared" };
   }
 
-  protected override async getOrCreateThread(): Promise<SessionThread> {
-    return this.thread;
+  protected override async getOrCreateThread(...args: Parameters<ChannelAdapter["getOrCreateThread"]>): Promise<SessionThread> {
+    return this.useResolver ? await super.getOrCreateThread(...args) : this.thread;
+  }
+
+  nextDetach(): Promise<void> {
+    return new Promise<void>((resolve) => this.detachWaiters.push(resolve));
   }
 
   protected override async onTurnStarted(turn: ChannelTurn): Promise<void> {
@@ -151,16 +171,39 @@ test("a message to an idle thread starts a Turn and returns before the Turn ends
 
   assert.deepEqual(adapter.calls, ["start:thread-1"]);
   assert.deepEqual(adapter.hooks, ["started:turn-new"]);
+  assert.deepEqual(adapter.detached, []);
+  const detached = adapter.nextDetach();
 
+  adapter.stream.push("turn/completed", { turn: { id: "other-thread-turn", threadId: "other-thread" } });
+  adapter.stream.push("turn/cancelled", { turn: { id: "old-turn", threadId: "thread-1" } });
   adapter.stream.push("item/started", { item: { id: "a", type: "agentMessage" } });
   adapter.stream.push("item/completed", { item: { id: "a", type: "agentMessage", payload: { text: "Reply text" } } });
   adapter.stream.push("system/event", { turnId: "turn-new", kind: "streamError" });
   adapter.stream.push("item/completed", { item: { id: "img", type: "imageGeneration", payload: { status: "completed", result: "aGk=" } } });
   adapter.stream.push("turn/completed", { turn: { id: "turn-new", items: [{ id: "a", type: "agentMessage", payload: { text: "Reply text" } }] } });
   await quietly(() => adapter.ended);
+  await detached;
 
+  assert.deepEqual(adapter.detached, ["thread-1"]);
   assert.deepEqual(adapter.hooks, ["started:turn-new", "retrying:turn-new", "ended:turn-new:completed"]);
   assert.deepEqual(adapter.deliveries, []);
+});
+
+test("cached channel threads resume for each later run and release observation without clearing the cache", async () => {
+  const adapter = new TurnAdapter();
+  adapter.useResolver = true;
+  let detached = adapter.nextDetach();
+  await adapter.send("first");
+  adapter.stream.push("turn/completed", { turn: { id: "turn-new", threadId: "thread-1" } });
+  await detached;
+  adapter.stream = new ControlledStream();
+  detached = adapter.nextDetach();
+  await adapter.send("second");
+  assert.deepEqual(adapter.calls, ["start:thread-1", "resume:thread-1", "start:thread-1"]);
+  assert.deepEqual(adapter.detached, ["thread-1"]);
+  adapter.stream.push("turn/completed", { turn: { id: "turn-new", threadId: "thread-1" } });
+  await detached;
+  assert.deepEqual(adapter.detached, ["thread-1", "thread-1"]);
 });
 
 test("a message during an active Turn is steered into it", async () => {
@@ -171,6 +214,7 @@ test("a message during an active Turn is steered into it", async () => {
 
   assert.deepEqual(adapter.calls, ["steer:thread-1:turn-active"]);
   assert.deepEqual(adapter.hooks, []);
+  assert.deepEqual(adapter.detached, ["thread-1"]);
 });
 
 test("a message the active Turn cannot take is queued", async () => {

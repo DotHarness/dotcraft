@@ -1,6 +1,6 @@
 /** High-level AppServer operations built on the pure JSON-RPC Wire client. */
 
-import { DotCraftWireClient, JsonRpcMessage, type NotificationHandler } from "@dotcraft/sdk/wire";
+import { DotCraftWireClient, JsonRpcMessage, captureThreadEvents } from "@dotcraft/sdk/wire";
 import type {
   ClientRequestMethods,
   CommandExecuteResult,
@@ -101,7 +101,6 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     return await this.request("thread/items/list", params);
   }
 
-  async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }
   async threadUnsubscribe(threadId: string): Promise<void> { await this.request("thread/unsubscribe", { threadId }); }
   async threadArchive(threadId: string): Promise<void> { await this.request("thread/archive", { threadId }); }
   async threadDelete(threadId: string): Promise<void> { await this.request("thread/delete", { threadId }); }
@@ -141,36 +140,7 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     return await this.request("command/execute", payload as ClientRequestMethods["command/execute"]["params"]);
   }
 
-  streamEvents(threadId: string, terminalMethods: readonly string[] = ["turn/completed", "turn/failed", "turn/cancelled"]): AsyncIterableIterator<JsonRpcMessage> {
-    const queue: JsonRpcMessage[] = [];
-    let resolveWait: (() => void) | null = null;
-    const methods = [
-      "thread/started", "thread/renamed", "thread/resumed", "thread/archived", "thread/unarchived",
-      "thread/status/changed", "thread/queue/updated", "turn/started", "turn/completed", "turn/failed", "turn/cancelled",
-      "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/delta", "item/toolCall/argumentsDelta",
-      "item/approval/resolved", "subagent/progress", "item/usage/delta", "system/event", "plan/updated",
-    ];
-    const unsubscribe = methods.map((method) => this.onRaw(method, (async (params) => {
-      if ("threadId" in params && params.threadId !== threadId) return;
-      queue.push(JsonRpcMessage.fromDict({ method, params }));
-      resolveWait?.();
-      resolveWait = null;
-    }) satisfies NotificationHandler));
-    let finished = false;
-    const cleanup = (): void => {
-      if (finished) return;
-      finished = true;
-      unsubscribe.forEach((remove) => remove());
-    };
-    return {
-      next: async () => {
-        while (queue.length === 0) await new Promise<void>((resolve) => { resolveWait = resolve; });
-        const value = queue.shift()!;
-        if (value.method && terminalMethods.includes(value.method)) cleanup();
-        return { value, done: false };
-      },
-      return: async () => { cleanup(); return { value: undefined, done: true }; },
-      [Symbol.asyncIterator]() { return this; },
-    };
+  streamEvents(threadId: string): AsyncIterableIterator<JsonRpcMessage> {
+    return captureThreadEvents(this, threadId);
   }
 }

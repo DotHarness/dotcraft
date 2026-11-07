@@ -85,7 +85,7 @@ public sealed class ThreadReadStateIntegrationTests
                 var passiveSaw = await CollectUntilAsync(server.Process.Wire, IsMethodFor("thread/readState/changed", threadId), deadline.Token);
                 Assert.Equal(readRevision, ReadStateOf(passiveSaw[^1]).GetProperty("revision").GetString());
 
-                using var subscribed = await observer.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
+                using var subscribed = await observer.Wire.SendRequestAsync("thread/resume", new { threadId }, ct: deadline.Token);
                 Result(subscribed);
                 using var rolledBack = await server.Process.Wire.SendRequestAsync(
                     "thread/rollback", new { threadId, numTurns = 1 }, ct: deadline.Token);

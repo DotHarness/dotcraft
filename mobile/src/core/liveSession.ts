@@ -141,6 +141,7 @@ export class LiveSession {
     this.foreground = true
     if (!this.active) return false
     this.finish()
+    this.changed()
     return true
   }
 
@@ -218,6 +219,7 @@ export class LiveSession {
 
   private evaluate(state: MobileState): void {
     if (this.foreground) {
+      this.hold(new Set(liveEntries(state).filter((entry) => entry.computer.link === 'online').map(heldKey)))
       if (!this.prepared && liveEntries(state).some((entry) => entry.computer.link === 'online')) {
         this.prepared = true
         void this.notifier.prepare()
@@ -230,7 +232,7 @@ export class LiveSession {
       return
     }
     const live = liveEntries(state)
-    this.hold(new Set(live.map(heldKey)))
+    this.hold(new Set(live.filter((entry) => entry.computer.link === 'online').map(heldKey)))
     this.notifyRequests(state)
     this.notifyTurnEnds(state)
     const status = this.statusOf(state)
@@ -267,7 +269,7 @@ export class LiveSession {
       const computer = state.computers[computerId]
       for (const [key, requests] of Object.entries(computer.pending)) {
         const chat = computer.chats[key]
-        if (chat) for (const request of requests) pending.set(`request:${computerId}:${key}:${request.requestId}`, { entry: { computerId, computer, chat }, request })
+        if (chat && computer.details[key]?.loading === false) for (const request of requests) pending.set(`request:${computerId}:${key}:${request.requestId}`, { entry: { computerId, computer, chat }, request })
       }
     }
     for (const id of [...this.shown]) {
@@ -293,6 +295,10 @@ export class LiveSession {
     for (const entry of entriesOf(state, runningChats)) {
       const current = stateOf(entry.chat)
       const held = heldKey(entry)
+      if (entry.computer.link !== 'online' || entry.computer.details[entry.chat.key]?.loading !== false) {
+        this.tracked.delete(held)
+        continue
+      }
       if (isLive(current)) {
         this.tracked.add(held)
         this.ended.delete(held)

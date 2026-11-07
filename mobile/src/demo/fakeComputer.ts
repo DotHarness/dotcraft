@@ -1,7 +1,8 @@
 import type { RelayInfo } from '../core/gateway'
 import { FakeBackground, type FakeBackgroundSeed, type FakeWorkflowRun } from './fakeBackground'
 import { FakeFiles } from './fakeFiles'
-import { withSummaries } from './fakeHistorySummary'
+import { inputText } from './fakeInput'
+import { contextUsage, resumeState, threadBody, threadSummary, turnsPage } from './fakeThreadView'
 
 export interface FakeItem {
   id: string
@@ -134,13 +135,9 @@ interface Connection {
 
 type Outcome = { result?: unknown; error?: { code: number; message: string; data?: unknown }; after?: () => void }
 
-const CONTEXT_WINDOW = 400_000
-
 export function sequenceId(prefix: string, sequence: number): string {
   return `${prefix}_${sequence.toString().padStart(3, '0')}`
 }
-
-type FakeInputPart = { type: string; text?: string; name?: string; rawText?: string; path?: string }
 
 /** A list page the way the AppServer pages history: descending by default, with an opaque offset cursor. */
 function page<T>(scope: string, rows: T[], params: Record<string, unknown>): { data: T[]; nextCursor: string | null } {
@@ -149,18 +146,6 @@ function page<T>(scope: string, rows: T[], params: Record<string, unknown>): { d
   const limit = typeof params.limit === 'number' ? params.limit : ordered.length
   const end = start + limit
   return { data: ordered.slice(start, end), nextCursor: end < ordered.length ? `${scope}:${end}` : null }
-}
-
-function inputText(input: unknown): string {
-  return (input as FakeInputPart[])
-    .map((part) => {
-      if (part.type === 'text') return part.text ?? ''
-      if (part.type === 'commandRef') return part.rawText ?? `/${part.name}`
-      if (part.type === 'skillRef') return `$${part.name}`
-      if (part.type === 'fileRef') return `@${part.path}`
-      return ''
-    })
-    .join('')
 }
 
 export class FakeComputer {
@@ -363,44 +348,9 @@ export class FakeComputer {
     return turn?.status === 'running' ? turn : null
   }
 
-  private summary(thread: FakeThread): Record<string, unknown> {
-    const active = this.activeTurn(thread)
-    return {
-      id: thread.id,
-      displayName: thread.displayName,
-      createdAt: thread.createdAt,
-      lastActiveAt: thread.lastActiveAt,
-      runtime: {
-        running: active !== null,
-        busy: active !== null,
-        waitingOnApproval: thread.pending.some((request) => request.kind === 'approval'),
-        waitingOnInput: thread.pending.some((request) => request.kind === 'question'),
-        waitingOnPlanConfirmation: active === null && thread.planned === true && thread.config?.mode === 'plan',
-        activeTurnId: active?.id ?? null,
-      },
-    }
-  }
-
-  private threadBody(thread: FakeThread): Record<string, unknown> {
-    return {
-      ...this.summary(thread),
-      workspacePath: this.thread(thread.id).project.path ?? '',
-      effectiveWorkspacePath: thread.cwd ?? this.thread(thread.id).project.path ?? '',
-      configuration: { ...thread.config, agentProfileId: thread.profileId },
-      ...(thread.context === undefined ? {} : { contextUsage: this.contextUsage(thread.context) }),
-      metadata: {},
-      ephemeral: false,
-      source: { kind: thread.source ?? 'user' },
-    }
-  }
-
-  private contextUsage(tokens: number): Record<string, unknown> {
-    return { tokens, contextWindow: CONTEXT_WINDOW, percentLeft: Math.max(0, 1 - tokens / CONTEXT_WINDOW) }
-  }
-
   private statusChanged(project: FakeProject, thread: FakeThread): void {
     thread.lastActiveAt = this.stamp()
-    this.broadcast(project, 'thread/status/changed', { threadId: thread.id, runtime: this.summary(thread).runtime })
+    this.broadcast(project, 'thread/status/changed', { threadId: thread.id, runtime: threadSummary(thread).runtime })
   }
 
   private request(connection: Connection, method: string, params: Record<string, unknown>): Outcome {
@@ -433,7 +383,7 @@ export class FakeComputer {
       case 'thread/list': {
         const threads = project.threads.filter((thread) => !thread.archived)
         const readStates = Object.fromEntries(threads.flatMap((thread) => (thread.readState ? [[thread.id, thread.readState]] : [])))
-        return { result: { data: threads.map((thread) => this.summary(thread)), readStates } }
+        return { result: { data: threads.map((thread) => threadSummary(thread)), readStates } }
       }
       case 'agent/profiles/list':
         return { result: { profiles: this.profiles } }
@@ -476,9 +426,10 @@ export class FakeComputer {
           context: 0,
         }
         project.threads.push(thread)
+        connection.subscribed.add(thread.id)
         return {
-          result: { thread: this.threadBody(thread) },
-          after: () => this.broadcast(project, 'thread/started', { thread: this.threadBody(thread) }),
+          result: { thread: threadBody(thread, project.path ?? '') },
+          after: () => this.broadcast(project, 'thread/started', { thread: threadBody(thread, project.path ?? '') }),
         }
       }
     }
@@ -489,19 +440,27 @@ export class FakeComputer {
     const { thread } = this.thread(params.threadId as string)
     switch (method) {
       case 'thread/read':
-        return { result: { thread: this.threadBody(thread) } }
+        return { result: { thread: threadBody(thread, project.path ?? '') } }
       case 'thread/turns/list': {
-        const listed = page('turns', thread.turns, params)
-        return { result: { ...listed, data: withSummaries(listed.data, thread.items, params) } }
+        return { result: turnsPage(thread, params) }
       }
       case 'thread/items/list': {
         const items = params.turnId ? thread.items.filter((item) => item.turnId === params.turnId) : thread.items
         const listed = page('items', items, params)
         return { result: { ...listed, data: listed.data.map((item) => ({ turnId: item.turnId, item })) } }
       }
-      case 'thread/subscribe':
+      case 'thread/items/read':
+        return { result: { data: thread.items.filter((item) => item.turnId === params.turnId && (params.itemIds as string[]).includes(item.id)).map((item) => ({ turnId: item.turnId, item })) } }
+      case 'thread/resume':
+        if (thread.archived) return { error: { code: -32600, message: 'Archived threads cannot be resumed.' } }
         connection.subscribed.add(thread.id)
-        return { result: {}, after: () => this.afterSubscribe(connection, project, thread) }
+        return {
+          result: {
+            thread: threadBody(thread, project.path ?? ''), instructionSources: [], currentState: resumeState(thread),
+            ...(params.initialTurnsPage ? { initialTurnsPage: turnsPage(thread, { itemsView: 'summary', ...params.initialTurnsPage as object }) } : {}),
+          },
+          after: () => this.afterResume(connection, project, thread),
+        }
       case 'thread/unsubscribe':
         connection.subscribed.delete(thread.id)
         return { result: {} }
@@ -529,7 +488,8 @@ export class FakeComputer {
           stream: null,
         }
         project.threads.push(fork)
-        return { result: { thread: this.threadBody(fork) }, after: () => this.broadcast(project, 'thread/started', { thread: this.threadBody(fork) }) }
+        connection.subscribed.add(fork.id)
+        return { result: { thread: threadBody(fork, project.path ?? '') }, after: () => this.broadcast(project, 'thread/started', { thread: threadBody(fork, project.path ?? '') }) }
       }
       case 'thread/archive':
         thread.archived = true
@@ -538,13 +498,13 @@ export class FakeComputer {
         const config = { ...(params.config as Record<string, unknown>) }
         delete config.agentProfileId
         thread.config = config
-        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
+        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: threadBody(thread, project.path ?? '') }) }
       }
       case 'thread/compact/start':
         return { result: { outcome: 'partial' } }
       case 'thread/mode/set':
         thread.config = { ...thread.config, mode: params.mode }
-        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
+        return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: threadBody(thread, project.path ?? '') }) }
       case 'turn/start': {
         if (this.activeTurn(thread)) return { error: { code: -32012, message: 'A turn is already running on this thread.' } }
         const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
@@ -625,27 +585,17 @@ export class FakeComputer {
     connection.held.set(id, { threadId: thread.id, requestId: pending.requestId })
     const { kind, ...fields } = pending
     const method = kind === 'approval' ? 'item/approval/request' : 'item/tool/requestUserInput'
-    this.write(connection, { jsonrpc: '2.0', id, method, params: { threadId: thread.id, turnId, ...fields } })
+    this.write(connection, { jsonrpc: '2.0', id, method, params: { threadId: thread.id, turnId, itemId: pending.requestId, ...fields } })
   }
 
-  private afterSubscribe(connection: Connection, project: FakeProject, thread: FakeThread): void {
+  private afterResume(connection: Connection, project: FakeProject, thread: FakeThread): void {
     const active = this.activeTurn(thread)
-    const diff = active ? this.turnDiff(thread, active.id) : ''
-    if (active && diff) this.write(connection, { jsonrpc: '2.0', method: 'turn/diff/updated', params: { threadId: thread.id, turnId: active.id, diff } })
     if (active) for (const pending of thread.pending) this.deliver(connection, thread, active.id, pending)
     if (active && thread.stream && thread.pending.length === 0) {
       const stream = thread.stream
       thread.stream = null
       this.streamReply(project, thread, active, stream, false)
     }
-  }
-
-  private turnDiff(thread: FakeThread, turnId: string): string {
-    return thread.items
-      .filter((item) => item.turnId === turnId && item.type === 'toolResult')
-      .flatMap((item) => (item.payload.structuredContent as { changes?: { diff?: string }[] } | undefined)?.changes ?? [])
-      .map((change) => change.diff ?? '')
-      .join('')
   }
 
   ask(threadId: string, pending: FakePending): void {
@@ -737,7 +687,7 @@ export class FakeComputer {
           turnId: turn.id,
           inputTokens: thread.context,
           outputTokens: text.length,
-          contextUsage: this.contextUsage(thread.context),
+          contextUsage: contextUsage(thread.context),
         })
       }
       if (complete) this.finishTurn(project, thread, turn, 'completed')

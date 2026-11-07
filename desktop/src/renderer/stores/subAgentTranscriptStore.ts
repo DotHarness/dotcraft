@@ -1,23 +1,25 @@
 import { create } from 'zustand'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
 import type { ThreadConfigurationWire } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
-import { readThreadHistoryHead } from '../utils/threadHistory'
+import { readTurnItemsPage, THREAD_OPENING_PAGE } from '../utils/threadHistory'
+import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
+import { parseUnifiedDiff } from '../utils/unifiedDiff'
+import { useTurnItemsLoadStore } from './turnItemsLoadStore'
+import { wireItemToConversationItem } from '../types/conversation'
+import { mergeTurnItemsPage } from './turnItemsHydration'
 import {
   appendLiveText,
   applyTranscriptEvent,
-  isTerminalTurnEvent,
-  mergeHistoryTurns,
+  restoreTranscript,
   transcriptEventThreadId,
   type TranscriptLiveText
 } from './subAgentTranscriptEvents'
-import { useThreadStore } from './threadStore'
-import { deriveItemDiffs, foldHistoryTurnDiffs, setTurnFileStatus } from './turnDiffs'
+import { deriveItemDiffs, foldHistoryTurnDiffs, applyLiveTurnDiff, setTurnFileStatus } from './turnDiffs'
 
-const TRANSCRIPT_TURN_LIMIT = 20
 const DELTA_FLUSH_MS = 50
-const RECONCILE_DELAY_MS = 300
 
 export interface SubAgentTranscript {
   status: 'loading' | 'ready' | 'error'
@@ -27,13 +29,13 @@ export interface SubAgentTranscript {
   workspacePath: string | null
   itemDiffs: Map<string, FileDiff>
   turnDiffs: ReadonlyMap<string, TurnDiff>
-  subscribed: boolean | null
 }
 
 interface SubAgentTranscriptStore {
   transcripts: Map<string, SubAgentTranscript>
-  fetchTranscript(childThreadId: string): Promise<void>
   watchTranscript(childThreadId: string): () => void
+  loadEarlier(childThreadId: string): Promise<void>
+  loadTurnItems(childThreadId: string, turnId: string, isNeeded?: () => boolean): Promise<void>
   setTurnFileStatus(childThreadId: string, turnId: string, key: string, status: FileDiff['status']): void
   reset(): void
 }
@@ -46,8 +48,7 @@ function emptyTranscript(status: SubAgentTranscript['status']): SubAgentTranscri
     configuration: null,
     workspacePath: null,
     itemDiffs: new Map(),
-    turnDiffs: new Map(),
-    subscribed: null
+    turnDiffs: new Map()
   }
 }
 
@@ -67,14 +68,14 @@ function withTimeline(
   }
 }
 
-interface FetchFlight {
-  rerun: boolean
+interface TranscriptWatch {
+  users: number
+  loadEarlier(): Promise<void>
+  loadTurnItems(turnId: string, isNeeded: () => boolean): Promise<void>
+  stop(): void
 }
 
-const fetches = new Map<string, FetchFlight>()
-const pendingDeltas = new Map<string, { itemId: string; text: string }[]>()
-const deltaTimers = new Map<string, ReturnType<typeof setTimeout>>()
-const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const watches = new Map<string, TranscriptWatch>()
 
 export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, get) => {
   const update = (childThreadId: string, change: (transcript: SubAgentTranscript) => SubAgentTranscript): void => {
@@ -88,126 +89,229 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
     })
   }
 
-  const flushDeltas = (childThreadId: string): void => {
-    const timer = deltaTimers.get(childThreadId)
-    if (timer) clearTimeout(timer)
-    deltaTimers.delete(childThreadId)
-    const queued = pendingDeltas.get(childThreadId)
-    pendingDeltas.delete(childThreadId)
-    if (!queued?.length) return
-    update(childThreadId, (transcript) => {
-      const timeline = queued.reduce(
-        (current, delta) => appendLiveText(current, delta.itemId, delta.text),
-        { turns: transcript.turns, live: transcript.live }
-      )
-      return timeline.live === transcript.live ? transcript : { ...transcript, live: timeline.live }
-    })
-  }
-
-  const queueDelta = (childThreadId: string, itemId: unknown, delta: unknown): void => {
-    if (typeof itemId !== 'string' || typeof delta !== 'string') return
-    const queued = pendingDeltas.get(childThreadId) ?? []
-    queued.push({ itemId, text: delta })
-    pendingDeltas.set(childThreadId, queued)
-    if (!deltaTimers.has(childThreadId)) {
-      deltaTimers.set(childThreadId, setTimeout(() => flushDeltas(childThreadId), DELTA_FLUSH_MS))
-    }
-  }
-
-  const scheduleReconcile = (childThreadId: string): void => {
-    clearTimeout(reconcileTimers.get(childThreadId))
-    reconcileTimers.set(childThreadId, setTimeout(() => {
-      reconcileTimers.delete(childThreadId)
-      void get().fetchTranscript(childThreadId)
-    }, RECONCILE_DELAY_MS))
-  }
-
   return {
     transcripts: new Map(),
 
-    async fetchTranscript(childThreadId) {
-      if (!childThreadId) return
-      const running = fetches.get(childThreadId)
-      if (running) {
-        running.rerun = true
-        return
-      }
-      const flight: FetchFlight = { rerun: false }
-      fetches.set(childThreadId, flight)
-      if (!get().transcripts.has(childThreadId)) update(childThreadId, () => emptyTranscript('loading'))
-      try {
-        do {
-          flight.rerun = false
-          const { thread } = await readThreadHistoryHead(
-            (method, params) => window.api.appServer.sendRequest(method, params),
-            childThreadId,
-            TRANSCRIPT_TURN_LIMIT,
-            'none'
-          )
-          if (fetches.get(childThreadId) !== flight) return
-          const history = (thread.turns ?? []).map((turn) =>
-            wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
-          )
-          flushDeltas(childThreadId)
-          update(childThreadId, (transcript) => {
-            const merged = mergeHistoryTurns({ turns: transcript.turns, live: transcript.live }, history)
-            return withTimeline({
-              ...transcript,
-              status: 'ready',
-              configuration: thread.configuration ?? null,
-              workspacePath: thread.workspacePath || transcript.workspacePath
-            }, merged.turns, merged.live)
-          })
-        } while (flight.rerun)
-      } catch {
-        if (get().transcripts.get(childThreadId)?.status !== 'ready') {
-          update(childThreadId, (transcript) => ({ ...transcript, status: 'error' }))
+    watchTranscript(childThreadId) {
+      const existing = watches.get(childThreadId)
+      if (existing) {
+        existing.users += 1
+      } else {
+        let active = true
+        let ready = false
+        let attached = false
+        let connectionKey: string | null = null
+        let turnCursor: string | null = null
+        let loadingEarlier = false
+        const itemLoads = new Map<string, Promise<void>>()
+        const request = <M extends keyof ClientRequestMethods>(
+          method: M, params: ClientRequestMethods[M]['params'],
+          options?: AppServerResponseOptions<ClientRequestMethods[M]['result']>
+        ): Promise<ClientRequestMethods[M]['result']> => {
+          if (!connectionKey) return Promise.reject(new Error('No transcript connection'))
+          return window.api.appServer.sendConnectionRequest(connectionKey, method, params, undefined, options)
         }
-      } finally {
-        if (fetches.get(childThreadId) === flight) fetches.delete(childThreadId)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        let deltas: { itemId: string; text: string }[] = []
+        const attachmentOwner = `transcript:${childThreadId}:${crypto.randomUUID()}`
+        const release = (): void => {
+          if (!attached || !connectionKey) return
+          attached = false
+          void window.api.appServer.sendConnectionRequest(
+            connectionKey, 'thread/unsubscribe', { threadId: childThreadId }, undefined, { attachmentOwner }
+          ).catch(() => {})
+        }
+        const flush = (): void => {
+          clearTimeout(timer)
+          timer = undefined
+          const queued = deltas
+          deltas = []
+          if (!active || !queued.length) return
+          update(childThreadId, (transcript) => {
+            const timeline = queued.reduce(
+              (current, delta) => appendLiveText(current, delta.itemId, delta.text),
+              { turns: transcript.turns, live: transcript.live }
+            )
+            return { ...transcript, live: timeline.live }
+          })
+        }
+        update(childThreadId, (transcript) => ({ ...transcript, status: 'loading' }))
+        const stopListening = window.api.appServer.onNotification((payload) => {
+          if (!active || !ready) return
+          const params = (payload.params ?? {}) as Record<string, unknown>
+          if (transcriptEventThreadId(params) !== childThreadId) return
+          if (payload.method === 'item/agentMessage/delta' || payload.method === 'item/reasoning/delta') {
+            if (typeof params.itemId !== 'string' || typeof params.delta !== 'string') return
+            deltas.push({ itemId: params.itemId, text: params.delta })
+            timer ??= setTimeout(flush, DELTA_FLUSH_MS)
+            return
+          }
+          flush()
+          const current = get().transcripts.get(childThreadId)
+          if (!current) return
+          const next = applyTranscriptEvent(current, payload.method, params)
+          if (next) update(childThreadId, (transcript) => withTimeline(transcript, next.turns, next.live))
+          if (payload.method === 'turn/diff/updated' && typeof params.turnId === 'string' && typeof params.diff === 'string') {
+            const turnId = params.turnId
+            const diff = params.diff
+            update(childThreadId, (transcript) => ({
+              ...transcript,
+              turnDiffs: applyLiveTurnDiff(
+                transcript.turnDiffs, transcript.turns, transcript.itemDiffs, turnId,
+                parseUnifiedDiff(diff), transcript.workspacePath ?? undefined
+              )
+            }))
+          }
+        })
+        const watch: TranscriptWatch = {
+          users: 1,
+          async loadEarlier() {
+            if (!active || loadingEarlier || !turnCursor) return
+            loadingEarlier = true
+            try {
+              await request('thread/turns/list', {
+                threadId: childThreadId, cursor: turnCursor, sortDirection: 'descending', ...THREAD_OPENING_PAGE
+              }, { onResponse(page) {
+                if (!active) return
+                turnCursor = page.nextCursor ?? null
+                const older = [...(page.data ?? [])].reverse().map(turn =>
+                  wireTurnToConversationTurn(turn as Record<string, unknown>))
+                update(childThreadId, (transcript) => {
+                  const known = new Set(transcript.turns.map(turn => turn.id))
+                  return withTimeline(transcript, [
+                    ...older.filter(turn => !known.has(turn.id)), ...transcript.turns
+                  ], transcript.live)
+                })
+              } })
+            } finally {
+              loadingEarlier = false
+            }
+          },
+          loadTurnItems(turnId, isNeeded) {
+            const pending = itemLoads.get(turnId)
+            if (pending) return pending
+            const current = (): boolean => active && isNeeded()
+            const selected = get().transcripts.get(childThreadId)?.turns.find(turn => turn.id === turnId)
+            if (!selected?.summary || !current()) return Promise.resolve()
+            let cursor = selected.summary.nextCursor ?? null
+            const loading = (async () => {
+              useTurnItemsLoadStore.setState(({ statuses }) => ({ statuses: { ...statuses, [turnId]: 'loading' } }))
+              do {
+                if (!current()) return
+                const page = await readTurnItemsPage(
+                  (method, params, options) => request(method, params, options),
+                  childThreadId, turnId, cursor, (page) => {
+                    if (!current()) return
+                    update(childThreadId, (transcript) => {
+                      const turns = transcript.turns.map(turn => {
+                        if (turn.id !== turnId) return turn
+                         return mergeTurnItemsPage(turn, page.items.map(wireItemToConversationItem), page.nextCursor)
+                      })
+                      return withTimeline(transcript, turns, transcript.live)
+                    })
+                  }
+                )
+                cursor = page.nextCursor
+              } while (cursor !== null)
+            })().catch(() => {
+              if (current()) useTurnItemsLoadStore.setState(({ statuses }) => ({ statuses: { ...statuses, [turnId]: 'failed' } }))
+            }).finally(() => {
+              itemLoads.delete(turnId)
+              if (useTurnItemsLoadStore.getState().statuses[turnId] !== 'failed' || !active) {
+                useTurnItemsLoadStore.setState(({ statuses }) => {
+                  const { [turnId]: _previous, ...rest } = statuses
+                  return { statuses: rest }
+                })
+              }
+            })
+            itemLoads.set(turnId, loading)
+            return loading
+          },
+          stop() {
+            active = false
+            ready = false
+            clearTimeout(timer)
+            deltas = []
+            stopListening()
+            release()
+          }
+        }
+        watches.set(childThreadId, watch)
+        void (async () => {
+          connectionKey = await window.api.appServer.getConnectionKey()
+          if (!active) return
+          if (!connectionKey) throw new Error('No transcript connection')
+          const { thread } = await request('thread/read', { threadId: childThreadId })
+          if (!active) return
+          if (thread?.status === 'archived') {
+            const page = await request('thread/turns/list', {
+              threadId: childThreadId, sortDirection: 'descending', ...THREAD_OPENING_PAGE
+            })
+            if (!active) return
+            turnCursor = page.nextCursor ?? null
+            const turns = [...(page.data ?? [])].reverse().map(turn =>
+              wireTurnToConversationTurn(turn as Record<string, unknown>))
+            update(childThreadId, () => withTimeline({
+              ...emptyTranscript('ready'),
+              configuration: thread.configuration as ThreadConfigurationWire ?? null,
+              workspacePath: thread.workspacePath ?? null
+            }, turns, null))
+            return
+          }
+          await window.api.appServer.sendConnectionRequest(
+            connectionKey, 'thread/resume', { threadId: childThreadId, initialTurnsPage: THREAD_OPENING_PAGE },
+            undefined, {
+              attachmentOwner,
+              onResponse(result) {
+                attached = true
+                if (!active) {
+                  release()
+                  return
+                }
+                turnCursor = result.initialTurnsPage?.nextCursor ?? null
+                const timeline = restoreTranscript(result)
+                update(childThreadId, () => {
+                  const transcript = withTimeline({
+                    ...emptyTranscript('ready'),
+                    configuration: result.thread.configuration as ThreadConfigurationWire ?? null,
+                    workspacePath: result.thread.workspacePath ?? null
+                  }, timeline.turns, timeline.live)
+                  const { turnId, diff } = result.currentState
+                  if (turnId && diff != null) {
+                    transcript.turnDiffs = applyLiveTurnDiff(
+                      transcript.turnDiffs, transcript.turns, transcript.itemDiffs, turnId,
+                      parseUnifiedDiff(diff), transcript.workspacePath ?? undefined
+                    )
+                  }
+                  return transcript
+                })
+                ready = true
+              }
+            }
+          )
+        })().catch(() => {
+          if (active) update(childThreadId, (transcript) => ({ ...transcript, status: 'error' }))
+        })
+      }
+      const watch = watches.get(childThreadId)!
+      let watching = true
+      return () => {
+        if (!watching) return
+        watching = false
+        watch.users -= 1
+        if (watch.users === 0) {
+          watch.stop()
+          if (watches.get(childThreadId) === watch) watches.delete(childThreadId)
+        }
       }
     },
 
-    watchTranscript(childThreadId) {
-      let active = true
-      if (!get().transcripts.has(childThreadId)) update(childThreadId, () => emptyTranscript('loading'))
+    async loadEarlier(childThreadId) {
+      await watches.get(childThreadId)?.loadEarlier()
+    },
 
-      const stopListening = window.api.appServer.onNotification((payload) => {
-        if (!active || payload.foreground === false) return
-        const params = (payload.params ?? {}) as Record<string, unknown>
-        if (transcriptEventThreadId(params) !== childThreadId) return
-        if (payload.method === 'item/agentMessage/delta' || payload.method === 'item/reasoning/delta') {
-          queueDelta(childThreadId, params.itemId, params.delta)
-          return
-        }
-        flushDeltas(childThreadId)
-        const current = get().transcripts.get(childThreadId)
-        if (!current) return
-        const next = applyTranscriptEvent({ turns: current.turns, live: current.live }, payload.method, params)
-        if (!next) return
-        update(childThreadId, (transcript) => withTimeline(transcript, next.turns, next.live))
-        if (isTerminalTurnEvent(payload.method)) scheduleReconcile(childThreadId)
-      })
-
-      void window.api.appServer
-        .sendRequest('thread/subscribe', { threadId: childThreadId, replayRecent: true })
-        .then(() => true, () => false)
-        .then((subscribed) => {
-          if (!active) return
-          update(childThreadId, (transcript) => ({ ...transcript, subscribed }))
-          void get().fetchTranscript(childThreadId)
-        })
-
-      return () => {
-        active = false
-        stopListening()
-        flushDeltas(childThreadId)
-        if (useThreadStore.getState().activeThreadId !== childThreadId) {
-          void window.api.appServer
-            .sendRequest('thread/unsubscribe', { threadId: childThreadId })
-            .catch(() => {})
-        }
-      }
+    async loadTurnItems(childThreadId, turnId, isNeeded = () => true) {
+      await watches.get(childThreadId)?.loadTurnItems(turnId, isNeeded)
     },
 
     setTurnFileStatus(childThreadId, turnId, key, status) {
@@ -218,12 +322,8 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
     },
 
     reset() {
-      fetches.clear()
-      pendingDeltas.clear()
-      for (const timer of deltaTimers.values()) clearTimeout(timer)
-      deltaTimers.clear()
-      for (const timer of reconcileTimers.values()) clearTimeout(timer)
-      reconcileTimers.clear()
+      for (const watch of watches.values()) watch.stop()
+      watches.clear()
       set({ transcripts: new Map() })
     }
   }

@@ -66,6 +66,14 @@ An Item that a running Turn did not produce on its own execution path still belo
 
 Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state, the model-history suffix, and any compaction checkpoint. Live Turn-state cleanup returns through the command owner and is rejected when its generation is no longer current. Durable queued input has priority over autonomous Goal continuation.
 
+### 3.5 Published Presentation State
+
+Each loaded runtime has a thread-scoped projection of its latest published Turn, Items and streaming presentation data. Event publication updates that projection before fan-out; capturing its snapshot and registering a future observer use the same ordering boundary. Every update belongs to the captured prefix or the observer's continuation, without historical lifecycle replay.
+
+Metadata, summary and full views select Items before payload copying. The current view retains streaming text, argument previews, progress and diff state, including the latest terminal head while durable history catches up.
+
+Observation captures runtime controls through the command owner and streamed state through the publication boundary. Cancellation or disposal unregisters the observer, including before enumeration. Runtime release clears the current view and invalidates its producers.
+
 ## 4. Core Domain Model
 
 ### 4.1 Entities

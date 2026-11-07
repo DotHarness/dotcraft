@@ -82,7 +82,6 @@ internal sealed partial class FakeAppServerClient(
         return Task.CompletedTask;
     }
 
-    public Task SubscribeThreadAsync(string threadId, CancellationToken ct) => Task.CompletedTask;
 
     public Task<string?> StartTurnAsync(string threadId, string prompt, CancellationToken ct)
     {

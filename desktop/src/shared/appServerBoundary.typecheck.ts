@@ -1,6 +1,7 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import type {
   AppServerRequestMethod,
+  AppServerResponseOptions,
   KnownNotificationPayload,
   RawNotificationPayload,
   TypedAppServerRequestApi
@@ -17,7 +18,8 @@ type Expect<Value extends true> = Value
 type ExpectedSendRequest = <Method extends keyof ClientRequestMethods>(
   method: Method,
   params: ClientRequestMethods[Method]['params'],
-  timeoutMs?: number | null
+  timeoutMs?: number | null,
+  options?: AppServerResponseOptions<ClientRequestMethods[Method]['result']>
 ) => Promise<ClientRequestMethods[Method]['result']>
 
 type ThreadRenamedNotification = Extract<

@@ -1,5 +1,5 @@
 import { dialog, type OpenDialogOptions } from 'electron'
-import type { AppServerRequestMethod } from '../shared/appServerBoundary'
+import type { AppServerIpcRequest } from '../shared/appServerBoundary'
 import { toAppServerErrorEnvelope } from '../shared/appServerError'
 import type { RetryConnectionRequest } from '../shared/connectionStatus'
 import { translate } from '../shared/locales'
@@ -49,7 +49,7 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
   const sendAppServerRequest = async (
     method: string,
     params: unknown,
-    timeoutMs: number | undefined,
+    timeoutMs: number | null | undefined,
     onCompleted?: (
       client: DesktopAppServerClient,
       requestParams: unknown,
@@ -57,65 +57,65 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
       requestGeneration?: number
     ) => void,
     onStarted?: (client: DesktopAppServerClient, requestParams: unknown) => number | undefined,
-    resolveClient: () => DesktopAppServerClient | null = getWireClient
-  ): Promise<unknown> => {
+    resolveClient: () => DesktopAppServerClient | null = getWireClient,
+    attachmentOwner?: string,
+    deliver?: (result: unknown) => void
+  ): Promise<void> => {
+    let delivered = false
+    const respond = (result: unknown): void => {
+      if (delivered) return
+      delivered = true
+      deliver?.(result)
+    }
     try {
       const client = resolveClient()
       if (!client) {
         throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
       }
+      const connection = callbacks.getConnectionContext(client)
+      if (!connection) throw new Error('The AppServer connection is no longer active.')
       const requestParams = withDesktopRequestIdentity(
         method,
         method === 'provider/auth/status' ? withoutTokenRequest(params) : (params ?? {}),
-        callbacks.getWorkspaceStatus().workspacePath
+        connection.workspacePath
       )
       const requestGeneration = onStarted?.(client, requestParams)
-      const result = await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
+      await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
         ownerId: owner.webContents.id,
-        supportsDynamicToolRebind: callbacks.getConnectionStatus().capabilities?.dynamicToolRebind === true
+        attachmentOwner,
+        onError: error => respond(toAppServerErrorEnvelope(error)),
+        onResponse: result => {
+          onCompleted?.(client, requestParams, result, requestGeneration)
+          respond(result)
+        },
+        supportsDynamicToolRebind: connection.capabilities?.dynamicToolRebind === true
       })
-      onCompleted?.(client, requestParams, result, requestGeneration)
-      return result
     } catch (error) {
-      return toAppServerErrorEnvelope(error)
+      respond(toAppServerErrorEnvelope(error))
     }
   }
 
-  handleSafe('appserver:send-request', (_event, method: string, params?: unknown, timeoutMs?: number) =>
-    sendAppServerRequest(
-      method,
-      params,
-      timeoutMs,
+  context.ipc.on('appserver:request', (_event, request: AppServerIpcRequest) => {
+    void sendAppServerRequest(
+      request.method, request.params, request.timeoutMs,
       (client, requestParams, result, requestGeneration) => {
-        callbacks.onAppServerRequestCompleted?.(client, method, requestParams, result, requestGeneration)
+        callbacks.onAppServerRequestCompleted?.(client, request.method, requestParams, result, requestGeneration)
       },
-      (client, requestParams) => callbacks.onAppServerRequestStarted?.(client, method, requestParams)
+      (client, requestParams) => callbacks.onAppServerRequestStarted?.(client, request.method, requestParams),
+      request.connectionKey === undefined ? getWireClient : () => callbacks.getConnectionClient?.(request.connectionKey!) ?? null,
+      request.attachmentOwner,
+      result => {
+        if (!owner.isDestroyed() && !owner.webContents.isDestroyed()) {
+          owner.webContents.send('appserver:delivery', { kind: 'response', requestId: request.requestId, result })
+        }
+      }
     )
-  )
+  })
 
   handleSafe('appserver:get-connection-key', () => {
     const client = getWireClient()
     return client ? (callbacks.getConnectionKey?.(client) ?? null) : null
   })
-
-  handleSafe(
-    'appserver:send-connection-request',
-    (_event, key: string, method: string, params?: unknown, timeoutMs?: number) =>
-      sendAppServerRequest(
-        method,
-        params,
-        timeoutMs,
-        undefined,
-        undefined,
-        () => callbacks.getConnectionClient?.(key) ?? null
-      )
-  )
-
-  handleSafe(
-    'appserver:send-request-raw',
-    (_event, method: AppServerRequestMethod, params?: unknown, timeoutMs?: number) =>
-      sendAppServerRequest(method, params, timeoutMs)
-  )
 
   handleSafe('appserver:model-list', async (_event, providerId?: string | null, refresh = false) => {
     const client = getWireClient()

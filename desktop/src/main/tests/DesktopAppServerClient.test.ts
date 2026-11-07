@@ -47,7 +47,7 @@ describe('DesktopAppServerClient', () => {
       id: request.id,
       result: {
         serverInfo: { name: 'dotcraft', version: '1', protocolVersion: '1' },
-        capabilities: { threadManagement: true, threadSubscriptions: true, pluginManagement: true },
+        capabilities: { threadManagement: true, pluginManagement: true },
         dashboardUrl: 'http://127.0.0.1:1234/'
       }
     })
@@ -84,18 +84,19 @@ describe('DesktopAppServerClient', () => {
 
   it('holds the wire subscription through UI unsubscribe and releases it at browser turn end', async () => {
     const retain = client.retainBrowserTurn('thread', 'turn')
-    expect(client.hasRetainedBrowserTurns).toBe(true)
+    expect(client.hasRetainedThreadAttachments).toBe(true)
     const subscribe = await readRequest()
-    expect(subscribe).toMatchObject({ method: 'thread/subscribe', params: { threadId: 'thread', replayRecent: false } })
-    await expect(client.sendRequest('thread/unsubscribe', { threadId: 'thread' })).resolves.toEqual({})
-    push({ jsonrpc: '2.0', id: subscribe.id, result: {} })
-    await retain
+    expect(subscribe).toMatchObject({ method: 'thread/resume', params: { threadId: 'thread' } })
+    const detach = client.sendRequest('thread/unsubscribe', { threadId: 'thread' })
+    push({ jsonrpc: '2.0', id: subscribe.id, result: { currentState: { turnId: 'turn', turnStatus: 'inProgress' } } })
+    await expect(retain).resolves.toBe(true)
+    await expect(detach).resolves.toEqual({})
     const release = client.releaseBrowserTurn('thread', 'turn')
     const unsubscribe = await readRequest()
     expect(unsubscribe).toMatchObject({ method: 'thread/unsubscribe', params: { threadId: 'thread' } })
     push({ jsonrpc: '2.0', id: unsubscribe.id, result: {} })
     await release
-    expect(client.hasRetainedBrowserTurns).toBe(false)
+    expect(client.hasRetainedThreadAttachments).toBe(false)
     await client.releaseBrowserTurn('thread', 'turn')
     const next = client.sendRequest('fixture/next', {})
     const request = await readRequest()

@@ -50,6 +50,16 @@
         }
       ]
     },
+    "initialTurnsPage": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadResumeInitialTurnsPageParams.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "runtimeWorkspaceRoots": {
       "anyOf": [
         {

@@ -51,7 +51,7 @@ import { resolveToolKind } from '../../utils/toolKind'
 import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
-import { TurnWorkLoader } from './TurnWorkLoader'
+import { TurnWorkLoader, type TurnItemsExpansionLoader } from './TurnWorkLoader'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -65,6 +65,7 @@ interface AgentResponseBlockProps {
   shellRuntimeScope?: ShellRuntimeScope
   readOnly?: boolean
   renderTurnCompletion?: (turnId: string) => ReactNode
+  loadTurnItems?: TurnItemsExpansionLoader
 }
 
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
@@ -94,7 +95,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
   readOnly = false,
-  renderTurnCompletion
+  renderTurnCompletion,
+  loadTurnItems
 }: AgentResponseBlockProps): JSX.Element | null {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
@@ -321,9 +323,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         startedAt={turn.startedAt} completedAt={activity.completedAt}
         taskWake={getTaskWake(turn)}
       >
-        {omitsWork
-          ? <TurnWorkLoader threadId={turn.threadId} turnId={turn.id} />
-          : intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
+        {({ open, expanded }) => <>
+          {intermediateNodes.length > 0 && <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" />}
+          {omitsWork && <TurnWorkLoader threadId={turn.threadId} turnId={turn.id}
+            enabled={open} complete={expanded} cursor={turn.summary?.nextCursor} loadItems={loadTurnItems} />}
+        </>}
       </TurnActivitySummary>
     )
   })

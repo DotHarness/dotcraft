@@ -28,11 +28,16 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
     /// <summary>
     /// Binds a thread to the transport that created/resumed it.
     /// </summary>
-    public void BindThread(string threadId, IAppServerTransport transport, AppServerConnection connection)
+    public bool BindThread(string threadId, IAppServerTransport transport, AppServerConnection connection,
+        bool replaceExisting = true)
     {
-        if (!SupportsNodeRepl(connection))
-            return;
-        _byThread[threadId] = new NodeReplThreadBinding(threadId, transport, connection);
+        if (!SupportsNodeRepl(connection) || connection.IsClosed)
+            return false;
+        var candidate = new NodeReplThreadBinding(threadId, transport, connection);
+        var binding = _byThread.AddOrUpdate(threadId, candidate, (_, current) =>
+            ReferenceEquals(current.Connection, connection) || (!replaceExisting && !current.Connection.IsClosed)
+                ? current : candidate);
+        return ReferenceEquals(binding, candidate);
     }
 
     bool IThreadForkToolBindingSource.TryForkThreadBinding(string parentThreadId, string childThreadId)
@@ -55,7 +60,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
         foreach (var kv in _byThread.ToArray())
         {
             if (ReferenceEquals(kv.Value.Transport, transport))
-                _byThread.TryRemove(kv.Key, out _);
+                _byThread.TryRemove(kv);
         }
     }
 

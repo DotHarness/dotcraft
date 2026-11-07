@@ -16,6 +16,9 @@ public sealed class AppServerApprovalFlowTests
         using var harness = new AppServerTestHarness(defaultApprovalDecision: SessionApprovalDecision.AcceptOnce);
         await harness.InitializeAsync(approvalSupport: true);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id, "turn_001", "req_123"));
         if (clientDecision != null)
@@ -44,6 +47,9 @@ public sealed class AppServerApprovalFlowTests
         using var harness = new AppServerTestHarness(defaultApprovalDecision: SessionApprovalDecision.AcceptOnce);
         await harness.InitializeAsync(approvalSupport: false);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
 
@@ -67,6 +73,9 @@ public sealed class AppServerApprovalFlowTests
         await harness.InitializeAsync(approvalSupport: false);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
+        using var restored = await harness.Transport.ReadNextSentAsync();
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
 
@@ -96,7 +105,9 @@ public sealed class AppServerApprovalFlowTests
             input = new[] { new { type = "text", text = "Needs approval" } }
         }));
 
-        await harness.Transport.WaitAndDrainAsync(4, TimeSpan.FromSeconds(10));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.False(harness.Connection.HasSubscription(thread.Id));
 
         Assert.Equal(SessionApprovalDecision.Reject, Assert.Single(harness.Service.ResolvedApprovals).decision);
     }

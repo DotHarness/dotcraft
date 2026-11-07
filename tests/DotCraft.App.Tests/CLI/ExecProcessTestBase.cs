@@ -215,6 +215,11 @@ public sealed class ExecFakeAppServer : IAsyncDisposable
         {
             ["data"] = new JsonArray(_options.ListedThreadIds.Select(JsonNode? (listed) => new JsonObject { ["id"] = listed }).ToArray())
         },
+        "thread/resume" => new JsonObject
+        {
+            ["thread"] = new JsonObject { ["id"] = threadId },
+            ["currentState"] = new JsonObject { ["runtime"] = new JsonObject { ["running"] = false } }
+        },
         "thread/read" => new JsonObject
         {
             ["thread"] = new JsonObject

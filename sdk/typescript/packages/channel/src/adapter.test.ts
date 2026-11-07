@@ -35,6 +35,7 @@ class RecordingAdapter extends ChannelAdapter {
 
   constructor() {
     super(new NoopTransport(), "test-channel", "test-client", "0.0.0");
+    this.client.threadUnsubscribe = async () => {};
   }
 
   async onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean> {
@@ -225,7 +226,7 @@ test("processMessage falls back to normal channel routing for unbound channel in
     (async function* () {
       yield {
         method: "turn/completed",
-        params: { threadId: "thread-unbound-1", turn: { items: [] } },
+        params: { turn: { ...makeTurn("turn-unbound-1", "thread-unbound-1", "completed"), items: [] } },
       };
     })();
   client.request = async (method: unknown, params: unknown) => {
@@ -276,7 +277,7 @@ test("processMessage falls back to normal channel routing when channel binding r
     (async function* () {
       yield {
         method: "turn/completed",
-        params: { threadId: "thread-fallback-1", turn: { items: [] } },
+        params: { turn: { ...makeTurn("turn-fallback-1", "thread-fallback-1", "completed"), items: [] } },
       };
     })();
   client.request = async (method: unknown) => {
@@ -432,7 +433,7 @@ test("ChannelAdapter lets explicit sender override thread identity and omit impl
     (async function* () {
       yield {
         method: "turn/completed",
-        params: { threadId: "thread-1", turn: { items: [] } },
+        params: { turn: { ...makeTurn(`turn-${senders.length}`, "thread-1", "completed"), items: [] } },
       };
     })();
 

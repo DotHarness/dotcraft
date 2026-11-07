@@ -19,12 +19,13 @@ public sealed class GenerativeUiRuntimeRegistry : IThreadSystemPromptContextProv
 
     public ThreadPromptPlacement Placement => ThreadPromptPlacement.ThreadContextItem;
 
-    public void BindThread(string threadId, AppServerConnection connection)
+    public void BindThread(string threadId, AppServerConnection connection, bool replaceExisting = true)
     {
         if (!connection.SupportsGenerativeUi || connection.IsClosed)
             return;
 
-        _bindings[threadId] = connection;
+        _bindings.AddOrUpdate(threadId, connection, (_, current) =>
+            replaceExisting || current.IsClosed ? connection : current);
     }
 
     public IReadOnlyList<string> UnbindConnection(AppServerConnection connection)

@@ -68,6 +68,7 @@ export abstract class ChannelAdapter {
   protected readonly threadMap = new Map<string, string>();
   private readonly turnSenders = new Map<string, string>();
   private readonly threadSenders = new Map<string, string>();
+  private readonly observationOwners = new Map<string, number>();
   protected readonly threadResolver: ThreadResolver;
   private readonly messageQueue: ChannelMessageQueue;
   private readonly commandRouter: CommandRouter;
@@ -328,12 +329,21 @@ export abstract class ChannelAdapter {
   private async runCommand(opts: ChannelAdapterMessageOpts): Promise<void> {
     const channelContext = opts.channelContext ?? "";
     const sender = buildChannelSender(opts, channelContext);
+    const cachedThreadId = this.threadResolver.getCachedThreadId(this.identityKey(opts.userId, channelContext));
+    let release = cachedThreadId ? this.retainObservation(cachedThreadId) : undefined;
     try {
-      const { threadId } = await this.resolveConversationThread(opts, sender);
+      const { threadId, thread } = await this.resolveConversationThread(opts, sender);
+      if (thread && threadId !== cachedThreadId) {
+        const previousRelease = release;
+        release = this.retainObservation(threadId);
+        await previousRelease?.();
+      }
       await this.commandRouter.run({ opts, threadId, sender });
     } catch (error) {
       console.error(`[${this.channelName}] command failed:`, error);
       await this.sendGenericNotice(channelContext, CHANNEL_REQUEST_START_FAILED_MESSAGE, CHANNEL_REQUEST_START_FAILED_CODE);
+    } finally {
+      await release?.();
     }
   }
 
@@ -341,13 +351,18 @@ export abstract class ChannelAdapter {
     const channelContext = request.opts.channelContext ?? "";
     const identityKey = this.identityKey(request.opts.userId, channelContext);
     const previousThreadId = this.threadResolver.getCachedThreadId(identityKey);
-    await this.client.threadResume(thread.id, {
-      additionalContext: this.getRuntimeAdditionalContext(),
-      chat: this.getChatDescriptor(request.opts, channelContext),
-    });
-    this.threadResolver.setCachedThread(identityKey, thread.id);
-    this.onThreadContextBound(thread.id, channelContext);
-    if (previousThreadId !== thread.id) this.onCurrentThreadChanged(previousThreadId, thread.id, channelContext);
+    const release = this.retainObservation(thread.id);
+    try {
+      await this.client.threadResume(thread.id, {
+        additionalContext: this.getRuntimeAdditionalContext(),
+        chat: this.getChatDescriptor(request.opts, channelContext),
+      });
+      this.threadResolver.setCachedThread(identityKey, thread.id);
+      this.onThreadContextBound(thread.id, channelContext);
+      if (previousThreadId !== thread.id) this.onCurrentThreadChanged(previousThreadId, thread.id, channelContext);
+    } finally {
+      await release();
+    }
   }
 
   protected getChannelBindingAppId(): string {
@@ -465,9 +480,16 @@ export abstract class ChannelAdapter {
     const workspacePath = opts.workspacePath ?? this.defaultWorkspacePath;
     const sender = buildChannelSender(opts, channelContext);
     let accepted = false;
+    const cachedThreadId = this.threadResolver.getCachedThreadId(identityKey);
+    let release = cachedThreadId ? this.retainObservation(cachedThreadId) : undefined;
 
     try {
       const { thread, threadId, binding, chat } = await this.resolveConversationThread(opts, sender);
+      if (thread && threadId !== cachedThreadId) {
+        const previousRelease = release;
+        release = this.retainObservation(threadId);
+        await previousRelease?.();
+      }
       const input = opts.inputParts?.length ? opts.inputParts : [textPart(opts.text)];
 
       if (binding) {
@@ -495,7 +517,22 @@ export abstract class ChannelAdapter {
         CHANNEL_REQUEST_START_FAILED_CODE,
       );
       throw error;
+    } finally {
+      await release?.();
     }
+  }
+
+  private retainObservation(threadId: string): () => Promise<void> {
+    this.observationOwners.set(threadId, (this.observationOwners.get(threadId) ?? 0) + 1);
+    return async () => {
+      const remaining = (this.observationOwners.get(threadId) ?? 1) - 1;
+      if (remaining > 0) {
+        this.observationOwners.set(threadId, remaining);
+      } else {
+        this.observationOwners.delete(threadId);
+        await this.client.threadUnsubscribe(threadId);
+      }
+    };
   }
 
   private async resolveConversationThread(
@@ -546,11 +583,13 @@ export abstract class ChannelAdapter {
     }
 
     const eventStream = this.client.streamEvents(thread.id);
+    const release = this.retainObservation(thread.id);
     let turn: SessionTurn;
     try {
       turn = await this.client.turnStart(thread.id, input, sender);
     } catch (error) {
       await eventStream.return?.();
+      await release();
       if (error instanceof JsonRpcError && error.rpcCode === ERR_TURN_IN_PROGRESS) {
         const latest = await this.client.threadRead(thread.id);
         if (!(await this.addToActiveTurn(thread.id, latest.runtime, input, sender)))
@@ -565,7 +604,7 @@ export abstract class ChannelAdapter {
     }
 
     this.turnSenders.set(turn.id, String(sender.senderId));
-    void this.runTurn(eventStream, { threadId: thread.id, turnId: turn.id, channelContext });
+    void this.runTurn(eventStream, { threadId: thread.id, turnId: turn.id, channelContext }, release);
   }
 
   private async addToActiveTurn(
@@ -589,7 +628,7 @@ export abstract class ChannelAdapter {
     }
   }
 
-  private async runTurn(eventStream: AsyncIterableIterator<JsonRpcMessage>, turn: ChannelTurn): Promise<void> {
+  private async runTurn(eventStream: AsyncIterableIterator<JsonRpcMessage>, turn: ChannelTurn, release: () => Promise<void>): Promise<void> {
     const reportHookError = (hook: string, error: unknown): void => {
       console.error(`[${this.channelName}] ${hook} failed for turn ${turn.turnId}:`, error);
     };
@@ -608,6 +647,7 @@ export abstract class ChannelAdapter {
     }
     await this.onTurnEnded(turn, outcome).catch((error) => reportHookError("onTurnEnded", error));
     this.turnSenders.delete(turn.turnId);
+    await release().catch((error) => reportHookError("unsubscribe", error));
   }
 
   private async sendGenericNotice(channelContext: string, message: string, failureCode: string): Promise<void> {

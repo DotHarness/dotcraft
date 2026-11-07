@@ -40,7 +40,8 @@ import type {
   SshMachinesPayload,
   SshMachineValidation
 } from '../shared/sshMachines'
-import { unwrapAppServerResult } from '../shared/appServerError'
+import { AppServerDeliveryConsumer } from './appServerDelivery'
+import type { AppServerDelivery, AppServerResponseOptions } from '../shared/appServerBoundary'
 export type {
   AppServerErrorData,
   AppServerErrorFields,
@@ -317,17 +318,16 @@ const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPay
 const rawNotificationDispatcher = new TokenMulticastDispatcher<RawNotificationPayload>((error) => {
   console.error('appserver:raw-notification subscriber failed:', error)
 })
-// Known notifications reach the raw channel too. Typed subscribers run first so Core state
-// is settled before plugins observe the same notification.
-ipcRenderer.on(
-  'appserver:notification',
-  (_event: Electron.IpcRendererEvent, payload: RawNotificationPayload) => {
-    if (isKnownServerNotification(payload)) {
-      notificationDispatcher.dispatch(payload)
-    }
+const appServerDelivery = new AppServerDeliveryConsumer(
+  request => ipcRenderer.send('appserver:request', request),
+  payload => {
+    if (isKnownServerNotification(payload)) notificationDispatcher.dispatch(payload)
     rawNotificationDispatcher.dispatch(payload)
   }
 )
+ipcRenderer.on('appserver:delivery', (_event: Electron.IpcRendererEvent, delivery: AppServerDelivery) => {
+  appServerDelivery.accept(delivery)
+})
 
 let userInputAutoResolutionToken = 0
 let activeUserInputAutoResolutionCallback:
@@ -543,35 +543,31 @@ const api = {
 
   appServer: {
     /** Rejects with an `AppServerRejection` carrying the JSON-RPC `code` and `data`. */
-    async sendRequest<M extends keyof ClientRequestMethods>(
+    sendRequest<M extends keyof ClientRequestMethods>(
       method: M,
       params: ClientRequestMethods[M]['params'],
-      timeoutMs?: number | null
+      timeoutMs?: number | null,
+      options?: AppServerResponseOptions<ClientRequestMethods[M]['result']>
     ): Promise<ClientRequestMethods[M]['result']> {
-      return unwrapAppServerResult<ClientRequestMethods[M]['result']>(
-        await ipcRenderer.invoke('appserver:send-request', method, params, timeoutMs)
-      )
+      return appServerDelivery.request(method, params, timeoutMs, options)
     },
 
     getConnectionKey(): Promise<string | null> {
       return ipcRenderer.invoke('appserver:get-connection-key')
     },
 
-    async sendConnectionRequest<M extends keyof ClientRequestMethods>(
+    sendConnectionRequest<M extends keyof ClientRequestMethods>(
       key: string,
       method: M,
       params: ClientRequestMethods[M]['params'],
-      timeoutMs?: number | null
+      timeoutMs?: number | null,
+      options?: AppServerResponseOptions<ClientRequestMethods[M]['result']>
     ): Promise<ClientRequestMethods[M]['result']> {
-      return unwrapAppServerResult<ClientRequestMethods[M]['result']>(
-        await ipcRenderer.invoke('appserver:send-connection-request', key, method, params, timeoutMs)
-      )
+      return appServerDelivery.request(method, params, timeoutMs, options, key)
     },
 
-    async sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown> {
-      return unwrapAppServerResult<unknown>(
-        await ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)
-      )
+    sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null, options?: AppServerResponseOptions): Promise<unknown> {
+      return appServerDelivery.request(method, params, timeoutMs, options)
     },
 
     listModels(providerId?: string | null, refresh = false): Promise<unknown> {

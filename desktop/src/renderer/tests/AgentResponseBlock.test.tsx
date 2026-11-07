@@ -334,8 +334,8 @@ describe('AgentResponseBlock summary turns', () => {
 
   it('loads the folded work of a summary turn when it is opened', async () => {
     let finishRead: (value: unknown) => void = () => {}
-    const sendRequest = vi.fn((method: string) => method === 'thread/items/list'
-      ? new Promise((resolve) => { finishRead = resolve })
+    const sendRequest = vi.fn((method: string, _params: unknown, _timeout: unknown, options?: { onResponse?: (result: unknown) => void }) => method === 'thread/items/list'
+      ? new Promise((resolve) => { finishRead = (value) => { options?.onResponse?.(value); resolve(value) } })
       : Promise.resolve({}))
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }) },
@@ -358,7 +358,7 @@ describe('AgentResponseBlock summary turns', () => {
 
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     expect(await screen.findByRole('status', { name: "Loading this turn's work" })).toBeInTheDocument()
-    expect(sendRequest).toHaveBeenCalledWith('thread/items/list', expect.objectContaining({ threadId: 'thread-s', turnId: 'turn-s' }))
+    expect(sendRequest).toHaveBeenCalledWith('thread/items/list', expect.objectContaining({ threadId: 'thread-s', turnId: 'turn-s' }), undefined, expect.objectContaining({ onResponse: expect.any(Function) }))
 
     finishRead({
       data: [

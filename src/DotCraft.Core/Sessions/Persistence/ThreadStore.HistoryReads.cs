@@ -39,6 +39,50 @@ public sealed partial class ThreadStore
             ct);
     }
 
+    public Task<ThreadHistoryPage<ThreadTurnSummary>> ListThreadSummariesAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        IReadOnlyList<DotCraft.Tools.ToolName> summaryTools,
+        CancellationToken ct = default)
+    {
+        ValidateHistoryPageLimit(limit);
+        return ReadHistoryAsync(
+            threadId,
+            "summaries",
+            (path, repair) => _historyProjectionStore.ListSummariesAsync(
+                threadId, path, cursor, limit, direction, summaryTools, repair, ct),
+            static page => page.Data.Count,
+            ct);
+    }
+
+    public Task<ThreadHistoryCursor?> ResolveThreadTurnCursorAsync(
+        string threadId, string turnId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+        return ReadHistoryAsync(threadId, "turn_cursor",
+            (path, repair) => _historyProjectionStore.ResolveTurnCursorAsync(threadId, path, turnId, repair, ct),
+            static cursor => cursor.HasValue ? 1 : 0, ct);
+    }
+
+    public Task<ThreadHistoryCursor?> ResolveThreadItemCursorAsync(
+        string threadId,
+        string turnId,
+        string itemId,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
+        return ReadHistoryAsync(
+            threadId,
+            "item_cursor",
+            (path, repair) => _historyProjectionStore.ResolveItemCursorAsync(
+                threadId, path, turnId, itemId, repair, ct),
+            static cursor => cursor.HasValue ? 1 : 0,
+            ct);
+    }
+
     public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
         string threadId,
         string? turnId,

@@ -32,7 +32,6 @@ public sealed partial class SessionService
 
         public async IAsyncEnumerable<SessionEvent> Subscribe(
             string threadId,
-            bool replayRecent,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
         {
             if (owner._runtimeRegistry.IsPendingPermanentDeletion(threadId))
@@ -40,7 +39,7 @@ public sealed partial class SessionService
             if (!owner._runtimeRegistry.TryGetRuntime(threadId, out _) && !owner.Persistence.ThreadExists(threadId))
                 throw new ThreadNotFoundException(threadId);
             var broker = owner.GetOrCreateBroker(threadId);
-            await foreach (var evt in broker.SubscribeAsync(replayRecent, ct).WithCancellation(ct))
+            await foreach (var evt in broker.SubscribeAsync(ct).WithCancellation(ct))
                 yield return evt;
         }
 

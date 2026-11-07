@@ -146,9 +146,6 @@
     "threadManagement": {
       "type": "boolean"
     },
-    "threadSubscriptions": {
-      "type": "boolean"
-    },
     "toolCatalog": {
       "type": "boolean"
     },
@@ -164,7 +161,6 @@
   },
   "additionalProperties": true,
   "required": [
-    "threadManagement",
-    "threadSubscriptions"
+    "threadManagement"
   ]
 }

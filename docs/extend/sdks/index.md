@@ -52,7 +52,7 @@ TypeScript also provides a Channel Adapter profile. .NET does not.
 
 A local high-level client asks [Hub](../../contribute/lifecycle/hub) to ensure the workspace AppServer, then connects to AppServer directly. Closing the SDK connection does not stop a Hub-managed AppServer.
 
-Reconnect restores Wire transport and initialization. It does not replay in-flight requests or rebuild thread subscriptions, active runs, or runtime tool bindings. See [Threads & runs](./runs) for recovery steps.
+Reconnect restores Wire transport and initialization, not in-flight requests or active runs. High-level thread handles resume observation and rebind their declared tools before the next run. Raw Wire callers manage that step themselves. See [Threads & runs](./runs) for recovery steps.
 
 ## Language reference
 

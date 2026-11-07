@@ -5661,18 +5661,6 @@ public sealed class ThreadStatusChangedNotification : ExtensibleJsonObject
 
 }
 
-public sealed class ThreadSubscribeParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("replayRecent")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> ReplayRecent { get; init; }
-
-    [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
-
-}
-
 public sealed class ThreadTokenUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("last")]

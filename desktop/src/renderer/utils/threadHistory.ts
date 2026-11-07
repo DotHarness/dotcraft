@@ -1,23 +1,21 @@
 import type { Thread, Turn } from '../types/thread'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 
-/** Turns per history page; small enough for a fast first paint, whole Turns either way. */
-const HISTORY_TURN_PAGE_LIMIT = 5
-/** Items per request while hydrating one Turn; equals the server's max page limit. */
+export const THREAD_OPENING_PAGE = {
+  limit: 5,
+  itemsView: 'summary' as const,
+  summaryTools: [
+    { name: 'CreatePlan' },
+    { name: 'Workflow' },
+    { name: 'Automation' },
+    { name: 'CreateThread', namespace: 'desktop' },
+    { name: 'SendMessageToThread', namespace: 'desktop' }
+  ]
+}
+
 const TURN_ITEM_PAGE_LIMIT = 100
-/** How many Turns of a page hydrate their Items concurrently. */
-const TURN_HYDRATION_CONCURRENCY = 5
-/** Tools whose results stay outside a folded Turn, so its summary keeps their calls. */
-const SUMMARY_TOOLS = [
-  { name: 'CreatePlan' },
-  { name: 'Workflow' },
-  { name: 'Automation' },
-  { name: 'CreateThread', namespace: 'desktop' },
-  { name: 'SendMessageToThread', namespace: 'desktop' }
-]
 
-export type TurnItemsView = 'none' | 'summary'
-
+export type TurnItemsView = 'none' | 'summary' | 'full'
 export type TurnSortDirection = 'ascending' | 'descending'
 
 interface HistoryPage<T> {
@@ -34,6 +32,11 @@ interface ThreadItemEntry {
   item: Record<string, unknown>
 }
 
+export interface TurnItemsPage {
+  items: Array<Record<string, unknown>>
+  nextCursor: string | null
+}
+
 export interface ThreadTurnsListing {
   turns: Turn[]
   nextCursor: string | null
@@ -47,35 +50,70 @@ export interface ThreadHistoryRead {
 
 export type HistoryRequest = (
   method: keyof ClientRequestMethods,
-  // Each caller forwards the correlated method/params pair directly to the
-  // generated AppServer request API at this dynamic adapter boundary.
-  params: any
+  // The generated API correlates method and params at each request boundary.
+  params: any,
+  options?: { onResponse?: (result: any) => void }
 ) => Promise<any>
 
-/** Reads every Item of one Turn, paging until the Turn-scoped cursor is exhausted. */
-export async function readTurnItems(
+export function createHistoryReadQueue(concurrency: number) {
+  let active = 0
+  const waiting: Array<() => void> = []
+  return async <T>(read: () => Promise<T>, isCurrent = () => true): Promise<T> => {
+    if (active >= concurrency) await new Promise<void>((resolve) => waiting.push(resolve))
+    else active += 1
+    try {
+      if (!isCurrent()) throw new Error('History read is no longer needed')
+      return await read()
+    } finally {
+      const next = waiting.shift()
+      if (next) next()
+      else active -= 1
+    }
+  }
+}
+
+export const readHistoryPreview = createHistoryReadQueue(2)
+
+export async function readTurnItemsPage(
   request: HistoryRequest,
   threadId: string,
-  turnId: string
-): Promise<Array<Record<string, unknown>>> {
-  const items: Array<Record<string, unknown>> = []
-  let cursor: string | null = null
-  do {
-    const page = await request('thread/items/list', {
-      threadId,
-      turnId,
-      cursor,
-      limit: TURN_ITEM_PAGE_LIMIT,
-      sortDirection: 'ascending'
-    }) as HistoryPage<ThreadItemEntry>
-    for (const entry of page.data ?? []) items.push(entry.item)
-    const next = page.nextCursor ?? null
-    if (next !== null && next === cursor) {
+  turnId: string,
+  cursor: string | null = null,
+  onPage?: (page: TurnItemsPage) => void
+): Promise<TurnItemsPage> {
+  const parse = (page: HistoryPage<ThreadItemEntry>): TurnItemsPage => {
+    const nextCursor = page.nextCursor ?? null
+    if (nextCursor !== null && nextCursor === cursor) {
       throw new Error(`thread/items/list returned an unchanged cursor for turn ${turnId}`)
     }
-    cursor = next
+    return { items: (page.data ?? []).map((entry) => entry.item), nextCursor }
+  }
+  const page = await request('thread/items/list', {
+    threadId,
+    turnId,
+    cursor,
+    limit: TURN_ITEM_PAGE_LIMIT,
+    sortDirection: 'ascending'
+  }, onPage ? { onResponse: (result) => onPage(parse(result)) } : undefined) as HistoryPage<ThreadItemEntry>
+  return parse(page)
+}
+
+/** Only explicit complete expansion exhausts the Turn's Item cursor. */
+export async function readAllTurnItems(
+  request: HistoryRequest,
+  threadId: string,
+  turnId: string,
+  isCurrent = () => true
+): Promise<Array<Record<string, unknown>>> {
+  const items = new Map<string, Record<string, unknown>>()
+  let cursor: string | null = null
+  do {
+    if (!isCurrent()) return [...items.values()]
+    const page = await readTurnItemsPage(request, threadId, turnId, cursor)
+    for (const item of page.items) items.set(String(item.id), item)
+    cursor = page.nextCursor
   } while (cursor !== null)
-  return items
+  return [...items.values()]
 }
 
 export async function listThreadTurns(
@@ -83,7 +121,7 @@ export async function listThreadTurns(
   threadId: string,
   cursor: string | null,
   sortDirection: TurnSortDirection,
-  limit = HISTORY_TURN_PAGE_LIMIT,
+  limit = THREAD_OPENING_PAGE.limit,
   itemsView: TurnItemsView = 'none'
 ): Promise<ThreadTurnsListing> {
   const page = await request('thread/turns/list', {
@@ -91,7 +129,8 @@ export async function listThreadTurns(
     cursor,
     limit,
     sortDirection,
-    ...(itemsView === 'summary' ? { itemsView, summaryTools: SUMMARY_TOOLS } : {})
+    itemsView,
+    ...(itemsView === 'summary' ? { summaryTools: THREAD_OPENING_PAGE.summaryTools } : {})
   }) as TurnsListResult
   return {
     turns: page.data ?? [],
@@ -100,52 +139,21 @@ export async function listThreadTurns(
   }
 }
 
-/** Paging by Turn keeps a page from ever cutting a Turn in half; the Item cursor only advances inside one Turn. */
-export async function hydrateTurns(
+export function readThreadHistoryHead(
   request: HistoryRequest,
   threadId: string,
-  turns: readonly Turn[]
-): Promise<Turn[]> {
-  const hydrated = new Array<Turn>(turns.length)
-  const hydrateFrom = async (index: number): Promise<void> => {
-    const turn = turns[index]
-    if (!turn) return
-    if (turn.itemsView === 'summary' && turn.status === 'completed') {
-      hydrated[index] = turn
-    } else {
-      const { itemsView: _view, itemCount: _count, ...metadata } = turn
-      hydrated[index] = { ...metadata, items: await readTurnItems(request, threadId, turn.id) }
-    }
-    await hydrateFrom(index + TURN_HYDRATION_CONCURRENCY)
-  }
-  await Promise.all(
-    Array.from(
-      { length: Math.min(turns.length, TURN_HYDRATION_CONCURRENCY) },
-      (_unused, index) => hydrateFrom(index)
-    )
-  )
-  return hydrated
-}
-
-/** Reads the Thread header plus its newest Turns, summarized unless `itemsView` is `none`. */
-export async function readThreadHistoryHead(
-  request: HistoryRequest,
-  threadId: string,
-  turnLimit = HISTORY_TURN_PAGE_LIMIT,
-  itemsView: TurnItemsView = 'summary'
+  turnLimit = THREAD_OPENING_PAGE.limit,
+  itemsView: TurnItemsView = 'summary',
+  isCurrent = () => true
 ): Promise<ThreadHistoryRead> {
-  const readTurns = async (): Promise<{ turns: Turn[]; nextCursor: string | null }> => {
-    const page = await listThreadTurns(request, threadId, null, 'descending', turnLimit, itemsView)
-    const turns = await hydrateTurns(request, threadId, page.turns)
-    return { turns: turns.reverse(), nextCursor: page.nextCursor }
-  }
-  const [turnsPage, readResult] = await Promise.all([
-    readTurns(),
-    request('thread/read', { threadId }) as Promise<{ thread: Thread }>
-  ])
-
-  return {
-    thread: { ...readResult.thread, turns: turnsPage.turns },
-    turnCursor: turnsPage.nextCursor
-  }
+  return readHistoryPreview(async () => {
+    const [page, readResult] = await Promise.all([
+      listThreadTurns(request, threadId, null, 'descending', turnLimit, itemsView),
+      request('thread/read', { threadId }) as Promise<{ thread: Thread }>
+    ])
+    return {
+      thread: { ...readResult.thread, turns: [...page.turns].reverse() },
+      turnCursor: page.nextCursor
+    }
+  }, isCurrent)
 }

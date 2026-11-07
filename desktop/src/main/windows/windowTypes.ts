@@ -22,7 +22,6 @@ export interface WorkspaceConnectionEntry {
   lastUsedAt: number
   initializeResult?: InitializeResult
   threads: unknown[]
-  subscribedThreadIds: Set<string>
   errorMessage?: string
 }
 

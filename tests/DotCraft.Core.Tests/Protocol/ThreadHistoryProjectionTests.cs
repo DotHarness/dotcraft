@@ -147,6 +147,7 @@ public sealed partial class ThreadHistoryProjectionTests : IDisposable
         var reads = Task.WhenAll(
             _store.ReadThreadSnapshotAsync(thread.Id),
             _store.ListThreadTurnsAsync(thread.Id, null, 10, ThreadHistorySortDirection.Descending),
+            _store.ListThreadSummariesAsync(thread.Id, null, 10, ThreadHistorySortDirection.Descending, []),
             _store.ListThreadItemsAsync(thread.Id, "turn_002", null, 10, ThreadHistorySortDirection.Ascending));
 
         Assert.Same(reads, await Task.WhenAny(reads, Task.Delay(TimeSpan.FromSeconds(5))));

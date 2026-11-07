@@ -191,11 +191,11 @@ describe('turn lifecycle', () => {
     s().onAgentMessageDelta('Still going')
     vi.advanceTimersByTime(16)
 
-    s().replaceTurnItems('turn-old', [
+    s().applyTurnItemsPage('turn-old', [
       { id: 'read', type: 'toolCall', status: 'completed', toolCallId: 'call-1', toolName: 'ReadFile' },
       { id: 'read-result', type: 'toolResult', status: 'completed', toolCallId: 'call-1', result: 'contents' },
       { id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.' }
-    ])
+    ], null)
 
     const old = s().turns.find((turn) => turn.id === 'turn-old')!
     expect(old.summary).toBeUndefined()

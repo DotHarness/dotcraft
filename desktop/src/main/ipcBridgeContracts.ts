@@ -60,6 +60,7 @@ export interface IpcHandlerCallbacks {
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
   getConnectionKey?: (client: DesktopAppServerClient) => string | null
   getConnectionClient?: (key: string) => DesktopAppServerClient | null
+  getConnectionContext: (client: DesktopAppServerClient) => { workspacePath: string; capabilities?: Record<string, unknown> } | null
   getConnectionStatus: () => ConnectionStatusPayload
   getWorkspaceStatus: () => WorkspaceStatusPayload
   isWorkspaceOpen?: (workspacePath: string) => boolean

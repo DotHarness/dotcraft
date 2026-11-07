@@ -1,23 +1,14 @@
-import { userInfo } from "node:os";
+import { ThreadManagerImpl } from "./threadManager.js";
 
 import { type NotificationHandler, type Unsubscribe } from "./client.js";
 import { InternalAppServerClient } from "./appServerClient.js";
-import {
-  JsonRpcMessage,
-  textPart,
-} from "./models.js";
+import { JsonRpcMessage } from "./models.js";
+import { DotCraftThread } from "./thread.js";
+import { toContractSender } from "./threadInput.js";
+export { DotCraftThread } from "./thread.js";
 import { WebSocketTransport } from "./transport.js";
 import { HubClient, type HubBinaryMatchPolicy } from "./hubClient.js";
-import {
-  InitializationError,
-  TurnCancelledError,
-  TurnFailedError,
-  TurnInProgressError,
-} from "./errors.js";
-import {
-  extractAgentReplyTextFromTurnCompletedParams,
-  mergeReplyTextFromDeltaAndSnapshot,
-} from "./turnReply.js";
+import { InitializationError } from "./errors.js";
 import type {
   AppBindingRequestGetResult,
   AppBinding,
@@ -58,7 +49,6 @@ import type {
   ServerNotificationMethods,
   ServerCapabilities,
   ServerInfo,
-  SessionIdentity,
   SessionThread,
   SessionTurn,
   ChannelBindingIntent,
@@ -67,6 +57,8 @@ import type {
   ThreadAppBindingSummary,
   ThreadAppBindingEnableResult,
   ThreadListResult,
+  ThreadResumeParams,
+  ThreadForkParams,
   ThreadItemsListResult,
   ThreadSummary,
   ThreadTurnsListResult,
@@ -345,7 +337,12 @@ export interface StartThreadOptions extends ThreadIdentityOptions {
 export interface ResumeThreadOptions {
   dynamicTools?: DynamicToolBinding[];
   additionalContext?: Record<string, RuntimeAdditionalContextEntry>;
+  initialTurnsPage?: ThreadResumeParams["initialTurnsPage"];
 }
+
+export type ForkThreadOptions = Omit<ThreadForkParams, "threadId" | "dynamicTools"> & {
+  dynamicTools?: DynamicToolBinding[];
+};
 
 export interface GetOrCreateThreadOptions extends StartThreadOptions {
   includeArchived?: boolean;
@@ -367,15 +364,6 @@ export interface ThreadHistoryPageOptions {
 
 export interface ThreadItemPageOptions extends ThreadHistoryPageOptions {
   turnId?: string;
-}
-
-export interface SubscribeOptions {
-  replayRecent?: boolean;
-}
-
-export interface ThreadSubscription {
-  threadId: string;
-  unsubscribe(): Promise<void>;
 }
 
 export type RunInput =
@@ -433,6 +421,7 @@ export interface ThreadManager {
   getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
   start(options?: StartThreadOptions): Promise<DotCraftThread>;
   resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+  fork(threadId: string, options?: ForkThreadOptions): Promise<DotCraftThread>;
   list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
   listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
   read(threadId: string): Promise<SessionThread>;
@@ -440,254 +429,8 @@ export interface ThreadManager {
   listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 }
 
-function defaultUserId(): string {
-  try {
-    return userInfo().username || "local-user";
-  } catch {
-    return "local-user";
-  }
-}
-
-type NormalizedIdentity = {
-  channelName: string;
-  userId: string;
-  workspacePath?: string;
-  channelContext?: string;
-};
-
-function normalizeIdentity(options: ThreadIdentityOptions = {}): NormalizedIdentity {
-  return {
-    channelName: options.channelName ?? "sdk",
-    userId: options.userId ?? defaultUserId(),
-    ...(options.workspacePath ? { workspacePath: options.workspacePath } : {}),
-    ...(options.channelContext ? { channelContext: options.channelContext } : {}),
-  };
-}
-
-function normalizeRunInput(input: RunInput, sender?: SenderContext): { input: InputPart[]; sender?: SenderContext } {
-  if (typeof input === "string") return { input: [textPart(input)], sender };
-  if (Array.isArray(input)) return { input, sender };
-  return { input: input.input, sender: input.sender ?? sender };
-}
-
-function toContractSender(sender: SenderContext | undefined): ContractSenderContext | undefined {
-  if (!sender) return undefined;
-  return {
-    ...sender,
-    senderName: sender.senderName ?? sender.senderId,
-    senderRole: sender.senderRole ?? "user",
-  };
-}
-
-function stripRuntimeDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): DynamicToolSpec[] | undefined {
-  if (tools === undefined) return undefined;
-  return tools.map((declaration) => {
-    if (declaration.type === "namespace") {
-      return {
-        ...declaration,
-        tools: declaration.tools.map(({ handler: _handler, ...tool }) => tool),
-      };
-    }
-    const { handler: _handler, ...tool } = declaration;
-    return tool;
-  });
-}
-
 function toolKey(threadId: string, namespace: string | null | undefined, name: string): string {
   return `${threadId}\u0000${namespace ?? ""}\u0000${name}`;
-}
-
-function methodToRunEventType(method: string | null | undefined): string {
-  switch (method) {
-    case "thread/started": return "thread_started";
-    case "thread/resumed": return "thread_resumed";
-    case "thread/archived": return "thread_archived";
-    case "thread/unarchived": return "thread_unarchived";
-    case "thread/status/changed": return "thread_status_changed";
-    case "thread/queue/updated": return "queue_updated";
-    case "turn/started": return "turn_started";
-    case "item/started": return "item_started";
-    case "item/completed": return "item_completed";
-    case "item/agentMessage/delta": return "agent_message_delta";
-    case "item/reasoning/delta": return "reasoning_delta";
-    case "item/toolCall/argumentsDelta": return "tool_arguments_delta";
-    case "item/approval/resolved": return "approval_resolved";
-    case "item/usage/delta": return "usage_delta";
-    case "subagent/progress": return "subagent_progress";
-    case "plan/updated": return "plan_updated";
-    case "system/event": return "system_event";
-    case "turn/completed": return "completed";
-    case "turn/failed": return "failed";
-    case "turn/cancelled": return "cancelled";
-    default: return "raw";
-  }
-}
-
-function paramsRecord(raw: unknown): Record<string, unknown> {
-  return raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-}
-
-function eventTurn(params: Record<string, unknown>): SessionTurn | null {
-  const raw = params.turn;
-  return raw && typeof raw === "object" ? raw as SessionTurn : null;
-}
-
-function resolveThreadId(fallbackThreadId: string, params: Record<string, unknown>): string {
-  if (typeof params.threadId === "string") return params.threadId;
-  const turn = params.turn;
-  if (turn && typeof turn === "object" && typeof (turn as { threadId?: unknown }).threadId === "string") {
-    return (turn as { threadId: string }).threadId;
-  }
-  const thread = params.thread;
-  if (thread && typeof thread === "object" && typeof (thread as { id?: unknown }).id === "string") {
-    return (thread as { id: string }).id === fallbackThreadId ? fallbackThreadId : fallbackThreadId;
-  }
-  return fallbackThreadId;
-}
-
-function abortError(): Error {
-  const error = new Error("Operation was aborted.");
-  error.name = "AbortError";
-  return error;
-}
-
-class RunReducer {
-  private readonly itemOrder: string[] = [];
-  private readonly itemSeen = new Set<string>();
-  private readonly perItemDelta = new Map<string, string>();
-  private activeAgentItemId: string | null = null;
-  private lastDeltaAgentItemId: string | null = null;
-  private orphanDelta = "";
-
-  apply(event: JsonRpcMessage): void {
-    const params = paramsRecord(event.params);
-    if (event.method === "item/started") {
-      const item = paramsRecord(params.item);
-      if (item.type === "agentMessage" && typeof item.id === "string" && item.id) {
-        this.activeAgentItemId = item.id;
-        this.lastDeltaAgentItemId = item.id;
-        this.pushOrder(item.id);
-      }
-      return;
-    }
-    if (event.method === "item/agentMessage/delta") {
-      const delta = typeof params.delta === "string" ? params.delta : "";
-      const explicit = typeof params.itemId === "string" && params.itemId ? params.itemId : null;
-      const itemId = explicit ?? this.activeAgentItemId ?? this.lastDeltaAgentItemId;
-      if (itemId) {
-        this.pushOrder(itemId);
-        this.perItemDelta.set(itemId, (this.perItemDelta.get(itemId) ?? "") + delta);
-        this.lastDeltaAgentItemId = itemId;
-        if (!this.activeAgentItemId) this.activeAgentItemId = itemId;
-      } else {
-        this.orphanDelta += delta;
-      }
-      return;
-    }
-    if (event.method === "item/completed") {
-      const item = paramsRecord(params.item);
-      if (item.type !== "agentMessage") return;
-      const itemId = typeof item.id === "string" ? item.id : "";
-      if (!itemId) return;
-      this.pushOrder(itemId);
-      const payload = paramsRecord(item.payload);
-      const snapshot = typeof payload.text === "string" ? payload.text : "";
-      const delta = this.perItemDelta.get(itemId) ?? "";
-      this.perItemDelta.set(itemId, mergeReplyTextFromDeltaAndSnapshot(delta, snapshot));
-      if (this.activeAgentItemId === itemId) this.activeAgentItemId = null;
-      this.lastDeltaAgentItemId = itemId;
-    }
-  }
-
-  textFromCompleted(params: Record<string, unknown>): string {
-    const snapshot = extractAgentReplyTextFromTurnCompletedParams(params);
-    const delta = this.itemOrder.map((id) => this.perItemDelta.get(id) ?? "").join("") + this.orphanDelta;
-    return mergeReplyTextFromDeltaAndSnapshot(delta, snapshot);
-  }
-
-  private pushOrder(itemId: string): void {
-    if (!itemId || this.itemSeen.has(itemId)) return;
-    this.itemSeen.add(itemId);
-    this.itemOrder.push(itemId);
-  }
-}
-
-class ThreadManagerImpl implements ThreadManager {
-  constructor(private readonly sdk: DotCraft) {}
-
-  async getOrCreate(options: GetOrCreateThreadOptions = {}): Promise<DotCraftThread> {
-    const identity = normalizeIdentity(options);
-    const threads = await this.sdk.wire.threadList({
-      ...identity,
-      includeArchived: options.includeArchived ?? false,
-    });
-    const reusable = threads.find((thread) => thread.status === "active");
-    if (reusable) {
-      const snapshot = await this.sdk.wire.threadRead(reusable.id);
-      const thread = new DotCraftThread(this.sdk, snapshot, identity);
-      thread.bindDynamicTools(options.dynamicTools);
-      return thread;
-    }
-    return await this.start(options);
-  }
-
-  async start(options: StartThreadOptions = {}): Promise<DotCraftThread> {
-    const identity = normalizeIdentity(options);
-    const snapshot = await this.sdk.wire.threadStart({
-      ...identity,
-      displayName: options.displayName,
-      historyMode: options.historyMode,
-      config: options.config,
-      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
-      additionalContext: options.additionalContext,
-    });
-    const thread = new DotCraftThread(this.sdk, snapshot, identity);
-    thread.bindDynamicTools(options.dynamicTools);
-    return thread;
-  }
-
-  async resume(threadId: string, options: ResumeThreadOptions = {}): Promise<DotCraftThread> {
-    const snapshot = await this.sdk.wire.threadResume(threadId, {
-      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
-      additionalContext: options.additionalContext,
-    });
-    const thread = new DotCraftThread(this.sdk, snapshot, {
-      channelName: snapshot.originChannel || "sdk",
-      userId: snapshot.userId || defaultUserId(),
-      workspacePath: snapshot.workspacePath || undefined,
-    });
-    thread.bindDynamicTools(options.dynamicTools);
-    return thread;
-  }
-
-  async list(options: ListThreadOptions = {}): Promise<ThreadSummary[]> {
-    const page = await this.listPage(options);
-    return page.data;
-  }
-
-  async listPage(options: ListThreadOptions = {}): Promise<ThreadListResult> {
-    const identity = normalizeIdentity(options);
-    return await this.sdk.wire.threadListPage({
-      ...identity,
-      scope: options.scope,
-      includeArchived: options.includeArchived ?? false,
-      query: options.query,
-      limit: options.limit,
-      cursor: options.cursor,
-    });
-  }
-
-  async read(threadId: string): Promise<SessionThread> {
-    return await this.sdk.wire.threadRead(threadId);
-  }
-
-  async listTurns(threadId: string, options: ThreadHistoryPageOptions = {}): Promise<ThreadTurnsListResult> {
-    return await this.sdk.wire.threadTurnsList({ threadId, ...options });
-  }
-
-  async listItems(threadId: string, options: ThreadItemPageOptions = {}): Promise<ThreadItemsListResult> {
-    return await this.sdk.wire.threadItemsList({ threadId, ...options });
-  }
 }
 
 class AppBindingManagerImpl implements AppBindingManager {
@@ -1097,211 +840,5 @@ export class DotCraft {
         };
       }
     });
-  }
-}
-
-export class DotCraftThread {
-  readonly id: string;
-  private cached: SessionThread;
-  private readonly dynamicToolUnsubscribes: Unsubscribe[] = [];
-
-  constructor(
-    private readonly sdk: DotCraft,
-    snapshot: SessionThread,
-    readonly identity: SessionIdentity,
-  ) {
-    this.cached = snapshot;
-    this.id = snapshot.id;
-  }
-
-  snapshot(): SessionThread {
-    return this.cached;
-  }
-
-  async refresh(): Promise<SessionThread> {
-    this.cached = await this.sdk.wire.threadRead(this.id);
-    return this.cached;
-  }
-
-  async listTurns(options: ThreadHistoryPageOptions = {}): Promise<ThreadTurnsListResult> {
-    return await this.sdk.wire.threadTurnsList({ threadId: this.id, ...options });
-  }
-
-  async listItems(options: ThreadItemPageOptions = {}): Promise<ThreadItemsListResult> {
-    return await this.sdk.wire.threadItemsList({ threadId: this.id, ...options });
-  }
-
-  async subscribe(options: SubscribeOptions = {}): Promise<ThreadSubscription> {
-    await this.sdk.wire.threadSubscribe(this.id, options.replayRecent ?? false);
-    return {
-      threadId: this.id,
-      unsubscribe: async () => {
-        await this.unsubscribe();
-      },
-    };
-  }
-
-  async unsubscribe(): Promise<void> {
-    await this.sdk.wire.threadUnsubscribe(this.id);
-  }
-
-  async run(input: RunInput, options: RunOptions = {}): Promise<DotCraftRunResult> {
-    let queued: DotCraftRunResult | null = null;
-    for await (const event of this.runStreamed(input, options)) {
-      if (event.type === "completed" && event.result) return event.result;
-      if (event.type === "queue_updated") {
-        queued = {
-          thread: this.cached,
-          turn: null,
-          text: "",
-          items: [],
-          rawEvents: options.collectRawEvents ? [event.raw] : undefined,
-          queuedInput: event.queuedInput,
-        };
-      }
-      if (event.type === "failed") {
-        throw new TurnFailedError(event.error ?? "SessionTurn failed.", event.turn);
-      }
-      if (event.type === "cancelled") {
-        throw new TurnCancelledError("SessionTurn was cancelled.", event.turn);
-      }
-    }
-    if (queued) return queued;
-    throw new TurnFailedError("Run finished without a terminal event.");
-  }
-
-  async *runStreamed(input: RunInput, options: RunOptions = {}): AsyncIterable<DotCraftRunEvent> {
-    if (options.abortSignal?.aborted) throw abortError();
-
-    const normalized = normalizeRunInput(input, options.sender);
-    const reducer = new RunReducer();
-    const rawEvents: JsonRpcMessage[] = [];
-    const eventStream = this.sdk.wire.streamEvents(this.id);
-    let turn: SessionTurn;
-    let abortListener: (() => void) | null = null;
-
-    try {
-      try {
-        turn = await this.sdk.wire.turnStart(this.id, normalized.input, toContractSender(normalized.sender));
-      } catch (error) {
-        await eventStream.return?.();
-        if (error instanceof TurnInProgressError && options.enqueueIfBusy) {
-          const queued = await this.enqueue({ input: normalized.input, sender: normalized.sender });
-          const raw = JsonRpcMessage.fromDict({ method: "thread/queue/updated", params: queued.raw });
-          yield {
-            type: "queue_updated",
-            threadId: this.id,
-            raw,
-            queuedInput: queued.queuedInput,
-          };
-          return;
-        }
-        throw error;
-      }
-
-      if (options.abortSignal) {
-        abortListener = () => {
-          void this.interrupt(turn.id).catch(() => {});
-        };
-        options.abortSignal.addEventListener("abort", abortListener, { once: true });
-      }
-
-      for await (const raw of eventStream) {
-        rawEvents.push(raw);
-        reducer.apply(raw);
-        const params = paramsRecord(raw.params);
-        const resolvedTurn = eventTurn(params);
-        const type = methodToRunEventType(raw.method);
-        const base: DotCraftRunEvent = {
-          type,
-          threadId: resolveThreadId(this.id, params),
-          turnId: typeof params.turnId === "string" ? params.turnId : resolvedTurn?.id,
-          raw,
-        };
-
-        if (type === "agent_message_delta" || type === "reasoning_delta" || type === "tool_arguments_delta") {
-          base.delta = typeof params.delta === "string" ? params.delta : "";
-        }
-        if (type === "item_started" || type === "item_completed" || type === "approval_resolved") {
-          base.item = params.item;
-        }
-        if (resolvedTurn) base.turn = resolvedTurn;
-
-        if (type === "completed" && resolvedTurn) {
-          this.cached = await this.sdk.wire.threadRead(this.id);
-          const text = reducer.textFromCompleted(params);
-          base.result = {
-            thread: this.cached,
-            turn: resolvedTurn,
-            text,
-            items: resolvedTurn.items ?? [],
-            usage: resolvedTurn.tokenUsage,
-            rawEvents: options.collectRawEvents ? [...rawEvents] : undefined,
-          };
-          yield base;
-          return;
-        }
-        if (type === "failed") {
-          base.error = typeof params.error === "string" ? params.error : resolvedTurn?.error ?? "SessionTurn failed.";
-          yield base;
-          return;
-        }
-        if (type === "cancelled") {
-          yield base;
-          return;
-        }
-
-        yield base;
-      }
-    } finally {
-      if (abortListener && options.abortSignal) {
-        options.abortSignal.removeEventListener("abort", abortListener);
-      }
-      await eventStream.return?.();
-    }
-  }
-
-  async enqueue(input: RunInput, options: EnqueueOptions = {}): Promise<QueuedInputResult> {
-    const normalized = normalizeRunInput(input, options.sender);
-    const raw = await this.sdk.wire.turnEnqueue(this.id, normalized.input, toContractSender(normalized.sender));
-    return {
-      queuedInput: raw.queuedInput,
-      queuedInputs: raw.queuedInputs as unknown[] | undefined,
-      raw,
-    };
-  }
-
-  async interrupt(turnId: string): Promise<void> {
-    await this.sdk.wire.turnInterrupt(this.id, turnId);
-  }
-
-  async setMode(mode: string): Promise<void> {
-    await this.sdk.wire.threadSetMode(this.id, mode);
-  }
-
-  async archive(): Promise<void> {
-    await this.sdk.wire.threadArchive(this.id);
-  }
-
-  async delete(): Promise<void> {
-    await this.sdk.wire.threadDelete(this.id);
-  }
-
-  onToolCall(namespace: string | null, name: string, handler: DynamicToolHandler): Unsubscribe {
-    return this.sdk.registerDynamicToolHandler(this.id, namespace, name, handler);
-  }
-
-  bindDynamicTools(tools: DynamicToolBinding[] | undefined): void {
-    for (const unsubscribe of this.dynamicToolUnsubscribes.splice(0)) unsubscribe();
-    if (!tools) return;
-    for (const declaration of tools) {
-      if (declaration.type === "namespace") {
-        for (const tool of declaration.tools) {
-          this.dynamicToolUnsubscribes.push(this.onToolCall(declaration.name, tool.name, tool.handler));
-        }
-      } else {
-        this.dynamicToolUnsubscribes.push(this.onToolCall(null, declaration.name, declaration.handler));
-      }
-    }
   }
 }

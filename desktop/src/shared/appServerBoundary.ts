@@ -7,13 +7,32 @@ import {
 
 export type AppServerRequestMethod = keyof ClientRequestMethods
 
+export interface AppServerResponseOptions<T = unknown> {
+  onResponse?: (result: T) => void
+  attachmentOwner?: string
+}
+
+export interface AppServerIpcRequest {
+  requestId: number
+  method: string
+  params?: unknown
+  timeoutMs?: number | null
+  connectionKey?: string
+  attachmentOwner?: string
+}
+
+export type AppServerDelivery =
+  | { kind: 'response'; requestId: number; result: unknown }
+  | { kind: 'notification'; payload: RawNotificationPayload }
+
 export interface TypedAppServerRequestApi {
   sendRequest<M extends AppServerRequestMethod>(
     method: M,
     params: ClientRequestMethods[M]['params'],
-    timeoutMs?: number | null
+    timeoutMs?: number | null,
+    options?: AppServerResponseOptions<ClientRequestMethods[M]['result']>
   ): Promise<ClientRequestMethods[M]['result']>
-  sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown>
+  sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null, options?: AppServerResponseOptions): Promise<unknown>
 }
 
 export type KnownNotificationPayload = {

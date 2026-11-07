@@ -133,13 +133,12 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     }
 
     /// <summary>
-    /// Reads JSON-RPC notifications for a single thread until a terminal turn event
-    /// (<c>turn/completed</c>, <c>turn/failed</c>, or <c>turn/cancelled</c>).
-    /// Requires <see cref="RegisterThreadChannel"/> to be called for <paramref name="threadId"/>
-    /// before the turn starts.
+    /// Reads notifications for the target Turn until its terminal event.
+    /// Register the thread channel before submitting the Turn to capture events that precede its admission response.
     /// </summary>
     public async IAsyncEnumerable<JsonDocument> ReadThreadTurnNotificationsAsync(
         string threadId,
+        string turnId,
         TimeSpan? timeout = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -155,15 +154,19 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             catch (OperationCanceledException) { yield break; }
 
             if (notif == null) yield break;
-
-            yield return notif;
-
-            if (notif.RootElement.TryGetProperty("method", out var m))
+            if (ExtractThreadId(notif) != threadId || ExtractTurnId(notif) != turnId)
             {
-                var method = m.GetString();
-                if (method is Protocol.AppServer.AppServerMethodNames.TurnCompleted or Protocol.AppServer.AppServerMethodNames.TurnFailed or Protocol.AppServer.AppServerMethodNames.TurnCancelled)
-                    yield break;
+                notif.Dispose();
+                continue;
             }
+
+            var terminal = notif.RootElement.TryGetProperty("method", out var method)
+                && method.GetString() is Protocol.AppServer.AppServerMethodNames.TurnCompleted
+                    or Protocol.AppServer.AppServerMethodNames.TurnFailed
+                    or Protocol.AppServer.AppServerMethodNames.TurnCancelled;
+            yield return notif;
+            if (terminal)
+                yield break;
         }
     }
 
@@ -210,13 +213,27 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// </summary>
     private static string? ExtractThreadId(JsonDocument doc)
     {
-        if (!doc.RootElement.TryGetProperty("params", out var p))
+        if (!doc.RootElement.TryGetProperty("params", out var p) || p.ValueKind != JsonValueKind.Object)
             return null;
         if (p.TryGetProperty("threadId", out var tid) && tid.ValueKind == JsonValueKind.String)
             return tid.GetString();
-        if (p.TryGetProperty("turn", out var turn) && turn.TryGetProperty("threadId", out var ttid) &&
+        if (p.TryGetProperty("turn", out var turn) && turn.ValueKind == JsonValueKind.Object
+            && turn.TryGetProperty("threadId", out var ttid) &&
             ttid.ValueKind == JsonValueKind.String)
             return ttid.GetString();
+        return null;
+    }
+
+    private static string? ExtractTurnId(JsonDocument doc)
+    {
+        if (!doc.RootElement.TryGetProperty("params", out var parameters)
+            || parameters.ValueKind != JsonValueKind.Object)
+            return null;
+        if (parameters.TryGetProperty("turnId", out var id) && id.ValueKind == JsonValueKind.String)
+            return id.GetString();
+        if (parameters.TryGetProperty("turn", out var turn) && turn.ValueKind == JsonValueKind.Object
+            && turn.TryGetProperty("id", out id) && id.ValueKind == JsonValueKind.String)
+            return id.GetString();
         return null;
     }
 

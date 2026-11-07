@@ -123,6 +123,26 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
 
+    public Task<ThreadHistoryPage<ThreadTurnSummary>> ListThreadSummariesAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        IReadOnlyList<DotCraft.Tools.ToolName> summaryTools,
+        CancellationToken ct = default)
+        => threadStore.ListThreadSummariesAsync(threadId, cursor, limit, direction, summaryTools, ct);
+
+    public Task<ThreadHistoryCursor?> ResolveThreadTurnCursorAsync(
+        string threadId, string turnId, CancellationToken ct = default) =>
+        threadStore.ResolveThreadTurnCursorAsync(threadId, turnId, ct);
+
+    public Task<ThreadHistoryCursor?> ResolveThreadItemCursorAsync(
+        string threadId,
+        string turnId,
+        string itemId,
+        CancellationToken ct = default)
+        => threadStore.ResolveThreadItemCursorAsync(threadId, turnId, itemId, ct);
+
     public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
         string threadId,
         string? turnId,

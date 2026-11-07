@@ -6,6 +6,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { makeRestoreResult } from './threadRestorationFixtures'
 import { createDeferred, installApi, makeThread, makeThreadSummary, projectsPayloadFor, readyWorkspaceStatus, renderApp } from './appTestHarness'
 beforeEach(() => {
   useDetailPanelStore.getState().reset()
@@ -38,6 +39,7 @@ it('restores project A panels through B without interpreting the outgoing select
       if (method === 'thread/list') return params?.identity?.workspacePath === b ? bThreads.promise : {
         data: [makeThreadSummary('thread-a', a)]
       }
+      if (method === 'thread/resume') return makeRestoreResult(makeThread(params?.threadId ?? '', current))
       if (method === 'thread/read') return {
         thread: makeThread(params?.threadId ?? '', current)
       }

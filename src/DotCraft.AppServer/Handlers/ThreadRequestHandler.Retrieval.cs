@@ -57,6 +57,31 @@ internal sealed partial class ThreadRequestHandler
             throw AppServerErrors.InvalidParams("'threadId' and 'turnId' are required.");
         if (p.ItemIds is null || p.ItemIds.Count is < 1 or > 100 || p.ItemIds.Any(string.IsNullOrWhiteSpace))
             throw AppServerErrors.InvalidParams("'itemIds' must contain 1 to 100 non-empty IDs.");
+        var currentResponseWritten = false;
+        await WithCurrentThreadViewAsync(p.ThreadId, ThreadObservationView.Full, [], async snapshot =>
+        {
+            if (snapshot.Turn is not { } turn || turn.Id != p.TurnId)
+                return;
+            snapshot.EnsureCurrent();
+            await responseWriter.WriteResponseAsync(request.Message.Id, new Contract.ThreadItemsReadResult
+            {
+                Data = threadProjector.ProjectHistoryItems(
+                    turn.Items.Select(item => new ThreadHistoryItem(turn.Id, item)).ToArray())
+                    .Select(entry => new Contract.ThreadItemListEntry
+                    {
+                        TurnId = entry.TurnId,
+                        Item = AppServerContractMapper.ToContract(entry.Item)
+                    }).ToArray()
+            }, ct);
+            currentResponseWritten = true;
+        }, ct, new ThreadObservationItemSelection
+        {
+            ItemIds = p.ItemIds.ToHashSet(StringComparer.Ordinal),
+            IncludeToolExecutions = connection.SupportsToolExecutionLifecycle
+        });
+        if (currentResponseWritten)
+            return AppServerTypedResult<Contract.ThreadItemsReadResult>.Written;
+
         IReadOnlyList<ThreadHistoryItem> items;
         try
         {

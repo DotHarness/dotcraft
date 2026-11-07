@@ -17,6 +17,9 @@ public sealed partial class SessionServiceImportTests
         await service.ImportThreadAsync(MakeRequest(first));
         var updated = new List<SessionThread>();
         service.ThreadUpdatedForBroadcast = updated.Add;
+        var subscription = ReadEventsUntilAsync(
+            service,
+            evt => evt.EventType == SessionEventType.TurnCompleted && evt.TurnId == "turn_003");
 
         var result = await service.AppendImportedTurnsAsync(new ThreadImportAppendRequest
         {
@@ -44,9 +47,7 @@ public sealed partial class SessionServiceImportTests
         Assert.Equal(3, Assert.Single(await _store.LoadIndexAsync()).TurnCount);
         Assert.Equal(900, _store.LoadContextUsageSnapshot(ThreadId)!.Tokens);
 
-        var events = await ReadEventsUntilAsync(
-            service,
-            evt => evt.EventType == SessionEventType.TurnCompleted && evt.TurnId == "turn_003");
+        var events = await subscription;
         Assert.Equal(
             ["turn_001/item_004", "turn_002/item_001", "turn_002/item_002", "turn_003/item_001", "turn_003/item_002"],
             events
@@ -166,7 +167,7 @@ public sealed partial class SessionServiceImportTests
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var events = new List<SessionEvent>();
-        await foreach (var evt in service.SubscribeThreadAsync(ThreadId, replayRecent: true, timeout.Token))
+        await foreach (var evt in service.SubscribeThreadAsync(ThreadId, timeout.Token))
         {
             events.Add(evt);
             if (isLast(evt))

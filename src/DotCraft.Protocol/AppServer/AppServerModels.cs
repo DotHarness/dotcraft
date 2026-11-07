@@ -249,9 +249,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonPropertyName("threadManagement")]
     public bool ThreadManagement { get; init; }
 
-    [JsonPropertyName("threadSubscriptions")]
-    public bool ThreadSubscriptions { get; init; }
-
     [JsonPropertyName("dynamicToolRebind")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool DynamicToolRebind { get; init; }
@@ -594,6 +591,10 @@ public sealed class ThreadResumeParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
     public required string ThreadId { get; init; }
+
+    [JsonPropertyName("initialTurnsPage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadResumeInitialTurnsPageParams? InitialTurnsPage { get; init; }
 
     [JsonPropertyName("cwd")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1428,6 +1429,13 @@ public sealed class ThreadResumeResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     public required SessionThread Thread { get; init; }
+
+    [JsonPropertyName("currentState")]
+    public required ThreadResumeCurrentState CurrentState { get; init; }
+
+    [JsonPropertyName("initialTurnsPage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadTurnsListResult? InitialTurnsPage { get; init; }
 
     /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
     [JsonPropertyName("instructionSources")]

@@ -3,6 +3,10 @@ import test from "node:test";
 import { WebSocketServer } from "ws";
 
 import { DotCraftWireClient } from "./client.js";
+import { InternalAppServerClient } from "./appServerClient.js";
+import { DotCraftThread } from "./thread.js";
+import { DotCraft } from "./dotcraft.js";
+import { makeThread, makeTurn } from "./test-contract-fixtures.js";
 import { RequestTimeoutError, TurnInProgressError } from "./errors.js";
 import { ERR_TURN_IN_PROGRESS } from "./models.js";
 import { type Transport, TransportClosed, WebSocketTransport } from "./transport.js";
@@ -83,6 +87,101 @@ test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", 
   await client.stop();
 });
 
+test("wire response hooks deliver success and errors before subsequent notifications", async () => {
+  const transport = new QueueTransport();
+  const client = new DotCraftWireClient(transport);
+  const delivered: string[] = [];
+  await client.start();
+  let finish!: () => void;
+  const finished = new Promise<void>((resolve) => { finish = resolve; });
+  client.onRaw("fixture/event", (params) => {
+    delivered.push(String(params.after));
+    if (params.after === "after-error") finish();
+  });
+  const success = client.requestRaw("fixture/success", {}, undefined, {
+    onResponse: () => delivered.push("response"),
+  });
+  const successWrite = await transport.nextWrite();
+  const failure = client.requestRaw("fixture/error", {}, undefined, {
+    onError: () => delivered.push("error"),
+  });
+  const failureWrite = await transport.nextWrite();
+  const rejected = assert.rejects(failure, TurnInProgressError);
+  transport.push({ id: successWrite.id, result: {} });
+  transport.push({ method: "fixture/event", params: { after: "after-response" } });
+  transport.push({ id: failureWrite.id, error: { code: ERR_TURN_IN_PROGRESS, message: "busy" } });
+  transport.push({ method: "fixture/event", params: { after: "after-error" } });
+  await Promise.all([success, rejected, finished]);
+  assert.deepEqual(delivered, ["response", "after-response", "error", "after-error"]);
+  const hookFailure = client.requestRaw("fixture/hook", {}, undefined, {
+    onResponse: () => { throw new Error("hook failure"); },
+  });
+  const hookWrite = await transport.nextWrite();
+  const hookRejected = assert.rejects(hookFailure, /hook failure/);
+  transport.push({ id: hookWrite.id, result: {} });
+  await hookRejected;
+  await client.stop();
+});
+
+test("attached handles isolate interleaved feeds and resume after explicit connection-level detach", async () => {
+  const transport = new QueueTransport();
+  const client = new InternalAppServerClient(transport);
+  await client.start();
+  const start = client.threadStart({ channelName: "sdk", userId: "u" });
+  const startWrite = await transport.nextWrite();
+  transport.push({ id: startWrite.id, result: { thread: makeThread("A", "active") } });
+  await start;
+  const thread = new DotCraftThread({ wire: client } as DotCraft, makeThread("A", "active"), { channelName: "sdk", userId: "u" });
+  const observer = client.streamEvents("A");
+  const run = thread.run("hi", { collectRawEvents: true });
+  const turnWrite = await transport.nextWrite();
+  assert.equal(turnWrite.method, "turn/start");
+  transport.push({ id: turnWrite.id, result: { turn: makeTurn("target", "A", "running") } });
+  transport.push({ method: "turn/completed", params: { turn: makeTurn("B-turn", "B", "completed") } });
+  transport.push({ method: "turn/failed", params: { turn: makeTurn("old", "A", "failed") } });
+  transport.push({ method: "item/agentMessage/delta", params: { threadId: "A", turnId: "old", delta: "wrong" } });
+  transport.push({ method: "item/agentMessage/delta", params: { threadId: "B", turnId: "target", delta: "wrong" } });
+  transport.push({ method: "item/agentMessage/delta", params: { threadId: "A", turnId: "target", delta: "correct" } });
+  transport.push({ method: "turn/completed", params: { turn: { ...makeTurn("target", "A", "completed"), tokenUsage: { inputTokens: 7 } } } });
+  const read = await transport.nextWrite();
+  assert.equal(read.method, "thread/read");
+  transport.push({ id: read.id, result: { thread: makeThread("A", "active") } });
+  const result = await run;
+  assert.equal(result.text, "correct");
+  assert.equal(result.usage?.inputTokens, 7);
+  assert.equal(result.rawEvents?.length, 2);
+  const observed = [];
+  for (let i = 0; i < 4; i++) observed.push((await observer.next()).value);
+  assert.equal(observed[0]?.method, "turn/failed");
+  assert.equal(observed.at(-1)?.method, "turn/completed");
+  transport.push({ method: "item/agentMessage/delta", params: { threadId: "A", turnId: "later", delta: "still observing" } });
+  assert.equal((await observer.next()).value?.params?.delta, "still observing");
+  await observer.return?.();
+  const pending = observer.next();
+  assert.equal((await pending).done, true);
+
+  const detach = thread.unsubscribe();
+  const detachWrite = await transport.nextWrite();
+  transport.push({ id: detachWrite.id, result: {} });
+  await detach;
+  const iterator = thread.runStreamed("again")[Symbol.asyncIterator]();
+  const next = iterator.next();
+  const resumeWrite = await transport.nextWrite();
+  assert.equal(resumeWrite.method, "thread/resume");
+  transport.push({ id: resumeWrite.id, result: { thread: makeThread("A", "active"), currentState: { itemCount: 0, pendingRequests: [] }, instructionSources: [] } });
+  const nextTurnWrite = await transport.nextWrite();
+  assert.equal(nextTurnWrite.method, "turn/start");
+  transport.push({ id: nextTurnWrite.id, result: { turn: makeTurn("next", "A", "running") } });
+  transport.push({ method: "turn/started", params: { turn: makeTurn("next", "A", "running") } });
+  assert.equal((await next).value?.type, "turn_started");
+  await iterator.return?.();
+  const closeWait = client.streamEvents("A");
+  const waiting = closeWait.next();
+  await closeWait.return?.();
+  assert.equal((await waiting).done, true);
+  await client.stop();
+});
+
 test("DotCraftWireClient applies the default request timeout", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport, { defaultTimeoutMs: 5 });
@@ -141,6 +240,58 @@ test("DotCraftWireClient reinitializes before releasing reconnect-queued request
 
   await client.stop();
   await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
+test("a reconnected SDK handle resumes with its bindings before running again", async (t) => {
+  const server = new WebSocketServer({ port: 0 });
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Expected TCP listener.");
+  const methods: string[] = [];
+  let connections = 0;
+  let toolReply!: (value: unknown) => void;
+  const toolResult = new Promise<unknown>((resolve) => { toolReply = resolve; });
+  server.on("connection", (socket) => {
+    connections++;
+    socket.on("message", (data) => {
+      const message = JSON.parse(data.toString()) as Record<string, unknown>;
+      if (message.method) methods.push(String(message.method));
+      const reply = (result: unknown): void => { socket.send(JSON.stringify({ id: message.id, result })); };
+      if (message.method === "initialize") {
+        reply({ serverInfo: { name: "fixture", version: "1", protocolVersion: "1" }, capabilities: {} });
+      } else if (message.method === "thread/start") {
+        reply({ thread: makeThread("A", "active") });
+        socket.send(JSON.stringify({ id: "tool-call", method: "item/tool/call", params: { threadId: "A", turnId: "old", tool: "Echo", arguments: {} } }));
+      } else if (message.id === "tool-call") {
+        toolReply(message.result);
+      } else if (message.method === "fixture/disconnect") {
+        socket.close();
+      } else if (message.method === "thread/resume") {
+        assert.equal(((message.params as Record<string, unknown>).dynamicTools as unknown[])?.length, 1);
+        reply({ thread: makeThread("A", "active"), currentState: { itemCount: 0, pendingRequests: [] }, instructionSources: [] });
+      } else if (message.method === "turn/start") {
+        reply({ turn: makeTurn("target", "A", "running") });
+        socket.send(JSON.stringify({ method: "item/agentMessage/delta", params: { threadId: "A", turnId: "target", delta: "restored" } }));
+        socket.send(JSON.stringify({ method: "turn/completed", params: { turn: makeTurn("target", "A", "completed") } }));
+      } else if (message.method === "thread/read") {
+        reply({ thread: makeThread("A", "active") });
+      }
+    });
+  });
+  const sdk = await DotCraft.remote({ url: `ws://127.0.0.1:${address.port}` });
+  t.after(async () => { await sdk.close(); await new Promise<void>((resolve) => server.close(() => resolve())); });
+  const thread = await sdk.threads.start({
+    dynamicTools: [{ type: "function", name: "Echo", description: "Echo", inputSchema: {}, handler: () => ({ success: true }) }],
+  });
+  assert.deepEqual(await toolResult, { success: true });
+  const reconnected = new Promise<void>((resolve) => {
+    sdk.wire.onStateChanged((state) => { if (connections > 1 && state === "ready") resolve(); });
+  });
+  const disconnected = assert.rejects(sdk.requestRaw("fixture/disconnect"), TransportClosed);
+  await Promise.all([disconnected, reconnected]);
+  assert.equal((await thread.run("again")).text, "restored");
+  assert.ok(methods.indexOf("thread/resume") < methods.indexOf("turn/start"));
+  assert.equal(connections, 2);
 });
 
 test("DotCraftWireClient reconnects after an oversized message closes the socket", async () => {

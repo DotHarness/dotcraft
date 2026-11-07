@@ -37,8 +37,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _cache = new();
     private readonly Dictionary<string, Queue<SessionEvent[]>> _submitQueue = new();
-    private readonly Lock _threadSubscribersLock = new();
-    private readonly Dictionary<string, List<Channel<SessionEvent>>> _threadSubscribers = new(StringComparer.Ordinal);
     private readonly List<(string threadId, string turnId)> _cancelledTurns = new();
     private readonly List<string> _cancelledMaintenances = new();
     private readonly List<(string threadId, string turnId, string requestId, SessionApprovalDecision decision)> _resolvedApprovals = new();
@@ -131,38 +129,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         queue.Enqueue(events);
     }
 
-    public void PublishThreadEvent(SessionEvent evt)
-    {
-        lock (_threadSubscribersLock)
-        {
-            if (!_threadSubscribers.TryGetValue(evt.ThreadId, out var subscribers))
-                return;
-            foreach (var subscriber in subscribers.ToList())
-            {
-                subscriber.Writer.TryWrite(evt);
-            }
-        }
-    }
 
-    public async Task WaitForThreadSubscriberAsync(
-        string threadId,
-        TimeSpan timeout,
-        CancellationToken ct = default)
-    {
-        var deadline = DateTimeOffset.UtcNow + timeout;
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            lock (_threadSubscribersLock)
-            {
-                if (_threadSubscribers.TryGetValue(threadId, out var subscribers) && subscribers.Count > 0)
-                    return;
-            }
-
-            await Task.Delay(10, ct);
-        }
-
-        throw new TimeoutException($"Timed out waiting for a thread subscriber on '{threadId}'.");
-    }
 
     // -------------------------------------------------------------------------
     // ISessionService — thread lifecycle (backed by ThreadStore)
@@ -834,59 +801,14 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         return turn;
     }
 
-    public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
-        string threadId,
-        bool replayRecent = false,
-        CancellationToken ct = default)
-    {
-        var channel = Channel.CreateUnbounded<SessionEvent>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false
-        });
-        lock (_threadSubscribersLock)
-        {
-            if (!_threadSubscribers.TryGetValue(threadId, out var subscribers))
-                _threadSubscribers[threadId] = subscribers = [];
-            subscribers.Add(channel);
-        }
 
-        return ReadThreadSubscriptionAsync(threadId, channel, ct);
-    }
-
-    private async IAsyncEnumerable<SessionEvent> ReadThreadSubscriptionAsync(
-        string threadId,
-        Channel<SessionEvent> channel,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-    {
-        try
-        {
-            await foreach (var evt in channel.Reader.ReadAllAsync(ct))
-            {
-                yield return evt;
-            }
-        }
-        finally
-        {
-            lock (_threadSubscribersLock)
-            {
-                if (_threadSubscribers.TryGetValue(threadId, out var subscribers))
-                {
-                    subscribers.Remove(channel);
-                    if (subscribers.Count == 0)
-                        _threadSubscribers.Remove(threadId);
-                }
-            }
-
-            channel.Writer.TryComplete();
-        }
-    }
 
     public Task ResolveApprovalAsync(
         string threadId, string turnId, string requestId,
         SessionApprovalDecision decision, CancellationToken ct = default)
     {
-        _resolvedApprovals.Add((threadId, turnId, requestId, decision));
+        lock (_resolvedApprovals)
+            _resolvedApprovals.Add((threadId, turnId, requestId, decision));
         return Task.CompletedTask;
     }
 
@@ -1283,6 +1205,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         {
             ct.ThrowIfCancellationRequested();
             _yieldedSubmitEventTypes.Add(e.EventType);
+            PublishThreadEvent(e);
             yield return e;
         }
     }

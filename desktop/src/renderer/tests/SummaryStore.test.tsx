@@ -8,7 +8,7 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 function createHost() {
   const notifications = new Map<string, (params: unknown) => void>()
   const request = vi.fn(async (method: string) => {
-    if (method === 'thread/items/list') return { data: [], nextCursor: null }
+    if (method === 'thread/turns/list') return { data: [], nextCursor: null }
     return {}
   })
   const services = {
@@ -105,7 +105,7 @@ describe('Summary feed cache', () => {
     expect(cached.result.current!.ready).toBe(true)
     await settle()
     expect(cached.result.current!.terminals).toEqual([])
-    expect(request.mock.calls.filter(([method]) => method === 'thread/items/list')).toHaveLength(1)
+    expect(request.mock.calls.filter(([method]) => method === 'thread/turns/list')).toHaveLength(1)
     cached.unmount()
 
     useWorkspaceProjectsStore.setState({ foregroundProjectId: 'project-b' })

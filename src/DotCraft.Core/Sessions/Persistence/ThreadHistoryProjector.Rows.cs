@@ -51,18 +51,26 @@ internal sealed partial class ThreadHistoryProjector
         var existing = LoadItemOrdinal(turnId, item.Id);
         var position = existing ?? NextOrdinal;
         var updated = NextOrdinal++;
+        var summary = ThreadSummaryProjection.From(item);
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO thread_items (
                 thread_id, turn_id, item_id, rollout_ordinal, updated_rollout_ordinal, item_json,
-                tool_call, user_text
-            ) VALUES ($thread_id, $turn_id, $item_id, $ordinal, $updated, $json, $tool_call, $user_text)
+                tool_call, user_text, summary_kind, summary_call_id, summary_namespace, summary_tool_name
+            ) VALUES (
+                $thread_id, $turn_id, $item_id, $ordinal, $updated, $json, $tool_call, $user_text,
+                $summary_kind, $summary_call_id, $summary_namespace, $summary_tool_name
+            )
             ON CONFLICT(thread_id, turn_id, item_id) DO UPDATE SET
                 updated_rollout_ordinal = excluded.updated_rollout_ordinal,
                 item_json = excluded.item_json,
                 tool_call = excluded.tool_call,
-                user_text = excluded.user_text
+                user_text = excluded.user_text,
+                summary_kind = excluded.summary_kind,
+                summary_call_id = excluded.summary_call_id,
+                summary_namespace = excluded.summary_namespace,
+                summary_tool_name = excluded.summary_tool_name
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$turn_id", turnId);
@@ -72,6 +80,10 @@ internal sealed partial class ThreadHistoryProjector
         command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(item, JsonOptions));
         command.Parameters.AddWithValue("$tool_call", item.IsToolInvocation ? 1 : 0);
         command.Parameters.AddWithValue("$user_text", (object?)UserText(item) ?? DBNull.Value);
+        command.Parameters.AddWithValue("$summary_kind", (int)summary.Kind);
+        command.Parameters.AddWithValue("$summary_call_id", (object?)summary.CallId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$summary_namespace", summary.Namespace ?? "");
+        command.Parameters.AddWithValue("$summary_tool_name", (object?)summary.ToolName ?? DBNull.Value);
         command.ExecuteNonQuery();
 
         if (item.Type == ItemType.UserMessage)

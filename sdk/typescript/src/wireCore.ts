@@ -1,10 +1,12 @@
 export { DotCraftWireClient } from "./client.js";
+export { captureThreadEvents, threadEventIdentity } from "./threadEvents.js";
 export type {
   DotCraftWireClientOptions,
   NotificationHandler,
   ServerRequestHandler,
   Unsubscribe,
   WireConnectionState,
+  WireResponseHandlers,
 } from "./client.js";
 export {
   JsonRpcError,

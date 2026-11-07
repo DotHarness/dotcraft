@@ -169,7 +169,7 @@ Before a client or adapter mutation is written, runtime accounts in-flight progr
 
 ### 6.7 Thread Resume
 
-On resume, Session Core loads thread and goal state, AppServer sends `thread/resumed`, then a goal snapshot (`thread/goal/updated` or `thread/goal/cleared`) is emitted. Continuation is evaluated only after the snapshot is observable, so clients never see a continuation turn before the resumed goal state.
+On resume, Session Core loads thread and goal state. AppServer returns the goal in the restored Thread header and establishes the ordered observation boundary. Clients apply this state before handling subsequent continuation events; the response does not require a separate goal notification to become usable.
 
 ### 6.8 Automatic Continuation
 
@@ -231,7 +231,7 @@ Automations may submit turns into a thread with an active goal (usage is account
 - Continuation uses the per-thread one-active-turn gate. User input arriving while a continuation is prepared wins: the continuation is abandoned, or, if already started, the input is queued normally.
 - Accounting serializes baselines, storage updates, and steering per thread so concurrent boundaries neither lose nor duplicate deltas.
 - At most one continuation is reserved or launched per thread.
-- Turn-caused `thread/goal/updated` is ordered within that turn's events; resume snapshots follow `thread/resumed` and precede continuation; external mutations return the response before the notification.
+- Turn-caused `thread/goal/updated` is ordered within that turn's events; the resume response establishes the current-state baseline before subsequent continuation delivery; external mutations return the response before the notification.
 
 ## 12. Failure Model
 

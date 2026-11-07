@@ -62,10 +62,10 @@ internal sealed class AppServerThreadBinder(
     }
 
     /// <summary>Binds what needs the created thread. Never changes the tool surface.</summary>
-    public void BindThreadAssets(SessionThread thread)
+    public void BindThreadAssets(SessionThread thread, bool replaceExisting = true)
     {
-        visualizationRuntimeRegistry?.BindThread(thread, transport, connection);
-        generativeUiRuntimeRegistry?.BindThread(thread.Id, connection);
+        visualizationRuntimeRegistry?.BindThread(thread, transport, connection, replaceExisting);
+        generativeUiRuntimeRegistry?.BindThread(thread.Id, connection, replaceExisting);
     }
 
     public ChannelChatDescriptor? ValidateChat(Contract.ChannelChat? chat)
@@ -97,20 +97,20 @@ internal sealed class AppServerThreadBinder(
         SessionThread thread,
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
         IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool bindConnectionTools = true)
     {
-        if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
-            wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
+        var canBind = bindConnectionTools || thread.Source.SubAgent is null;
+        var shouldRefreshAgent = canBind && wireAcpExtensionProxy?.BindThread(
+            thread.Id, transport, connection, bindConnectionTools) == true;
 
         // Only a binding that changes the tool surface needs a rebuilt agent: client-bound context
         // reaches the model as a thread context item reconciled on each Turn.
-        var shouldRefreshAgent = false;
-        visualizationRuntimeRegistry?.BindThread(thread, transport, connection);
-        generativeUiRuntimeRegistry?.BindThread(thread.Id, connection);
-        if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
+        if (canBind)
         {
-            wireNodeReplProxy.BindThread(thread.Id, transport, connection);
-            shouldRefreshAgent = true;
+            BindThreadAssets(thread, bindConnectionTools);
+            if (wireNodeReplProxy?.BindThread(thread.Id, transport, connection, bindConnectionTools) == true)
+                shouldRefreshAgent = true;
         }
 
         if (dynamicTools != null && wireDynamicToolProxy != null)
@@ -125,13 +125,4 @@ internal sealed class AppServerThreadBinder(
             await refreshService.RefreshThreadAgentAsync(thread.Id, ct);
     }
 
-    public async Task BindNodeReplThreadAndRefreshAgentAsync(string threadId, CancellationToken ct)
-    {
-        if (wireNodeReplProxy == null)
-            return;
-
-        wireNodeReplProxy.BindThread(threadId, transport, connection);
-        if (sessionService is IThreadAgentRefreshService refreshService)
-            await refreshService.RefreshThreadAgentAsync(threadId, ct);
-    }
 }

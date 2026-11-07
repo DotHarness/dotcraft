@@ -41,6 +41,7 @@ class CommandAdapter extends ChannelAdapter {
   readonly threadChanges: Array<[string | undefined, string, string]> = [];
   readonly executed: Array<Record<string, unknown>> = [];
   readonly resumed: Array<{ threadId: string; params?: Record<string, unknown> }> = [];
+  readonly detached: string[] = [];
   readonly turnStarts: Array<{ threadId: string; input: unknown }> = [];
   commands: CommandInfo[] = [
     { name: "/new", aliases: [] },
@@ -54,6 +55,7 @@ class CommandAdapter extends ChannelAdapter {
     super(new NoopTransport(), "test-channel", "test-client", "0.0.0");
     (this as unknown as { running: boolean }).running = true;
     const client = this.client as unknown as Record<string, unknown>;
+    client.threadUnsubscribe = async (threadId: string) => { this.detached.push(threadId); };
     client.commandList = async () => this.commands;
     client.commandExecute = async (params: Record<string, unknown>) => {
       this.executed.push(params);
@@ -163,8 +165,10 @@ test("a command result thread becomes the conversation's current thread", async 
   assert.equal(adapter.executed[0]?.threadId, "thread-1");
   assert.equal(adapter.executed[0]?.command, "/new");
   assert.deepEqual(adapter.resumed.map(({ threadId, params }) => ({ threadId, chat: params?.chat })), [
+    { threadId: "thread-1", chat: CHAT },
     { threadId: "thread-2", chat: CHAT },
   ]);
+  assert.deepEqual(adapter.detached, ["thread-2", "thread-1"]);
   assert.deepEqual(adapter.threadChanges, [["thread-1", "thread-2", "chat-1"]]);
   assert.deepEqual(adapter.deliveries, ["Started a new conversation."]);
 

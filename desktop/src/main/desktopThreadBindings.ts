@@ -1,8 +1,11 @@
 export interface DesktopBindingClient {
-  sendRequest<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T>
+  sendRequest<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null, attachmentOwner?: string, onResponse?: (result: T) => void, onError?: (error: unknown) => void): Promise<T>
 }
 
 interface BindingOptions {
+  attachmentOwner?: string
+  onResponse?: (result: unknown) => void
+  onError?: (error: unknown) => void
   supportsDynamicToolRebind?: boolean
 }
 
@@ -49,26 +52,34 @@ export class DesktopThreadBindings {
     this.assertCurrent(client, state)
 
     if (method === 'thread/start' && isRecord(params) && params.ephemeral === true) {
-      const result = await client.sendRequest<T>(method, params, timeoutMs)
-      this.assertCurrent(client, state)
-      const createdId = resultThreadId(result)
-      if (createdId) state.helpers.add(createdId)
+      const apply = (result: T): void => {
+        this.assertCurrent(client, state)
+        const createdId = resultThreadId(result)
+        if (createdId) state.helpers.add(createdId)
+        options.onResponse?.(result)
+      }
+      const result = await request<T>(client, method, params, timeoutMs, options.attachmentOwner, options.onResponse ? apply : undefined, options.onError)
+      if (!options.onResponse) apply(result)
       return result
     }
 
-    const startsThread = method === 'thread/start' || method === 'worktree/createAndStart'
-    const nextParams = startsThread || (method === 'thread/resume' && options.supportsDynamicToolRebind === true)
+    const startsThread = method === 'thread/start' || method === 'thread/fork' || method === 'worktree/createAndStart'
+    const nextParams = startsThread
       ? this.tools.withTools(params)
       : params
-    const result = await client.sendRequest<T>(method, nextParams, timeoutMs)
-    this.assertCurrent(client, state)
-    if (startsThread || method === 'thread/resume') {
-      const id = resultThreadId(result) ?? (method === 'thread/resume' ? threadId : null)
-      if (id) {
-        state.visualizations.add(id)
-        if (this.tools.includesTools(nextParams)) state.bound.add(id)
+    const apply = (result: T): void => {
+      this.assertCurrent(client, state)
+      if (startsThread || method === 'thread/resume') {
+        const id = resultThreadId(result) ?? (method === 'thread/resume' ? threadId : null)
+        if (id) {
+          state.visualizations.add(id)
+          if (this.tools.includesTools(nextParams)) state.bound.add(id)
+        }
       }
+      options.onResponse?.(result)
     }
+    const result = await request<T>(client, method, nextParams, timeoutMs, options.attachmentOwner, options.onResponse ? apply : undefined, options.onError)
+    if (!options.onResponse) apply(result)
     return result
   }
 
@@ -80,7 +91,7 @@ export class DesktopThreadBindings {
       this.assertCurrent(client, state)
       return this.ensureTools(client, state, threadId, options)
     }
-    await this.bind(client, state, threadId, true)
+    await this.bind(client, state, threadId, true, options.attachmentOwner)
   }
 
   private async ensureVisualization(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, options: BindingOptions): Promise<void> {
@@ -91,13 +102,13 @@ export class DesktopThreadBindings {
       this.assertCurrent(client, state)
       if (state.visualizations.has(threadId)) return
     }
-    await this.bind(client, state, threadId, options.supportsDynamicToolRebind === true)
+    await this.bind(client, state, threadId, options.supportsDynamicToolRebind === true, options.attachmentOwner)
   }
 
-  private async bind(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, dynamicTools: boolean): Promise<void> {
+  private async bind(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, dynamicTools: boolean, attachmentOwner?: string): Promise<void> {
     this.assertCurrent(client, state)
     const params = dynamicTools ? this.tools.withTools({ threadId }) : { threadId }
-    const binding = client.sendRequest('thread/resume', params).then(() => {
+    const binding = request(client, 'thread/resume', params, undefined, attachmentOwner).then(() => {
       this.assertCurrent(client, state)
       state.visualizations.add(threadId)
       if (dynamicTools) state.bound.add(threadId)
@@ -122,6 +133,11 @@ export class DesktopThreadBindings {
   private assertCurrent(client: DesktopBindingClient, state: ConnectionBindings): void {
     if (this.clients.get(client) !== state) throw new Error('The AppServer connection is no longer active.')
   }
+}
+
+function request<T>(client: DesktopBindingClient, method: string, params: unknown, timeoutMs?: number | null, owner?: string, onResponse?: (result: T) => void, onError?: (error: unknown) => void): Promise<T> {
+  if (onResponse || onError) return client.sendRequest<T>(method, params, timeoutMs, owner, onResponse, onError)
+  return owner === undefined ? client.sendRequest<T>(method, params, timeoutMs) : client.sendRequest<T>(method, params, timeoutMs, owner)
 }
 
 function resultThreadId(result: unknown): string | null {

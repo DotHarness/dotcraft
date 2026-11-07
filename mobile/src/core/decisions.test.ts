@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { FakeComputer } from '../demo/fakeComputer'
 import { createStudio } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
-import { initialChoices, questionAnswers, waitingDecisions } from './decisions'
-import type { ComputerState, PendingRequest } from './state'
+import { implementationTurn, initialChoices, questionAnswers, waitingDecisions } from './decisions'
+import { computerReducer, type ComputerState, type PendingRequest } from './state'
 
 const harnesses: Harness[] = []
 
@@ -61,10 +61,11 @@ describe('question answers', () => {
 describe('waiting decisions', () => {
   const approval: PendingRequest = { kind: 'approval', requestId: 'a', approvalType: 'shell', operation: 'ls', target: '', targetLabel: null, reason: '' }
 
-  it('queues requests in arrival order and adds a pending plan confirmation last', () => {
+  it('keeps approvals before questions and a pending plan confirmation last', () => {
     expect(waitingDecisions([approval], null).map((decision) => decision.requestId)).toEqual(['a'])
     expect(waitingDecisions([approval], 'turn_002').map((decision) => decision.kind)).toEqual(['approval', 'plan'])
     expect(waitingDecisions([], 'turn_002')).toEqual([{ kind: 'plan', requestId: 'plan:turn_002' }])
+    expect(waitingDecisions([{ kind: 'question', requestId: 'q', isBlocking: true, questions: [] }, approval], null).map((request) => request.kind)).toEqual(['approval', 'question'])
   })
 
   it('counts two requests waiting in one chat and keeps the turn waiting until both are answered', async () => {
@@ -109,6 +110,29 @@ describe('dismissing a question', () => {
 })
 
 describe('plan confirmation', () => {
+  it('uses the latest successful plan after a live update replaces restored provenance', async () => {
+    const { state, key } = await opened('Plan the phone pairing flow')
+    let next = state()
+    const original = implementationTurn(next.details[key], next.chats[key].runtime)
+    expect(original).not.toBeNull()
+    expect(next.details[key].currentPlanTurnId).toBe(original)
+    const turnId = 'revised-plan'
+    const createdAt = '2026-11-07T00:00:00Z'
+    next = computerReducer(next, { type: 'currentPlan', key, content: 'Revised plan' })
+    next = computerReducer(next, { type: 'history', key, event: { kind: 'turn', turn: {
+      id: turnId, threadId: next.chats[key].threadId, status: 'completed', startedAt: createdAt,
+      items: [
+        { id: 'revised-call', turnId, type: 'toolCall', status: 'completed', createdAt,
+          payload: { toolName: 'CreatePlan', callId: 'revised', arguments: { plan: 'Revised plan' } } },
+        { id: 'revised-result', turnId, type: 'toolResult', status: 'completed', createdAt,
+          payload: { callId: 'revised', success: true } },
+      ],
+    } } })
+    expect(implementationTurn(next.details[key], next.chats[key].runtime)).toBe(turnId)
+    next = computerReducer(next, { type: 'currentPlan', key, content: 'An unrelated plan' })
+    expect(implementationTurn(next.details[key], next.chats[key].runtime)).toBeNull()
+  })
+
   it('sends nothing and reports the failure when the switch to agent fails', async () => {
     const { computer, harness, key } = await opened('Plan the phone pairing flow')
     computer.failingMethods.add('thread/mode/set')

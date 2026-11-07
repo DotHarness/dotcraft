@@ -13608,9 +13608,6 @@
         "threadManagement": {
           "type": "boolean"
         },
-        "threadSubscriptions": {
-          "type": "boolean"
-        },
         "toolCatalog": {
           "type": "boolean"
         },
@@ -13626,8 +13623,7 @@
       },
       "additionalProperties": true,
       "required": [
-        "threadManagement",
-        "threadSubscriptions"
+        "threadManagement"
       ]
     },
     "ServerCapabilityExtensions": {
@@ -18557,6 +18553,35 @@
         "sourceId"
       ]
     },
+    "ThreadPendingRequestState": {
+      "title": "ThreadPendingRequestState",
+      "type": "object",
+      "properties": {
+        "isBlocking": {
+          "type": "boolean"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "isBlocking",
+        "itemId",
+        "method",
+        "requestId",
+        "turnId"
+      ]
+    },
     "ThreadPluginPolicy": {
       "title": "ThreadPluginPolicy",
       "type": "object",
@@ -18831,6 +18856,132 @@
       },
       "additionalProperties": true
     },
+    "ThreadResumeCurrentState": {
+      "title": "ThreadResumeCurrentState",
+      "type": "object",
+      "properties": {
+        "diff": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "itemCount": {
+          "type": "integer"
+        },
+        "pendingRequests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadPendingRequestState"
+          }
+        },
+        "planTurnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolArguments": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolProgress": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/ThreadToolProgressState"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnStatus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "itemCount",
+        "pendingRequests"
+      ]
+    },
+    "ThreadResumeInitialTurnsPageParams": {
+      "title": "ThreadResumeInitialTurnsPageParams",
+      "type": "object",
+      "properties": {
+        "itemsView": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summaryTools": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadSummaryTool"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "ThreadResumeParams": {
       "title": "ThreadResumeParams",
       "type": "object",
@@ -18881,6 +19032,16 @@
             }
           ]
         },
+        "initialTurnsPage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadResumeInitialTurnsPageParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "runtimeWorkspaceRoots": {
           "anyOf": [
             {
@@ -18907,6 +19068,19 @@
       "title": "ThreadResumeResult",
       "type": "object",
       "properties": {
+        "currentState": {
+          "$ref": "#/$defs/ThreadResumeCurrentState"
+        },
+        "initialTurnsPage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadTurnsListResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "instructionSources": {
           "type": "array",
           "items": {
@@ -18919,6 +19093,7 @@
       },
       "additionalProperties": true,
       "required": [
+        "currentState",
         "instructionSources",
         "thread"
       ]
@@ -19563,26 +19738,6 @@
       },
       "additionalProperties": true
     },
-    "ThreadSubscribeParams": {
-      "title": "ThreadSubscribeParams",
-      "type": "object",
-      "properties": {
-        "replayRecent": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "ThreadSummary": {
       "title": "ThreadSummary",
       "type": "object",
@@ -19921,6 +20076,25 @@
         }
       },
       "additionalProperties": true
+    },
+    "ThreadToolProgressState": {
+      "title": "ThreadToolProgressState",
+      "type": "object",
+      "properties": {
+        "callId": {
+          "type": "string"
+        },
+        "progress": {},
+        "toolName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "callId",
+        "progress",
+        "toolName"
+      ]
     },
     "ThreadTurnsListParams": {
       "title": "ThreadTurnsListParams",

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { BrowserTurnSubscriptions } from './browserTurnSubscriptions'
+import { readBrowserTurnNotification } from './browserTabLifecycle'
 import { createInterface } from 'readline'
 import type { Readable, Writable } from 'stream'
 import {
@@ -109,7 +110,10 @@ export class DesktopAppServerClient extends EventEmitter {
       defaultTimeoutMs: options.defaultTimeoutMs ?? 30_000,
       initializeTimeoutMs: this.initializeTimeoutMs
     })
-    this.browserSubscriptions = new BrowserTurnSubscriptions((method, params) => this.wire.requestRaw(method, params))
+    this.browserSubscriptions = new BrowserTurnSubscriptions(
+      (method, params, onResponse) => this.wire.requestRaw(method, params, undefined, { onResponse }),
+      (threadId, turnId) => this.emit('retained-turn-ended', threadId, turnId)
+    )
     this.bindWire()
     if (!(transport instanceof WebSocketTransport)) void this.wire.start()
   }
@@ -130,6 +134,8 @@ export class DesktopAppServerClient extends EventEmitter {
 
   private bindWire(): void {
     this.wire.onAnyNotificationRaw((method, params) => {
+      const turn = readBrowserTurnNotification(method, params)
+      if (turn) this.browserSubscriptions.observeTurn(turn.threadId, turn.turnId, turn.terminal)
       for (const callback of [...this.notificationCallbacks]) {
         try {
           callback(method, params)
@@ -177,16 +183,19 @@ export class DesktopAppServerClient extends EventEmitter {
   async sendRequest<T = unknown>(
     method: string,
     params?: unknown,
-    timeoutMs?: number | null
+    timeoutMs?: number | null,
+    attachmentOwner?: string,
+    onResponse?: (result: T) => void,
+    onError?: (error: unknown) => void
   ): Promise<T> {
     try {
-      return await this.browserSubscriptions.request(method, params, () => this.wire.requestRaw<T>(method, params, timeoutMs))
+      return await this.browserSubscriptions.request(method, params, hook => this.wire.requestRaw<T>(method, params, timeoutMs, { onResponse: hook, onError }), attachmentOwner, onResponse)
     } catch (error) {
       throw normalizeDesktopRpcError(error)
     }
   }
 
-  retainBrowserTurn(threadId: string, turnId: string): Promise<void> {
+  retainBrowserTurn(threadId: string, turnId: string): Promise<boolean> {
     return this.browserSubscriptions.retain(threadId, turnId)
   }
 
@@ -194,7 +203,9 @@ export class DesktopAppServerClient extends EventEmitter {
     return this.browserSubscriptions.release(threadId, turnId)
   }
 
-  get hasRetainedBrowserTurns(): boolean { return this.browserSubscriptions.retained }
+  releaseViewAttachments(): Promise<void> { return this.browserSubscriptions.releaseViews() }
+
+  get hasRetainedThreadAttachments(): boolean { return this.browserSubscriptions.retained }
 
   get isDisposed(): boolean { return this.disposed }
 

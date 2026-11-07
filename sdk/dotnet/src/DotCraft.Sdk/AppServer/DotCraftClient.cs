@@ -13,6 +13,14 @@ public sealed class DotCraftClient : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>>> _dynamicToolHandlers = new(StringComparer.Ordinal);
     private Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>>? _defaultDynamicToolHandler;
+    private readonly ConcurrentDictionary<string, long> _attachments = new(StringComparer.Ordinal);
+
+    internal bool IsAttached(string threadId) =>
+        Wire.State == WireConnectionState.Ready &&
+        _attachments.TryGetValue(threadId, out var generation) && generation == Wire.ConnectionGeneration;
+
+    internal void MarkAttached(string threadId) => _attachments[threadId] = Wire.ConnectionGeneration;
+    internal void MarkDetached(string threadId) => _attachments.TryRemove(threadId, out _);
 
     private DotCraftClient(DotCraftWireClient wire, InitializeResult initializeResult)
     {
@@ -328,14 +336,42 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
     public async Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default)
     {
         var result = await client.Wire.ThreadStartAsync(parameters, cancellationToken).ConfigureAwait(false);
-        return new DotCraftThread(client, result.Thread);
+        client.MarkAttached(result.Thread.Id);
+        return new DotCraftThread(client, result.Thread, new ThreadResumeParams
+        {
+            ThreadId = result.Thread.Id,
+            Cwd = parameters.Cwd,
+            RuntimeWorkspaceRoots = parameters.RuntimeWorkspaceRoots,
+            DynamicTools = parameters.DynamicTools,
+            AdditionalContext = parameters.AdditionalContext,
+            Chat = parameters.Chat
+        });
     }
 
     /// <summary>Resumes an existing thread and returns its high-level handle.</summary>
     public async Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default)
     {
         var result = await client.Wire.ThreadResumeAsync(parameters, cancellationToken).ConfigureAwait(false);
-        return new DotCraftThread(client, result.Thread);
+        client.MarkAttached(result.Thread.Id);
+        return new DotCraftThread(client, result.Thread, new ThreadResumeParams
+        {
+            ThreadId = result.Thread.Id,
+            Cwd = parameters.Cwd,
+            RuntimeWorkspaceRoots = parameters.RuntimeWorkspaceRoots,
+            DynamicTools = parameters.DynamicTools,
+            AdditionalContext = parameters.AdditionalContext,
+            Chat = parameters.Chat
+        }, result);
+    }
+
+    public async Task<DotCraftThread> ForkAsync(ThreadForkParams parameters, CancellationToken cancellationToken = default)
+    {
+        var result = await client.Wire.ThreadForkAsync(parameters, cancellationToken).ConfigureAwait(false);
+        var thread = result.Thread.IsSet ? result.Thread.Value : null;
+        if (thread is null)
+            throw new ProtocolViolationException("Thread fork response has no thread.");
+        client.MarkAttached(thread.Id);
+        return new DotCraftThread(client, thread, new ThreadResumeParams { ThreadId = thread.Id });
     }
 
     /// <summary>
@@ -404,14 +440,6 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         ThreadItemsListParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.ThreadItemsListAsync(parameters, cancellationToken);
-
-    /// <summary>Subscribes this connection to thread events.</summary>
-    public Task SubscribeAsync(string threadId, bool replayRecent = false, CancellationToken cancellationToken = default) =>
-        client.Wire.ThreadSubscribeAsync(new ThreadSubscribeParams
-        {
-            ThreadId = threadId,
-            ReplayRecent = replayRecent
-        }, cancellationToken);
 
     /// <summary>Reads the complete typed thread configuration.</summary>
     public async Task<ThreadConfiguration> ReadModelConfigurationAsync(

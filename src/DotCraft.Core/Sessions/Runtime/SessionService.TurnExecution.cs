@@ -133,7 +133,7 @@ public sealed partial class SessionService
 
         // Step 3: Create event channel
         var broker = GetOrCreateBroker(threadId);
-        var eventChannel = broker.CreateTurnChannel(turn.Id, LogStreamDebugSessionEvent);
+        var eventChannel = broker.CreateTurnChannel(turn.Id, LogStreamDebugSessionEvent, admittedRuntime.Generation);
 
         void LogStreamDebugSessionEvent(SessionEvent evt)
         {

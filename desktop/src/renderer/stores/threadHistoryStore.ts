@@ -4,7 +4,7 @@ import { createThreadScopedStores } from './threadScopedStore'
 import { useThreadStore } from './threadStore'
 import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
 import type { Turn } from '../types/thread'
-import { hydrateTurns, listThreadTurns, type HistoryRequest } from '../utils/threadHistory'
+import { listThreadTurns, type HistoryRequest } from '../utils/threadHistory'
 
 export type HistoryGapEdge = 'older' | 'newer'
 
@@ -172,12 +172,10 @@ async function readGapEdge(
   )
   if (!isCurrent(threadId, generation)) return
   const listed = takeUntilLoaded(page.turns, loadedTurnIds(threadId))
-  const hydrated = await hydrateTurns(requestAppServer, threadId, listed.fresh)
-  if (!isCurrent(threadId, generation)) return
   const index = histories.get(threadId)?.getState().gaps.findIndex((gap) => edgeCursor(gap, edge) === cursor) ?? -1
   if (index < 0) return
 
-  const { fresh, met } = takeUntilLoaded(hydrated, loadedTurnIds(threadId))
+  const { fresh, met } = takeUntilLoaded(listed.fresh, loadedTurnIds(threadId))
   const nextCursor = listed.met || met || fresh.length === 0 ? null : page.nextCursor
   commit(threadId, edge === 'older' ? [...fresh].reverse() : fresh, (gaps) => {
     if (!nextCursor) return gaps.filter((_gap, position) => position !== index)
@@ -227,17 +225,12 @@ export async function openThreadHistoryAround(
   const listedLoaded = loadedTurnIds(threadId)
   const olderListed = takeUntilLoaded(older.turns, listedLoaded)
   const newerListed = takeUntilLoaded(newer.turns.filter((turn) => turn.id !== target.id), listedLoaded)
-  const hydrated = await hydrateTurns(
-    requestAppServer,
-    threadId,
-    [...olderListed.fresh].reverse().concat(newerListed.fresh)
-  )
-  assertCurrent()
+  const segmentTurns = [...olderListed.fresh].reverse().concat(newerListed.fresh)
 
   const loaded = loadedTurnIds(threadId)
   if (loaded.has(target.id)) return target.id
-  const olderSide = takeUntilLoaded(hydrated.slice(0, olderListed.fresh.length).reverse(), loaded)
-  const newerSide = takeUntilLoaded(hydrated.slice(olderListed.fresh.length), loaded)
+  const olderSide = takeUntilLoaded(segmentTurns.slice(0, olderListed.fresh.length).reverse(), loaded)
+  const newerSide = takeUntilLoaded(segmentTurns.slice(olderListed.fresh.length), loaded)
   const segment = [...olderSide.fresh].reverse().concat(newerSide.fresh)
   const olderCursor = olderListed.met || olderSide.met ? null : older.nextCursor
   const newerCursor = newerListed.met || newerSide.met ? null : newer.nextCursor

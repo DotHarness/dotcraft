@@ -32,32 +32,10 @@ public sealed class ThreadEventBrokerTests
         Assert.Equal("turn_001", events[0].TurnId);
     }
 
-    [Fact]
-    public async Task SubscribeAsync_ReplayRecent_ReplaysBufferedThreadEvents()
-    {
-        var broker = new ThreadEventBroker("thread_001");
-        broker.PublishThreadEvent(
-            SessionEventType.ThreadCreated,
-            new SessionThread
-            {
-                Id = "thread_001",
-                WorkspacePath = "/workspace",
-                OriginChannel = "cli",
-                Status = ThreadStatus.Active,
-                CreatedAt = DateTimeOffset.UtcNow,
-                LastActiveAt = DateTimeOffset.UtcNow
-            });
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var events = await CollectAsync(broker.SubscribeAsync(replayRecent: true, ct: cts.Token), expectedCount: 1, cts);
-
-        Assert.Single(events);
-        Assert.Equal(SessionEventType.ThreadCreated, events[0].EventType);
-        Assert.Null(events[0].TurnId);
-    }
 
     [Fact]
-    public async Task PublishThreadStatusChanged_DeliversLiveWithoutRetainingForReplay()
+    public async Task PublishThreadStatusChanged_DeliversLifecycleTransitions()
     {
         var broker = new ThreadEventBroker("thread_001");
         using var liveCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -75,25 +53,6 @@ public sealed class ThreadEventBrokerTests
         Assert.Equal(ThreadStatus.Archived, liveEvents[0].StatusChangedPayload?.NewStatus);
         Assert.Equal(ThreadStatus.Active, liveEvents[1].StatusChangedPayload?.NewStatus);
 
-        var channel = broker.CreateTurnChannel("turn_001");
-        channel.EmitTurnCompleted(new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_001",
-            Status = TurnStatus.Completed,
-            StartedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow
-        });
-
-        using var replayCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var replayEvents = await CollectAsync(
-            broker.SubscribeAsync(replayRecent: true, ct: replayCts.Token),
-            expectedCount: 1,
-            replayCts);
-
-        var replayed = Assert.Single(replayEvents);
-        Assert.Equal(SessionEventType.TurnCompleted, replayed.EventType);
-        Assert.True(replayed.IsReplay);
     }
 
     [Fact]
@@ -116,40 +75,7 @@ public sealed class ThreadEventBrokerTests
         Assert.Equal("provider unavailable", payload.Message);
     }
 
-    [Fact]
-    public async Task SubscribeAsync_ReplayedEventsAreMarkedWithoutMutatingLiveEvents()
-    {
-        var broker = new ThreadEventBroker("thread-1");
-        var item = new SessionItem
-        {
-            Id = "item_001",
-            TurnId = "turn_001",
-            Type = ItemType.McpToolCall,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new McpToolCallPayload
-            {
-                ProviderFlatName = "mcp__server__tool",
-                ToolName = "tool",
-                Server = "server",
-                SourceToolId = "tool",
-                CallId = "call-1",
-                Status = "completed"
-            }
-        };
-        broker.PublishItemEvent(SessionEventType.ItemCompleted, item.TurnId, item);
 
-        await using var replay = broker.SubscribeAsync(replayRecent: true).GetAsyncEnumerator();
-        Assert.True(await replay.MoveNextAsync());
-        Assert.True(replay.Current.IsReplay);
-
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await using var live = broker.SubscribeAsync(ct: cancellation.Token).GetAsyncEnumerator();
-        broker.PublishItemEvent(SessionEventType.ItemCompleted, item.TurnId, item);
-        Assert.True(await live.MoveNextAsync());
-        Assert.False(live.Current.IsReplay);
-    }
 
     private static async Task<List<SessionEvent>> CollectAsync(
         IAsyncEnumerable<SessionEvent> events,

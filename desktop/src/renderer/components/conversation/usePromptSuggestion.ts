@@ -3,6 +3,7 @@ import { useConfigValue } from '../../stores/configStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { usePromptSuggestionStore } from '../../stores/promptSuggestionStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useThreadRestorationStore } from '../../stores/threadRestoration'
 import { hasTurnResponseContent } from '../../utils/turnPresentation'
 
 interface PromptSuggestionOptions {
@@ -22,13 +23,14 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   const turnStatus = useConversationStore((state) => state.turnStatus)
   const queuedCount = useConversationStore((state) => state.queuedInputs.length)
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
+  const restoring = useThreadRestorationStore((state) => state.restoringThreadId === threadId)
   const entry = usePromptSuggestionStore((state) => state.entries.get(threadId))
   const lastTurn = turns.at(-1)
   const currentTurn = lastTurn?.threadId === threadId ? lastTurn : null
   const eligibleTurn = currentTurn?.status === 'completed'
     && hasTurnResponseContent(currentTurn, (turnDiffs.get(currentTurn.id)?.files.length ?? 0) > 0)
     ? currentTurn : null
-  const available = enabled && canSuggest && activeThreadId === threadId && turnStatus === 'idle' && queuedCount === 0
+  const available = enabled && !restoring && canSuggest && activeThreadId === threadId && turnStatus === 'idle' && queuedCount === 0
   const suggestion = available && visible && entry?.turnId === eligibleTurn?.id ? entry?.suggestion ?? null : null
 
   const dismiss = useCallback((): void => {
@@ -41,7 +43,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
   }, [dismiss, suggestion])
 
   useEffect(() => {
-    if (!enabled || activeThreadId !== threadId || !currentTurn) return
+    if (!enabled || restoring || activeThreadId !== threadId || !currentTurn) return
     const store = usePromptSuggestionStore.getState()
     if (queuedCount > 0) {
       store.invalidate(threadId)
@@ -49,7 +51,7 @@ export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSug
     }
     store.invalidate(threadId, currentTurn)
     if (turnStatus === 'idle' && eligibleTurn && canSuggest && visible) store.request(threadId, eligibleTurn)
-  }, [activeThreadId, canSuggest, currentTurn, eligibleTurn, enabled, queuedCount, threadId, turnStatus, visible])
+  }, [activeThreadId, canSuggest, currentTurn, eligibleTurn, enabled, queuedCount, restoring, threadId, turnStatus, visible])
 
   return { suggestion, dismiss, accept }
 }

@@ -30,7 +30,7 @@ describe('prompt prediction lifecycle outside the composer', () => {
   it('cancels only the affected pending prediction on a later turn or queued input', () => {
     const store = usePromptSuggestionStore.getState()
     const firstTurn = { id: 'first-turn', startedAt: '2026-09-27T00:00:00Z' }
-    const nextTurn = { id: 'next-turn', startedAt: '2026-09-27T00:00:02Z' }
+    const nextTurn = { id: 'next-turn', startedAt: '2026-09-26T00:00:00Z' }
     store.request('first', firstTurn)
     const secondTurn = { ...firstTurn, id: 'second-turn' }
     store.request('second', secondTurn)

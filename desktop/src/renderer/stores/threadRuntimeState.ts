@@ -36,14 +36,14 @@ export function applyThreadRuntimeSnapshot(
   if (!runtime.waitingOnInput) parkedUserInputs.delete(threadId)
 
   const pendingApprovalThreadIds = new Set(state.pendingApprovalThreadIds)
-  if (runtime.waitingOnApproval && !options.isActive && options.isDesktopOrigin) {
+  if (runtime.waitingOnApproval && options.isDesktopOrigin) {
     pendingApprovalThreadIds.add(threadId)
   } else {
     pendingApprovalThreadIds.delete(threadId)
   }
 
   const pendingUserInputThreadIds = new Set(state.pendingUserInputThreadIds)
-  if (runtime.waitingOnInput && !options.isActive && options.isDesktopOrigin) {
+  if (runtime.waitingOnInput && options.isDesktopOrigin) {
     pendingUserInputThreadIds.add(threadId)
   } else {
     pendingUserInputThreadIds.delete(threadId)

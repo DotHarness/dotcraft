@@ -70,7 +70,6 @@ export async function teardownRuntime(
   ctx.connectionGeneration += 1
   ctx.resetThreadToolState()
   for (const entry of ctx.workspaceConnections.values()) {
-    entry.subscribedThreadIds.clear()
     entry.client.dispose()
   }
   ctx.userInputAutoResolution.clear()

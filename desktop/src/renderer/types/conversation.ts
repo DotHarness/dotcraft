@@ -260,8 +260,8 @@ export interface ConversationTurn {
   providerError?: string
   /** Reason set when status === 'cancelled' */
   cancelReason?: string
-  /** Set while `items` holds only the Turn's summary; its full Items load on demand. */
-  summary?: { itemCount: number }
+  /** Retained until every Item page has been loaded on demand. */
+  summary?: { itemCount: number; nextCursor?: string }
 }
 
 /** Supported input part types for turn/start */
@@ -626,7 +626,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   return {
     id: (raw.id as string) ?? '',
     type,
-    status: 'completed',
+    status: raw.status === 'started' || raw.status === 'streaming' ? raw.status : 'completed',
     deliveryMode: normalizeDeliveryMode(
       (raw.deliveryMode as unknown) ?? (payload.deliveryMode as unknown)
     ),
@@ -864,6 +864,7 @@ export function wireTurnToConversationTurn(raw: Record<string, unknown>): Conver
     error: (raw.error as string | undefined),
     providerError: (raw.providerError as string | undefined),
     cancelReason: (raw.reason as string | undefined),
-    ...(raw.itemsView === 'summary' ? { summary: { itemCount: Number(raw.itemCount ?? rawItems.length) } } : {})
+    ...(raw.itemsView === 'summary' || raw.itemsView === 'none'
+      ? { summary: { itemCount: Number(raw.itemCount ?? rawItems.length) } } : {})
   }
 }

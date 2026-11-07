@@ -57,14 +57,14 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
                 [new TextContent($"turn {i} " + new string('u', 1200))]));
         }
 
-        var result = await service.CompactThreadAsync(thread.Id);
-        Assert.True(result.Outcome == "partial", result.Message ?? result.Outcome);
-        var events = await CollectThreadEventsAsync(
+        var subscription = CollectThreadEventsAsync(
             service,
             thread.Id,
-            replayRecent: true,
             events => events.Any(e => IsSystemEvent(e, "compacted"))
                 && events.Any(IsManualCompactionNotice));
+        var result = await service.CompactThreadAsync(thread.Id);
+        Assert.True(result.Outcome == "partial", result.Message ?? result.Outcome);
+        var events = await subscription;
 
         Assert.NotNull(result.ContextUsage);
         var resultUsage = result.ContextUsage!;
@@ -261,17 +261,16 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             thread.Id,
             [new TextContent("single turn " + new string('u', 1200))]));
 
+        var subscription = CollectThreadEventsAsync(
+            service,
+            thread.Id,
+            events => events.Any(e => IsSystemEvent(e, "compacted"))
+                && events.Any(IsManualCompactionNotice));
         var result = await service.CompactThreadAsync(thread.Id);
         Assert.Equal("partial", result.Outcome);
         Assert.Null(result.Message);
         Assert.NotNull(result.ContextUsage);
-
-        var events = await CollectThreadEventsAsync(
-            service,
-            thread.Id,
-            replayRecent: true,
-            events => events.Any(e => IsSystemEvent(e, "compacted"))
-                && events.Any(IsManualCompactionNotice));
+        var events = await subscription;
 
         Assert.Contains(events, e => IsSystemEvent(e, "compacting"));
         Assert.Contains(events, e => IsSystemEvent(e, "compacted"));
@@ -502,7 +501,6 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var subscription = CollectThreadEventsAsync(
             service,
             thread.Id,
-            replayRecent: true,
             events => events.Any(e => IsSystemEvent(e, "compactCancelled")));
         var compactTask = service.CompactThreadAsync(thread.Id);
 
@@ -700,14 +698,13 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     private static async Task<List<SessionEvent>> CollectThreadEventsAsync(
         ISessionService service,
         string threadId,
-        bool replayRecent,
         Func<List<SessionEvent>, bool> done,
         CancellationToken ct = default)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
         var collected = new List<SessionEvent>();
-        await foreach (var evt in service.SubscribeThreadAsync(threadId, replayRecent, timeout.Token))
+        await foreach (var evt in service.SubscribeThreadAsync(threadId, timeout.Token))
         {
             collected.Add(evt);
             if (done(collected))

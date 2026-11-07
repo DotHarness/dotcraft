@@ -211,8 +211,6 @@ public sealed class ServerCapabilitySnapshot
 {
     public bool ThreadManagement { get; set; } = true;
 
-    public bool ThreadSubscriptions { get; set; } = true;
-
     /// <summary>
     /// Server supports persistent per-thread goal methods (thread/goal/*).
     /// </summary>

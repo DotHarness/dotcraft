@@ -109,7 +109,6 @@ The response returns server info and capabilities:
     },
     "capabilities": {
       "threadManagement": true,
-      "threadSubscriptions": true,
       "dynamicToolRebind": true,
       "runtimeAdditionalContext": true,
       "approvalFlow": true,
@@ -197,12 +196,11 @@ Common thread methods:
 | Method | Description |
 |--------|-------------|
 | `thread/start` | Create a new thread. |
-| `thread/resume` | Resume an existing thread. |
+| `thread/resume` | Restore execution context, return current state, and attach to future events. |
 | `thread/list` | List threads by identity. |
 | `thread/read` | Read the current Thread header and persisted runtime state without resuming execution context. |
-| `thread/turns/list` | Read one bounded page of Turn metadata without Items. |
+| `thread/turns/list` | Read a bounded Turn page with metadata, summary, or full Items selected by `itemsView`. |
 | `thread/items/list` | Read one bounded Item page across the Thread or for one Turn. |
-| `thread/subscribe` | Subscribe to thread events. |
 | `thread/unsubscribe` | Unsubscribe from thread events. |
 | `thread/rename` | Update the display name. |
 | `thread/archive` | Block new turns, stop or invalidate active background terminals, and archive the thread and its subagent subtree. |
@@ -211,11 +209,17 @@ Common thread methods:
 | `thread/config/update` | Update thread configuration. |
 | `thread/mode/set` | Switch agent mode, such as `plan` or `agent`. |
 
-`thread/list` accepts optional `query`, `limit`, and opaque `cursor` params. When paged, the result includes `nextCursor` and `totalMatched`; callers that omit both `limit` and `cursor` keep receiving the full compatible list.
+`thread/list` accepts optional `query`, `limit`, and opaque `cursor` params. When paged, the result includes `nextCursor` and `totalMatched`; callers that omit both `limit` and `cursor` receive the full list.
 
 `thread/read` accepts only `threadId` and does not return persisted Turns or Items. Read history with `thread/turns/list` and `thread/items/list`. Turn pages default to 20 entries and allow at most 100; Item pages default to 100 and allow at most 100. Both default to descending order and return data in the requested direction. Item pages may include an optional `turnId`. Continue with the opaque `nextCursor` only for the same Thread, scope, optional Turn, and direction. Turn pages also return a `backwardsCursor` anchored at the first returned Turn. It includes that Turn and works with either `sortDirection`: `descending` reads that Turn and older ones, and `ascending` reads that Turn and newer ones. It is `null` when the page is empty. After rollback, fork, archive, or unarchive, discard affected cursors and reload the required history pages.
 
 Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose subagent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/archived` and `thread/unarchived` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../../contribute/architecture/session-persistence) for the storage lifecycle.
+
+Starting, resuming, and forking a thread attach to future events; repeated resume refreshes that observation. Attach before consuming execution events from `turn/start`. `thread/unsubscribe` releases observation while execution and pending requests remain.
+
+`thread/resume` returns `currentState` with the current Turn, Item count, pending requests, and plan-confirmation eligibility. Send `initialTurnsPage: { "limit": 5, "itemsView": "summary" }` to include an opening page and cursors; omit it for metadata only.
+
+Apply current state and the opening page at the ordered response boundary before handling subsequent events and requests. Load history on demand and view archived threads through `thread/read` and history pages.
 
 ### Runtime Dynamic Tools and app context
 
@@ -395,7 +399,7 @@ Response:
 
 Common decisions include `accept`, `acceptForSession`, `acceptAlways`, `decline`, and `cancel`. Use the available decisions in the actual request payload as the source of truth.
 
-Approval requests do not expire, and they belong to the thread rather than to one connection. Every subscribed client that supports approvals receives a pending request, including one that subscribes after it was raised. The request stays pending until one client answers or its turn ends, and every subscribed client then receives `item/approval/resolved` and should dismiss its prompt.
+Approval requests do not expire, and they belong to the thread rather than to one connection. Every attached client that supports approvals receives a pending request, including one that resumes after it was raised. The request stays pending until one client answers or its turn ends, and every subscribed client then receives `item/approval/resolved` and should dismiss its prompt.
 
 If a client declares `approvalSupport: false` during `initialize`, the server never sends it approval requests, and approvals in turns that client starts resolve immediately from the thread's approval policy. Rich UI clients should keep `approvalSupport: true`.
 
@@ -484,7 +488,7 @@ The table below covers common method families used by AppServer clients.
 | Family | Examples | Description |
 |--------|----------|-------------|
 | Initialization | `initialize`, `initialized` | Negotiate client and server capabilities. |
-| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | Conversation lifecycle, bounded history, and subscriptions. |
+| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/resume`, `thread/unsubscribe` | Conversation lifecycle, bounded history, and subscriptions. |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | User input, queues, and cancellation. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, content, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, Plan-mode availability) for agent profile tool pickers. |

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { isSubAgentChildRunning, type SubAgentChild } from '../../stores/subAgentStore'
 import { useSubAgentTranscriptStore, type SubAgentTranscript } from '../../stores/subAgentTranscriptStore'
@@ -23,7 +24,6 @@ import { IconButton } from '../ui/IconButton'
 import { Skeleton } from '../ui/Skeleton'
 import styles from './SubagentDetail.module.css'
 
-const TRANSCRIPT_POLL_MS = 2000
 const NO_ROWS: TurnFileChange[] = []
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -36,24 +36,16 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
   const t = useT()
   const childThreadId = child.childThreadId
   const transcript = useSubAgentTranscriptStore((s) => s.transcripts.get(childThreadId))
-  const fetchTranscript = useSubAgentTranscriptStore((s) => s.fetchTranscript)
   const watchTranscript = useSubAgentTranscriptStore((s) => s.watchTranscript)
   const connected = useConnectionStore((s) => s.status === 'connected')
+  const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
+  const projectKey = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const running = isSubAgentChildRunning(child) || isTurnLive(transcript?.turns.at(-1))
-  const pollFallback = running && transcript?.subscribed === false
 
   useEffect(() => {
     if (!connected) return
     return watchTranscript(childThreadId)
-  }, [childThreadId, connected, watchTranscript])
-
-  useEffect(() => {
-    if (!pollFallback) return
-    const timer = setInterval(() => {
-      void fetchTranscript(childThreadId)
-    }, TRANSCRIPT_POLL_MS)
-    return () => clearInterval(timer)
-  }, [childThreadId, pollFallback, fetchTranscript])
+  }, [childThreadId, connected, connectionEpoch, projectKey, watchTranscript])
 
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
@@ -105,6 +97,15 @@ function SubagentTranscript({
     + (lastTurn?.items.reduce((total, item) => total + (item.text?.length ?? 0), 0) ?? 0)
     + (live?.text.length ?? 0)
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
+  const loadEarlier = useSubAgentTranscriptStore((s) => s.loadEarlier)
+  const onScroll = useCallback(() => {
+    const viewport = scrollRef.current
+    if (!viewport || viewport.scrollTop > 0 || transcript?.status !== 'ready') return
+    const height = viewport.scrollHeight
+    void loadEarlier(childThreadId).then(() => {
+      if (scrollRef.current === viewport) viewport.scrollTop += viewport.scrollHeight - height
+    }).catch(() => {})
+  }, [childThreadId, loadEarlier, scrollRef, transcript?.status])
   const waiting = transcript == null
     || transcript.status === 'loading'
     || (transcript.status === 'ready' && turns.length === 0 && running)
@@ -117,7 +118,7 @@ function SubagentTranscript({
 
   return (
     <div className={styles.viewport}>
-      <div ref={scrollRef} className={`${styles.transcript} dc-scrollbar-stable`}>
+      <div ref={scrollRef} onScroll={onScroll} className={`${styles.transcript} dc-scrollbar-stable`}>
         {waiting ? (
           <TranscriptSkeleton label={t('subagentsPanel.transcriptLoading')} />
         ) : unavailable ? (

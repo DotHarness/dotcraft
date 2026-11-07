@@ -47,7 +47,6 @@ internal static class InitializeContractMapper
     public static Contract.ServerCapabilities ToContract(ServerCapabilitySnapshot value) => new()
     {
         ThreadManagement = value.ThreadManagement,
-        ThreadSubscriptions = value.ThreadSubscriptions,
         ThreadGoals = value.ThreadGoals,
         ThreadFork = value.ThreadFork,
         SideChat = value.SideChat,

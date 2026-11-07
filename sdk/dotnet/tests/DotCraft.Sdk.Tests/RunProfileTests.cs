@@ -19,7 +19,6 @@ public sealed class RunProfileTests
         var thread = await StartThreadAsync(client, transport);
 
         var runTask = thread.RunAsync("hello");
-        await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
         {
@@ -57,7 +56,6 @@ public sealed class RunProfileTests
                 events.Add(runEvent);
         });
 
-        await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "vendor/progress", new { threadId = "thread_1", turnId = "turn_1", progress = 0.5 });
         await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
@@ -88,7 +86,6 @@ public sealed class RunProfileTests
             }
         });
 
-        await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "item/agentMessage/delta", new { threadId = "thread_1", turnId = "turn_1", itemId = "item_1" });
 
@@ -104,7 +101,6 @@ public sealed class RunProfileTests
         var thread = await StartThreadAsync(client, transport);
 
         var failed = thread.RunAsync("fail");
-        await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "turn/failed", new TurnNotification { Turn = Turn("failed"), Error = "model overloaded" });
         var failedError = await Assert.ThrowsAsync<TurnFailedException>(() => failed.WaitAsync(Timeout));
@@ -127,7 +123,6 @@ public sealed class RunProfileTests
         await using var _ = client;
         var thread = await StartThreadAsync(client, transport);
         var run = thread.RunAsync("later", new RunOptions { EnqueueIfBusy = true });
-        await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondErrorAsync(transport, "turn/start", AppServerErrorCodes.TurnInProgress, "busy");
         await RespondAsync(transport, "turn/enqueue", new TurnEnqueueResult
         {
@@ -287,6 +282,48 @@ public sealed class RunProfileTests
         Assert.Equal("anthropic", authoritative.ProviderId.Value);
     }
 
+    [Fact]
+    public async Task DetachedRun_ResumesBeforeStartAndIgnoresOtherTurnsCapturedBeforeResponse()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var lifetime = client;
+        var thread = await StartThreadAsync(client, transport);
+        var detach = thread.UnsubscribeAsync();
+        await RespondAsync(transport, "thread/unsubscribe", new RpcEmpty());
+        await detach;
+
+        var run = thread.RunAsync("continue", new RunOptions { CollectRawEvents = true });
+        await RespondAsync(transport, "thread/resume", new ThreadResumeResult
+        {
+            Thread = Thread(), InstructionSources = [],
+            CurrentState = new ThreadResumeCurrentState { ItemCount = 0, PendingRequests = [] }
+        });
+        using var start = await transport.ReadOutboundAsync();
+        Assert.Equal("turn/start", start.RootElement.GetProperty("method").GetString());
+        await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
+        {
+            ThreadId = "thread_1", TurnId = "older", ItemId = "old", DeltaKind = "agentMessage", Delta = "ignored"
+        });
+        await PushNotificationAsync(transport, "turn/completed", new TurnNotification { Turn = Turn("completed", id: "older") });
+        await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
+        {
+            ThreadId = "thread_1", TurnId = "target", ItemId = "answer", DeltaKind = "agentMessage", Delta = "kept"
+        });
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0", id = start.RootElement.GetProperty("id").GetInt64(),
+            result = new TurnStartResult { Turn = Turn("inProgress", id: "target") }
+        });
+        await PushNotificationAsync(transport, "turn/completed", new TurnNotification { Turn = Turn("completed", id: "target") });
+
+        var result = await run.WaitAsync(Timeout);
+        Assert.Equal("target", result.TurnId);
+        Assert.NotNull(thread.Restoration);
+        Assert.Empty(thread.Restoration.CurrentState.PendingRequests);
+        Assert.Equal("kept", result.Text);
+        Assert.Equal(2, result.RawEvents!.Count);
+    }
+
     private static async Task<(DotCraftClient client, TestJsonRpcTransport transport)> ConnectAsync(DotCraftClientOptions? options = null)
     {
         var transport = new TestJsonRpcTransport();
@@ -300,7 +337,7 @@ public sealed class RunProfileTests
                 jsonrpc = "2.0", id, result = new InitializeResult
                 {
                     ServerInfo = new ServerInfo { Name = "dotcraft", Version = "test", ProtocolVersion = "1" },
-                    Capabilities = new ServerCapabilities { ThreadManagement = true, ThreadSubscriptions = true }
+                    Capabilities = new ServerCapabilities { ThreadManagement = true }
                 }
             });
         }

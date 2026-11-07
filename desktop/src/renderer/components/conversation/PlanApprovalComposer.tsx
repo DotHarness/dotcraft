@@ -11,6 +11,8 @@ import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { requestThreadModeChange } from '../../hooks/useActiveThreadModeSync'
 import { useUIStore } from '../../stores/uiStore'
+import { useThreadStore } from '../../stores/threadStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
@@ -76,6 +78,9 @@ export function PlanApprovalComposer({
     sendInFlightRef.current = true
     try {
       if (!await requestThreadModeChange(threadId, 'agent')) return
+      if (useThreadStore.getState().activeThreadId !== threadId
+        || useConversationStore.getState().threadMode !== 'agent'
+        || useConversationStore.getState().turnStatus !== 'idle') return
       dismissPlanApproval(turnId)
       await startTurnWithOptimisticUI({
         threadId,

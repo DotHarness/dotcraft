@@ -109,7 +109,6 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
     },
     "capabilities": {
       "threadManagement": true,
-      "threadSubscriptions": true,
       "dynamicToolRebind": true,
       "runtimeAdditionalContext": true,
       "approvalFlow": true,
@@ -197,12 +196,11 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | Method | 说明 |
 |--------|------|
 | `thread/start` | 创建新线程。 |
-| `thread/resume` | 恢复已有线程。 |
+| `thread/resume` | 恢复执行上下文，返回当前状态并接入后续事件。 |
 | `thread/list` | 按 identity 列出线程。 |
 | `thread/read` | 读取当前 Thread 头部和持久化 runtime 状态，不恢复执行上下文。 |
-| `thread/turns/list` | 读取一页有界的 Turn 元数据，不包含 Item。 |
+| `thread/turns/list` | 按 `itemsView` 读取一页 Turn 元数据、摘要或完整 Items。 |
 | `thread/items/list` | 跨 Thread 或按单个 Turn 读取一页有界的 Item。 |
-| `thread/subscribe` | 订阅线程事件。 |
 | `thread/unsubscribe` | 取消订阅线程事件。 |
 | `thread/rename` | 更新显示名称。 |
 | `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 subagent 子树。 |
@@ -211,11 +209,17 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
 
-`thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`。未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
+`thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`。未传 `limit/cursor` 时返回完整列表。
 
 `thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条，Item 页默认 100 条、最多 100 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。Turn 页还会返回锚定在本页第一个 Turn 上的 `backwardsCursor`。它包含该 Turn，并适用于任一 `sortDirection`：`descending` 读取该 Turn 及更早的 Turn，`ascending` 读取该 Turn 及更新的 Turn。页为空时它为 `null`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
 
 归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 subagent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据。线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会分别发出 `thread/archived` 和 `thread/unarchived`。删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../../contribute/architecture/session-persistence)。
+
+创建、恢复和 fork 线程会自动接入后续事件，重复 resume 刷新同一观察。调用 `turn/start` 消费执行事件前，先完成接入。`thread/unsubscribe` 释放观察，执行和待回答请求继续保留。
+
+`thread/resume` 返回 `currentState`，包含当前 Turn、Item 计数、待回答请求和计划确认资格。传入 `initialTurnsPage: { "limit": 5, "itemsView": "summary" }` 可附带首屏及游标，省略时仅返回元数据。
+
+客户端在有序响应入口应用当前状态和首屏，再处理后续事件与请求。历史按需分页，归档线程通过 `thread/read` 和历史分页查看。
 
 ### Runtime Dynamic Tools 与 App Context
 
@@ -395,7 +399,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 常见 decision 包括 `accept`、`acceptForSession`、`acceptAlways`、`decline` 和 `cancel`。可用 decision 以实际 request payload 为准。
 
-审批请求不会超时，它属于 thread 而不是某一个连接。每个已订阅且支持审批的 client 都会收到待处理的请求，包括请求发出后才订阅的 client。请求会一直等待，直到某个 client 作答或所属 turn 结束，随后每个已订阅的 client 都会收到 `item/approval/resolved`，并应关闭对应的审批 UI。
+审批请求不会超时，它属于 thread 而不是某一个连接。每个已接入且支持审批的 client 都会收到待处理的请求，包括请求发出后才 resume 的 client。请求会一直等待，直到某个 client 作答或所属 turn 结束，随后每个已订阅的 client 都会收到 `item/approval/resolved`，并应关闭对应的审批 UI。
 
 如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 不会向它发送审批请求，它发起的 turn 中的审批会立即按 thread 的审批策略处理。富 UI client 应保持 `approvalSupport: true`。
 
@@ -484,7 +488,7 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 | 方法族 | 示例 | 说明 |
 |--------|------|------|
 | 初始化 | `initialize`, `initialized` | 建立连接能力和 server 能力。 |
-| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | 会话生命周期、有界历史和订阅。 |
+| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/resume`, `thread/unsubscribe` | 会话生命周期、有界历史和订阅。 |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | 用户输入、队列和取消。 |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、内容读取、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、Plan 模式可用性），用于 agent profile 的工具选择器。 |

@@ -89,41 +89,47 @@ public sealed class ThreadExternalCliSessionStore(SessionThread thread) : IExter
             return;
         }
 
-        var sessions = LoadSessions();
-        var normalizedLabel = NormalizeLabel(label);
-        var normalizedWorkingDirectory = NormalizeWorkingDirectory(workingDirectory);
-        var existing = sessions.FirstOrDefault(entry =>
-            string.Equals(entry.ProfileName, profileName, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(entry.WorkingDirectory, normalizedWorkingDirectory, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(entry.Label, normalizedLabel, StringComparison.Ordinal));
+        lock (thread.Metadata)
+        {
+            var sessions = LoadSessions();
+            var normalizedLabel = NormalizeLabel(label);
+            var normalizedWorkingDirectory = NormalizeWorkingDirectory(workingDirectory);
+            var existing = sessions.FirstOrDefault(entry =>
+                string.Equals(entry.ProfileName, profileName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(entry.WorkingDirectory, normalizedWorkingDirectory, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(entry.Label, normalizedLabel, StringComparison.Ordinal));
 
-        if (existing != null)
-        {
-            existing.SessionId = sessionId.Trim();
-            existing.LastUpdatedAt = DateTimeOffset.UtcNow;
-        }
-        else
-        {
-            sessions.Add(new ExternalCliSessionRecord
+            if (existing != null)
             {
-                ProfileName = profileName.Trim(),
-                Label = normalizedLabel,
-                WorkingDirectory = normalizedWorkingDirectory,
-                SessionId = sessionId.Trim(),
-                LastUpdatedAt = DateTimeOffset.UtcNow
-            });
-        }
+                existing.SessionId = sessionId.Trim();
+                existing.LastUpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                sessions.Add(new ExternalCliSessionRecord
+                {
+                    ProfileName = profileName.Trim(),
+                    Label = normalizedLabel,
+                    WorkingDirectory = normalizedWorkingDirectory,
+                    SessionId = sessionId.Trim(),
+                    LastUpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
 
-        var trimmed = sessions
-            .OrderByDescending(entry => entry.LastUpdatedAt)
-            .Take(MaxSessions)
-            .ToArray();
-        thread.Metadata[MetadataKey] = JsonSerializer.Serialize(trimmed, SessionWireJsonOptions.Default);
+            var trimmed = sessions
+                .OrderByDescending(entry => entry.LastUpdatedAt)
+                .Take(MaxSessions)
+                .ToArray();
+            thread.Metadata[MetadataKey] = JsonSerializer.Serialize(trimmed, SessionWireJsonOptions.Default);
+        }
     }
 
     private List<ExternalCliSessionRecord> LoadSessions()
     {
-        if (!thread.Metadata.TryGetValue(MetadataKey, out var raw) || string.IsNullOrWhiteSpace(raw))
+        string? raw;
+        lock (thread.Metadata)
+            thread.Metadata.TryGetValue(MetadataKey, out raw);
+        if (string.IsNullOrWhiteSpace(raw))
             return [];
 
         try

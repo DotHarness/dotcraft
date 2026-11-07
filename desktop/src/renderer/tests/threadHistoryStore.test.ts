@@ -10,6 +10,9 @@ import {
 } from '../stores/threadHistoryStore'
 import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { listThreadTurns } from '../utils/threadHistory'
+import { applyThreadRestoration } from '../stores/applyThreadRestoration'
+import { makeRestoreResult } from './threadRestorationFixtures'
+import type { Thread } from '../types/thread'
 import {
   createFakeHistoryServer,
   loadedTurnIds,
@@ -64,6 +67,34 @@ describe('thread history segments', () => {
     await loadThreadHistoryGap(gapBefore('turn-3'), 'older')
     expect(loadedTurnIds()).toEqual(turnRange(1, 12))
     expect(gapPositions()).toEqual([])
+  })
+
+  it('restarts replaced resume history with a reachable continuation and rejects its previous in-flight page', async () => {
+    const server = useServer(12)
+    await openThreadHistory(server, THREAD)
+    while (useThreadHistoryStore.getState().gaps.length > 0) {
+      await loadThreadHistoryGap(useThreadHistoryStore.getState().gaps[0].id, 'older')
+    }
+    expect(loadedTurnIds()).toEqual(turnRange(1, 12))
+    const page = await listThreadTurns(server.request, THREAD, null, 'descending', 5, 'summary')
+    const response = makeRestoreResult({
+      id: THREAD, originChannel: 'dotcraft-desktop', status: 'active', turns: [...page.turns].reverse()
+    } as unknown as Thread)
+    response.initialTurnsPage!.nextCursor = page.nextCursor
+
+    applyThreadRestoration(response)
+    expect(loadedTurnIds()).toEqual(turnRange(8, 12))
+    expect(gapPositions()).toEqual(['turn-8'])
+    const release = server.holdNextTurnsList()
+    const older = loadThreadHistoryGap(gapBefore('turn-8'), 'older')
+    applyThreadRestoration(response)
+    release()
+    await older
+    expect(loadedTurnIds()).toEqual(turnRange(8, 12))
+
+    await loadThreadHistoryGap(gapBefore('turn-8'), 'older')
+    expect(loadedTurnIds()).toEqual(turnRange(3, 12))
+    expect(gapPositions()).toEqual(['turn-3'])
   })
 
   it('opens a segment around a listed turn with a gap on each side', async () => {

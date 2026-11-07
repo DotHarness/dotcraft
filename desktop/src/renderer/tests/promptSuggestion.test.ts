@@ -1,6 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 
+function connectionApi(request: ReturnType<typeof vi.fn>) {
+  return {
+    getConnectionKey: async () => 'prediction-workspace',
+    sendConnectionRequest: async (
+      _key: string, method: string, params: unknown, timeout?: number,
+      options?: { onResponse?(result: unknown): void }
+    ) => {
+      const result = await (timeout == null ? request(method, params) : request(method, params, timeout))
+      options?.onResponse?.(result)
+      return result
+    }
+  }
+}
+
 beforeEach(() => vi.spyOn(console, 'debug').mockImplementation(() => {}))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
@@ -31,7 +45,7 @@ describe('prompt suggestions', () => {
     vi.stubGlobal('window', {
       setTimeout,
       clearTimeout,
-      api: { appServer: { sendRequest, onNotification: (callback: typeof notify) => {
+      api: { appServer: { ...connectionApi(sendRequest), onNotification: (callback: typeof notify) => {
         notify = callback
         return () => { notify = null }
       } } }
@@ -63,7 +77,7 @@ describe('prompt suggestions', () => {
     vi.stubGlobal('window', {
       setTimeout,
       clearTimeout,
-      api: { appServer: { sendRequest, onNotification: () => () => {} } }
+      api: { appServer: { ...connectionApi(sendRequest), onNotification: () => () => {} } }
     })
     const controller = new AbortController()
     const pending = generatePromptSuggestion('parent', 'completed-turn', controller.signal)
@@ -84,7 +98,7 @@ describe('prompt suggestions', () => {
     })
     vi.stubGlobal('window', {
       setTimeout, clearTimeout,
-      api: { appServer: { sendRequest, onNotification: () => () => {} } }
+      api: { appServer: { ...connectionApi(sendRequest), onNotification: () => () => {} } }
     })
     const diagnostic = vi.fn()
     const pending = generatePromptSuggestion('parent', 'turn-1', new AbortController().signal, diagnostic)

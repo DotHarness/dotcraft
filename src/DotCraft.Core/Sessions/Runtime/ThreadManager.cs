@@ -12,9 +12,30 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 namespace DotCraft.Sessions;
 
 /// <summary>Owns loaded Thread runtimes, deletion tombstones, and runtime generations.</summary>
-internal sealed class ThreadManager
+internal sealed class ThreadManager : IDisposable
 {
+    private readonly DotCraft.Memory.PlanStore? _planStore;
+
+    public ThreadManager(DotCraft.Memory.PlanStore? planStore = null)
+    {
+        _planStore = planStore;
+        if (planStore is not null)
+            planStore.Saved += OnPlanSaved;
+    }
+
+    private void OnPlanSaved(string threadId, DotCraft.Memory.StructuredPlan plan)
+    {
+        if (TryGetRuntime(threadId, out var runtime))
+            runtime.Broker.UpdatePlan(plan, runtime.Generation);
+    }
+
+    public void Dispose()
+    {
+        if (_planStore is not null)
+            _planStore.Saved -= OnPlanSaved;
+    }
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
+    private readonly Lock _registrationLock = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _brokers = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
 
@@ -43,24 +64,37 @@ internal sealed class ThreadManager
     public ThreadEventBroker GetBroker(string threadId) =>
         _brokers.GetOrAdd(threadId, static id => new ThreadEventBroker(id));
 
-    public ThreadRuntime SetThread(SessionThread thread) =>
-        _runtimes.AddOrUpdate(
-            thread.Id,
-            static (_, value) => new ThreadRuntime(value.Thread, value.Broker),
-            static (_, runtime, value) =>
+    public ThreadRuntime SetThread(SessionThread thread)
+    {
+        lock (_registrationLock)
+        {
+            if (!_runtimes.TryGetValue(thread.Id, out var runtime))
             {
-                runtime.Thread = value.Thread;
-                return runtime;
-            },
-            (Thread: thread, Broker: GetBroker(thread.Id)));
+                runtime = new ThreadRuntime(thread, GetBroker(thread.Id));
+                _runtimes[thread.Id] = runtime;
+            }
+            else runtime.Thread = thread;
+            runtime.Broker.Initialize(thread, runtime.Generation);
+            return runtime;
+        }
+    }
 
-    public bool TryRemove(string threadId, out ThreadRuntime runtime) =>
-        _runtimes.TryRemove(threadId, out runtime!);
+    public bool TryRemove(string threadId, out ThreadRuntime runtime)
+    {
+        lock (_registrationLock)
+            return _runtimes.TryRemove(threadId, out runtime!);
+    }
 
-    public bool TryRemove(ThreadRuntime runtime) =>
-        _runtimes.TryRemove(new KeyValuePair<string, ThreadRuntime>(runtime.Thread.Id, runtime));
+    public bool TryRemove(ThreadRuntime runtime)
+    {
+        lock (_registrationLock)
+            return _runtimes.TryRemove(new KeyValuePair<string, ThreadRuntime>(runtime.Thread.Id, runtime));
+    }
 
-    public void ForgetBroker(string threadId) => _brokers.TryRemove(threadId, out _);
+    public void ForgetBroker(string threadId)
+    {
+        if (_brokers.TryRemove(threadId, out var broker)) broker.Close();
+    }
 
     public void MarkPendingPermanentDeletion(string threadId) =>
         _pendingPermanentDeletion[threadId] = 0;
@@ -208,6 +242,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public async ValueTask DisposeAsync()
     {
+        Commands.Close();
+        Broker.ReleaseCurrentState(Generation);
         await Commands.DisposeAsync();
         QueueLock.Dispose();
         AgentLock.Dispose();

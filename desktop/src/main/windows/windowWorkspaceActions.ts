@@ -121,6 +121,10 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       const entry = ctx.workspaceConnections.get(key)
       return entry?.connected ? entry.client : null
     },
+    getConnectionContext: client => {
+      const entry = ctx.findWorkspaceConnectionByClient(client)
+      return entry ? { workspacePath: entry.workspacePath, capabilities: entry.initializeResult?.capabilities } : null
+    },
     onAppServerRequestStarted: (client, method, params) => {
       const entry = ctx.findWorkspaceConnectionByClient(client)
       return entry ? beginWorkspaceThreadListRequest(entry, method, params) : undefined

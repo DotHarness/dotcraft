@@ -86,7 +86,7 @@ public static class AppServerContractMapper
         Items = value.Items?.Select(ToContract).ToArray()
     };
 
-    private static Contract.ThreadRuntimeState ToContract(SessionRuntimeSnapshot value) => new()
+    public static Contract.ThreadRuntimeState ToContract(SessionRuntimeSnapshot value) => new()
     {
         Running = value.Running,
         ActiveTurnId = value.ActiveTurnId is null

@@ -790,7 +790,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadResume_ReturnsThread_EmitsResumedNotification()
+    public async Task ThreadResume_ReturnsCurrentStateAndAttachesTheConnection()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
@@ -798,7 +798,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Empty(response.RootElement
@@ -806,8 +805,8 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(thread.Id, response.RootElement
             .GetProperty("result").GetProperty("thread").GetProperty("id").GetString());
 
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
-        Assert.Equal("test-client", notification.RootElement.GetProperty("params").GetProperty("resumedBy").GetString());
+        Assert.True(_h.Connection.HasSubscription(thread.Id));
+        Assert.Empty(response.RootElement.GetProperty("result").GetProperty("currentState").GetProperty("pendingRequests").EnumerateArray());
     }
 
     [Fact]
@@ -860,10 +859,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        var notification = await harness.Transport.ReadNextSentAsync();
-
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
         var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
             new ToolPlanningContext(
@@ -951,7 +947,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
 
         var response = await harness.Transport.ReadNextSentAsync();
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        _ = await harness.Transport.ReadNextSentAsync();
         var section = runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath));
         Assert.Contains("existing context", section);
 
@@ -1025,7 +1020,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadLifecycleRequests_WhenSubscribed_SendOnlyTheResponse()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id }));
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
         await _h.Transport.ReadNextSentAsync();
 
         foreach (var method in new[]

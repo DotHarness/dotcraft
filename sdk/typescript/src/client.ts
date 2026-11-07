@@ -21,6 +21,11 @@ export type ServerRequestHandler = (
   params: Record<string, unknown>,
 ) => unknown | Promise<unknown>;
 export type Unsubscribe = () => void;
+/** Invoked synchronously in wire order before the request promise settles. */
+export interface WireResponseHandlers<T = unknown> {
+  onResponse?: (result: T) => void;
+  onError?: (error: unknown) => void;
+}
 export type WireConnectionState =
   | "connecting"
   | "initializing"
@@ -48,7 +53,7 @@ export class DotCraftWireClient {
   private nextId = 1;
   private readonly pending = new Map<
     string | number,
-    { resolve: (v: unknown) => void; reject: (e: unknown) => void; timer: ReturnType<typeof setTimeout> | null; written: boolean }
+    { resolve: (v: unknown) => void; reject: (e: unknown) => void; timer: ReturnType<typeof setTimeout> | null; written: boolean; responseHandlers?: WireResponseHandlers }
   >();
   private readonly handlers = new Map<string, NotificationHandler[]>();
   private readonly rawNotificationHandlers = new Set<
@@ -260,12 +265,13 @@ export class DotCraftWireClient {
     method: M,
     params: ClientRequestMethods[M]["params"],
     timeoutMs?: number | null,
+    responseHandlers?: WireResponseHandlers<ClientRequestMethods[M]["result"]>,
   ): Promise<ClientRequestMethods[M]["result"]> {
-    return await this.requestRaw<ClientRequestMethods[M]["result"]>(method, params, timeoutMs);
+    return await this.requestRaw<ClientRequestMethods[M]["result"]>(method, params, timeoutMs, responseHandlers);
   }
 
-  async requestRaw<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T> {
-    return await this.requestRawInternal<T>(method, params, timeoutMs, false);
+  async requestRaw<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null, responseHandlers?: WireResponseHandlers<T>): Promise<T> {
+    return await this.requestRawInternal<T>(method, params, timeoutMs, false, responseHandlers);
   }
 
   private async requestRawInternal<T>(
@@ -273,6 +279,7 @@ export class DotCraftWireClient {
     params: unknown,
     timeoutMs: number | null | undefined,
     bypassReconnectQueue: boolean,
+    responseHandlers?: WireResponseHandlers<T>,
   ): Promise<T> {
     const id = this.nextRequestId();
     return new Promise<T>((resolve, reject) => {
@@ -283,7 +290,7 @@ export class DotCraftWireClient {
             this.pending.delete(id);
             reject(new RequestTimeoutError(method, effectiveTimeout));
           }, effectiveTimeout);
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, written: false });
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, written: false, responseHandlers: responseHandlers as WireResponseHandlers | undefined });
       const msg = new JsonRpcMessage({
         method,
         id,
@@ -482,9 +489,20 @@ export class DotCraftWireClient {
       if (msg.error) {
         const code = (msg.error.code ?? -1) as number;
         const m = String(msg.error.message ?? "Unknown error");
-        fut.reject(toJsonRpcError(code, m, msg.error.data));
+        const error = toJsonRpcError(code, m, msg.error.data);
+        try {
+          fut.responseHandlers?.onError?.(error);
+          fut.reject(error);
+        } catch (hookError) {
+          fut.reject(hookError);
+        }
       } else {
-        fut.resolve(msg.result);
+        try {
+          fut.responseHandlers?.onResponse?.(msg.result);
+          fut.resolve(msg.result);
+        } catch (error) {
+          fut.reject(error);
+        }
       }
       return;
     }

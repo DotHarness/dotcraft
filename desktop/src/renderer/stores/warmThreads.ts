@@ -1,5 +1,5 @@
 import type { Thread } from '../types/thread'
-import type { ThreadSubscriptionTarget } from '../utils/threadSubscriptionCoordinator'
+import type { ThreadObservationTarget } from '../utils/threadObservationScope'
 
 const WARM_THREAD_LIMIT = 10
 const WARM_THREAD_TTL_MS = 3 * 60 * 60 * 1000
@@ -7,7 +7,7 @@ export const WARM_THREAD_SWEEP_MS = 60 * 1000
 
 export interface WarmThread {
   thread: Thread
-  target: ThreadSubscriptionTarget
+  target: ThreadObservationTarget
   viewedAt: number
 }
 

@@ -74,6 +74,7 @@ class FakeRuntimeClient {
   async threadResume(threadId: string, params?: Record<string, unknown>): Promise<SessionThread> {
     this.events.push(`resume:${threadId}`);
     this.resumeParams.push({ threadId, params });
+    if (this.readFailures.has(threadId)) throw new Error(`Missing ${threadId}`);
     const resumed = makeThread(threadId, "active");
     this.threads.set(threadId, resumed);
     return resumed;
@@ -279,7 +280,7 @@ test("ThreadResolver shares one resolution between concurrent callers for an ide
   assert.equal(fake.startParams.length, 1);
 });
 
-test("ThreadResolver binds runtime context and chat once and restores them after connection replacement", async () => {
+test("ThreadResolver resumes cached threads with runtime context and restores them after connection replacement", async () => {
   const fake = new FakeRuntimeClient();
   const additionalContext: Record<string, RuntimeAdditionalContextEntry> = {
     "test.runtime": { kind: "application", value: "Use the test runtime." },
@@ -303,16 +304,16 @@ test("ThreadResolver binds runtime context and chat once and restores them after
   assert.deepEqual(fake.startParams[0]?.chat, chat);
 
   await resolver.getOrCreateThread(lookup);
-  assert.deepEqual(fake.events, ["list", "start", `read:${created.id}`]);
-  assert.equal(fake.resumeParams.length, 0);
+  assert.deepEqual(fake.events, ["list", "start", `resume:${created.id}`]);
+  assert.deepEqual(fake.resumeParams, [{ threadId: created.id, params: { additionalContext, chat } }]);
 
   resolver.invalidateConnectionBoundRuntime();
   fake.listResult = [makeThread(created.id, "active")];
   await resolver.getOrCreateThread(lookup);
-  assert.deepEqual(fake.resumeParams, [{
-    threadId: created.id,
-    params: { additionalContext, chat },
-  }]);
+  assert.deepEqual(fake.resumeParams, [
+    { threadId: created.id, params: { additionalContext, chat } },
+    { threadId: created.id, params: { additionalContext, chat } },
+  ]);
 });
 
 test("dispatchers register approval, user-input, delivery, tool, and heartbeat handlers", async () => {

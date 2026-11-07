@@ -32,9 +32,9 @@ Contracts is a separate assembly and logical layer, not a separate NuGet package
 | --- | --- |
 | Connect | `ConnectLocalAsync()`, `ConnectLocalChatAsync()`, `ConnectRemoteAsync()`, `ConnectAsync()` |
 | Close | `DisposeAsync()` / `await using` |
-| Threads | `Threads.StartAsync()`, `ResumeAsync()`, `ListAsync()`, `ReadAsync()`, `ListTurnsAsync()`, `ListItemsAsync()` |
+| Threads | `Threads.StartAsync()`, `ResumeAsync()`, `ForkAsync()`, `ListAsync()`, `ReadAsync()`, `ListTurnsAsync()`, `ListItemsAsync()` |
 | Run | `RunAsync()`, `RunStreamedAsync()`, `EnqueueAsync()`, `InterruptAsync()` |
-| Thread state | `Snapshot`, `RefreshAsync()`, `SubscribeAsync()`, `UnsubscribeAsync()`, `SetModeAsync()`, `ArchiveAsync()`, `DeleteAsync()` |
+| Thread state | `Snapshot`, `RefreshAsync()`, `UnsubscribeAsync()`, `SetModeAsync()`, `ArchiveAsync()`, `DeleteAsync()` |
 | Providers and models | `Providers.ListAsync()`, `Models.GetCatalogAsync()` |
 | Model configuration | `Threads.ReadModelConfigurationAsync()`, `UpdateModelConfigurationAsync()` |
 | Agent Profiles | `AgentProfiles.ListAsync()`, `ReadAsync()`, `ValidateAsync()`, `UpsertAsync()`, `RemoveAsync()`, `RefreshThreadAsync()` |
@@ -66,13 +66,14 @@ A remote URL points at the AppServer WebSocket endpoint, whose path ends in `/ws
 ```csharp
 Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default);
 Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default);
+Task<DotCraftThread> ForkAsync(ThreadForkParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, CancellationToken cancellationToken = default);
 ```
 
-`ReadAsync()` and `DotCraftThread.RefreshAsync()` return the current Thread header without persisted Turns or Items. `ListTurnsAsync()` reads Turn metadata without Items; `ListItemsAsync()` reads Items across the Thread or for the optional `ThreadItemsListParams.TurnId`. Both page requests accept an opaque cursor, limit, and sort direction.
+`ReadAsync()` and `DotCraftThread.RefreshAsync()` return the current Thread header without persisted Turns or Items. `ListTurnsAsync()` reads Turn metadata or summary Items according to `itemsView`; `ListItemsAsync()` reads Items across the Thread or for the optional `ThreadItemsListParams.TurnId`. Both page requests accept an opaque cursor, limit, and sort direction.
 
 `DotCraftThread` accepts either text or `IReadOnlyList<InputPart>` in `RunAsync()` and `RunStreamedAsync()`. `RunOptions` controls sender context, raw-event collection, queue-if-busy behavior, and whether failed terminal turns throw. Cancellation interrupts an active turn once its ID is known.
 
@@ -144,10 +145,10 @@ Wire state is `Connecting`, `Initializing`, `Ready`, `Disconnected`, `Reconnecti
 - Reconnect uses exponential backoff and queues at most 1024 new calls.
 - In-flight calls fail and are never replayed.
 - Initialization completes before queued calls are released.
-- Handler registrations survive reconnect. Thread subscriptions and runtime tool resources do not.
+- Handler registrations survive reconnect. Connection-bound observations and tools must be restored.
 - An active run fails with `RunDisconnectedException`; `turn/start` is never replayed.
 
-Reconnect does not rebuild those resources for the application. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing.
+After detachment or reconnect, a high-level handle resumes before its next run with its original tool declarations. See [Threads & runs](./runs) for Raw Wire recovery.
 
 Disposing a local high-level client closes its AppServer connection. It does not stop Hub or the Hub-managed AppServer.
 

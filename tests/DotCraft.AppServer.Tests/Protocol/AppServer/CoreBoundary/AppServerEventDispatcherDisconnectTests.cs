@@ -102,44 +102,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         }
     }
 
-    [Fact]
-    public async Task RunAsync_ReplayRecent_DoesNotSendHistoricalThreadStatusChanges()
-    {
-        using var harness = new AppServerTestHarness();
-        var broker = new ThreadEventBroker("thread_001");
-        broker.PublishThreadStatusChanged(ThreadStatus.Active, ThreadStatus.Archived);
-        broker.PublishThreadStatusChanged(ThreadStatus.Archived, ThreadStatus.Active);
-        broker.CreateTurnChannel("turn_001").EmitTurnCompleted(new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_001",
-            Status = TurnStatus.Completed,
-            StartedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow
-        });
 
-        using var replayCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var replayedEvents = new List<SessionEvent>();
-        await foreach (var evt in broker.SubscribeAsync(replayRecent: true, ct: replayCts.Token))
-        {
-            replayedEvents.Add(evt);
-            break;
-        }
-
-        var transport = new CapturingTransport();
-        var dispatcher = new AppServerEventDispatcher(
-            TrackEvents(replayedEvents, []),
-            CreateReadyConnection(),
-            transport,
-            harness.Service);
-
-        await dispatcher.RunAsync();
-
-        var sent = Assert.Single(transport.Sent);
-        var json = JsonSerializer.Serialize(sent, sent.GetType());
-        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, json);
-        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchived, json);
-    }
 
     [Theory]
     [InlineData(true, false, 0)]
@@ -308,33 +271,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         Assert.DoesNotContain("\"mcpApp\"", json);
     }
 
-    [Fact]
-    public async Task RunAsync_WhenTurnStartedResponseCallbackFails_DrainsRemainingTurnEvents()
-    {
-        using var harness = new AppServerTestHarness();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        var events = AppServerTestHarness.BuildTurnEventSequence(thread.Id);
-        var consumed = new List<SessionEventType>();
-        var callbackCalled = false;
-        var transport = new FailingTransport();
 
-        var dispatcher = new AppServerEventDispatcher(
-            TrackEvents(events, consumed),
-            CreateReadyConnection(),
-            transport,
-            harness.Service,
-            onTurnStarted: _ =>
-            {
-                callbackCalled = true;
-                throw new IOException("client disconnected");
-            });
-
-        await dispatcher.RunAsync();
-
-        Assert.True(callbackCalled);
-        Assert.Equal(events.Select(e => e.EventType), consumed);
-        Assert.Equal(0, transport.WriteAttempts);
-    }
 
     [Fact]
     public async Task RunAsync_WhenUserInputRequestTokenCancelled_DoesNotResolveUntilClientResponds()
@@ -427,6 +364,10 @@ public sealed class AppServerEventDispatcherDisconnectTests
         }));
 
         Assert.False(harness.Service.LastSubmitCancellationToken.CanBeCanceled);
+        Assert.False(harness.Connection.HasSubscription(thread.Id));
+        await WaitForAsync(() => harness.Service.YieldedSubmitEventTypes.Count == events.Length);
+        var response = Assert.Single(harness.Transport.DrainSent());
+        AppServerTestHarness.AssertIsSuccessResponse(response);
     }
 
     [Fact]
@@ -438,7 +379,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var events = AppServerTestHarness.BuildTurnEventSequence(thread.Id);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume,
             new { threadId = thread.Id }));
         await harness.Transport.ReadNextSentAsync();
 

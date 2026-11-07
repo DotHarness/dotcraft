@@ -131,7 +131,7 @@ When no expected executable is supplied, binary matching defaults to `ignore`. A
 The Application profile is the normal application-developer surface:
 
 - High-level local and remote connection helpers.
-- Thread start, resume, header read, subscribe, list, and bounded Turn and Item history pages.
+- Thread start, resume, header read, observation release, list, and bounded Turn and Item history pages.
 - Turn start, enqueue, and interrupt.
 - Input part helpers or typed input models.
 - Runtime Dynamic Tool declaration and callback registration.
@@ -143,7 +143,10 @@ The Application profile is the normal application-developer surface:
 
 The Run profile is the high-level one-turn application API and is **required for every general-purpose SDK**:
 
-- Subscribe to turn events before starting the turn.
+- Register local capture before establishing observation and before `turn/start`. Reuse creation/fork attachment or ensure metadata-only resume on the current connection; turn admission alone does not attach.
+- Filter events by the typed thread identity (including `turn.threadId`) and then the exact Turn id returned by this run's `turn/start`. Another Turn's terminal event never completes the run or closes a shared thread feed.
+- Preserve ordered snapshot application across transport/IPC: stage relevant events and requests until the authoritative response is applied, not merely until its promise resolves.
+- Release observations acquired for a one-shot run when its owner ends, without detaching another actual consumer. Long-lived adapters do not retain every previously handled thread.
 - Expose a blocking run helper that waits for terminal turn state.
 - Expose a streaming run helper or async event stream.
 - Normalize common thread, turn, item, plan, subagent, and system notifications.
@@ -208,7 +211,7 @@ Wire connection behavior is shared across bindings:
 - Calls made during reconnect queue in invocation order up to 1,024 entries. Timeout includes queue time; overflow returns a stable queue-full error.
 - After reconnect, the client replays the exact initialization parameters, sends `initialized`, and only then releases queued application messages.
 - Notification and server-request handler registrations survive reconnect. Explicit close cancels retries.
-- Wire does not recover Thread, Run, subscription, or Dynamic Tool state; the high-level client or host adapter decides. A Run that loses its Wire session ends per the [Run profile](#34-run-profile) with a stable disconnect error; `turn/start` is never replayed.
+- Wire does not recover Thread, Run, observation, or Dynamic Tool state; the high-level client or host adapter decides. A Run that loses its Wire session ends per the [Run profile](#34-run-profile) with a stable disconnect error; `turn/start` is never replayed.
 
 Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Host-specific initialization and probe limits belong to the host.
 
@@ -222,7 +225,6 @@ SDK thread and turn helpers should preserve AppServer naming and payload semanti
 - `thread/turns/list`
 - `thread/items/list`
 - `thread/list`
-- `thread/subscribe`
 - `thread/unsubscribe`
 - `thread/archive`
 - `thread/delete`
@@ -232,6 +234,10 @@ SDK thread and turn helpers should preserve AppServer naming and payload semanti
 - `turn/interrupt`
 
 Language bindings may expose only a subset as typed wrappers, but raw request access must cover the rest.
+
+Start, fork and actual worktree creation attach automatically. Resume prepares a cold runtime or reuses a warm runtime without binding takeover when no overrides are supplied. Its optional `initialTurnsPage` selects `none`, `summary` (default) or `full` before storage hydration and snapshot copying; omission is metadata-only and does not materialize Turn Items. The result includes a header, instruction sources, required current state and the optional bounded page under [AppServer resume](../protocols/appserver-protocol.md#42-threadresume). Current state carries interaction/progress metadata, not another copy of Turn Items. Header and history queries do not attach or construct an Agent; archived threads use those queries only.
+
+Thread consumers share one observation per connection/thread. Repeated resume refreshes its ordered snapshot, not another pump. `thread/unsubscribe` releases observation only, not execution or pending requests. Owners track connection identity and lifetime, so a stale handle reconnects through resume and final release happens only when no actual consumer remains.
 
 ### 4.4 Runtime Dynamic Tools
 

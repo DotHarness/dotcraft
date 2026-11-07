@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
-import type { ThreadSummary } from '../../types/thread'
+import { openThreadState, releaseThreadState } from '../../stores/threadState'
+import type { Thread } from '../../types/thread'
+import type { AppServerResponseOptions } from '../../../shared/appServerBoundary'
 import type { InputPart } from '../../types/conversation'
 import {
   builderFieldForToolName,
@@ -49,11 +51,31 @@ interface Result {
   syncDraft: (rawContent: string) => Promise<void>
 }
 
-async function rpc<T>(
-  method: keyof ClientRequestMethods,
-  params: ClientRequestMethods[keyof ClientRequestMethods]['params']
-): Promise<T> {
-  return (await window.api.appServer.sendRequest(method, params)) as T
+interface BuilderObservation {
+  threadId: string | null
+  connectionKey: string
+  attachmentOwner: string
+  released: boolean
+}
+
+function rpc<M extends keyof ClientRequestMethods>(
+  observation: BuilderObservation,
+  method: M,
+  params: ClientRequestMethods[M]['params'],
+  onResponse?: AppServerResponseOptions<ClientRequestMethods[M]['result']>['onResponse']
+): Promise<ClientRequestMethods[M]['result']> {
+  return window.api.appServer.sendConnectionRequest(
+    observation.connectionKey, method, params, undefined, {
+      attachmentOwner: observation.attachmentOwner, onResponse
+    }
+  )
+}
+
+function releaseObservation(observation: BuilderObservation | null): void {
+  if (!observation?.threadId || observation.released) return
+  observation.released = true
+  void rpc(observation, 'thread/unsubscribe', { threadId: observation.threadId }).catch(() => {})
+  releaseThreadState(observation.threadId)
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -137,6 +159,7 @@ export function useAgentBuilderConversation({
   const threadIdRef = useRef<string | null>(null)
   const startPromiseRef = useRef<Promise<void> | null>(null)
   const startTokenRef = useRef(0)
+  const observationRef = useRef<BuilderObservation | null>(null)
   const pendingBuilderToolFieldsRef = useRef<Map<string, BuilderField>>(new Map())
   const onResultRef = useRef(onResult)
   onResultRef.current = onResult
@@ -152,6 +175,8 @@ export function useAgentBuilderConversation({
     if (active) return undefined
 
     startTokenRef.current += 1
+    releaseObservation(observationRef.current)
+    observationRef.current = null
     if (threadIdRef.current) {
       restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
     }
@@ -165,6 +190,9 @@ export function useAgentBuilderConversation({
   }, [active, setCurrentThreadId])
 
   useEffect(() => () => {
+    startTokenRef.current += 1
+    releaseObservation(observationRef.current)
+    observationRef.current = null
     if (threadIdRef.current) {
       restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
     }
@@ -187,14 +215,27 @@ export function useAgentBuilderConversation({
     const promise = (async () => {
       setStatus('starting')
       setError(null)
+      let observation: BuilderObservation | null = null
       try {
-        previousActiveThreadIdRef.current = useThreadStore.getState().activeThreadId
+        const previousThreadId = useThreadStore.getState().activeThreadId
+        previousActiveThreadIdRef.current = previousThreadId
+        const connectionKey = await window.api.appServer.getConnectionKey()
+        if (token !== startTokenRef.current) return
+        if (!connectionKey) throw new Error('The builder connection is unavailable.')
+        observation = {
+          threadId: null,
+          connectionKey,
+          attachmentOwner: `builder:${crypto.randomUUID()}`,
+          released: false
+        }
+        const owned = observation
+        observationRef.current = owned
         const startConfig: Record<string, unknown> = {
           ...config,
           agentBuilderTargetId: targetId.trim() || 'draft-agent',
           agentBuilderTargetSource: targetSource.trim() || 'workspace'
         }
-        const res = await rpc<{ thread: ThreadSummary }>('thread/start', {
+        const res = await rpc(owned, 'thread/start', {
           identity: {
             channelName: 'dotcraft-desktop',
             userId: 'local',
@@ -203,29 +244,37 @@ export function useAgentBuilderConversation({
           },
           config: startConfig,
           historyMode: 'server'
+        }, (result) => {
+          owned.threadId = result.thread?.id ?? null
+          if (token !== startTokenRef.current) releaseObservation(owned)
         })
-        if (token !== startTokenRef.current) return
+        if (token !== startTokenRef.current) {
+          releaseObservation(owned)
+          return
+        }
 
-        const newThreadId = res.thread.id
-        await rpc('agent/profiles/builderDraft/update', {
+        const newThreadId = res.thread?.id
+        if (!newThreadId) throw new Error('thread/start returned no thread')
+        await rpc(owned, 'agent/profiles/builderDraft/update', {
           threadId: newThreadId,
           rawContent: initialDraftMarkdown
         })
-        if (token !== startTokenRef.current) return
+        if (token !== startTokenRef.current) {
+          releaseObservation(owned)
+          return
+        }
+        if (useThreadStore.getState().activeThreadId !== previousThreadId) {
+          releaseObservation(owned)
+          setStatus('idle')
+          return
+        }
 
-        // Don't add the builder thread to the local thread list — it's an internal thread (hidden from
-        // the sidebar; the backend also excludes it from thread/list). Selecting it triggers App's
-        // active-thread effect, which loads it and subscribes for streaming.
+        openThreadState(newThreadId)
         useThreadStore.getState().setActiveThreadId(newThreadId)
-        useThreadStore.getState().setActiveThread(null)
+        useThreadStore.getState().setActiveThread({ ...res.thread, turns: [] } as unknown as Thread)
         setCurrentThreadId(newThreadId)
 
-        await rpc('thread/subscribe', {
-          threadId: newThreadId
-        })
-        if (token !== startTokenRef.current) return
-
-        await rpc('turn/start', {
+        await rpc(owned, 'turn/start', {
           threadId: newThreadId,
           input: inputParts,
           identity: {
@@ -239,6 +288,8 @@ export function useAgentBuilderConversation({
 
         setStatus('ready')
       } catch (err) {
+        releaseObservation(observation)
+        if (token !== startTokenRef.current) return
         if (threadIdRef.current) {
           restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
           setCurrentThreadId(null)
@@ -260,8 +311,9 @@ export function useAgentBuilderConversation({
   }, [setCurrentThreadId, workspacePath])
 
   const syncDraft = useCallback(async (rawContent: string): Promise<void> => {
-    if (!threadId) return
-    await rpc('agent/profiles/builderDraft/update', {
+    const observation = observationRef.current
+    if (!threadId || !observation || observation.released) return
+    await rpc(observation, 'agent/profiles/builderDraft/update', {
       threadId,
       rawContent
     })

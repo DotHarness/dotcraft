@@ -51,6 +51,7 @@ import {
 } from './shellRuntimeBuffer'
 import { createConversationTextDeltaBuffer } from './conversationTextDeltaBuffer'
 import { createThreadScopedStores } from './threadScopedStore'
+import { hydratedStreamingState, mergeTurnItemsPage } from './turnItemsHydration'
 
 export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
 
@@ -331,6 +332,7 @@ interface ConversationState {
   /** Server-persisted FIFO inputs queued behind the active turn. */
   queuedInputs: QueuedTurnInput[]
   threadMode: ThreadMode
+  restoredPlanTurnId?: string | null
   /** Workspace root path; diff paths are shown relative to it */
   workspacePath: string
   remoteWorkspaceActive: boolean
@@ -362,7 +364,7 @@ interface ConversationActions {
   /** Load full turn history from thread/read */
   setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
   /** Gives a summarized Turn all of its Items without touching live state. */
-  replaceTurnItems(turnId: string, items: ConversationItem[]): void
+  applyTurnItemsPage(turnId: string, items: ConversationItem[], nextCursor: string | null): void
   onTurnStarted(rawTurn: Record<string, unknown>): void
   onTurnCompleted(rawTurn: Record<string, unknown>): void
   onTurnFailed(rawTurn: Record<string, unknown>, error: string): void
@@ -500,6 +502,7 @@ function createInitialState(): ConversationState {
     pendingMessage: null,
     queuedInputs: [],
     threadMode: 'agent',
+    restoredPlanTurnId: undefined,
     workspacePath: '',
     remoteWorkspaceActive: false,
     turnDiffs: new Map<string, TurnDiff>(),
@@ -978,7 +981,9 @@ function mergeExistingRealtimeTurn(
     tokenUsage: keepExistingTerminalStatus ? existing.tokenUsage : incoming.tokenUsage,
     error: keepExistingTerminalStatus ? existing.error : incoming.error,
     cancelReason: keepExistingTerminalStatus ? existing.cancelReason : incoming.cancelReason,
-    summary: existing.summary && incoming.summary,
+    summary: existing.summary && incoming.summary
+      ? { ...incoming.summary, ...existing.summary, itemCount: Math.max(existing.summary.itemCount, incoming.summary.itemCount) }
+      : undefined,
     items: sortItemsByCreatedAt(mergedItems)
   }
 }
@@ -1508,13 +1513,16 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
       ...createInitialState(),
       ...workspace,
 
-      replaceTurnItems(turnId, items) {
+      applyTurnItemsPage(turnId, items, nextCursor) {
+        conversationTextDeltaBuffer.flush()
         set((state) => {
-          if (!state.turns.some((turn) => turn.id === turnId && turn.summary)) return state
-          const turns = attachTerminalInputs(state.turns.map((turn) =>
-            turn.id === turnId ? mergeToolCallResults({ ...turn, items, summary: undefined }) : turn))
+          const selected = state.turns.find((turn) => turn.id === turnId && turn.summary)
+          if (!selected) return state
+          const hydrated = mergeToolCallResults(mergeTurnItemsPage(selected, items, nextCursor))
+          const turns = attachTerminalInputs(state.turns.map((turn) => turn.id === turnId ? hydrated : turn))
           return {
             turns,
+            ...hydratedStreamingState(state.activeTurnId, state.activeItemId, hydrated, items),
             ...refreshTurnFileChanges(turns, turnId, state.itemDiffs, state.turnDiffs, state.workspacePath)
           }
         })
@@ -1619,6 +1627,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
       },
 
       onTurnStarted(rawTurn) {
+        set({ restoredPlanTurnId: undefined })
         conversationTextDeltaBuffer.reset()
         const turn = wireTurnToConversationTurn(rawTurn)
         set((state) => {
@@ -3277,6 +3286,7 @@ export function selectStreamingPlanDraft(
  * Used by the plan approval composer.
  */
 export function selectLatestCreatePlanTurnId(state: ConversationState): string | null {
+  if (state.restoredPlanTurnId !== undefined) return state.restoredPlanTurnId
   const turn = state.turns[state.turns.length - 1]
   if (!turn || turn.status !== 'completed') {
     return null

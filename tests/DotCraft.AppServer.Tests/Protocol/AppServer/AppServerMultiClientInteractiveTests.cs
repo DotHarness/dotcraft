@@ -64,7 +64,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         var phone = await ConnectAsync("dotcraft-mobile");
-        await phone.SubscribeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         var request = await phone.NextRequestAsync();
         Assert.Equal(Methods.ApprovalRequest, request.Method);
         request.Answer(new { decision = "accept" });
@@ -79,7 +79,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
     {
         var thread = await CreateThreadAsync();
         var desktop = await ConnectAsync("dotcraft-desktop");
-        await desktop.SubscribeAsync(thread.Id);
+        await desktop.ResumeAsync(thread.Id);
         await desktop.StartTurnAsync(thread.Id);
         var held = await desktop.NextRequestAsync();
 
@@ -88,7 +88,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         var phone = await ConnectAsync("dotcraft-mobile");
-        await phone.SubscribeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         var replayed = await phone.NextRequestAsync();
         Assert.Equal(held.RequestId, replayed.RequestId);
         replayed.Answer(new { decision = "accept" });
@@ -103,8 +103,8 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         var thread = await CreateThreadAsync();
         var desktop = await ConnectAsync("dotcraft-desktop");
         var phone = await ConnectAsync("dotcraft-mobile");
-        await desktop.SubscribeAsync(thread.Id);
-        await phone.SubscribeAsync(thread.Id);
+        await desktop.ResumeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         await desktop.StartTurnAsync(thread.Id);
         var onDesktop = await desktop.NextRequestAsync();
         var onPhone = await phone.NextRequestAsync();
@@ -113,7 +113,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
-        await desktop.SubscribeAsync(thread.Id);
+        await desktop.ResumeAsync(thread.Id);
         Assert.Equal(onPhone.RequestId, (await desktop.NextRequestAsync()).RequestId);
 
         onPhone.Answer(new { decision = "accept" });
@@ -122,7 +122,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Replay_StopsAtAnApprovalAnsweredWithAnUnknownDecision_AndRestartsThereOnTheNextSubscription()
+    public async Task Resume_RestoresAnInvalidlyAnsweredApprovalWithoutDuplicatingAnotherHeldRequest()
     {
         _model.Approvals = 2;
         var thread = await CreateThreadAsync();
@@ -130,17 +130,17 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         await WaitForAsync(() => thread.Turns.LastOrDefault()?.Items.Count(item => item.Payload is ApprovalRequestPayload) == 2);
 
         var phone = await ConnectAsync("dotcraft-mobile");
-        await phone.SubscribeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         var first = await phone.NextRequestAsync();
+        var second = await phone.NextRequestAsync();
         first.Answer(new { decision = "maybe" });
         await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
-        await phone.SubscribeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         var again = await phone.NextRequestAsync();
         Assert.Equal(first.RequestId, again.RequestId);
         again.Answer(new { decision = "accept" });
-        var second = await phone.NextRequestAsync();
         Assert.NotEqual(first.RequestId, second.RequestId);
         second.Answer(new { decision = "accept" });
 
@@ -154,8 +154,8 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         var thread = await CreateThreadAsync();
         var desktop = await ConnectAsync("dotcraft-desktop");
         var phone = await ConnectAsync("dotcraft-mobile");
-        await desktop.SubscribeAsync(thread.Id);
-        await phone.SubscribeAsync(thread.Id);
+        await desktop.ResumeAsync(thread.Id);
+        await phone.ResumeAsync(thread.Id);
         var turnId = await desktop.StartTurnAsync(thread.Id);
         await desktop.NextRequestAsync();
         var onPhone = await phone.NextRequestAsync();
@@ -181,12 +181,12 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
     {
         var thread = await CreateThreadAsync();
         var desktop = await ConnectAsync("dotcraft-desktop");
-        await desktop.SubscribeAsync(thread.Id);
+        await desktop.ResumeAsync(thread.Id);
         var bot = await ConnectAsync("channel-bot", approvalSupport: false);
 
         await bot.StartTurnAsync(thread.Id);
 
-        Assert.NotNull(await bot.Wire.WaitForNotificationAsync(Methods.TurnCompleted, TimeSpan.FromSeconds(10)));
+        Assert.NotNull(await desktop.Wire.WaitForNotificationAsync(Methods.TurnCompleted, TimeSpan.FromSeconds(10)));
         Assert.NotNull(await desktop.Wire.WaitForNotificationAsync(Methods.ApprovalResolved, TimeSpan.FromSeconds(5)));
         Assert.False(await _model.Approved);
         var response = Assert.Single(thread.Turns[^1].Items.Select(item => item.Payload).OfType<ApprovalResponsePayload>());
@@ -395,8 +395,8 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
 
         public AppServerWireClient Wire => _connection.Wire;
 
-        public Task SubscribeAsync(string threadId) =>
-            Wire.SendRequestAsync(Methods.ThreadSubscribe, new { threadId }, TimeSpan.FromSeconds(5));
+        public Task ResumeAsync(string threadId) =>
+            Wire.SendRequestAsync(Methods.ThreadResume, new { threadId }, TimeSpan.FromSeconds(5));
 
         public async Task<string> StartTurnAsync(string threadId)
         {

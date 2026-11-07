@@ -17,6 +17,7 @@ import type {
   ServerInfo,
   SessionThread,
   SessionTurn,
+  ThreadResumeResult,
 } from "./generated/appserver/index.js";
 import {
   makeServerCapabilities,
@@ -50,9 +51,11 @@ class FakeWire {
     this.requestHandlers.set(method, handler);
   }
 
-  async threadStart(params: Record<string, unknown>): Promise<SessionThread> {
+  async threadStart(params: Record<string, unknown>, onResponse?: (thread: SessionThread) => void): Promise<SessionThread> {
     this.startParams = params;
-    return makeThread("thread-1", "active", String(params.workspacePath ?? ""), String(params.userId ?? ""), String(params.channelName ?? ""));
+    const thread = makeThread("thread-1", "active", String(params.workspacePath ?? ""), String(params.userId ?? ""), String(params.channelName ?? ""));
+    onResponse?.(thread);
+    return thread;
   }
 
   async threadList(): Promise<SessionThread[]> {
@@ -67,9 +70,13 @@ class FakeWire {
     return makeThread(threadId, "active");
   }
 
-  async threadResume(threadId: string): Promise<SessionThread> {
-    return makeThread(threadId, "active");
+  async threadResume(threadId: string, _params?: unknown, onResponse?: (result: ThreadResumeResult) => void): Promise<ThreadResumeResult> {
+    const result = { thread: makeThread(threadId, "active"), currentState: { itemCount: 0, pendingRequests: [] }, instructionSources: [] };
+    onResponse?.(result);
+    return result;
   }
+
+  async ensureThreadAttached(): Promise<undefined> { return undefined; }
 
   async turnStart(_threadId: string, input: unknown, sender: unknown): Promise<SessionTurn> {
     this.calls.push("turnStart");
@@ -285,15 +292,15 @@ test("DotCraftThread run registers stream capture before turn start and merges f
     }),
     JsonRpcMessage.fromDict({
       method: "item/started",
-      params: { threadId: "thread-1", item: { id: "m1", type: "agentMessage" } },
+      params: { threadId: "thread-1", turnId: "turn-1", item: { id: "m1", type: "agentMessage" } },
     }),
     JsonRpcMessage.fromDict({
       method: "item/agentMessage/delta",
-      params: { threadId: "thread-1", itemId: "m1", delta: "hello " },
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "m1", delta: "hello " },
     }),
     JsonRpcMessage.fromDict({
       method: "item/completed",
-      params: { threadId: "thread-1", item: { id: "m1", type: "agentMessage", payload: { text: "hello world" } } },
+      params: { threadId: "thread-1", turnId: "turn-1", item: { id: "m1", type: "agentMessage", payload: { text: "hello world" } } },
     }),
     JsonRpcMessage.fromDict({
       method: "turn/completed",

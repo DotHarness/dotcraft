@@ -4,6 +4,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useThreadRestorationStore } from '../../stores/threadRestoration'
 import { useUIStore } from '../../stores/uiStore'
 import { useChannelBindingStore } from '../../stores/channelBindingStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
@@ -83,10 +84,15 @@ export function ConversationPanel({
   const composerApproval = pendingApproval ?? genericApproval
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const latestCreatePlanTurnId = useConversationStore(selectLatestCreatePlanTurnId)
+  const plan = useConversationStore((s) => s.plan)
   const connectionStatus = useConnectionStore((s) => s.status)
   const connectionErrorMessage = useConnectionStore((s) => s.errorMessage)
   const planApprovalDismissed = useUIStore((s) => s.planApprovalDismissed)
-  const resetPlanApprovalDismissed = useUIStore((s) => s.resetPlanApprovalDismissed)
+  const restoring = useThreadRestorationStore((s) => activeThreadId != null && s.restoringThreadId === activeThreadId)
+  const runtime = useThreadStore((s) => activeThreadId ? s.runtimeSnapshots.get(activeThreadId) : undefined)
+  const waitingForRequest = (runtime?.waitingOnApproval === true && pendingApproval == null)
+    || (runtime?.waitingOnInput === true && pendingUserInput == null)
+  const interactionLoading = restoring || waitingForRequest
   const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
   const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const pendingWelcomeTurn = useUIStore((s) => s.pendingWelcomeTurn)
@@ -141,14 +147,14 @@ export function ConversationPanel({
 
   const showReconnectionBanner = connectionStatus === 'disconnected'
   const showPlanApproval = !isAgentBuilder
+    && !interactionLoading
+    && pendingUserInput == null
     && threadMode === 'plan'
     && turnStatus === 'idle'
     && composerApproval == null
     && latestCreatePlanTurnId != null
+    && plan != null
     && planApprovalDismissed[latestCreatePlanTurnId] !== true
-  useEffect(() => {
-    resetPlanApprovalDismissed()
-  }, [activeThreadId, resetPlanApprovalDismissed])
 
   const parkedWhileCreatingRef = useRef<ComposerDraftSnapshot | null>(null)
   const parkWhileCreating = useCallback((payload: InputComposerSubmitPayload): void => {
@@ -330,7 +336,7 @@ export function ConversationPanel({
         <div style={centeredStyle} />
       )}
 
-      {composerApproval ? (
+      {!restoring && composerApproval ? (
         <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
           <ApprovalDecisionComposer
             key={approvalComposerKey(composerApproval)}
@@ -340,7 +346,7 @@ export function ConversationPanel({
             desktopPluginSurfaceContext={desktopPluginSurfaceContext}
           />
         </DesktopPluginSurface>
-      ) : pendingUserInput ? (
+      ) : !restoring && pendingUserInput ? (
         <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
           <RequestUserInputComposer
             request={pendingUserInput}
@@ -362,7 +368,7 @@ export function ConversationPanel({
       ) : (
         <InputComposer
           threadId={thread.id}
-          submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : openingThread ? waitForThread : undefined}
+          submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : openingThread || interactionLoading ? waitForThread : undefined}
           placeholder={worktreeCreation ? t('worktreeCreation.composerPlaceholder') : undefined}
           workspacePath={threadStateWorkspacePath}
           fileWorkspacePath={activeEffectiveWorkspacePath}

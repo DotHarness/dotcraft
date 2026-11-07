@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import { computerUseManager } from '../computerUse/runtime'
+import { browserUseManager } from '../browserUseManager'
 import { nodeReplManager, type NodeReplApprovalRequest } from '../nodeReplManager'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -63,6 +64,12 @@ function bindThread(entry: WorkspaceConnectionEntry, owner: BrowserWindow, threa
   if (existing) return existing
   if (!observedClients.has(entry.client)) {
     observedClients.add(entry.client)
+    entry.client.on('retained-turn-ended', (threadId: string, turnId: string) => {
+      const binding = bindings.get(threadId)
+      if (binding?.entry !== entry || binding.turnId !== turnId) return
+      computerUseManager.handleTurnEnded(threadId, turnId)
+      browserUseManager.handleTurnNotification('turn/completed', { threadId, turnId }, entry.localWorkspacePath ?? entry.workspacePath)
+    })
     entry.client.on('close', () => releaseWorkspaceNodeReplBindings(entry))
     entry.client.once('disposed', () => releaseWorkspaceNodeReplBindings(entry))
   }
@@ -106,12 +113,15 @@ export async function handleWorkspaceNodeReplRequest(
   binding.evaluations.add(evaluationId)
   const client = entry.client
   const workspacePath = entry.localWorkspacePath ?? entry.workspacePath
+  const sessionTurnId = p.browserSession?.turnId
+  const turnId = p.turnId ?? (typeof sessionTurnId === 'string' ? sessionTurnId.trim() || undefined : undefined)
   try {
-    const sessionTurnId = p.browserSession?.turnId
-    const turnId = p.turnId ?? (typeof sessionTurnId === 'string' ? sessionTurnId.trim() || undefined : undefined)
     binding.turnId = turnId ?? evaluationId
-    if (turnId !== undefined) await client.retainBrowserTurn(threadId, turnId)
+    if (turnId !== undefined && await client.retainBrowserTurn(threadId, turnId) === false) {
+      throw new Error('The Node REPL turn is no longer active.')
+    }
     if (!isCurrentWorkspaceRequestSource(ctx, entry) || ctx.mainWindow !== owner || bindings.get(threadId) !== binding) {
+      if (turnId !== undefined) await client.releaseBrowserTurn(threadId, turnId)
       throw new Error('Workspace request source changed before Node REPL evaluation.')
     }
     return await nodeReplManager.evaluate(owner, {

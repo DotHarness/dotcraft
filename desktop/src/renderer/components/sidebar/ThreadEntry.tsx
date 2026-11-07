@@ -61,8 +61,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
   const hasRunningTurn = runningTurnThreadIds.has(thread.id)
-  const hasPendingApproval = pendingApprovalThreadIds.has(thread.id)
-  const hasPendingUserInput = pendingUserInputThreadIds.has(thread.id)
   const hasPendingPlanConfirmation = pendingPlanConfirmationThreadIds.has(thread.id)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
@@ -122,14 +120,12 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const rowPull = threadDetails.rowPull
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
-  const showPendingApprovalBadge = !isActive && hasPendingApproval
-  const showPendingUserInputBadge = !isActive && !showPendingApprovalBadge && hasPendingUserInput
+  const showPendingApprovalBadge = pendingApprovalThreadIds.has(thread.id)
+  const showPendingUserInputBadge = !showPendingApprovalBadge && pendingUserInputThreadIds.has(thread.id)
   const showPendingPlanBadge =
     !isActive && !showPendingApprovalBadge && !showPendingUserInputBadge && hasPendingPlanConfirmation
   const showPendingBadge =
     showPendingApprovalBadge || showPendingUserInputBadge || showPendingPlanBadge
-  // The pending pill moves into the trailing status slot, replacing the running
-  // spinner — unless a drag / success state already owns the middle badge column.
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'

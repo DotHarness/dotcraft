@@ -39,9 +39,9 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 | --- | --- |
 | 连接 | `DotCraft.local()`、`DotCraft.localChat()`、`DotCraft.remote()` |
 | 关闭 | `dotcraft.close()` |
-| Thread | `threads.getOrCreate()`、`start()`、`resume()`、`list()`、`listPage()`、`read()`、`listTurns()`、`listItems()` |
+| Thread | `threads.getOrCreate()`、`start()`、`resume()`、`fork()`、`list()`、`listPage()`、`read()`、`listTurns()`、`listItems()` |
 | Run | `run()`、`runStreamed()`、`enqueue()`、`interrupt()` |
-| Thread 状态 | `snapshot()`、`refresh()`、`subscribe()`、`unsubscribe()`、`setMode()`、`archive()`、`delete()` |
+| Thread 状态 | `snapshot()`、`refresh()`、`unsubscribe()`、`setMode()`、`archive()`、`delete()` |
 | 模型 | `models.list()` |
 | MCP runtime | `mcpRuntime.listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()` |
 | App Binding | `appBindings` |
@@ -75,6 +75,7 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
 start(options?: StartThreadOptions): Promise<DotCraftThread>;
 resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+fork(threadId: string, options?: ForkThreadOptions): Promise<DotCraftThread>;
 list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
 listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
 read(threadId: string): Promise<SessionThread>;
@@ -82,9 +83,9 @@ listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadT
 listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 ```
 
-Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
+Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项包含有界初始 Turn 页、动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
 
-`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
+`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 按 `itemsView` 读取 Turn 元数据或摘要，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
 `run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
 
@@ -151,9 +152,9 @@ Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`re
 - 重连使用指数退避，最多排队 1024 个新调用。
 - 进行中的调用会失败且绝不重放。
 - 初始化完成后才会释放排队调用。
-- Handler 注册会跨重连保留，但 thread subscription、活动 run 和运行时工具资源不会保留。
+- Handler 注册会跨重连保留。活动 run 不会重放，连接上的观察和工具需要恢复。
 
-重连不会替应用重建这些资源。继续工作前先读取或恢复 thread、重新订阅，并重新注册运行时工具 handler。
+释放观察或重连后，高层 handle 在下一次 run 前自动 resume，并携带原有工具声明。Raw Wire 的恢复步骤见[线程与运行](./runs)。
 
 关闭本地高层 client 只关闭其 WebSocket 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 

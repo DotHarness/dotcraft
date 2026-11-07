@@ -9,9 +9,6 @@ namespace DotCraft.Sessions;
 /// </summary>
 public sealed class SessionEvent
 {
-    [JsonIgnore]
-    internal bool IsReplay { get; init; }
-
     /// <summary>
     /// Unique event ID, monotonically increasing within a Turn.
     /// </summary>

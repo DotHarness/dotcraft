@@ -235,8 +235,15 @@ public interface ISessionService
 
     IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
         string threadId,
-        bool replayRecent = false,
         CancellationToken ct = default);
+
+    /// <summary>Captures the current published view and future events of an already loaded runtime.</summary>
+    Task<ThreadObservation> ObserveThreadAsync(
+        string threadId,
+        ThreadObservationView view = ThreadObservationView.Metadata,
+        IReadOnlyList<DotCraft.Tools.ToolName>? summaryTools = null,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Current thread observation is not supported by this session service.");
 
     IAsyncEnumerable<SessionEvent> SubmitInputAsync(
         string threadId,
@@ -378,6 +385,28 @@ public interface ISessionService
         ThreadHistoryCursor? cursor,
         int limit,
         ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    /// <summary>Returns a bounded page of persisted summary candidates and counts before connection filtering.</summary>
+    Task<ThreadHistoryPage<ThreadTurnSummary>> ListThreadSummariesAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        IReadOnlyList<DotCraft.Tools.ToolName> summaryTools,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    Task<ThreadHistoryCursor?> ResolveThreadTurnCursorAsync(
+        string threadId, string turnId, CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    /// <summary>Resolves an Item's exclusive durable history cursor, or null when the Item is not persisted.</summary>
+    Task<ThreadHistoryCursor?> ResolveThreadItemCursorAsync(
+        string threadId,
+        string turnId,
+        string itemId,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Paged Thread history is not supported by this session service.");
 

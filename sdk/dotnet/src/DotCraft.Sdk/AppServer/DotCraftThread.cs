@@ -12,14 +12,17 @@ namespace DotCraft.Sdk;
 public sealed class DotCraftThread
 {
     private readonly DotCraftClient _client;
-    private readonly SemaphoreSlim _subscribeLock = new(1, 1);
+    private readonly SemaphoreSlim _restoreLock = new(1, 1);
+    private readonly ThreadResumeParams _resumeParameters;
     private SessionThread _snapshot;
-    private long _subscribedGeneration;
 
-    internal DotCraftThread(DotCraftClient client, SessionThread snapshot)
+    internal DotCraftThread(DotCraftClient client, SessionThread snapshot, ThreadResumeParams resumeParameters,
+        ThreadResumeResult? restoration = null)
     {
         _client = client;
+        _resumeParameters = resumeParameters;
         _snapshot = snapshot;
+        Restoration = restoration;
         Id = snapshot.Id;
     }
 
@@ -28,6 +31,8 @@ public sealed class DotCraftThread
 
     /// <summary>Latest known typed thread snapshot.</summary>
     public SessionThread Snapshot => _snapshot;
+
+    public ThreadResumeResult? Restoration { get; private set; }
 
     /// <summary>Runs one text turn and returns the merged assistant reply.</summary>
     public Task<DotCraftRunResult> RunAsync(
@@ -97,7 +102,7 @@ public sealed class DotCraftThread
         {
             if (state == WireConnectionState.Ready)
                 return;
-            Interlocked.Exchange(ref _subscribedGeneration, 0);
+            _client.MarkDetached(Id);
             channel.Writer.TryComplete(new RunDisconnectedException(Id, turnId, error));
         }
 
@@ -109,10 +114,7 @@ public sealed class DotCraftThread
                 var runEvent = AppServerRunEventFactory.Parse(notification);
                 if (!string.Equals(runEvent.ThreadId, Id, StringComparison.Ordinal))
                     return;
-                turnId ??= runEvent.TurnId;
                 channel.Writer.TryWrite(runEvent);
-                if (IsTerminal(runEvent.Type))
-                    channel.Writer.TryComplete();
             }
             catch (Exception exception)
             {
@@ -122,7 +124,7 @@ public sealed class DotCraftThread
 
         try
         {
-            await EnsureSubscribedAsync(cancellationToken).ConfigureAwait(false);
+            await EnsureAttachedAsync(cancellationToken).ConfigureAwait(false);
             TurnEnqueueResult? queued = null;
             try
             {
@@ -159,6 +161,8 @@ public sealed class DotCraftThread
 
             await foreach (var runEvent in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
+                if (!string.Equals(runEvent.TurnId, turnId, StringComparison.Ordinal))
+                    continue;
                 yield return runEvent;
                 if (IsTerminal(runEvent.Type))
                     yield break;
@@ -181,22 +185,11 @@ public sealed class DotCraftThread
     public async Task InterruptAsync(string turnId, CancellationToken cancellationToken = default) =>
         await _client.Turns.InterruptAsync(Id, turnId, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Subscribes this connection to the thread's events.</summary>
-    public async Task SubscribeAsync(bool replayRecent = false, CancellationToken cancellationToken = default)
-    {
-        await _client.Wire.ThreadSubscribeAsync(new ThreadSubscribeParams
-        {
-            ThreadId = Id,
-            ReplayRecent = replayRecent
-        }, cancellationToken).ConfigureAwait(false);
-        Interlocked.Exchange(ref _subscribedGeneration, _client.Wire.ConnectionGeneration);
-    }
-
     /// <summary>Unsubscribes this connection from the thread's events.</summary>
     public async Task UnsubscribeAsync(CancellationToken cancellationToken = default)
     {
         await _client.Wire.ThreadUnsubscribeAsync(new ThreadUnsubscribeParams { ThreadId = Id }, cancellationToken).ConfigureAwait(false);
-        Interlocked.Exchange(ref _subscribedGeneration, 0);
+        _client.MarkDetached(Id);
     }
 
     /// <summary>Sets the thread operational mode.</summary>
@@ -226,31 +219,24 @@ public sealed class DotCraftThread
         Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler) =>
         _client.RegisterDynamicToolHandler(Id, @namespace, toolName, handler);
 
-    internal void UpdateSnapshot(SessionThread snapshot) => _snapshot = snapshot;
-
-    private async Task EnsureSubscribedAsync(CancellationToken cancellationToken)
+    private async Task EnsureAttachedAsync(CancellationToken cancellationToken)
     {
-        if (HasCurrentSubscription())
+        if (_client.IsAttached(Id))
             return;
-        await _subscribeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _restoreLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (HasCurrentSubscription())
+            if (_client.IsAttached(Id))
                 return;
-            await SubscribeAsync(replayRecent: false, cancellationToken).ConfigureAwait(false);
+            var result = await _client.Wire.ThreadResumeAsync(_resumeParameters, cancellationToken).ConfigureAwait(false);
+            _snapshot = result.Thread;
+            Restoration = result;
+            _client.MarkAttached(Id);
         }
         finally
         {
-            _subscribeLock.Release();
+            _restoreLock.Release();
         }
-    }
-
-    private bool HasCurrentSubscription()
-    {
-        var generation = _client.Wire.ConnectionGeneration;
-        return generation != 0 &&
-               _client.Wire.State == WireConnectionState.Ready &&
-               Interlocked.Read(ref _subscribedGeneration) == generation;
     }
 
     private static IReadOnlyList<InputPart> ToParts(string text) => [new InputPart { Type = "text", Text = text }];

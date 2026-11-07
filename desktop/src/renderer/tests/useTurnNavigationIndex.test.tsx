@@ -98,7 +98,8 @@ describe('useTurnNavigationIndex', () => {
     ])
     expect(previewed.every((entry) => entry.position !== null)).toBe(true)
     expect(result.current.entries).toHaveLength(31)
-    expect(itemReads(server, 'turn-12')).toHaveLength(1)
+    expect(server.turnsListCalls().filter(params => params.limit === 1 && params.itemsView === 'summary')).toHaveLength(1)
+    expect(itemReads(server)).toHaveLength(0)
     expect(loadedTurnIds()).toEqual(turnRange(26, 30))
   })
 
@@ -108,7 +109,7 @@ describe('useTurnNavigationIndex', () => {
       30,
       (turn) => turn.id === 'turn-12' ? [] : userMessageAndReply(turn),
       (request) => (method, params) => {
-        if (method !== 'thread/items/list' || params.turnId !== 'turn-13') return request(method, params)
+        if (method !== 'thread/turns/list' || params.limit !== 1 || params.cursor !== 'next:13:descending') return request(method, params)
         failedReads++
         return Promise.reject(new Error('unavailable'))
       }
@@ -145,7 +146,7 @@ describe('useTurnNavigationIndex', () => {
     expect(entriesOf(result.current.entries, 'turn-12')[0].content).toBeNull()
 
     act(() => result.current.requestPreview(entriesOf(result.current.entries, 'turn-12')[0]))
-    await waitFor(() => expect(itemReads(server, 'turn-12')).toHaveLength(2))
+    await waitFor(() => expect(server.turnsListCalls().filter(params => params.limit === 1 && params.itemsView === 'summary')).toHaveLength(2))
   })
 
   it('shows the rail only once all history is loaded when the thread has more than 1000 turns', async () => {

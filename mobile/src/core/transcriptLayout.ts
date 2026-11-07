@@ -103,8 +103,8 @@ export function layoutTurn(
     endedAt: status === 'worked' ? (finalAt ?? turn.completedAt ?? null) : (turn.completedAt ?? null),
     origin,
   }
-  const pending = summarized && status === 'worked'
-  if (status !== 'worked' || (final <= 0 && !pending)) return [...opening, { ...activity, children: [] }, ...body, ...tail]
+  const pending = summarized
+  if (status !== 'worked' || (final <= 0 && !pending)) return [...opening, { ...activity, children: [], ...(pending ? { pendingTurnId: turnId } : {}) }, ...body, ...tail]
   const split = final >= 0 ? final : body.length
   const before = body.slice(0, split)
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')
@@ -113,9 +113,7 @@ export function layoutTurn(
     (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || entry.kind === 'changes' || index === plan || index === image
   return [
     ...opening,
-    pending
-      ? { ...activity, children: [], pendingTurnId: turnId }
-      : { ...activity, children: before.filter((entry, index) => !pinned(entry, index)) },
+    { ...activity, children: before.filter((entry, index) => !pinned(entry, index)), ...(pending ? { pendingTurnId: turnId } : {}) },
     ...before.filter(pinned),
     ...body.slice(split),
     ...tail,

@@ -8,7 +8,7 @@ namespace DotCraft.Tests.AppServer;
 public sealed class HiddenThreadBroadcastIntegrationTests
 {
     [Fact]
-    public async Task HiddenThreads_NotifyOnlySubscribedConnections()
+    public async Task HiddenThreads_NotifyCreatorsAndResumedConnections()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-hidden-broadcast-" + Guid.NewGuid().ToString("N"));
         var workspace = Path.Combine(root, "workspace");
@@ -52,7 +52,7 @@ public sealed class HiddenThreadBroadcastIntegrationTests
                 }, ct: deadline.Token);
                 var threadId = Result(created).GetProperty("thread").GetProperty("id").GetString()!;
                 hiddenIds.Add(threadId);
-                using var subscribed = await subscriber.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
+                using var subscribed = await subscriber.Wire.SendRequestAsync("thread/resume", new { threadId }, ct: deadline.Token);
                 Result(subscribed);
 
                 using var mode = await server.Wire.SendRequestAsync(
@@ -103,9 +103,9 @@ public sealed class HiddenThreadBroadcastIntegrationTests
 
             Assert.DoesNotContain(observerSaw, notification => hiddenIds.Contains(ThreadIdOf(notification)!));
             Assert.Contains(observerSaw, notification => ThreadIdOf(notification) == visibleId);
-            Assert.DoesNotContain(creatorSaw, notification =>
-                hiddenIds.Contains(ThreadIdOf(notification)!)
-                && notification.RootElement.GetProperty("method").GetString() is "thread/status/changed" or "thread/updated" or "thread/deleted");
+            Assert.All(hiddenIds, id => Assert.Contains(creatorSaw, notification =>
+                ThreadIdOf(notification) == id
+                && notification.RootElement.GetProperty("method").GetString() == "thread/deleted"));
         }
         finally
         {

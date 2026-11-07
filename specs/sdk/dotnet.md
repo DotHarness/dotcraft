@@ -63,13 +63,15 @@ Raw/custom transports default to no reconnect. Local and remote high-level conne
 
 ## 6. Thread API
 
-`DotCraftThreadClient` takes Contracts params and returns Contracts results or a `DotCraftThread` handle: `StartAsync`, `ResumeAsync`, `ListAsync`, `ReadAsync`, `ListTurnsAsync`, `ListItemsAsync`, `ExportRecoveryAsync`, and `RestoreRecoveryAsync`.
+`DotCraftThreadClient` takes Contracts params and returns Contracts results or a `DotCraftThread` handle: `StartAsync`, `ResumeAsync`, `ForkAsync`, `ListAsync`, `ReadAsync`, `ListTurnsAsync`, `ListItemsAsync`, `ExportRecoveryAsync`, and `RestoreRecoveryAsync`.
 
 `thread/list` always sends its required `SessionIdentity`; there is no parameterless list API.
 
-`ReadAsync` and `DotCraftThread.RefreshAsync` return the Thread header without persisted Turns or Items. `ListTurnsAsync` returns Turn metadata without Items; `ListItemsAsync` returns bounded Item pages across the Thread or for one Turn.
+`ReadAsync` and `DotCraftThread.RefreshAsync` return the Thread header without persisted Turns or Items. `ListTurnsAsync` returns the requested metadata or summary page; `ListItemsAsync` returns bounded Item pages across the Thread or for one Turn.
 
-`DotCraftThread` is a high-level handle whose `Snapshot` is `SessionThread`. Its lifecycle helpers (subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, Runtime Dynamic Tool handler registration) use generated typed bindings.
+`DotCraftThread` is a high-level handle whose `Snapshot` is `SessionThread`. Its lifecycle helpers (observation release, mode, archive, delete, enqueue, interrupt, Runtime Dynamic Tool handler registration) use generated typed bindings. Start/fork attach automatically. Resume exposes required current state and an optional bounded initial Turn page; omission requests metadata only, without Turn Item materialization. Cold resume prepares execution and warm resume without overrides reuses resources and bindings. Header refresh/history reads do not attach. Archived threads use read/pages only.
+
+`DotCraftThread.Restoration` exposes the most recent `ThreadResumeResult`, including current state and any requested opening page. It is absent on a newly started or forked handle until its first resume.
 
 `ExportRecoveryAsync` and `RestoreRecoveryAsync` transfer the recovery package without parsing or rewriting its Session fields, following the [AppServer recovery contract](../protocols/appserver-protocol.md#418-thread-recovery-methods). Callers resume the restored thread to obtain a handle.
 
@@ -95,7 +97,7 @@ The high-level Run reducer uses canonical payload DTOs rather than JSON property
 
 `DotCraftRunResult` contains `ThreadId`, `TurnId`, merged `Text`, the typed terminal `Turn` (`SessionTurn?`, null only when busy-enqueue succeeds before a new turn exists), and optional `RawEvents`.
 
-Run orchestration follows the [shared Run profile](sdk.md#34-run-profile). Failed and cancelled turns raise stable typed errors when `ThrowOnFailure` is true.
+Run orchestration follows the [shared Run profile](sdk.md#34-run-profile). Capture is registered before ensure-resume and turn admission. Events are filtered by typed thread identity and the exact returned Turn id before output or terminal reduction. A non-target terminal event cannot close a shared feed. Run-owned observations are released when their owner ends without detaching another consumer. Failed and cancelled turns raise stable typed errors when `ThrowOnFailure` is true.
 
 ## 10. Callbacks and Runtime Dynamic Tools
 

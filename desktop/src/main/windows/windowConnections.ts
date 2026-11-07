@@ -29,7 +29,6 @@ export async function connectViaWebSocket(
   }
   const win = ctx.mainWindow!
   ctx.lastAppServerWsUrl = wsUrl
-  ctx.resetThreadToolState()
   ctx.emitConnectionStatus(win, { status: 'connecting' })
   ctx.reregisterIpcForWorkspace(workspacePath)
 
@@ -60,8 +59,7 @@ export async function connectViaWebSocket(
     connected: false,
     connecting: true,
     lastUsedAt: Date.now(),
-    threads: [],
-    subscribedThreadIds: new Set()
+    threads: []
   }
   ctx.workspaceConnections.set(connectionKey, entry)
   ctx.wireClient = client

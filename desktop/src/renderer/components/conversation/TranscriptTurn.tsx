@@ -24,6 +24,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   live: TranscriptLiveText | null
   renderTurnCompletion?: (turnId: string) => ReactNode
 }): JSX.Element | null {
+  const loadTurnItems = useSubAgentTranscriptStore((s) => s.loadTurnItems)
   const hasFileChanges = useSubAgentTranscriptStore((s) =>
     (s.transcripts.get(threadId)?.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
   if (isEmptyCompletedTurn(turn, hasFileChanges) && !turn.items.some(isVisibleUserMessage)) return null
@@ -58,6 +59,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           shellRuntimeScope="none"
           readOnly
           renderTurnCompletion={renderTurnCompletion}
+          loadTurnItems={loadTurnItems}
         />
       </TranscriptThreadContext.Provider>
     </div>

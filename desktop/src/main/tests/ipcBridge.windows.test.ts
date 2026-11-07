@@ -19,8 +19,11 @@ vi.mock('electron', () => ({
 vi.mock('../AppServerManager', () => ({ resolveBinaryLocation: vi.fn() }))
 vi.mock('../desktopRuntimeThreadTools', () => ({
   hasDesktopThreadTools: () => false,
-  sendDesktopAppServerRequest: (client: { sendRequest: (...args: unknown[]) => unknown }, ...args: unknown[]) =>
-    client.sendRequest(...args.slice(0, 3))
+  sendDesktopAppServerRequest: async (client: { sendRequest: (...args: unknown[]) => Promise<unknown> }, method: string, params: unknown, timeout: unknown, options: { onResponse?: (result: unknown) => void }) => {
+    const result = await client.sendRequest(method, params, timeout)
+    options.onResponse?.(result)
+    return result
+  }
 }))
 
 import { ipcMain } from 'electron'
@@ -46,7 +49,8 @@ function register(owner: BrowserWindow, root: string, client: unknown): WindowIp
     getSettings: () => ({ locale: 'en' }),
     getWorkspaceStatus: () => ({ workspacePath: root }),
     getConnectionStatus: () => ({ capabilities: {} }),
-    getConnectionKey: () => root
+    getConnectionKey: () => root,
+    getConnectionContext: () => ({ workspacePath: root })
   } as unknown as IpcHandlerCallbacks
   const context: WindowIpcContext = {
     owner,
@@ -59,6 +63,16 @@ function register(owner: BrowserWindow, root: string, client: unknown): WindowIp
   registerAppServerHandlers(context)
   ipc.handle('window:get-workspace-path', () => root)
   return ipc
+}
+let nextRequest = 0
+function request(owner: BrowserWindow, method: string, params: unknown): Promise<unknown> {
+  const requestId = ++nextRequest
+  return new Promise(resolve => {
+    vi.mocked(owner.webContents.send).mockImplementation((_channel, delivery) => {
+      if (delivery.kind === 'response' && delivery.requestId === requestId) resolve(delivery.result)
+    })
+    runtime.listeners.get('appserver:request')!({ sender: owner.webContents }, { requestId, method, params })
+  })
 }
 function invoke(owner: BrowserWindow, channel: string, ...args: unknown[]): unknown {
   return runtime.handlers.get(channel)!({ sender: owner.webContents } as IpcMainInvokeEvent, ...args)
@@ -85,8 +99,8 @@ describe('window-owned IPC', () => {
     const clientB = { sendRequest: vi.fn().mockResolvedValue({ window: 'b' }) }
     register(a, '/a', clientA)
     register(b, '/b', clientB)
-    const pendingA = invoke(a, 'appserver:send-request', 'thread/start', {})
-    await expect(invoke(b, 'appserver:send-request', 'thread/start', {})).resolves.toEqual({ window: 'b' })
+    const pendingA = request(a, 'thread/start', {})
+    await expect(request(b, 'thread/start', {})).resolves.toEqual({ window: 'b' })
     expect(clientA.sendRequest).toHaveBeenCalledWith(
       'thread/start',
       expect.objectContaining({
@@ -104,7 +118,7 @@ describe('window-owned IPC', () => {
     finishA({ window: 'a' })
     await expect(pendingA).resolves.toEqual({ window: 'a' })
     expect(
-      vi.mocked(ipcMain.handle).mock.calls.filter(([channel]) => channel === 'appserver:send-request')
+      vi.mocked(ipcMain.on).mock.calls.filter(([channel]) => channel === 'appserver:request')
     ).toHaveLength(1)
   })
 

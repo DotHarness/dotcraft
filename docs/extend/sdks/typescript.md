@@ -39,9 +39,9 @@ An appearance fills five independent slots (`head`, `face`, `hand`, `back`, `ski
 | --- | --- |
 | Connect | `DotCraft.local()`, `DotCraft.localChat()`, `DotCraft.remote()` |
 | Close | `dotcraft.close()` |
-| Threads | `threads.getOrCreate()`, `start()`, `resume()`, `list()`, `listPage()`, `read()`, `listTurns()`, `listItems()` |
+| Threads | `threads.getOrCreate()`, `start()`, `resume()`, `fork()`, `list()`, `listPage()`, `read()`, `listTurns()`, `listItems()` |
 | Run | `run()`, `runStreamed()`, `enqueue()`, `interrupt()` |
-| Thread state | `snapshot()`, `refresh()`, `subscribe()`, `unsubscribe()`, `setMode()`, `archive()`, `delete()` |
+| Thread state | `snapshot()`, `refresh()`, `unsubscribe()`, `setMode()`, `archive()`, `delete()` |
 | Models | `models.list()` |
 | MCP runtime | `mcpRuntime.listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()` |
 | App Binding | `appBindings` |
@@ -75,6 +75,7 @@ A remote `url` points at the AppServer WebSocket endpoint, whose path ends in `/
 getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
 start(options?: StartThreadOptions): Promise<DotCraftThread>;
 resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+fork(threadId: string, options?: ForkThreadOptions): Promise<DotCraftThread>;
 list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
 listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
 read(threadId: string): Promise<SessionThread>;
@@ -82,9 +83,9 @@ listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadT
 listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 ```
 
-Start options contain identity fields, display name, history mode, configuration, Runtime Dynamic Tools, and additional context. Resume options only rebind dynamic tools and additional context. List options add identity/workspace scope, archived filtering, text query, limit, and cursor.
+Start options contain identity fields, display name, history mode, configuration, Runtime Dynamic Tools, and additional context. Resume options include a bounded initial Turn page, dynamic tools, and additional context. List options add identity/workspace scope, archived filtering, text query, limit, and cursor.
 
-`read()` and a Thread handle's `refresh()` return the current Thread header without persisted Turns or Items. `listTurns()` reads Turn metadata; `listItems()` reads Items across the Thread or for the optional `turnId`. Both accept `cursor`, `limit`, and `sortDirection`, and return `data` plus an opaque `nextCursor`; `listTurns()` also returns a `backwardsCursor` that reads outward from the first returned Turn in either direction. Thread handles expose the same two pagination methods without the `threadId` argument.
+`read()` and a Thread handle's `refresh()` return the current Thread header without persisted Turns or Items. `listTurns()` reads Turn metadata or summary Items according to `itemsView`; `listItems()` reads Items across the Thread or for the optional `turnId`. Both accept `cursor`, `limit`, and `sortDirection`, and return `data` plus an opaque `nextCursor`; `listTurns()` also returns a `backwardsCursor` that reads outward from the first returned Turn in either direction. Thread handles expose the same two pagination methods without the `threadId` argument.
 
 `run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options are `sender`, `collectRawEvents`, `abortSignal`, and `enqueueIfBusy`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, optional raw events, and any queued-input result.
 
@@ -151,9 +152,9 @@ Wire state is `connecting`, `initializing`, `ready`, `disconnected`, `reconnecti
 - Reconnect uses exponential backoff and queues at most 1024 new calls.
 - In-flight calls fail and are never replayed.
 - Initialization completes before queued calls are released.
-- Handler registrations survive reconnect. Thread subscriptions, active runs, and runtime tool resources do not.
+- Handler registrations survive reconnect. Active runs are not replayed, and connection-bound observations and tools must be restored.
 
-Reconnect does not rebuild those resources for the application. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing.
+After detachment or reconnect, a high-level handle resumes before its next run with its original tool declarations. See [Threads & runs](./runs) for Raw Wire recovery.
 
 Closing a local high-level client closes its WebSocket connection. It does not stop Hub or the Hub-managed AppServer.
 
