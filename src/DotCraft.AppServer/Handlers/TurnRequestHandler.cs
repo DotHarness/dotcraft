@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.Commands.Core;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -15,7 +14,6 @@ internal sealed class TurnRequestHandler(
     AppServerConnection connection,
     IAppServerTransport transport,
     AppServerResponseWriter responseWriter,
-    CommandRegistry commandRegistry,
     SkillsLoader? skillsLoader,
     TraceStore? traceStore,
     SessionApprovalDecision defaultApprovalDecision,
@@ -65,7 +63,7 @@ internal sealed class TurnRequestHandler(
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
 
-        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct, allowEmpty: true);
+        var materializedInput = await PrepareTurnInputAsync(input, ct, allowEmpty: true);
         var content = materializedInput.Content;
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
@@ -204,7 +202,7 @@ internal sealed class TurnRequestHandler(
         var p = request.Params;
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
-        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, p.ThreadId));
@@ -244,7 +242,7 @@ internal sealed class TurnRequestHandler(
             throw AppServerErrors.InvalidParams("'expectedTurnId' is required.");
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
-        var materializedInput = await PrepareTurnInputAsync(input, threadId, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, ct);
         RecordSkillReferences(threadId, materializedInput.NativeInputParts);
 
         using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, threadId));
@@ -374,50 +372,20 @@ internal sealed class TurnRequestHandler(
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
-    private void ValidateTurnInput(IReadOnlyList<SessionInputPart> input)
-    {
-        foreach (var part in input)
-        {
-            if (!string.Equals(part.Type, "commandRef", StringComparison.Ordinal))
-                continue;
-
-            var commandName = !string.IsNullOrWhiteSpace(part.Name)
-                ? part.Name
-                : ExtractCommandName(part.RawText ?? string.Empty);
-            if (string.IsNullOrWhiteSpace(commandName))
-                continue;
-
-            var registration = commandRegistry.GetRegistration(commandName);
-            if (registration == null ||
-                string.Equals(registration.Category, "custom", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            throw AppServerErrors.InvalidParams(
-                $"Built-in slash command '{registration.Name}' cannot be sent as 'commandRef' in 'turn/start'. Use 'command/execute' or dedicated UI instead.");
-        }
-    }
-
     private async Task<PreparedTurnInput> PrepareTurnInputAsync(
         IReadOnlyList<SessionInputPart> input,
-        string? threadId,
         CancellationToken ct,
         bool allowEmpty = false)
     {
         if (input.Count == 0 && !allowEmpty)
             throw AppServerErrors.InvalidParams("'input' must contain at least one part.");
 
-        var inputMaterialization = new InputMaterializationService(
-            commandRegistry,
-            skillsLoader,
-            threadId);
+        var inputMaterialization = new InputMaterializationService(skillsLoader);
         SessionInputMaterializationResult materializedInput;
         List<AIContent> content;
         try
         {
             var normalizedInput = InputMaterializationService.NormalizeInputParts(input);
-            ValidateTurnInput(normalizedInput);
             materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
             content = await SessionInputPartResolver.ResolveStrictAsync(
                 materializedInput.MaterializedInputParts,
@@ -474,16 +442,6 @@ internal sealed class TurnRequestHandler(
         public string DisplayText { get; init; } = string.Empty;
 
         public List<AIContent> Content { get; init; } = [];
-    }
-
-    private static string ExtractCommandName(string rawCommand)
-    {
-        var trimmed = rawCommand.Trim();
-        if (trimmed.Length == 0)
-            return rawCommand;
-
-        var whitespaceIndex = trimmed.IndexOfAny([' ', '\t', '\r', '\n']);
-        return whitespaceIndex >= 0 ? trimmed[..whitespaceIndex] : trimmed;
     }
 
     private static T Require<T>(Protocol.Optional<T> value, string message)

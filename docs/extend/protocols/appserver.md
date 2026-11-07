@@ -318,7 +318,6 @@ Response:
 `input` is a tagged union. Common types include:
 
 - `text`: plain user text.
-- `commandRef`: structured slash-command reference.
 - `skillRef`: structured skill reference.
 - `fileRef`: structured file reference.
 - `image`: inline image encoded as a base64 `data:image/...` URL. HTTP and HTTPS image URLs are rejected; download remote images in the client and submit a data URL or `localImage` instead.
@@ -442,7 +441,7 @@ If a client declares `approvalSupport: false` during `initialize`, the server ne
 | Field | Description |
 |-------|-------------|
 | `message` | Short reply to show the caller. `isMarkdown` says whether it is Markdown. |
-| `expandedPrompt` | Prompt text a custom command expanded into. Submit it with `turn/start`. |
+| `expandedPrompt` | Prompt text from a built-in prompt command or workflow invocation. Submit it with `turn/start`. |
 | `thread` | The conversation's new current thread, returned by commands such as `/new` and `/resume`. Switch to `thread.id` immediately. |
 | `choices` | Selectable follow-ups. Each `command` is a complete command; selecting it runs `command/execute` as if the sender had typed it. |
 

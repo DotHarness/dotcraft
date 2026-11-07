@@ -9,7 +9,6 @@ Everything DotCraft keeps on disk. Confirm a path exists before quoting it; a wo
 | `config.json` | user-editable | This project's settings. See `config-map.md` |
 | `hooks.json` | user-editable | Workspace lifecycle hooks. Use `$create-hooks` |
 | `AGENTS.md` | user-editable | Instructions for agents working in this workspace |
-| `commands/` | user-editable | Custom `/` commands. Not skills |
 | `models.json` | user-editable | Model catalog overrides, including context-window entries. Sits beside a `config.json` |
 | `model-thinking-adapters.json` | user-editable | Model reasoning-adapter overrides |
 | `qq.json` `wecom.json` `feishu.json` `telegram.json` `weixin.json` | prefer the UI | One per bundled channel adapter. Configure these through Desktop > Channels, which validates credentials and restarts the adapter |

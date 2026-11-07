@@ -22,7 +22,6 @@ const REASON_CODES = new Set([
   'import_source_invalid',
   'import_hooks_need_trust',
   'import_environment_missing',
-  'import_command_semantics_unsupported',
   'import_plugin_review',
   'import_plugin_content_missing',
   'import_plugin_no_supported_content',
@@ -39,7 +38,6 @@ const REASON_CODES = new Set([
 const ACTIONS: Record<string, string> = {
   skills: 'settings.import.action.openSkills',
   plugins: 'settings.import.action.openPlugin',
-  commands: 'settings.import.action.useCommand',
   mcp: 'settings.import.action.openMcp',
   hooks: 'settings.import.action.openHooks',
   instructions: 'settings.import.action.openInstructions'
@@ -140,9 +138,6 @@ export function openOutcome(outcome: ImportOutcome): void {
     } else if (outcome.title) {
       void useSkillsStore.getState().selectSkill(outcome.title)
     }
-  } else if (outcome.category === 'commands') {
-    ui.setActiveMainView('conversation')
-    ui.setComposerPrefill(`/${outcome.title ?? ''} `)
   } else {
     ui.setActiveSettingsTab(outcome.category === 'mcp' ? 'mcp' : outcome.category === 'hooks' ? 'hooks' : 'personalization')
   }

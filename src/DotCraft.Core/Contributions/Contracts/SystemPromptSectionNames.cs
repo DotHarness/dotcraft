@@ -56,9 +56,6 @@ public static class SystemPromptSectionNames
     /// <summary>The progressive-loading summary of the remaining skills.</summary>
     public const string SkillsSummary = "skills-summary";
 
-    /// <summary>The workspace custom command summary.</summary>
-    public const string CustomCommands = "custom-commands";
-
     /// <summary>The sections contributed by <see cref="Context.IChatContextProvider"/> contributions.</summary>
     public const string ChatContext = "chat-context";
 

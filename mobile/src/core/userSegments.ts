@@ -35,7 +35,7 @@ function parseUserText(text: string): UserSegment[] {
   return out
 }
 
-type InputPart = { type?: string; text?: string; path?: string; displayPath?: string; name?: string; rawText?: string; argsText?: string }
+type InputPart = { type?: string; text?: string; path?: string; displayPath?: string; name?: string }
 
 export function userSegments(text: string, parts: unknown): UserSegment[] {
   const comments: MessageComment[] = []
@@ -61,10 +61,6 @@ function nativeSegments(parts: InputPart[], plain: (value: string) => UserSegmen
         return part.path ? [{ type: 'file', path: part.path, display: part.displayPath ?? part.path }] : []
       case 'skillRef':
         return part.name ? [{ type: 'skill', name: part.name }] : []
-      case 'commandRef': {
-        const command = part.name ? `/${part.name}${part.argsText ? ` ${part.argsText}` : ''}` : (part.rawText ?? '')
-        return command ? [{ type: 'text', value: command }] : []
-      }
       default:
         return []
     }

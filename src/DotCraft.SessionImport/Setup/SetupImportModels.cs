@@ -15,7 +15,7 @@ internal sealed record SetupImportItem(ImportCandidate Candidate, string? Text =
 
 public static class ImportCategories
 {
-    public static readonly string[] Setup = ["skills", "instructions", "commands", "hooks", "mcp", "plugins"];
+    public static readonly string[] Setup = ["skills", "instructions", "hooks", "mcp", "plugins"];
     public static bool Includes(ImportSelection selection, string category, string scope) =>
         selection.All || (category == "sessions" ? selection.Sessions
             : (scope == "user" ? selection.User : selection.Workspace).Contains(category, StringComparer.Ordinal));

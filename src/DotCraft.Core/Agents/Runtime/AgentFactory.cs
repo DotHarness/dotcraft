@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
@@ -44,7 +43,6 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly IChatClient? _compactionChatClientOverride;
     private CompactionPipeline? _defaultCompactionPipeline;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
-    private readonly CustomCommandLoader? _customCommandLoader;
     private readonly PlanStore? _planStore;
     private readonly Action<string, StructuredPlan>? _onPlanUpdated;
     private readonly HookRunner? _hookRunner;
@@ -65,7 +63,6 @@ public sealed class AgentFactory : IAsyncDisposable
         PathBlacklist? blacklist,
         AgentRuntimeContext? runtimeContext = null,
         TraceCollector? traceCollector = null,
-        CustomCommandLoader? customCommandLoader = null,
         PlanStore? planStore = null,
         Action<string, StructuredPlan>? onPlanUpdated = null,
         HookRunner? hookRunner = null,
@@ -80,7 +77,6 @@ public sealed class AgentFactory : IAsyncDisposable
     {
         _config = config;
         _traceCollector = traceCollector;
-        _customCommandLoader = customCommandLoader;
         _planStore = planStore;
         _onPlanUpdated = onPlanUpdated;
         _hookRunner = hookRunner;
@@ -696,7 +692,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.BotPath,
                 ctx.WorkspacePath,
                 () => promptInputs.CallableToolNames,
-                _customCommandLoader,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
                 subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
                 contextPageManager: ctx.ContextPageManager,

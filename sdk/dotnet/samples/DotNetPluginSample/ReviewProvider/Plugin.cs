@@ -1,6 +1,5 @@
 using Acme.ReviewCore.Api;
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
@@ -140,7 +139,6 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
             new ContributionOptions(ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest));
         contributions.Add<ISubAgentRuntimeSource>(new ReviewSubAgentRuntimeSource());
 
-        contributions.Add<ICodeCommand>(new ReviewCommand(service));
         contributions.Add<ITraceSink>(new ReviewTraceSink(journal));
     }
 

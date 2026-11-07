@@ -1,7 +1,6 @@
 using DotCraft.Workspaces;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Commands.Custom;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Contributions;

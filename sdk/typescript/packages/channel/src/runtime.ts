@@ -10,7 +10,6 @@ export {
   buildChannelSender,
   isStdioChannelRuntime,
   isWebSocketChannelRuntime,
-  replaceLeadingSlashTextWithCommandRef,
   withStdioRuntimeDefaults,
   withWebSocketRuntimeDefaults,
 } from "./channelRuntime.js";

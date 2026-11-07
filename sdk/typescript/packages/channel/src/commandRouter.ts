@@ -7,7 +7,6 @@ import type {
   SessionThread,
 } from "@dotcraft/sdk/contracts";
 import {
-  replaceLeadingSlashTextWithCommandRef,
   resolveClient,
   type ChannelAdapterMessageOptions,
   type ClientProvider,
@@ -103,9 +102,15 @@ export class CommandRouter {
     }
 
     if (result.expandedPrompt) {
+      const inputParts = [...(request.opts.inputParts ?? [])];
+      const textIndex = inputParts.findIndex((part) => part.type === "text");
+      const promptPart = { type: "text", text: result.expandedPrompt };
+      if (textIndex >= 0) inputParts[textIndex] = promptPart;
+      else inputParts.unshift(promptPart);
       this.options.enqueueMessage({
         ...request.opts,
-        inputParts: replaceLeadingSlashTextWithCommandRef(request.opts.inputParts, text),
+        text: result.expandedPrompt,
+        inputParts,
         skipCommand: true,
       });
       return;

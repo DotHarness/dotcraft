@@ -10043,13 +10043,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "argsText",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "context",
           "type": "core.InputContext",
           "required": false,
@@ -10086,13 +10079,6 @@
         },
         {
           "name": "path",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "rawText",
           "type": "string",
           "required": false,
           "nullable": true,

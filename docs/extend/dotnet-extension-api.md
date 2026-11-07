@@ -27,7 +27,6 @@ The catalog of contribution points is the whole contribution surface. Each one d
 | **Thread lifecycle** | `IThreadLifecycleContributor` | A |
 | **Turn lifecycle** | `ITurnLifecycleContributor` | A |
 | **Thread runtime signals** | `IThreadRuntimeSignalContributor` | A |
-| **Slash command** | `ICodeCommand` | A |
 | **Tool restriction** | `IToolRestriction` | A |
 | **Compaction summary** | `ICompactionSummarizer` | B |
 | **Compactable tool** | `ICompactableToolPolicy` | A, B |
@@ -99,28 +98,6 @@ internal sealed class SummaryTool(ReviewJournal journal) : IToolSource, IToolRun
 Report expected failures with `ToolExecutionResult.Failed` and a `ToolError`, whose code stays stable. A thrown exception's text is discarded and reaches the model only as an unspecified tool failure. The boundary is JSON-only in both directions: the host copies the arguments in, and copies the text, the structured content, and the error out.
 
 For remote execution, mark a generated tool or `[ToolDeclaration]` with `[ToolRpc]`. Hand-written definitions use `RemoteToolMetadata.RpcEligibleAnnotation` set to JSON `true`. The plugin must activate with the execution host's tool services and dependency exports, without requiring Agent, Session, or provider services. See [remote tool calls](../contribute/architecture/remote-tool-host#skill-and-plugin-resources) for bundle preparation and remote authorization.
-
-### Tier A — add a slash command
-
-A plugin contributes a slash command through `ICodeCommand`: a name, optional aliases, a description, and an `Expand` that turns one invocation into the text the turn runs on.
-
-```csharp
-internal sealed class TriageCommand(ReviewService service) : ICodeCommand
-{
-    public string Name => "triage";
-
-    public string Description => "Summarize the open review queue";
-
-    public IReadOnlyList<string> Aliases => ["tri"];
-
-    public string? Expand(CommandInvocation invocation) =>
-        service.BuildTriagePrompt(invocation.Arguments);
-}
-```
-
-A contributed command is a markdown custom command whose body is code, and the host serves it exactly where it serves those: the command palette, `command/list`, `command/execute`, and the ACP slash-command list all pick it up with no client change. It produces model input only — returning a direct reply to the user stays with the host's own commands.
-
-It never shadows anything: a built-in command, a workspace markdown command, and a workflow command all keep a contested name. Among contributions the lowest `Order` claims a name, and returning `null` declines the invocation so the next contribution may answer it. Revoking the handle removes the command from every listing and every resolution at once — the contribution point is read per call, so there is nothing left registered anywhere.
 
 ### Tier A — keep the model aware of changing state
 

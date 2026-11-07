@@ -62,7 +62,7 @@ function setCaretToEnd(element: HTMLElement): void {
   selection.addRange(range)
 }
 
-describe('InputComposer custom command expansion', () => {
+describe('InputComposer commands and references', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
@@ -72,15 +72,7 @@ describe('InputComposer custom command expansion', () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') {
         return {
-          commands: [
-            {
-              name: '/code-review',
-              aliases: ['/cr'],
-              description: 'Review files',
-              category: 'custom',
-              requiresAdmin: false
-            }
-          ]
+          commands: []
         }
       }
       if (method === 'skills/list') {
@@ -151,44 +143,12 @@ describe('InputComposer custom command expansion', () => {
     })
   })
 
-  it('sends custom commands as native commandRef parts', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
-    })
-
-    const textbox = screen.getByRole('textbox')
-    textbox.textContent = '/code-review'
-    fireEvent.input(textbox)
-    fireEvent.keyDown(textbox, { key: 'Enter' })
-
-    await waitFor(() => {
-      const turnStartCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/start')
-      expect(turnStartCall).toBeDefined()
-      expect(turnStartCall?.[1]).toEqual(
-        expect.objectContaining({
-          threadId: 'thread-1',
-          input: [{ type: 'text', text: '/code-review' }]
-        })
-      )
-    })
-  })
-
   it('prevents duplicate send while turn/start is in flight', async () => {
     let resolveTurnStart: ((value: unknown) => void) | null = null
     appServerSendRequest.mockImplementation((method: string) => {
       if (method === 'command/list') {
         return Promise.resolve({
-          commands: [
-            {
-              name: '/code-review',
-              aliases: ['/cr'],
-              description: 'Review files',
-              category: 'custom',
-              requiresAdmin: false
-            }
-          ]
+          commands: []
         })
       }
       if (method === 'turn/start') {
@@ -206,7 +166,7 @@ describe('InputComposer custom command expansion', () => {
     })
 
     const textbox = screen.getByRole('textbox')
-    textbox.textContent = '/code-review'
+    textbox.textContent = '/workflow:review'
     fireEvent.input(textbox)
     fireEvent.keyDown(textbox, { key: 'Enter' })
     fireEvent.keyDown(textbox, { key: 'Enter' })
@@ -630,7 +590,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
-    textbox.textContent = '/code-review'
+    textbox.textContent = '/workflow:review'
     fireEvent.input(textbox)
     const surface = textbox.closest('div[style*="border-radius: 20px"]') as HTMLElement
     const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
@@ -659,7 +619,7 @@ describe('InputComposer custom command expansion', () => {
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
           { type: 'text', text: '\n\n' },
-          { type: 'text', text: '/code-review' }
+          { type: 'text', text: '/workflow:review' }
         ],
         sender: undefined,
         clientUserMessageId: expect.any(String)
@@ -707,7 +667,7 @@ describe('InputComposer custom command expansion', () => {
     })
 
     const textbox = screen.getByRole('textbox')
-    textbox.textContent = '/code-review'
+    textbox.textContent = '/workflow:review'
     fireEvent.input(textbox)
     fireEvent.keyDown(textbox, { key: 'Enter' })
 
@@ -720,7 +680,7 @@ describe('InputComposer custom command expansion', () => {
         input: [
           { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
           { type: 'text', text: '\n\n' },
-          { type: 'text', text: '/code-review' },
+          { type: 'text', text: '/workflow:review' },
           {
             type: 'localImage',
             path: 'C:\\temp\\image.png',

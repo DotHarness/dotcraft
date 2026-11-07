@@ -13,14 +13,8 @@ public sealed record SessionInputPart
     /// <summary>Gets plain text content.</summary>
     public string? Text { get; init; }
 
-    /// <summary>Gets a referenced command or skill name.</summary>
+    /// <summary>Gets a referenced skill name.</summary>
     public string? Name { get; init; }
-
-    /// <summary>Gets command arguments.</summary>
-    public string? ArgsText { get; init; }
-
-    /// <summary>Gets the original command invocation.</summary>
-    public string? RawText { get; init; }
 
     /// <summary>Gets a canonical file or local-image path.</summary>
     public string? Path { get; init; }

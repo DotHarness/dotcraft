@@ -66,20 +66,6 @@ export function skillRefPart(name: string): InputPart {
   return { type: "skillRef", name };
 }
 
-export function commandRefPart(rawText: string): InputPart {
-  const normalized = rawText.trim();
-  const firstSpace = normalized.search(/\s/);
-  const token = firstSpace >= 0 ? normalized.slice(0, firstSpace) : normalized;
-  const name = token.replace(/^\//, "");
-  const argsText = firstSpace >= 0 ? normalized.slice(firstSpace + 1).trim() : "";
-  return {
-    type: "commandRef",
-    name,
-    rawText: normalized,
-    ...(argsText ? { argsText } : {}),
-  };
-}
-
 export function fileRefPart(path: string, displayPath?: string): InputPart {
   return {
     type: "fileRef",

@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Runtime.CompilerServices;
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Contributions;
@@ -55,7 +54,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         _registry.Add<IToolSource>(new MarkerToolSource("marker", ["kept", "masked", "SpawnAgent"]));
         _registry.Add<IToolRestriction>(new MarkerRestriction("masked"));
         _registry.Add<ISubAgentRuntimeSource>(new MarkerSubAgentRuntimeContribution());
-        _registry.Add<ICodeCommand>(new MarkerCommand());
         var chatClient = new CapturingChatClient();
         var service = CreateService(chatClient);
 
@@ -65,7 +63,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         Assert.Contains(PromptMarker, instructions, StringComparison.Ordinal);
         Assert.Contains(ContextMarker, instructions, StringComparison.Ordinal);
         Assert.Contains($"`{MarkerSubAgentRuntimeContribution.ProfileName}`", instructions, StringComparison.Ordinal);
-        Assert.Contains($"`/{MarkerCommand.CommandName}`: {MarkerCommand.CommandDescription}", instructions, StringComparison.Ordinal);
         Assert.Contains(nameof(MarkerChatClient), ChainTypes(run.Agent.ChatClient));
         Assert.True(middleware.Invocations > 0, "The contributed middleware never saw the thread's request.");
         var provider = Assert.Single(run.Agent.AIContextProviders.OfType<MarkerContextProvider>());
@@ -333,18 +330,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
             onCall();
             return base.GetStreamingResponseAsync(messages, options, cancellationToken);
         }
-    }
-
-    private sealed class MarkerCommand : ICodeCommand
-    {
-        internal const string CommandName = "contribution-triage";
-        internal const string CommandDescription = "CONTRIBUTION-COMMAND-MARKER";
-
-        public string Name => CommandName;
-
-        public string Description => CommandDescription;
-
-        public string? Expand(CommandInvocation invocation) => invocation.Arguments;
     }
 
     private sealed class MarkerSubAgentRuntimeContribution : ISubAgentRuntimeSource

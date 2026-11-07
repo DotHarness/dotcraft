@@ -61,7 +61,7 @@ Send a command as its own message. Commands run right away, even while the agent
 | `/init` | Create an `AGENTS.md` file with instructions for DotCraft. Admins only. |
 | `/debug` | Toggle debug mode. Admins only. |
 
-`/new` and `/resume` stop the current work before they switch conversations. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer. The workspace's own custom commands work in chats too.
+`/new` and `/resume` stop the current work before they switch conversations. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer.
 
 When a command offers choices, such as the models `/model` lists, Feishu and Telegram show them as buttons. Other platforms show a numbered list with the command to send for each choice. Telegram also fills its command menu, showing each sender only the commands they can use.
 

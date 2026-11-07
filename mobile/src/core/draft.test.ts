@@ -15,9 +15,9 @@ import {
 
 const ENTRIES: ReferenceEntry[] = [
   { kind: 'skill', name: 'release-notes', description: '' },
-  { kind: 'command', name: 'code-review', description: '' },
+  { kind: 'skill', name: 'code-review', description: '' },
   { kind: 'skill', name: 'browser', description: '' },
-  { kind: 'command', name: 'release-check', description: '' },
+  { kind: 'skill', name: 'release-check', description: '' },
 ]
 
 function typed(text: string): MessageDraft {
@@ -31,7 +31,7 @@ describe('picker', () => {
     expect(pickerMatch('use $bro')).toEqual({ trigger: '$', query: 'bro', start: 4, end: 8 })
     expect(pickerMatch('src/foo')).toBeNull()
     expect(pickerMatch('costs 5$')).toBeNull()
-    expect(pickerMatch('/code-review now')).toBeNull()
+    expect(pickerMatch('$code-review now')).toBeNull()
   })
 
   it('reads the word at the cursor, including what follows it', () => {
@@ -39,13 +39,13 @@ describe('picker', () => {
     expect(pickerMatch('run /release later', 7)).toEqual({ trigger: '/', query: 're', start: 4, end: 12 })
   })
 
-  it('offers commands and skills for a slash and only skills for a dollar, best matches first', () => {
+  it('ranks skill matches for slash and dollar queries', () => {
     const names = (text: string) => matchingEntries(ENTRIES, pickerMatch(text)!).map((entry) => `${entry.kind}:${entry.name}`)
-    expect(names('/')).toEqual(['command:code-review', 'command:release-check', 'skill:release-notes', 'skill:browser'])
-    expect(names('/re')).toEqual(['command:release-check', 'command:code-review', 'skill:release-notes'])
-    expect(names('/cr')).toEqual(['command:code-review'])
-    expect(names('$')).toEqual(['skill:release-notes', 'skill:browser'])
-    expect(names('$code')).toEqual([])
+    expect(names('/')).toEqual(['skill:release-notes', 'skill:code-review', 'skill:browser', 'skill:release-check'])
+    expect(names('/re')).toEqual(['skill:release-notes', 'skill:release-check', 'skill:code-review'])
+    expect(names('/cr')).toEqual(['skill:code-review'])
+    expect(names('$')).toEqual(['skill:release-notes', 'skill:code-review', 'skill:browser', 'skill:release-check'])
+    expect(names('$code')).toEqual(['skill:code-review'])
   })
 })
 
@@ -61,12 +61,12 @@ describe('inline references', () => {
   it('replaces the typed query with the reference at the cursor and puts the cursor after it', () => {
     const draft = typed('run /re now')
     const { draft: chosen, cursor } = chooseEntry(draft, pickerMatch(draft.text, 7)!, ENTRIES[3])
-    expect(chosen.text).toBe('run /release-check now')
-    expect(chosen.references).toEqual([{ kind: 'command', name: 'release-check', start: 4 }])
+    expect(chosen.text).toBe('run $release-check now')
+    expect(chosen.references).toEqual([{ kind: 'skill', name: 'release-check', start: 4 }])
     expect(cursor).toBe(19)
     expect(draftPieces(chosen)).toEqual([
       { type: 'text', value: 'run ' },
-      { type: 'reference', reference: { kind: 'command', name: 'release-check', start: 4 } },
+      { type: 'reference', reference: { kind: 'skill', name: 'release-check', start: 4 } },
       { type: 'text', value: ' now' },
     ])
   })
@@ -81,10 +81,10 @@ describe('inline references', () => {
     let draft = choose(typed('ask $b'), ENTRIES[2])
     draft = typeInto(draft, `${draft.text}then /co`)
     draft = choose(draft, ENTRIES[1])
-    expect(draft.text).toBe('ask $browser then /code-review ')
-    const backspaced = editText(draft, 'ask $browse then /code-review ')
-    expect(backspaced.draft.text).toBe('ask  then /code-review ')
-    expect(backspaced.draft.references).toEqual([{ kind: 'command', name: 'code-review', start: 10 }])
+    expect(draft.text).toBe('ask $browser then $code-review ')
+    const backspaced = editText(draft, 'ask $browse then $code-review ')
+    expect(backspaced.draft.text).toBe('ask  then $code-review ')
+    expect(backspaced.draft.references).toEqual([{ kind: 'skill', name: 'code-review', start: 10 }])
     expect(backspaced.cursor).toBe(4)
   })
 
@@ -98,7 +98,7 @@ describe('inline references', () => {
   })
 
   it('does not open the picker on a reference already in the text', () => {
-    const draft = typeInto(choose(typed('/rev'), ENTRIES[1]), '/code-review')
+    const draft = typeInto(choose(typed('/rev'), ENTRIES[1]), '$code-review')
     expect(referencePicker(draft, draft.text.length)).toBeNull()
   })
 })
@@ -111,7 +111,7 @@ describe('draft to input parts', () => {
     draft = typeInto(draft, `${draft.text}tonight `)
     expect(inputParts(draft)).toEqual([
       { type: 'text', text: 'please ' },
-      { type: 'commandRef', name: 'code-review', rawText: '/code-review' },
+      { type: 'skillRef', name: 'code-review' },
       { type: 'text', text: ' the diff with ' },
       { type: 'skillRef', name: 'release-notes' },
       { type: 'text', text: ' tonight' },

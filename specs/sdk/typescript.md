@@ -191,7 +191,7 @@ type RunInput =
 
 ### 10.2 Input Part Helpers
 
-`textPart(text)`, `imageDataUrlPart(dataUrl)`, `localImagePart(path, options?)`, `skillRefPart(name)`, and `commandRefPart(rawText)` produce the AppServer wire shape.
+`textPart(text)`, `imageDataUrlPart(dataUrl)`, `localImagePart(path, options?)`, and `skillRefPart(name)` produce the AppServer wire shape.
 
 ### 10.3 Slash Commands and Skills
 

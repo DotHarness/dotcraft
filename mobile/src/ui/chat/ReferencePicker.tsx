@@ -50,12 +50,11 @@ function Row({
 }
 
 function EntryRow({ entry, onPress }: { entry: ReferenceEntry; onPress: () => void }) {
-  const command = entry.kind === 'command'
   return (
     <Row
-      icon={command ? 'squareTerminal' : 'box'}
+      icon="box"
       name={entry.name}
-      label={`${command ? '/' : '$'}${entry.name}`}
+      label={`$${entry.name}`}
       description={entry.description}
       onPress={onPress}
     />
@@ -73,7 +72,6 @@ export function ReferencePicker({
 }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const commands = entries.filter((entry) => entry.kind === 'command')
   const skills = entries.filter((entry) => entry.kind === 'skill')
   const section = (title: string, list: ReferenceEntry[]) =>
     list.length > 0 ? (
@@ -95,7 +93,6 @@ export function ReferencePicker({
         {actions.map((action) => (
           <Row key={action.id} icon={action.icon} name={action.label} description={action.description} onPress={action.run} />
         ))}
-        {section(t('references.commands'), commands)}
         {section(t('references.skills'), skills)}
       </ScrollView>
     </View>

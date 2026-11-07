@@ -3,14 +3,13 @@ import type { ImportCandidate, ImportSettings } from '@dotcraft/sdk/contracts'
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 type LocatedItem = Pick<ImportCandidate, 'category' | 'sourcePath' | 'targetPath'>
 
-export const SETUP_CATEGORIES = ['skills', 'instructions', 'commands', 'hooks', 'mcp', 'plugins'] as const
+export const SETUP_CATEGORIES = ['skills', 'instructions', 'hooks', 'mcp', 'plugins'] as const
 export const importable = (item: Pick<ImportCandidate, 'state'>): boolean => item.state === 'new' || item.state === 'changed'
 
 const MAX_LISTED_NAMES = 6
 /** Per-item categories share a folder, which may carry a suffix such as `skills-*`. */
 const CATEGORY_FOLDERS: Record<string, string> = {
   skills: 'skills',
-  commands: 'commands',
   plugins: 'plugins'
 }
 
@@ -94,7 +93,6 @@ function conversionNotes(category: string, items: ImportCandidate[], t: Translat
       return [...files.map(file => t('settings.import.note.instructions', { file })), t('settings.import.note.rewrite')]
     }
     case 'skills':
-    case 'commands':
       return [t('settings.import.note.rewrite')]
     case 'hooks':
       return [t('settings.import.note.hooks')]

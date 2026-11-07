@@ -5,7 +5,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { commandRefPart } from "@dotcraft/sdk";
 import type {
   InputPart,
   RuntimeAdditionalContextEntry,
@@ -69,23 +68,6 @@ export function buildChannelSender(
     sender.groupId = channelContext;
   }
   return sender as SenderContext;
-}
-
-export function replaceLeadingSlashTextWithCommandRef(
-  inputParts: InputPart[] | undefined,
-  rawSlashText: string,
-): InputPart[] {
-  const next = inputParts ? [...inputParts] : [];
-  const textIndex = next.findIndex(
-    (part) => String((part as { type?: unknown }).type ?? "") === "text",
-  );
-  const refPart = commandRefPart(rawSlashText);
-  if (textIndex >= 0) {
-    next[textIndex] = refPart;
-  } else {
-    next.unshift(refPart);
-  }
-  return next;
 }
 
 export type ChannelMessageJob = () => Promise<void>;

@@ -15,7 +15,6 @@ Some settings have a file of their own in the same two places: global under `~/.
 | `models.json` | Model context windows and Fast Mode support | [Models and providers](./models#model-capability-catalog) |
 | `model-thinking-adapters.json` | Reasoning request shapes | [Models and providers](./models#reasoning-and-prompt-caching) |
 | `plugin-config.json` | Settings that plugins declare | [Plugins, MCP, and LSP](./plugins#plugin-settings-files) |
-| `commands/` | Custom `/` commands | [Conversations](./conversations#custom-commands) |
 | `<channel>.json` | Channel adapters, workspace only | [Channels](./channels) |
 
 For when a changed setting takes effect, see [Settings lifecycle](./settings-lifecycle).

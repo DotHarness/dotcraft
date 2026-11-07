@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.AppServer;
-using DotCraft.Commands.Core;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using Xunit;
@@ -18,7 +17,7 @@ public sealed class StructuredContextTests
             new() { Id = "paste", Kind = "pastedText", Path = "/attachments/paste.txt", FileName = "paste.txt", Preview = "Preview", CharacterCount = 10000 }
         ];
         var input = contexts.Select(context => new SessionInputPart { Type = "contextRef", Context = context }).ToArray();
-        var service = new InputMaterializationService(new CommandRegistry(), null);
+        var service = new InputMaterializationService(null);
         var result = service.Materialize(input);
         var restored = JsonSerializer.Deserialize<SessionInputPart[]>(JsonSerializer.Serialize(result.NativeInputParts, SessionWireJsonOptions.Default), SessionWireJsonOptions.Default)!;
         Assert.Equal(contexts, restored.Select(part => part.Context));
@@ -63,7 +62,7 @@ public sealed class StructuredContextTests
             new() { Type = "text", Text = prompt }
         ];
 
-        var result = new InputMaterializationService(new CommandRegistry(), null).Materialize(input);
+        var result = new InputMaterializationService(null).Materialize(input);
 
         Assert.Equal([block, prompt], result.MaterializedInputParts.Select(part => part.Text));
         Assert.Equal(prompt, result.DisplayText);

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using DotCraft.Workspaces;
 using DotCraft.Agents;
-using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context.WorldState;
@@ -126,15 +125,11 @@ public static class ServiceRegistration
                 "di-skills-and-plugin-discovery", timer.Elapsed.TotalMilliseconds);
             return skillsLoader;
         });
-        services.AddSingleton(_ => new CustomCommandLoader(paths));
         services.AddSingleton(sp =>
         {
             var registry = CommandRegistry.CreateDefault(
                 Path.GetFileName(paths.Data.RootPath),
-                sp.GetRequiredService<CustomCommandLoader>(),
-                sp.GetServices<IPromptCommandProvider>(),
-                sp.GetRequiredService<IContributionView>(),
-                sp.GetService<ILoggerFactory>());
+                sp.GetServices<IPromptCommandProvider>());
             foreach (var handler in sp.GetServices<ICommandHandler>())
                 registry.RegisterHandler(handler);
             return registry;

@@ -21,20 +21,17 @@ internal static class ExternalPluginConverter
         var contributions = 0;
         var partial = input["agents"] != null || input["lspServers"] != null || input["apps"] != null
             || Directory.Exists(Path.Combine(root, "agents")) || input["settings"] != null;
-        foreach (var category in new[] { "skills", "commands" })
+        var declaredSkills = input["skills"];
+        if (declaredSkills != null && declaredSkills is not JsonValue) throw new NotSupportedException("import_plugin_path_unsupported");
+        var directory = ExternalPluginSource.Confined(root, declaredSkills?.GetValue<string>() ?? "./skills");
+        if (Directory.Exists(directory))
         {
-            var declared = input[category];
-            if (declared != null && declared is not JsonValue) throw new NotSupportedException("import_plugin_path_unsupported");
-            var relative = declared?.GetValue<string>() ?? "./" + category;
-            var directory = ExternalPluginSource.Confined(root, relative);
-            if (!Directory.Exists(directory)) continue;
-            foreach (var file in Directory.EnumerateFiles(directory, category == "skills" ? "SKILL.md" : "*.md", SearchOption.AllDirectories))
+            foreach (var file in Directory.EnumerateFiles(directory, "SKILL.md", SearchOption.AllDirectories))
             {
                 var text = File.ReadAllText(file);
-                if (category == "commands" && !ImportTextRewrite.SupportedCommand(text)) throw new NotSupportedException("import_command_semantics_unsupported");
                 File.WriteAllText(file, ImportTextRewrite.Apply(text, source));
             }
-            output[category] = "./" + Path.GetRelativePath(root, directory).Replace('\\', '/');
+            output["skills"] = "./" + Path.GetRelativePath(root, directory).Replace('\\', '/');
             contributions++;
         }
         JsonObject? mcp = null;

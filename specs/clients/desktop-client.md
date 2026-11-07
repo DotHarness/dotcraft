@@ -590,7 +590,7 @@ A side chat answers a quick question beside a thread without interrupting it. It
 
 Desktop goal behavior is defined by [Goal Design, Client UX Contract](../features/goal.md#9-client-ux-contract). At the Desktop level:
 
-- Goals are a conversation control, not an AppServer custom command. When `capabilities.threadGoals = true`, the slash surface includes a system Goal action; the server owns the goal runtime and Desktop only controls and displays it.
+- Goals are a conversation control. When `capabilities.threadGoals = true`, the slash surface includes a system Goal action; the server owns the goal runtime and Desktop only controls and displays it.
 - Active goal state is summarized in the composer footer. Direct `/goal` submissions are handled locally and translated to `thread/goal/*` requests. Creating a goal from Welcome may create a thread and set the goal without starting a turn. Replacing a different non-complete objective requires confirmation.
 - Desktop never starts goal continuation turns; it observes server `turn/*` and `item/*` notifications and updates goal UI from `thread/goal/updated` and `thread/goal/cleared`.
 
@@ -608,7 +608,7 @@ Revealing a tool call finds its item by call id; for a task-started turn it find
 
 ### 5.13 Composer System Actions
 
-The slash surface lists Desktop-owned system actions above custom Commands and Skills. Selecting one clears the slash query. Each group matches its labels, ids, and aliases (not descriptions): query characters match in order, each skip lands on a word start, and a mid-word start needs three characters. Within a group, prefixes rank above word starts above mid-word matches, then shorter names first.
+The slash surface lists Desktop-owned system actions, extension actions, and Skills. Selecting one clears the slash query. Each group matches its labels, ids, and aliases (not descriptions): query characters match in order, each skip lands on a word start, and a mid-word start needs three characters. Within a group, prefixes rank above word starts above mid-word matches, then shorter names first.
 
 - **Init** appears only when command management is available and the workspace `command/list` result contains `/init` (AppServer omits it when root `AGENTS.md` or `AGENTS.override.md` exists; Desktop never inspects these files). Selecting it, or submitting `/init`, calls `command/execute` and starts a normal turn with the returned `expandedPrompt`. Command availability reloads after each turn ends.
 - **Reload skills** appears only when command management is available, the composer has a thread, and the workspace `command/list` result contains `/reload-skills`. Selecting it, or submitting `/reload-skills`, calls `command/execute` with that command, reports the result, and refreshes the skills list; it never starts an agent turn.

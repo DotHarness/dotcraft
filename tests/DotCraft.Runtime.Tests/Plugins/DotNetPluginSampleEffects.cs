@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
@@ -198,7 +197,7 @@ internal static class DotNetPluginSampleEffects
         await AssertRestrictionAsync(host, manager, planning, ledger);
     }
 
-    /// <summary>The Tier-B suggestion generator, the contributed SubAgent runtime, the command, and the sink.</summary>
+    /// <summary>The Tier-B suggestion generator, the contributed SubAgent runtime, and the sink.</summary>
     internal static async Task AssertSessionAndSurfaceEffectsAsync(
         DotNetPluginSampleHost host,
         SampleCoverageLedger ledger)
@@ -212,14 +211,6 @@ internal static class DotNetPluginSampleEffects
         Assert.Contains("acme-review-pass", catalog.KnownRuntimeTypes);
         Assert.True(catalog.CreateRegistry(null).TryGet("review-pass", out _));
         ledger.Prove<ISubAgentRuntimeSource>();
-
-        var commands = CommandContributions.List(host.Registry, ThreadId);
-        var contributed = Assert.Single(commands, command => command.Name == "/review");
-        Assert.Contains("/rv", contributed.Aliases);
-        var expanded = CommandContributions.Expand(host.Registry, "/rv", "the pasted diff", ThreadId);
-        Assert.NotNull(expanded);
-        Assert.Contains("the pasted diff", expanded!, StringComparison.Ordinal);
-        ledger.Prove<ICodeCommand>();
 
         host.Traces.Record(new TraceEvent { Type = TraceEventType.Request, SessionKey = "sample-session" });
         Assert.True(host.TraceSinks.WaitForPendingSinks(TimeSpan.FromSeconds(10)));
@@ -294,7 +285,6 @@ internal static class DotNetPluginSampleEffects
             CompactionSummarizerCatalog.Resolve(null),
             CompactionSummarizerCatalog.Resolve(host.Registry, ThreadId));
         Assert.Same(SubAgentProfileCatalog.BuiltIn, SubAgentProfileCatalog.Resolve(host.Registry, ThreadId));
-        Assert.Empty(CommandContributions.List(host.Registry, ThreadId));
         Assert.Empty(host.Registry.Resolve<IMemoryWriteGate>(ThreadId));
         Assert.False(CompactableToolPolicyCatalog.IsCompactable(host.Registry, ThreadId, "review.summary"));
     }

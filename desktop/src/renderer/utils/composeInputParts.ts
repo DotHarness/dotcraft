@@ -33,22 +33,6 @@ function segmentsToInputParts(segments: ComposerDraftSegment[]): InputPart[] {
         return segment.value.length > 0 ? [{ type: 'text', text: segment.value } satisfies InputPart] : []
       case 'file':
         return [{ type: 'fileRef', path: segment.relativePath, displayPath: segment.relativePath } satisfies InputPart]
-      case 'command': {
-        const rawText = segment.command.trim()
-        const normalized = rawText.startsWith('/') ? rawText : `/${rawText}`
-        const firstWhitespace = normalized.search(/\s/)
-        const commandToken = firstWhitespace >= 0 ? normalized.slice(0, firstWhitespace) : normalized
-        const name = commandToken.slice(1)
-        const argsText = firstWhitespace >= 0 ? normalized.slice(firstWhitespace + 1).trim() : ''
-        return name.length > 0
-          ? [{
-            type: 'commandRef',
-            name,
-            rawText: normalized,
-            ...(argsText ? { argsText } : {})
-          } satisfies InputPart]
-          : []
-      }
       case 'skill':
         return segment.skillName.trim().length > 0
           ? [{ type: 'skillRef', name: segment.skillName.trim() } satisfies InputPart]

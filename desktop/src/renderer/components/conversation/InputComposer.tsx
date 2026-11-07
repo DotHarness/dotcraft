@@ -14,7 +14,7 @@ import { enqueueTurn } from '../../utils/enqueueTurn'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
+import { useBuiltinCommandAvailability } from '../../hooks/useBuiltinCommandAvailability'
 import { requestThreadModeChange } from '../../hooks/useActiveThreadModeSync'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -371,9 +371,8 @@ function InputComposerCore({
   const showCommandPopover = showSlashPopover || showCommandQueryPopover
   const commandPopoverQuery = commandQuery ?? slashQuery ?? ''
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, initAvailable, reloadSkillsAvailable, status: customCommandStatus, reload: reloadCommands } = useCustomCommandCatalog({
-    enabled: canUseCommandPicker,
-    locale
+  const { initAvailable, reloadSkillsAvailable, status: builtinCommandStatus, reload: reloadCommands } = useBuiltinCommandAvailability({
+    enabled: canUseCommandPicker
   })
   const skills = useSkillsStore((s) => s.skills)
   const skillsLoading = useSkillsStore((s) => s.loading)
@@ -390,10 +389,9 @@ function InputComposerCore({
   )
   const richRefCatalog = useMemo(
     () => ({
-      commands: customCommands,
       skills: availableSkills
     }),
-    [availableSkills, customCommands]
+    [availableSkills]
   )
   const composerHistory = useMemo(
     () => buildComposerHistory(historyTurns, threadId),
@@ -1616,10 +1614,6 @@ function InputComposerCore({
     []
   )
 
-  const onSelectCommand = useCallback((commandName: string): void => {
-    richRef.current?.insertCommandTag(commandName)
-  }, [])
-
   const onSelectDesktopCommand = useCallback((contributionKey: string): void => {
     setSlashDismissed(true)
     richRef.current?.removeCommandQuery()
@@ -1793,13 +1787,11 @@ function InputComposerCore({
               <CommandSearchPopover
                 query={commandPopoverQuery}
                 visible={showCommandPopover}
-                loading={customCommandStatus === 'loading' || skillsLoading}
+                loading={builtinCommandStatus === 'loading' || skillsLoading}
                 systemActions={systemActions}
-                commands={customCommands}
                 desktopCommands={desktopCommands}
                 skills={availableSkills}
                 onSelectSystemAction={onSelectSystemAction}
-                onSelectCommand={onSelectCommand}
                 onSelectDesktopCommand={onSelectDesktopCommand}
                 onSelectSkill={onSelectSkill}
                 onDismiss={() => {
@@ -1811,9 +1803,7 @@ function InputComposerCore({
                 query={skillQuery ?? ''}
                 visible={showSkillPopover}
                 loading={skillsLoading}
-                commands={[]}
                 skills={availableSkills}
-                onSelectCommand={() => {}}
                 onSelectSkill={onSelectSkill}
                 onDismiss={() => {
                   setSkillDismissed(true)

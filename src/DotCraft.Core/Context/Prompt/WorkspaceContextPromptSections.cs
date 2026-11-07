@@ -1,5 +1,3 @@
-using DotCraft.Commands.Core;
-using DotCraft.Commands.Custom;
 using DotCraft.Contributions;
 using DotCraft.Memory;
 using Microsoft.Extensions.Logging;
@@ -7,7 +5,7 @@ using System.Text;
 
 namespace DotCraft.Context;
 
-/// <summary>The built-in workspace-state sections: bootstrap markdown, memory instructions, and custom commands, all served through prompt-cache-stable context pages.</summary>
+/// <summary>The built-in workspace-state sections: bootstrap markdown and memory instructions, all served through prompt-cache-stable context pages.</summary>
 internal static class WorkspaceContextPromptSections
 {
     /// <summary>The markdown files loaded from the DotCraft directory, in prompt order.</summary>
@@ -44,24 +42,6 @@ internal static class WorkspaceContextPromptSections
             () => attached.Count == 0
                 ? BuildMemoryContext(memoryStore)
                 : BuildMemoryContext(memoryStore) + "\n" + BuildAttachedStoresContext(attached));
-    }
-
-    /// <summary>Builds the <c>custom-commands</c> section from the markdown commands and the contributed ones.</summary>
-    internal static string? CustomCommands(SystemPromptSectionContext context)
-    {
-        var sources = context.RequireSources();
-        var contributed = CommandContributions.ToCommandInfos(
-            CommandContributions.List(sources.Contributions, context.ThreadId, sources.Logger));
-        if (sources.CustomCommandLoader is null && contributed.Count == 0)
-            return null;
-
-        var summary = sources.GetContextPage(
-            context.ThreadId,
-            ContextPageKeys.CustomCommandsSummary(sources.CraftPath),
-            () => sources.CustomCommandLoader is { } loader
-                ? loader.BuildCommandsSummary(contributed)
-                : CustomCommandLoader.RenderCommandsSummary(contributed));
-        return string.IsNullOrWhiteSpace(summary) ? null : summary;
     }
 
     private static string LoadBootstrapFiles(PromptSectionSources sources)

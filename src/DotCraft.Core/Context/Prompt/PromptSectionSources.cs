@@ -1,4 +1,3 @@
-using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Memory;
@@ -23,7 +22,6 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the normalized workspace path.</summary>
     internal required string WorkspacePath { get; init; }
 
-    internal CustomCommandLoader? CustomCommandLoader { get; init; }
 
 
     /// <summary>Gets the MCP servers whose tools are discovered on demand.</summary>

@@ -63,7 +63,6 @@ public static partial class PluginVerifier
         foreach (var (field, path) in new[]
                  {
                      ("skills", manifest.SkillsPath),
-                     ("commands", manifest.CommandsPath),
                      ("workflows", manifest.WorkflowsPath)
                  })
         {

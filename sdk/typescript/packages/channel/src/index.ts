@@ -41,7 +41,6 @@ export {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-  commandRefPart,
   fileRefPart,
   imageDataUrlPart,
   localImagePart,

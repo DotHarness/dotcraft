@@ -92,7 +92,7 @@ export function useReferences(projectId: string, ready: boolean): ReferenceEntry
   const models = useComputerSelector(selectModels)
   const selectReferences = useCallback((state: ComputerState) => state.references[projectId] ?? NO_REFERENCES, [projectId])
   const references = useComputerSelector(selectReferences)
-  const listable = ready && (models?.canListCommands === true || models?.canListSkills === true)
+  const listable = ready && models?.canListSkills === true
   useEffect(() => {
     if (listable) void session.loadReferences(projectId).catch(() => undefined)
   }, [listable, projectId, session])

@@ -123,7 +123,7 @@ public sealed record SessionInputSnapshot
     public string? ClientUserMessageId { get; init; }
 
     /// <summary>
-    /// Native transport parts (commandRef/skillRef/fileRef/text/etc.) as supplied by the client.
+    /// Native transport parts (skillRef/fileRef/text/etc.) as supplied by the client.
     /// </summary>
     public IReadOnlyList<SessionInputPart>? NativeInputParts { get; init; }
 

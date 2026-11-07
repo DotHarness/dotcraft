@@ -1,7 +1,6 @@
 using DotCraft.Workspaces;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Commands.Custom;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Contributions;
@@ -49,10 +48,9 @@ public sealed partial class WorkspaceRuntime
 
             if (Config.Skills.IncludeBuiltInSkills)
                 SkillsLoader.DeployBuiltInSkills();
-            Services.GetRequiredService<CustomCommandLoader>().DeployBuiltInCommands();
             SkillsLoader.SetDisabledSkills(Config.Skills.DisabledSkills);
 
-            LogStartupStage(startupTimer, "built-in-skills-and-commands");
+            LogStartupStage(startupTimer, "built-in-skills");
 
             var traceCollector = Services.GetService<TraceCollector>();
             var backgroundTerminalService = Services.GetRequiredService<IBackgroundTerminalService>();

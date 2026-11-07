@@ -666,7 +666,7 @@ Adapters that do not need a sideband event type (`subagent/progress`, `system/ev
 
 ### 6.5 Session Input API
 
-`SubmitInput` starts a Turn and returns that Turn's authoritative event stream; there is no separate subscribe operation, and callback-style consumption is a helper concern. Input is a list of multimodal content parts plus an optional sender context. When the transport provides native input parts (commands, skills, file references), it validates and materializes them before submission; Session Core persists both snapshots on the `UserMessage`, derives `text` from the native snapshot, and passes the materialized content to the agent.
+`SubmitInput` starts a Turn and returns that Turn's authoritative event stream; there is no separate subscribe operation, and callback-style consumption is a helper concern. Input is a list of multimodal content parts plus an optional sender context. When the transport provides native input parts (skills, file references), it validates and materializes them before submission; Session Core persists both snapshots on the `UserMessage`, derives `text` from the native snapshot, and passes the materialized content to the agent.
 
 - `EnqueueTurnInput` appends a `queued` input while another Turn may run. The queue is persisted as rollout records and drained per Section 4.1.1, with `deliveryMode = "queued"`.
 - `RemoveQueuedTurnInput` removes a queued input without starting a Turn.
@@ -1184,7 +1184,6 @@ Server-managed slash commands have one server-side registry, authoritative for d
 | `/debug` | Debug mode toggle (host service) |
 | `/reload-skills` | Rescan Skill roots so every thread's Skill catalog is read again before its next sampling request ([Skills](skills.md) §4.1) |
 | `/init` | Expands a repository-guidelines prompt into a normal agent Turn |
-| Custom commands | Resolved by the command pipeline |
 
 `/clear` is a client-local UI command, not a thread lifecycle command; client-local commands are outside the registry.
 

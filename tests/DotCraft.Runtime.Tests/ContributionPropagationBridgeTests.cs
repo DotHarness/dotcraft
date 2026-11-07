@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
@@ -50,27 +49,6 @@ public sealed class ContributionPropagationBridgeTests
         }
 
         Assert.Equal(1, refresh.Invalidations);
-    }
-
-    [Fact]
-    public void CommandMutation_ReleasesTheMemoizedSummaryWithoutInvalidatingAgents()
-    {
-        var registry = new ContributionRegistry();
-        var refresh = new RecordingRefreshService();
-        var pages = new ContextPageManager();
-        using var bridge = new ContributionPropagationBridge(registry, refresh, pages);
-        var key = ContextPageKeys.CustomCommandsSummary("craft");
-        var loads = 0;
-        string Load() => $"summary-{++loads}";
-
-        Assert.Equal("summary-1", Page(pages, key, Load));
-        var handle = registry.Add<ICodeCommand>(new StubCommand());
-        Assert.Equal(0, refresh.Invalidations);
-        Assert.Equal("summary-2", Page(pages, key, Load));
-
-        handle.Dispose();
-        Assert.Equal(0, refresh.Invalidations);
-        Assert.Equal("summary-3", Page(pages, key, Load));
     }
 
     [Fact]
@@ -128,15 +106,6 @@ public sealed class ContributionPropagationBridgeTests
 
     private static string Page(IContextPageManager pages, ContextPageKey key, Func<string> load) =>
         pages.GetOrAdd("thread-a", key, ContextPageLifecycle.StableUntilCompaction, load).Content;
-
-    private sealed class StubCommand : ICodeCommand
-    {
-        public string Name => "/stub-command";
-
-        public string Description => "stub";
-
-        public string? Expand(CommandInvocation invocation) => null;
-    }
 
     private sealed class StubSignalContributor : IThreadRuntimeSignalContributor
     {

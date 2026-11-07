@@ -1,7 +1,7 @@
 import type { InputPart } from '@dotcraft/sdk/contracts'
 import { fuzzyFilter } from './fuzzyMatch'
 
-export type ReferenceKind = 'command' | 'skill'
+export type ReferenceKind = 'skill'
 
 export interface InlineReference {
   kind: ReferenceKind
@@ -64,17 +64,11 @@ export function pickerMatch(text: string, cursor: number = text.length): PickerM
 }
 
 export function matchingEntries(entries: ReferenceEntry[], match: PickerMatch): ReferenceEntry[] {
-  const ranked = (kind: ReferenceKind) =>
-    fuzzyFilter(
-      entries.filter((entry) => entry.kind === kind),
-      match.query,
-      (entry) => [entry.name],
-    )
-  return match.trigger === '/' ? [...ranked('command'), ...ranked('skill')] : ranked('skill')
+  return fuzzyFilter(entries, match.query, (entry) => [entry.name])
 }
 
 export function referenceToken(reference: Pick<InlineReference, 'kind' | 'name'>): string {
-  return `${reference.kind === 'command' ? '/' : '$'}${reference.name}`
+  return `$${reference.name}`
 }
 
 function endOf(reference: InlineReference): number {
@@ -154,8 +148,7 @@ function bodyParts(draft: MessageDraft): InputPart[] {
   const pieces = draftPieces(draft)
   return pieces.flatMap((piece, index): InputPart[] => {
     if (piece.type === 'reference') {
-      const { kind, name } = piece.reference
-      return [kind === 'command' ? { type: 'commandRef', name, rawText: `/${name}` } : { type: 'skillRef', name }]
+      return [{ type: 'skillRef', name: piece.reference.name }]
     }
     let value = piece.value
     const previous = pieces[index - 1]
@@ -192,8 +185,6 @@ export function visibleText(parts: InputPart[]): string {
       switch (part.type) {
         case 'text':
           return part.text ?? ''
-        case 'commandRef':
-          return part.rawText ?? `/${part.name ?? ''}`
         case 'skillRef':
           return `$${part.name ?? ''}`
         case 'fileRef':

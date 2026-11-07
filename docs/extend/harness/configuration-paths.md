@@ -23,7 +23,7 @@ This boundary lets desktop applications, services, and tests use their own confi
 | --- | --- | --- | --- |
 | `WorkspacePath` | Yes | None | The application workspace used by sessions and tools. |
 | `DataPath` | No | `.craft` | Workspace-local sessions, traces, tool results, and Runtime state. |
-| `UserDataPath` | No | `null` | User-level skills, commands, hooks, plugins, plugin marketplaces, and provider authentication. |
+| `UserDataPath` | No | `null` | User-level skills, hooks, plugins, plugin marketplaces, and provider authentication. |
 
 Use a different workspace data directory by setting a direct child name:
 

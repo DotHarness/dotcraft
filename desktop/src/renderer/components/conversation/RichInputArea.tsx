@@ -29,7 +29,7 @@ const MAX_TEXT_LEN = 100_000
 const PLACEHOLDER = 'Ask DotCraft anything…'
 const EMPTY_REF_CATALOG: ComposerRefCatalog = {}
 
-type RefType = 'file' | 'command' | 'skill' | 'thread'
+type RefType = 'file' | 'skill' | 'thread'
 type RichInputContent = string | { text?: string; segments?: ComposerDraftSegment[] }
 type SelectionRange = { start: number; end: number }
 
@@ -46,7 +46,6 @@ export interface RichInputAreaHandle {
   insertFileTag: (relativePath: string) => void
   insertFileTagAtSelection: (relativePath: string) => void
   completeAtQuery: (query: string) => void
-  insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
   insertThreadTag: (threadId: string, title: string) => void
   insertThreadTagAtSelection: (threadId: string, title: string) => void
@@ -685,25 +684,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
       replaceRange: replaceLinearRangeWithRef
     })
 
-    const insertCommandTag = useCallback(
-      (commandName: string): void => {
-        const el = editorRef.current
-        if (!el) return
-        const command = commandName.trim()
-        if (!command.startsWith('/')) return
-        const activeRange = commandQueryRangeRef.current
-        if (activeRange) {
-          replaceLinearRangeWithRef('command', command, activeRange)
-          return
-        }
-        const before = textBeforeCaretForTriggers(el)
-        const parsed = parseSlashQuery(before)
-        if (!parsed) return
-        replaceQueryRangeWithRef('command', command, parsed, '/')
-      },
-      [replaceLinearRangeWithRef, replaceQueryRangeWithRef]
-    )
-
     const insertSkillTag = useCallback(
       (skillName: string): void => {
         const el = editorRef.current
@@ -812,7 +792,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
         insertFileTag,
         insertFileTagAtSelection,
         completeAtQuery,
-        insertCommandTag,
         insertSkillTag,
         insertThreadTag,
         insertThreadTagAtSelection,
@@ -829,7 +808,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
         beginCommandQuery,
         endCommandQuery,
         removeCommandQuery,
-        insertCommandTag,
         insertFileTag,
         insertFileTagAtSelection,
         completeAtQuery,
@@ -1188,13 +1166,11 @@ export const RichInputArea = forwardRef(function RichInputArea(
             pointer-events: none;
           }
           .dc-file-ref:hover .dc-ref-icon-default,
-          .dc-command-ref:hover .dc-ref-icon-default,
           .dc-skill-ref:hover .dc-ref-icon-default,
           .dc-thread-ref:hover .dc-ref-icon-default {
             opacity: 0;
           }
           .dc-file-ref:hover .dc-ref-icon-remove,
-          .dc-command-ref:hover .dc-ref-icon-remove,
           .dc-skill-ref:hover .dc-ref-icon-remove,
           .dc-thread-ref:hover .dc-ref-icon-remove {
             opacity: 1;

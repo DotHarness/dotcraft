@@ -674,8 +674,7 @@ The response returns immediately with the initial Turn (`running`, empty `items`
 
 | Type | Semantics |
 |------|-----------|
-| `text` | Literal user text only; commands, skills, and file references use their structured parts. |
-| `commandRef` (`name`, `argsText`, `rawText`) | Custom-command reference. Materialized before execution; both the native reference and the materialized prompt snapshot are persisted. Built-in slash commands (`/new`, `/stop`, `/help`, `/debug`, `/automate`, …) are invalid here (`InvalidParams`) and go through `command/execute`. |
+| `text` | Literal user text. Skills and file references use their structured parts. Slash commands execute through `command/execute`. |
 | `skillRef` (`name`) | Skill reference, materialized into a model-visible `<skill>` block with the skill name and path; instructions are not inlined (the agent loads them through `SkillView` or by reading `SKILL.md`). Skills chosen from a slash picker are still `skillRef`. |
 | `fileRef` (`path`, `displayPath`) | File reference. `path` is canonical (workspace-relative or local absolute); the model sees `@path`. `displayPath` is used only for history rendering. Referencing an outside path grants no access; reads still follow file-tool approval. |
 | `image` (`url`) | Base64 `data:image/...` URL, decoded payload ≤ 64 MiB. Other media types, malformed or oversized payloads → `InvalidParams`. HTTP(S) URLs → `InvalidParams` with `error.data.code = "RemoteImageUrlNotSupported"`; clients download remote images themselves. |
@@ -1295,7 +1294,7 @@ The `agent-import` module, gated by `capabilities.extensions.agentImport`, impor
 | `import/completed` | notification | `importId`, `trigger` (`manual`/`sync`), timestamps, outcomes. |
 
 - Candidates carry source, category, user/workspace scope, paths, fingerprint, title, `state` (`new`, `changed`, `current`, `deferred`, `unsupported`), and a diagnostic reason; session candidates add cwd, updatedAt, and turn count.
-- `selection` has `all` (which includes future categories), user and workspace category arrays (`skills`, `instructions`, `commands`, `hooks`, `mcp`, `plugins`; plugins are user-only), and `sessions`.
+- `selection` has `all` (which includes future categories), user and workspace category arrays (`skills`, `instructions`, `hooks`, `mcp`, `plugins`; plugins are user-only), and `sessions`.
 - Outcome statuses: `imported`, `appended`, `attention`, `existing`, `unsupported`, `deferred`, `skipped`, `failed`. Diagnostics never contain configuration secrets.
 - Execution revalidates identities and fingerprints and reports `import_source_changed`; overlapping manual passes return `import_busy`; a failed item does not cancel others.
 
@@ -1626,15 +1625,15 @@ Gated by `capabilities.commandManagement`. `command/list` returns server-registe
 
 ### 19.2 `CommandInfo` Wire DTO
 
-`name` (canonical slash name), `aliases`, `descriptionKey` (localization key; empty for custom commands without one), `fallbackDescription` (English; `description` is an alias), `category` (`builtin` or `custom`), and `requiresAdmin`.
+`name` (canonical slash name), `aliases`, `descriptionKey` (localization key; empty when no localization key applies), `fallbackDescription` (English; `description` is an alias), `category` (`builtin` or `workflow`), and `requiresAdmin`.
 
 ### 19.3 `command/list`
 
-Params: optional `includeBuiltins` (default `true`). Result `{ commands }`. Composer pickers that insert `commandRef` parts pass `includeBuiltins = false` to get the custom-command catalog.
+Params: optional `includeBuiltins` (default `true`). Result `{ commands }`. Pass `includeBuiltins = false` to list workflow commands only.
 
 ### 19.4 `command/execute`
 
-Execute one slash command. Built-in commands must be invoked here (or by dedicated controls), never as `commandRef`.
+Execute one built-in or workflow slash command.
 
 **Params**: `threadId` (execution context), `command` (for example `"/stop"`), optional `arguments` (otherwise parsed from `command`), optional `sender` (permission and audit).
 

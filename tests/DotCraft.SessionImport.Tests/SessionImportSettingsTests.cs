@@ -95,7 +95,7 @@ public sealed class SessionImportSettingsTests : IDisposable
     public async Task ManualImportsMergeIntoTheSavedSyncSelection()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"Selection\":{\"user\":[\"skills\",\"hooks\"],\"workspace\":[\"commands\"],\"sessions\":true}}}");
+        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"Selection\":{\"user\":[\"skills\",\"hooks\"],\"workspace\":[\"skills\"],\"sessions\":true}}}");
         var service = CreateService();
 
         await RunAsync(service, new ImportSelection { User = ["mcp"] }, new ImportSelection { User = ["hooks", "mcp"], Sessions = true });
@@ -104,9 +104,9 @@ public sealed class SessionImportSettingsTests : IDisposable
         var implicitOffer = service.GetSettings().Selection;
 
         Assert.Equal(new[] { "skills", "mcp" }, offered.User);
-        Assert.Equal(new[] { "commands" }, offered.Workspace);
+        Assert.Equal(new[] { "skills" }, offered.Workspace);
         Assert.False(offered.Sessions);
-        Assert.Equal(new[] { "instructions", "commands" }, implicitOffer.Workspace);
+        Assert.Equal(new[] { "skills", "instructions" }, implicitOffer.Workspace);
         Assert.Equal(new[] { "skills", "mcp" }, implicitOffer.User);
     }
 

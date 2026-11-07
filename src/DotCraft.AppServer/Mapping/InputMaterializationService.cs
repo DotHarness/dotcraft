@@ -1,4 +1,3 @@
-using DotCraft.Commands.Core;
 using DotCraft.Skills;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -10,9 +9,7 @@ namespace DotCraft.AppServer;
 /// the model-visible prompt snapshot used for a turn.
 /// </summary>
 internal sealed class InputMaterializationService(
-    CommandRegistry commandRegistry,
-    SkillsLoader? skillsLoader,
-    string? threadId = null)
+    SkillsLoader? skillsLoader)
 {
     public SessionInputMaterializationResult Materialize(IReadOnlyList<SessionInputPart> input)
     {
@@ -52,29 +49,9 @@ internal sealed class InputMaterializationService(
                     if (!string.IsNullOrEmpty(part.Text))
                         normalized.Add(part with { Text = part.Text });
                     break;
-                case "commandRef":
-                {
-                    var name = NormalizeCommandOrSkillName(part.Name);
-                    var rawText = string.IsNullOrWhiteSpace(part.RawText)
-                        ? null
-                        : part.RawText.Trim();
-                    var argsText = string.IsNullOrWhiteSpace(part.ArgsText)
-                        ? null
-                        : part.ArgsText.Trim();
-                    if (!string.IsNullOrWhiteSpace(name) || !string.IsNullOrWhiteSpace(rawText))
-                    {
-                        normalized.Add(part with
-                        {
-                            Name = name,
-                            RawText = rawText,
-                            ArgsText = argsText
-                        });
-                    }
-                    break;
-                }
                 case "skillRef":
                 {
-                    var name = NormalizeCommandOrSkillName(part.Name);
+                    var name = NormalizeSkillName(part.Name);
                     if (!string.IsNullOrWhiteSpace(name))
                         normalized.Add(part with { Name = name });
                     break;
@@ -122,17 +99,9 @@ internal sealed class InputMaterializationService(
                 foreach (var expanded in SessionContextMaterializer.Materialize(part.Context!))
                     yield return expanded;
                 yield break;
-            case "commandRef":
-                yield return new SessionInputPart
-                {
-                    Type = "text",
-                    Text = commandRegistry.TryResolvePromptExpansion(SessionWireMapper.BuildDisplayText([part]), threadId)
-                        ?? SessionWireMapper.BuildDisplayText([part])
-                };
-                yield break;
             case "skillRef":
             {
-                var name = NormalizeCommandOrSkillName(part.Name);
+                var name = NormalizeSkillName(part.Name);
                 var loaded = !string.IsNullOrWhiteSpace(name)
                     ? skillsLoader?.LoadSkillBody(name)
                     : null;
@@ -158,7 +127,7 @@ internal sealed class InputMaterializationService(
         }
     }
 
-    private static string? NormalizeCommandOrSkillName(string? name)
+    private static string? NormalizeSkillName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return null;

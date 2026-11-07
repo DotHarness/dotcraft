@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Contributions;
 using DotCraft.Sessions;
@@ -44,8 +43,6 @@ internal sealed class ContributionPropagationBridge : IDisposable
         }
         _handler = (_, args) =>
         {
-            if (args.Includes<ICodeCommand>())
-                contextPageManager?.ReleaseStablePage(ContextPageKeys.CustomCommandsSummary("*"));
             if (args.Includes<IThreadSystemPromptContextProvider>() && contextPageManager is not null)
             {
                 foreach (var provider in _registry.Resolve<IThreadSystemPromptContextProvider>())

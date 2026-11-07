@@ -311,7 +311,6 @@ export const MESSAGES_KO: Catalog = {
   'plan.collapse': '계획 접기',
   'plan.copy': '계획 복사',
   'references.label': '명령과 스킬',
-  'references.commands': '명령',
   'references.skills': '스킬',
 
   'newChat.title': '새 채팅',

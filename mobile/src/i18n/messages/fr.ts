@@ -311,7 +311,6 @@ export const MESSAGES_FR: Catalog = {
   'plan.collapse': 'Réduire le plan',
   'plan.copy': 'Copier le plan',
   'references.label': 'Commandes et compétences',
-  'references.commands': 'Commandes',
   'references.skills': 'Compétences',
 
   'newChat.title': 'Nouvelle discussion',

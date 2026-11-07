@@ -31,7 +31,7 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
   connected and can reach the user.
 - Read a chat as it streams, answer its approvals and questions, add a message, or stop it.
 - Start a new chat in any project on the computer, including one whose runtime is not running.
-- Compose like on Desktop: attach photos and files, switch to plan mode, and insert commands and
+- Compose like on Desktop: attach photos and files, switch to plan mode, and insert
   skills.
 - See what a chat changed, open a file it refers to, and check remaining context and account usage.
 - Keep a dropped connection invisible apart from a status line: reconnect, catch up, and replay
@@ -350,7 +350,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | New chat | The expanded composer, which is the chat's composer, so model, reasoning, approval policy, and Plan mode are set before the first message; a project switcher lists the computer's projects, most recently used first. Expanding it starts a stopped project. Send keeps the message while the chat is created, then opens the chat in place; a failed send returns the message with the error. |
 | Chat | Top bar with Back, title, project and computer, the context ring (opens Status), and the chat menu. The transcript follows Desktop's turn layout: a finished turn folds work before its final reply into one **Worked for** row (keeping steering messages, the last plan card, and generated images visible); consecutive tool calls group as on Desktop, into one row naming each kind of work done without counts, with reasoning between them never splitting a group and the trailing group of a running turn naming the call in progress; `CodeMode`, `CodeModeWait`, and `SendUserMessageAsync` calls are hidden as on Desktop, while the calls a script makes still show; a running turn ends with Desktop's working line: the thinking glyph loops while the turn works, the label shows the turn's latest reasoning title as on Desktop (its latest heading line, else the first line of its latest written paragraph), including a finished reasoning's title, for as long as the turn works, and otherwise shows Thinking when reasoning yields none; when the turn stops, or while a decision waits, the glyph fades out at once, and the line keeps its space until the next message appears; Copy follows a completed turn's final reply; a completed turn that changed files ends with an **Edited** card carrying Desktop's changes icon. While a decision waits, the decision card ends the transcript and the composer is hidden. The composer carries Add, the approval policy, and model controls; during a turn it steers and offers Stop. Pills above the composer open Changes (while a running turn has changed files), reading **Changes** with the line counts, and Background tasks (while any of the chat's background tasks runs); centered when they fit, the row scrolls sideways when they do not, so neither pill shrinks. A jump-to-latest control appears when scrolled away. History follows [Thread History Loading](../features/thread-history-loading.md): a five-Turn summary opening page applies to every Turn status. Detail hydration reads at most one 100-Item page per selected Turn with at most four workers, preview hydration at most two, preserving per-Turn cursors. Scrolling and explicit expansion drive further Turn/Item pages while retaining the reading position, loading indicators and retry state. Restore never drains all cursors; saved history retains summary/partial state. |
 | Add menu | **Photo**, **File**, and **Plan mode** (checked while on). |
-| Picker | System actions, commands, and skills matching what follows `/` or `$` in the composer. |
+| Picker | System actions and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
 | Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title with the elapsed or total duration trailing in tabular figures, over its kind (and an agent's model and tokens), marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
@@ -422,12 +422,11 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   an implement option and a row to describe adjustments. This local choice is not an RPC request: it requires current Plan mode, the latest completed Turn's successful CreatePlan result, the matching current plan/Turn identity and unconsumed confirmation state. Approvals/questions take precedence and a running Turn cannot revive it. Implementing confirms a successful scoped change to `agent` against the latest observed mode before sending "Implement the plan." A target switch or superseding mode decision prevents sending. An adjustment is explicit feedback that stays in plan mode. **Dismiss** returns the composer in plan mode. If the switch to `agent` fails, nothing
   is sent and the failure is reported. A chat running an Agent Profile has no Plan mode, because its
   agent keeps a fixed capability scope.
-- Typing `/` at the start of a word opens the Picker with system actions, then custom commands from
-  `command/list`, then enabled skills from `skills/list`; `$` opens skills only. Matching follows
+- Typing `/` at the start of a word opens the Picker with system actions, then enabled skills from
+  `skills/list`; `$` opens skills only. Matching follows
   Desktop: query characters match in order, each skip lands on a word start, a mid-word start needs
   three characters, and within each group prefixes rank above word starts above mid-word matches. A
-  command or skill is inserted inline as `/name` or `$name`, deleted as a whole, and sent as a
-  `commandRef` or `skillRef`. Built-in commands are not offered.
+  skill is inserted inline as `$name`, deleted as a whole, and sent as a `skillRef`.
 - The system actions are **Plan mode**, shown when the chat offers it and toggling it as the Add menu
   does, and **Compact**, shown when `capabilities.manualCompaction` is set, the chat has a turn, and
   nothing is running or compacting. Choosing one removes the typed `/query`. Compact calls

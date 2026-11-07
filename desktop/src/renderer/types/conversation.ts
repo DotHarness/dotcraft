@@ -268,7 +268,6 @@ export interface ConversationTurn {
 export type InputPart =
   | { type: 'contextRef'; context: ComposerContextRecord | ThreadReferencesContext }
   | { type: 'text'; text: string }
-  | { type: 'commandRef'; name: string; argsText?: string; rawText?: string }
   | { type: 'skillRef'; name: string }
   | { type: 'fileRef'; path: string; displayPath?: string }
   | { type: 'image'; url: string }
@@ -453,17 +452,6 @@ function mapInputPart(raw: unknown): InputPart | null {
     case 'text': {
       const text = typeof part.text === 'string' ? part.text : ''
       return { type: 'text', text }
-    }
-    case 'commandRef': {
-      const name = typeof part.name === 'string' ? part.name.trim() : ''
-      if (!name) return null
-      const argsText = typeof part.argsText === 'string' && part.argsText.trim() !== ''
-        ? part.argsText
-        : undefined
-      const rawText = typeof part.rawText === 'string' && part.rawText.trim() !== ''
-        ? part.rawText
-        : undefined
-      return { type: 'commandRef', name, ...(argsText ? { argsText } : {}), ...(rawText ? { rawText } : {}) }
     }
     case 'skillRef': {
       const name = typeof part.name === 'string' ? part.name.trim() : ''

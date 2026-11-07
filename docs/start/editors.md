@@ -95,7 +95,7 @@ Once connected, the agent can query the scene, the current selection, the Consol
 - **Diffs before applying** — review and approve each change in the editor's own diff view.
 - **Editor-managed terminal** — commands run in the editor's terminal, with its working directory and environment.
 - **Native approvals** — before a file write or a shell command, the editor shows an approve/deny prompt.
-- **Slash commands and model switching** — your `.craft/commands/` show up in the editor's command picker, and you can switch model in place.
+- **Slash commands and model switching** — built-in commands and workflows show up in the editor's command picker, and you can switch model in place.
 
 The agent runs in AppServer, so your work outlives the editor. For the full list of ACP methods DotCraft implements and how the bridge maps them to AppServer, see the [AppServer Protocol](../extend/protocols/appserver).
 

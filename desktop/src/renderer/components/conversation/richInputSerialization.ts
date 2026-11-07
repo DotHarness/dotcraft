@@ -1,23 +1,17 @@
-import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS, THREAD_REF_CLASS, isRefElement } from './richInputConstants'
-import { CHAT_ICON_SVG, REMOVE_ICON_SVG, SKILL_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
+import { FILE_REF_CLASS, SKILL_REF_CLASS, THREAD_REF_CLASS, isRefElement } from './richInputConstants'
+import { CHAT_ICON_SVG, REMOVE_ICON_SVG, SKILL_ICON_SVG } from './refIconSvgs'
 import { paintFileRefIcon, referenceBaseName } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { formatThreadMention, splitThreadMentions } from '../../utils/threadReferences'
 
 type RefType = Exclude<ComposerDraftSegment, { type: 'text' }>['type']
-type Match = { type: 'file' | 'command' | 'skill'; start: number; end: number; value: string }
-
-export interface RefCatalogCommand {
-  name: string
-  aliases?: string[]
-}
+type Match = { type: 'file' | 'skill'; start: number; end: number; value: string }
 
 export interface RefCatalogSkill {
   name: string
 }
 
 export interface ComposerRefCatalog {
-  commands?: RefCatalogCommand[]
   skills?: RefCatalogSkill[]
 }
 
@@ -60,11 +54,6 @@ export function createRefSpan(kind: RefType, value: string, title = value): HTML
     label.textContent = referenceBaseName(value)
     paintFileRefIcon(icon, value, 14)
     span.title = value
-  } else if (kind === 'command') {
-    span.className = `${COMMAND_REF_CLASS} dc-ref dc-ref-command`
-    span.setAttribute('data-command', value)
-    label.textContent = value.startsWith('/') ? value.slice(1) : value
-    icon.innerHTML = TERMINAL_ICON_SVG
   } else if (kind === 'thread') {
     span.className = `${THREAD_REF_CLASS} dc-ref dc-ref-thread`
     span.setAttribute('data-thread-id', value)
@@ -96,11 +85,6 @@ export function collectComposerDraftSegments(root: HTMLElement): ComposerDraftSe
       if (relativePath) out.push({ type: 'file', relativePath })
       return
     }
-    if (node.classList.contains(COMMAND_REF_CLASS)) {
-      const command = node.getAttribute('data-command') ?? ''
-      if (command) out.push({ type: 'command', command })
-      return
-    }
     if (node.classList.contains(SKILL_REF_CLASS)) {
       const skillName = node.getAttribute('data-skill') ?? ''
       if (skillName) out.push({ type: 'skill', skillName })
@@ -130,7 +114,6 @@ export function stringifyComposerDraftSegments(segments: ComposerDraftSegment[])
   for (const seg of segments) {
     if (seg.type === 'text') out += seg.value
     else if (seg.type === 'file') out += `@${seg.relativePath}`
-    else if (seg.type === 'command') out += seg.command
     else if (seg.type === 'thread') out += formatThreadMention(seg.threadId, seg.title)
     else out += serializeSkillMarker(seg.skillName)
   }
@@ -156,11 +139,6 @@ export function buildEditorFragmentFromSegments(
     }
     if (seg.type === 'file') {
       frag.appendChild(createRefSpan('file', seg.relativePath))
-      if (addSpacers) frag.appendChild(document.createTextNode('\u00a0'))
-      continue
-    }
-    if (seg.type === 'command') {
-      frag.appendChild(createRefSpan('command', seg.command))
       if (addSpacers) frag.appendChild(document.createTextNode('\u00a0'))
       continue
     }
@@ -198,50 +176,8 @@ function findNextFileRef(text: string, from: number): Match | null {
   return null
 }
 
-function findNextSkillRef(text: string, from: number): Match | null {
-  let i = from
-  while (i < text.length) {
-    if (text[i] === '$' && (i === 0 || /\s/.test(text[i - 1]!))) {
-      let j = i + 1
-      while (j < text.length && /[a-z0-9_-]/i.test(text[j]!)) {
-        j++
-      }
-      const skillName = text.slice(i + 1, j)
-      if (skillName.length > 0) {
-        return {
-          type: 'skill',
-          start: i,
-          end: j,
-          value: skillName
-        }
-      }
-    }
-    i++
-  }
-  return null
-}
-
-function normalizeCommandToken(token: string): string {
-  const trimmed = token.trim()
-  if (!trimmed) return ''
-  return (trimmed.startsWith('/') ? trimmed : `/${trimmed}`).toLowerCase()
-}
-
 function normalizeSkillToken(token: string): string {
   return token.trim().replace(/^[$/]+/, '').toLowerCase()
-}
-
-function commandCatalogSet(commands: RefCatalogCommand[] | undefined): Set<string> {
-  const set = new Set<string>()
-  for (const command of commands ?? []) {
-    const name = normalizeCommandToken(command.name)
-    if (name) set.add(name)
-    for (const alias of command.aliases ?? []) {
-      const normalized = normalizeCommandToken(alias)
-      if (normalized) set.add(normalized)
-    }
-  }
-  return set
 }
 
 function skillCatalogSet(skills: RefCatalogSkill[] | undefined): Set<string> {
@@ -276,32 +212,9 @@ function findNextSkillRefWithCatalog(text: string, from: number, skills: Set<str
   return null
 }
 
-function isLegacyCommandToken(token: string): boolean {
-  return /^\/[a-z0-9][a-z0-9-]*$/i.test(token)
-}
-
-function findNextCommandRef(text: string, from: number): Match | null {
-  let i = from
-  while (i < text.length) {
-    if (text[i] === '/' && (i === 0 || /\s/.test(text[i - 1]!))) {
-      let j = i + 1
-      while (j < text.length && !/\s/.test(text[j]!)) {
-        j++
-      }
-      const token = text.slice(i, j)
-      if (isLegacyCommandToken(token)) {
-        return { type: 'command', start: i, end: j, value: token }
-      }
-    }
-    i++
-  }
-  return null
-}
-
 function findNextSlashRefWithCatalog(
   text: string,
   from: number,
-  commands: Set<string>,
   skills: Set<string>
 ): Match | null {
   let i = from
@@ -312,10 +225,7 @@ function findNextSlashRefWithCatalog(
         j++
       }
       const token = text.slice(i, j)
-      if (commands.has(normalizeCommandToken(token))) {
-        return { type: 'command', start: i, end: j, value: token }
-      }
-      if (isLegacyCommandToken(token) && skills.has(normalizeSkillToken(token))) {
+      if (/^\/[a-z0-9][a-z0-9-]*$/i.test(token) && skills.has(normalizeSkillToken(token))) {
         return { type: 'skill', start: i, end: j, value: token.slice(1) }
       }
     }
@@ -324,64 +234,24 @@ function findNextSlashRefWithCatalog(
   return null
 }
 
-export function parseLegacyComposerText(text: string): ComposerDraftSegment[] {
-  const out: ComposerDraftSegment[] = []
-  let cursor = 0
-
-  while (cursor < text.length) {
-    const matches = [
-      findNextFileRef(text, cursor),
-      findNextCommandRef(text, cursor),
-      findNextSkillRef(text, cursor)
-    ].filter((match): match is Match => match != null)
-
-    if (matches.length === 0) {
-      pushTextSegment(out, text.slice(cursor))
-      break
-    }
-
-    const next = matches.reduce((best, match) => {
-      if (match.start < best.start) return match
-      return best
-    })
-
-    if (next.start > cursor) {
-      pushTextSegment(out, text.slice(cursor, next.start))
-    }
-
-    if (next.type === 'file') {
-      out.push({ type: 'file', relativePath: next.value })
-    } else if (next.type === 'command') {
-      out.push({ type: 'command', command: next.value })
-    } else {
-      out.push({ type: 'skill', skillName: next.value })
-    }
-
-    cursor = next.end
-  }
-
-  return out
-}
-
 export function parseComposerTextWithCatalog(
   text: string,
   catalog: ComposerRefCatalog
 ): ComposerDraftSegment[] {
-  const commands = commandCatalogSet(catalog.commands)
   const skills = skillCatalogSet(catalog.skills)
   return splitThreadMentions(text).flatMap((piece) => (
-    piece.type === 'thread' ? [piece] : parseRefsWithCatalog(piece.value, commands, skills)
+    piece.type === 'thread' ? [piece] : parseRefsWithCatalog(piece.value, skills)
   ))
 }
 
-function parseRefsWithCatalog(text: string, commands: Set<string>, skills: Set<string>): ComposerDraftSegment[] {
+function parseRefsWithCatalog(text: string, skills: Set<string>): ComposerDraftSegment[] {
   const out: ComposerDraftSegment[] = []
   let cursor = 0
 
   while (cursor < text.length) {
     const matches = [
       findNextFileRef(text, cursor),
-      findNextSlashRefWithCatalog(text, cursor, commands, skills),
+      findNextSlashRefWithCatalog(text, cursor, skills),
       findNextSkillRefWithCatalog(text, cursor, skills)
     ].filter((match): match is Match => match != null)
 
@@ -401,8 +271,6 @@ function parseRefsWithCatalog(text: string, commands: Set<string>, skills: Set<s
 
     if (next.type === 'file') {
       out.push({ type: 'file', relativePath: next.value })
-    } else if (next.type === 'command') {
-      out.push({ type: 'command', command: next.value })
     } else {
       out.push({ type: 'skill', skillName: next.value })
     }
@@ -448,7 +316,6 @@ function serializeRef(el: HTMLElement): string {
     const p = el.getAttribute('data-relative-path') ?? ''
     return p ? `@${p}` : ''
   }
-  if (el.classList.contains(COMMAND_REF_CLASS)) return el.getAttribute('data-command') ?? ''
   if (el.classList.contains(THREAD_REF_CLASS)) {
     const threadId = el.getAttribute('data-thread-id') ?? ''
     return threadId ? formatThreadMention(threadId, el.getAttribute('data-thread-title') ?? threadId) : ''

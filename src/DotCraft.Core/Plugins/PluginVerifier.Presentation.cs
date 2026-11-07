@@ -84,7 +84,6 @@ public static partial class PluginVerifier
         foreach (var (shipped, names) in new (bool Shipped, string[] Names)[]
                  {
                      (manifest.SkillsPath != null, ["skill", "skills"]),
-                     (manifest.CommandsPath != null, ["command", "commands"]),
                      (manifest.McpServersPath != null, ["mcp"]),
                      (manifest.LspServersPath != null, ["lsp"]),
                      (manifest.AppsPath != null, ["app", "apps"]),

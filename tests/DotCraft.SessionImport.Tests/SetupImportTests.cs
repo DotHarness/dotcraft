@@ -1,8 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Commands.Custom;
-using DotCraft.Configuration;
-using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.SessionImport.Tests;
@@ -28,24 +25,21 @@ public sealed class SetupImportTests : IDisposable
     public void Dispose() => _temp.Dispose();
 
     [Fact]
-    public async Task ImportsBothScopesWithoutChangingSourceAndKeepsCommandsNative()
+    public async Task ImportsBothScopesWithoutChangingSource()
     {
         Write(_roots["claude-code"], "CLAUDE.md", "Claude Code uses CLAUDE.md; myclaude remains.");
         Write(_workspace, "CLAUDE.md", "claude-code project");
-        Write(_roots["claude-code"], "commands/frontend/review.md", "---\ndescription: Claude review\n---\nReview $ARGUMENTS and $1 with Claude.");
         var service = Service();
         var before = await Candidates(service, "claude-code");
         Assert.False(File.Exists(Path.Combine(_user, "AGENTS.md")));
         var completed = await Run(service, "claude-code", before);
-        Assert.Equal(3, completed.Outcomes.Count);
+        Assert.Equal(2, completed.Outcomes.Count);
         Assert.All(completed.Outcomes, item => Assert.Equal("imported", item.Status));
         Assert.Equal("DotCraft uses AGENTS.md; myclaude remains.", File.ReadAllText(Path.Combine(_user, "AGENTS.md")));
         Assert.Equal("DotCraft project", File.ReadAllText(Path.Combine(_workspace, "AGENTS.md")));
         Assert.StartsWith("Claude Code", File.ReadAllText(Path.Combine(_roots["claude-code"], "CLAUDE.md")));
-        var command = new CustomCommandLoader(_data, Path.Combine(_user, "commands")).TryResolve("/frontend:review file.cs");
-        Assert.Equal("Review file.cs and file.cs with DotCraft.", command!.ExpandedPrompt);
         Assert.All(await Candidates(service, "claude-code"), item => Assert.Equal("current", item.State));
-        Assert.Equal(3, Assert.Single(service.ReadHistory()).Outcomes.Count);
+        Assert.Equal(2, Assert.Single(service.ReadHistory()).Outcomes.Count);
     }
 
     [Fact]
@@ -62,24 +56,13 @@ public sealed class SetupImportTests : IDisposable
     [Fact]
     public async Task SourceChangesAfterDetectionRequireNewSelection()
     {
-        Write(_roots["cursor"], "commands/review.md", "Cursor reviews");
+        Write(_roots["cursor"], "skills/review/SKILL.md", "---\nname: review\ndescription: Review\n---\nCursor reviews");
         var service = Service();
         var detected = await Candidates(service, "cursor");
-        Write(_roots["cursor"], "commands/review.md", "Cursor edits");
+        Write(_roots["cursor"], "skills/review/SKILL.md", "---\nname: review\ndescription: Review\n---\nCursor edits");
         var completed = await Run(service, "cursor", detected);
         Assert.Equal("import_source_changed", Assert.Single(completed.Outcomes).ErrorCode.Value);
-        Assert.False(File.Exists(Path.Combine(_user, "commands", "review.md")));
-    }
-
-    [Theory]
-    [InlineData("claude-code", "commands/policy.md", "---\nallowed-tools: Bash\n---\nRun it.")]
-    [InlineData("cursor", "commands/dynamic.md", "Execute !`git status`")]
-    public async Task UnsupportedCommandsAreNotImported(string source, string path, string text)
-    {
-        Write(_roots[source], path, text);
-        var item = Assert.Single(await Candidates(Service(), source));
-        Assert.Equal("unsupported", item.State);
-        Assert.False(Directory.Exists(Path.Combine(_user, "commands")));
+        Assert.False(Directory.Exists(Path.Combine(_user, "skills", "review")));
     }
 
     [Fact]
@@ -149,36 +132,15 @@ public sealed class SetupImportTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginCommandsRemainOwnedAndDisappearWhenPluginDisabled()
-    {
-        var plugin = _temp.CreateDirectory("external-plugin");
-        Write(plugin, ".claude-plugin/plugin.json", "{\"name\":\"review\",\"version\":\"1.0.0\",\"commands\":\"./commands\"}");
-        Write(plugin, "commands/check.md", "Check $ARGUMENTS with Claude");
-        Write(_roots["claude-code"], "settings.json", "{\"enabledPlugins\":{\"review@market\":true}}");
-        Write(_roots["claude-code"], "plugins/installed_plugins.json", JsonSerializer.Serialize(new
-        {
-            plugins = new Dictionary<string, object> { ["review@market"] = new[] { new { scope = "user", installPath = plugin } } }
-        }));
-        var service = Service();
-        var completed = await Run(service, "claude-code", await Candidates(service, "claude-code"));
-        Assert.Equal("imported", Assert.Single(completed.Outcomes).Status);
-        var loader = new CustomCommandLoader(_data, Path.Combine(_user, "commands"));
-        Assert.Equal("Check code with DotCraft", loader.TryResolve("/claude-code.review.market:check code")!.ExpandedPrompt);
-        AtomicConfigDocument.Update(Path.Combine(_user, "config.json"), root => root["Plugins"] = JsonNode.Parse("{\"DisabledPlugins\":[\"claude-code.review.market\"]}"));
-        Assert.Null(loader.TryResolve("/claude-code.review.market:check code"));
-        Assert.True(File.Exists(Path.Combine(plugin, ".claude-plugin", "plugin.json")));
-    }
-
-    [Fact]
     public async Task SelectionIsSavedAndDeletingDestinationAllowsReimport()
     {
-        Write(_roots["cursor"], "commands/check.md", "Cursor check");
+        Write(_roots["cursor"], "skills/check/SKILL.md", "---\nname: check\ndescription: Check\n---\nCursor check");
         var service = Service();
         await Run(service, "cursor", await Candidates(service, "cursor"));
-        Assert.Contains("commands", service.GetSettings().Selection.User);
+        Assert.Contains("skills", service.GetSettings().Selection.User);
         service.UpdateSettings(false, null);
-        Assert.Contains("commands", service.GetSettings().Selection.User);
-        File.Delete(Path.Combine(_user, "commands", "check.md"));
+        Assert.Contains("skills", service.GetSettings().Selection.User);
+        Directory.Delete(Path.Combine(_user, "skills", "check"), recursive: true);
         Assert.Equal("new", Assert.Single(await Candidates(service, "cursor")).State);
     }
 

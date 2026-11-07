@@ -1,6 +1,6 @@
 # Import From Other Agents
 
-Bring your tools, project instructions, and chats from Claude Code, ChatGPT, or Cursor into DotCraft. Keep using familiar skills and commands, read earlier conversations, and continue those chats here.
+Bring your tools, project instructions, and chats from Claude Code, ChatGPT, or Cursor into DotCraft. Keep using familiar skills, read earlier conversations, and continue those chats here.
 
 Only chats recorded for the open project come over. Chats from other folders stay where they are.
 
@@ -17,7 +17,7 @@ Only chats recorded for the open project come over. Chats from other folders sta
 
 **Tools & setup** applies to all DotCraft projects on the current host. **Current project configuration** applies only to the open project. When connected remotely, both the source files and destinations are on the remote host.
 
-DotCraft imports skills, instructions, commands, hooks, MCP servers, and plugins. Instructions become `AGENTS.md`; commands remain slash commands. Product names in imported instructions, skill descriptions and commands are adapted to DotCraft. Plugin contents stay with their plugin.
+DotCraft imports skills, instructions, hooks, MCP servers, and plugins. Instructions become `AGENTS.md`. Product names in imported instructions and skill descriptions are adapted to DotCraft. Plugin contents stay with their plugin.
 
 After importing, use **Needs attention** to review hooks or finish connecting tools. Hooks remain inactive until trusted. **Import history** shows what succeeded, failed, or needs review, with links to the imported content.
 

@@ -15,7 +15,6 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | `models.json` | 模型上下文窗口与 Fast Mode 支持 | [模型与 Provider](./models#模型能力目录) |
 | `model-thinking-adapters.json` | 推理请求的形状 | [模型与 Provider](./models#reasoning-与-promptcaching) |
 | `plugin-config.json` | 插件声明的设置 | [插件、MCP 与 LSP](./plugins#插件设置文件) |
-| `commands/` | 自定义 `/` 命令 | [对话](./conversations#自定义命令) |
 | `<渠道>.json` | 渠道适配器，仅工作区 | [渠道](./channels) |
 
 改了设置之后何时生效，见[设置生效层级](./settings-lifecycle)。

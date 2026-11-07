@@ -42,7 +42,6 @@ To have the agent write a plugin for you, start with `$plugin-creator`. It uses 
 | `description` | string | What the plugin does |
 | `capabilities` | string[] | Contribution kinds the plugin ships, such as `skill`, `mcp`, or `desktop` |
 | `skills` | path | Directory with one subdirectory per skill |
-| `commands` | path | Directory of Markdown custom commands |
 | `mcpServers` | path | MCP server config. Defaults to a root `.mcp.json` |
 | `lspServers` | path | Language server config. Defaults to a root `.lsp.json` |
 | `hooks` | path, array, or object | Lifecycle hooks. Defaults to a root `hooks/hooks.json` |

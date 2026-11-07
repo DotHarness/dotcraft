@@ -109,7 +109,6 @@ export interface FakeComputerSeed {
   credentials?: Record<string, string>
   profiles?: { id: string; name: string }[]
   providers?: FakeProvider[]
-  commands?: { name: string; description: string; category: 'builtin' | 'custom' }[]
   skills?: { name: string; description: string; enabled: boolean }[]
   files?: Record<string, string>
   background?: FakeBackgroundSeed
@@ -173,7 +172,6 @@ export class FakeComputer {
   private readonly pairingCodes: Set<string>
   private readonly profiles: { id: string; name: string }[]
   private readonly providers: FakeProvider[]
-  private readonly commands: NonNullable<FakeComputerSeed['commands']>
   private readonly skills: NonNullable<FakeComputerSeed['skills']>
   private readonly accountUsage: FakeComputerSeed['accountUsage']
   private readonly connections = new Map<string, Connection>()
@@ -193,7 +191,6 @@ export class FakeComputer {
     this.credentials = new Map(Object.entries(seed.credentials ?? {}))
     this.profiles = seed.profiles ?? []
     this.providers = seed.providers ?? []
-    this.commands = seed.commands ?? []
     this.skills = seed.skills ?? []
     this.accountUsage = seed.accountUsage
     this.files = new FakeFiles(this.projects.flatMap((project) => (project.path ? [project.path] : [])), seed.files)
@@ -368,7 +365,6 @@ export class FakeComputer {
               modelCatalogManagement: this.providers.length > 0,
               providerManagement: this.providers.length > 0,
               fileSystem: true,
-              commandManagement: this.commands.length > 0,
               skillsManagement: this.skills.length > 0,
               manualCompaction: true,
               workspaceConfigManagement: true,
@@ -399,14 +395,6 @@ export class FakeComputer {
         if (!provider) return { result: { success: false, providerId: params.providerId ?? null, models: [], errorCode: 'ProviderNotFound' } }
         return { result: { success: true, providerId: provider.id, models: provider.models } }
       }
-      case 'command/list':
-        return {
-          result: {
-            commands: this.commands
-              .filter((command) => params.includeBuiltins !== false || command.category === 'custom')
-              .map((command) => ({ ...command, name: `/${command.name}`, aliases: [], descriptionKey: '', fallbackDescription: command.description, requiresAdmin: false })),
-          },
-        }
       case 'skills/list':
         return { result: { skills: this.skills.map((skill) => ({ ...skill, source: 'workspace', path: `${project.path ?? ''}/.craft/skills/${skill.name}/SKILL.md`, metadata: {} })) } }
       case 'thread/start': {

@@ -311,7 +311,6 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'plan.collapse': '收起计划',
   'plan.copy': '复制计划',
   'references.label': '命令和技能',
-  'references.commands': '命令',
   'references.skills': '技能',
 
   'newChat.title': '新聊天',

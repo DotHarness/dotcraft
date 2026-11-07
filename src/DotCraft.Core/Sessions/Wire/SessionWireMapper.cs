@@ -291,7 +291,6 @@ public static class SessionWireMapper
         part.Type switch
         {
             "text" => new TextContent(part.Text ?? string.Empty),
-            "commandRef" => new TextContent(BuildCommandRefText(part)),
             "skillRef" => new TextContent(BuildSkillRefText(part)),
             "fileRef" => new TextContent(BuildFileRefText(part)),
             "image" => SessionInputPartResolver.ResolvePersistedImage(part.Url),
@@ -314,7 +313,6 @@ public static class SessionWireMapper
             sb.Append(part.Type switch
             {
                 "text" => part.Text ?? string.Empty,
-                "commandRef" => BuildCommandRefText(part),
                 "skillRef" => $"${part.Name?.TrimStart('/', '$') ?? string.Empty}",
                 "fileRef" => $"@{(part.DisplayPath ?? part.Path ?? string.Empty)}",
                 _ => string.Empty
@@ -376,21 +374,6 @@ public static class SessionWireMapper
             SystemEventPayload => "systemEvent",
             _ => null
         };
-
-    private static string BuildCommandRefText(SessionInputPart part)
-    {
-        if (!string.IsNullOrWhiteSpace(part.RawText))
-            return part.RawText.Trim();
-
-        var name = part.Name?.Trim().TrimStart('/', '$') ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(name))
-            return string.Empty;
-
-        var args = part.ArgsText?.Trim();
-        return string.IsNullOrWhiteSpace(args)
-            ? $"/{name}"
-            : $"/{name} {args}";
-    }
 
     private static string BuildSkillRefText(SessionInputPart part)
     {

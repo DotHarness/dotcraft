@@ -55,7 +55,6 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.Memory, 1100, WorkspaceContextPromptSections.Memory),
         (SystemPromptSectionNames.ActiveSkills, 1300, SkillPromptSections.ActiveSkills),
         (SystemPromptSectionNames.SkillsSummary, 1400, SkillPromptSections.SkillsSummary),
-        (SystemPromptSectionNames.CustomCommands, 1500, WorkspaceContextPromptSections.CustomCommands),
         (SystemPromptSectionNames.ChatContext, 1600, ProviderPromptSections.ChatContext),
         (SystemPromptSectionNames.ThreadContext, 1700, ProviderPromptSections.ThreadContext),
         (SystemPromptSectionNames.DeferredTools, 1800, ProviderPromptSections.DeferredTools)

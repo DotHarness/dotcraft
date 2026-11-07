@@ -10,9 +10,9 @@ describe('import category location', () => {
       located('skills', '/home/me/.agent/skills/pdf', '/home/me/.craft/skills/pdf')
     ])).toEqual({ source: '~/.agent/skills', target: '~/.craft/skills' })
     expect(categoryLocation([
-      located('commands', 'C:\\Users\\Me\\.agent\\commands\\deploy\\staging.md', 'C:\\Users\\Me\\.craft\\commands\\deploy\\staging.md'),
-      located('commands', 'C:\\Users\\Me\\.agent\\commands\\review.md', 'C:\\Users\\Me\\.craft\\commands\\review.md')
-    ])).toEqual({ source: '~/.agent/commands', target: '~/.craft/commands' })
+      located('skills', 'C:\\Users\\Me\\.agent\\skills\\deploy\\staging', 'C:\\Users\\Me\\.craft\\skills\\deploy\\staging'),
+      located('skills', 'C:\\Users\\Me\\.agent\\skills\\review', 'C:\\Users\\Me\\.craft\\skills\\review')
+    ])).toEqual({ source: '~/.agent/skills', target: '~/.craft/skills' })
   })
 
   it('shows project files relative to the workspace, ignoring Windows case differences', () => {
