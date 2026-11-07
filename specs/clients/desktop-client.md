@@ -219,6 +219,8 @@ A client that displays multiple workspaces routes each notification with the wor
 
 ### 4.4 Approval Events
 
+Sidebar approval and user-input waiting indicators take precedence over running indicators and remain visible on the selected thread. Selecting a thread preserves its unresolved waiting state.
+
 | Protocol event | UX behavior |
 |---------------|-------------|
 | `item/approval/request` | The thread enters a waiting-for-decision state; the approval becomes the highest-priority interaction. |

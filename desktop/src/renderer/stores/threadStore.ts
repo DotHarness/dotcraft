@@ -309,7 +309,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
           runningTurnThreadIds.delete(thread.id)
         }
 
-        if (snapshot.waitingOnApproval && !isActive && isDesktopOrigin) {
+        if (snapshot.waitingOnApproval && isDesktopOrigin) {
           pendingApprovalThreadIds.add(thread.id)
         } else {
           pendingApprovalThreadIds.delete(thread.id)
@@ -318,7 +318,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
           }
         }
 
-        if (snapshot.waitingOnInput && !isActive && isDesktopOrigin) {
+        if (snapshot.waitingOnInput && isDesktopOrigin) {
           pendingUserInputThreadIds.add(thread.id)
         } else {
           pendingUserInputThreadIds.delete(thread.id)
@@ -561,15 +561,9 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
       const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
       pendingPlanConfirmationThreadIds.delete(id)
-      const pendingApprovalThreadIds = new Set(state.pendingApprovalThreadIds)
-      pendingApprovalThreadIds.delete(id)
-      const pendingUserInputThreadIds = new Set(state.pendingUserInputThreadIds)
-      pendingUserInputThreadIds.delete(id)
       return {
         activeThreadId: id,
         activeThreadLoadError: null,
-        pendingApprovalThreadIds,
-        pendingUserInputThreadIds,
         pendingPlanConfirmationThreadIds
       }
     })

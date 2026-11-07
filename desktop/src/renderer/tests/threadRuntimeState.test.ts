@@ -77,6 +77,28 @@ describe('thread runtime synchronization', () => {
     expect(store().threadList[0].runtime).toMatchObject({ activeTurnId: null, waitingOnPlanConfirmation: true })
   })
 
+  it.each(['list', 'event'] as const)('preserves pending interactions through selection and %s refresh until resolution', (source) => {
+    store().setThreadList([thread('waiting'), thread('other')])
+    store().setActiveThreadId('waiting')
+    const update = (runtime: ThreadRuntimeSnapshot): void => {
+      if (source === 'list') store().setThreadList([thread('waiting', runtime), thread('other')])
+      else store().applyRuntimeSnapshot('waiting', runtime, options)
+    }
+
+    update({ ...running, waitingOnApproval: true, waitingOnInput: true })
+    expect(store().pendingApprovalThreadIds.has('waiting')).toBe(true)
+    expect(store().pendingUserInputThreadIds.has('waiting')).toBe(true)
+    store().setActiveThreadId('other')
+    store().setActiveThreadId('waiting')
+    expect(store().pendingApprovalThreadIds.has('waiting')).toBe(true)
+    expect(store().pendingUserInputThreadIds.has('waiting')).toBe(true)
+
+    update(running)
+    expect(store().pendingApprovalThreadIds.has('waiting')).toBe(false)
+    expect(store().pendingUserInputThreadIds.has('waiting')).toBe(false)
+    expect(store().runningTurnThreadIds.has('waiting')).toBe(true)
+  })
+
   it('updates child runtime without inserting unknown rows', () => {
     store().setThreadList([{
       ...thread('child'), originChannel: 'subagent',

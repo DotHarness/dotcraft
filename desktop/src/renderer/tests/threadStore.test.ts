@@ -480,7 +480,7 @@ describe('threadStore indicator state', () => {
     expect(s().parkedUserInputs.has('t1')).toBe(false)
   })
 
-  it('tracks and clears pending plan on thread activation', () => {
+  it('preserves unresolved approval state while clearing plan attention on thread activation', () => {
     s().applyRuntimeSnapshot('thread-a', {
       running: false,
       waitingOnApproval: true,
@@ -494,7 +494,7 @@ describe('threadStore indicator state', () => {
     expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
 
     s().setActiveThreadId('thread-a')
-    expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(false)
+    expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
     expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(false)
   })
 
