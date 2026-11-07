@@ -155,6 +155,8 @@
 }
 
 .dc-tool-children {
+  display: flex;
+  flex-direction: column;
   max-height: 224px;
   margin: 0 0 4px;
   overflow-y: auto;
