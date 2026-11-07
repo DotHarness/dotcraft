@@ -1506,7 +1506,7 @@ export const MESSAGES_DE = {
   'settings.permissions.fullAccess.warningConfirm': 'Vollzugriff aktivieren',
   'settings.permissions.saveFailed': 'Berechtigungseinstellung konnte nicht gespeichert werden: {{error}}',
   'settings.codeMode.label': 'Werkzeugaufrufe per Skript',
-  'settings.codeMode.description': 'Ihr Agent kann mehrere Werkzeugaufrufe in einem Skript bündeln, sodass weniger Rundläufe zum Modell nötig sind.',
+  'settings.codeMode.description': 'Bündelt Werkzeugaufrufe in einem Skript: spart Tokens und läuft schneller.',
   'settings.codeMode.off.label': 'Aus',
   'settings.codeMode.off.description': 'Jedes Werkzeug direkt aufrufen.',
   'settings.codeMode.on.label': 'Zusätzlich zu Werkzeugen',

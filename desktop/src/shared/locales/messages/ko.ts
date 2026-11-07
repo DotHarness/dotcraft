@@ -1508,7 +1508,7 @@ export const MESSAGES_KO = {
   'settings.permissions.fullAccess.warningConfirm': '전체 액세스 활성화',
   'settings.permissions.saveFailed': '권한 설정을 저장하지 못했습니다: {{error}}',
   'settings.codeMode.label': '스크립트 도구 호출',
-  'settings.codeMode.description': '에이전트가 여러 도구 호출을 하나의 스크립트로 묶어 모델과 주고받는 횟수를 줄입니다.',
+  'settings.codeMode.description': '스크립트로 도구를 한 번에 호출해 토큰을 아끼고 더 빠르게 실행합니다.',
   'settings.codeMode.off.label': '끄기',
   'settings.codeMode.off.description': '각 도구를 직접 호출합니다.',
   'settings.codeMode.on.label': '도구와 함께 사용',

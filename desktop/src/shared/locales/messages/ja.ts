@@ -1506,7 +1506,7 @@ export const MESSAGES_JA = {
   'settings.permissions.fullAccess.warningConfirm': 'フルアクセスを有効にする',
   'settings.permissions.saveFailed': '権限設定を保存できませんでした: {{error}}',
   'settings.codeMode.label': 'スクリプトによるツール呼び出し',
-  'settings.codeMode.description': 'エージェントが複数のツール呼び出しを 1 つのスクリプトにまとめ、モデルとのやり取りを減らします。',
+  'settings.codeMode.description': 'スクリプトでツールをまとめて呼び出し、トークンを節約して高速化します。',
   'settings.codeMode.off.label': 'オフ',
   'settings.codeMode.off.description': '各ツールを直接呼び出します。',
   'settings.codeMode.on.label': 'ツールと併用',

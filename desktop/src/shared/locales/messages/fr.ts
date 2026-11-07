@@ -1506,7 +1506,7 @@ export const MESSAGES_FR = {
   'settings.permissions.fullAccess.warningConfirm': 'Activer l\'accès complet',
   'settings.permissions.saveFailed': 'Échec de l\'enregistrement du paramètre d\'autorisation : {{error}}',
   'settings.codeMode.label': 'Appels d’outils par script',
-  'settings.codeMode.description': 'Permet à votre agent de regrouper plusieurs appels d’outils dans un seul script, avec moins d’allers-retours vers le modèle.',
+  'settings.codeMode.description': 'Regroupe les appels d’outils dans un script : moins de jetons, plus de vitesse.',
   'settings.codeMode.off.label': 'Désactivé',
   'settings.codeMode.off.description': 'Appeler chaque outil directement.',
   'settings.codeMode.on.label': 'En plus des outils',

@@ -1458,7 +1458,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.permissions.fullAccess.warningConfirm': '启用完全访问权限',
   'settings.permissions.saveFailed': '保存权限设置失败：{{error}}',
   'settings.codeMode.label': '脚本化工具调用',
-  'settings.codeMode.description': '让智能体把多次工具调用合并成一段脚本，减少与模型的往返。',
+  'settings.codeMode.description': '用脚本批量调用工具，节省 Token，运行更快。',
   'settings.codeMode.off.label': '关闭',
   'settings.codeMode.off.description': '逐个直接调用工具。',
   'settings.codeMode.on.label': '与工具并用',

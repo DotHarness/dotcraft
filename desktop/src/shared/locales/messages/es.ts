@@ -1506,7 +1506,7 @@ export const MESSAGES_ES = {
   'settings.permissions.fullAccess.warningConfirm': 'Habilitar acceso completo',
   'settings.permissions.saveFailed': 'No se pudo guardar la configuración de permisos: {{error}}',
   'settings.codeMode.label': 'Llamadas a herramientas con scripts',
-  'settings.codeMode.description': 'Permite que tu agente combine varias llamadas a herramientas en un solo script, con menos idas y vueltas al modelo.',
+  'settings.codeMode.description': 'Agrupa llamadas a herramientas en un script: menos tokens y más velocidad.',
   'settings.codeMode.off.label': 'Desactivado',
   'settings.codeMode.off.description': 'Llama a cada herramienta directamente.',
   'settings.codeMode.on.label': 'Junto con las herramientas',

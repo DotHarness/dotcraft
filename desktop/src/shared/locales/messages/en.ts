@@ -1337,7 +1337,7 @@ export const MESSAGES_EN = {
   'settings.permissions.fullAccess.warningConfirm': 'Enable full access',
   'settings.permissions.saveFailed': 'Failed to save permissions setting: {{error}}',
   'settings.codeMode.label': 'Scripted tool calls',
-  'settings.codeMode.description': 'Let the agent combine several tool calls into one script, so fewer round trips reach the model.',
+  'settings.codeMode.description': 'Batch tool calls in a script to save tokens and run faster.',
   'settings.codeMode.off.label': 'Off',
   'settings.codeMode.off.description': 'Call each tool directly.',
   'settings.codeMode.on.label': 'Alongside tools',
