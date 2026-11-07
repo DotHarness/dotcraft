@@ -78,7 +78,7 @@ function setup(options: {
   responder?: Responder
   computers?: StoredComputer[]
   vault?: Partial<CredentialVault>
-  ownComputerId?: string | null
+  ownComputerId?: () => Promise<string | null>
   appVersion?: string
 } = {}) {
   let saved = options.computers ?? []
@@ -106,7 +106,7 @@ function setup(options: {
       sockets.push(socket)
       return socket as never
     },
-    ownComputerId: async () => options.ownComputerId ?? null,
+    ownComputerId: options.ownComputerId ?? (async () => null),
     appVersion: options.appVersion ?? '0.10.4',
     enforceVersion: true,
     device: { displayName: 'Laptop', platform: 'windows', osVersion: '11' },
@@ -150,7 +150,7 @@ describe('PairedComputersManager pairing', () => {
     const invalid = setup()
     expect(await invalid.manager.pair('https://example.com')).toEqual({ ok: false, code: 'invalidLink' })
 
-    const own = setup({ ownComputerId: 'computer-1' })
+    const own = setup({ ownComputerId: async () => 'computer-1' })
     expect(await own.manager.pair(LINK)).toEqual({ ok: false, code: 'ownComputer' })
 
     const noVault = setup({ vault: { available: () => false } })
@@ -166,6 +166,20 @@ describe('PairedComputersManager pairing', () => {
   ])('reports a refused pairing', async (response, code) => {
     const { manager, saved } = setup({ responder: gateway({ 'POST /m/pair': () => response }) })
     expect(await manager.pair(LINK)).toEqual({ ok: false, code })
+    expect(saved()).toEqual([])
+  })
+
+  it('does not contact or save a computer after cancelling during the local identity lookup', async () => {
+    let resolveIdentity!: (id: string | null) => void
+    const { manager, requests, saved } = setup({
+      ownComputerId: () => new Promise((resolve) => { resolveIdentity = resolve })
+    })
+    const pending = manager.pair(LINK)
+    manager.cancelPairing()
+    resolveIdentity(null)
+
+    expect((await pending).ok).toBe(false)
+    expect(requests).toEqual([])
     expect(saved()).toEqual([])
   })
 
@@ -311,7 +325,27 @@ describe('PairedComputersManager projects', () => {
     const opened = await manager.openProject('computer-1', 'p1')
     opened.bridge.close()
     expect(ensured).toBe(1)
-    await expect(manager.openProject('computer-1', 'gone')).rejects.toThrow(/no longer on the computer/)
+    await expect(manager.openProject('computer-1', 'gone')).rejects.toMatchObject({ retryable: false })
+  })
+
+  it('distinguishes a transient project request failure from an identity change', async () => {
+    let failure: Error | null = null
+    const { manager } = setup({
+      computers: [stored()],
+      responder: gateway({ 'GET /m/projects': () => {
+        if (failure) throw failure
+        return json(200, { projects: [PROJECT] })
+      } })
+    })
+    manager.start()
+    await settle()
+    failure = new Error('unreachable')
+    await expect(manager.openProject('computer-1', 'p1')).rejects.toMatchObject({ retryable: true })
+
+    failure = Object.assign(new Error('pin'), { code: PIN_MISMATCH })
+    await expect(manager.openProject('computer-1', 'p1')).rejects.toMatchObject({ retryable: false })
+    expect(manager.list()[0].status).toBe('identityChanged')
+    manager.dispose()
   })
 
   it('opening saves the project and refuses a computer that needs an update', async () => {
@@ -327,7 +361,7 @@ describe('PairedComputersManager projects', () => {
     const outdated = setup({ computers: [stored()], appVersion: '0.11.0' })
     outdated.manager.start()
     await settle()
-    await expect(outdated.manager.openProject('computer-1', 'p1')).rejects.toThrow(/Update DotCraft/)
+    await expect(outdated.manager.openProject('computer-1', 'p1')).rejects.toMatchObject({ retryable: false })
     expect(outdated.saved()[0].projects).toEqual([])
   })
 })

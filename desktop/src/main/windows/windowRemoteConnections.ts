@@ -76,25 +76,40 @@ export function hasRecoverableActiveRemoteStack(ctx: DesktopWindowRuntime): bool
   const ref = ctx.settings.activeRemoteStack
   const projectRef = ctx.settings.activeRemoteProject
   const deviceRef = ctx.settings.activeRemoteDevice
-  return Boolean(
-    (ref?.hostId && ref.stackId) ||
-      (projectRef?.machineId && projectRef.projectId) ||
-      (deviceRef?.computerId && deviceRef.projectId)
-  )
+  if (deviceRef) {
+    const computer = ctx.app.pairedComputers.list().find((entry) => entry.computerId === deviceRef.computerId)
+    return Boolean(
+      computer &&
+        computer.status !== 'identityChanged' &&
+        computer.status !== 'updateRequired' &&
+        computer.projects.some(
+          (project) => project.projectId === deviceRef.projectId && (computer.status !== 'connected' || !project.unavailable)
+        )
+    )
+  }
+  return Boolean((ref?.hostId && ref.stackId) || (projectRef?.machineId && projectRef.projectId))
 }
 
 export function scheduleActiveRemoteStackReconnect(ctx: DesktopWindowRuntime, reason: string): void {
   if (!ctx.hasRecoverableActiveRemoteStack()) return
   if (ctx.activeRemoteReconnectTimer) return
 
+  const deviceRef = ctx.settings.activeRemoteDevice
+  const workspacePath = ctx.currentWorkspacePath
   const delayMs = Math.min(30_000, 1_000 * 2 ** ctx.activeRemoteReconnectAttempt)
   ctx.activeRemoteReconnectAttempt += 1
   console.info(
-    `[desktop] active remote stack disconnected (${reason}); rebuilding SSH tunnel in ${delayMs}ms`
+    `[desktop] active remote project disconnected (${reason}); reconnecting in ${delayMs}ms`
   )
   ctx.activeRemoteReconnectTimer = setTimeout(() => {
     ctx.activeRemoteReconnectTimer = null
     if (!ctx.hasRecoverableActiveRemoteStack()) return
+    if (
+      deviceRef &&
+      (ctx.currentWorkspacePath !== workspacePath ||
+        ctx.settings.activeRemoteDevice?.computerId !== deviceRef.computerId ||
+        ctx.settings.activeRemoteDevice?.projectId !== deviceRef.projectId)
+    ) return
     void ctx.connectToAppServer(ctx.currentWorkspacePath).catch((error) => {
       const message = error instanceof Error ? error.message : String(error)
       console.warn('[desktop] active remote stack reconnect failed', message)

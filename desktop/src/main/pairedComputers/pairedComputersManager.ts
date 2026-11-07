@@ -51,6 +51,12 @@ export interface OpenedPairedProject {
   bridge: AppServerBridge
 }
 
+export class PairedProjectOpenError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message)
+  }
+}
+
 interface Runtime {
   client: GatewayClient
   status: PairedComputerStatus
@@ -125,9 +131,11 @@ export class PairedComputersManager {
     const offer = parsePairingUrl(link)
     if (!offer) return { ok: false, code: 'invalidLink' }
     if (!this.deps.vault.available()) return { ok: false, code: 'storageUnavailable' }
-    if ((await this.deps.ownComputerId().catch(() => null)) === offer.id) return { ok: false, code: 'ownComputer' }
-
     const run = ++this.pairingRun
+    const ownComputerId = await this.deps.ownComputerId().catch(() => null)
+    if (run !== this.pairingRun) return { ok: false, code: 'pairingCodeInvalid' }
+    if (ownComputerId === offer.id) return { ok: false, code: 'ownComputer' }
+
     const client = new GatewayClient(this.deps.native, this.targetFromOffer(offer), null)
     let request: PairRequest = {
       code: offer.code,
@@ -197,21 +205,35 @@ export class PairedComputersManager {
     this.start()
     const computer = this.computers.get(computerId)
     const runtime = this.runtimes.get(computerId)
-    if (!computer || !runtime) throw new Error('This computer is no longer paired.')
-    if (runtime.status !== 'connected') await this.connect(computerId)
+    if (!computer || !runtime) throw new PairedProjectOpenError('This computer is no longer paired.', false)
+    if (runtime.status !== 'connected' && runtime.status !== 'identityChanged') await this.connect(computerId)
     if (runtime.status === 'updateRequired') {
-      throw new Error(`Update DotCraft on ${computer.name} to ${this.deps.appVersion} or newer first.`)
+      throw new PairedProjectOpenError(`Update DotCraft on ${computer.name} to ${this.deps.appVersion} or newer first.`, false)
     }
-    if (runtime.status !== 'connected') throw new Error(`${computer.name} is not reachable right now.`)
+    if (!this.computers.has(computerId) || runtime.status === 'identityChanged') {
+      throw new PairedProjectOpenError('This computer must be paired again.', false)
+    }
+    if (runtime.status !== 'connected') throw new PairedProjectOpenError(`${computer.name} is not reachable right now.`, true)
 
-    runtime.listed = await runtime.client.projects()
-    const listed = runtime.listed.find((project) => project.projectId === projectId)
-    if (!listed) throw new Error('This project is no longer on the computer.')
-    const ensured = listed.running ? listed : await runtime.client.ensure(projectId)
-    this.saveProject(computerId, ensured)
-    const path = `/m/projects/${encodeURIComponent(projectId)}/appserver`
-    const bridge = await openAppServerBridge(() => this.deps.openSocket(runtime.client.socket(path)))
-    return { computer, project: this.storedProject(ensured), bridge }
+    try {
+      runtime.listed = await runtime.client.projects()
+      const listed = runtime.listed.find((project) => project.projectId === projectId)
+      if (!listed) throw new PairedProjectOpenError('This project is no longer on the computer.', false)
+      const ensured = listed.running ? listed : await runtime.client.ensure(projectId)
+      this.saveProject(computerId, ensured)
+      const path = `/m/projects/${encodeURIComponent(projectId)}/appserver`
+      const bridge = await openAppServerBridge(() => this.deps.openSocket(runtime.client.socket(path)))
+      return { computer, project: this.storedProject(ensured), bridge }
+    } catch (error) {
+      if (error instanceof PairedProjectOpenError) throw error
+      if (isUnauthorized(error) || (error instanceof GatewayUnreachableError && error.mismatch)) {
+        this.handleFailure(computerId, runtime, error)
+      }
+      const retryable = error instanceof GatewayUnreachableError
+        ? !error.mismatch
+        : error instanceof GatewayError && error.status >= 500
+      throw new PairedProjectOpenError(error instanceof Error ? error.message : String(error), retryable)
+    }
   }
 
   private targetFromOffer(offer: PairingOffer) {

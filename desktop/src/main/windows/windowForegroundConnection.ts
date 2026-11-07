@@ -1,4 +1,6 @@
+import { JsonRpcError } from '@dotcraft/sdk/wire'
 import { resolveRemoteWebSocketConfig } from '../../shared/remoteConnection'
+import { PairedProjectOpenError } from '../pairedComputers/pairedComputersManager'
 import { desktopHubConnectionFailure, resolveDesktopBinarySource, type DesktopHubClient } from '../desktopHub'
 import { logDesktopHubFailure, logLiveDesktopHub } from '../desktopHubDiagnostics'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
@@ -122,10 +124,17 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
   if (connectionMode === 'remote') {
     if (activeDevice) {
       const win = ctx.mainWindow!
+      ctx.clearActiveRemoteReconnectTimer()
+      const isCurrentDevice = (): boolean =>
+        !ctx.runtimeIsStopping() &&
+        ctx.currentWorkspacePath === workspacePath &&
+        ctx.resolveConnectionMode(ctx.settings) === 'remote' &&
+        ctx.settings.activeRemoteDevice?.computerId === activeDevice.computerId &&
+        ctx.settings.activeRemoteDevice?.projectId === activeDevice.projectId
       ctx.emitConnectionStatus(win, { status: 'connecting' })
       try {
         const opened = await ctx.app.pairedComputers.openProject(activeDevice.computerId, activeDevice.projectId)
-        if (ctx.runtimeIsStopping() || ctx.currentWorkspacePath !== workspacePath) {
+        if (!isCurrentDevice() || !ctx.app.pairedComputers.find(activeDevice.computerId, activeDevice.projectId)) {
           opened.bridge.close()
           return false
         }
@@ -144,16 +153,28 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
           identityWorkspacePath: project.identityWorkspacePath,
           displayPath: project.displayPath,
           remote: project.remote,
-          remoteDiagnostic: { stage: 'paired-computer', hostName: opened.computer.name, localPort: opened.bridge.port }
+          remoteDiagnostic: { stage: 'paired-computer', hostName: opened.computer.name, localPort: opened.bridge.port },
+          onInitialFailure: (error) => {
+            if (!isCurrentDevice()) return
+            ctx.activeDeviceBridge?.close()
+            ctx.activeDeviceBridge = null
+            if (!(error instanceof JsonRpcError)) {
+              ctx.scheduleActiveRemoteStackReconnect('paired project initialize failed')
+            }
+          }
         })
         return true
       } catch (err) {
+        if (!isCurrentDevice()) return false
         const message = err instanceof Error ? err.message : String(err)
         ctx.emitConnectionStatus(win, {
           status: 'error',
           errorMessage: ctx.formatRemoteConnectionError(message, { stage: 'open-paired-computer' }),
           errorType: 'remote-config-invalid'
         })
+        if (err instanceof PairedProjectOpenError && err.retryable) {
+          ctx.scheduleActiveRemoteStackReconnect('paired project open failed')
+        }
       }
       return false
     }

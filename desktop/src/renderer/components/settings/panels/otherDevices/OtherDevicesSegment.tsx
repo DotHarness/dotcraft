@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { ChevronRight, Monitor, Plus } from 'lucide-react'
 
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
@@ -24,17 +24,21 @@ export function OtherDevicesSegment({
   const error = usePairedComputersStore((state) => state.error)
   const computers = usePairedComputersStore((state) => state.computers)
   const pendingLink = usePairedComputersStore((state) => state.pendingLink)
-  const [adding, setAdding] = useState<{ link: string } | null>(null)
+  const [adding, setAdding] = useState<{ id: number; link: string } | null>(null)
+  const nextOpeningId = useRef(0)
   const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => connectPairedComputers(), [])
 
   useEffect(() => {
     if (!pendingLink) return
-    const link = usePairedComputersStore.getState().takePendingLink()
+    const state = usePairedComputersStore.getState()
+    const link = state.takePendingLink()
     if (!link) return
+    if (state.flow.step === 'connecting' || state.flow.step === 'waiting') state.cancelPairing()
+    else state.resetFlow()
     setOpenId(null)
-    setAdding({ link })
+    setAdding({ id: ++nextOpeningId.current, link })
   }, [pendingLink])
 
   const openComputer = openId ? computers.find((computer) => computer.computerId === openId) : undefined
@@ -60,7 +64,11 @@ export function OtherDevicesSegment({
   }
 
   const addButton = (
-    <Button variant="primary" iconLeft={<Plus size={15} aria-hidden />} onClick={() => setAdding({ link: '' })}>
+    <Button
+      variant="primary"
+      iconLeft={<Plus size={15} aria-hidden />}
+      onClick={() => setAdding({ id: ++nextOpeningId.current, link: '' })}
+    >
       {t('settings.otherDevices.add')}
     </Button>
   )
@@ -127,6 +135,7 @@ export function OtherDevicesSegment({
 
       {adding && (
         <AddOtherDeviceDialog
+          key={adding.id}
           initialLink={adding.link}
           onClose={() => setAdding(null)}
           onOpenComputer={(computerId) => {

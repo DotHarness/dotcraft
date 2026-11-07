@@ -95,7 +95,7 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 
 Desktop uses the SDK Wire reconnect profile. Already-written requests fail on disconnect and are never replayed; calls made while reconnecting are ordered behind a successful `initialize` / `initialized` handshake. Desktop restores UI subscriptions, interactive-request state, runtime Dynamic Tools, SSH forwards, and other workspace resources once the connection is ready.
 
-- On unexpected disconnect, the client transitions to `disconnected` and reconnects automatically.
+- On unexpected disconnect, the client transitions to `disconnected` and reconnects automatically. Disconnecting or selecting another target ends recovery for the old target; late connection results cannot replace the foreground or its status.
 - During reconnect, the user can tell that displayed thread data is local while live updates are unavailable.
 - After reconnect, the client reloads capabilities, re-establishes the active thread subscription, and refreshes thread and automation data that may have changed.
 - If recovery succeeds, the state returns to `connected` without the user rebuilding context. If recovery fails persistently, the state becomes `error` with a retry path.
@@ -1052,7 +1052,7 @@ The Control this PC segment of Connections lists devices that may control this c
 The Control other devices segment of Connections lists computers this Desktop has paired with and opens their projects. Use it when the other computer already runs DotCraft; SSH ([§6.10](#610-ssh-machines)) remains how Desktop installs, updates, or deploys DotCraft on a machine. Pairing, routes, and how a computer is reached belong to [Device Gateway](../protocols/device-gateway.md). Desktop rules:
 
 - Paired computers are application-wide: all windows see the same list, and a computer is one pairing, identified by `computerId`.
-- **Add device** takes a pairing URL pasted by the user. Opening a `dotcraft://pair` link brings up the same dialog with the URL filled in; a link never starts pairing without the user confirming it here. While waiting, the dialog asks the user to allow this device on the named computer. Denial, expiry, or a used code keeps the dialog open and asks for a new link.
+- **Add device** takes a pairing URL pasted by the user. Opening a `dotcraft://pair` link brings up the same dialog with the URL filled in, replacing any existing input and cancelling an unfinished pairing; a link never starts pairing without the user confirming it here. While waiting, the dialog asks the user to allow this device on the named computer. Denial, expiry, or a used code keeps the dialog open and asks for a new link.
 - A pairing URL naming this computer's own `computerId` is refused.
 - The device credential stays in the trusted host process and in operating-system protected storage. It never reaches the renderer or plain-text settings. When protected storage is unavailable, adding a device fails and explains why; Desktop has no plain-text fallback.
 - Any endpoint Desktop opens on this PC to adapt a gateway connection binds loopback and requires a per-session secret, so another local process cannot use the credential through it.
@@ -1061,7 +1061,7 @@ The Control other devices segment of Connections lists computers this Desktop ha
 - A computer's detail page lists its projects. Opening a project also adds it to the Projects rail, and a remove control takes it off; that control is disabled for a project not in the rail. The page accepts an absolute folder path on that computer, which is added through `POST /m/projects`. Desktop does not browse the computer's folders.
 - Creating a project chooses a device first: **This computer**, or a connected SSH machine or paired computer under **Remote devices**.
 - Added projects appear in the Projects rail with remote identity ([§3.7](#37-projects-rail-thread-navigation-and-secondary-connections)), keyed by `computerId` and `projectId`, and are saved locally. Opening one ensures its AppServer and makes it the foreground connection under [§3.1.1](#311-local-and-remote-appserver-ownership). A project removed on the computer is marked unavailable when the computer is connected, and can be removed from the rail.
-- A dropped connection follows the normal reconnect rules; each reconnect chooses the direct or relayed path again.
+- A dropped connection follows the normal reconnect rules, retrying transient open or initialization failures with backoff and choosing the direct or relayed path again. Access being off remains recoverable. Removed devices or projects, changed identities, required updates, and explicit authentication or protocol rejection stop automatic recovery.
 - Removing a computer asks for confirmation, closes Desktop's connections, calls `DELETE /m/device` when reachable, and forgets its credential and saved projects. Work on the computer keeps running. A revoked computer is forgotten in the same way, and Desktop says so.
 
 ## 7. Keyboard Accessibility and Localization

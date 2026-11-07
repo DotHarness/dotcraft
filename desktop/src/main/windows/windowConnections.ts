@@ -133,12 +133,13 @@ export async function connectViaWebSocket(
   let connectedOnce = false
   let initialFailureEmitted = false
   const emitInitialConnectionFailure = (
-    message: string,
+    error: unknown,
     errorType: ConnectionErrorType,
     stage: string
   ): void => {
     if (initialFailureEmitted || !isCurrentConnectAttempt()) return
     initialFailureEmitted = true
+    const message = error instanceof Error ? error.message : String(error)
     ctx.resetThreadToolState()
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       ctx.emitConnectionStatus(ctx.mainWindow, {
@@ -156,6 +157,7 @@ export async function connectViaWebSocket(
     entry.errorMessage = message
     ctx.emitWorkspaceProjects()
     client.dispose()
+    options.onInitialFailure?.(error)
   }
   const emitConnected = (result: InitializeResult): void => {
     entry.connected = true
@@ -218,7 +220,7 @@ export async function connectViaWebSocket(
     if (!connectedOnce && options.initialDisconnectIsError) {
       if (!initialFailureEmitted) {
         emitInitialConnectionFailure(
-          'Remote AppServer WebSocket closed before initialize completed.',
+          new Error('Remote AppServer WebSocket closed before initialize completed.'),
           'remote-config-invalid',
           'websocket-close-before-ready'
         )
@@ -243,7 +245,7 @@ export async function connectViaWebSocket(
     const message = err instanceof Error ? err.message : String(err)
     if (!connectedOnce && options.initialDisconnectIsError) {
       emitInitialConnectionFailure(
-        message,
+        err,
         ctx.classifyRemoteInitialError(message),
         /timed out/i.test(message) ? 'initialize-timeout' : 'initialize'
       )
