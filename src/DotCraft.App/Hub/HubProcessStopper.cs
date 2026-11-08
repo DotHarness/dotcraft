@@ -109,7 +109,8 @@ internal static class HubProcessStopper
                     return false;
                 hostPath = currentHost;
             }
-            return Math.Abs((actualStartedAt - startedAt).TotalMilliseconds) < 1
+            var toleranceMilliseconds = OperatingSystem.IsLinux() ? 10 : 1;
+            return Math.Abs((actualStartedAt - startedAt).TotalMilliseconds) < toleranceMilliseconds
                 && SamePath(process.MainModule?.FileName, hostPath);
         }
         catch (InvalidOperationException) { return false; }

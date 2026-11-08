@@ -67,6 +67,26 @@ public sealed class SessionServiceObservationTests : SessionServiceRuntimeSignal
     }
 
     [Fact]
+    public async Task RefreshDuringPermanentDeletion_CancelsTheObservation()
+    {
+        using var client = new ControlledStreamingClient();
+        await using var factory = CreateAgentFactory(client);
+        using var service = CreateService(factory, client);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        using var observation = await service.ObserveThreadAsync(thread.Id);
+        Exception? refreshError = null;
+        service.ThreadDeletedForBroadcast = _ =>
+        {
+            refreshError = Record.Exception(() => observation.RefreshAsync(
+                ThreadObservationView.Metadata, [], _ => Task.CompletedTask).GetAwaiter().GetResult());
+        };
+
+        await service.DeleteThreadPermanentlyAsync(thread.Id);
+
+        Assert.IsAssignableFrom<OperationCanceledException>(refreshError);
+    }
+
+    [Fact]
     public async Task MetadataObservation_RestoresPlanAndContextAfterUnloadAndRefreshesPublishedState()
     {
         using var database = new WorkspaceStateDatabase(_tempDir);

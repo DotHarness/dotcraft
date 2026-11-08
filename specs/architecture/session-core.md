@@ -72,7 +72,7 @@ Each loaded runtime has a thread-scoped projection of its latest published Turn,
 
 Metadata, summary and full views select Items before payload copying. The current view retains streaming text, argument previews, progress and diff state, including the latest terminal head while durable history catches up.
 
-Observation captures runtime controls through the command owner and streamed state through the publication boundary. Cancellation or disposal unregisters the observer, including before enumeration. Runtime release clears the current view and invalidates its producers.
+Observation captures runtime controls through the command owner and streamed state through the publication boundary. Cancellation or disposal unregisters the observer, including before enumeration. Runtime release clears the current view and invalidates its producers. An existing observation refresh invalidated by permanent deletion or runtime replacement completes as cancellation.
 
 ## 4. Core Domain Model
 

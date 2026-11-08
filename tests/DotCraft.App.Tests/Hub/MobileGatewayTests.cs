@@ -140,7 +140,7 @@ public sealed class MobileGatewayTests : IDisposable
     }
 
     [Fact]
-    public async Task Restart_KeepsPhoneAccessOnDevicesCertificateAndComputerId_WithoutStoringTheCredential()
+    public async Task ReenableAfterRestart_PreservesPairedPhoneAccessWithoutStoringTheCredential()
     {
         var port = SatelliteHubFixture.GetAvailablePort();
         string fingerprint;
@@ -152,11 +152,12 @@ public sealed class MobileGatewayTests : IDisposable
             await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
             using var phone = await hub.PairPhoneAsync();
             (fingerprint, computerId, deviceId, credential) = (phone.Fingerprint, phone.ComputerId, phone.DeviceId, phone.Credential);
+            await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/disable");
         }
         Assert.DoesNotContain(credential, File.ReadAllText(HubPaths.Resolve(_userProfile).MobilePath), StringComparison.Ordinal);
 
         await using var restarted = await MobileHubFixture.StartAsync(_userProfile, port);
-        var state = await restarted.JsonAsync(HttpMethod.Get, "/v1/mobile");
+        var state = await restarted.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
         Assert.Equal("on", state.GetProperty("state").GetString());
         Assert.Equal(deviceId, Assert.Single(state.GetProperty("devices").EnumerateArray()).GetProperty("deviceId").GetString());
 

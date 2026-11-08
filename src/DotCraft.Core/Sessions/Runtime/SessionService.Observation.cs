@@ -34,7 +34,7 @@ public sealed partial class SessionService
                 {
                     refreshCommandCt.ThrowIfCancellationRequested();
                     if (!_runtimeRegistry.IsCurrent(id, runtime) || _runtimeRegistry.IsPendingPermanentDeletion(id))
-                        throw new InvalidOperationException($"Thread '{id}' runtime is no longer current.");
+                        throw new OperationCanceledException($"Thread '{id}' runtime is no longer current.");
                     return Task.FromResult(observation.QueueRefresh(
                         new SessionThread
                         {
