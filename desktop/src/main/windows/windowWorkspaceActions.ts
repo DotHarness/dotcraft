@@ -11,6 +11,7 @@ import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../wi
 import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
 import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
+import { startLocalProjectConnection } from './windowSecondaryConnections'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import { resolveLocalUsageConnection } from './windowUsageStatistics'
 
@@ -118,6 +119,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       const hubClient = ctx.app.createHubClient(ctx.settings)
       await hubClient.stopAppServer(workspacePath)
     },
+    startProject: (workspacePath: string) => startLocalProjectConnection(ctx, workspacePath),
     archiveThreadInWorkspace: async (workspacePath: string, threadId: string, connectionKey?: string) => {
       const id = threadId.trim()
       if (!id) throw new Error('A thread id is required to archive.')

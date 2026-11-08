@@ -1,0 +1,34 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  color: var(--error);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+}

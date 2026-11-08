@@ -1066,6 +1066,10 @@ const api = {
       return ipcRenderer.invoke('workspace:stop', path)
     },
 
+    startProject(path: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:start-project', path)
+    },
+
     archiveThread(workspacePath: string, threadId: string, connectionKey?: string): Promise<void> {
       return ipcRenderer.invoke('workspace:archive-thread', { workspacePath, threadId, connectionKey })
     },

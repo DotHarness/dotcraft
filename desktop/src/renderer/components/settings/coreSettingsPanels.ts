@@ -22,7 +22,7 @@ export const coreSettingsPanels = {
     .then((module) => module.SubAgentsPanel)),
   import: lazyWithPrefetch(() => import('./panels/ImportPanel')
     .then((module) => module.ImportPanel)),
-  archivedThreads: lazyWithPrefetch(() => import('./ArchivedThreadsSettingsView')
+  archivedThreads: lazyWithPrefetch(() => import('./archivedThreads/ArchivedThreadsSettingsView')
     .then((module) => module.ArchivedThreadsSettingsView))
 } as const
 

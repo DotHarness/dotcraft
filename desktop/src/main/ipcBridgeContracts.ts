@@ -62,6 +62,7 @@ export interface IpcHandlerCallbacks {
   }) => void | Promise<void>
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
+  startProject?: (workspacePath: string) => Promise<void>
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string, connectionKey?: string) => void | Promise<void>
   getUsageConnection: () => Promise<UsageStatisticsConnection>
   getConnectionKey?: (client: DesktopAppServerClient) => string | null

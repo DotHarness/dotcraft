@@ -111,6 +111,10 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
     await callbacks.stopWorkspace?.(workspacePath)
   })
 
+  handleSafe('workspace:start-project', async (_event, workspacePath: string) => {
+    await callbacks.startProject?.(workspacePath)
+  })
+
   handleSafe('workspace:archive-thread', async (_event, params: { workspacePath: string; threadId: string; connectionKey?: string }) => {
     await callbacks.archiveThreadInWorkspace?.(params.workspacePath, params.threadId, params.connectionKey)
   })

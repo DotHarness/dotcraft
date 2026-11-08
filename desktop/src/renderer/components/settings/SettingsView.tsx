@@ -2297,7 +2297,6 @@ export function SettingsView({
 
             {activeSettingsTab === 'archivedThreads' && (
               <ArchivedThreadsSettingsView
-                workspacePath={identityWorkspacePath || workspacePath}
                 onThreadListRefreshRequested={onThreadListRefreshRequested}
               />
             )}

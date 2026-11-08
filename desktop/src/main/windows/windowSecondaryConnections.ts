@@ -341,6 +341,23 @@ export async function ensureDefaultChatConnection(ctx: DesktopWindowRuntime): Pr
   }
 }
 
+export async function startLocalProjectConnection(ctx: DesktopWindowRuntime, workspacePath: string): Promise<void> {
+  const path = workspacePath.trim()
+  if (!path || ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(path)) return
+  if (!ctx.app.localProjects.has(path)) throw new Error('Only saved local projects can be started.')
+  const existing = ctx.getWorkspaceConnection(path)
+  if (existing?.connected || existing?.connecting) return
+
+  const ensured = await ctx.app.createHubClient(ctx.settings).ensureAppServer(path, {
+    runtimeTools: resolveDotCraftRuntimeTools()
+  })
+  if (ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(path)) return
+  const endpoint = ctx.getManagedAppServerEndpoint(ensured)
+  if (existing) ctx.disposeWorkspaceConnection(existing)
+  const entry = ctx.createSecondaryWorkspaceConnection(path, endpoint)
+  entry.lastUsedAt = Date.now()
+}
+
 function isIdleSecondary(entry: WorkspaceConnectionEntry): boolean {
   return entry.role === 'secondary' && entry.kind !== 'chat' &&
     !(entry.kind !== 'remote' && isDefaultChatWorkspace(entry.workspacePath)) &&
