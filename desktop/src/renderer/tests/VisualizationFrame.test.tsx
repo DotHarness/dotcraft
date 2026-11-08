@@ -4,8 +4,9 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD, MCP_APP_SANDBOX_PROXY_READY_METHOD } from '../../shared/mcpAppSandbox'
 import { VisualizationFrame } from '../components/conversation/VisualizationFrame'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useUIStore } from '../stores/uiStore'
 
-const CHART_PATH = '/workspace/.craft/visualizations/thread-test/chart.html'
+const CHART_PATH = 'Sales_报告 v2.HTML'
 const addToast = vi.hoisted(() => vi.fn())
 const confirm = vi.hoisted(() => vi.fn())
 const intersectionObservers: TestIntersectionObserver[] = []
@@ -61,6 +62,7 @@ describe('VisualizationFrame actions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    useUIStore.setState({ composerPrefill: null })
     notificationListeners.clear()
     intersectionObservers.length = 0
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('view-test')
@@ -100,10 +102,12 @@ describe('VisualizationFrame actions', () => {
     renderFrame()
 
     act(() => intersectionObservers[0].trigger(true))
-    expect(await screen.findByText('This visualization is unavailable.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask to fix' }))
+    expect(useUIStore.getState().composerPrefill).toContain(CHART_PATH)
+    expect(useUIStore.getState().composerPrefill).toContain('runtime binding unavailable')
+    expect(sendRequest).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(await screen.findByText('Loading interactive visualization.')).toBeInTheDocument()
     await waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(2))
     expect(sendRequest).toHaveBeenNthCalledWith(2,
       'visualization/view/open',
@@ -154,20 +158,21 @@ describe('VisualizationFrame actions', () => {
     act(() => intersectionObservers[0].trigger(true))
     await waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1))
     await act(async () => {})
-    const frame = screen.getByTitle('Interactive visualization: chart.html') as HTMLIFrameElement
+    const frame = screen.getByTitle(`Interactive visualization: ${CHART_PATH}`) as HTMLIFrameElement
     const post = vi.spyOn(frame.contentWindow!, 'postMessage')
     const notify = (params: unknown): void => act(() => notificationListeners.forEach(listener =>
       listener({ method: 'visualization/widgetState/updated', params })))
 
     notify({ threadId: 'thread-other', path: CHART_PATH, widgetState: { modelContent: 1, privateContent: null } })
     notify({ threadId: 'thread-test', path: CHART_PATH.toUpperCase(), widgetState: { modelContent: { region: 'south' } } })
+    notify({ threadId: 'thread-test', path: CHART_PATH, widgetState: { modelContent: { region: 'north' } } })
     notify({ threadId: 'thread-test', path: CHART_PATH, widgetState: null })
 
     const pushed = post.mock.calls
       .map(([message]) => message as { method?: string; params?: { globals?: unknown } })
       .filter(message => message.method === 'visualization/globals')
       .map(message => message.params?.globals)
-    expect(pushed).toEqual([{ widgetState: null }])
+    expect(pushed).toEqual([{ widgetState: { modelContent: { region: 'north' }, privateContent: null } }, { widgetState: null }])
   })
 
   it('passes follow-up context to the view message after confirmation', async () => {
@@ -176,7 +181,7 @@ describe('VisualizationFrame actions', () => {
     act(() => intersectionObservers[0].trigger(true))
     await waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1))
     await act(async () => {})
-    const frame = screen.getByTitle('Interactive visualization: chart.html') as HTMLIFrameElement
+    const frame = screen.getByTitle(`Interactive visualization: ${CHART_PATH}`) as HTMLIFrameElement
 
     act(() => dispatchFrameMessage(frame, {
       method: 'visualization/followUp',
@@ -252,9 +257,9 @@ function renderFrame(): ReturnType<typeof render> {
 async function renderReadyFrame(): Promise<HTMLIFrameElement> {
   renderFrame()
   act(() => intersectionObservers[0].trigger(true))
-  await waitFor(() => expect(screen.getByTitle('Interactive visualization: chart.html')).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByTitle(`Interactive visualization: ${CHART_PATH}`)).toBeInTheDocument())
   await act(async () => {})
-  const frame = screen.getByTitle('Interactive visualization: chart.html') as HTMLIFrameElement
+  const frame = screen.getByTitle(`Interactive visualization: ${CHART_PATH}`) as HTMLIFrameElement
   act(() => {
     dispatchFrameMessage(frame, { method: MCP_APP_SANDBOX_PROXY_READY_METHOD, params: {} })
     dispatchFrameMessage(frame, { method: 'visualization/ready', params: { viewId: 'view-test' } })

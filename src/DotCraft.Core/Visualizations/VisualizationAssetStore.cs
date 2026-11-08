@@ -10,6 +10,7 @@ namespace DotCraft.Visualizations;
 /// <summary>Resolves, reads, and deletes thread-scoped visualization files.</summary>
 public sealed partial class VisualizationAssetStore
 {
+    private const int MaxFragmentBytes = 1_000_000;
     private readonly string _dataDirectoryName;
 
     public VisualizationAssetStore(DotCraftPaths paths)
@@ -68,10 +69,9 @@ public sealed partial class VisualizationAssetStore
                 "The visualization is not referenced by a completed assistant message.");
         }
 
-        var requested = NormalizeReferencedPath(path);
-        if (requested is null
+        if (!VisualizationContentReferenceParser.IsValidFileName(path)
             || !VisualizationContentReferenceParser.Parse(text)
-                .Any(reference => NormalizeReferencedPath(reference.Path) is { } referenced && PathsEqual(referenced, requested)))
+                .Any(reference => string.Equals(reference.Path, path, StringComparison.Ordinal)))
         {
             throw new VisualizationException(
                 "not_referenced",
@@ -79,24 +79,27 @@ public sealed partial class VisualizationAssetStore
         }
 
         var directory = GetAuthoringDirectory(thread);
+        var requested = ResolveFilePath(directory, path);
         if (!PathsEqual(Path.GetDirectoryName(requested) ?? string.Empty, directory))
             throw new VisualizationException("unsafe_path", "The visualization file path is unsafe.");
         RejectUnsafeFile(requested);
 
-        return await File.ReadAllTextAsync(requested, cancellationToken);
+        await using var stream = File.OpenRead(requested);
+        if (stream.Length > MaxFragmentBytes)
+            throw new VisualizationException("fragment_too_large", "The visualization fragment exceeds the 1 MB size limit.");
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 
-    private static string? NormalizeReferencedPath(string? path)
+    private static string ResolveFilePath(string directory, string fileName)
     {
-        if (!VisualizationContentReferenceParser.IsValidPath(path) || !Path.IsPathFullyQualified(path!))
-            return null;
         try
         {
-            return Path.GetFullPath(path!);
+            return Path.GetFullPath(Path.Combine(directory, fileName));
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            return null;
+            throw new VisualizationException("unsafe_path", "The visualization file path is unsafe.");
         }
     }
 

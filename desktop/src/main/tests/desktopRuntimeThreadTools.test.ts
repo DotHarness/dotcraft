@@ -166,7 +166,7 @@ describe('desktop runtime thread tools', () => {
     })
 
     await sendDesktopAppServerRequest(client, 'visualization/view/open', {
-      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: '/w/chart.html'
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: 'chart.html'
     }, undefined, { supportsDynamicToolRebind: true })
 
     const calls = vi.mocked(client.sendRequest).mock.calls
@@ -184,7 +184,7 @@ describe('desktop runtime thread tools', () => {
     })
 
     await sendDesktopAppServerRequest(plainClient, 'visualization/view/open', {
-      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: '/w/chart.html'
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: 'chart.html'
     })
 
     expect(vi.mocked(plainClient.sendRequest).mock.calls[0]).toEqual(['thread/resume', { threadId: 'thread-old' }, undefined])
@@ -203,10 +203,10 @@ describe('desktop runtime thread tools', () => {
     })
 
     const first = sendDesktopAppServerRequest(client, 'visualization/view/open', {
-      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: '/w/one.html'
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: 'one.html'
     })
     const second = sendDesktopAppServerRequest(client, 'visualization/view/open', {
-      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-2', path: '/w/two.html'
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-2', path: 'two.html'
     })
     await Promise.resolve()
     expect(vi.mocked(client.sendRequest).mock.calls.filter(call => call[0] === 'thread/resume')).toHaveLength(1)
@@ -234,7 +234,7 @@ describe('desktop runtime thread tools', () => {
     await sendDesktopAppServerRequest(client, 'thread/read', { threadId: 'thread-old', includeTurns: true })
     expect(vi.mocked(client.sendRequest).mock.calls.map(call => call[0])).toEqual(['thread/read'])
 
-    const openParams = { threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: '/w/chart.html' }
+    const openParams = { threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', path: 'chart.html' }
     await expect(sendDesktopAppServerRequest(client, 'visualization/view/open', openParams)).rejects.toThrow('connection changed')
     await expect(sendDesktopAppServerRequest(client, 'visualization/view/open', openParams)).resolves.toEqual({ viewHandle: 'view-1' })
     expect(resumeAttempts).toBe(2)
@@ -251,7 +251,7 @@ describe('desktop runtime thread tools', () => {
       if (method === 'visualization/view/open') return { viewHandle: 'view-2' }
       throw new Error(`unexpected ${method}`)
     })
-    const openParams = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', path: '/w/chart.html' }
+    const openParams = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', path: 'chart.html' }
 
     await sendDesktopAppServerRequest(firstClient, 'thread/start', { identity: { channelName: 'dotcraft-desktop' } })
     await sendDesktopAppServerRequest(firstClient, 'visualization/view/open', openParams)

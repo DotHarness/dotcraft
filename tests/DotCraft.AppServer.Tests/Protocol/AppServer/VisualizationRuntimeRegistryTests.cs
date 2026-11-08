@@ -64,7 +64,7 @@ public sealed class VisualizationRuntimeRegistryTests : IDisposable
             CompletedAt = now,
             Payload = new AgentMessagePayload
             {
-                Text = $"visualize{JsonSerializer.Serialize(new { path })}"
+                Text = $"visualize{JsonSerializer.Serialize(new { path = "chart.html" })}"
             }
         };
         var turn = new SessionTurn
@@ -87,7 +87,7 @@ public sealed class VisualizationRuntimeRegistryTests : IDisposable
 
         Assert.True(writeResult.Success, writeResult.Error?.Message);
         Assert.True(Directory.Exists(directory));
-        Assert.Equal("<div>chart</div>", await assets.ReadReferencedFragmentAsync(thread, turn, item, path));
+        Assert.Equal("<div>chart</div>", await assets.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
     }
 
     [Fact]

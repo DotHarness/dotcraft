@@ -12,13 +12,13 @@ describe('visualization widget state saves', () => {
     const sendRequest = vi.fn(() => new Promise<void>(resolve => pending.push(resolve)))
     vi.stubGlobal('window', { api: { appServer: { sendRequest, onNotification: () => () => {} } } })
     const seen: Array<VisualizationWidgetState | null> = []
-    const unsubscribe = subscribeVisualizationWidgetState('t1', '/w/chart.html', 'sibling', state => seen.push(state))
+    const unsubscribe = subscribeVisualizationWidgetState('t1', 'Sales_报告 v2.HTML', 'sibling', state => seen.push(state))
     const first = { modelContent: { rate: 1 }, privateContent: null }
     const second = { modelContent: { rate: 2 }, privateContent: null }
 
     const saves = [
-      saveVisualizationWidgetState('t1', '/w/chart.html', 'source', 'view-1', first),
-      saveVisualizationWidgetState('t1', '/w/chart.html', 'source', 'view-1', second)
+      saveVisualizationWidgetState('t1', 'Sales_报告 v2.HTML', 'source', 'view-1', first),
+      saveVisualizationWidgetState('t1', 'Sales_报告 v2.HTML', 'source', 'view-1', second)
     ]
     await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1))
     await new Promise(resolve => setTimeout(resolve, 0))

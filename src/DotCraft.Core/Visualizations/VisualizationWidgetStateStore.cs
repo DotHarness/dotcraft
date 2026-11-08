@@ -6,9 +6,9 @@ namespace DotCraft.Visualizations;
 public sealed record VisualizationWidgetState(string? ModelContentJson, string? PrivateContentJson);
 
 /// <summary>A visualization whose saved snapshot carries model content.</summary>
-public sealed record VisualizationModelContent(string PathKey, string Path, string ModelContentJson);
+public sealed record VisualizationModelContent(string Path, string ModelContentJson);
 
-/// <summary>Stores one widget state snapshot per thread and visualization path.</summary>
+/// <summary>Stores one widget state snapshot per thread and visualization file name.</summary>
 public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase database)
 {
     public VisualizationWidgetState? Load(string threadId, string path)
@@ -21,7 +21,7 @@ public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase databas
             WHERE thread_id = $thread_id AND path_key = $path_key
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$path_key", PathKey(path));
+        command.Parameters.AddWithValue("$path_key", path);
         using var reader = command.ExecuteReader();
         if (!reader.Read())
             return null;
@@ -36,7 +36,7 @@ public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase databas
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$path_key", PathKey(path));
+        command.Parameters.AddWithValue("$path_key", path);
         if (state.ModelContentJson is null && state.PrivateContentJson is null)
         {
             command.CommandText = "DELETE FROM visualization_widget_state WHERE thread_id = $thread_id AND path_key = $path_key";
@@ -53,7 +53,7 @@ public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase databas
                 private_content_json = excluded.private_content_json,
                 updated_at = excluded.updated_at
             """;
-        command.Parameters.AddWithValue("$path", Path.GetFullPath(path));
+        command.Parameters.AddWithValue("$path", path);
         command.Parameters.AddWithValue("$model_content", (object?)state.ModelContentJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$private_content", (object?)state.PrivateContentJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
@@ -65,7 +65,7 @@ public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase databas
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT path_key, path, model_content_json
+            SELECT path, model_content_json
             FROM visualization_widget_state
             WHERE thread_id = $thread_id AND model_content_json IS NOT NULL
             ORDER BY path_key
@@ -74,13 +74,7 @@ public sealed class VisualizationWidgetStateStore(WorkspaceStateDatabase databas
         var result = new List<VisualizationModelContent>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
-            result.Add(new VisualizationModelContent(reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+            result.Add(new VisualizationModelContent(reader.GetString(0), reader.GetString(1)));
         return result;
-    }
-
-    private static string PathKey(string path)
-    {
-        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        return OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
     }
 }

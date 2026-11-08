@@ -93,7 +93,7 @@ public sealed class VisualizationRuntimeRegistry(
 
         `{{directory}}`
 
-        Read the file back with `ReadFile`, then place `visualize{"path":"<absolute path of the .html file>"}` on its own line where the visualization belongs. To update a visualization, rewrite its file and include its reference again. Include a reference only for a file that was written successfully.
+        Read the file back with `ReadFile`, then place `visualize{"path":"<file-name>.html"}` on its own line where the visualization belongs. The reference uses only the file name; the host resolves it in the directory above. To update a visualization, rewrite its file and include its reference again. Include a reference only for a file that was written successfully.
         """;
     }
 

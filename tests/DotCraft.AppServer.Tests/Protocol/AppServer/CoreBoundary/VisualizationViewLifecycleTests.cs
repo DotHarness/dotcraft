@@ -17,6 +17,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class VisualizationViewLifecycleTests : IDisposable
 {
+    private const string ChartName = "Sales_报告 v2.HTML";
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "dotcraft-visualization-view-tests",
@@ -39,7 +40,7 @@ public sealed class VisualizationViewLifecycleTests : IDisposable
             CancellationToken.None));
         Assert.Equal(sent.QueuedInputId.Value, sessions.LastStartedQueuedInput?.Id);
         Assert.Equal("visualization", sessions.LastStartedQueuedInput?.TriggerKind);
-        Assert.Equal("chart.html", sessions.LastStartedQueuedInput?.TriggerLabel);
+        Assert.Equal(ChartName, sessions.LastStartedQueuedInput?.TriggerLabel);
         Assert.Equal("item_agent", sessions.LastStartedQueuedInput?.TriggerRefId);
         Assert.Equal(
             "Explain the selected point.",
@@ -115,7 +116,7 @@ public sealed class VisualizationViewLifecycleTests : IDisposable
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.VisualizationWidgetStateUpdated, updated.GetProperty("method").GetString());
         var parameters = updated.GetProperty("params");
         Assert.Equal("thread_test", parameters.GetProperty("threadId").GetString());
-        Assert.Equal(Path.GetFullPath(path), parameters.GetProperty("path").GetString());
+        Assert.Equal(path, parameters.GetProperty("path").GetString());
         Assert.Equal("north", parameters.GetProperty("widgetState").GetProperty("modelContent").GetProperty("region").GetString());
         Assert.Equal(JsonValueKind.Null, parameters.GetProperty("widgetState").GetProperty("privateContent").ValueKind);
 
@@ -172,7 +173,7 @@ public sealed class VisualizationViewLifecycleTests : IDisposable
             ? authoringDirectory
             : throw new InvalidOperationException("The authoring directory was not bound.");
         var fileTools = new FileTools(_root, requireApprovalOutsideWorkspace: false);
-        var path = Path.Combine(directory, "chart.html");
+        var path = Path.Combine(directory, ChartName);
         var writeResult = await fileTools.WriteFile(path, "<div>chart</div>");
         Assert.True(writeResult.Success, writeResult.Error?.Message);
 
@@ -181,7 +182,7 @@ public sealed class VisualizationViewLifecycleTests : IDisposable
         var handler = new VisualizationRequestHandler(sessions, connection, assets, runtime, subscribers);
         var table = new AppServerMethodTable();
         handler.RegisterMethods(table);
-        return (sessions, handler, table, path);
+        return (sessions, handler, table, ChartName);
     }
 
     private static async Task<Contract.VisualizationViewOpenResult> OpenAsync(AppServerMethodTable table, string path)
@@ -207,7 +208,7 @@ public sealed class VisualizationViewLifecycleTests : IDisposable
             CompletedAt = now,
             Payload = new AgentMessagePayload
             {
-                Text = $"visualize{JsonSerializer.Serialize(new { path = Path.Combine(_root, ".craft", "visualizations", "thread_test", "chart.html") })}"
+                Text = $"visualize{JsonSerializer.Serialize(new { path = ChartName })}"
             }
         };
         return new SessionThread

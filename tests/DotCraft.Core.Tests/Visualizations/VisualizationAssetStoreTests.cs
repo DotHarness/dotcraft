@@ -23,29 +23,51 @@ public sealed class VisualizationAssetStoreTests : IDisposable
     public async Task ReadReferencedFragmentAsync_ValidatesReferenceAndReturnsCurrentFileContents()
     {
         var store = CreateAssetStore();
-        var path = ChartPath(_root);
-        var (thread, turn, item) = CreateCompletedMessage(Reference(path), _root);
+        const string fileName = "Sales_报告 v2.HTML";
+        var path = Path.Combine(Path.GetDirectoryName(ChartPath(_root))!, fileName);
+        var (thread, turn, item) = CreateCompletedMessage(Reference(fileName), _root);
         Directory.CreateDirectory(store.GetAuthoringDirectory(thread));
         await File.WriteAllTextAsync(path, "<div>ok</div>");
 
-        Assert.Equal("<div>ok</div>", await store.ReadReferencedFragmentAsync(thread, turn, item, path));
+        Assert.Equal("<div>ok</div>", await store.ReadReferencedFragmentAsync(thread, turn, item, fileName));
 
         await File.WriteAllTextAsync(path, "<div>updated</div>");
-        var requested = OperatingSystem.IsWindows()
-            ? Path.Combine(Path.GetDirectoryName(path)!.ToUpperInvariant(), "chart.html")
-            : path;
+        Assert.Equal("<div>updated</div>", await store.ReadReferencedFragmentAsync(thread, turn, item, fileName));
+        var error = await Assert.ThrowsAsync<VisualizationException>(() =>
+            store.ReadReferencedFragmentAsync(thread, turn, item, fileName.ToLowerInvariant()));
+        Assert.Equal("not_referenced", error.Code);
+    }
 
-        Assert.Equal("<div>updated</div>", await store.ReadReferencedFragmentAsync(thread, turn, item, requested));
+    [Theory]
+    [InlineData("x", 1_000_000, true)]
+    [InlineData("x", 1_000_001, false)]
+    [InlineData("界", 333_334, false)]
+    public async Task ReadReferencedFragmentAsync_EnforcesFragmentByteLimit(string value, int count, bool allowed)
+    {
+        var store = CreateAssetStore();
+        var path = ChartPath(_root);
+        var (thread, turn, item) = CreateCompletedMessage(Reference("chart.html"), _root);
+        Directory.CreateDirectory(store.GetAuthoringDirectory(thread));
+        var fragment = string.Concat(Enumerable.Repeat(value, count));
+        await File.WriteAllTextAsync(path, fragment);
+
+        if (allowed)
+        {
+            Assert.Equal(fragment, await store.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<VisualizationException>(() =>
+                store.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
+            Assert.Equal("fragment_too_large", error.Code);
+        }
     }
 
     [Fact]
     public async Task ReadReferencedFragmentAsync_RejectsUnreferencedPaths()
     {
         var store = CreateAssetStore();
-        var path = ChartPath(_root);
-        var other = Path.Combine(Path.GetDirectoryName(path)!, "other.html");
-
-        foreach (var (text, requested) in new[] { ("plain text", path), (Reference(path), other), (Reference(path), "chart.html") })
+        foreach (var (text, requested) in new[] { ("plain text", "chart.html"), (Reference("chart.html"), "other.html") })
         {
             var (thread, turn, item) = CreateCompletedMessage(text, _root);
             var error = await Assert.ThrowsAsync<VisualizationException>(() =>
@@ -59,18 +81,16 @@ public sealed class VisualizationAssetStoreTests : IDisposable
     {
         var store = CreateAssetStore();
         var outside = Path.Combine(_root, ".craft", "visualizations", "chart.html");
-        var nested = Path.Combine(_root, ".craft", "visualizations", "thread_test", "nested", "chart.html");
+        Directory.CreateDirectory(Path.GetDirectoryName(outside)!);
+        await File.WriteAllTextAsync(outside, "<div>outside</div>");
 
-        foreach (var path in new[] { outside, nested })
+        foreach (var path in new[] { "../chart.html", @"..\chart.html", "nested/chart.html", outside })
         {
             var (thread, turn, item) = CreateCompletedMessage(Reference(path), _root);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await File.WriteAllTextAsync(path, "<div>outside</div>");
-
             var error = await Assert.ThrowsAsync<VisualizationException>(() =>
                 store.ReadReferencedFragmentAsync(thread, turn, item, path));
 
-            Assert.Equal("unsafe_path", error.Code);
+            Assert.Equal("not_referenced", error.Code);
         }
     }
 
@@ -84,19 +104,18 @@ public sealed class VisualizationAssetStoreTests : IDisposable
         var store = CreateAssetStore();
         var pathA = ChartPath(workspaceA);
         var pathB = ChartPath(workspaceB);
-        var (threadA, _, _) = CreateCompletedMessage(Reference(pathA), workspaceA);
-        var (threadB, turnB, itemB) = CreateCompletedMessage(Reference(pathB) + "\n" + Reference(pathA), workspaceB);
+        var (threadA, _, _) = CreateCompletedMessage(Reference("chart.html"), workspaceA);
+        var (threadB, turnB, itemB) = CreateCompletedMessage(Reference("chart.html"), workspaceB);
         var directoryA = Directory.CreateDirectory(store.GetAuthoringDirectory(threadA)).FullName;
         var directoryB = Directory.CreateDirectory(store.GetAuthoringDirectory(threadB)).FullName;
         await File.WriteAllTextAsync(pathA, "<div>workspace a</div>");
 
         Assert.NotEqual(directoryA, directoryB);
         var missing = await Assert.ThrowsAsync<VisualizationException>(() =>
-            store.ReadReferencedFragmentAsync(threadB, turnB, itemB, pathB));
+            store.ReadReferencedFragmentAsync(threadB, turnB, itemB, "chart.html"));
         Assert.Equal("not_found", missing.Code);
-        var crossed = await Assert.ThrowsAsync<VisualizationException>(() =>
-            store.ReadReferencedFragmentAsync(threadB, turnB, itemB, pathA));
-        Assert.Equal("unsafe_path", crossed.Code);
+        await File.WriteAllTextAsync(pathB, "<div>workspace b</div>");
+        Assert.Equal("<div>workspace b</div>", await store.ReadReferencedFragmentAsync(threadB, turnB, itemB, "chart.html"));
     }
 
     [Theory]
@@ -150,7 +169,7 @@ public sealed class VisualizationAssetStoreTests : IDisposable
     {
         var store = CreateAssetStore();
         var path = ChartPath(_root);
-        var (thread, turn, item) = CreateCompletedMessage(Reference(path), _root);
+        var (thread, turn, item) = CreateCompletedMessage(Reference("chart.html"), _root);
         Directory.CreateDirectory(store.GetAuthoringDirectory(thread));
         var target = Path.Combine(_root, "target.html");
         await File.WriteAllTextAsync(target, "<div>target</div>");
@@ -164,7 +183,7 @@ public sealed class VisualizationAssetStoreTests : IDisposable
         }
 
         var error = await Assert.ThrowsAsync<VisualizationException>(() =>
-            store.ReadReferencedFragmentAsync(thread, turn, item, path));
+            store.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
 
         Assert.Equal("unsafe_path", error.Code);
     }

@@ -29,14 +29,14 @@ public sealed class VisualizationStateSectionTests : IAsyncLifetime
     [Fact]
     public void ModelContent_IsDeliveredOncePerChangeAndClearedOnce()
     {
-        var chart = Path.Combine(_root, ".craft", "visualizations", _thread.Id, "chart.html");
-        var map = Path.Combine(_root, ".craft", "visualizations", _thread.Id, "map.html");
+        const string chart = "Sales_报告 v2.HTML";
+        const string map = "map.html";
 
         Save(chart, "{\"region\":\"north\"}", "{\"scroll\":120}");
         Save(map, null, "{\"zoom\":3}");
         var first = Render();
         Assert.Contains("\"region\":\"north\"", first, StringComparison.Ordinal);
-        Assert.Contains(chart, first.Replace("\\\\", "\\"), StringComparison.Ordinal);
+        Assert.Contains(chart, first, StringComparison.Ordinal);
         Assert.DoesNotContain("scroll", first, StringComparison.Ordinal);
         Assert.DoesNotContain("zoom", first, StringComparison.Ordinal);
 
@@ -51,9 +51,45 @@ public sealed class VisualizationStateSectionTests : IAsyncLifetime
 
         Save(chart, null, null);
         var cleared = Render();
-        Assert.Contains("chart.html\":null", cleared, StringComparison.Ordinal);
+        Assert.Contains(chart + "\":null", cleared, StringComparison.Ordinal);
         Assert.DoesNotContain("country", cleared, StringComparison.Ordinal);
         Assert.Null(RenderOrNull());
+    }
+
+    [Fact]
+    public async Task Snapshots_UseExactFileNamesAndRemainIsolatedByThread()
+    {
+        const string name = "Sales_报告 v2.HTML";
+        var lowerCaseName = name.ToLowerInvariant();
+        var otherThread = new SessionThread
+        {
+            Id = "thread_other",
+            WorkspacePath = _root,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow
+        };
+        await _store.SaveThreadAsync(otherThread);
+        var states = _store.VisualizationWidgetStates;
+
+        Save(name, "{\"value\":1}", "{\"scroll\":10}");
+        Save(lowerCaseName, "{\"value\":2}", null);
+        states.Save(otherThread.Id, name, new VisualizationWidgetState("{\"value\":3}", null));
+
+        Assert.Equal(new VisualizationWidgetState("{\"value\":1}", "{\"scroll\":10}"), states.Load(_thread.Id, name));
+        Assert.Equal(new VisualizationWidgetState("{\"value\":2}", null), states.Load(_thread.Id, lowerCaseName));
+        Assert.Equal(new VisualizationWidgetState("{\"value\":3}", null), states.Load(otherThread.Id, name));
+        Assert.Equal(
+            new[] { name, lowerCaseName }.Order(StringComparer.Ordinal),
+            states.LoadModelContents(_thread.Id).Select(content => content.Path));
+        var rendered = Render();
+        Assert.Contains(name, rendered, StringComparison.Ordinal);
+        Assert.Contains(lowerCaseName, rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"value\":3", rendered, StringComparison.Ordinal);
+
+        Save(name, null, null);
+        Assert.Null(states.Load(_thread.Id, name));
+        Assert.NotNull(states.Load(_thread.Id, lowerCaseName));
+        Assert.NotNull(states.Load(otherThread.Id, name));
     }
 
     private void Save(string path, string? modelContent, string? privateContent) =>

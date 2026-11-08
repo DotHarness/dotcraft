@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useVisualizationDesignState } from '../components/conversation/useVisualizationDesignState'
 
-const PATH = '/workspace/.craft/visualizations/thread/timer.html'
+const PATH = 'Timer_设计.HTML'
 const SNAPSHOT = {
   variant: null,
   groups: [{ id: 'tweak-1', label: 'Timer', variant: null, visible: true, controls: [
@@ -12,9 +12,9 @@ const SNAPSHOT = {
   ] }]
 }
 
-function view(viewId: string, threadId = 'thread') {
+function view(viewId: string, threadId = 'thread', path = PATH) {
   const post = vi.fn()
-  const hook = renderHook(() => useVisualizationDesignState({ threadId, path: PATH, viewId, post }))
+  const hook = renderHook(() => useVisualizationDesignState({ threadId, path, viewId, post }))
   return { post, hook }
 }
 
@@ -46,10 +46,16 @@ describe('visualization design values across copies of a view', () => {
     const other = view('other', 'other-thread')
     act(() => other.hook.result.current.receive(SNAPSHOT))
     expect(other.post).not.toHaveBeenCalled()
+    const differentCase = view('different-case', 'thread', PATH.toLowerCase())
+    act(() => differentCase.hook.result.current.receive(SNAPSHOT))
+    expect(differentCase.post).not.toHaveBeenCalled()
 
     first.hook.unmount()
     const later = view('later')
     act(() => later.hook.result.current.receive(SNAPSHOT))
     expect(later.post).not.toHaveBeenCalled()
+    other.hook.unmount()
+    differentCase.hook.unmount()
+    later.hook.unmount()
   })
 })

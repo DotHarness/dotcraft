@@ -63,7 +63,7 @@ internal sealed class VisualizationRequestHandler : IAppServerDomainHandler, IDi
         var path = Require(parameters.Path, "path");
         if (runtimeRegistry?.IsBoundTo(threadId, connection) != true)
             throw VisualizationViewErrors.Create("not_available", "Visualizations are not available for this thread.");
-        if (!VisualizationContentReferenceParser.IsValidPath(path))
+        if (!VisualizationContentReferenceParser.IsValidFileName(path))
             throw VisualizationViewErrors.Create("unsafe_path", "The visualization path is invalid.");
         SessionThread thread;
         try { thread = await sessions.GetThreadAsync(threadId, cancellationToken); }
@@ -118,7 +118,7 @@ internal sealed class VisualizationRequestHandler : IAppServerDomainHandler, IDi
               {JsonSerializer.Serialize(parameters.Context.Value, ContextJsonOptions)}
               ```
               """;
-        using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo { Kind = "visualization", Label = Path.GetFileName(state.Path), RefId = state.ItemId });
+        using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo { Kind = "visualization", Label = state.Path, RefId = state.ItemId });
         var queued = await sessions.EnqueueTurnInputAsync(
             state.ThreadId,
             [new TextContent(text)],
@@ -150,7 +150,7 @@ internal sealed class VisualizationRequestHandler : IAppServerDomainHandler, IDi
             new Contract.VisualizationWidgetStateUpdatedNotification
             {
                 ThreadId = state.ThreadId,
-                Path = Path.GetFullPath(state.Path),
+                Path = state.Path,
                 WidgetState = modelContent is null && privateContent is null
                     ? null
                     : new Contract.VisualizationWidgetState

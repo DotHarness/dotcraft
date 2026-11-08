@@ -1,7 +1,6 @@
 import { createContext } from 'react'
 import type { ConversationTurn } from '../../types/conversation'
 import { parseVisualizationContentReferences } from './assistantMessageSegments'
-import { normalizeVisualizationPath } from './visualizationParser'
 
 export interface VisualizationEntry {
   key: string
@@ -33,8 +32,8 @@ export function galleryForVisualization(
   getConversationVisualizations: (() => VisualizationEntry[]) | null
 ): { entries: VisualizationEntry[]; index: number } {
   const entries = getConversationVisualizations?.() ?? []
-  const path = normalizeVisualizationPath(entry.path)
+  const path = entry.path
   const index = entries.findIndex(candidate =>
-    candidate.threadId === entry.threadId && candidate.itemId === entry.itemId && normalizeVisualizationPath(candidate.path) === path)
+    candidate.threadId === entry.threadId && candidate.itemId === entry.itemId && candidate.path === path)
   return index >= 0 ? { entries, index } : { entries: [{ ...entry, key: `${entry.itemId}:${path}` }], index: 0 }
 }

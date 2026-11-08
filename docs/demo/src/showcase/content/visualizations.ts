@@ -118,6 +118,6 @@ export const visualizationExamples: Record<string, VisualizationExample> = {
 }
 
 export function visualizationFragment(path: string, lang: Lang): string | null {
-  const example = Object.values(visualizationExamples).find((candidate) => path.endsWith(`/${candidate.file}`))
+  const example = Object.values(visualizationExamples).find((candidate) => path === candidate.file)
   return example ? example.fragment[lang] : null
 }
