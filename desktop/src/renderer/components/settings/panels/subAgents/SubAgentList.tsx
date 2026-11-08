@@ -1,5 +1,5 @@
 import type { CSSProperties, JSX, KeyboardEvent, MouseEvent } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
@@ -15,6 +15,7 @@ import { Skeleton } from '../../../ui/Skeleton'
 import { AgentIcon } from './AgentIcon'
 import { PRESET_PROFILE_NAMES, type SubAgentProfileEntryWire } from './wire'
 import { Button } from '../../../ui/Button'
+import { IconButton } from '../../../ui/IconButton'
 
 interface SubAgentListProps {
   profiles: SubAgentProfileEntryWire[]
@@ -23,6 +24,9 @@ interface SubAgentListProps {
   onOpenProfile: (profile: SubAgentProfileEntryWire) => void
   onToggleEnabled: (profile: SubAgentProfileEntryWire, nextEnabled: boolean) => void
   onAddCustom: () => void
+  onChangeCustom: (profile: SubAgentProfileEntryWire) => void
+  onRemoveCustom: (profile: SubAgentProfileEntryWire) => void
+  removingName: string | null
 }
 
 export function SubAgentList({
@@ -31,7 +35,10 @@ export function SubAgentList({
   togglingName,
   onOpenProfile,
   onToggleEnabled,
-  onAddCustom
+  onAddCustom,
+  onChangeCustom,
+  onRemoveCustom,
+  removingName
 }: SubAgentListProps): JSX.Element {
   const t = useT()
 
@@ -94,8 +101,10 @@ export function SubAgentList({
               key={profile.name}
               profile={profile}
               togglingName={togglingName}
-              onOpen={onOpenProfile}
+              onOpen={onChangeCustom}
               onToggleEnabled={onToggleEnabled}
+              onRemove={onRemoveCustom}
+              removing={removingName === profile.name}
             />
           ))}
           <div
@@ -136,9 +145,18 @@ interface ProfileCardProps {
   togglingName: string | null
   onOpen: (profile: SubAgentProfileEntryWire) => void
   onToggleEnabled: (profile: SubAgentProfileEntryWire, nextEnabled: boolean) => void
+  onRemove?: (profile: SubAgentProfileEntryWire) => void
+  removing?: boolean
 }
 
-function ProfileCard({ profile, togglingName, onOpen, onToggleEnabled }: ProfileCardProps): JSX.Element {
+function ProfileCard({
+  profile,
+  togglingName,
+  onOpen,
+  onToggleEnabled,
+  onRemove,
+  removing = false
+}: ProfileCardProps): JSX.Element {
   const t = useT()
   const toggleDisabled = profile.isDefault || togglingName === profile.name
   const subtitle = resolveSubtitle(profile, t)
@@ -183,10 +201,20 @@ function ProfileCard({ profile, togglingName, onOpen, onToggleEnabled }: Profile
         )}
       </div>
       <div
-        style={{ display: 'flex', alignItems: 'center' }}
+        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         onClick={stopClick}
         onKeyDown={stopKey}
       >
+        {onRemove && (
+          <IconButton
+            icon={<Trash2 size={14} aria-hidden />}
+            label={t('settings.subAgents.removeAria', { name: profile.name })}
+            tooltipLabel={t('settings.subAgents.delete')}
+            tone="danger"
+            disabled={removing}
+            onClick={() => onRemove(profile)}
+          />
+        )}
         <PillSwitch
           aria-label={t('settings.subAgents.toggleAria', { name: profile.name })}
           checked={profile.enabled}

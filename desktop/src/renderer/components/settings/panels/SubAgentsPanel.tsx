@@ -5,8 +5,8 @@ import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { NativeProfileDetail } from './subAgents/NativeProfileDetail'
 import { PresetProfileDetail } from './subAgents/PresetProfileDetail'
-import { CustomProfileEditor } from './subAgents/CustomProfileEditor'
 import { SubAgentList } from './subAgents/SubAgentList'
+import { stageSkillRequestInChat } from '../../conversation/skillRequestDraft'
 import { PersonalizationPanelShell } from '../PersonalizationPanelShell'
 import {
   isPresetProfileName,
@@ -26,10 +26,9 @@ interface SubAgentsPanelProps {
 type ViewState =
   | { kind: 'list' }
   | { kind: 'preset'; name: string }
-  | { kind: 'custom'; name: string }
-  | { kind: 'new' }
 
 const TEMPLATE_NAME = 'custom-cli-oneshot'
+const PROFILE_AUTHORING_SKILL = 'dotcraft-guide'
 
 export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps): JSX.Element {
   const t = useT()
@@ -39,7 +38,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   const [error, setError] = useState<string | null>(null)
   const [externalCliSessionResumeEnabled, setExternalCliSessionResumeEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [removingName, setRemovingName] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
   const [togglingName, setTogglingName] = useState<string | null>(null)
   const [togglingWorkspaceSetting, setTogglingWorkspaceSetting] = useState(false)
@@ -55,7 +54,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   )
 
   const selectedProfile = useMemo<SubAgentProfileEntryWire | null>(() => {
-    if (view.kind === 'preset' || view.kind === 'custom') {
+    if (view.kind === 'preset') {
       return profiles.find((profile) => profile.name === view.name) ?? null
     }
     return null
@@ -79,7 +78,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
         setExternalCliSessionResumeEnabled(result.settings.externalCliSessionResumeEnabled)
         setError(null)
         const keepView = preserveView ?? viewRef.current
-        if (keepView.kind === 'preset' || keepView.kind === 'custom') {
+        if (keepView.kind === 'preset') {
           const stillExists = result.profiles.some((profile) => profile.name === keepView.name)
           if (!stillExists) {
             setView({ kind: 'list' })
@@ -104,11 +103,8 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   }, [loadProfiles, refreshTick])
 
   const handleOpenProfile = useCallback((profile: SubAgentProfileEntryWire) => {
-    if (profile.name === TEMPLATE_NAME) return
     if (profile.isBuiltIn && isPresetProfileName(profile.name)) {
       setView({ kind: 'preset', name: profile.name })
-    } else {
-      setView({ kind: 'custom', name: profile.name })
     }
   }, [])
 
@@ -117,8 +113,18 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   }, [])
 
   const handleAddCustom = useCallback(() => {
-    setView({ kind: 'new' })
-  }, [])
+    void stageSkillRequestInChat(PROFILE_AUTHORING_SKILL, t('settings.subAgents.list.createPrompt'))
+  }, [t])
+
+  const handleChangeCustom = useCallback(
+    (profile: SubAgentProfileEntryWire) => {
+      void stageSkillRequestInChat(
+        PROFILE_AUTHORING_SKILL,
+        t('settings.subAgents.list.changePrompt', { name: profile.name })
+      )
+    },
+    [t]
+  )
 
   const handleToggleEnabled = useCallback(
     async (profile: SubAgentProfileEntryWire, nextEnabled: boolean) => {
@@ -213,33 +219,9 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     [loadProfiles, t]
   )
 
-  const handleSaveCustom = useCallback(
-    async (name: string, definition: SubAgentProfileWriteWire) => {
-    setSaving(true)
-    try {
-      await window.api.appServer.sendRequest('subagent/profiles/upsert', {
-          name,
-          definition: { ...definition }
-      })
-        addToast(t('settings.subAgents.savedToast', { name }), 'success')
-        await loadProfiles({ kind: 'custom', name })
-    } catch (err) {
-      addToast(
-        t('settings.subAgents.actionFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }),
-        'error'
-      )
-    } finally {
-      setSaving(false)
-    }
-    },
-    [loadProfiles, t]
-  )
-
-  const handleDeleteCustom = useCallback(
+  const handleRemoveCustom = useCallback(
     async (profile: SubAgentProfileEntryWire) => {
-      setDeleting(true)
+      setRemovingName(profile.name)
       try {
         await window.api.appServer.sendRequest('subagent/profiles/remove', {
           name: profile.name
@@ -254,7 +236,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
           'error'
         )
       } finally {
-        setDeleting(false)
+        setRemovingName(null)
       }
     },
     [loadProfiles, t]
@@ -296,35 +278,6 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     )
   }
 
-  if (view.kind === 'custom' && selectedProfile) {
-    return (
-      <CustomProfileEditor
-        mode="edit"
-        profile={selectedProfile}
-        externalCliSessionResumeEnabled={externalCliSessionResumeEnabled}
-        saving={saving}
-        deleting={deleting}
-        onBack={handleBack}
-        onSave={handleSaveCustom}
-        onDelete={handleDeleteCustom}
-      />
-    )
-  }
-
-  if (view.kind === 'new') {
-    return (
-      <CustomProfileEditor
-        mode="create"
-        profile={null}
-        externalCliSessionResumeEnabled={externalCliSessionResumeEnabled}
-        saving={saving}
-        deleting={false}
-        onBack={handleBack}
-        onSave={handleSaveCustom}
-      />
-    )
-  }
-
   return (
     <PersonalizationPanelShell segment="subAgents">
       <SettingsGroup title={t('settings.group.workspaceSettings')}>
@@ -353,6 +306,9 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
         onOpenProfile={handleOpenProfile}
         onToggleEnabled={handleToggleEnabled}
         onAddCustom={handleAddCustom}
+        onChangeCustom={handleChangeCustom}
+        onRemoveCustom={handleRemoveCustom}
+        removingName={removingName}
       />
     </PersonalizationPanelShell>
   )

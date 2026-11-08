@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
 
@@ -40,6 +41,26 @@ internal sealed class AppServerRuntimeConfigRefresher(
             .Select(profile => profile.Clone())
             .ToList();
     }
+
+    public bool RefreshSubAgentProfilesChangedOnDisk()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return false;
+
+        var onDisk = LoadMergedWorkspaceConfig().SubAgentProfiles;
+        if (ProfileFingerprint(onDisk) == ProfileFingerprint(appConfigMonitor.Current.SubAgentProfiles))
+            return false;
+
+        RefreshCurrentSubAgentConfig();
+        InvalidateThreadAgents();
+        return true;
+    }
+
+    private static string ProfileFingerprint(IEnumerable<SubAgentProfile> profiles) =>
+        string.Join('\n', profiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
+            .OrderBy(profile => profile.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(profile => $"{profile.Name}={JsonSerializer.Serialize(profile)}"));
 
     public void RefreshCurrentHooksConfig()
     {

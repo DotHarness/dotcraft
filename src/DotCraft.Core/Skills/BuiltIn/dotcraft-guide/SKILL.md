@@ -32,6 +32,7 @@ Cite only `www.dotcraft.net` and `github.com/DotHarness/dotcraft`. Never invent 
 | A plugin turned off here | `Plugins.DisabledPlugins` in the workspace config, or Desktop > Plugins > Manage to take effect at once |
 | A procedure worth repeating | A skill — `$skill-creator` to write one, `$skill-installer` to install one |
 | A bundle of skills, tools, hooks, MCP servers, or UI | A plugin — `$plugin-creator` |
+| Another CLI agent DotCraft can hand tasks to as a subagent | `SubAgentProfiles` in the workspace config. Read `references/subagent-profiles.md` |
 | External data or actions from another program | `McpServers` |
 | "From now on, whenever X happens, do Y", mechanically | A hook — `$create-hooks`. Not memory, and not prose in a file |
 | Something on a schedule | the `Automation` tool |
@@ -58,6 +59,7 @@ Read the one that matches the task. They sit next to this file, in the directory
 - `references/docs-map.md` — how dotcraft.net is addressed, and which page answers which question.
 - `references/cli.md` — the `dotcraft` command surface and where to find the binary.
 - `references/capabilities.md` — answering "what can you do" from this session before reaching for the product catalog.
+- `references/subagent-profiles.md` — adding or changing a custom subagent that runs another CLI agent.
 
 ## Hand off
 

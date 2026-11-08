@@ -22,6 +22,8 @@ The native runtime runs subagents inside DotCraft itself. Role tool limits apply
 
 You can also use an external coding CLI as the runtime, with built-in support for Codex CLI and Cursor CLI. An external CLI runs a one-shot task in its own process and usually reports stage-level progress only. DotCraft passes the role instructions to it, but cannot constrain the tool calls it makes internally. When you need strong isolation, prefer the native runtime and tighten its tools and approvals as described in [Security](../self-hosting/security).
 
+To use another CLI, open **Settings → Subagents** in Desktop and choose **Add custom agent**. A new chat opens where you name the CLI. DotCraft reads its help, tries one small task, and saves the setup for you. The new agent then appears in the list, where you can turn it on or off, change it in a chat, or remove it. To write the setup by hand instead, see [External CLI profiles](../configuration/subagents#external-cli-profiles).
+
 ## Follow subagent progress in Desktop
 
 ![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)

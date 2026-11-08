@@ -22,6 +22,8 @@ Subagent 是主 Agent 的委派机制：把一段独立任务交给它，在单�
 
 也可以用外部 coding CLI 作为运行时，内置支持 Codex CLI 和 Cursor CLI。外部 CLI 以独立进程运行一次性任务，通常只汇报阶段性进度。DotCraft 会把角色说明传给它，但无法约束它内部的工具调用。需要强隔离时优先使用原生运行时，并按[安全](../self-hosting/security)里的做法收紧它的工具和审批。
 
+要接入其他 CLI，在 Desktop 打开 **设置 → 子智能体**，点 **添加自定义智能体**。会打开一个新对话，你说出要用的 CLI，DotCraft 会读它的帮助、试跑一个小任务，再把配置保存好。之后它会出现在列表里，可以开关、在对话里修改或删除。想手写配置，见[外部 CLI Profile](../configuration/subagents#外部-cli-profile)。
+
 ## 在 Desktop 中查看 subagent 进度
 
 ![在 DotCraft Desktop 中查看多个后台 subagent 及其状态](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)
