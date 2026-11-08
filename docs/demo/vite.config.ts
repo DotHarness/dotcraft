@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { bundledScriptPlugin } from '../../desktop/bundledScriptPlugin'
 
 const desktopRenderer = resolve(__dirname, '../../desktop/src/renderer')
+const sdkSource = resolve(__dirname, '../../sdk/typescript/src')
 const avatarSource = resolve(__dirname, '../../sdk/typescript/packages/avatar/src')
 const repoRoot = resolve(__dirname, '../..')
 
@@ -18,6 +19,7 @@ export default defineConfig({
       // Keep desktop-only viewer dependencies out of the web demo.
       { find: /^.*\/detail\/ViewerTab$/, replacement: resolve(__dirname, 'src/stubs/ViewerTab.tsx') },
       { find: '@dotcraft/avatar', replacement: avatarSource },
+      { find: '@dotcraft/sdk', replacement: sdkSource },
       { find: '@renderer', replacement: desktopRenderer },
       { find: '@', replacement: desktopRenderer }
     ],

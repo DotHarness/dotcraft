@@ -12,6 +12,8 @@
     "paths": {
       "@dotcraft/avatar": ["../../sdk/typescript/packages/avatar/src/index.ts"],
       "@dotcraft/avatar/*": ["../../sdk/typescript/packages/avatar/src/*"],
+      "@dotcraft/sdk": ["../../sdk/typescript/src/index.ts"],
+      "@dotcraft/sdk/*": ["../../sdk/typescript/src/*"],
       "js-yaml": ["node_modules/@types/js-yaml/index.d.ts"],
       "@renderer/*": ["../../desktop/src/renderer/*"],
       "@/*": ["../../desktop/src/renderer/*"]
