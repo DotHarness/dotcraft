@@ -8,7 +8,7 @@ export interface OpenWorkspaceThreadOptions {
   switchWorkspace(path: string): Promise<void>
   setPending(payload: { projectKey: string; workspacePath: string; threadId: string; includeArchived?: boolean }): void
   clearPending(projectKey: string, threadId: string): void
-  activateThread(threadId: string): void
+  activateThread(threadId: string): Promise<void>
 }
 
 export async function openWorkspaceThread(options: OpenWorkspaceThreadOptions): Promise<void> {
@@ -28,5 +28,5 @@ export async function openWorkspaceThread(options: OpenWorkspaceThreadOptions): 
     }
     return
   }
-  options.activateThread(options.threadId)
+  await options.activateThread(options.threadId)
 }

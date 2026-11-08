@@ -89,8 +89,13 @@ export function useForegroundThreadList(
       const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
       const listedThreads = res.data ?? []
-      const activeThreads = includeArchived ? listedThreads.filter((thread) => thread.status !== 'archived') : listedThreads
-      threadStore.setThreadList(withReadStates(activeThreads, res.readStates, requestedAtMark), projectKey)
+      const selectedArchived = threadStore.threadListProjectKey === projectKey
+        ? threadStore.threadList.find((thread) => thread.id === threadStore.activeThreadId && thread.status === 'archived')
+        : undefined
+      const observedThreads = selectedArchived && !listedThreads.some((thread) => thread.id === selectedArchived.id)
+        ? [...listedThreads, selectedArchived]
+        : listedThreads
+      threadStore.setThreadList(withReadStates(observedThreads, res.readStates, requestedAtMark), projectKey)
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
       }

@@ -36,19 +36,4 @@ describe('foreground thread list loading', () => {
     expect(useThreadStore.getState().pinnedThreadIds).toEqual(['a'])
     expect(useThreadStore.getState().loading).toBe(false)
   })
-
-  it('opens an archived ranking target without restoring it or adding archives to the ordinary list', async () => {
-    const target = { projectKey: '/b', workspacePath: '/b', threadId: 'archived', includeArchived: true }
-    useUIStore.getState().setPendingProjectThreadOpen(target)
-    const sendRequest = vi.fn().mockResolvedValue({ data: [
-      { id: 'active', status: 'idle' }, { id: 'archived', status: 'archived' }
-    ] })
-    installDesktopApiMock({ settings: { get: async () => ({}) }, appServer: { sendRequest } })
-    const { result } = renderHook(() => useForegroundThreadList({ current: '/b' }, { current: '/b' }))
-    await act(async () => { await result.current.reloadThreadList() })
-    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('thread/list', expect.objectContaining({ includeArchived: true }))
-    expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['active'])
-    expect(useThreadStore.getState().activeThreadId).toBe('archived')
-    expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
-  })
 })

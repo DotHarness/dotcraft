@@ -7,10 +7,14 @@ import { openWorkspaceFileViewer } from './conversationDeepLink'
 import { openWorkspaceThread } from './openWorkspaceThread'
 import { toAbsoluteWorkspacePath } from './workspacePaths'
 import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
+import { useConnectionStore } from '../stores/connectionStore'
+import type { ThreadSummary } from '../types/thread'
 
 export async function openThread(threadId: string, workspacePath?: string, options: { includeArchived?: boolean } = {}): Promise<void> {
   const foreground = useWorkspaceProjectsStore.getState()
   const foregroundWorkspacePath = isRemoteProjectKey(foreground.foregroundProjectId) ? '' : foreground.foregroundWorkspacePath
+  const connectionEpoch = useConnectionStore.getState().connectionEpoch
+  const selectedThreadId = useThreadStore.getState().activeThreadId
   await openWorkspaceThread({
     threadId,
     workspacePath,
@@ -20,7 +24,14 @@ export async function openThread(threadId: string, workspacePath?: string, optio
     setPending: (payload) => useUIStore.getState().setPendingProjectThreadOpen(payload),
     clearPending: (projectKey, pendingThreadId) =>
       useUIStore.getState().clearPendingProjectThreadOpen(projectKey, pendingThreadId),
-    activateThread: (targetThreadId) => {
+    activateThread: async (targetThreadId) => {
+      if (options.includeArchived && !useThreadStore.getState().threadList.some((thread) => thread.id === targetThreadId)) {
+        const result = await window.api.appServer.sendRequest('thread/read', { threadId: targetThreadId }) as unknown as { thread: ThreadSummary }
+        if (useConnectionStore.getState().connectionEpoch !== connectionEpoch
+          || useWorkspaceProjectsStore.getState().foregroundProjectId !== foreground.foregroundProjectId
+          || useThreadStore.getState().activeThreadId !== selectedThreadId) return
+        useThreadStore.getState().upsertThreads([result.thread])
+      }
       useThreadStore.getState().setActiveThreadId(targetThreadId)
       useUIStore.getState().setActiveMainView('conversation')
     }
