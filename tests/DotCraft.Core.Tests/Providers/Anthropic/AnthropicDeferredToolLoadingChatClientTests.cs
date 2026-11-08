@@ -171,7 +171,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
             client,
             "claude-sonnet-4-5",
             defaultMaxOutputTokens: 1024);
-        client = new AnthropicProviderContentChatClient(client);
+        client = new AnthropicProviderContentChatClient(client, allowUnsignedThinkingHistory: false);
         client = new AnthropicDeferredToolCatalogChatClient(client, registry);
         client = new ImageContentSanitizingChatClient(client);
 
@@ -537,7 +537,8 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
             model,
             sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
         return new AnthropicProviderContentChatClient(
-            new AnthropicDeferredToolLoadingChatClient(inner, model, defaultMaxOutputTokens: 1024));
+            new AnthropicDeferredToolLoadingChatClient(inner, model, defaultMaxOutputTokens: 1024),
+            allowUnsignedThinkingHistory: false);
     }
 
     private static AIFunction CreateTicketLookupTool() =>

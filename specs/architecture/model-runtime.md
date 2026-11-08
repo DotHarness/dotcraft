@@ -247,6 +247,12 @@ provider request uses the deterministic ordering and grouping required by that p
 The rollout is the durable authority for Session behavior, display, protocol export, rollback, and
 generic conversation reconstruction. It preserves roles, multimodal content, reasoning, tool calls
 and results, usage, and safe metadata without depending on runtime object identity.
+Partial output from an interrupted stream remains available in neutral history and the transcript;
+it is not automatically valid provider input. Provider adapters project replayable requests without
+mutating that history. Standard Anthropic requests omit unsigned thinking and any assistant message
+left empty by that omission, while preserving signed thinking, redacted thinking, text, and complete
+tool calls/results in order. Compatible endpoints with a resolved reasoning-history adapter retain
+that adapter's rules, including unsigned thinking where supported.
 
 ### 7.2 Cross-model request projection
 

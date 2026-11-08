@@ -7,7 +7,9 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient) : DelegatingChatClient(innerClient)
+internal sealed class AnthropicProviderContentChatClient(
+    IChatClient innerClient,
+    bool allowUnsignedThinkingHistory) : DelegatingChatClient(innerClient)
 {
     private const string ServerToolInputProperty = "dotcraft.anthropic.server_tool_input";
 
@@ -66,7 +68,7 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
         }
     }
 
-    private static IReadOnlyList<ChatMessage> Rewrite(IEnumerable<ChatMessage> source)
+    private IReadOnlyList<ChatMessage> Rewrite(IEnumerable<ChatMessage> source)
     {
         var messages = source as IReadOnlyList<ChatMessage> ?? source.ToArray();
         List<ChatMessage>? rewritten = null;
@@ -77,7 +79,8 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
             if (!ReferenceEquals(next, message))
             {
                 rewritten ??= [.. messages.Take(index)];
-                rewritten.Add(next);
+                if (next != null)
+                    rewritten.Add(next);
             }
             else
                 rewritten?.Add(message);
@@ -85,29 +88,45 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
         return rewritten ?? messages;
     }
 
-    private static ChatMessage Rewrite(ChatMessage message)
+    private ChatMessage? Rewrite(ChatMessage message)
     {
         List<AIContent>? contents = null;
         for (var index = 0; index < message.Contents.Count; index++)
         {
             var content = message.Contents[index];
-            var next = Rewrite(content);
+            var next = !allowUnsignedThinkingHistory && message.Role == ChatRole.Assistant
+                && IsUnsignedThinking(content) ? null : Rewrite(content);
             if (!ReferenceEquals(next, content))
             {
                 contents ??= [.. message.Contents.Take(index)];
-                contents.Add(next);
+                if (next != null)
+                    contents.Add(next);
             }
             else
                 contents?.Add(content);
         }
-        return contents == null ? message : new ChatMessage(message.Role, contents)
+        if (contents == null)
+            return message;
+        if (contents.Count == 0)
+            return null;
+
+        var rewritten = message.Clone();
+        rewritten.Contents = contents;
+        rewritten.RawRepresentation = null;
+        return rewritten;
+    }
+
+    private static bool IsUnsignedThinking(AIContent content)
+    {
+        if (content.RawRepresentation is BetaContentBlockParam block)
         {
-            AdditionalProperties = message.AdditionalProperties,
-            AuthorName = message.AuthorName,
-            CreatedAt = message.CreatedAt,
-            MessageId = message.MessageId,
-            RawRepresentation = message.RawRepresentation
-        };
+            return block.Json.TryGetProperty("type", out var type)
+                && type.ValueKind == JsonValueKind.String && type.GetString() == "thinking"
+                && (!block.Json.TryGetProperty("signature", out var signature)
+                    || signature.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(signature.GetString()));
+        }
+        return content is TextReasoningContent reasoning && string.IsNullOrWhiteSpace(reasoning.ProtectedData);
     }
 
     private static AIContent Rewrite(AIContent content)
