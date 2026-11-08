@@ -12,6 +12,7 @@ import { ActionTooltip } from '../../ui/ActionTooltip'
 import { Skeleton } from '../../ui/Skeleton'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
+import { MoreActionsButton } from '../../ui/MoreActionsButton'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { settingsPlaceholderStyle } from '../settingsTypography'
 import { SettingsPanelShell } from '../SettingsPanelShell'
@@ -52,6 +53,7 @@ export function ArchivedThreadsSettingsView({
   const [deletingAll, setDeletingAll] = useState(false)
   const [startingKey, setStartingKey] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ entry: ArchivedThreadEntry; position: ContextMenuPosition } | null>(null)
+  const [groupMenu, setGroupMenu] = useState<{ group: ArchivedThreadGroup; position: ContextMenuPosition } | null>(null)
   const confirm = useConfirmDialog()
 
   const selectedSource = sources.find((source) => sourceFilter(source) === projectFilter)
@@ -125,11 +127,10 @@ export function ArchivedThreadsSettingsView({
     }
   }
 
-  async function confirmDeleteAll(): Promise<void> {
-    const entries = visibleEntries
+  async function confirmDeleteEntries(entries: ArchivedThreadEntry[], title: string): Promise<void> {
     if (entries.length === 0 || deletingAll) return
     const ok = await confirm({
-      title: t('archivedThreads.deleteAllConfirmTitle'),
+      title,
       message: t('archivedThreads.deleteAllConfirmMessage', { count: entries.length }),
       confirmLabel: t('archivedThreads.deleteAll'),
       danger: true
@@ -147,7 +148,7 @@ export function ArchivedThreadsSettingsView({
     }
     if (entries.some((entry) => entry.source.foreground)) onThreadListRefreshRequested?.()
     if (failed === 0) {
-      addToast(t('archivedThreads.deleteAllSuccess'), 'success')
+      addToast(t('archivedThreads.deleteManySuccess', { count: entries.length }), 'success')
     } else {
       addToast(t('archivedThreads.bulkDeleteSummary', { success: entries.length - failed, failed }), 'warning')
     }
@@ -165,9 +166,30 @@ export function ArchivedThreadsSettingsView({
     }
   }
 
-  function groupTitle(group: ArchivedThreadGroup): string | undefined {
-    if (effectiveFilter !== 'all') return undefined
+  function groupLabel(group: ArchivedThreadGroup): string {
     return group.source ? sourceLabel(group.source) : t('archivedThreads.project.automations')
+  }
+
+  function renderGroupActions(group: ArchivedThreadGroup): JSX.Element {
+    const name = groupLabel(group)
+    const count = group.entries.length
+    return (
+      <div className={css.groupActions}>
+        <span className={css.groupCount}>
+          {t(count === 1 ? 'archivedThreads.groupCount.one' : 'archivedThreads.groupCount.other', { count })}
+        </span>
+        <MoreActionsButton
+          size={28}
+          label={t('archivedThreads.groupActions', { name })}
+          disabled={deletingAll}
+          open={groupMenu?.group.id === group.id}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setGroupMenu({ group, position: { x: rect.right - 200, y: rect.bottom + 4 } })
+          }}
+        />
+      </div>
+    )
   }
 
   function renderRow(entry: ArchivedThreadEntry, group: ArchivedThreadGroup): JSX.Element {
@@ -235,7 +257,7 @@ export function ArchivedThreadsSettingsView({
         <Button
           variant="danger"
           iconLeft={<Trash2 size={15} />}
-          onClick={() => { void confirmDeleteAll() }}
+          onClick={() => { void confirmDeleteEntries(visibleEntries, t('archivedThreads.deleteAllConfirmTitle')) }}
           disabled={visibleEntries.length === 0 || deletingAll}
         >
           {deletingAll ? t('archivedThreads.deletingAll') : t('archivedThreads.deleteAll')}
@@ -325,13 +347,35 @@ export function ArchivedThreadsSettingsView({
       )}
 
       {groups.map((group) => (
-        <SettingsGroup key={group.id} title={groupTitle(group)}>
+        <SettingsGroup
+          key={group.id}
+          title={effectiveFilter === 'all' ? groupLabel(group) : undefined}
+          headerAction={effectiveFilter === 'all' ? renderGroupActions(group) : undefined}
+        >
           {group.entries.map((entry) => renderRow(entry, group))}
         </SettingsGroup>
       ))}
 
       {effectiveFilter === 'all' && coldSources.length > 0 && (
         <p className={css.hint}>{t('archivedThreads.coldHint', { count: coldSources.length })}</p>
+      )}
+
+      {groupMenu && (
+        <ContextMenu
+          position={groupMenu.position}
+          onClose={() => setGroupMenu(null)}
+          items={[{
+            label: t('archivedThreads.deleteGroup'),
+            icon: <Trash2 size={14} aria-hidden />,
+            danger: true,
+            onClick: () => {
+              void confirmDeleteEntries(
+                groupMenu.group.entries,
+                t('archivedThreads.deleteGroupConfirmTitle', { name: groupLabel(groupMenu.group) })
+              )
+            }
+          }]}
+        />
       )}
 
       {contextMenu && (

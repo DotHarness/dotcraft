@@ -832,7 +832,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - An archived-thread surface is reachable from Settings when thread management is available. It lists archived threads from every connected workspace (the foreground project, running secondary projects, the default Chat workspace, and connected remote projects), each following the main list's workspace identity and visibility rules with archived inclusion.
 - One search field matches thread titles. One filter control offers a Project dimension (all projects, a single project, Chats, or Automations, meaning automation runs from any workspace) and a Sort dimension (last active, created, or title). With all projects selected, results are grouped by workspace with automation runs in their own group.
 - Local projects whose AppServer is not running are not started implicitly. Selecting one in the Project filter offers to start it; once connected, its archived threads load.
-- It is read-only apart from restore and delete, which are routed to the thread's own workspace connection. Restoring removes the thread from the archived list immediately; delete all applies to the threads currently shown.
+- It is read-only apart from restore and delete, which are routed to the thread's own workspace connection. Restoring removes the thread from the archived list immediately. The page-level delete all applies to the threads currently shown; with all projects selected, each group header shows its count and a menu to delete that group's shown threads.
 - Restores, archives, or deletes made elsewhere reconcile automatically.
 
 ### 6.7 Settings Surface

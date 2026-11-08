@@ -1906,7 +1906,12 @@ export const MESSAGES_EN = {
     'This chat will be permanently deleted. This cannot be undone.',
   'archivedThreads.deleteAll': 'Delete all',
   'archivedThreads.deletingAll': 'Deleting…',
-  'archivedThreads.deleteAllSuccess': 'All archived chats deleted',
+  'archivedThreads.deleteManySuccess': 'Deleted {{count}} archived chats',
+  'archivedThreads.groupCount.one': '{{count}} chat',
+  'archivedThreads.groupCount.other': '{{count}} chats',
+  'archivedThreads.groupActions': 'More actions for {{name}}',
+  'archivedThreads.deleteGroup': 'Delete all in this group',
+  'archivedThreads.deleteGroupConfirmTitle': 'Delete all archived chats in {{name}}?',
   'archivedThreads.deleteAllConfirmTitle': 'Delete all archived chats?',
   'archivedThreads.deleteAllConfirmMessage':
     'Delete all {{count}} archived chats? This action cannot be undone.',

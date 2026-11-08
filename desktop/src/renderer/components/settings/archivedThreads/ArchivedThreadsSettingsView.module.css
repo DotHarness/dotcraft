@@ -23,6 +23,17 @@
   gap: 8px;
 }
 
+.groupActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.groupCount {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+}
+
 .error {
   color: var(--error);
 }
