@@ -167,6 +167,9 @@ const explicitApi = {
     popupTopLevel: async () => {}
   },
   appServer: {
+    getUsageConnection: async () => ({ connectionKey: 'demo-usage', usageTelemetry: true }),
+    sendConnectionRequest: async (_key: string, method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
+      handleAppServerRequest(method, params),
     sendRequest: async (method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
       handleAppServerRequest(method, params),
     listModels: async () => modelListPayload,

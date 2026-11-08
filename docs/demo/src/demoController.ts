@@ -9,6 +9,7 @@ import { useConversationStore } from '@renderer/stores/conversationStore'
 import { useConnectionStore } from '@renderer/stores/connectionStore'
 import { useWorkspaceProjectsStore } from '@renderer/stores/workspaceProjectsStore'
 import { useUIStore } from '@renderer/stores/uiStore'
+import { useDetailPanelStore } from '@renderer/stores/detailPanelStore'
 import type { Thread, ThreadSummary } from '@renderer/types/thread'
 import { getDemoProjects } from './data/demoProjects'
 import { getDemoThreads, planToMarkdown, type DemoThread } from './data/demoThreads'
@@ -73,15 +74,11 @@ function loadThread(thread: DemoThread): void {
 
   useThreadStore.getState().setActiveThread(toThread(thread))
 
-  // Per-thread detail tabs: Changes always, Plan only for plan threads.
-  const ui = useUIStore.getState()
-  if (thread.plan) {
-    ui.setActiveDetailTab('changes')
-    ui.setActiveDetailTab('plan')
-  } else {
-    ui.closeSystemTab('plan')
-    ui.setActiveDetailTab('changes')
-  }
+  const panel = useDetailPanelStore.getState()
+  panel.onWorkspaceSwitched(DEMO_WORKSPACE_PATH)
+  panel.onThreadSwitched(thread.id)
+  panel.setActiveDetailTab('changes')
+  if (thread.plan) panel.setActiveDetailTab('plan')
 }
 
 export function bootstrapDemo(): void {
@@ -122,7 +119,6 @@ export function bootstrapDemo(): void {
   })
 
   const ui = useUIStore.getState()
-  ui.setDetailPanelVisible(true)
 
   // The demo models the conversation surface, plus Settings when a page starts
   // there; keep other nav clicks from switching to unpopulated views.
