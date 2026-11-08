@@ -2553,7 +2553,7 @@ Other combinations or unknown values return `-32602`.
 Group keys are raw; clients map labels:
 
 - `tokenType`: `uncached`, `cached`, `cacheWrite`, `output` (never folded).
-- `surface`: the root thread's origin channel.
+- `surface`: the root thread's origin channel. Clients display built-in surface IDs with friendly names, including `dotcraft-desktop` as Desktop and `dotcraft-mobile` as Mobile, while preserving the raw IDs for grouping and requests.
 - `model`, `reasoning` (`low`, `medium`, `high`, `extrahigh`), `speed` (`standard`, `fast`): as recorded on the Turn; `unknown` when absent (or reasoning off).
 - `toolSource`: `builtin`, `mcp:<server>`, `plugin:<pluginId>`, `client`, `binding`, or `unknown`.
 - `tool`: tool name as invoked. `skill`: skill name without `$`.
