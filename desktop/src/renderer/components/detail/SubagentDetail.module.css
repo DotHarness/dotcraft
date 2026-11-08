@@ -68,13 +68,16 @@
 }
 
 .transcript {
-  display: flex;
   box-sizing: border-box;
   height: 100%;
-  flex-direction: column;
-  gap: var(--conversation-block-gap);
   padding: 8px 16px 32px;
   overflow-y: auto;
+}
+
+.transcriptContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--conversation-block-gap);
 }
 
 .skeleton {

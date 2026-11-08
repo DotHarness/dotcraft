@@ -8,6 +8,7 @@ import { ApprovalDecisionComposer } from '../components/conversation/ApprovalDec
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore, type PendingApproval } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import {
@@ -264,6 +265,8 @@ describe('ApprovalDecisionComposer', () => {
       },
       loading: false
     })
+    releaseThreadState('thread-approval')
+    openThreadState('thread-approval')
     useConversationStore.setState({
       activeTurnId: 'turn-approval',
       turnStatus: 'waitingApproval',

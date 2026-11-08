@@ -7,6 +7,7 @@ import { requestThreadModeChange, useActiveThreadModeSync } from '../hooks/useAc
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { useUIStore } from '../stores/uiStore'
 import type { Thread } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -28,6 +29,7 @@ function thread(mode?: string, id = 'thread-1'): Thread {
 }
 
 function selectThread(mode?: string, id = 'thread-1'): void {
+  openThreadState(id)
   useThreadStore.getState().setActiveThreadId(id)
   useThreadStore.getState().setActiveThread(thread(mode, id))
 }
@@ -55,6 +57,8 @@ beforeEach(() => {
   })
   useThreadStore.getState().reset()
   useConversationStore.getState().reset()
+  releaseThreadState('thread-1')
+  releaseThreadState('thread-2')
   useUIStore.setState({ planApprovalDismissed: {}, pendingThreadCreation: null })
   useComposerDraftStore.setState({ draftsByThread: {} })
   selectThread('agent')

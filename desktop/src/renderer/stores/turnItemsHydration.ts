@@ -9,7 +9,8 @@ function mergeItem(incoming: ConversationItem, existing: ConversationItem | unde
   }
   const terminalFinished = existing.executionStatus != null && existing.executionStatus !== 'inProgress'
     && existing.terminalRunning !== true
-  if (terminalFinished) {
+  if (terminalFinished && (incoming.executionStatus == null || incoming.executionStatus === 'inProgress'
+    || incoming.terminalRunning === true)) {
     return {
       ...merged,
       executionStatus: existing.executionStatus,
@@ -44,6 +45,38 @@ export function mergeTurnItemsPage(
       nextCursor
     }
   }
+}
+
+export function mergeRestoredTurns(
+  existing: readonly ConversationTurn[],
+  incoming: readonly ConversationTurn[]
+): ConversationTurn[] {
+  const byId = new Map(existing.map(turn => [turn.id, turn]))
+  return incoming.map(turn => {
+    const previous = byId.get(turn.id)
+    if (!previous || previous.threadId !== turn.threadId) return turn
+    const oldItems = new Map(previous.items.map(item => [item.id, item]))
+    const items = turn.items.map(item => mergeItem(item, oldItems.get(item.id)))
+    if (turn.summary && turn.summary.itemCount >= previous.items.length) {
+      const known = new Set(items.map(item => item.id))
+      items.push(...previous.items.filter(item => !known.has(item.id)))
+      items.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    }
+    const terminal = previous.status === 'completed' || previous.status === 'failed' || previous.status === 'cancelled'
+    const incomingLive = turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput'
+    return {
+      ...turn,
+      ...(terminal && incomingLive ? {
+        status: previous.status,
+        completedAt: previous.completedAt,
+        error: previous.error,
+        providerError: previous.providerError,
+        cancelReason: previous.cancelReason
+      } : {}),
+      items,
+      summary: turn.summary && items.length < turn.summary.itemCount ? { ...turn.summary } : undefined
+    }
+  })
 }
 
 export function hydratedStreamingState(

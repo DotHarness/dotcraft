@@ -1,3 +1,10 @@
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+  color: var(--text-secondary);
+}
+
 .failed {
   display: flex;
   align-items: center;

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   appendLiveText,
   applyTranscriptEvent,
-  mergeHistoryTurns,
+  restoreTranscript,
   type TranscriptTimeline
 } from '../stores/subAgentTranscriptEvents'
 import type { ConversationTurn } from '../types/conversation'
+import type { Thread } from '../types/thread'
+import { makeRestoreResult } from './threadRestorationFixtures'
 
 const THREAD = 'child-1'
 const empty: TranscriptTimeline = { turns: [], live: null }
@@ -22,6 +24,26 @@ function startedMessage(timeline: TranscriptTimeline): TranscriptTimeline {
 }
 
 describe('subagent transcript events', () => {
+  it('restores the snapshot streaming base rather than cached text or omitted live Items', () => {
+    const cached: ConversationTurn[] = [{
+      id: 'turn', threadId: THREAD, status: 'running', startedAt: '2026-01-01T00:00:00Z',
+      items: [
+        { id: 'tool', type: 'toolCall', status: 'completed', createdAt: '2026-01-01T00:01:00Z' },
+        { id: 'message', type: 'agentMessage', status: 'streaming', text: 'obsolete', createdAt: '2026-01-01T00:02:00Z' },
+        { id: 'reasoning', type: 'reasoningContent', status: 'streaming', reasoning: 'cached reasoning', createdAt: '2026-01-01T00:03:00Z' }
+      ]
+    }]
+    const result = makeRestoreResult({ id: THREAD, turns: [{
+      id: 'turn', threadId: THREAD, status: 'running', startedAt: '2026-01-01T00:00:00Z',
+      itemsView: 'summary', itemCount: 4,
+      items: [{ id: 'message', type: 'agentMessage', status: 'started', createdAt: '2026-01-01T00:02:00Z', payload: { text: 'snapshot base' } }]
+    }] } as unknown as Thread)
+    const restored = restoreTranscript(result, cached)
+    expect(restored.turns[0].items.map(item => item.id)).toEqual(['tool', 'message', 'reasoning'])
+    expect(restored.live).toEqual({ itemId: 'message', kind: 'agentMessage', text: 'snapshot base' })
+    expect(appendLiveText(restored, 'message', ' suffix').live?.text).toBe('snapshot base suffix')
+  })
+
   it('streams an agent message from its start through deltas to completion', () => {
     let timeline = apply(empty, 'turn/started', { turn: { id: 'turn-1', threadId: THREAD, status: 'running' } })
     timeline = startedMessage(timeline)
@@ -60,40 +82,4 @@ describe('subagent transcript events', () => {
     expect(timeline.turns[0].items[0].status).toBe('completed')
   })
 
-  it('lets history replace streamed items while keeping the message still streaming', () => {
-    let timeline = apply(empty, 'turn/started', { turn: { id: 'turn-1', threadId: THREAD, status: 'running' } })
-    timeline = startedMessage(timeline)
-    timeline = appendLiveText(timeline, 'msg-1', 'Halfway')
-    const history: ConversationTurn[] = [{
-      id: 'turn-1',
-      threadId: THREAD,
-      status: 'running',
-      startedAt: '2026-10-01T00:00:00.000Z',
-      items: [{ id: 'read-1', type: 'toolCall', status: 'completed', createdAt: '2026-10-01T00:00:00.500Z' }]
-    }]
-
-    const merged = mergeHistoryTurns(timeline, history)
-
-    expect(merged.turns[0].items.map((item) => [item.id, item.status])).toEqual([
-      ['read-1', 'completed'],
-      ['msg-1', 'streaming']
-    ])
-    expect(merged.live?.text).toBe('Halfway')
-  })
-
-  it('drops the live text once history holds the completed message', () => {
-    const timeline = appendLiveText(startedMessage(empty), 'msg-1', 'Done')
-    const history: ConversationTurn[] = [{
-      id: 'turn-1',
-      threadId: THREAD,
-      status: 'completed',
-      startedAt: '2026-10-01T00:00:00.000Z',
-      items: [{ id: 'msg-1', type: 'agentMessage', status: 'completed', text: 'Done', createdAt: '2026-10-01T00:00:01.000Z' }]
-    }]
-
-    const merged = mergeHistoryTurns(timeline, history)
-
-    expect(merged.live).toBeNull()
-    expect(merged.turns[0].items).toHaveLength(1)
-  })
 })

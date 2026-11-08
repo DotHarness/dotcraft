@@ -67,22 +67,24 @@ export function ConversationPanel({
   const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
-  const activeThread = useThreadStore((s) => s.activeThread)
+  const activeThread = useThreadStore((s) => s.activeThread?.id === s.activeThreadId ? s.activeThread : null)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const conversationReady = useConversationStore.useThreadId() === activeThreadId
   const activeThreadLoadError = useThreadStore((s) => s.activeThreadLoadError)
   const openingSummary = useThreadStore((s) =>
-    s.activeThreadId && !s.activeThread ? s.threadList.find((entry) => entry.id === s.activeThreadId) : undefined)
+    s.activeThreadId && s.activeThread?.id !== s.activeThreadId
+      ? s.threadList.find((entry) => entry.id === s.activeThreadId) : undefined)
   const turns = useConversationStore((s) => s.turns)
-  const turnStatus = useConversationStore((s) => s.turnStatus)
-  const threadMode = useConversationStore((s) => s.threadMode)
-  const pendingApproval = useConversationStore((s) => s.pendingApproval)
-  const genericApproval = useConversationStore((s) => s.genericApproval)
+  const turnStatus = useConversationStore((s) => conversationReady ? s.turnStatus : 'idle')
+  const threadMode = useConversationStore((s) => conversationReady ? s.threadMode : 'agent')
+  const pendingApproval = useConversationStore((s) => conversationReady ? s.pendingApproval : null)
+  const genericApproval = useConversationStore((s) => conversationReady ? s.genericApproval : null)
   const conversationViews = useDesktopPluginRegistry((s) => s.conversationViews)
   const selectedConversationViewKey = useDesktopPluginRegistry((s) =>
     activeThreadId ? s.conversationSelections.get(activeThreadId) ?? null : null
   )
   const composerApproval = pendingApproval ?? genericApproval
-  const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
+  const pendingUserInput = useConversationStore((s) => conversationReady ? s.pendingUserInput : null)
   const latestCreatePlanTurnId = useConversationStore(selectLatestCreatePlanTurnId)
   const plan = useConversationStore((s) => s.plan)
   const connectionStatus = useConnectionStore((s) => s.status)
@@ -92,7 +94,7 @@ export function ConversationPanel({
   const runtime = useThreadStore((s) => activeThreadId ? s.runtimeSnapshots.get(activeThreadId) : undefined)
   const waitingForRequest = (runtime?.waitingOnApproval === true && pendingApproval == null)
     || (runtime?.waitingOnInput === true && pendingUserInput == null)
-  const interactionLoading = restoring || waitingForRequest
+  const interactionLoading = restoring || waitingForRequest || (activeThreadId != null && !conversationReady)
   const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
   const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const pendingWelcomeTurn = useUIStore((s) => s.pendingWelcomeTurn)
@@ -224,7 +226,8 @@ export function ConversationPanel({
   }
 
   const threadName = thread.displayName ?? t('sidebar.newConversation')
-  const hasContent = turns.length > 0 || turnStatus === 'running' || hasPendingChannelBinding
+  const hasContent = conversationReady && (turns.length > 0 || turnStatus === 'running' || hasPendingChannelBinding)
+  const viewportKey = JSON.stringify([projectKey ?? protocolWorkspacePath, thread.id])
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
     : null
@@ -322,10 +325,10 @@ export function ConversationPanel({
           inputParts={pendingWelcomeTurn.inputParts}
           sentAsGoal={pendingWelcomeTurn.sentAsGoal}
         />
-      ) : openingThread ? (
+      ) : openingThread || !conversationReady ? (
         loadingIndicator
       ) : hasContent ? (
-        <MessageStream sendScrollRequest={scrollRequest} />
+        <MessageStream key={viewportKey} viewportKey={viewportKey} sendScrollRequest={scrollRequest} />
       ) : isAgentBuilder ? (
         <AgentBuilderChatEmptyState
           onPick={(text) => {

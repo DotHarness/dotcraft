@@ -79,7 +79,7 @@ Both clients follow these rules for conversation transcripts:
 4. Opening detail reads at most one 100-Item page per selected Turn within the five-Turn head, using at most four concurrent workers. Preview hydration uses at most two concurrent jobs. Retain a cursor per Turn and publish usable content without waiting for a large Turn to drain.
 5. Viewport demand and explicit process/Item expansion drive further pages. Restoring a runtime flag or opening the transcript does not drain remaining Turn or Item cursors. Stale target/viewport work does not keep launching reads.
 6. Reuse summary Items and loaded payloads. A missing original input or known interaction Item uses a small targeted read. Unknown targets use bounded page/navigation reads rather than fully expanding unrelated Turns.
-7. Loading or failed detail pages retain the existing summary, loading/error indicators, retry behavior and scroll anchor. A Turn is fully loaded only when its Item cursor is exhausted, and remains loaded while its history is held.
+7. Loading or failed detail pages retain the existing summary, usable payloads, retry behavior and scroll anchor. Desktop shows a local loading status for active detail reads. A Turn is fully loaded only when its Item cursor is exhausted, and remains loaded while its history is held.
 8. Hydrating changing content in the observed current Turn uses the ordered current-view response boundary without acquiring another observation. Apply the selected Item base before its later deltas; do not infer overlap from text prefixes. Older committed history retains independent paged reads.
 9. File changes, citations and other summary-derived content use available summary Items. Mobile offline history preserves partial/summary state and unread cursors, not an invented fully-loaded state.
 
@@ -93,7 +93,9 @@ The client shows its cache or parallel read-only summary preview while resume pr
 
 ### 6.2 Open a folded process
 
-The user opens "Worked for" on a summary Turn. The process retains its summary and shows loading while one bounded Item page arrives. Further visible rows request further pages using that Turn's cursor; opening an already loaded row does not read it again.
+The user opens "Worked for" on a summary Turn. The process retains its summary and shows a local loading status while detail arrives. Automatic viewport demand reads bounded pages; an explicit complete expansion may exhaust the selected Turn's remaining cursor. Opening an already loaded row does not read it again.
+
+Desktop synchronously restores its window-local disclosure choice by workspace, thread, and Turn. The default follows final-answer/Turn state; cancelled processes stay expanded. Initial presentation uses the restored state without an interaction transition.
 
 ### 6.3 Reveal a call in older history
 

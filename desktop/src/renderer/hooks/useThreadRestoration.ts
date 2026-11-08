@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { translate, type AppLocale } from '../../shared/locales'
 import { readAppServerErrorFields } from '../../shared/appServerError'
 import { isHiddenThread } from '../../shared/hiddenThreads'
@@ -102,7 +102,7 @@ export function useThreadRestoration(props: Props): {
 
   const target = activeThreadId ? targetFor(activeThreadId) : null
   const targetKey = target ? threadObservationTargetKey(target) : null
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previous = selected.current
     const target = activeThreadId ? targetFor(activeThreadId) : null
     if (previous?.threadId === activeThreadId && isSameThreadObservationTarget(previous.target, target)) return
@@ -155,14 +155,18 @@ export function useThreadRestoration(props: Props): {
       && useThreadStore.getState().activeThreadId === threadId
       && isSameThreadObservationTarget(target, targetFor(threadId))
     let authoritative = false
+    const previewStore = getThreadConversation(threadId)!
+    const previewTurns = previewStore.getState().turns
     const preview = readThreadHistoryHead(
       (method, params) => window.api.appServer.sendRequest(method, params), threadId,
       undefined, undefined, isCurrent
     )
     const showPreview = (result: Awaited<typeof preview>): void => {
-      if (!isCurrent() || authoritative) return
+      if (!isCurrent() || authoritative || previewTurns.length !== 0
+        || getThreadConversation(threadId) !== previewStore
+        || previewStore.getState().turns !== previewTurns) return
       useThreadStore.getState().setActiveThread(result.thread)
-      getThreadConversation(threadId)?.getState().setTurns(
+      previewStore.getState().setTurns(
         result.thread.turns.map(turn => wireTurnToConversationTurn(turn as unknown as Record<string, unknown>))
       )
     }

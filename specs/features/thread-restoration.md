@@ -144,9 +144,9 @@ A revised plan becomes actionable after its own successful planning Turn complet
 4. Apply the response at the ordered transport/IPC response boundary, reconcile staged requests, then release subsequent events.
 5. Expose the current interaction and continue loading visible history on demand.
 
-Drafts retain their existing loading behavior. Action readiness follows the applied current state, not RPC Promise settlement or completion of all history reads.
+Drafts retain their existing loading behavior. Action readiness follows the applied current state, not RPC Promise settlement or completion of all history reads. A selected view's header, transcript, runtime, and interaction requests belong to the same thread; navigation never presents the previous thread's content under the new identity.
 
-Replacing the transcript resets pagination and invalidates prior history reads. Late results are scoped to their thread, workspace, and connection lifetime.
+A read-only preview only fills an unchanged, empty view. Resume merges matching Turn/Item identities and retains hydrated payloads. History replacement and reconnect invalidate existing cursors. Late results are scoped to their thread, workspace, and connection lifetime.
 
 ### 6.2 Warm and background observations
 
@@ -154,7 +154,7 @@ Desktop retains its bounded warm set and releases observations on eviction. Mobi
 
 ### 6.3 Transcript and archived viewing
 
-Active child transcripts resume without taking over execution bindings. Archived transcripts use read/paged history. Summary expansion, scroll anchoring, and offline snapshots follow the history-loading and client specifications.
+Active child transcripts resume without taking over execution bindings. Reopening a cached transcript keeps its usable content visible while observation is restored; only a view without usable content shows initial loading. A restored Turn's state takes precedence over an older parent-side running hint. Archived transcripts use read/paged history. Summary expansion, scroll anchoring, and offline snapshots follow the history-loading and client specifications.
 
 ### 6.4 Execution resources after navigation
 

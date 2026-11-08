@@ -1,5 +1,6 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { normalizeRemoteFileTransferProgress } from '../utils/remoteToolHostDisplay'
+import { mergeRestoredTurns } from './turnItemsHydration'
 import {
   wireItemToConversationItem,
   wireTurnToConversationTurn,
@@ -18,32 +19,35 @@ export interface TranscriptTimeline {
   live: TranscriptLiveText | null
 }
 
-export function restoreTranscript(result: ClientRequestMethods['thread/resume']['result']): TranscriptTimeline {
+export function restoreTranscript(
+  result: ClientRequestMethods['thread/resume']['result'],
+  existing: readonly ConversationTurn[] = []
+): TranscriptTimeline {
   const current = result.currentState
-  const turns = [...(result.initialTurnsPage?.data ?? [])].reverse().map(raw => {
-    const turn = wireTurnToConversationTurn(raw as Record<string, unknown>)
-    if (turn.id !== current.turnId) return turn
-    return {
-      ...turn,
-      items: turn.items.map(item => ({
-        ...item,
-        ...((item.type === 'agentMessage' || item.type === 'reasoningContent') && item.status !== 'completed'
-          ? { status: 'streaming' as const } : {}),
-        ...(current.toolArguments?.[item.id] != null ? { argumentsPreview: current.toolArguments[item.id] } : {}),
-        ...(current.toolProgress?.[item.id] ? {
-          transferProgress: normalizeRemoteFileTransferProgress(current.toolProgress[item.id].progress) ?? undefined
-        } : {})
-      }))
-    }
-  })
-  const active = turns.find(turn => turn.id === current.turnId)
-  const item = active?.items.findLast(candidate =>
-    candidate.status !== 'completed' && (candidate.type === 'agentMessage' || candidate.type === 'reasoningContent'))
+  const incoming = [...(result.initialTurnsPage?.data ?? [])].reverse()
+    .map(raw => wireTurnToConversationTurn(raw as Record<string, unknown>))
+  const merged = mergeRestoredTurns(existing, incoming)
+  const active = merged.find(turn => turn.id === current.turnId)
+  const running = active?.status === 'running' || active?.status === 'waitingApproval' || active?.status === 'waitingInput'
+  const item = running ? incoming.find(turn => turn.id === current.turnId)?.items.findLast(candidate =>
+    candidate.status !== 'completed' && (candidate.type === 'agentMessage' || candidate.type === 'reasoningContent')
+    && active?.items.find(item => item.id === candidate.id)?.status !== 'completed') : undefined
   const live: TranscriptLiveText | null = item ? {
     itemId: item.id,
     kind: item.type as TranscriptLiveText['kind'],
     text: item.type === 'agentMessage' ? item.text ?? '' : item.reasoning ?? ''
   } : null
+  const turns = merged.map(turn => turn.id !== current.turnId ? turn : {
+    ...turn,
+    items: turn.items.map(item => ({
+      ...item,
+      ...(item.id === live?.itemId ? { status: 'streaming' as const } : {}),
+      ...(current.toolArguments?.[item.id] != null ? { argumentsPreview: current.toolArguments[item.id] } : {}),
+      ...(current.toolProgress?.[item.id] ? {
+        transferProgress: normalizeRemoteFileTransferProgress(current.toolProgress[item.id].progress) ?? undefined
+      } : {})
+    }))
+  })
   return { turns, live }
 }
 
@@ -170,31 +174,4 @@ export function applyTranscriptEvent(
 export function appendLiveText(timeline: TranscriptTimeline, itemId: string, delta: string): TranscriptTimeline {
   if (timeline.live?.itemId !== itemId || delta.length === 0) return timeline
   return { ...timeline, live: { ...timeline.live, text: timeline.live.text + delta } }
-}
-
-export function mergeHistoryTurns(timeline: TranscriptTimeline, history: ConversationTurn[]): TranscriptTimeline {
-  const current = new Map(timeline.turns.map((turn) => [turn.id, turn]))
-  const historyIds = new Set(history.map((turn) => turn.id))
-  const newestHistoryStart = history.length > 0 ? Date.parse(history[history.length - 1].startedAt) : -Infinity
-  const turns = [
-    ...history.map((turn) => {
-      const existing = current.get(turn.id)
-      if (!existing) return turn
-      const known = new Set(turn.items.map((item) => item.id))
-      const pending = existing.items.filter((item) => !known.has(item.id) && item.status !== 'completed')
-      return pending.length > 0 ? { ...turn, items: byCreatedAt([...turn.items, ...pending]) } : turn
-    }),
-    ...timeline.turns.filter((turn) => !historyIds.has(turn.id) && !(Date.parse(turn.startedAt) < newestHistoryStart))
-  ]
-  const live = timeline.live
-  if (!live) return { turns, live }
-  const liveItem = turns.flatMap((turn) => turn.items).find((item) => item.id === live.itemId)
-  if (!liveItem || liveItem.status === 'completed') return { turns, live: null }
-  return {
-    turns: turns.map((turn) => ({
-      ...turn,
-      items: turn.items.map((item) => item.id === live.itemId ? { ...item, status: 'streaming' } : item)
-    })),
-    live
-  }
 }

@@ -6,6 +6,7 @@ import type { Thread } from '../types/thread'
 import { wireTurnToConversationTurn } from '../types/conversation'
 import { runtimeSnapshotFromThread } from '../utils/threadRuntime'
 import { normalizeRemoteFileTransferProgress } from '../utils/remoteToolHostDisplay'
+import { mergeRestoredTurns } from './turnItemsHydration'
 
 export type ThreadResumeResult = ClientRequestMethods['thread/resume']['result']
 
@@ -15,8 +16,9 @@ export function applyThreadRestoration(result: ThreadResumeResult): void {
   const store = getThreadConversation(threadId)
   if (!store) return
   const current = result.currentState
-  const turns = [...(result.initialTurnsPage?.data ?? [])].reverse()
+  const snapshotTurns = [...(result.initialTurnsPage?.data ?? [])].reverse()
     .map(turn => wireTurnToConversationTurn(turn as unknown as Record<string, unknown>))
+  const turns = mergeRestoredTurns(store.getState().turns, snapshotTurns)
   const pending = new Set(current.pendingRequests.map(request => request.requestId))
   const threads = useThreadStore.getState()
   const approvals = threads.consumeParkedApprovals(threadId).filter(request =>
@@ -29,8 +31,10 @@ export function applyThreadRestoration(result: ThreadResumeResult): void {
   store.getState().setTurns(turns)
   const runtime = runtimeSnapshotFromThread(thread)
   const activeTurn = turns.find(turn => turn.id === current.turnId)
-  const liveItem = activeTurn?.items.findLast(item =>
-    item.status !== 'completed' && (item.type === 'agentMessage' || item.type === 'reasoningContent'))
+  const active = activeTurn?.status === 'running' || activeTurn?.status === 'waitingApproval' || activeTurn?.status === 'waitingInput'
+  const liveItem = active ? snapshotTurns.find(turn => turn.id === current.turnId)?.items.findLast(item =>
+    item.status !== 'completed' && (item.type === 'agentMessage' || item.type === 'reasoningContent')
+    && activeTurn?.items.find(candidate => candidate.id === item.id)?.status !== 'completed') : undefined
   const old = store.getState()
   const pendingApprovals = old.pendingApprovals.filter(request => pending.has(request.requestId))
   store.setState({

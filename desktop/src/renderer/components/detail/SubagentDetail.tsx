@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from 'react'
+import { memo, useCallback, useLayoutEffect, useMemo } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -7,7 +7,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { isSubAgentChildRunning, type SubAgentChild } from '../../stores/subAgentStore'
 import { useSubAgentTranscriptStore, type SubAgentTranscript } from '../../stores/subAgentTranscriptStore'
 import type { TranscriptLiveText } from '../../stores/subAgentTranscriptEvents'
-import { useAutoScroll } from '../../hooks/useAutoScroll'
+import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import type { TurnDiffSource } from '../../hooks/useTurnDiffActions'
 import type { ConversationTurn } from '../../types/conversation'
 import type { ThreadConfigurationWire } from '../../types/thread'
@@ -40,9 +40,11 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
   const connected = useConnectionStore((s) => s.status === 'connected')
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const projectKey = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
-  const running = isSubAgentChildRunning(child) || isTurnLive(transcript?.turns.at(-1))
+  const lastTurn = transcript?.turns.at(-1)
+  const running = lastTurn ? isTurnLive(lastTurn) : isSubAgentChildRunning(child)
+  const viewportKey = JSON.stringify([projectKey, childThreadId])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!connected) return
     return watchTranscript(childThreadId)
   }, [childThreadId, connected, connectionEpoch, projectKey, watchTranscript])
@@ -74,17 +76,19 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
         </span>
         {modelLabel && <span className={styles.model}>{modelLabel}</span>}
       </div>
-      <SubagentTranscript childThreadId={childThreadId} transcript={transcript} running={running} />
+      <SubagentTranscript key={viewportKey} viewportKey={viewportKey} childThreadId={childThreadId} transcript={transcript} running={running} />
     </div>
   )
 }
 
 function SubagentTranscript({
   childThreadId,
+  viewportKey,
   transcript,
   running
 }: {
   childThreadId: string
+  viewportKey: string
   transcript: SubAgentTranscript | undefined
   running: boolean
 }): JSX.Element {
@@ -96,7 +100,7 @@ function SubagentTranscript({
     + (lastTurn?.items.length ?? 0)
     + (lastTurn?.items.reduce((total, item) => total + (item.text?.length ?? 0), 0) ?? 0)
     + (live?.text.length ?? 0)
-  const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
+  const { scrollRef, showScrollButton, scrollToBottom } = useTranscriptViewport(contentLength, viewportKey, turns.length > 0)
   const loadEarlier = useSubAgentTranscriptStore((s) => s.loadEarlier)
   const onScroll = useCallback(() => {
     const viewport = scrollRef.current
@@ -106,9 +110,9 @@ function SubagentTranscript({
       if (scrollRef.current === viewport) viewport.scrollTop += viewport.scrollHeight - height
     }).catch(() => {})
   }, [childThreadId, loadEarlier, scrollRef, transcript?.status])
-  const waiting = transcript == null
+  const waiting = turns.length === 0 && (transcript == null
     || transcript.status === 'loading'
-    || (transcript.status === 'ready' && turns.length === 0 && running)
+    || (transcript.status === 'ready' && running))
   const unavailable = !waiting && turns.length === 0
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const getConversationImages = useCallback(
@@ -124,23 +128,25 @@ function SubagentTranscript({
         ) : unavailable ? (
           <p className={styles.notice}>{t('subagentsPanel.transcriptUnavailable')}</p>
         ) : (
-          <ConversationImagesContext.Provider value={getConversationImages}>
-            <TranscriptTurnsContext.Provider value={turns}>
-              {turns.map((turn, index) => {
-                const isLastTurn = index === turns.length - 1
-                return (
-                  <SubagentTurn
-                    key={turn.id}
-                    childThreadId={childThreadId}
-                    turn={turn}
-                    isLastTurn={isLastTurn}
-                    running={running && isLastTurn}
-                    live={isLastTurn ? live : null}
-                  />
-                )
-              })}
-            </TranscriptTurnsContext.Provider>
-          </ConversationImagesContext.Provider>
+          <div className={styles.transcriptContent}>
+            <ConversationImagesContext.Provider value={getConversationImages}>
+              <TranscriptTurnsContext.Provider value={turns}>
+                {turns.map((turn, index) => {
+                  const isLastTurn = index === turns.length - 1
+                  return (
+                    <SubagentTurn
+                      key={turn.id}
+                      childThreadId={childThreadId}
+                      turn={turn}
+                      isLastTurn={isLastTurn}
+                      running={running && isLastTurn}
+                      live={isLastTurn ? live : null}
+                    />
+                  )
+                })}
+              </TranscriptTurnsContext.Provider>
+            </ConversationImagesContext.Provider>
+          </div>
         )}
       </div>
       {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={running} />}

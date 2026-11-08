@@ -114,6 +114,25 @@ describe('thread restoration', () => {
     expect(useThreadRestorationStore.getState().restoringThreadId).toBeNull()
   })
 
+  it('does not overwrite content acquired while a read-only preview was pending', async () => {
+    let show!: (value: unknown) => void
+    preview = new Promise(resolve => { show = resolve })
+    renderHook(() => useThreadRestoration(props))
+    await select('thread-0')
+    const conversation = getThreadConversation('thread-0')!
+    act(() => conversation.getState().setTurns([{
+      id: 'new-turn', threadId: 'thread-0', status: 'running', startedAt: thread('thread-0').createdAt,
+      items: [{ id: 'new-message', type: 'agentMessage', status: 'streaming', text: 'Live content', createdAt: thread('thread-0').createdAt }]
+    }]))
+    await act(async () => show({
+      data: [{ id: 'old-turn', threadId: 'thread-0', status: 'completed', items: [] }]
+    }))
+    expect(conversation.getState().turns.map(turn => turn.id)).toEqual(['new-turn'])
+    expect(conversation.getState().turns[0].items[0].text).toBe('Live content')
+    await act(async () => respond('thread-0', snapshot('thread-0', 'authoritative')))
+    expect(conversation.getState().streamingMessage).toBe('authoritative')
+  })
+
   it('retains matching logical input requests that arrived before the baseline and drops resolved ones', async () => {
     renderHook(() => useThreadRestoration(props))
     await select('thread-0')

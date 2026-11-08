@@ -9,7 +9,7 @@ import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
 import { parseUnifiedDiff } from '../utils/unifiedDiff'
 import { useTurnItemsLoadStore } from './turnItemsLoadStore'
 import { wireItemToConversationItem } from '../types/conversation'
-import { mergeTurnItemsPage } from './turnItemsHydration'
+import { mergeRestoredTurns, mergeTurnItemsPage } from './turnItemsHydration'
 import {
   appendLiveText,
   applyTranscriptEvent,
@@ -35,7 +35,7 @@ interface SubAgentTranscriptStore {
   transcripts: Map<string, SubAgentTranscript>
   watchTranscript(childThreadId: string): () => void
   loadEarlier(childThreadId: string): Promise<void>
-  loadTurnItems(childThreadId: string, turnId: string, isNeeded?: () => boolean): Promise<void>
+  loadTurnItems(childThreadId: string, turnId: string, isNeeded?: () => boolean, complete?: boolean): Promise<void>
   setTurnFileStatus(childThreadId: string, turnId: string, key: string, status: FileDiff['status']): void
   reset(): void
 }
@@ -71,7 +71,7 @@ function withTimeline(
 interface TranscriptWatch {
   users: number
   loadEarlier(): Promise<void>
-  loadTurnItems(turnId: string, isNeeded: () => boolean): Promise<void>
+  loadTurnItems(turnId: string, isNeeded: () => boolean, complete: boolean): Promise<void>
   stop(): void
 }
 
@@ -103,6 +103,7 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
         let connectionKey: string | null = null
         let turnCursor: string | null = null
         let loadingEarlier = false
+        let restoration: Promise<void> = Promise.resolve()
         const itemLoads = new Map<string, Promise<void>>()
         const request = <M extends keyof ClientRequestMethods>(
           method: M, params: ClientRequestMethods[M]['params'],
@@ -135,7 +136,9 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
             return { ...transcript, live: timeline.live }
           })
         }
-        update(childThreadId, (transcript) => ({ ...transcript, status: 'loading' }))
+        update(childThreadId, (transcript) => ({
+          ...transcript, status: transcript.turns.length > 0 ? 'ready' : 'loading'
+        }))
         const stopListening = window.api.appServer.onNotification((payload) => {
           if (!active || !ready) return
           const params = (payload.params ?? {}) as Record<string, unknown>
@@ -187,10 +190,16 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
               loadingEarlier = false
             }
           },
-          loadTurnItems(turnId, isNeeded) {
+          loadTurnItems(turnId, isNeeded, complete) {
             const pending = itemLoads.get(turnId)
-            if (pending) return pending
+            if (pending) return complete ? pending.then(() => {
+              if (useTurnItemsLoadStore.getState().statuses[turnId] === 'failed') return
+              return watch.loadTurnItems(turnId, isNeeded, true)
+            }) : pending
             const current = (): boolean => active && isNeeded()
+            if (!ready) return restoration.then(() => {
+              if (ready && current()) return watch.loadTurnItems(turnId, isNeeded, complete)
+            })
             const selected = get().transcripts.get(childThreadId)?.turns.find(turn => turn.id === turnId)
             if (!selected?.summary || !current()) return Promise.resolve()
             let cursor = selected.summary.nextCursor ?? null
@@ -205,18 +214,20 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
                     update(childThreadId, (transcript) => {
                       const turns = transcript.turns.map(turn => {
                         if (turn.id !== turnId) return turn
-                         return mergeTurnItemsPage(turn, page.items.map(wireItemToConversationItem), page.nextCursor)
+                        return mergeTurnItemsPage(turn, page.items.map(wireItemToConversationItem), page.nextCursor)
                       })
                       return withTimeline(transcript, turns, transcript.live)
                     })
                   }
                 )
                 cursor = page.nextCursor
-              } while (cursor !== null)
+              } while (complete && cursor !== null)
             })().catch(() => {
               if (current()) useTurnItemsLoadStore.setState(({ statuses }) => ({ statuses: { ...statuses, [turnId]: 'failed' } }))
             }).finally(() => {
               itemLoads.delete(turnId)
+              const owner = watches.get(childThreadId)
+              if (owner && owner !== watch) return
               if (useTurnItemsLoadStore.getState().statuses[turnId] !== 'failed' || !active) {
                 useTurnItemsLoadStore.setState(({ statuses }) => {
                   const { [turnId]: _previous, ...rest } = statuses
@@ -237,7 +248,7 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
           }
         }
         watches.set(childThreadId, watch)
-        void (async () => {
+        restoration = (async () => {
           connectionKey = await window.api.appServer.getConnectionKey()
           if (!active) return
           if (!connectionKey) throw new Error('No transcript connection')
@@ -251,11 +262,12 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
             turnCursor = page.nextCursor ?? null
             const turns = [...(page.data ?? [])].reverse().map(turn =>
               wireTurnToConversationTurn(turn as Record<string, unknown>))
-            update(childThreadId, () => withTimeline({
-              ...emptyTranscript('ready'),
+            update(childThreadId, (transcript) => withTimeline({
+              ...transcript, status: 'ready',
               configuration: thread.configuration as ThreadConfigurationWire ?? null,
               workspacePath: thread.workspacePath ?? null
-            }, turns, null))
+            }, mergeRestoredTurns(transcript.turns, turns), null))
+            ready = true
             return
           }
           await window.api.appServer.sendConnectionRequest(
@@ -269,10 +281,10 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
                   return
                 }
                 turnCursor = result.initialTurnsPage?.nextCursor ?? null
-                const timeline = restoreTranscript(result)
-                update(childThreadId, () => {
+                update(childThreadId, (cached) => {
+                  const timeline = restoreTranscript(result, cached.turns)
                   const transcript = withTimeline({
-                    ...emptyTranscript('ready'),
+                    ...cached, status: 'ready',
                     configuration: result.thread.configuration as ThreadConfigurationWire ?? null,
                     workspacePath: result.thread.workspacePath ?? null
                   }, timeline.turns, timeline.live)
@@ -310,8 +322,8 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
       await watches.get(childThreadId)?.loadEarlier()
     },
 
-    async loadTurnItems(childThreadId, turnId, isNeeded = () => true) {
-      await watches.get(childThreadId)?.loadTurnItems(turnId, isNeeded)
+    async loadTurnItems(childThreadId, turnId, isNeeded = () => true, complete = false) {
+      await watches.get(childThreadId)?.loadTurnItems(turnId, isNeeded, complete)
     },
 
     setTurnFileStatus(childThreadId, turnId, key, status) {

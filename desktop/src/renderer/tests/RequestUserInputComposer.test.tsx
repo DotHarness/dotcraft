@@ -9,6 +9,7 @@ import { RequestUserInputComposer } from '../components/conversation/RequestUser
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore, type PendingUserInputRequest } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { useUIStore } from '../stores/uiStore'
 import { useUserInputAutoResolutionStore } from '../stores/userInputAutoResolutionStore'
 import {
@@ -145,6 +146,8 @@ describe('RequestUserInputComposer', () => {
       },
       loading: false
     })
+    releaseThreadState('thread-1')
+    openThreadState('thread-1')
     useConversationStore.setState({
       turnStatus: 'waitingInput',
       pendingUserInput: pending

@@ -310,6 +310,8 @@ Leaving a thread keeps it **warm**: its observation stays attached and its conve
 
 Activating a new conversation, a cached thread, or the new-chat surface synchronizes its workspace path and local/remote status with the current window context. Inherited or cached conversation state does not override that context. Returning to a local workspace restores local image attachment previews without reopening the window; remote attachment paths remain unavailable to local file reads.
 
+Header, transcript, runtime and interaction composer use the selected thread identity. Main and child transcripts restore their workspace/thread-scoped reading position before display, or follow the latest content when left at the bottom.
+
 ### 5.3.1 Desktop Thread Restore Pipeline
 
 Selecting a thread opens a restore generation. The [Thread Restoration and Observation](../features/thread-restoration.md) boundary owns current-state recovery and feed attachment.

@@ -12,7 +12,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
 import { ConversationFindSurface } from '../../find/ConversationFindSurface'
-import { useAutoScroll } from '../../hooks/useAutoScroll'
+import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import { useScrollToLatestOnSend, type ComposerSendScrollRequest } from '../../hooks/useComposerSendScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock } from './AgentResponseBlock'
@@ -36,9 +36,6 @@ import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
 import { ConversationAsides } from './conversationAside/ConversationAside'
 
-const scrollPositionCache = new Map<string, number>()
-
-const NEAR_BOTTOM_THRESHOLD = 50
 const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
 const CHANGES_PILL_CELL_PX = 32
@@ -95,19 +92,20 @@ function getStoreConversationVisualizations(): VisualizationEntry[] {
 
 interface MessageStreamProps {
   sendScrollRequest?: ComposerSendScrollRequest | null
+  viewportKey?: string
 }
 
-export function MessageStream({ sendScrollRequest = null }: MessageStreamProps): JSX.Element {
+export function MessageStream({ sendScrollRequest = null, viewportKey }: MessageStreamProps): JSX.Element {
   return (
     <ConversationImagesContext.Provider value={getStoreConversationImages}>
       <ConversationVisualizationsContext.Provider value={getStoreConversationVisualizations}>
-        <MessageStreamContent sendScrollRequest={sendScrollRequest} />
+        <MessageStreamContent viewportKey={viewportKey} sendScrollRequest={sendScrollRequest} />
       </ConversationVisualizationsContext.Provider>
     </ConversationImagesContext.Provider>
   )
 }
 
-function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps): JSX.Element {
+function MessageStreamContent({ sendScrollRequest = null, viewportKey }: MessageStreamProps): JSX.Element {
   const t = useT()
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
@@ -145,7 +143,6 @@ function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps):
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.filter(isVisibleQueuedInput).length)
   const changesPillVisible = useConversationStore((s) => runningTurnFiles(s).length > 0)
   const [editing, setEditing] = useState<InlineEditState | null>(null)
-  const prevThreadIdRef = useRef<string | null>(null)
   const columnRef = useRef<HTMLDivElement | null>(null)
 
   // Only the latest Turn changes during normal streaming, and ResizeObserver already
@@ -159,7 +156,9 @@ function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps):
     (turnStatus === 'running' ? (streamingMessageLastDeltaAt ?? 0) : 0) +
     (systemLabel?.length ?? 0)
 
-  const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
+  const { scrollRef, showScrollButton, scrollToBottom } = useTranscriptViewport(
+    contentLength, viewportKey ?? JSON.stringify([workspacePath, activeThreadId]), turns.length > 0
+  )
   useAutomationRunReveal(scrollRef)
   useToolCallReveal(scrollRef)
   useHistoryGapLoading(scrollRef, historyGaps, turns.length)
@@ -228,31 +227,6 @@ function MessageStreamContent({ sendScrollRequest = null }: MessageStreamProps):
       addToast(err instanceof Error ? err.message : String(err), 'error')
     }
   }, [activeThread?.workspacePath, editing, t, workspacePath])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    const prev = prevThreadIdRef.current
-    const curr = activeThreadId
-
-    if (prev && prev !== curr && el) {
-      scrollPositionCache.set(prev, el.scrollTop)
-    }
-
-    if (curr && curr !== prev && el) {
-      // rAF so the restore lands after the arriving thread's content renders.
-      requestAnimationFrame(() => {
-        const saved = scrollPositionCache.get(curr)
-        if (saved === undefined) {
-          el.scrollTop = el.scrollHeight
-        } else {
-          const atBottom = el.scrollHeight - saved - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
-          el.scrollTop = atBottom ? el.scrollHeight : saved
-        }
-      })
-    }
-
-    prevThreadIdRef.current = curr
-  }, [activeThreadId, scrollRef])
 
   return (
     <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>

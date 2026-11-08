@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
+import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -12,7 +13,10 @@ import { installDesktopApiMock } from './desktopApiMock'
 import type { Thread } from '../types/thread'
 
 vi.mock('../components/conversation/ThreadHeader', () => ({ ThreadHeader: () => null }))
-vi.mock('../components/conversation/MessageStream', () => ({ MessageStream: () => null }))
+vi.mock('../components/conversation/MessageStream', () => ({ MessageStream: () => {
+  const turns = useConversationStore((state) => state.turns)
+  return <div role="log">{turns.flatMap(turn => turn.items.map(item => item.text))}</div>
+} }))
 const { submitDraft, submitRejected } = vi.hoisted(() => ({ submitDraft: vi.fn(), submitRejected: vi.fn() }))
 vi.mock('../components/conversation/InputComposer', () => ({
   InputComposer: ({ submitOverride }: { submitOverride?: () => void }) => <>
@@ -31,6 +35,9 @@ beforeEach(() => {
   submitRejected.mockClear()
   finishThreadRestoration()
   useConversationStore.getState().reset()
+  releaseThreadState('thread')
+  releaseThreadState('other')
+  openThreadState('thread')
   useThreadStore.getState().reset()
   useConnectionStore.getState().reset()
   useUIStore.setState({ planApprovalDismissed: {}, pendingThreadCreation: null, pendingWelcomeTurn: null })
@@ -50,6 +57,42 @@ beforeEach(() => {
 })
 
 describe('restored composer selection', () => {
+  it('never presents the previous transcript or question under a new selection', async () => {
+    const previous = useThreadStore.getState().activeThread!
+    const incoming = { ...previous, id: 'other', displayName: 'Other' }
+    useThreadStore.getState().setThreadList([previous, incoming])
+    useConversationStore.getState().setTurns([{
+      id: 'turn-a', threadId: 'thread', status: 'completed', startedAt: previous.createdAt,
+      items: [{ id: 'answer-a', type: 'agentMessage', status: 'completed', text: 'Response A', createdAt: previous.createdAt }]
+    }])
+    useConversationStore.getState().onUserInputRequest('bridge', {
+      threadId: 'thread', turnId: 'turn-a', requestId: 'input-a', isBlocking: true, questions: []
+    })
+    render(<LocaleProvider><ConversationPanel workspacePath="workspace" /></LocaleProvider>)
+    expect(screen.getByRole('log')).toHaveTextContent('Response A')
+    expect(screen.getByText('Current question')).toBeInTheDocument()
+
+    act(() => {
+      useThreadStore.getState().setActiveThreadId('other')
+      useThreadStore.getState().setActiveThread(incoming)
+    })
+    expect(screen.queryByRole('log')).toBeNull()
+    expect(screen.queryByText('Current question')).toBeNull()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    expect(submitDraft).not.toHaveBeenCalled()
+
+    act(() => {
+      openThreadState('other')
+      useConversationStore.getState().setTurns([{
+        id: 'turn-b', threadId: 'other', status: 'completed', startedAt: incoming.createdAt,
+        items: [{ id: 'answer-b', type: 'agentMessage', status: 'completed', text: 'Response B', createdAt: incoming.createdAt }]
+      }])
+    })
+    expect(screen.getByRole('log')).toHaveTextContent('Response B')
+    expect(screen.queryByText('Response A')).toBeNull()
+    expect(screen.queryByText('Current question')).toBeNull()
+  })
+
   it('preserves the loading composer until current waiting flags have their matching question envelope', async () => {
     const gate = beginThreadRestoration('thread')
     render(<LocaleProvider><ConversationPanel workspacePath="workspace" /></LocaleProvider>)

@@ -5,6 +5,7 @@ export interface ActiveThreadStoreHook<T> {
   getState: StoreApi<T>['getState']
   setState: StoreApi<T>['setState']
   subscribe: StoreApi<T>['subscribe']
+  useThreadId(): string | null
 }
 
 export interface ThreadScopedStores<T> {
@@ -21,7 +22,9 @@ export function createThreadScopedStores<T>(
   createThreadStore: (threadId: string | null, active: T | undefined) => StoreApi<T>
 ): ThreadScopedStores<T> {
   const stores = new Map<string, StoreApi<T>>()
-  const activeStore = createStore<{ store: StoreApi<T> }>(() => ({ store: createThreadStore(null, undefined) }))
+  const activeStore = createStore<{ store: StoreApi<T>; threadId: string | null }>(() => ({
+    store: createThreadStore(null, undefined), threadId: null
+  }))
   const active = (): StoreApi<T> => activeStore.getState().store
   const fresh = (threadId: string | null): StoreApi<T> => createThreadStore(threadId, active().getState())
 
@@ -54,7 +57,8 @@ export function createThreadScopedStores<T>(
     useActive: Object.assign(useActiveStore, {
       getState: () => active().getState(),
       setState,
-      subscribe
+      subscribe,
+      useThreadId: () => useStore(activeStore, (state) => state.threadId)
     }),
     active,
     get: (threadId) => stores.get(threadId),
@@ -65,7 +69,7 @@ export function createThreadScopedStores<T>(
     },
     activate(threadId) {
       const store = (threadId != null ? stores.get(threadId) : undefined) ?? fresh(threadId)
-      activeStore.setState({ store })
+      activeStore.setState({ store, threadId })
       return store
     },
     release(threadId) {

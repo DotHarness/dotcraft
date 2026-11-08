@@ -5,6 +5,9 @@ import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
+import { useConversationStore } from '../../stores/conversationStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { useTurnActivityDisclosureStore } from '../../stores/turnActivityDisclosureStore'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { openBackgroundTask } from '../../utils/backgroundTaskNavigation'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
@@ -28,14 +31,19 @@ interface TurnActivitySummaryProps {
 export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
-  const [expanded, setExpanded] = useState(false)
+  const projectKey = useWorkspaceProjectsStore((state) => state.foregroundProjectId)
+  const workspacePath = useConversationStore((state) => state.workspacePath)
+  const identity = JSON.stringify([projectKey || workspacePath, threadId, turnId])
+  const expanded = useTurnActivityDisclosureStore((state) => state.expanded.get(identity) ?? false)
+  const setExpanded = (value: boolean): void => useTurnActivityDisclosureStore.getState().setExpanded(identity, value)
   const [now, setNow] = useState(() => Date.now())
   const headerRef = useRef<HTMLButtonElement>(null)
   const open = !collapsible || expanded
   const revealNonce = useToolCallRevealTarget((target) =>
     target.threadId === threadId && target.turnId === turnId ? target.nonce : null)
-  const mounted = useRef(open)
-  if (open) mounted.current = true
+  const mounted = useRef({ identity, body: open })
+  if (mounted.current.identity !== identity) mounted.current = { identity, body: open }
+  if (open) mounted.current.body = true
 
   useEffect(() => {
     if (status !== 'working' || completedAt || !startedAt || !Number.isFinite(Date.parse(startedAt))) return
@@ -45,8 +53,8 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   }, [status, startedAt, completedAt])
 
   useEffect(() => {
-    if (revealNonce != null) setExpanded(true)
-  }, [revealNonce])
+    if (revealNonce != null) useTurnActivityDisclosureStore.getState().setExpanded(identity, true)
+  }, [identity, revealNonce])
   const elapsed = getActivityElapsedMs(startedAt, completedAt ?? (status === 'working' ? new Date(now).toISOString() : undefined))
   const key = status === 'stopped' ? byUser ? 'conversation.stopped' : 'conversation.interrupted'
     : status === 'working' ? 'conversation.working' : 'conversation.worked'
@@ -88,7 +96,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
           aria-label={accessibleName}
           onClick={() => {
             if (headerRef.current) anchorScroll(headerRef.current)
-            setExpanded(value => !value)
+            setExpanded(!expanded)
           }}
         >
           {labelContent}
@@ -100,7 +108,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     )}
     {children ? (
       <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>
-        <div className={styles.bodyContent}>{mounted.current ? typeof children === 'function' ? children({ open, expanded }) : children : null}</div>
+        <div className={styles.bodyContent}>{mounted.current.body ? typeof children === 'function' ? children({ open, expanded }) : children : null}</div>
       </div>
     ) : null}
   </div>
