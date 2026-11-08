@@ -18,7 +18,7 @@ Computer use is available in DotCraft Desktop on Windows.
 
 ## Ask DotCraft to use an app
 
-Describe the task in a conversation. DotCraft works on the desktop only when the task needs an app's own interface. When a file, a command, or the browser can do the job, it uses those instead. To point it at the desktop explicitly, mention `$computer` in your message:
+Describe the task in a chat. DotCraft works on the desktop only when the task needs an app's own interface. When a file, a command, or the browser can do the job, it uses those instead. To point it at the desktop explicitly, mention `$computer` in your message:
 
 ```text
 $computer Open Notepad and write a short to-do list for today.
@@ -28,12 +28,12 @@ DotCraft goes one step at a time: it looks at the window, acts once, then looks 
 
 ## Allow an app
 
-The first time DotCraft wants to use an app, it comes to the front, opens the conversation, and asks you, for example **Allow DotCraft to use Excel?**
+The first time DotCraft wants to use an app, it comes to the front, opens the chat, and asks you, for example **Allow DotCraft to use Excel?**
 
 | Choice | Result |
 |---|---|
 | **Always allow** | DotCraft stops asking before it uses this app. |
-| **Allow for this conversation** | DotCraft can use the app in this conversation and asks again in others. |
+| **Allow in this chat** | DotCraft can use the app in this chat and asks again in others. |
 | **Reject** | DotCraft doesn't use the app. It won't try that app again unless you ask. |
 
 Apps you always allow are listed under **Settings → Computer use → Always-allowed apps**. Remove one there, and DotCraft asks again the next time it wants that app.

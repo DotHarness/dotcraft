@@ -1,6 +1,6 @@
 # Subagents
 
-A subagent is how the main agent delegates. Hand it a self-contained task, it works in its own context, and only the result comes back to the main conversation. Give exploration and research — the work that produces a lot of intermediate output — to a subagent, and the main conversation stays readable.
+A subagent is how the main agent delegates. Hand it a self-contained task, it works in its own context, and only the result comes back to the main chat. Give exploration and research — the work that produces a lot of intermediate output — to a subagent, and the main chat stays readable.
 
 ![How DotCraft delegates a task to a subagent](/subagent-delegation-overview.svg)
 
@@ -18,7 +18,7 @@ Role limits are enforced at the moment a tool is called. A subagent that calls a
 
 ## The runtime decides where it runs
 
-The native runtime runs subagents inside DotCraft itself. Role tool limits apply in full, the subagent shares the same prompt prefix as the main conversation, and startup costs little.
+The native runtime runs subagents inside DotCraft itself. Role tool limits apply in full, the subagent shares the same prompt prefix as the main chat, and startup costs little.
 
 You can also use an external coding CLI as the runtime, with built-in support for Codex CLI and Cursor CLI. An external CLI runs a one-shot task in its own process and usually reports stage-level progress only. DotCraft passes the role instructions to it, but cannot constrain the tool calls it makes internally. When you need strong isolation, prefer the native runtime and tighten its tools and approvals as described in [Security](../self-hosting/security).
 
@@ -26,11 +26,11 @@ You can also use an external coding CLI as the runtime, with built-in support fo
 
 ![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)
 
-Desktop keeps the main conversation available while subagents work. Open the background-agent summary to see which tasks are running or complete. The finished result still returns to the main conversation.
+Desktop keeps the main chat available while subagents work. Open the background-agent summary to see which tasks are running or complete. The finished result still returns to the main chat.
 
 ## Approvals still apply
 
-File and command operations from a native subagent go through the same approval flow as the current session, and every request is labeled with the subagent it came from. DotCraft cannot intercept an external CLI's internal operations one by one, but it passes the current approval mode along as far as the CLI allows.
+File and command operations from a native subagent go through the same approval flow as the current chat, and every request is labeled with the subagent it came from. DotCraft cannot intercept an external CLI's internal operations one by one, but it passes the current approval mode along as far as the CLI allows.
 
 ## How to choose
 
@@ -41,7 +41,7 @@ File and command operations from a native subagent go through the same approval 
 | Reusing a specific external coding CLI workflow | External CLI runtime |
 | The strongest tool isolation | Native runtime, a tightened tool list, and Ask for approval |
 
-A subagent's conversation is saved as a child of the main conversation. Archiving, restoring, or deleting the main conversation handles the child conversations with it, and role and tool limits survive a restart.
+A subagent's chat is saved as a child of the main chat. Archiving, restoring, or deleting the main chat handles the child chats with it, and role and tool limits survive a restart.
 
 ## Related docs
 

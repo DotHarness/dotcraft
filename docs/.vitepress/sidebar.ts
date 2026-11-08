@@ -43,7 +43,7 @@ export const enSections: DocSection[] = [
         ]
       },
       {
-        text: 'Conversations',
+        text: 'Chats',
         items: [
           { text: withIcon('pointerClick', 'Interactive Answers'), link: '/guide/interactive-answers' },
           { text: withIcon('chartLine', 'Visualizations'), link: '/guide/visualizations' },
@@ -136,10 +136,10 @@ export const enSections: DocSection[] = [
         ]
       },
       {
-        text: 'Models & conversations',
+        text: 'Models & chats',
         items: [
           { text: withIcon('cpu', 'Models & Providers'), link: '/configuration/models' },
-          { text: withIcon('messageSquare', 'Conversations'), link: '/configuration/conversations' },
+          { text: withIcon('messageSquare', 'Chats'), link: '/configuration/conversations' },
           { text: withIcon('brain', 'Memory & Skills'), link: '/configuration/memory-skills' }
         ]
       },

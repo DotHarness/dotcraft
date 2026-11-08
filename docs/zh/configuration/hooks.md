@@ -60,7 +60,7 @@ Hook handler 字段：
 
 | Event | 用途 |
 |---|---|
-| `SessionStart` | 新会话开始时运行 |
+| `SessionStart` | 新对话开始时运行 |
 | `UserPromptSubmit` | 用户提交 prompt 时运行，早于 prompt 组装 |
 | `PrePrompt` | DotCraft 原生兼容事件，在组装后的 prompt 发送前运行 |
 | `PreToolUse` | 工具调用前检查或阻塞 |

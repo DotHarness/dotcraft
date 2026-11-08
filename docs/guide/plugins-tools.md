@@ -24,7 +24,7 @@ Wherever a capability comes from, the agent's tool calls still pass through work
 4. Select **Install**.
 5. Review the confirmation, then select **Add to DotCraft**.
 6. Complete any app setup shown in the installation dialog.
-7. Select **Try in chat**, or start a conversation and describe what you want done.
+7. Select **Try in chat**, or start a chat and describe what you want done.
 
 To install plugins from another catalog, see [Plugin marketplaces](./plugin-marketplaces).
 
@@ -34,7 +34,7 @@ A plugin you install is available in every workspace. To keep it out of the curr
 
 Plugins in a project's `.craft/plugins` folder come with that project and appear under **From** followed by the project name.
 
-If a plugin includes an app, **App Settings** manages its account connection, and the app picker in a conversation decides whether that conversation can use it. See [Connected Apps](./connected-apps).
+If a plugin includes an app, **App Settings** manages its account connection, and the app picker in a chat decides whether that chat can use it. See [Connected Apps](./connected-apps).
 
 ## Remote plugin interfaces
 
@@ -74,7 +74,7 @@ Open **Settings → MCP Servers**, then add one of these connections:
 - **STDIO** for a server started by a local command.
 - **Streamable HTTP** for a remote MCP endpoint.
 
-Pass tokens and other secrets through environment variables. Select **Test connection** before relying on the server in a conversation. The complete field list is in the [MCP server configuration](../configuration/plugins#mcp-servers).
+Pass tokens and other secrets through environment variables. Select **Test connection** before relying on the server in a chat. The complete field list is in the [MCP server configuration](../configuration/plugins#mcp-servers).
 
 ## Review trust before installing
 

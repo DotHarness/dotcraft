@@ -13,7 +13,7 @@ For the concept and everyday use, read [Automations & Goals](../guide/automation
 | `Automations.WorktreeRetentionEnabled` | Enables retention cleanup for idle automation task worktrees | `true` |
 | `Automations.WorktreeRetentionIdlePeriod` | Idle period before a clean automation task worktree is eligible for cleanup | `21.00:00:00` |
 | `Goals.Enabled` | Enables goal storage, AppServer methods, goal context injection, usage accounting, and model goal tools | `true` |
-| `Goals.AutoContinueEnabled` | Allows active goals to continue when a Thread is idle | `true` |
+| `Goals.AutoContinueEnabled` | Allows active goals to continue when a chat is idle | `true` |
 
 `Automations.WorktreeRetentionIdlePeriod` must be at least `14.00:00:00`. The retention sweep only removes managed automation task worktrees that are idle, clean, and have no commits ahead of their base.
 

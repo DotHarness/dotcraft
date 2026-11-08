@@ -16,12 +16,12 @@ In a new workspace:
 
 ## Choose how much the agent does on its own
 
-In Desktop, open **Settings → Personalization → Permissions**. **Default permissions** sets how new conversations in this workspace handle approvals:
+In Desktop, open **Settings → Personalization → Permissions**. **Default permissions** sets how new chats in this workspace handle approvals:
 
 - **Ask for approval**: every action listed above asks you first.
 - **Full access**: every action that would ask is approved automatically.
 
-To set it for one conversation, pick an option from the composer's **Approval policy**.
+To set it for one chat, pick an option from the composer's **Approval policy**.
 
 Full access doesn't let everything through. Blacklisted paths and commands your rules forbid are still refused. Dangerous commands are refused too, unless an allow rule covers them. Use Full access only in workspaces you trust.
 
@@ -34,7 +34,7 @@ A shell approval shows the shell, the commands as DotCraft read them, and why it
 Press Enter for **Allow once** or Esc to reject. The wider choices are in the menu next to **Allow once**, and each remembers a different amount:
 
 - **Allow once** runs the command this time only.
-- **Allow for session** skips the prompt for this exact command, in this directory, for the rest of the conversation.
+- **Allow in this chat** skips the prompt for this exact command, in this directory, for the rest of the chat.
 - **Always allow** writes a rule that allows commands starting with the same words. Dangerous commands and unreadable scripts are an exception: they're remembered exactly, never as a rule.
 
 Text the agent types into a running terminal goes through the same checks.

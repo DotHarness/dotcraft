@@ -13,7 +13,7 @@
 | `Automations.WorktreeRetentionEnabled` | 是否启用空闲自动化任务工作树清理 | `true` |
 | `Automations.WorktreeRetentionIdlePeriod` | 干净自动化任务工作树进入清理候选前的空闲时间 | `21.00:00:00` |
 | `Goals.Enabled` | 启用目标存储、AppServer 方法、目标上下文注入、用量统计和模型 Goal 工具 | `true` |
-| `Goals.AutoContinueEnabled` | 允许 active 目标在线程空闲时自动继续 | `true` |
+| `Goals.AutoContinueEnabled` | 允许 active 目标在对话空闲时自动继续 | `true` |
 
 `Automations.WorktreeRetentionIdlePeriod` 必须至少为 `14.00:00:00`。Retention sweep 只会移除空闲、干净、且没有领先基础版本提交的受管自动化任务工作树。
 

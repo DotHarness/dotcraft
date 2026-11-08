@@ -36,12 +36,12 @@ With Telegram privacy mode enabled, the bot may only receive commands, replies, 
 1. Send `hello` in a direct chat with the bot.
 2. Confirm DotCraft replies.
 3. Send `/help` to confirm commands are registered.
-4. Send `/new`, then send another message and confirm it starts a fresh conversation.
+4. Send `/new`, then send another message and confirm it starts a fresh chat.
 5. In a group, mention or reply to the bot if privacy mode is enabled.
 
 ## What works after setup
 
-- DotCraft answers direct messages and group messages that Telegram delivers to the bot. In a group, each member has their own conversation with the agent.
+- DotCraft answers direct messages and group messages that Telegram delivers to the bot. In a group, each member has their own chat with the agent.
 - The agent sends formatted text, images, files, audio, and video. The bot shows that it is typing while the agent works.
 - The Telegram command menu lists the [chat commands](./#commands-in-a-chat) each sender can use, including the workspace's own commands. Admin commands appear only for the users in **Admin Users**.
 - Approvals, user-input prompts, and command choices such as the models `/model` lists use Telegram inline buttons.

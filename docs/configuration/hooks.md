@@ -60,7 +60,7 @@ Lifecycle events:
 
 | Event | Purpose |
 |---|---|
-| `SessionStart` | Runs when a new session starts |
+| `SessionStart` | Runs when a new chat starts |
 | `UserPromptSubmit` | Runs when a user prompt is submitted, before prompt assembly |
 | `PrePrompt` | DotCraft-native compatibility event before the assembled prompt is sent |
 | `PreToolUse` | Checks or blocks before tool calls |

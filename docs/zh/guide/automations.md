@@ -43,5 +43,5 @@ DotCraft 有两种方式让 Agent 在你不盯着的时候继续干活。自动�
 
 ## 相关文档
 
-- [生命周期 Hooks](./hooks) — 需要在工具或会话的某个时刻触发，而不是按计划触发时用它
+- [生命周期 Hooks](./hooks) — 需要在工具或对话的某个时刻触发，而不是按计划触发时用它
 - [可观测性](../self-hosting/observability) — 在 Dashboard 上回看任务运行的轨迹和审批

@@ -20,7 +20,7 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | `Tools.Shell.Background.ForegroundBudgetMs` | How long the agent waits for a command before it continues in the background. A message you send while it waits moves it to the background at once | `120000` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a command started in the background returns its session | `10000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait for a background command to return, and for a background-session read or write | `300000` |
-| `Tools.Shell.Background.MaxSessionsPerThread` | Maximum concurrent background terminals per thread | `8` |
+| `Tools.Shell.Background.MaxSessionsPerThread` | Maximum concurrent background terminals per chat | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | Maximum concurrent background terminals in one workspace | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | Reserved; not currently enforced by the background terminal service | `1800` |
 | `Tools.Shell.Background.OutputMaxBytes` | Reserved; not currently enforced by the background terminal service | `67108864` |
@@ -34,7 +34,7 @@ Background commands, subagents, and workflows report back to the agent when they
 
 | Field | Description | Default |
 |---|---|---|
-| `Tools.BackgroundTasks.CompletionDelivery` | `wake` tells the agent when a background command, subagent, or workflow it started finishes, starting a new turn if the thread is idle. `off` holds the notice until the agent's next turn | `wake` |
+| `Tools.BackgroundTasks.CompletionDelivery` | `wake` tells the agent when a background command, subagent, or workflow it started finishes, starting a new turn if the chat is idle. `off` holds the notice until the agent's next turn | `wake` |
 
 ## Web
 
@@ -50,11 +50,11 @@ Background commands, subagents, and workflows report back to the agent when they
 | `Tools.Web.DeepSeekProvider` | Provider id to reuse. Empty prefers the current eligible provider, then the only available DeepSeek provider | `""` |
 | `Tools.Web.DeepSeekApiKey` | Independent search key in `ApiKey` mode. Empty reads `DEEPSEEK_API_KEY` | `""` |
 
-In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode searches with DeepSeek through the conversation's provider when it is an authenticated official DeepSeek provider, and uses Exa otherwise. The DeepSeek credential settings apply only when DeepSeek is selected. An explicit Exa, Bing, DeepSeek, or ChatGPT selection takes precedence outside ChatGPT subscription conversations. Automatic mode never chooses ChatGPT.
+In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode searches with DeepSeek through the chat's provider when it is an authenticated official DeepSeek provider, and uses Exa otherwise. The DeepSeek credential settings apply only when DeepSeek is selected. An explicit Exa, Bing, DeepSeek, or ChatGPT selection takes precedence outside ChatGPT subscription chats. Automatic mode never chooses ChatGPT.
 
 ### Search with DeepSeek
 
-Select **DeepSeek** to use its search with any conversation model. By default, DotCraft reuses your existing DeepSeek provider without asking for its API key again. It prefers the current eligible provider, or the only available provider. When you have more than one DeepSeek provider, the settings ask which one to use. Providers using the official OpenAI-compatible or Anthropic-compatible DeepSeek endpoint are supported. Third-party model gateways do not qualify.
+Select **DeepSeek** to use its search with any chat model. By default, DotCraft reuses your existing DeepSeek provider without asking for its API key again. It prefers the current eligible provider, or the only available provider. When you have more than one DeepSeek provider, the settings ask which one to use. Providers using the official OpenAI-compatible or Anthropic-compatible DeepSeek endpoint are supported. Third-party model gateways do not qualify.
 
 For an independent search account, choose **API key** under **DeepSeek credentials** and enter it or set `DEEPSEEK_API_KEY`:
 
@@ -74,7 +74,7 @@ Remote model service providers also reuse their server-side credentials when the
 
 ### Web search with a ChatGPT subscription
 
-When the conversation uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. The generic search provider, credential, and result-count settings do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
+When the chat uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. The generic search provider, credential, and result-count settings do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
 
 To search through the same subscription while chatting with another provider, select **ChatGPT** as the search service. It becomes available once a ChatGPT provider is signed in, and it searches with the model you last chose for that provider. Only the search query is sent to ChatGPT, and each search counts toward your subscription's usage. The model still calls `WebSearch`, which returns titles, URLs, and snippets as it does with the other services.
 
@@ -92,17 +92,17 @@ The results of one round of tool calls together hold at most 200,000 characters.
 | Field | Description | Default |
 |---|---|---|
 | `Tools.ImageGeneration.Enabled` | Lets the agent generate and edit images with supported OpenAI providers | `true` |
-| `Tools.ImageGeneration.Provider` | Provider id that generates images. Empty uses the conversation's provider | Empty |
+| `Tools.ImageGeneration.Provider` | Provider id that generates images. Empty uses the chat's provider | Empty |
 | `Tools.ImageGeneration.Model` | Image model used for generation and edits | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | Maximum reference images one edit can use, from `1` to `5` | `5` |
 
-Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the conversation still displays the generated image and reports the storage failure.
+Generated images are saved under the Agent data directory at `generated_images/<threadId>/<callId>.png`. When connected to a remote computer, files are saved to the remote workspace’s `.craft/generated_images/<threadId>/<callId>.png` instead. If saving fails, the chat still displays the generated image and reports the storage failure.
 
-With a supported provider, ask DotCraft to generate an image, or to edit an attached, local, or previously generated one, in a normal conversation. DotCraft calls the OpenAI Images API, saves the PNG, and shows the image inline in clients that render rich content.
+With a supported provider, ask DotCraft to generate an image, or to edit an attached, local, or previously generated one, in a normal chat. DotCraft calls the OpenAI Images API, saves the PNG, and shows the image inline in clients that render rich content.
 
 Two switches gate the `image_gen.imagegen` tool, and both must be true: the global `Tools.ImageGeneration.Enabled`, and the image provider's own `SupportsImageGeneration`. The image provider must also use an OpenAI protocol. Omitting the provider field leaves ChatGPT OAuth and the official OpenAI API-key endpoint enabled, and other endpoints disabled. Enable another endpoint only once you know it serves `images/generations` and `images/edits`.
 
-The image provider is the conversation's provider unless `Tools.ImageGeneration.Provider` names another one. Set it to keep image generation available while you chat through a provider without an Images API, such as an Anthropic or a custom OpenAI-compatible endpoint:
+The image provider is the chat's provider unless `Tools.ImageGeneration.Provider` names another one. Set it to keep image generation available while you chat through a provider without an Images API, such as an Anthropic or a custom OpenAI-compatible endpoint:
 
 ```json
 {
@@ -114,7 +114,7 @@ The image provider is the conversation's provider unless `Tools.ImageGeneration.
 }
 ```
 
-If the named provider is missing or cannot generate images, the tool is not offered; DotCraft does not fall back to the conversation's provider.
+If the named provider is missing or cannot generate images, the tool is not offered; DotCraft does not fall back to the chat's provider.
 
 ## Code mode
 
@@ -122,6 +122,6 @@ If the named provider is missing or cannot generate images, the tool is not offe
 |---|---|---|
 | `Tools.CodeMode.Mode` | Scripted tool calls: `only`, `on`, or `off` | `only` |
 
-`Tools.CodeMode.Mode` controls scripted tool calls. The `CodeMode` tool runs one JavaScript program that calls the conversation's other tools and returns only what the model needs, so batches of calls take one model round trip and large intermediate results stay out of context. With `only`, every tool a script can call leaves the model's direct tool list and is reached through `CodeMode`. `on` adds `CodeMode` and keeps every tool directly callable, and `off` removes it. In Desktop, change it under **Settings › Personalization › Tools**.
+`Tools.CodeMode.Mode` controls scripted tool calls. The `CodeMode` tool runs one JavaScript program that calls the chat's other tools and returns only what the model needs, so batches of calls take one model round trip and large intermediate results stay out of context. With `only`, every tool a script can call leaves the model's direct tool list and is reached through `CodeMode`. `on` adds `CodeMode` and keeps every tool directly callable, and `off` removes it. In Desktop, change it under **Settings › Personalization › Tools**.
 
 Scripts run in a worker process started from the DotCraft executable. If the worker cannot start, `on` falls back to direct tools, while `only` fails the turn with `code_mode_unavailable`; use `on` or `off` where the host cannot launch it.

@@ -34,18 +34,18 @@ No public callback URL is required for the Desktop-managed Weixin channel.
 
 1. Send `hello` to the Weixin bot account.
 2. Confirm DotCraft replies in the same chat.
-3. Send `/new`, then send another message and confirm it starts a fresh conversation.
+3. Send `/new`, then send another message and confirm it starts a fresh chat.
 4. Ask DotCraft to do something that needs approval and reply with an approval keyword.
 5. Ask for a file or image if your workflow depends on the agent sending media.
 
 ## What works after setup
 
-- `/new` starts a fresh DotCraft conversation in the current Weixin chat, and the other [chat commands](./#commands-in-a-chat) work as well. Only you, the bot's owner, can reach the bot, so admin commands such as `/model` work too. Command choices appear as a numbered list.
+- `/new` starts a fresh DotCraft chat in the current Weixin chat, and the other [chat commands](./#commands-in-a-chat) work as well. Only you, the bot's owner, can reach the bot, so admin commands such as `/model` work too. Command choices appear as a numbered list.
 - The login session is saved for normal restarts.
 - If the session expires, Desktop shows a new QR code.
 - Replies are plain text because Weixin does not render Markdown.
 - The agent sends text, images, and files. It can reach only Weixin users who have messaged the bot.
-- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted, as do `/approve`, `/approve session`, and `/deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
+- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted, as do `/approve`, `/approve session`, and `/deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the DotCraft chat.
 - While an approval waits for you, the bot answers your other messages in that chat with a reminder instead of passing them on. If you don't answer in time, the action is cancelled and the chat tells you.
 
 ## Related docs

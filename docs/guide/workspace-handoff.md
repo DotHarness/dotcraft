@@ -1,6 +1,6 @@
 # Workspace Handoff
 
-Some work ends up with a coding agent outside DotCraft. DotCraft exports a conversation as one Markdown handoff document — project memory, the session record, and the supporting evidence in a single file — so the other agent doesn't have to guess from chat fragments.
+Some work ends up with a coding agent outside DotCraft. DotCraft exports a chat as one Markdown handoff document — project memory, the chat record, and the supporting evidence in a single file — so the other agent doesn't have to guess from chat fragments.
 
 ![Exporting a DotCraft conversation into one Markdown handoff document: find the conversation, export it, replay the record, then hand the file verbatim to an external coding agent](/workspace-handoff-flow.svg)
 
@@ -11,13 +11,13 @@ Claude Code can hand tasks to DotCraft directly and get the results back; see [H
 A workable handoff usually includes four things:
 
 - The repository, or the exact files the other agent may read.
-- The exported document for the relevant conversation.
+- The exported document for the relevant chat.
 - The concrete task you want it to do next.
 - Any privacy constraints, such as whether tool output and memory files may travel with it.
 
 Never hand over provider credentials, the global `~/.craft/config.json`, or raw workspace database files. A Markdown export is far easier to trim and inspect than raw state, but it is not automatically safe to share.
 
-## Find the conversation to export
+## Find the chat to export
 
 When you remember only a symptom, an error, a tool name, or one phrase, search the workspace first:
 
@@ -25,11 +25,11 @@ When you remember only a symptom, an error, a tool name, or one phrase, search t
 dotcraft context search --query "provider timeout gpt-5.3" --workspace "D:\path\to\project" --limit 5
 ```
 
-Results list the matching conversations, and every exportable one comes with a ready-to-run export command. Search locates the conversation; the export is what carries its content. Add `--json` when another script consumes the result.
+Results list the matching chats, and every exportable one comes with a ready-to-run export command. Search locates the chat; the export is what carries its content. Add `--json` when another script consumes the result.
 
 ## Export the handoff
 
-Once you have the thread id:
+Once you have the chat id:
 
 ```bash
 dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\project" --output handoff.md
@@ -54,7 +54,7 @@ Without `--output`, the Markdown goes to stdout.
 
 ## What the export contains
 
-An export carries the conversation's basic details, the workspace memory, the context the model currently sees, and the conversation record itself. It is not a raw log dump: anything you rolled back is left out, so the document reflects what this conversation would actually continue from.
+An export carries the chat's basic details, the workspace memory, the context the model currently sees, and the chat record itself. It is not a raw log dump: anything you rolled back is left out, so the document reflects what this chat would actually continue from.
 
 Reasoning content and internal provider data are never exported. Tool calls are kept, and tool results — including answers you typed when the agent asked you a question — follow the `--tool-results` scope.
 
@@ -64,7 +64,7 @@ Nothing is redacted. Whatever the record holds goes into the document as written
 
 ## Hand tasks from Claude Code
 
-With the DotCraft plugin for Claude Code, Claude hands a task to DotCraft and gets the result back in the same conversation. DotCraft does the work with the models you set up in DotCraft, such as a GPT model, and with its own tools, including image generation. The task runs as an ordinary DotCraft conversation, so you can follow it or continue it in Desktop.
+With the DotCraft plugin for Claude Code, Claude hands a task to DotCraft and gets the result back in the same chat. DotCraft does the work with the models you set up in DotCraft, such as a GPT model, and with its own tools, including image generation. The task runs as an ordinary DotCraft chat, so you can follow it or continue it in Desktop.
 
 Make the project folder a DotCraft workspace and put the `dotcraft` command on your PATH, then install the plugin in Claude Code:
 
@@ -74,11 +74,11 @@ Make the project folder a DotCraft workspace and put the `dotcraft` command on y
 /dotcraft:setup
 ```
 
-`/dotcraft:setup` reports anything still missing. After that, use `/dotcraft:task` to hand over a task, `/dotcraft:image` to generate an image, and `/dotcraft:cancel` to stop a task that is still running, or just ask Claude to have DotCraft do something. Each answer comes back labeled as DotCraft's, with the conversation id for follow-ups. Generated images are saved under the project's `.craft/generated_images` folder.
+`/dotcraft:setup` reports anything still missing. After that, use `/dotcraft:task` to hand over a task, `/dotcraft:image` to generate an image, and `/dotcraft:cancel` to stop a task that is still running, or just ask Claude to have DotCraft do something. Each answer comes back labeled as DotCraft's, with the chat id for follow-ups. Generated images are saved under the project's `.craft/generated_images` folder.
 
 DotCraft runs ordinary commands and edits inside the project without asking. Anything that would need your approval follows the workspace's default approval policy: it runs when that is set to approve automatically, and is refused otherwise unless the task includes `--auto-approve`. The plugin drives the `dotcraft exec` command; see the [command-line reference](../contribute/lifecycle/appserver).
 
 ## Related docs
 
 - [Subagents](./subagents) — to run an external coding CLI inside DotCraft instead, use a subagent's external runtime
-- [Observability](../self-hosting/observability) — replay session traces in the Dashboard to pick the right conversation
+- [Observability](../self-hosting/observability) — replay session traces in the Dashboard to pick the right chat

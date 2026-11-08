@@ -8,7 +8,7 @@
 
 前往 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 下载适合当前系统的安装包，装好后打开 DotCraft。
 
-Releases 页面也提供 Android [手机 App](./mobile)。走完本指南后配对，就能在手机上跟进聊天。
+Releases 页面也提供 Android [手机 App](./mobile)。走完本指南后配对，就能在手机上跟进对话。
 
 ## 2. 打开项目
 
@@ -34,6 +34,6 @@ DotCraft 回复之后，这个工作区就可以接着处理真正的任务了�
 
 ## 相关文档
 
-- [Desktop](./desktop) — 认识主界面：会话、审批和工作区切换
+- [Desktop](./desktop) — 认识主界面：对话、审批和工作区切换
 - [插件与工具](../guide/plugins-tools) — 给 Agent 接上完成任务所需的能力
-- [记忆与梦境](../guide/memory) — 让下一次会话记得这次的结论
+- [记忆与梦境](../guide/memory) — 让下一次对话记得这次的结论

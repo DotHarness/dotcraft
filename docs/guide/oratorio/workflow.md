@@ -17,7 +17,7 @@ The task panel shows the description, the task's properties, and its Activity, w
 
 Open a pending task and start a run from the button at the top. Its menu offers the other run modes; the choices depend on where the task came from.
 
-Every run happens in an Oratorio-managed worktree. Open the linked DotCraft thread for the full conversation, plan, tool activity, or file changes. Cancelling a run in progress asks for confirmation.
+Every run happens in an Oratorio-managed worktree. Open the linked DotCraft chat for the full record, plan, tool activity, or file changes. Cancelling a run in progress asks for confirmation.
 
 ## Review and decide
 

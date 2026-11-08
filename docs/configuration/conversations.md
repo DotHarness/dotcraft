@@ -1,4 +1,4 @@
-# Conversations
+# Chats
 
 Queueing and interrupts while a turn runs, composer suggestions, commit attribution, and context compaction.
 
@@ -6,7 +6,7 @@ Queueing and interrupts while a turn runs, composer suggestions, commit attribut
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
+| `MaxSessionQueueSize` | Maximum queued requests per chat; `0` means unlimited | `3` |
 | `InstantInterruptEnabled` | Interrupt the current model request, even while it is thinking or replying, and restart it with a mid-turn message; also cuts short a wait to retry | `true` |
 | `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
 
@@ -14,7 +14,7 @@ Queueing and interrupts while a turn runs, composer suggestions, commit attribut
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `PromptSuggestions.Enabled` | Suggests one next message in an empty conversation composer after a completed turn. Independent of workspace memory | `true` |
+| `PromptSuggestions.Enabled` | Suggests one next message in an empty chat composer after a completed turn. Independent of workspace memory | `true` |
 
 This setting can be changed in **Settings → Personalization**. A prompt suggestion remains editable and is sent only when the user submits it.
 

@@ -1,6 +1,6 @@
 # Memory & Dreams
 
-DotCraft remembers what later conversations in the same workspace will need: who you are, how you want it to work, project context the repository doesn't record, and where to find outside information. Memory is plain Markdown in your workspace, so you can read and edit it at any time. Turn on Dreams and DotCraft also tidies that memory in the background.
+DotCraft remembers what later chats in the same workspace will need: who you are, how you want it to work, project context the repository doesn't record, and where to find outside information. Memory is plain Markdown in your workspace, so you can read and edit it at any time. Turn on Dreams and DotCraft also tidies that memory in the background.
 
 ![How DotCraft saves and reuses memory](/memory-lifecycle-topology.svg)
 
@@ -8,7 +8,7 @@ DotCraft remembers what later conversations in the same workspace will need: who
 
 Tell DotCraft what to remember, correct, or forget, for example: “Remember that I prefer short answers.” It updates its memory in the same reply.
 
-Without being asked, DotCraft also saves knowledge that later conversations will need. Each memory has one of four types:
+Without being asked, DotCraft also saves knowledge that later chats will need. Each memory has one of four types:
 
 | Type | What it holds |
 |---|---|
@@ -39,17 +39,17 @@ Keep answers short and skip the closing summary.
 
 `MEMORY.md` in the same folder is the index, with one line per memory, such as `- [Prefers short answers](prefers-short-answers.md) — brief replies, no recap`. Add, change, or delete memory files by hand whenever you like, and keep each file's line in `MEMORY.md` up to date.
 
-## How conversations use memory
+## How chats use memory
 
-Every conversation starts with the `MEMORY.md` index, and DotCraft opens a memory file when it's relevant to the task. A memory reflects the moment it was saved, so your current instructions and what DotCraft sees in the workspace come first. Before acting on a file, function, or setting that a memory names, DotCraft checks that it still exists. When it reads an older memory, it's reminded that the memory may be out of date. Tell it to ignore memory and it won't use, cite, or mention it.
+Every chat starts with the `MEMORY.md` index, and DotCraft opens a memory file when it's relevant to the task. A memory reflects the moment it was saved, so your current instructions and what DotCraft sees in the workspace come first. Before acting on a file, function, or setting that a memory names, DotCraft checks that it still exists. When it reads an older memory, it's reminded that the memory may be out of date. Tell it to ignore memory and it won't use, cite, or mention it.
 
-Changes to memory reach conversations that are already open, whether you made them, another conversation saved them, or Dreams tidied them.
+Changes to memory reach chats that are already open, whether you made them, another chat saved them, or Dreams tidied them.
 
-In Desktop, memory shows up in the conversation itself. "Recalled N memories" lists the memory files DotCraft read, and "Memory updated" lists the files it saved, with **Manage** to open the memory settings.
+In Desktop, memory shows up in the chat itself. "Recalled N memories" lists the memory files DotCraft read, and "Memory updated" lists the files it saved, with **Manage** to open the memory settings.
 
 ## Save missed memories
 
-DotCraft usually saves memory while it replies. To catch what it missed, turn on **Settings → Personalization → Save missed memories**: every few replies, DotCraft checks the conversation in the background for anything worth remembering that was not saved. These background saves don't appear in the conversation. The switch applies to conversations you start afterwards.
+DotCraft usually saves memory while it replies. To catch what it missed, turn on **Settings → Personalization → Save missed memories**: every few replies, DotCraft checks the chat in the background for anything worth remembering that was not saved. These background saves don't appear in the chat. The switch applies to chats you start afterwards.
 
 ## Dreams
 
@@ -57,7 +57,7 @@ DotCraft usually saves memory while it replies. To catch what it missed, turn on
 
 Over time, memory collects duplicates and facts that no longer hold. Dreams tidies it in the background: it merges duplicates, fixes facts that no longer match the workspace, and keeps `MEMORY.md` short. It also checks memory against `AGENTS.md`, and when the two disagree, `AGENTS.md` wins. If a memory is clearly newer than `AGENTS.md`, Dreams keeps it and flags it in the run's summary for you to check. Dreams never edits `AGENTS.md`.
 
-Turn it on in Desktop under **Settings → Personalization → Dreams**. Dreams then runs on its own while DotCraft is running, at most once a day by default, and only after several conversations have used memory since the last run. Under **Manage**, change the frequency or choose **Run now** to tidy memory right away.
+Turn it on in Desktop under **Settings → Personalization → Dreams**. Dreams then runs on its own while DotCraft is running, at most once a day by default, and only after several chats have used memory since the last run. Under **Manage**, change the frequency or choose **Run now** to tidy memory right away.
 
 Each run proposes a change to memory, and memory stays as it is until you apply it. In the run list under **Manage**, choose **Review** to open the run in Dashboard, compare each changed file before and after, then apply or discard it. If you change your mind after applying, Dashboard can restore memory to how it was before the run, as long as memory hasn't changed since. If memory changed while a run was working, its result can't be applied; run Dreams again.
 
@@ -65,15 +65,15 @@ To let each run take effect without review, turn on **Auto-update Dreams** under
 
 ## Give an agent its own memory
 
-[Agent Profiles](./agent-profiles) share memory with your other conversations in the workspace by default. To let an agent build up memory of its own, set **Memory** to **Agent only** when you edit it (`memory: own` in the profile file). Its memories stay separate from your other conversations, and Dreams tidies them separately.
+[Agent Profiles](./agent-profiles) share memory with your other chats in the workspace by default. To let an agent build up memory of its own, set **Memory** to **Agent only** when you edit it (`memory: own` in the profile file). Its memories stay separate from your other chats, and Dreams tidies them separately.
 
 An agent's own memory follows its name, so renaming the agent starts it with empty memory. Removing or exporting the agent leaves its memory untouched.
 
 ## Turn off or delete memory
 
-To stop using memory, turn off **Settings → Personalization → Enable memories** in Desktop. New conversations then neither use nor save memory, and conversations already open keep the setting they started with. Save missed memories and Dreams pause too, and resume with their settings when you turn memory back on.
+To stop using memory, turn off **Settings → Personalization → Enable memories** in Desktop. New chats then neither use nor save memory, and chats already open keep the setting they started with. Save missed memories and Dreams pause too, and resume with their settings when you turn memory back on.
 
-To forget one thing, ask DotCraft to forget it, or delete its file and its line in `MEMORY.md`. To clear the workspace's memory, open **Settings → Personalization → Delete memories**. This deletes every memory in the workspace, including the memories that agents and automations keep for themselves, and every Dreams run. Conversation history, settings, skills, and Agent Profiles stay.
+To forget one thing, ask DotCraft to forget it, or delete its file and its line in `MEMORY.md`. To clear the workspace's memory, open **Settings → Personalization → Delete memories**. This deletes every memory in the workspace, including the memories that agents and automations keep for themselves, and every Dreams run. Chat history, settings, skills, and Agent Profiles stay.
 
 ## Related docs
 

@@ -7,8 +7,8 @@ For the concept and everyday use, read [Subagents](../guide/subagents).
 | Field | Description | Default |
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
-| `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root thread's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
-| `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. An entry's optional `ProviderId` runs fresh and bounded subagents on another provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
+| `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root chat's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
+| `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent chat's provider. An entry's optional `ProviderId` runs fresh and bounded subagents on another provider. A missing entry inherits that chat's complete MainAgent preference | `{}` |
 | `SubAgent.Models` | Up to eight `{ ProviderId, Model }` entries the main Agent may pick per task for fresh and bounded subagents. Empty offers models from the current provider | `[]` |
 | `SubAgent.EnableExternalCliSessionResume` | Allows external CLI profiles that support resume to reuse saved external sessions | `false` |
 | `SubAgent.DisabledProfiles` | Subagent profile names hidden and disabled for this workspace | `[]` |
@@ -47,10 +47,10 @@ Fields inside each `SubAgent.Roles` entry:
 | `ShellAccess` | How far a reachable shell tool may go: `None` / `ReadOnly` / `Full`. Applied in addition to the allow/deny lists, not instead of them. Defaults to `Full` |
 | `AgentControlToolAccess` | AgentTools policy: `Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | AgentTools names allowed when `AgentControlToolAccess` is `AllowList` |
-| `Instructions` | Role instructions delivered as the subagent thread's role context message |
+| `Instructions` | Role instructions delivered as the subagent chat's role context message |
 | `Mode` | Optional mode override |
 | `Model` | Optional model override |
-| `ProviderId` | Provider for `Model`; defaults to the parent thread's provider |
+| `ProviderId` | Provider for `Model`; defaults to the parent chat's provider |
 | `OverrideBasePrompt` | Replaces the base prompt with `Instructions`; by default instructions are appended |
 
 ## External CLI profiles

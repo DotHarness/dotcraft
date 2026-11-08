@@ -36,12 +36,12 @@ Telegram 的平台设置主要在 BotFather 中完成：
 1. 在 Bot 私聊中发送 `hello`。
 2. 确认 DotCraft 回复。
 3. 发送 `/help`，确认命令已注册。
-4. 发送 `/new`，再发送一条消息，确认它开启新的会话。
+4. 发送 `/new`，再发送一条消息，确认它开启新的对话。
 5. 在群聊中，如果启用了 privacy mode，请 @ 或回复 Bot。
 
 ## 设置后可用能力
 
-- Telegram 送达给 Bot 的私聊和群聊消息，DotCraft 都会回复。在群聊里，每个成员与 Agent 各有一段会话。
+- Telegram 送达给 Bot 的私聊和群聊消息，DotCraft 都会回复。在群聊里，每个成员与 Agent 各有一段对话。
 - Agent 可以发送带格式的文本、图片、文件、音频和视频。Agent 工作时，Bot 会显示正在输入。
 - Telegram 命令菜单列出每个人能用的[聊天命令](./#聊天中的命令)，包括 workspace 自己的命令。管理员命令只对**管理员用户**里的人显示。
 - 审批、用户输入请求，以及 `/model` 列出的模型这类命令选项，都使用 Telegram inline buttons。

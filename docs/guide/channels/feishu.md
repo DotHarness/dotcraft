@@ -46,7 +46,7 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 - Direct messages are handled without a mention.
 - Group messages require an @mention by default.
-- Mention the bot inside a topic and the conversation stays in that topic; conversations in different topics stay separate.
+- Mention the bot inside a topic and the DotCraft chat stays in that topic; DotCraft chats in different topics stay separate.
 - The agent sends formatted text as cards, plus images, files, audio, and video.
 - DotCraft marks each message it picks up with the configured reaction. When the work runs longer than 20 seconds, a status card shows its progress and ends as done, failed, or stopped.
 - Approvals and command choices, such as the models `/model` lists, appear as card buttons.
@@ -55,7 +55,7 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 ### Official Feishu CLI
 
-Set `feishu.cli.enabled` to `true` to let Feishu-origin conversations use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it. See the [Channel configuration](../../configuration/channels#feishu) for approvals and command restrictions.
+Set `feishu.cli.enabled` to `true` to let Feishu-origin chats use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it. See the [Channel configuration](../../configuration/channels#feishu) for approvals and command restrictions.
 
 ### Personal access
 

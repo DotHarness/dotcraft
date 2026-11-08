@@ -1,6 +1,6 @@
 # Channels & Bots
 
-Put DotCraft in the chat tools your team already uses, so a colleague can ask in the group chat instead of opening Desktop. QQ, WeCom, Feishu / Lark, Telegram, and WeChat all connect, and the resulting sessions and memory are shared with every other entry point in the workspace.
+Put DotCraft in the chat tools your team already uses, so a colleague can ask in the group chat instead of opening Desktop. QQ, WeCom, Feishu / Lark, Telegram, and WeChat all connect, and the resulting chats and memory are shared with every other entry point in the workspace.
 
 ![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog.png)
 
@@ -27,12 +27,12 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-- Messages you send to the bot continue one conversation. A message you send while the agent is working joins the work in progress, so you can add detail or change direction without waiting.
-- The agent replies by sending messages to the chat: text, plus images, files, and voice or video where the platform supports them. People in the chat see only what it sends. Its reasoning, tool calls, and working notes stay in the conversation, where Desktop shows them.
+- Messages you send to the bot continue one DotCraft chat. A message you send while the agent is working joins the work in progress, so you can add detail or change direction without waiting.
+- The agent replies by sending messages to the chat: text, plus images, files, and voice or video where the platform supports them. People in the chat see only what it sends. Its reasoning, tool calls, and working notes stay in the DotCraft chat, where Desktop shows them.
 - The agent knows which platform and chat it is in and what that chat can display, so it writes plain text where the platform shows no formatting.
 - Ask the agent to post somewhere else, such as another group, and it can send there too. Each new destination asks for approval first.
 - Approvals and follow-up questions appear in the chat, as buttons where the platform has them.
-- Open the same workspace in Desktop to read the history or keep the conversation going there.
+- Open the same workspace in Desktop to read the history or keep the DotCraft chat going there.
 
 For the model underneath, see [Unified Session Core](../../contribute/architecture/session-core).
 
@@ -46,26 +46,26 @@ Send a command as its own message. Commands run right away, even while the agent
 
 | Command | What it does |
 |---|---|
-| `/new` | Start a fresh conversation in this chat. The previous one stays available in `/sessions`. |
+| `/new` | Start a fresh DotCraft chat here. The previous one stays available in `/sessions`. |
 | `/stop` | Stop the current work. Background tasks keep running. |
 | `/stop all` | Stop the current work, drop queued messages, and stop every background task. |
 | `/tasks` | List background tasks. `/tasks stop <n>` stops one. |
-| `/status` | Show what the conversation is doing: state, model, mode, context use, and anything queued or waiting for approval. |
-| `/model [model]` | List the available models, or switch this conversation to one. Admins only. |
+| `/status` | Show what the DotCraft chat is doing: state, model, mode, context use, and anything queued or waiting for approval. |
+| `/model [model]` | List the available models, or switch this DotCraft chat to one. Admins only. |
 | `/mode [agent\|plan]` | Show the mode, or switch it. |
-| `/sessions` | List this chat's recent conversations. |
-| `/resume <n>` | Go back to conversation `n` from `/sessions`. |
-| `/compact` | Compact the conversation's context. |
+| `/sessions` | List the recent DotCraft chats here. |
+| `/resume <n>` | Go back to DotCraft chat `n` from `/sessions`. |
+| `/compact` | Compact the DotCraft chat's context. |
 | `/automate list\|show\|pause\|resume\|run\|remove` | Manage automations created from this chat. Admins only. |
 | `/help` | List the commands you can use. |
 | `/init` | Create an `AGENTS.md` file with instructions for DotCraft. Admins only. |
 | `/debug` | Toggle debug mode. Admins only. |
 
-`/new` and `/resume` stop the current work before they switch conversations. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer.
+`/new` and `/resume` stop the current work before they switch DotCraft chats. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer.
 
 When a command offers choices, such as the models `/model` lists, Feishu and Telegram show them as buttons. Other platforms show a numbered list with the command to send for each choice. Telegram also fills its command menu, showing each sender only the commands they can use.
 
-To answer a pending approval by text, reply `/approve`, `/approve session` to allow the same kind of action for the rest of the conversation, or `/deny`. These replies answer only your own approval, the one raised by work you asked for, so in a group nobody can approve for someone else this way. Each platform's own reply keywords and buttons work as well.
+To answer a pending approval by text, reply `/approve`, `/approve session` to allow the same kind of action for the rest of the DotCraft chat, or `/deny`. These replies answer only your own approval, the one raised by work you asked for, so in a group nobody can approve for someone else this way. Each platform's own reply keywords and buttons work as well.
 
 Admin commands are limited to the senders in the channel's admin list. Set it with `adminUsers` in the [Channel configuration](../../configuration/channels); with an empty list, nobody in the chat can run admin commands. Weixin has no admin list: only the bot's owner can reach it, so every Weixin sender can run admin commands.
 
@@ -73,11 +73,11 @@ Admin commands are limited to the senders in the channel's admin list. Set it wi
 
 Ask the agent in a chat to do something on a schedule, and the automation it creates belongs to that chat. Each run posts to the chat only when the agent has something to send, so a check that finds nothing stays quiet. If a run fails, the bot posts one short notice naming the automation. Manage these automations with `/automate`, or from **Automations** in Desktop.
 
-## Continue a Desktop conversation in chat
+## Continue a Desktop chat in a chat app
 
-In a Desktop conversation, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes. Messages from that chat then go into the conversation, and the agent sends its replies there.
+In a Desktop chat, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes. Messages from that chat then go into the Desktop chat, and the agent sends its replies there.
 
-The binding applies only to that chat; other chats keep their own conversations. While it lasts, the chat stays on that conversation: `/new`, `/sessions` and `/resume` reply that the chat is bound and change nothing. To stop, choose **Stop continuing in …** from the conversation's **⋯** menu, or type `/unbind`.
+The binding applies only to that chat; other chats keep their own DotCraft chats. While it lasts, `/new`, `/sessions` and `/resume` reply that the chat is bound and change nothing. To stop, choose **Stop continuing in …** from the Desktop chat's **⋯** menu, or type `/unbind`.
 
 ## Before you open a bot to a group
 

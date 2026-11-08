@@ -1,6 +1,6 @@
 # Server Deployment
 
-Run DotCraft AppServer and [Oratorio](../guide/oratorio/) together on one Linux server with the official Docker Compose stack. Both services share the same workspace directory. Work that Oratorio dispatches opens in Desktop as an ordinary thread and worktree.
+Run DotCraft AppServer and [Oratorio](../guide/oratorio/) together on one Linux server with the official Docker Compose stack. Both services share the same workspace directory. Work that Oratorio dispatches opens in Desktop as an ordinary chat and worktree.
 
 Use a [model service](./model-service) to share provider access across Stacks while keeping upstream credentials in a separate deployment.
 

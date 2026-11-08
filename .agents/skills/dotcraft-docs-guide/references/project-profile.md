@@ -70,6 +70,7 @@ A feature area gets an `index.md` overview: a short value paragraph, the area's 
 - Ground truth for a feature's zh name is the Desktop app's Simplified-Chinese UI locale messages (under the desktop source's shared locales) and the current zh sidebar labels — read them at write time; docs must match the UI, and this file does not restate the current names.
 - When a term has no UI presence, survey how established products in this space name it in their official zh docs and follow the prevailing usage — never invention.
 - Two settled constraints: the Agent word family stays in English (never 智能体/代理), and `subagent` is lowercase in prose — `Subagents` at sentence start and in titles, never `SubAgent`.
+- A DotCraft conversation is a **chat** in English and **对话** in Chinese on user pages, never thread, conversation, session, 会话, 线程, or 聊天. Keep a platform's own word for its chats (a Feishu 会话, a QQ chat, a GitHub review thread), session for external CLI, login, terminal, and ACP sessions and the Dashboard's Sessions, and Thread as the protocol object on developer pages. Where a chat app's chat and a DotCraft chat meet in one sentence, say **DotCraft chat**.
 
 ## Site style layer
 

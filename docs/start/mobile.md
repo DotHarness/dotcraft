@@ -5,7 +5,7 @@ Keep up with DotCraft from your phone while you're away from your desk. The agen
 <LiveTour feature="phone" :steps="[
   { example: 'unpaired', chapter: 'pair', title: 'Pair your phone', body: 'Scan the QR code from Settings on your computer, then allow the phone on the computer. In the demo, tap the viewfinder to scan.' },
   { example: 'home', chapter: 'home', title: 'See what is running', body: 'The home screen lists your projects and recent chats. Chats waiting on you are marked.' },
-  { example: 'home', chapter: 'approval', title: 'Approve from anywhere', body: 'Open a chat waiting on approval and choose Allow once, Allow for session, or Reject.' },
+  { example: 'home', chapter: 'approval', title: 'Approve from anywhere', body: 'Open a chat waiting on approval and choose Allow once, Allow in this chat, or Reject.' },
   { example: 'home', chapter: 'question', title: 'Answer its questions', body: 'When the agent asks something, pick an option or type a reply.' }
 ]" />
 
@@ -32,7 +32,7 @@ The phone needs to be on the same network as the computer, or on the same privat
 The app's home screen lists your projects and recent chats across all running projects. A chat waiting on an approval or a question stays in the list, marked **Needs approval** or **Needs answer**.
 
 - **Follow** a running chat and see its progress live.
-- **Approve** a command or file change with **Allow once**, **Allow for session**, or **Reject**.
+- **Approve** a command or file change with **Allow once**, **Allow in this chat**, or **Reject**.
 - **Answer** the agent's questions by picking an option or typing a reply.
 - **Add a message** while a chat is running, or **Stop** it.
 - **Start a new chat** in any project on the computer. A project that isn't running starts when you send.

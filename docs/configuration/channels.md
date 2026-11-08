@@ -180,12 +180,12 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
 | `feishu.adminUsers` | Feishu user open_ids that can run admin commands. | `[]` |
-| `feishu.cli.enabled` | Expose the bundled official Feishu CLI to Threads created by this Channel. | `false` |
+| `feishu.cli.enabled` | Expose the bundled official Feishu CLI to chats created by this Channel. | `false` |
 | `feishu.cli.userScopes` | Feishu user scopes requested when authorizing an account for read-only personal access. Empty keeps every command on the bot identity. | Empty |
 
-When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI as the bot. The CLI child receives the App ID and an access token, never the App Secret.
+When `feishu.cli.enabled` is `true`, Feishu-origin chats receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI as the bot. The CLI child receives the App ID and an access token, never the App Secret.
 
-The adapter injects a usage policy into the Feishu Thread context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. Identity comes from the tool's `identity` input rather than `--as`, which the adapter rejects. `whoami` reports the effective identity and token status.
+The adapter injects a usage policy into the Feishu chat context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. Identity comes from the tool's `identity` input rather than `--as`, which the adapter rejects. `whoami` reports the effective identity and token status.
 
 `feishu.cli.userScopes` lists the Feishu user scopes to request, and stays empty until an operator opts in. Desktop offers the scopes the pinned CLI's read commands declare, grouped by product, and drops saved values outside that list; only scopes already enabled for the app can be granted, and Desktop marks the ones the app still lacks while the Channel is running. DotCraft appends `offline_access` and runs the device authorization itself, so the CLI's own `auth` and `config` commands stay unavailable. One authorized account serves the whole Channel, which is why `identity: "user"` is accepted only for read-only commands. The authorization is stored in the Channel's module state directory in plain text, alongside the App Secret already kept there. [Personal access](../guide/channels/feishu#personal-access) covers the operator's side.
 

@@ -26,6 +26,6 @@ Interactive answers appear in Desktop. Other entry points, such as the CLI or a 
 
 ## Work with the answer
 
-Sliders, fields, and choices update the result immediately, and your changes are still there when you reopen the conversation. Buttons can send a follow-up message, fill in the message box for you to finish, copy a result, or open a link after you confirm it. The controls switch on once DotCraft finishes writing the reply.
+Sliders, fields, and choices update the result immediately, and your changes are still there when you reopen the chat. Buttons can send a follow-up message, fill in the message box for you to finish, copy a result, or open a link after you confirm it. The controls switch on once DotCraft finishes writing the reply.
 
 For free-form graphics, simulations, and design mockups, DotCraft draws a [visualization](./visualizations) instead.

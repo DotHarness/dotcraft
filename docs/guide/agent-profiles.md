@@ -1,6 +1,6 @@
 # Agent Profiles
 
-An Agent Profile saves a purpose-built DotCraft agent so you can reach for it whenever that working style fits. Build one through conversation with Agent Builder, then reuse its role instructions, model defaults, tools, skills, MCP access, and approval behavior.
+An Agent Profile saves a purpose-built DotCraft agent so you can reach for it whenever that working style fits. Build one through chat with Agent Builder, then reuse its role instructions, model defaults, tools, skills, MCP access, and approval behavior.
 
 ![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/agent-profile.webp)
 
@@ -10,16 +10,16 @@ DotCraft derives each profile's avatar from its name, so the same name keeps the
 
 Names support spaces and Unicode (1–240 characters, without control characters). They are trimmed and NFC-normalized while preserving case. Display, lookup, and avatars use that one name. Storage filenames are generated safely; no separate ID is required.
 
-In Desktop, choose **Agents → New agent** to open the editor and builder conversation together. Describe what you need in the conversation or fill in the profile directly, then choose **Create** to save it. Select a built-in template from the Agents gallery to start from an existing role.
+In Desktop, choose **Agents → New agent** to open the editor and builder chat together. Describe what you need in the chat or fill in the profile directly, then choose **Create** to save it. Select a built-in template from the Agents gallery to start from an existing role.
 
 ## Where profiles pay off
 
 | Place | How it helps |
 |---|---|
-| Chat | Pick a saved agent in the composer and the conversation runs with that role and capability set. |
+| Chat | Pick a saved agent in the composer and the chat runs with that role and capability set. |
 | [Automations & Goals](./automations) | Bind a task to a profile so scheduled and manual runs use only that agent's tools, skills, and model. |
 
-A profile takes effect when a conversation or task starts. A conversation that's already running keeps the setup it started with, until you refresh it or start a new conversation or task with the updated profile.
+A profile takes effect when a chat or task starts. A chat that's already running keeps the setup it started with, until you refresh it or start a new chat or task with the updated profile.
 
 ## Built-in profiles
 
@@ -36,15 +36,15 @@ DotCraft includes six starting points for local tasks and concrete deliverables.
 
 ## Agent Builder
 
-Agent Builder lets you customize an agent just by chatting. Start from a built-in profile or describe a new specialist, then refine its instructions, tools, skills, model, and approval style in a guided conversation. The example below replays it in your browser: pick a starter to watch it fill in the draft, ask for a change, or edit any field yourself.
+Agent Builder lets you customize an agent just by chatting. Start from a built-in profile or describe a new specialist, then refine its instructions, tools, skills, model, and approval style in a guided chat. The example below replays it in your browser: pick a starter to watch it fill in the draft, ask for a change, or edit any field yourself.
 
 <LiveExample feature="agent-builder" />
 
-You can still edit the structured profile directly when you need precision. Agent Builder and the editor work on the same draft, so the conversation stays grounded in the definition you'll actually save.
+You can still edit the structured profile directly when you need precision. Agent Builder and the editor work on the same draft, so the chat stays grounded in the definition you'll actually save.
 
 ## Agent memory
 
-An agent shares [memory](./memory) with your other conversations in the workspace by default. To give it a memory of its own, set **Memory** to **Agent only** in the editor, or write `memory: own` in the profile file. That memory follows the agent's name, so renaming the agent starts it with empty memory. Removing or exporting an agent never touches its memory.
+An agent shares [memory](./memory) with your other chats in the workspace by default. To give it a memory of its own, set **Memory** to **Agent only** in the editor, or write `memory: own` in the profile file. That memory follows the agent's name, so renaming the agent starts it with empty memory. Removing or exporting an agent never touches its memory.
 
 ## Share an agent
 
@@ -55,4 +55,4 @@ To bring one in, choose **Agents → Import** and drop the `.zip`, or a single p
 ## Related docs
 
 - [Automations & Goals](./automations) — run a scheduled task as a saved agent
-- [Subagents](./subagents) — a one-off delegation from the current conversation, no profile needed
+- [Subagents](./subagents) — a one-off delegation from the current chat, no profile needed

@@ -1,6 +1,6 @@
 # Dynamic Workflows
 
-A dynamic workflow turns one large task into a reusable orchestration script. The script runs several subagents in the background, keeps the intermediate work out of your main conversation, and sends the finished result back to it.
+A dynamic workflow turns one large task into a reusable orchestration script. The script runs several subagents in the background, keeps the intermediate work out of your main chat, and sends the finished result back to it.
 
 Reach for a workflow when the order, branching, and fan-out of a job should be the same every time. For a single delegation, one [subagent](./subagents) is simpler.
 
@@ -10,14 +10,14 @@ Reach for a workflow when the order, branching, and fan-out of a job should be t
 
 ![Opening a Dynamic Workflow run and reviewing its orchestration steps in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/dynamic-workflows.webp)
 
-Ask for a dynamic workflow explicitly in the conversation:
+Ask for a dynamic workflow explicitly in the chat:
 
 ```text
 Use a dynamic workflow to review this change for correctness, security, and test coverage, then
 combine the findings into one ranked report.
 ```
 
-DotCraft writes the orchestration script, asks for approval when the current permission policy requires it, and starts the run in the background. The conversation stays available while it runs, and the result comes back on its own.
+DotCraft writes the orchestration script, asks for approval when the current permission policy requires it, and starts the run in the background. The chat stays available while it runs, and the result comes back on its own.
 
 ## Save a reusable workflow
 
@@ -110,7 +110,7 @@ The namespace keeps a plugin workflow from displacing a script of your own with 
 
 The JavaScript body coordinates work. It can't read files, open network connections, or start processes itself — hand those actions to `agent()`, where subagent tool calls go through the usual workspace boundaries and tool approvals.
 
-Every `agent()` call starts with fresh context while inheriting the parent conversation's workspace, permission policy, and model defaults. Adding `isolation: "worktree"` gives that call a managed Git worktree. DotCraft removes the worktree afterwards if it's clean and keeps it for inspection if it holds changes or commits, without merging anything automatically.
+Every `agent()` call starts with fresh context while inheriting the parent chat's workspace, permission policy, and model defaults. Adding `isolation: "worktree"` gives that call a managed Git worktree. DotCraft removes the worktree afterwards if it's clean and keeps it for inspection if it holds changes or commits, without merging anything automatically.
 
 ## Related docs
 

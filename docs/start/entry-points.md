@@ -1,6 +1,6 @@
 # Entry points overview
 
-One workspace opens from several surfaces: the desktop app, a terminal, your editor, your phone, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same threads and the same memory. All that changes is the surface you talk to it through.
+One workspace opens from several surfaces: the desktop app, a terminal, your editor, your phone, a bot in a group chat. Whichever you come in through, you're talking to the same agent. It reads the same `.craft/` and shares the same chats and the same memory. All that changes is the surface you talk to it through.
 
 ![Desktop, CLI, editors, and chat bots all connecting to one AppServer and a shared session core](/entry-points-topology.svg)
 
@@ -16,12 +16,12 @@ One workspace opens from several surfaces: the desktop app, a terminal, your edi
 
 ## Picking one
 
-Start with Desktop the first time. Follow [Getting started](./) to install it, choose a workspace, and run your first conversation, then add a second entry when a real need shows up.
+Start with Desktop the first time. Follow [Getting started](./) to install it, choose a workspace, and run your first chat, then add a second entry when a real need shows up.
 
 On a remote server, in CI, or when you just want one command to return a result, reach for a [command-line task](../contribute/lifecycle/appserver) like `dotcraft exec`. To let the agent see edits you haven't saved yet and approve each change in the editor's own diff view, use ACP. To answer approvals while you're away from your desk, pair the phone app. To let a group ask about the project any time, connect a channel bot. To build your own client, write it against the [SDKs](../extend/sdks/) — it connects to the same workspace.
 
 ## Switch surfaces, keep your work
 
-A thread doesn't belong to the surface that created it. Start a conversation in Desktop and pick it up in your editor or another client, with approvals rendered the way each platform does them natively. The same [session core](../contribute/architecture/session-core) sits behind all of them.
+A chat doesn't belong to the surface that created it. Start a chat in Desktop and pick it up in your editor or another client, with approvals rendered the way each platform does them natively. The same [session core](../contribute/architecture/session-core) sits behind all of them.
 
 There's also only one configuration. Model, security, and automation settings live in the workspace's `.craft/config.json` and your personal `~/.craft/config.json`, and every entry reads the same files. A workspace only ever runs one AppServer, coordinated locally by [Hub](../contribute/lifecycle/hub) without your help. ACP, Dashboard, automations, and external channels are enabled per workspace, so you turn on the ones you need.

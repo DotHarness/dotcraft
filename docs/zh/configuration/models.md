@@ -55,7 +55,7 @@
 
 | 偏好字段 | 可选值 | 说明 |
 |----------|--------|------|
-| **`Model`** | 非空模型 id | 新 MainAgent 线程使用的模型 |
+| **`Model`** | 非空模型 id | 新 MainAgent 对话使用的模型 |
 | **`Reasoning.Enabled`** | `true`、`false` | 模型支持时启用或关闭 reasoning |
 | **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh`、`Max`、`Ultra` | 请求的思考程度 |
 | **`Reasoning.Output`** | `None`、`Summary`、`Full` | 请求的 reasoning 输出 |

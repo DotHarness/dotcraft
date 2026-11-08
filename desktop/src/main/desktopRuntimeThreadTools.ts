@@ -175,7 +175,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           outcome: { type: 'string' }
         }
       },
-      display: { title: 'Create thread', subtitle: 'Desktop' }
+      display: { title: 'Create chat', subtitle: 'Desktop' }
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -212,7 +212,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           totalMatched: { type: 'integer' }
         }
       },
-      display: { title: 'List threads', subtitle: 'Desktop' }
+      display: { title: 'List chats', subtitle: 'Desktop' }
     },
     ...threadHistoryToolDefinitions,
     {
@@ -265,7 +265,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           title: { type: 'string' }
         }
       },
-      display: { title: 'Rename thread', subtitle: 'Desktop' }
+      display: { title: 'Rename chat', subtitle: 'Desktop' }
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -287,7 +287,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           archived: { type: 'boolean' }
         }
       },
-      display: { title: 'Archive thread', subtitle: 'Desktop' }
+      display: { title: 'Archive chat', subtitle: 'Desktop' }
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -310,7 +310,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           pinnedThreadIds: { type: 'array', items: { type: 'string' } }
         }
       },
-      display: { title: 'Pin thread', subtitle: 'Desktop' }
+      display: { title: 'Pin chat', subtitle: 'Desktop' }
     },
     readTerminalToolDefinition,
     listTerminalTabsToolDefinition

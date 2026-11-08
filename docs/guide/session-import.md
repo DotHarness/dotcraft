@@ -1,12 +1,12 @@
 # Import From Other Agents
 
-Bring your tools, project instructions, and chats from Claude Code, ChatGPT, or Cursor into DotCraft. Keep using familiar skills, read earlier conversations, and continue those chats here.
+Bring your tools, project instructions, and chats from Claude Code, ChatGPT, or Cursor into DotCraft. Keep using familiar skills, read earlier chats, and continue those chats here.
 
 Only chats recorded for the open project come over. Chats from other folders stay where they are.
 
 ## When to use it
 
-- You're moving a project to DotCraft and don't want to lose the conversations that got it here.
+- You're moving a project to DotCraft and don't want to lose the chats that got it here.
 - You keep using another agent for some tasks and want one place to look back at all of them.
 
 ## Choose what to import
@@ -39,5 +39,5 @@ Turn sync off from **Settings › Import** to pause. Your selections and importe
 
 ## Related docs
 
-- [Workspace Handoff](./workspace-handoff) — send a DotCraft conversation the other way, to an agent outside DotCraft.
+- [Workspace Handoff](./workspace-handoff) — send a DotCraft chat the other way, to an agent outside DotCraft.
 - [Subagents](./subagents) — run an external coding CLI inside DotCraft instead of switching tools.

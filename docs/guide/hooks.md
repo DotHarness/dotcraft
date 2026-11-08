@@ -1,6 +1,6 @@
 # Lifecycle Hooks
 
-Hooks let DotCraft run your scripts at key moments in a session, a prompt, or a tool call. The routines your project repeats every time — checking a command before it runs, adding context when a session starts, reviewing the result after a tool finishes — can happen on their own.
+Hooks let DotCraft run your scripts at key moments in a chat, a prompt, or a tool call. The routines your project repeats every time — checking a command before it runs, adding context when a chat starts, reviewing the result after a tool finishes — can happen on their own.
 
 ![A session timeline of four moments — session starts, before a tool runs, after a tool finishes, turn stops — with your hook scripts from user config, workspace, or a plugin attaching to the moments you pick](/lifecycle-hooks-overview.svg)
 
@@ -11,7 +11,7 @@ Hooks are best for small guardrails and repeatable checks that belong near the a
 | Use case | Good hook moment |
 |---|---|
 | Warn before risky shell commands | Before a tool runs |
-| Add project reminders to a new conversation | When a session starts |
+| Add project reminders to a new chat | When a chat starts |
 | Format or lint after file edits | After a tool finishes |
 | Review a final diff or command output | When a turn stops |
 | Notify another system | After a tool or turn finishes |

@@ -10,7 +10,7 @@ Describe what you want to see, such as "Chart our electricity use against last y
 
 ## Explore and refine
 
-The view runs inside the conversation, so you explore it without leaving the thread. Ask for changes and DotCraft updates the same visualization; earlier replies that show it switch to the latest version. Choices you make in a visualization are kept when you return to the conversation, and DotCraft can take them into account in its next reply.
+The view runs inside the chat, so you explore it without switching windows. Ask for changes and DotCraft updates the same visualization; earlier replies that show it switch to the latest version. Choices you make in a visualization are kept when you return to the chat, and DotCraft can take them into account in its next reply.
 
 ## Compare design directions
 
@@ -18,6 +18,6 @@ Ask for mockups and DotCraft can put several designs in one view. Use the arrows
 
 ## Use the view's actions
 
-Hover a visualization to copy its current state as an image or open it fullscreen. Fullscreen pages through every visualization in the conversation with the arrow keys. A view can also send a follow-up, which waits for you to confirm the prompt first.
+Hover a visualization to copy its current state as an image or open it fullscreen. Fullscreen pages through every visualization in the chat with the arrow keys. A view can also send a follow-up, which waits for you to confirm the prompt first.
 
 For calculators, quizzes, and other small tools built from Desktop's own controls, see [Interactive answers](./interactive-answers).

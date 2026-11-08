@@ -318,7 +318,7 @@ describe('InputComposer commands and references', () => {
     setCaretToEnd(textbox)
     fireEvent.input(textbox)
 
-    expect(await screen.findByText("Compact this session's context")).toBeInTheDocument()
+    expect(await screen.findByText("Compact this chat's context")).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('option', { name: /Compact/i }))
 
     await waitFor(() => {

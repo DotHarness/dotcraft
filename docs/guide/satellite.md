@@ -1,6 +1,6 @@
 # DotCraft Satellite
 
-Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the conversation in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing.
+Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the chat in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing.
 
 ![The inviting PC runs Desktop and the Hub, and Satellite on the shared PC connects to it](/satellite-overview.svg)
 
@@ -38,7 +38,7 @@ The agent can read and change files in that folder. Other file access and local 
 
 ## Person inviting: choose where to run
 
-After the other person allows the connection, find the PC in **Settings → Connections → Satellites**. Open **Run on** below the conversation composer, select the remote PC and its workspace, and submit your task.
+After the other person allows the connection, find the PC in **Settings → Connections → Satellites**. Open **Run on** below the chat composer, select the remote PC and its workspace, and submit your task.
 
 File, Shell, language tools, and .NET extension tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
 
@@ -48,7 +48,7 @@ For .NET tools that support remote calls, DotCraft automatically prepares the pl
 
 ## Person inviting: watch the remote screen
 
-While the conversation runs on the remote PC, choose **Watch … screen** in the conversation header to open a live view of that PC's desktop. Drag it wherever it suits you and resize it from its corner; point at it for **Expand** and **Stop watching**. The view is read-only and nothing is recorded. If the other person pauses sharing or their PC drops off, the view comes back on its own when sharing resumes.
+While the chat runs on the remote PC, choose **Watch … screen** in the chat header to open a live view of that PC's desktop. Drag it wherever it suits you and resize it from its corner; point at it for **Expand** and **Stop watching**. The view is read-only and nothing is recorded. If the other person pauses sharing or their PC drops off, the view comes back on its own when sharing resumes.
 
 ## Person sharing: see who is using your PC
 

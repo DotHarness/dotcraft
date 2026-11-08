@@ -6,11 +6,11 @@ DotCraft 的核心是一个随项目持续演进的 Agent。这一组页面介�
 
 ## 让对话做更多事
 
-在 Desktop 中，回复里可以直接放上计算器、方案对比或小测验这样的[交互式回答](./interactive-answers)，或者图表、模拟演示、设计稿这样的[交互式可视化](./visualizations)。[Subagents](./subagents)在独立上下文中执行范围明确的任务，保持主对话简洁。需要交给 DotCraft 之外的 coding agent 接手时，[外部 Agent 协作](./workspace-handoff)可以把会话导出为一份交接文档。反过来，[从其他 Agent 导入](./session-import)能把 Claude Code、ChatGPT 和 Cursor 在同一项目里的会话带进 DotCraft。
+在 Desktop 中，回复里可以直接放上计算器、方案对比或小测验这样的[交互式回答](./interactive-answers)，或者图表、模拟演示、设计稿这样的[交互式可视化](./visualizations)。[Subagents](./subagents)在独立上下文中执行范围明确的任务，保持主对话简洁。需要交给 DotCraft 之外的 coding agent 接手时，[外部 Agent 协作](./workspace-handoff)可以把对话导出为一份交接文档。反过来，[从其他 Agent 导入](./session-import)能把 Claude Code、ChatGPT 和 Cursor 在同一项目里的对话带进 DotCraft。
 
 ## 塑造你的 Agent
 
-[Agent 预设](./agent-profiles)为可复用的专门 Agent 保存指令、工具、技能和默认模型，Agent Builder 则让你通过对话完成定制。[技能](./skills)把验证过的工作流程沉淀为可复用的技能，同类任务直接复用。[记忆与梦境](./memory)让 Agent 跨会话保留项目背景、偏好和决策。记忆以明文 Markdown 保存在工作区里，可以随时查看和修改。[生命周期 Hooks](./hooks) 在会话的关键时刻自动运行你的脚本，例如在危险命令执行前先行确认。
+[Agent 预设](./agent-profiles)为可复用的专门 Agent 保存指令、工具、技能和默认模型，Agent Builder 则让你通过对话完成定制。[技能](./skills)把验证过的工作流程沉淀为可复用的技能，同类任务直接复用。[记忆与梦境](./memory)让 Agent 跨对话保留项目背景、偏好和决策。记忆以明文 Markdown 保存在工作区里，可以随时查看和修改。[生命周期 Hooks](./hooks) 在对话的关键时刻自动运行你的脚本，例如在危险命令执行前先行确认。
 
 ## 无人值守运行
 
@@ -18,7 +18,7 @@ DotCraft 的核心是一个随项目持续演进的 Agent。这一组页面介�
 
 ## 扩展能力
 
-[插件与工具](./plugins-tools)介绍内置工具、插件和 MCP server 如何为 Agent 提供能力，以及各自的信任边界。需要更多插件时，[插件市场](./plugin-marketplaces)用于添加你信任的插件目录，[应用连接](./connected-apps)则让会话直接使用你已经在用的产品和服务。[DotCraft 卫星](./satellite)提供远程工具调用，由电脑主人决定访问权限，并随时暂停共享。
+[插件与工具](./plugins-tools)介绍内置工具、插件和 MCP server 如何为 Agent 提供能力，以及各自的信任边界。需要更多插件时，[插件市场](./plugin-marketplaces)用于添加你信任的插件目录，[应用连接](./connected-apps)则让对话直接使用你已经在用的产品和服务。[DotCraft 卫星](./satellite)提供远程工具调用，由电脑主人决定访问权限，并随时暂停共享。
 
 ## 在团队群聊里提问
 

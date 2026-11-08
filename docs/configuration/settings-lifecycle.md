@@ -33,7 +33,7 @@ The group's action names its tier: live-apply groups take effect on save, and re
 Notes:
 
 - The Desktop model page creates, edits, and deletes providers by writing `Providers[id]` in your personal configuration. Credentials and endpoints belong only to `Providers[id]`. Deleting the provider the workspace has selected is rejected.
-- Changing workspace `ProviderId` or `ProviderPreferences` refreshes new-thread defaults only. Existing threads keep the model, reasoning, speed, and context-window snapshot captured at creation, unless their own composer atomically changes the complete preference.
+- Changing workspace `ProviderId` or `ProviderPreferences` refreshes new-chat defaults only. Existing chats keep the model, reasoning, speed, and context-window snapshot captured at creation, unless their own composer atomically changes the complete preference.
 - Workspace files save `ProviderId` and provider-specific complete preference overrides. Provider credentials stay in the personal `Providers[id]` registry.
 - A Remote AppServer is owned by the user or the remote environment. Desktop tests and switches the connection, and offers no remote restart.
 - If Desktop was launched with `--remote`, that argument controls the connection for the session and persistent connection switching is unavailable in Settings.

@@ -20,7 +20,7 @@
 | `Tools.Shell.Background.ForegroundBudgetMs` | agent 等待命令多久后让它转入后台继续运行。等待期间你发送的消息会让命令立即转入后台 | `120000` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | 后台启动的命令返回会话前的默认等待时间 | `10000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | 后台命令返回前，以及后台会话读取或写入可接受的最长等待时间 | `300000` |
-| `Tools.Shell.Background.MaxSessionsPerThread` | 每个线程可同时运行的后台终端上限 | `8` |
+| `Tools.Shell.Background.MaxSessionsPerThread` | 每个对话可同时运行的后台终端上限 | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | 每个工作区可同时运行的后台终端上限 | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段。后台终端服务当前不执行该限制 | `1800` |
 | `Tools.Shell.Background.OutputMaxBytes` | 预留字段。后台终端服务当前不执行该限制 | `67108864` |
@@ -34,7 +34,7 @@
 
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
-| `Tools.BackgroundTasks.CompletionDelivery` | `wake` 会在 agent 启动的后台命令、subagent 或工作流结束时通知它，线程空闲时会开启新的回合。`off` 则把通知留到 agent 的下一个回合 | `wake` |
+| `Tools.BackgroundTasks.CompletionDelivery` | `wake` 会在 agent 启动的后台命令、subagent 或工作流结束时通知它，对话空闲时会开启新的回合。`off` 则把通知留到 agent 的下一个回合 | `wake` |
 
 ## Web
 

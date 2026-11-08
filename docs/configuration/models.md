@@ -55,7 +55,7 @@ Workspace model selection example:
 
 | Preference field | Values | Description |
 |------------------|--------|-------------|
-| **`Model`** | Non-empty model id | Model used for new MainAgent threads |
+| **`Model`** | Non-empty model id | Model used for new MainAgent chats |
 | **`Reasoning.Enabled`** | `true`, `false` | Enables reasoning when the model supports the choice |
 | **`Reasoning.Effort`** | `Low`, `Medium`, `High`, `ExtraHigh`, `Max`, `Ultra` | Requested reasoning effort |
 | **`Reasoning.Output`** | `None`, `Summary`, `Full` | Requested reasoning output |

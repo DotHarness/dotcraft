@@ -18,13 +18,13 @@ When you write a skill yourself, `~/.craft/skills/` makes it personal and the wo
 
 ### Let DotCraft explain and configure itself
 
-No need to read the docs or hand-edit config files. Ask in the conversation: "what can you do", "switch to Claude", "which MCP servers do you have". DotCraft answers, and when a setting has to change it makes the change for you and tells you when it takes effect. To integrate DotCraft into your own application, ask it to walk you through that too; it writes code against the SDK version you actually have installed.
+No need to read the docs or hand-edit config files. Ask in the chat: "what can you do", "switch to Claude", "which MCP servers do you have". DotCraft answers, and when a setting has to change it makes the change for you and tells you when it takes effect. To integrate DotCraft into your own application, ask it to walk you through that too; it writes code against the SDK version you actually have installed.
 
 ## Ask the agent to write a skill
 
-Say "turn what we just did into a skill" or "the deploy skill is missing a step, fix it", and the agent writes the skill files itself, following the built-in authoring guide and checking the result before it finishes. New skills go to the workspace's `.craft/skills/`. To adapt a system, personal, or plugin skill for one project, the agent copies it into the workspace first. The edits are ordinary file changes under your approval settings, and the conversation shows which skill was created or updated, with a link that opens it.
+Say "turn what we just did into a skill" or "the deploy skill is missing a step, fix it", and the agent writes the skill files itself, following the built-in authoring guide and checking the result before it finishes. New skills go to the workspace's `.craft/skills/`. To adapt a system, personal, or plugin skill for one project, the agent copies it into the workspace first. The edits are ordinary file changes under your approval settings, and the chat shows which skill was created or updated, with a link that opens it.
 
-A new or renamed skill joins the skills list in a new conversation, or after you send `/reload-skills`.
+A new or renamed skill joins the skills list in a new chat, or after you send `/reload-skills`.
 
 ### What's worth saving as a skill
 

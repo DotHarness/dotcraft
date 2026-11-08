@@ -1,6 +1,6 @@
 # Automations & Goals
 
-DotCraft has two ways to keep the agent working when you are not driving every turn. Automations run a task on a schedule or on demand, so routine work like reports, checks, and cleanups happens on its own. A Goal gives one conversation a long-running direction, and DotCraft keeps advancing it whenever that conversation goes idle.
+DotCraft has two ways to keep the agent working when you are not driving every turn. Automations run a task on a schedule or on demand, so routine work like reports, checks, and cleanups happens on its own. A Goal gives one chat a long-running direction, and DotCraft keeps advancing it whenever that chat goes idle.
 
 ![How DotCraft runs Automations and Goals](/automations-goals-overview.svg)
 
@@ -12,30 +12,30 @@ Automations run local work in your workspace, on a schedule or whenever you trig
 
 Ask DotCraft what to do and when, for example: “Every Friday at 9, summarize this week's changes.” The agent creates the automation and shows its schedule. Open **Automations** to edit it directly, pause it, or run it now. Manual setup is available from the same page.
 
-Follow-up requests continue an existing conversation. Independent scheduled work starts a new conversation for each run and shares memory across runs. Advanced settings let you select an [Agent Profile](./agent-profiles) and execution directory. The host running the automation must be online.
+Follow-up requests continue an existing chat. Independent scheduled work starts a new chat for each run and shares memory across runs. Advanced settings let you select an [Agent Profile](./agent-profiles) and execution directory. The host running the automation must be online.
 
 ## Review task output
 
-Select an automation to see its previous runs, then open the result you want. Each run points to its own conversation or the specific turn in the followed conversation. Independent runs in Git projects use separate managed worktrees by default, and their changes can be reviewed from the run's conversation.
+Select an automation to see its previous runs, then open the result you want. Each run points to its own chat or the specific turn in the followed chat. Independent runs in Git projects use separate managed worktrees by default, and their changes can be reviewed from the run's chat.
 
 Follow-ups notify you about important changes; independent jobs notify you after each run. You can change this in the automation details. An automation created from a chat posts to that chat instead, and only when the agent has something to say; see [Automations from a chat](./channels/#automations-from-a-chat). Pausing prevents future runs while allowing current work to finish.
 
 ## Goals
 
-A Goal gives one conversation a long-running direction. Once you set it, the goal stays with that conversation, and every time the conversation goes idle (with auto-continue on) DotCraft keeps advancing it — until it is complete, until you pause or clear it, or until the token budget runs out and it waits on you.
+A Goal gives one chat a long-running direction. Once you set it, the goal stays with that chat, and every time the chat goes idle (with auto-continue on) DotCraft keeps advancing it — until it is complete, until you pause or clear it, or until the token budget runs out and it waits on you.
 
-Goals suit the work that takes many turns to move: refactors, documentation passes, migrations, investigations. Progress, time spent, and completion state stay with the conversation, and you can pause, resume, replace, or clear the goal at any time.
+Goals suit the work that takes many turns to move: refactors, documentation passes, migrations, investigations. Progress, time spent, and completion state stay with the chat, and you can pause, resume, replace, or clear the goal at any time.
 
-Set, pause, and clear a goal from the Desktop goal control. The conversation list and detail view show its current state: active, paused, budget limited, or complete.
+Set, pause, and clear a goal from the Desktop goal control. The chat list and detail view show its current state: active, paused, budget limited, or complete.
 
 ## Common scenarios
 
-Automations decide when something runs once. Goals decide which direction the work keeps moving. The two combine: a scheduled task can run inside the same conversation and keep pushing the same goal forward.
+Automations decide when something runs once. Goals decide which direction the work keeps moving. The two combine: a scheduled task can run inside the same chat and keep pushing the same goal forward.
 
 | Scenario | Recommendation |
 |---|---|
 | Weekly or daily reports, scheduled checks | Automations on a schedule |
-| Run a test suite and write the summary to a conversation | Automations with a completion summary |
+| Run a test suite and write the summary to a chat | Automations with a completion summary |
 | Keep advancing a refactor or documentation pass | Goals |
 | Make scheduled work follow the same long-running objective | Automations + Goals |
 | Format or lint after file writes | [Lifecycle Hooks](./hooks), after a tool finishes |
@@ -43,5 +43,5 @@ Automations decide when something runs once. Goals decide which direction the wo
 
 ## Related docs
 
-- [Lifecycle Hooks](./hooks) — for work that triggers at a moment in a tool call or session, rather than on a schedule
+- [Lifecycle Hooks](./hooks) — for work that triggers at a moment in a tool call or chat, rather than on a schedule
 - [Observability](../self-hosting/observability) — review task runs and approvals in Dashboard
