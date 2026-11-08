@@ -324,39 +324,6 @@ internal static class WorkspaceStateSchema
                 CREATE INDEX IF NOT EXISTS idx_trace_bindings_kind
                     ON trace_session_bindings(binding_kind, session_key);
 
-                DROP TABLE IF EXISTS token_usage_records;
-
-                CREATE TABLE IF NOT EXISTS dashboard_usage_records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    source_id TEXT NOT NULL,
-                    source_mode TEXT NOT NULL,
-                    subject_kind TEXT NOT NULL,
-                    subject_id TEXT NOT NULL,
-                    subject_label TEXT NOT NULL,
-                    context_kind TEXT,
-                    context_id TEXT,
-                    context_label TEXT,
-                    thread_id TEXT,
-                    session_key TEXT,
-                    llm_call_count INTEGER NOT NULL DEFAULT 1,
-                    input_tokens INTEGER NOT NULL,
-                    output_tokens INTEGER NOT NULL,
-                    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-                    cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
-                    reasoning_output_tokens INTEGER NOT NULL DEFAULT 0
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_source_ts
-                    ON dashboard_usage_records(source_id, timestamp DESC, id DESC);
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_source_subject
-                    ON dashboard_usage_records(source_id, subject_kind, subject_id);
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_source_context
-                    ON dashboard_usage_records(source_id, context_kind, context_id);
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_thread
-                    ON dashboard_usage_records(thread_id, timestamp DESC, id DESC);
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_session
-                    ON dashboard_usage_records(session_key, timestamp DESC, id DESC);
                 """;
         command.ExecuteNonQuery();
 
@@ -379,11 +346,6 @@ internal static class WorkspaceStateSchema
         EnsureColumn(connection, "thread_items", "summary_call_id", "TEXT");
         EnsureColumn(connection, "thread_items", "summary_namespace", "TEXT");
         EnsureColumn(connection, "thread_items", "summary_tool_name", "TEXT");
-        EnsureColumn(connection, "dashboard_usage_records", "model", "TEXT");
-        EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
-        EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
-        EnsureColumn(connection, "dashboard_usage_records", "speed", "TEXT");
-        EnsureColumn(connection, "dashboard_usage_records", "cost_usd", "REAL");
         EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
         EnsureColumn(connection, "trace_session_bindings", "fork_mode", "TEXT");
         EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");
@@ -391,8 +353,6 @@ internal static class WorkspaceStateSchema
 
         using var usageIndexes = connection.CreateCommand();
         usageIndexes.CommandText = """
-                CREATE INDEX IF NOT EXISTS idx_dashboard_usage_root_thread
-                    ON dashboard_usage_records(root_thread_id, timestamp DESC, id DESC);
                 CREATE INDEX IF NOT EXISTS idx_trace_events_type_ts
                     ON trace_events(type, timestamp, id);
                 CREATE INDEX IF NOT EXISTS idx_thread_items_user_text

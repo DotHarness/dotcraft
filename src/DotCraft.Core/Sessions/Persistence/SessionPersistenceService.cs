@@ -28,19 +28,25 @@ public static class SessionPersistenceDeletionScopes
 public sealed class SessionPersistenceService(
     ThreadStore threadStore,
     TraceStore? traceStore = null,
-    TokenUsageStore? tokenUsageStore = null,
+    UsageStatisticsStore? tokenUsageStore = null,
     WorkspaceStateDatabase? stateRuntime = null)
 {
     private readonly TraceStore _traceStore = traceStore ?? new TraceStore();
-    private readonly TokenUsageStore? _tokenUsageStore = tokenUsageStore;
+    private readonly UsageStatisticsStore? _tokenUsageStore = tokenUsageStore;
     private readonly WorkspaceStateDatabase _stateRuntime = stateRuntime ?? threadStore.StateDatabase;
     private readonly ResponsesContextWindowStore _responsesContextWindowStore = new(stateRuntime ?? threadStore.StateDatabase);
 
-    public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
-        => threadStore.SaveThreadAsync(thread, ct);
+    public async Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
+    {
+        await threadStore.SaveThreadAsync(thread, ct);
+        _tokenUsageStore?.UpdateThread(thread);
+    }
 
-    internal Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct = default)
-        => threadStore.ArchiveStoredThreadAsync(threadId, ct);
+    internal async Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct = default)
+    {
+        await threadStore.ArchiveStoredThreadAsync(threadId, ct);
+        _tokenUsageStore?.ArchiveThread(threadId);
+    }
 
     internal bool ThreadExists(string threadId) => threadStore.ThreadExists(threadId);
 
@@ -409,7 +415,7 @@ public sealed class SessionPersistenceService(
             _traceStore.ClearSession(sessionKey);
 
         threadStore.DeleteThread(threadId);
-        DeleteUsageRecords([threadId], sessionKeys);
+        _tokenUsageStore?.DeleteThread(threadId);
         return Task.CompletedTask;
     }
 
@@ -427,7 +433,6 @@ public sealed class SessionPersistenceService(
                 try
                 {
                     await deleteThreadAsync(descriptor.RootThreadId, ct);
-                    DeleteUsageRecords([descriptor.RootThreadId], [sessionKey]);
                     return true;
                 }
                 catch (KeyNotFoundException)
@@ -442,7 +447,6 @@ public sealed class SessionPersistenceService(
         }
 
         var deleted = _traceStore.DeleteStandaloneSession(sessionKey);
-        DeleteUsageRecords([], [sessionKey]);
         return deleted;
     }
 
@@ -466,18 +470,11 @@ public sealed class SessionPersistenceService(
 
         foreach (var threadId in boundThreadIds)
         {
-            var sessionKeysForThread = descriptors
-                .Where(d => string.Equals(d.RootThreadId, threadId, StringComparison.Ordinal))
-                .Select(d => d.SessionKey)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-
             if (deleteThreadAsync != null)
             {
                 try
                 {
                     await deleteThreadAsync(threadId, ct);
-                    DeleteUsageRecords([threadId], sessionKeysForThread);
                     continue;
                 }
                 catch (KeyNotFoundException)
@@ -492,7 +489,6 @@ public sealed class SessionPersistenceService(
         foreach (var sessionKey in standaloneSessions)
         {
             _traceStore.DeleteStandaloneSession(sessionKey);
-            DeleteUsageRecords([], [sessionKey]);
         }
     }
 
@@ -511,6 +507,4 @@ public sealed class SessionPersistenceService(
         }
     }
 
-    private void DeleteUsageRecords(IEnumerable<string> threadIds, IEnumerable<string> sessionKeys)
-        => _tokenUsageStore?.DeleteDashboardUsageRecords(threadIds, sessionKeys);
 }

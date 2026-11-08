@@ -176,15 +176,6 @@ describe('thread restoration', () => {
     expect(getThreadConversation('thread-0')).toBeDefined()
   })
 
-  it('uses read-only history for an archived selection', async () => {
-    useThreadStore.getState().setThreadList([{ ...thread('thread-0'), status: 'archived' }], 'workspace')
-    renderHook(() => useThreadRestoration(props))
-    await select('thread-0')
-    await waitFor(() => expect(useThreadRestorationStore.getState().restoringThreadId).toBeNull())
-    expect(requests).toHaveLength(0)
-    expect(useThreadStore.getState().activeThread?.id).toBe('thread-0')
-  })
-
   it('releases the oldest attachment when an eleventh warm view is left', async () => {
     renderHook(() => useThreadRestoration(props))
     for (let i = 0; i < 12; i++) {

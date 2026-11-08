@@ -7,6 +7,7 @@ export type UsageDimension = 'tokenType' | 'surface' | 'model' | 'toolSource' | 
 
 const SURFACE_KEYS: Record<string, MessageKey> = {
   'dotcraft-desktop': 'settings.usage.surface.desktop',
+  'dotcraft-mobile': 'settings.usage.surface.mobile',
   cli: 'settings.usage.surface.cli',
   acp: 'settings.usage.surface.acp',
   automations: 'settings.usage.surface.automations',

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { addLocalDays, localDayKey, localTzOffsetMinutes } from '../utils/localDay'
+import { requestUsage } from './usageConnectionStore'
 
 export interface UsageDayWire {
   date: string
@@ -15,14 +16,12 @@ interface UsageHistoryWire {
 /** The contribution grid spans 53 weeks, so the history request is bounded to that window. */
 const HEATMAP_LOOKBACK_DAYS = 371
 
-/** A leading value with its count out of a total, for share% display. Matches RankedMetric. */
 export interface RankedMetricWire {
   key: string
   count: number
   total: number
 }
 
-/** One referenced skill with run count and optional plugin attribution. Matches SkillUsageWire. */
 export interface SkillUsageWire {
   name: string
   count: number
@@ -30,17 +29,19 @@ export interface SkillUsageWire {
 }
 
 export interface ProfileInsightsWire {
+  lifetimeTokens: number
+  peakDailyTokens: number
+  currentStreakDays: number
+  longestStreakDays: number
   topModel: RankedMetricWire | null
   topReasoning: RankedMetricWire | null
   skillsExplored: number
   totalSkillsUsed: number
   totalThreads: number
-  /** Longest single task (turn) duration across the workspace, in milliseconds. */
   longestTaskMs: number
   skills: SkillUsageWire[]
 }
 
-/** Public GitHub profile fields used by the Profile header. */
 export interface GitHubProfile {
   login: string
   name: string | null
@@ -64,6 +65,7 @@ interface ProfileStoreState {
   githubProfile: GitHubProfile | null
   identityLoaded: boolean
 
+  load(): Promise<void>
   fetchHistory(options?: { silent?: boolean }): Promise<void>
   fetchInsights(options?: { silent?: boolean }): Promise<void>
   loadIdentity(): Promise<void>
@@ -71,12 +73,6 @@ interface ProfileStoreState {
   reset(): void
 }
 
-/**
- * Resolves a public GitHub profile via the main process, which fetches and caches
- * it locally. The main process is not subject to the renderer CSP, so this works in
- * packaged builds (where the renderer cannot reach github.com directly). Returns null
- * when the username is invalid or unavailable.
- */
 async function fetchGithubProfile(login: string): Promise<GitHubProfile | null> {
   try {
     const result = await window.api.profile.getGithubIdentity(login)
@@ -86,6 +82,9 @@ async function fetchGithubProfile(login: string): Promise<GitHubProfile | null> 
     return null
   }
 }
+
+let historyGeneration = 0
+let insightsGeneration = 0
 
 export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   days: [],
@@ -102,52 +101,53 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   githubProfile: null,
   identityLoaded: false,
 
+  async load() {
+    await Promise.all([get().fetchHistory({ silent: true }), get().fetchInsights({ silent: true })])
+  },
+
   async fetchHistory(options?: { silent?: boolean }) {
+    const generation = ++historyGeneration
     const silent = options?.silent === true
-    if (!silent && !get().loadedOnce) set({ loading: true, error: null })
+    if (!get().loadedOnce) set({ loading: true, error: null })
     else set({ error: null })
     try {
       const from = addLocalDays(new Date(), -HEATMAP_LOOKBACK_DAYS)
-      const result = (await window.api.appServer.sendRequest('usage/history', {
+      const result = await requestUsage<UsageHistoryWire>('usage/history', {
         metric: 'tokens',
         from: localDayKey(from),
         tzOffsetMinutes: localTzOffsetMinutes()
-      })) as UsageHistoryWire
-      const days: UsageDayWire[] = Array.isArray(result?.days)
-        ? result.days.map((day) => ({ date: day.date, totalTokens: day.total }))
-        : []
+      })
+      if (generation !== historyGeneration) return
+      const days = result.days.map((day) => ({ date: day.date, totalTokens: day.total }))
       set({ days, loading: false, loadedOnce: true })
     } catch (e: unknown) {
+      if (generation !== historyGeneration) return
       const msg = e instanceof Error ? e.message : String(e)
-      if (!silent) set({ error: msg, loading: false })
+      if (!silent || !get().loadedOnce) set({ error: msg, loading: false })
       else set({ loading: false })
     }
   },
 
   async fetchInsights(options?: { silent?: boolean }) {
+    const generation = ++insightsGeneration
     const silent = options?.silent === true
-    if (!silent && !get().insightsLoadedOnce) set({ insightsLoading: true, insightsError: null })
+    if (!get().insightsLoadedOnce) set({ insightsLoading: true, insightsError: null })
     else set({ insightsError: null })
     try {
-      const result = (await window.api.appServer.sendRequest('profile/insights', {
-        topSkills: 5
-      })) as ProfileInsightsWire
+      const result = await requestUsage<ProfileInsightsWire>('profile/insights', {
+        topSkills: 5,
+        tzOffsetMinutes: localTzOffsetMinutes()
+      })
+      if (generation !== insightsGeneration) return
       set({
-        insights: {
-          topModel: result?.topModel ?? null,
-          topReasoning: result?.topReasoning ?? null,
-          skillsExplored: typeof result?.skillsExplored === 'number' ? result.skillsExplored : 0,
-          totalSkillsUsed: typeof result?.totalSkillsUsed === 'number' ? result.totalSkillsUsed : 0,
-          totalThreads: typeof result?.totalThreads === 'number' ? result.totalThreads : 0,
-          longestTaskMs: typeof result?.longestTaskMs === 'number' ? result.longestTaskMs : 0,
-          skills: Array.isArray(result?.skills) ? result.skills : []
-        },
+        insights: { ...result, topModel: result.topModel ?? null, topReasoning: result.topReasoning ?? null },
         insightsLoading: false,
         insightsLoadedOnce: true
       })
     } catch (e: unknown) {
+      if (generation !== insightsGeneration) return
       const msg = e instanceof Error ? e.message : String(e)
-      if (!silent) set({ insightsError: msg, insightsLoading: false })
+      if (!silent || !get().insightsLoadedOnce) set({ insightsError: msg, insightsLoading: false })
       else set({ insightsLoading: false })
     }
   },
@@ -159,7 +159,6 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
       set({ githubUsername: username, identityLoaded: true })
       if (username) {
         const profile = await fetchGithubProfile(username)
-        // Guard against a username change racing this fetch.
         if (get().githubUsername === username) set({ githubProfile: profile })
       } else {
         set({ githubProfile: null })
@@ -180,6 +179,8 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   },
 
   reset() {
+    historyGeneration += 1
+    insightsGeneration += 1
     set({
       days: [],
       loading: false,

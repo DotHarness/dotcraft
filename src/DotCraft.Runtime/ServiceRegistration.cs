@@ -181,28 +181,32 @@ public static class ServiceRegistration
 
         services.AddConfigurationValidation();
 
+        if (paths.UserData.RootPath is { } userDataPath)
+        {
+            services.AddSingleton(_ => new UsageStatisticsDatabase(userDataPath));
+            services.AddSingleton(sp => new UsageStatisticsStore(
+                sp.GetRequiredService<UsageStatisticsDatabase>(), workspacePath, config.Tracing.Enabled));
+            services.AddSingleton(sp => new UsageAnalyticsService(sp.GetRequiredService<UsageStatisticsDatabase>()));
+        }
+
         if (config.Tracing.Enabled)
         {
-            // Both live under the tracing switch, so the ITraceSink contribution point is silent when tracing is off.
             services.AddSingleton(sp => new TraceSinkDispatcher(
                 sp.GetRequiredService<IContributionView>(),
                 sp.GetService<ILoggerFactory>()));
             services.AddSingleton(sp => new TraceStore(
                 sp.GetRequiredService<WorkspaceStateDatabase>(),
                 maxEventsPerSession: 5000,
-                sinkDispatcher: sp.GetRequiredService<TraceSinkDispatcher>()));
+                sinkDispatcher: sp.GetRequiredService<TraceSinkDispatcher>(),
+                statistics: sp.GetService<UsageStatisticsStore>()));
             services.AddSingleton<TraceCollector>();
 
-            services.AddSingleton(sp => new TokenUsageStore(
-                sp.GetRequiredService<WorkspaceStateDatabase>()));
-            services.AddSingleton(sp => new UsageAnalyticsService(
-                sp.GetRequiredService<WorkspaceStateDatabase>()));
         }
 
         services.AddSingleton(sp => new SessionPersistenceService(
             sp.GetRequiredService<ThreadStore>(),
             sp.GetService<TraceStore>(),
-            sp.GetService<TokenUsageStore>(),
+            sp.GetService<UsageStatisticsStore>(),
             sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton<IWorkspaceRuntimeFactory, WorkspaceRuntimeFactory>();
         services.AddSingleton(sp => sp.GetRequiredService<IWorkspaceRuntimeFactory>().Create(sp));

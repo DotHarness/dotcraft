@@ -70,6 +70,7 @@ export interface PendingProjectThreadOpen {
   projectKey: string
   workspacePath: string
   threadId: string
+  includeArchived?: boolean
 }
 
 export interface PendingWelcomeTurnInput {
@@ -533,7 +534,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       pendingProjectThreadOpen: {
         projectKey,
         workspacePath: payload.workspacePath,
-        threadId
+        threadId,
+        ...(payload.includeArchived ? { includeArchived: true } : {})
       }
     })
   },

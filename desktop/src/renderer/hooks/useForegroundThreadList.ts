@@ -74,7 +74,12 @@ export function useForegroundThreadList(
     const startedAt = performance.now()
     setLoading(true)
     try {
-      const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
+      const pending = useUIStore.getState().pendingProjectThreadOpen
+      const includeArchived = pending?.projectKey === projectKey && pending.includeArchived === true
+      const params = {
+        identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true,
+        ...(includeArchived ? { includeArchived: true } : {})
+      }
       const requestedAtMark = readStateMark()
       const [settings, result] = await Promise.all([
         window.api.settings.get(),
@@ -83,7 +88,14 @@ export function useForegroundThreadList(
       if (!isCurrentRequest()) return
       const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(withReadStates(res.data ?? [], res.readStates, requestedAtMark), projectKey)
+      const listedThreads = res.data ?? []
+      const selectedArchived = threadStore.threadListProjectKey === projectKey
+        ? threadStore.threadList.find((thread) => thread.id === threadStore.activeThreadId && thread.status === 'archived')
+        : undefined
+      const observedThreads = selectedArchived && !listedThreads.some((thread) => thread.id === selectedArchived.id)
+        ? [...listedThreads, selectedArchived]
+        : listedThreads
+      threadStore.setThreadList(withReadStates(observedThreads, res.readStates, requestedAtMark), projectKey)
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
       }
@@ -96,7 +108,7 @@ export function useForegroundThreadList(
       useTurnBookmarkStore.getState().hydrate(settings.turnBookmarksByThread)
       const pendingProjectThreadOpen = useUIStore.getState().consumePendingProjectThreadOpen(
         projectKey,
-        useThreadStore.getState().threadList.map((thread) => thread.id)
+        listedThreads.map((thread) => thread.id)
       )
       if (pendingProjectThreadOpen) {
         useUIStore.getState().setActiveMainView('conversation')

@@ -37,10 +37,6 @@ public sealed class SkillViewToolTests : IDisposable
                 store.GetEvents("thread-x"), e => e.Type == TraceEventType.SkillReferenced);
             Assert.Equal("demo-skill", evt.ToolName);
 
-            var insights = store.GetProfileInsights();
-            Assert.Equal(1, insights.DistinctSkillCount);
-            Assert.Equal(1, insights.TotalSkillCount);
-            Assert.Equal("demo-skill", insights.TopSkills[0].Name);
         }
         finally
         {

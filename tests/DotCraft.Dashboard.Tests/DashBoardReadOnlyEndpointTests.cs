@@ -80,7 +80,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             File.Delete(stateDbPath);
 
         var exception = Assert.Throws<FileNotFoundException>(
-            () => DashBoardReadOnlyStoreLoader.Load(_craft));
+            () => DashBoardReadOnlyStoreLoader.Load(_craft, Path.Combine(_root, "user")));
 
         Assert.Equal(stateDbPath, exception.FileName);
     }
@@ -333,17 +333,45 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             prefix.GetProperty("changedFields").EnumerateArray().Select(field => field.GetString()));
     }
 
+    [Fact]
+    public async Task ReadOnlyDashboard_UsageQueriesOnlyItsWorkspaceInUserDatabase()
+    {
+        using var database = new UsageStatisticsDatabase(Path.Combine(_root, "user"));
+        var local = new UsageStatisticsStore(database, _workspace);
+        var other = new UsageStatisticsStore(database, Path.Combine(_root, "other"));
+        var record = new TokenUsageRecord
+        {
+            ThreadId = "thread", TurnId = "turn_001", RootThreadId = "thread",
+            SourceId = "desktop", SubjectKind = TokenUsageSubjectKinds.User, SubjectId = "user",
+            InputTokens = 12
+        };
+        local.Record(record);
+        other.Record(record);
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        using var response = await http.GetAsync("/dashboard/api/usage/sources");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var source = Assert.Single(document.RootElement.EnumerateArray());
+        Assert.Equal(12, source.GetProperty("totalTokens").GetInt64());
+        using var readOnly = new UsageStatisticsDatabase(Path.Combine(_root, "user"), readOnly: true);
+        using var connection = readOnly.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM usage_turns";
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => command.ExecuteNonQuery());
+    }
+
     private async Task<WebApplication> CreateDashboardApp()
     {
         _ = new WorkspaceStateDatabase(_craft);
-        var stores = DashBoardReadOnlyStoreLoader.Load(_craft);
+        var stores = DashBoardReadOnlyStoreLoader.Load(_craft, Path.Combine(_root, "user"));
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         var app = builder.Build();
         app.MapDashBoard(
             stores.TraceStore,
             new DotCraftPaths(_workspace, _craft, userDataPath: null),
-            stores.TokenUsageStore,
+            stores.UsageStatisticsStore,
             runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer());
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
         await app.StartAsync();

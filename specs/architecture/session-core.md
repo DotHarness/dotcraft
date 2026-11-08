@@ -577,7 +577,7 @@ Every event carries `EventId` (monotonic within a Turn), `EventType`, `ThreadId`
 - `thread/resumed` — `{ thread, resumedBy }` (resuming channel).
 - `thread/archived`, `thread/unarchived` — `{ threadId }`.
 
-Rename (explicit, provisional, or generated title) and permanent deletion are not events on the Turn stream; the wire protocol projects them as its own notifications. Permanent deletion closes the thread recorder, deletes the canonical rollout, removes database state and attachment references, and finally best-effort deletes managed attachment files no remaining thread references. If the rollout cannot be deleted, database state and attachments are left intact.
+Rename (explicit, provisional, or generated title) and permanent deletion are not events on the Turn stream; the wire protocol projects them as its own notifications. Permanent deletion closes the thread recorder, deletes the canonical rollout, removes database state and attachment references, and finally best-effort deletes managed attachment files no remaining thread references. If the rollout cannot be deleted, database state and attachments are left intact. Successful deletion also removes the conversation's live statistics index, including its title, but never its historical user-level usage or activity facts.
 
 #### Turn Events
 
@@ -719,12 +719,14 @@ For each submitted Turn, Session Core validates thread state and mutual exclusio
 │   └── {terminalSessionId}.log              # Complete terminal output
 ├── tool-results/{threadDir}/
 │   └── {stableToolCallArtifact}.txt         # Tool-result spill file
-├── state.db                                 # Classified SQLite state, projections, diagnostics, usage
+├── state.db                                 # Classified SQLite state, projections, diagnostics
 ├── attachments/                             # Managed attachments: images/ for images, <id>/ for files and pasted text
 └── cache/                                   # Rebuildable cache; not part of the thread lifecycle
 ```
 
 `{threadDir}` uses the same rule as rollout names: a safe Thread id stays readable, otherwise `thread-{sha256(threadId)}`. Paths always resolve under the corresponding `.craft` root; no other directory shape is part of the contract.
+
+User-level usage statistics live at `<UserDataPath>/usage.db`, independently of rollout and trace retention. Completed-Turn usage and the necessary activity fields are recorded there while workspace tracing is enabled. A persistent main conversation enters the lifetime count once when created or used during collection. Metadata updates maintain its live statistics index for ranking and navigation. Disabling collection, deleting conversations, and clearing traces leave recorded statistics intact. The [usage protocol](../protocols/appserver-protocol.md#27a-usage-telemetry-methods) owns aggregate and Profile semantics.
 
 ### 9.1.1 Workspace Data Upgrades
 

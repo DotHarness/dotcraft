@@ -14,7 +14,8 @@ public sealed class AppServerUsageSummaryTests : IDisposable
 {
     private readonly string _root;
     private readonly WorkspaceStateDatabase _db;
-    private readonly TokenUsageStore _facts;
+    private readonly UsageStatisticsDatabase _statistics;
+    private readonly UsageStatisticsStore _facts;
     private readonly TraceStore _traceStore;
     private readonly UsageAnalyticsService _analytics;
 
@@ -22,9 +23,10 @@ public sealed class AppServerUsageSummaryTests : IDisposable
     {
         _root = Path.Combine(Path.GetTempPath(), "appserver-usage-summary-tests", Guid.NewGuid().ToString("N"));
         _db = new WorkspaceStateDatabase(Path.Combine(_root, ".craft"));
-        _facts = new TokenUsageStore(_db);
-        _traceStore = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true);
-        _analytics = new UsageAnalyticsService(_db);
+        _statistics = new UsageStatisticsDatabase(Path.Combine(_root, "user"));
+        _facts = new UsageStatisticsStore(_statistics, _root);
+        _traceStore = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true, statistics: _facts);
+        _analytics = new UsageAnalyticsService(_statistics);
     }
 
     [Fact]
@@ -99,7 +101,7 @@ public sealed class AppServerUsageSummaryTests : IDisposable
             SubjectId = threadId,
             SubjectLabel = threadId,
             ThreadId = threadId,
-            SessionKey = threadId,
+            TurnId = Guid.NewGuid().ToString("N"),
             RootThreadId = threadId,
             InputTokens = input,
             OutputTokens = output,
@@ -123,6 +125,7 @@ public sealed class AppServerUsageSummaryTests : IDisposable
 
     public void Dispose()
     {
+        _statistics.Dispose();
         _db.Dispose();
         try { Directory.Delete(_root, recursive: true); }
         catch { /* best-effort */ }

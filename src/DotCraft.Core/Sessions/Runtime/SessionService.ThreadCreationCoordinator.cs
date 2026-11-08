@@ -71,6 +71,8 @@ public sealed partial class SessionService
             await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
+            owner.ObserveUsageThread(thread);
+
             owner.ThreadCreatedForBroadcast?.Invoke(thread);
             await owner.ContributionLifecycle.ThreadStartedAsync(thread, ct);
 
@@ -207,6 +209,8 @@ public sealed partial class SessionService
                 await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
+            owner.ObserveUsageThread(forked);
+
             owner.ThreadCreatedForBroadcast?.Invoke(forked);
             // A fork is a new thread: the source thread's thread-scoped contributions are not copied over.
             await owner.ContributionLifecycle.ThreadStartedAsync(forked, ct);

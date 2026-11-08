@@ -9,10 +9,9 @@ namespace DotCraft.DashBoard;
 public static class DashBoardReadOnlyStoreLoader
 {
     /// <summary>
-    /// Loads trace and usage stores from an existing workspace <c>.craft</c> directory.
-    /// Uses <c>state.db</c> in SQLite read-only mode.
+    /// Opens workspace diagnostics and user-level usage in SQLite read-only mode.
     /// </summary>
-    public static DashBoardReadOnlyStores Load(string craftPath)
+    public static DashBoardReadOnlyStores Load(string craftPath, string userDataPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(craftPath);
 
@@ -22,7 +21,9 @@ public static class DashBoardReadOnlyStoreLoader
 
         var stateRuntime = new WorkspaceStateDatabase(craftPath, readOnly: true);
         var traceStore = new TraceStore(stateRuntime, maxEventsPerSession: 5000);
-        var tokenUsageStore = new TokenUsageStore(stateRuntime);
+        var tokenUsageStore = File.Exists(Path.Combine(userDataPath, "usage.db"))
+            ? new UsageStatisticsStore(new UsageStatisticsDatabase(userDataPath, readOnly: true), stateRuntime.WorkspacePath, collectionEnabled: false)
+            : null;
         return new DashBoardReadOnlyStores(traceStore, tokenUsageStore);
     }
 }
@@ -32,4 +33,4 @@ public static class DashBoardReadOnlyStoreLoader
 /// </summary>
 public sealed record DashBoardReadOnlyStores(
     TraceStore TraceStore,
-    TokenUsageStore TokenUsageStore);
+    UsageStatisticsStore? UsageStatisticsStore);

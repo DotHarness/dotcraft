@@ -71,7 +71,6 @@ export function DemoApp(): JSX.Element {
                 <Sidebar
                   workspaceName={DEMO_WORKSPACE_NAME}
                   workspacePath={DEMO_WORKSPACE_PATH}
-                  localWorkspacePath={DEMO_WORKSPACE_PATH}
                 />
               )
             }

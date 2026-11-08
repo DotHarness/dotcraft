@@ -1,14 +1,30 @@
 using System.Text.Json;
+using DotCraft.Persistence;
+using DotCraft.Sessions;
 using DotCraft.Tracing;
 using DotCraft.AppServer;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-public sealed class AppServerProfileInsightsTests
+public sealed class AppServerProfileInsightsTests : IDisposable
 {
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "profile-wire", Guid.NewGuid().ToString("N"));
+    private readonly UsageStatisticsDatabase _database;
+    private readonly WorkspaceStateDatabase _state;
+    private readonly UsageStatisticsStore _facts;
+    private readonly UsageAnalyticsService _analytics;
+
+    public AppServerProfileInsightsTests()
+    {
+        _database = new UsageStatisticsDatabase(Path.Combine(_root, "user"));
+        _state = new WorkspaceStateDatabase(Path.Combine(_root, ".craft"));
+        _facts = new UsageStatisticsStore(_database, _root);
+        _analytics = new UsageAnalyticsService(_database);
+    }
+
     [Fact]
-    public async Task ProfileInsights_RequiresTracingAndReturnsEmptyMetricsWithoutData()
+    public async Task ProfileInsights_RequiresStatisticsButNotActiveTracing()
     {
         using (var withoutTracing = new AppServerTestHarness())
         {
@@ -17,7 +33,7 @@ public sealed class AppServerProfileInsightsTests
             AppServerTestHarness.AssertIsErrorResponse(withoutTracing.Transport.TryReadSent()!, AppServerErrors.MethodNotFoundCode);
         }
 
-        using var h = new AppServerTestHarness(traceStore: new TraceStore());
+        using var h = new AppServerTestHarness(usageAnalytics: _analytics);
         await h.InitializeAsync();
         var result = await InsightsAsync(h, new { });
         Assert.False(result.TryGetProperty("topModel", out _));
@@ -26,27 +42,29 @@ public sealed class AppServerProfileInsightsTests
         Assert.Equal(0, result.GetProperty("totalSkillsUsed").GetInt64());
         Assert.Equal(0, result.GetProperty("totalThreads").GetInt32());
         Assert.Equal(0, result.GetProperty("skills").GetArrayLength());
+        Assert.Equal(0, result.GetProperty("lifetimeTokens").GetInt64());
+        Assert.Equal(0, result.GetProperty("longestStreakDays").GetInt32());
     }
 
     [Fact]
-    public async Task ProfileInsights_RanksModelsReasoningAndSkillsAndCountsWorkspaceThreads()
+    public async Task ProfileInsights_RanksModelsReasoningAndSkillsAndCountsObservedThreads()
     {
-        var traceStore = new TraceStore();
-        RecordResponse(traceStore, "t1", model: "gpt-5", reasoning: "high");
-        RecordResponse(traceStore, "t1", model: "gpt-5", reasoning: "high");
-        RecordResponse(traceStore, "t1", model: "gpt-5", reasoning: "low");
-        RecordResponse(traceStore, "t1", model: "claude-opus-4-8", reasoning: null);
+        var traceStore = new TraceStore(_state, 5000, synchronousPersist: true, statistics: _facts);
+        RecordResponse(traceStore, "t1", model: "atlas-mini", reasoning: "high");
+        RecordResponse(traceStore, "t1", model: "atlas-mini", reasoning: "high");
+        RecordResponse(traceStore, "t1", model: "atlas-mini", reasoning: "low");
+        RecordResponse(traceStore, "t1", model: "boreal-pro", reasoning: null);
         RecordResponse(traceStore, "t1", model: null, reasoning: null);
-        foreach (var skill in new[] { "dotcraft-error-diagnosis", "dotcraft-error-diagnosis", "dotcraft-error-diagnosis", "skill-creator", "skill-creator", "alpha" })
+        foreach (var skill in new[] { "sample-analysis", "sample-analysis", "sample-analysis", "sample-writing", "sample-writing", "sample-search" })
             RecordSkill(traceStore, "t1", skill);
-        using var h = new AppServerTestHarness(traceStore: traceStore);
+        using var h = new AppServerTestHarness(traceStore: traceStore, usageAnalytics: _analytics);
         await h.InitializeAsync();
-        await h.Service.CreateThreadAsync(h.Identity with { ChannelContext = "workspace:ws" });
+        _facts.ObserveThread(new SessionThread { Id = "t1", WorkspacePath = _root, OriginChannel = "desktop" });
 
         var result = await InsightsAsync(h, new { });
 
         var model = result.GetProperty("topModel");
-        Assert.Equal("gpt-5", model.GetProperty("key").GetString());
+        Assert.Equal("atlas-mini", model.GetProperty("key").GetString());
         Assert.Equal(3, model.GetProperty("count").GetInt64());
         Assert.Equal(4, model.GetProperty("total").GetInt64());
         var reasoning = result.GetProperty("topReasoning");
@@ -57,7 +75,7 @@ public sealed class AppServerProfileInsightsTests
         Assert.Equal(3, result.GetProperty("skillsExplored").GetInt32());
         Assert.Equal(6, result.GetProperty("totalSkillsUsed").GetInt64());
         var skills = result.GetProperty("skills");
-        Assert.Equal(["dotcraft-error-diagnosis", "skill-creator", "alpha"], skills.EnumerateArray().Select(skill => skill.GetProperty("name").GetString()));
+        Assert.Equal(["sample-analysis", "sample-writing", "sample-search"], skills.EnumerateArray().Select(skill => skill.GetProperty("name").GetString()));
         Assert.Equal([3L, 2L, 1L], skills.EnumerateArray().Select(skill => skill.GetProperty("count").GetInt64()));
         Assert.False(skills[0].TryGetProperty("pluginId", out _));
         Assert.Equal(1, result.GetProperty("totalThreads").GetInt32());
@@ -94,5 +112,11 @@ public sealed class AppServerProfileInsightsTests
             Type = TraceEventType.SkillReferenced,
             ToolName = skillName
         });
+    }
+    public void Dispose()
+    {
+        _database.Dispose();
+        _state.Dispose();
+        Directory.Delete(_root, recursive: true);
     }
 }

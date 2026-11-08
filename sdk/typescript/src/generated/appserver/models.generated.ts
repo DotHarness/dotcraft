@@ -3011,11 +3011,16 @@ export interface PluginWorkflowInfo {
 
 export interface ProfileInsightsParams {
   topSkills?: number | null;
+  tzOffsetMinutes?: number | null;
   [key: string]: unknown;
 }
 
 export interface ProfileInsightsResult {
+  currentStreakDays?: number;
+  lifetimeTokens?: number;
+  longestStreakDays?: number;
   longestTaskMs?: number;
+  peakDailyTokens?: number;
   skills?: SkillUsage[];
   skillsExplored?: number;
   topModel?: RankedMetric | null;
@@ -5445,6 +5450,7 @@ export interface UsageThreadGroup {
 
 export interface UsageThreadParams {
   threadId?: string;
+  workspacePath?: string;
   [key: string]: unknown;
 }
 
@@ -5458,6 +5464,7 @@ export interface UsageThreadResult {
   threadId?: string;
   totalTokens?: number;
   turns?: number;
+  workspacePath?: string;
   [key: string]: unknown;
 }
 
@@ -5474,6 +5481,7 @@ export interface UsageThreadRow {
   title?: string | null;
   totalTokens?: number;
   turns?: number;
+  workspacePath?: string;
   [key: string]: unknown;
 }
 

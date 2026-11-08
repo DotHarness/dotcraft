@@ -6,6 +6,7 @@ import { type ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { SshMachine } from '../shared/sshMachines'
 import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { UsageStatisticsConnection } from '../shared/usageStatistics'
 import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult,
@@ -62,6 +63,7 @@ export interface IpcHandlerCallbacks {
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
+  getUsageConnection: () => Promise<UsageStatisticsConnection>
   getConnectionKey?: (client: DesktopAppServerClient) => string | null
   getConnectionClient?: (key: string) => DesktopAppServerClient | null
   getConnectionContext: (client: DesktopAppServerClient) => { workspacePath: string; capabilities?: Record<string, unknown> } | null

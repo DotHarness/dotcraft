@@ -160,6 +160,8 @@ public sealed partial class SessionService
             await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
+            owner.ObserveUsageThread(thread);
+
             owner.ThreadCreatedForBroadcast?.Invoke(thread);
 
             return new WorktreeCreateAndStartResult

@@ -112,6 +112,8 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
     )
   })
 
+  handleSafe('appserver:get-usage-connection', () => callbacks.getUsageConnection())
+
   handleSafe('appserver:get-connection-key', () => {
     const client = getWireClient()
     return client ? (callbacks.getConnectionKey?.(client) ?? null) : null

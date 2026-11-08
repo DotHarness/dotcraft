@@ -8,6 +8,14 @@ import { renderPanel } from './panel.js';
 
 const KIND_PLURAL = { user: 'people', thread: 'threads', session: 'sessions', group: 'groups', mixed: 'records' };
 const KIND_TITLE = { user: 'Top people', thread: 'Top threads', session: 'Top sessions', group: 'Top groups', mixed: 'Top records' };
+const SOURCE_LABELS = {
+  'dotcraft-desktop': 'Desktop',
+  'dotcraft-mobile': 'Mobile',
+  cli: 'CLI',
+  acp: 'ACP',
+  automations: 'Automations',
+  subagent: 'Subagents'
+};
 
 let loaded = false;
 let data = null;
@@ -15,7 +23,8 @@ let filter = 'all';
 
 function sourceLabel(id) {
   const value = String(id || '');
-  if (value.toLowerCase() === 'acp') return 'ACP';
+  const known = SOURCE_LABELS[value.toLowerCase()];
+  if (known) return known;
   if (value.length <= 3) return value.toUpperCase();
   const label = humanizeKey(value);
   return label.charAt(0).toUpperCase() + label.slice(1);

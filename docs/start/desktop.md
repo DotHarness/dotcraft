@@ -122,7 +122,9 @@ The project's own `environment.json` is used by default. When there are several 
 
 <LiveExample feature="desktop" :examples="['token-activity']" />
 
-**Settings → Profile** shows a token activity chart that spreads daily usage across every chat in the current workspace, GitHub-contribution style, alongside lifetime tokens, single-day peak, and usage streaks. Enable tracing for the workspace first, or the chart has nothing to plot.
+**Settings → Profile** shows daily token activity on this device alongside lifetime tokens, single-day peak, and usage streaks. **Settings → Usage** breaks down token use, estimated cost, tools, and skills. Top chats shows each chat's workspace and opens it there.
+
+Archiving or deleting a chat keeps its recorded usage and Profile activity. Deleted chats leave Top chats, which ranks existing chats only. Workspace tracing must be enabled to collect new activity, but turning it off does not hide previously recorded statistics.
 
 ## Meet your pet
 

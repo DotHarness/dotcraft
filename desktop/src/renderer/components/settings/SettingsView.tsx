@@ -2147,7 +2147,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'usage' && (
               <UsagePanel>
-                <UsageView dashboardUrl={dashboardUrl} />
+                <UsageView />
               </UsagePanel>
             )}
 

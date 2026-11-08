@@ -48,6 +48,9 @@
     },
     "turns": {
       "type": "integer"
+    },
+    "workspacePath": {
+      "type": "string"
     }
   },
   "additionalProperties": true

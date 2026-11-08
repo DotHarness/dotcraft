@@ -9,7 +9,8 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
 {
     private readonly string _root;
     private readonly WorkspaceStateDatabase _db;
-    private readonly TokenUsageStore _facts;
+    private readonly UsageStatisticsDatabase _statistics;
+    private readonly UsageStatisticsStore _facts;
     private readonly TraceStore _traces;
     private readonly UsageAnalyticsService _service;
 
@@ -17,9 +18,10 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
     {
         _root = Path.Combine(Path.GetTempPath(), "usage-analytics-tests", Guid.NewGuid().ToString("N"));
         _db = new WorkspaceStateDatabase(Path.Combine(_root, ".craft"));
-        _facts = new TokenUsageStore(_db);
-        _traces = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true);
-        _service = new UsageAnalyticsService(_db);
+        _statistics = new UsageStatisticsDatabase(Path.Combine(_root, "user"));
+        _facts = new UsageStatisticsStore(_statistics, _root);
+        _traces = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true, statistics: _facts);
+        _service = new UsageAnalyticsService(_statistics);
     }
 
     [Fact]
@@ -178,7 +180,7 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         Assert.Equal(3, big.Turns);
         Assert.Equal(1020, big.TotalTokens);
         Assert.Equal(DateTimeOffset.Parse("2026-05-30T08:30:00Z", CultureInfo.InvariantCulture), big.LastActiveAt);
-        Assert.Equal("hello there", threads[1].Title);
+        Assert.Null(threads[1].Title);
     }
 
     [Fact]
@@ -216,7 +218,7 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         RecordTurn("child", "2026-05-30T09:30:00Z", input: 20, output: 2, model: "boreal-mini", source: "subagent", rootThreadId: "root");
         RecordTurn("other", "2026-05-30T10:00:00Z", input: 999, output: 1, rootThreadId: "other");
 
-        var usage = _service.GetThreadUsage("root");
+        var usage = _service.GetThreadUsage(_root, "root");
 
         Assert.Equal(3, usage.Turns);
         Assert.Equal(176, usage.TotalTokens);
@@ -265,10 +267,11 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
     [Fact]
     public void ThreadUsage_ReportsCostOnlyForPricedGroups()
     {
+        InsertThread("root", "dotcraft-desktop");
         RecordTurn("root", "2026-05-30T08:00:00Z", input: 100, output: 10, model: "priced", rootThreadId: "root", cost: 1.5m);
         RecordTurn("child", "2026-05-30T09:00:00Z", input: 20, output: 2, model: "local", source: "subagent", rootThreadId: "root");
 
-        var usage = _service.GetThreadUsage("root");
+        var usage = _service.GetThreadUsage(_root, "root");
         var thread = Assert.Single(_service.GetTopThreads(UsageDateRange.Create(null, null, 0), limit: 5));
 
         Assert.Equal(1.5, usage.CostUsd);
@@ -301,7 +304,7 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
             SubjectId = threadId,
             SubjectLabel = threadId,
             ThreadId = threadId,
-            SessionKey = threadId,
+            TurnId = Guid.NewGuid().ToString("N"),
             RootThreadId = rootThreadId ?? threadId,
             Model = model,
             ReasoningEffort = reasoning,
@@ -350,10 +353,15 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         command.Parameters.AddWithValue("$first", (object?)firstUserMessage ?? DBNull.Value);
         command.Parameters.AddWithValue("$now", "2026-01-01T00:00:00.0000000Z");
         command.ExecuteNonQuery();
+        _facts.ObserveThread(new DotCraft.Sessions.SessionThread
+        {
+            Id = threadId, WorkspacePath = _root, OriginChannel = originChannel, DisplayName = displayName
+        });
     }
 
     public void Dispose()
     {
+        _statistics.Dispose();
         _db.Dispose();
         try { Directory.Delete(_root, recursive: true); }
         catch { }

@@ -38,6 +38,8 @@ public sealed partial class SessionService
             if (created)
             {
                 owner.GetOrCreateBroker(thread.Id).PublishThreadEvent(SessionEventType.ThreadCreated, thread);
+                owner.ObserveUsageThread(thread);
+
                 owner.ThreadCreatedForBroadcast?.Invoke(thread);
             }
 

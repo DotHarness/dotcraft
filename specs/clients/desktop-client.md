@@ -347,7 +347,7 @@ Desktop restores the current view through the ordered resume response and subseq
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface
 
-When a native product surface opens a Thread, it supplies the Thread id and canonical Workspace path. If that Workspace is not foreground, Desktop records the pending selection, switches workspace through the normal project lifecycle, and selects the Thread after its thread list loads. Returning to the product surface restores its own view state for the lifetime of the window.
+When a native product surface opens a Thread, it supplies the Thread id and canonical Workspace path. If that Workspace is not foreground, Desktop records the pending selection, switches workspace through the normal project lifecycle, and selects the Thread after its thread list loads. An archived target's summary is registered before selection and retained while it is selected, including across ordinary list refreshes. The sidebar excludes archived summaries, while the conversation opens their read-only history without unarchiving or resuming them. Returning to the product surface restores its own view state for the lifetime of the window.
 
 ### 5.4 Send a Message
 

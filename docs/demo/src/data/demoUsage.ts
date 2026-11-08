@@ -1,5 +1,6 @@
 /** A fixed-seed generator keeps the token heatmap identical across loads. */
-import { addLocalDays, localDayKey } from '@renderer/utils/localDay'
+import { addLocalDays, localDayKey } from '../../../../desktop/src/renderer/utils/localDay'
+import type { ProfileInsightsWire } from '../../../../desktop/src/renderer/stores/profileStore'
 
 const HISTORY_DAYS = 371
 
@@ -30,8 +31,12 @@ export function demoUsageHistory(): { unit: string; groupBy: string; days: Array
   return { unit: 'tokens', groupBy: 'day', days }
 }
 
-export function demoProfileInsights(model: string): Record<string, unknown> {
+export function demoProfileInsights(model: string): ProfileInsightsWire {
   return {
+    lifetimeTokens: 128_400_000,
+    peakDailyTokens: 1_600_000,
+    currentStreakDays: 15,
+    longestStreakDays: 45,
     topModel: { key: model, count: 412, total: 538 },
     topReasoning: { key: 'medium', count: 301, total: 538 },
     skillsExplored: 14,

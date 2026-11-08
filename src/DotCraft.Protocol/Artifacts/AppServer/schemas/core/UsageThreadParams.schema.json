@@ -6,6 +6,9 @@
   "properties": {
     "threadId": {
       "type": "string"
+    },
+    "workspacePath": {
+      "type": "string"
     }
   },
   "additionalProperties": true

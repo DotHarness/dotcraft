@@ -10,7 +10,8 @@ public sealed class AppServerUsageHistoryTests : IDisposable
 {
     private readonly string _root;
     private readonly WorkspaceStateDatabase _db;
-    private readonly TokenUsageStore _facts;
+    private readonly UsageStatisticsDatabase _statistics;
+    private readonly UsageStatisticsStore _facts;
     private readonly TraceStore _traceStore;
     private readonly UsageAnalyticsService _analytics;
 
@@ -18,9 +19,10 @@ public sealed class AppServerUsageHistoryTests : IDisposable
     {
         _root = Path.Combine(Path.GetTempPath(), "appserver-usage-history-tests", Guid.NewGuid().ToString("N"));
         _db = new WorkspaceStateDatabase(Path.Combine(_root, ".craft"));
-        _facts = new TokenUsageStore(_db);
-        _traceStore = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true);
-        _analytics = new UsageAnalyticsService(_db);
+        _statistics = new UsageStatisticsDatabase(Path.Combine(_root, "user"));
+        _facts = new UsageStatisticsStore(_statistics, _root);
+        _traceStore = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true, statistics: _facts);
+        _analytics = new UsageAnalyticsService(_statistics);
     }
 
     [Fact]
@@ -115,7 +117,7 @@ public sealed class AppServerUsageHistoryTests : IDisposable
         using var h = new AppServerTestHarness(traceStore: _traceStore, usageAnalytics: _analytics);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageThread, new { threadId = "t1" });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageThread, new { workspacePath = _root, threadId = "t1" });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -144,6 +146,7 @@ public sealed class AppServerUsageHistoryTests : IDisposable
         string? model = null,
         string source = "dotcraft-desktop")
     {
+        _facts.ObserveThread(new DotCraft.Sessions.SessionThread { Id = threadId, WorkspacePath = _root, OriginChannel = source });
         _facts.Record(new TokenUsageRecord
         {
             Timestamp = DateTimeOffset.Parse(completedAtUtc, CultureInfo.InvariantCulture),
@@ -153,7 +156,7 @@ public sealed class AppServerUsageHistoryTests : IDisposable
             SubjectId = threadId,
             SubjectLabel = threadId,
             ThreadId = threadId,
-            SessionKey = threadId,
+            TurnId = Guid.NewGuid().ToString("N"),
             RootThreadId = threadId,
             Model = model,
             InputTokens = input,
@@ -163,6 +166,7 @@ public sealed class AppServerUsageHistoryTests : IDisposable
 
     public void Dispose()
     {
+        _statistics.Dispose();
         _db.Dispose();
         try { Directory.Delete(_root, recursive: true); }
         catch { /* best-effort */ }

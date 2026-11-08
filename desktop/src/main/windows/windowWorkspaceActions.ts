@@ -12,6 +12,7 @@ import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
 import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
 import type { DesktopWindowRuntime } from './windowRuntime'
+import { resolveLocalUsageConnection } from './windowUsageStatistics'
 
 export async function removeLocalProject(ctx: DesktopWindowRuntime, workspacePath: string): Promise<void> {
   const entry = ctx.getWorkspaceConnection(workspacePath)
@@ -119,6 +120,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       await stopBeforeArchive((method, params) => entry.client.sendRequest(method, params), id)
       await ctx.refreshConnectionThreadList(entry)
     },
+    getUsageConnection: () => resolveLocalUsageConnection(ctx),
     getConnectionKey: (client) => ctx.findWorkspaceConnectionByClient(client)?.key ?? null,
     getConnectionClient: (key) => {
       const entry = ctx.workspaceConnections.get(key)

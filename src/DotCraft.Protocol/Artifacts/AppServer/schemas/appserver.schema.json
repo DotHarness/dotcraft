@@ -11664,6 +11664,16 @@
               "type": "null"
             }
           ]
+        },
+        "tzOffsetMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -11672,7 +11682,23 @@
       "title": "ProfileInsightsResult",
       "type": "object",
       "properties": {
+        "currentStreakDays": {
+          "type": "integer"
+        },
+        "lifetimeTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "longestStreakDays": {
+          "type": "integer"
+        },
         "longestTaskMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "peakDailyTokens": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
@@ -22092,6 +22118,9 @@
       "properties": {
         "threadId": {
           "type": "string"
+        },
+        "workspacePath": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -22144,6 +22173,9 @@
         },
         "turns": {
           "type": "integer"
+        },
+        "workspacePath": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -22209,6 +22241,9 @@
         },
         "turns": {
           "type": "integer"
+        },
+        "workspacePath": {
+          "type": "string"
         }
       },
       "additionalProperties": true

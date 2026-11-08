@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { addLocalDays, localDayKey, localTzOffsetMinutes } from '../utils/localDay'
+import { requestUsage } from './usageConnectionStore'
 
 export type UsageRange = '7d' | '30d'
 export type UsageHistoryGroup = 'surface' | 'model' | 'tokenType'
@@ -24,7 +25,6 @@ export interface UsageHistorySeriesWire {
   total: number
 }
 
-/** Matches AppServer UsageHistoryResult wire DTO (spec §27A.3). */
 export interface UsageHistoryWire {
   unit: 'tokens' | 'usd' | 'count'
   groupBy: string
@@ -32,8 +32,8 @@ export interface UsageHistoryWire {
   series: UsageHistorySeriesWire[]
 }
 
-/** Matches AppServer UsageThreadRow wire DTO (spec §27A.4). */
 export interface UsageThreadWire {
+  workspacePath: string
   threadId: string
   title?: string | null
   originChannel: string
@@ -99,13 +99,6 @@ interface UsageStoreState {
 
 type SectionKey = 'history' | 'costSummary' | 'toolCalls' | 'skillUses' | 'threads'
 
-async function request<T>(method: string, params: object): Promise<T> {
-  return (await window.api.appServer.sendRequest(
-    method as Parameters<typeof window.api.appServer.sendRequest>[0],
-    params as never
-  )) as T
-}
-
 function initialState(): Pick<UsageStoreState, 'ranges' | 'historyGroup' | 'historyMetric' | SectionKey> {
   return {
     ranges: { history: '7d', activity: '7d', threads: '7d' },
@@ -145,26 +138,26 @@ export const useUsageStore = create<UsageStoreState>((set, get) => {
       case 'history':
         return Promise.all([
           track('history', 'history', () =>
-            request<UsageHistoryWire>('usage/history', { metric: historyMetric, groupBy: historyGroup, ...window })
+            requestUsage<UsageHistoryWire>('usage/history', { metric: historyMetric, groupBy: historyGroup, ...window })
           ),
           track('history', 'costSummary', async () => {
-            const result = await request<Partial<UsageCostSummaryWire>>('usage/summary', window)
-            return { totalCostUsd: result?.totalCostUsd ?? 0, unpricedTurns: result?.unpricedTurns ?? 0 }
+            const { totalCostUsd, unpricedTurns } = await requestUsage<UsageCostSummaryWire>('usage/summary', window)
+            return { totalCostUsd, unpricedTurns }
           })
         ]).then(() => undefined)
       case 'activity':
         return Promise.all([
           track('activity', 'toolCalls', () =>
-            request<UsageHistoryWire>('usage/history', { metric: 'toolCalls', groupBy: 'toolSource', ...window })
+            requestUsage<UsageHistoryWire>('usage/history', { metric: 'toolCalls', groupBy: 'toolSource', ...window })
           ),
           track('activity', 'skillUses', () =>
-            request<UsageHistoryWire>('usage/history', { metric: 'skillUses', groupBy: 'skill', ...window })
+            requestUsage<UsageHistoryWire>('usage/history', { metric: 'skillUses', groupBy: 'skill', ...window })
           )
         ]).then(() => undefined)
       case 'threads':
         return track('threads', 'threads', async () => {
-          const result = await request<{ threads: UsageThreadWire[] }>('usage/threads', { ...window, limit: TOP_THREADS_LIMIT })
-          return Array.isArray(result?.threads) ? result.threads : []
+          const result = await requestUsage<{ threads: UsageThreadWire[] }>('usage/threads', { ...window, limit: TOP_THREADS_LIMIT })
+          return result.threads
         })
     }
   }

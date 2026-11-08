@@ -226,6 +226,7 @@
 
 .threadMeta {
   color: var(--text-dimmed);
+  white-space: nowrap;
 }
 
 .tableFooter {
@@ -235,12 +236,13 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.threadWorkspace {
+  display: block;
+  margin-top: 3px;
   color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -3309,6 +3309,10 @@ public sealed class PluginViewResult : ExtensibleJsonObject
 
 public sealed class ProfileInsightsParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("tzOffsetMinutes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> TzOffsetMinutes { get; init; }
+
     [JsonPropertyName("topSkills")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> TopSkills { get; init; }
@@ -3317,6 +3321,24 @@ public sealed class ProfileInsightsParams : ExtensibleJsonObject
 
 public sealed class ProfileInsightsResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("lifetimeTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> LifetimeTokens { get; init; }
+
+    [JsonPropertyName("peakDailyTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> PeakDailyTokens { get; init; }
+
+    [JsonPropertyName("currentStreakDays")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> CurrentStreakDays { get; init; }
+
+    [JsonPropertyName("longestStreakDays")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> LongestStreakDays { get; init; }
+
     [JsonPropertyName("longestTaskMs")]
     [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6516,6 +6538,10 @@ public sealed class UsageThreadGroup : ExtensibleJsonObject
 
 public sealed class UsageThreadParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("workspacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> WorkspacePath { get; init; }
+
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
@@ -6524,6 +6550,10 @@ public sealed class UsageThreadParams : ExtensibleJsonObject
 
 public sealed class UsageThreadResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("workspacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> WorkspacePath { get; init; }
+
     [JsonPropertyName("cacheHitRate")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<double> CacheHitRate { get; init; }
@@ -6568,6 +6598,10 @@ public sealed class UsageThreadResult : ExtensibleJsonObject
 
 public sealed class UsageThreadRow : ExtensibleJsonObject
 {
+    [JsonPropertyName("workspacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> WorkspacePath { get; init; }
+
     [JsonPropertyName("archived")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Archived { get; init; }

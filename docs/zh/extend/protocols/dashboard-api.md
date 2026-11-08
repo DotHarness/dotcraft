@@ -15,7 +15,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 
 `--workspace` 可以传工作区根目录，也可以传 `.craft` 目录。不传时使用当前目录。该模式会忽略 `DashBoard.Enabled`，但会复用配置里的 `DashBoard.Host`、`DashBoard.Port`、`Username` 和 `Password`，除非命令行传入 `--host` 或 `--port` 覆盖。
 
-只读模式只暴露 trace、会话列表、token 用量、工具、runtime 元数据和事件流接口。它不会注册 Settings 写入接口、Dreams 接口、Automations 接口或 session/thread 删除接口，并且只读取已有的 `state.db`，不会创建或迁移工作区状态。如果 `.craft/state.db` 不存在，命令会报错退出。
+只读模式只暴露 trace、会话列表、token 用量、工具、runtime 元数据和事件流接口。它不会注册 Settings 写入接口、Dreams 接口、Automations 接口或 session/thread 删除接口。诊断记录读取工作区已有的 `state.db`，用量读取用户目录中的 `usage.db` 并按该工作区筛选，不会修改这两个数据库。如果 `.craft/state.db` 不存在，命令会报错退出。统计数据库不存在时没有已记录的用量。
 
 ## Trace 事件类型
 
@@ -195,11 +195,11 @@ fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊�
 
 ### `DELETE /dashboard/api/sessions/{sessionKey}`
 
-删除指定 Dashboard 会话记录。
+删除指定 Dashboard 会话记录，保留历史用量统计。
 
 ### `DELETE /dashboard/api/sessions`
 
-清空 Dashboard 会话记录。
+清空 Dashboard 会话记录，不清空历史用量统计。
 
 ### `GET /dashboard/api/events/stream`
 
