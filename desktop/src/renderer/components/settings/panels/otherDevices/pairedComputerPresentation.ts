@@ -26,6 +26,7 @@ export const STATUS_TONE: Record<PairedComputerStatus, StatusIndicatorTone> = {
 export function statusMessage(t: Translate, computer: PairedComputer): string | null {
   switch (computer.status) {
     case 'connected':
+    case 'connecting':
       return computer.version ? t('settings.otherDevices.detail.version', { version: computer.version }) : null
     case 'offline': {
       if (!computer.lastConnectedAt) return null
@@ -41,8 +42,6 @@ export function statusMessage(t: Translate, computer: PairedComputer): string | 
       })
     case 'identityChanged':
       return t('settings.otherDevices.message.identityChanged')
-    case 'connecting':
-      return null
   }
 }
 

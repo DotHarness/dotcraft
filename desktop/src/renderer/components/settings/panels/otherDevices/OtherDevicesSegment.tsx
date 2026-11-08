@@ -122,7 +122,7 @@ export function OtherDevicesSegment({
                       {t(STATUS_LABEL[computer.status])}
                     </span>
                   </span>
-                  {message && <span className="dc-satellite-row__meta">{message}</span>}
+                  <span className="dc-satellite-row__meta">{message ?? '\u00a0'}</span>
                 </span>
                 <span className="dc-satellite-row__chevron" aria-hidden>
                   <ChevronRight size={18} />

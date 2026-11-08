@@ -23,7 +23,7 @@ import type {
   PairedComputerStatus,
   PairingFailureCode
 } from '../../shared/pairedComputers'
-import { compareVersions } from '../../shared/sshMachineRemote'
+import { compareVersions, parseDotCraftVersion } from '../../shared/sshMachineRemote'
 import { openAppServerBridge, type AppServerBridge } from './appServerBridge'
 import type { CredentialVault, PairedComputersStorage, StoredComputer, StoredProject } from './pairedComputersStorage'
 
@@ -350,7 +350,7 @@ export class PairedComputersManager {
       computer.port = hello.port
       computer.addresses = hello.addresses.length > 0 ? hello.addresses : computer.addresses
       computer.relay = hello.relay
-      computer.version = hello.version
+      computer.version = parseDotCraftVersion(hello.version) ?? hello.version
       computer.lastConnectedAt = new Date().toISOString()
       this.persist()
       runtime.listed = await runtime.client.projects()

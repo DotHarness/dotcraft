@@ -23,7 +23,7 @@ function error(status: number, code: string): PinnedResponse {
 const HELLO = {
   computerId: 'computer-1',
   name: 'Studio',
-  version: '0.10.4',
+  version: '0.10.4+7a460ec6d9df6e2a3a09152cb1fe3a0eb6c677c1',
   port: 47610,
   fingerprint: FINGERPRINT,
   addresses: ['192.168.1.20'],

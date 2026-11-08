@@ -99,7 +99,7 @@ export class ComputerLink {
         type: 'computerSeen',
         patch: {
           name: hello.name,
-          version: hello.version,
+          version: hello.version.split('+', 1)[0],
           port: hello.port,
           addresses: hello.addresses,
           relay: hello.relay,
