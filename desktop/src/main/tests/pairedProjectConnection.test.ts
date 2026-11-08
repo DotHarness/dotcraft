@@ -85,7 +85,7 @@ function fixture() {
     reregisterIpcForWorkspace: vi.fn(), flushPendingWorkspaceOpenThread: () => {},
     formatRemoteConnectionError: (message: string) => message,
     classifyRemoteInitialError: () => 'remote-config-invalid',
-    enforceSecondaryWorkspaceBudget: vi.fn(),
+    enforceSecondaryWorkspaceBudget: vi.fn(), refreshSecondaryWorkspaceConnections: vi.fn(async () => {}),
     refreshConnectionThreadList: vi.fn(async () => {}),
     releaseConnectionViewAttachments: vi.fn(),
     remoteForegroundAnchorPath: () => '/local',

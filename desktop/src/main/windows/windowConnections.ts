@@ -199,6 +199,7 @@ export async function connectViaWebSocket(
       return
     }
     if (!isCurrentForegroundClient()) return
+    if (entry.kind === 'remote') void ctx.refreshSecondaryWorkspaceConnections()
     if (firstReady) options.onReady?.()
     ctx.clearActiveRemoteReconnectTimer()
     ctx.activeRemoteReconnectAttempt = 0

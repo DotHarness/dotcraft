@@ -43,10 +43,6 @@ export interface WorkspaceProjectsPayload {
   foregroundProjectId?: string
   secondaryLimit: number
   projects: WorkspaceProjectSummary[]
-  /**
-   * Default Chat workspace (`~/.craft/workspaces/chats`), surfaced as a dedicated
-   * `Chats` group rather than a Project row. Its physical path is diagnostic only.
-   * Present only in local connection mode; omitted while a remote project is active.
-   */
+  /** This computer's default Chat workspace, independent of the foreground project; omitted in transient remote-only launches. */
   chat?: WorkspaceProjectSummary
 }

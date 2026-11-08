@@ -84,11 +84,10 @@ export function isHubAppServerLifecycleEvent(_ctx: DesktopWindowRuntime, event: 
 
 export function isSecondaryProjectEvent(ctx: DesktopWindowRuntime, event: HubEvent): boolean {
   const workspacePath = event.workspacePath?.trim()
-  if (!workspacePath || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') {
-    return false
-  }
-  if (ctx.isWorkspaceForeground(workspacePath)) return false
-  return ctx.app.localProjects.has(workspacePath)
+  if (!workspacePath || ctx.isWorkspaceForeground(workspacePath)) return false
+  if (isDefaultChatWorkspace(workspacePath)) return true
+  return !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local' &&
+    ctx.app.localProjects.has(workspacePath)
 }
 
 export function scheduleSecondaryWorkspaceRefresh(ctx: DesktopWindowRuntime): void {
@@ -119,6 +118,7 @@ export function startHubEventSubscription(
       }
 
       if (!ctx.isCurrentWorkspaceEvent(event, workspacePath)) return
+      if (ctx.isHubAppServerLifecycleEvent(event) && !ctx.isWorkspaceForeground(workspacePath)) return
 
       if (event.kind === 'appserver.exited') {
         ctx.wireClient?.dispose()
@@ -333,6 +333,7 @@ export async function ensureDefaultChatConnection(ctx: DesktopWindowRuntime): Pr
     if (ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(chatPath)) return
     const endpoint = ensured.endpoints?.appServerWebSocket
     if (endpoint?.trim()) {
+      if (existing && existing.wsUrl !== endpoint) ctx.disposeWorkspaceConnection(existing)
       ctx.createSecondaryWorkspaceConnection(chatPath, endpoint, { kind: 'chat' })
     }
   } catch (error) {
@@ -356,13 +357,12 @@ export function enforceSecondaryWorkspaceBudget(ctx: DesktopWindowRuntime): void
 }
 
 export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
-  if (ctx.runtimeIsStopping()) return
+  if (ctx.runtimeIsStopping() || hasRemoteEndpointArg(ctx.argv)) return
   enforceSecondaryWorkspaceBudget(ctx)
-  if (ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
   await ctx.ensureDefaultChatConnection()
-  if (ctx.runtimeIsStopping()) return
+  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
 
   let liveAppServers: HubAppServerResponse[]
   try {

@@ -11,6 +11,7 @@ import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { type HubAppServerResponse } from '../desktopHub'
 import { getLocalProjectDetails } from '../settings'
+import { hasRemoteEndpointArg } from '../workspaceArgs'
 import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
@@ -179,13 +180,7 @@ export function emitWorkspaceProjects(ctx: DesktopWindowRuntime): void {
 }
 
 export function buildDefaultChatSummary(ctx: DesktopWindowRuntime): WorkspaceProjectSummary | undefined {
-  if (
-    ctx.activeRemoteProject ||
-    ctx.activeRemoteWorkspace ||
-    ctx.resolveConnectionMode(ctx.settings) !== 'local'
-  ) {
-    return undefined
-  }
+  if (hasRemoteEndpointArg(ctx.argv)) return undefined
   const chatPath = resolveDefaultChatWorkspacePath()
   const entry = ctx.getWorkspaceConnection(chatPath)
   let state: WorkspaceProjectState = 'cold'

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ReadonlyThreadRow } from '../components/sidebar/ReadonlyThreadRow'
+import { RecentsSection } from '../components/sidebar/RecentsSection'
 import { ThreadRowPlacementContext, useThreadRowSelected } from '../components/sidebar/threadRowSelection'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -60,6 +61,25 @@ describe('thread row selection', () => {
     })
     useThreadStore.getState().reset()
     useUIStore.setState({ pendingProjectThreadOpen: null })
+  })
+
+  it('promotes local Chats before clearing a remote conversation for Recents New Chat', async () => {
+    const path = 'X:/fixtures/chats'
+    const chat: WorkspaceProjectSummary = { ...PROJECT_B, projectId: path, path, kind: 'chat', threads: [] }
+    let promote!: () => void
+    window.api.workspace.switch = vi.fn(() => new Promise<void>(resolve => { promote = resolve }))
+    useThreadStore.getState().setActiveThreadId('remote-thread')
+    render(<LocaleProvider><RecentsSection
+      chat={chat} foreground={false} rows={[]} searchQuery="" opening={false} collapsed={false}
+      onToggle={() => {}} sortMode="updated" showProjects={false} reorderEnabled={false} onMove={() => {}}
+    /></LocaleProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+    expect(window.api.workspace.switch).toHaveBeenCalledWith(path)
+    expect(useThreadStore.getState().activeThreadId).toBe('remote-thread')
+    await act(async () => promote())
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(useUIStore.getState().welcomeDraftWorkspacePath).toBe(path)
   })
 
   it('moves the selection off the active thread while another project thread is pending', () => {
