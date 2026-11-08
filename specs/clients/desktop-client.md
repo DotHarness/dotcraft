@@ -307,6 +307,8 @@ The conversation never blanks while it restores. A thread present in the thread 
 
 Leaving a thread keeps it **warm**: its observation stays attached and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 threads are warm per foreground connection. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
 
+Activating a new conversation, a cached thread, or the new-chat surface synchronizes its workspace path and local/remote status with the current window context. Inherited or cached conversation state does not override that context. Returning to a local workspace restores local image attachment previews without reopening the window; remote attachment paths remain unavailable to local file reads.
+
 ### 5.3.1 Desktop Thread Restore Pipeline
 
 Selecting a thread opens a restore generation. The [Thread Restoration and Observation](../features/thread-restoration.md) boundary owns current-state recovery and feed attachment.

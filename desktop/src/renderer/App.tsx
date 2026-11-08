@@ -1,4 +1,5 @@
 import { useThreadRestoration } from './hooks/useThreadRestoration'
+import { useConversationWorkspace } from './hooks/useConversationWorkspace'
 import { applyThreadTurnRuntime } from './stores/threadTurnRuntime'
 import { resolveParkedApproval } from './stores/threadInteractiveRequests'
 import { isThreadRestoring, stageThreadNotification } from './stores/threadRestoration'
@@ -1009,13 +1010,7 @@ export function App(): JSX.Element {
     welcomeScopeId
   })
 
-  useEffect(() => {
-    const store = useConversationStore.getState()
-    store.setRemoteWorkspaceActive(remoteWorkspaceActive)
-    if (activeConversationWorkspacePath) {
-      store.setWorkspacePath(activeConversationWorkspacePath)
-    }
-  }, [activeConversationWorkspacePath, remoteWorkspaceActive])
+  useConversationWorkspace(activeConversationWorkspacePath, remoteWorkspaceActive)
 
   useEffect(() => {
     moduleConnectedSnapshotRef.current = new Map()
