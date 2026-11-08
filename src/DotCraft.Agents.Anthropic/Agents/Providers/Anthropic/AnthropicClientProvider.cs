@@ -63,7 +63,8 @@ public sealed class AnthropicClientProvider(IProviderHttpTransport? httpTranspor
             services[typeof(IProviderHistoryRewritePolicy)] = AnthropicHistoryRewritePolicy.Instance;
         return new ProviderServiceChatClient(
             new AnthropicPromptCachingChatClient(
-                new AnthropicFastModeChatClient(new AnthropicProviderContentChatClient(client), runtime),
+                new AnthropicFastModeChatClient(
+                    new AnthropicProviderContentChatClient(client, contentAdapter?.HasReasoningHistory == true), runtime),
                 runtime.Model),
             services);
     }
