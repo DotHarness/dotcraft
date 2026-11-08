@@ -111,12 +111,12 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
     await callbacks.stopWorkspace?.(workspacePath)
   })
 
-  handleSafe('workspace:archive-thread', async (_event, params: { workspacePath: string; threadId: string }) => {
-    await callbacks.archiveThreadInWorkspace?.(params.workspacePath, params.threadId)
+  handleSafe('workspace:archive-thread', async (_event, params: { workspacePath: string; threadId: string; connectionKey?: string }) => {
+    await callbacks.archiveThreadInWorkspace?.(params.workspacePath, params.threadId, params.connectionKey)
   })
 
-  handleSafe('workspace:disconnect-remote', async () => {
-    await callbacks.onDisconnectRemoteProject?.()
+  handleSafe('workspace:disconnect-remote', async (_event, projectId?: string) => {
+    await callbacks.onDisconnectRemoteProject?.(projectId)
   })
 
   handleSafe('workspace:get-status', () => {

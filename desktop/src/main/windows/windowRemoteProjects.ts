@@ -239,10 +239,7 @@ export function setActiveRemoteProject(ctx: DesktopWindowRuntime, project: Activ
 export function disposeActiveRemoteConnection(ctx: DesktopWindowRuntime): void {
   if (!ctx.activeRemoteProject) return
   const entry = ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId)
-  if (entry) {
-    entry.client.dispose()
-    ctx.workspaceConnections.delete(entry.key)
-  }
+  if (entry) ctx.disposeWorkspaceConnection(entry)
   if (ctx.wireClient === entry?.client) {
     ctx.wireClient = null
   }
@@ -258,9 +255,10 @@ export function prepareRemoteForeground(ctx: DesktopWindowRuntime, project: Acti
   if (previousLocal?.role === 'foreground') {
     previousLocal.role = 'secondary'
     previousLocal.lastUsedAt = Date.now()
+    ctx.releaseConnectionViewAttachments(previousLocal, 'remote foreground promote')
   }
   if (ctx.activeRemoteProject?.projectId !== project.projectId) {
-    ctx.disposeActiveRemoteConnection()
+    if (!ctx.demoteDeviceProject()) ctx.disposeActiveRemoteConnection()
   }
   ctx.setActiveRemoteProject(project)
 }

@@ -44,7 +44,7 @@ export interface IpcHandlerCallbacks {
   getPairedComputersManager?: () => PairedComputersManager
   onOpenPairedComputerProject?: (computerId: string, projectId: string) => Promise<void>
   onLeavePairedComputerProject?: (computerId: string, projectId?: string) => Promise<void>
-  onDisconnectRemoteProject?: () => Promise<void>
+  onDisconnectRemoteProject?: (projectId?: string) => Promise<void>
   getSettings: () => AppSettings
   /** Absent leaves the satellite channels unregistered. */
   getHubClient?: () => DesktopHubClient
@@ -62,7 +62,7 @@ export interface IpcHandlerCallbacks {
   }) => void | Promise<void>
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
-  archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
+  archiveThreadInWorkspace?: (workspacePath: string, threadId: string, connectionKey?: string) => void | Promise<void>
   getUsageConnection: () => Promise<UsageStatisticsConnection>
   getConnectionKey?: (client: DesktopAppServerClient) => string | null
   getConnectionClient?: (key: string) => DesktopAppServerClient | null

@@ -263,20 +263,29 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
   for (const { computer, project: deviceProject } of ctx.app.pairedComputers.savedProjects()) {
     const saved = ctx.buildDeviceRemoteProject(computer, deviceProject, undefined, '')
     if (saved.projectId === ctx.activeRemoteProject?.projectId) continue
+    const entry = ctx.workspaceConnections.get(saved.projectId)
+    const state: WorkspaceProjectState = entry?.errorMessage
+      ? 'error'
+      : entry?.connecting
+        ? 'connecting'
+        : entry?.connected
+          ? 'secondary'
+          : 'cold'
     projects.push({
       projectId: saved.projectId,
       kind: 'remote',
       path: saved.displayPath,
       identityWorkspacePath: saved.identityWorkspacePath,
       name: saved.name,
-      state: 'cold',
-      running: false,
-      loaded: false,
-      threadCount: 0,
-      threads: [],
+      state,
+      running: Boolean(entry?.connected || entry?.connecting),
+      loaded: Boolean(entry?.connected || entry?.initializeResult),
+      threadCount: entry?.threads.length ?? 0,
+      threads: entry?.threads ?? [],
       pinnedThreadIds: ctx.getPinnedThreadIdsForProject(saved.projectId),
       pinned: ctx.isProjectPinned(saved.projectId),
-      remote: saved.remote
+      remote: saved.remote,
+      ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     })
   }
   if (ctx.activeRemoteProject) {
@@ -359,12 +368,13 @@ export function applyWorkspaceThreadNotification(
 }
 
 export function disposeWorkspaceConnection(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): void {
+  if (ctx.workspaceConnections.get(entry.key) !== entry) return
+  ctx.workspaceConnections.delete(entry.key)
   if (ctx.wireClient === entry.client) {
     ctx.wireClient = null
   }
+  ctx.disposeDeviceProjectConnection(entry)
   entry.client.dispose()
-  ctx.workspaceConnections.delete(entry.key)
-
   ctx.emitWorkspaceProjects()
 }
 

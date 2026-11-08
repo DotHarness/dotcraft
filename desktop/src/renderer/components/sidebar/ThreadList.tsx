@@ -36,7 +36,6 @@ import { archiveProjectThreads } from '../../utils/archiveProjectThreads'
 import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
-import { addToast } from '../../stores/toastStore'
 import { ThreadEntry } from './ThreadEntry'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
@@ -44,7 +43,8 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { SidebarEntryDetailsActionRow } from './SidebarEntryDetailsActionRow'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { workspacePathName } from './ThreadEntryDetails'
-import { canOpenSshProject, deviceProjectRef, openDeviceProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
+import { canOpenSshProject, deviceProjectRef, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
+import { newProjectChat, openProjectConnection } from './projectConnectionActions'
 import { usePairedComputersStore } from '../../stores/pairedComputersStore'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
@@ -444,13 +444,12 @@ export function ThreadList({
           onMove={moveProject}
           header={<ProjectHeader
             project={project}
-            projectKey={projectKey}
             active={isForeground}
             collapsed={collapsed}
             activity={activity}
             cold={cold}
             detailThreads={detailThreads}
-            archivableThreads={foregroundListMatchesProject || !isRemoteProject(project)
+            archivableThreads={foregroundListMatchesProject || !isRemoteProject(project) || deviceProjectRef(project) != null
               ? excludePinnedThreadTrees(detailThreads, projectPinnedIds)
               : []}
             live={foregroundListMatchesProject}
@@ -762,7 +761,6 @@ export function ProjectGlyph({
 
 function ProjectHeader({
   project,
-  projectKey,
   active,
   collapsed,
   activity,
@@ -773,7 +771,6 @@ function ProjectHeader({
   onToggle
 }: {
   project: WorkspaceProjectSummary
-  projectKey: string
   /** This is the foreground (currently open) workspace. */
   active: boolean
   collapsed: boolean
@@ -789,7 +786,6 @@ function ProjectHeader({
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const menuOpen = menuPosition != null
   const addProject = useAddProjectFlow()
-  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const sshRef = sshProjectRef(project)
@@ -892,38 +888,6 @@ function ProjectHeader({
     </>
   )
 
-  async function openProject(): Promise<boolean> {
-    if (active) return true
-    if (deviceRef) {
-      try {
-        await openDeviceProject(deviceRef)
-        return true
-      } catch (error) {
-        addToast(error instanceof Error ? error.message : String(error), 'error')
-        return false
-      }
-    }
-    if (sshRef) {
-      if (!canOpenSshProject(sshMachine)) return false
-      try {
-        await useSshMachinesStore.getState().openProject(sshRef.machineId, sshRef.projectId)
-        return true
-      } catch (error) {
-        addToast(error instanceof Error ? error.message : String(error), 'error')
-        return false
-      }
-    }
-    if (isRemoteProject(project)) return false
-    await window.api.workspace.switch(project.path)
-    return true
-  }
-
-  async function newChat(): Promise<void> {
-    if (!active && (savedRemote || !isRemoteProject(project)) && !(await openProject())) return
-    useUIStore.getState().goToNewChat({ workspacePath: projectKey })
-    setActiveMainView('conversation')
-  }
-
   async function removeProject(): Promise<void> {
     if (active) return
     if (isRemoteProject(project) && !savedRemote) return
@@ -948,19 +912,14 @@ function ProjectHeader({
     await window.api.workspace.removeProject(project.path)
   }
 
-  async function disconnectRemote(): Promise<void> {
-    if (!isRemoteProject(project)) return
-    await window.api.workspace.disconnectRemote()
-  }
-
   const remote = isRemoteProject(project)
   const menuItems: ContextMenuEntry[] = [
-    ...(!active && (!remote || (savedRemote && cold))
+    ...(!active && (!remote || savedRemote)
       ? [{
           label: t('projectsRail.openProject'),
           icon: <ExternalLink size={14} aria-hidden />,
           disabled: !canOpenSshProject(sshMachine),
-          onClick: () => { void openProject() }
+          onClick: () => { void openProjectConnection(project, active) }
         }]
       : []),
     {
@@ -987,9 +946,12 @@ function ProjectHeader({
     {
       label: t('projectsRail.archiveChats'),
       icon: <Archive size={14} aria-hidden />,
-      disabled: archivableThreads.length === 0,
+      disabled: archivableThreads.length === 0 || !project.loaded || (project.state !== 'foreground' && project.state !== 'secondary'),
       onClick: () => {
-        void archiveProjectThreads({ projectLabel: label, workspacePath: project.path, threads: archivableThreads, live, t })
+        void archiveProjectThreads({
+          projectLabel: label, workspacePath: project.path, connectionKey: projectIdentity(project),
+          threads: archivableThreads, live, t
+        })
       }
     },
     { type: 'separator' },
@@ -998,7 +960,7 @@ function ProjectHeader({
           label: t('projectsRail.disconnectRemote'),
           icon: <LogOut size={14} aria-hidden />,
           danger: true,
-          onClick: () => { void disconnectRemote() }
+          onClick: () => { void window.api.workspace.disconnectRemote(projectIdentity(project)) }
         }
       : {
           label: t('projectsRail.removeProject'),
@@ -1015,13 +977,13 @@ function ProjectHeader({
 
   function handleDoubleClick(): void {
     if (!cold) return
-    void openProject()
+    void openProjectConnection(project, active)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
-    if (cold) void openProject()
+    if (cold) void openProjectConnection(project, active)
     else onToggle()
   }
 
@@ -1107,7 +1069,7 @@ function ProjectHeader({
               size={24}
               radius={6}
               className="dc-thread-list-icon-button"
-              onClick={() => { void newChat() }}
+              onClick={() => { void newProjectChat(project, active) }}
             />
             <MoreActionsButton
               label={t('projectsRail.moreActions')}

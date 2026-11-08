@@ -1,8 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { Archive, Copy, ExternalLink } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import type { ThreadSummary } from '../../types/thread'
 import { archiveWorkspaceThread } from '../../utils/archiveWorkspaceThread'
@@ -24,6 +22,7 @@ import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } fr
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
+import { openProjectThread } from './projectConnectionActions'
 
 /**
  * Pin is a Desktop-local setting keyed by workspace path, so the whole
@@ -60,8 +59,6 @@ export function ReadonlyThreadRow({
 }): JSX.Element {
   const locale = useLocale()
   const t = useT()
-  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
-  const setPendingProjectThreadOpen = useUIStore((s) => s.setPendingProjectThreadOpen)
   const rememberRowSelection = useRememberRowSelection()
   const selected = useThreadRowSelected(thread.id)
   const waiting = isThreadWaiting(thread)
@@ -111,24 +108,7 @@ export function ReadonlyThreadRow({
 
   async function openThread(): Promise<void> {
     rememberRowSelection(thread.id)
-    if (!isRemoteProject(project)) {
-      if (project.state !== 'foreground') {
-        setPendingProjectThreadOpen({
-          projectKey: rowProjectKey,
-          workspacePath: project.path,
-          threadId: thread.id
-        })
-        try {
-          await window.api.workspace.switch(project.path)
-        } catch (err) {
-          useUIStore.getState().clearPendingProjectThreadOpen(rowProjectKey, thread.id)
-          console.error('Failed to switch workspace for project thread:', err)
-        }
-        return
-      }
-    }
-    setActiveMainView('conversation')
-    useThreadStore.getState().setActiveThreadId(thread.id)
+    await openProjectThread(project, thread.id)
   }
 
   const statusContent = (

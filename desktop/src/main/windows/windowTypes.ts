@@ -6,6 +6,16 @@ import type {
 import type { WorkspaceStatusPayload } from '../../shared/workspaceSetup'
 import { DesktopAppServerClient, type InitializeResult } from '../DesktopAppServerClient'
 import { type WorkspaceConnectionRole } from '../workspaceConnectionRouting'
+import type { AppServerBridge } from '../pairedComputers/appServerBridge'
+
+export interface DeviceProjectConnection {
+  bridge: AppServerBridge | null
+  retryTimer: ReturnType<typeof setTimeout> | null
+  attempt: number
+  generation: number
+  project: ActiveRemoteProject
+}
+
 export interface WorkspaceConnectionEntry {
   key: string
   projectId: string
@@ -23,6 +33,7 @@ export interface WorkspaceConnectionEntry {
   initializeResult?: InitializeResult
   threads: unknown[]
   errorMessage?: string
+  device?: DeviceProjectConnection
 }
 
 export interface ActiveRemoteProject {
@@ -47,8 +58,10 @@ export interface RemoteConnectionDiagnostic {
 }
 
 export interface ConnectViaWebSocketOptions {
+  role?: WorkspaceConnectionRole
+  existingEntry?: WorkspaceConnectionEntry
+  device?: DeviceProjectConnection
   onReady?: () => void
-  onInitialFailure?: (error: unknown) => void
   autoReconnect?: boolean
   initializeTimeoutMs?: number | null
   initialDisconnectIsError?: boolean

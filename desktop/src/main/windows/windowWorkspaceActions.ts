@@ -27,7 +27,15 @@ export async function removeLocalProject(ctx: DesktopWindowRuntime, workspacePat
 
 export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPath: string): Promise<void> {
   if (ctx.mainWindow) invalidateForegroundFileAccess(ctx.mainWindow.webContents.id)
-  if (ctx.activeRemoteProject) {
+  ctx.deviceOpenGeneration += 1
+  ctx.clearActiveRemoteReconnectTimer()
+  if (ctx.demoteDeviceProject()) {
+    await ctx.updateSettings({
+      connectionMode: 'local', activeRemoteDevice: undefined,
+      activeRemoteStack: undefined, activeRemoteProject: undefined
+    })
+    ctx.previousLocalForegroundWorkspacePath = null
+  } else if (ctx.activeRemoteProject || ctx.settings.activeRemoteDevice) {
     await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: false })
   }
 
@@ -81,7 +89,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     getPairedComputersManager: () => ctx.app.pairedComputers,
     onOpenPairedComputerProject: ctx.openPairedComputerProject,
     onLeavePairedComputerProject: ctx.leavePairedComputerProject,
-    onDisconnectRemoteProject: () => ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true }),
+    onDisconnectRemoteProject: (projectId) => ctx.disconnectRemoteProject(projectId),
     getSettings: () => ctx.settings,
     updateSettings: async (partial) => {
       await ctx.updateSettings(partial)
@@ -110,10 +118,10 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       const hubClient = ctx.app.createHubClient(ctx.settings)
       await hubClient.stopAppServer(workspacePath)
     },
-    archiveThreadInWorkspace: async (workspacePath: string, threadId: string) => {
+    archiveThreadInWorkspace: async (workspacePath: string, threadId: string, connectionKey?: string) => {
       const id = threadId.trim()
       if (!id) throw new Error('A thread id is required to archive.')
-      const entry = ctx.getWorkspaceConnection(workspacePath)
+      const entry = connectionKey ? ctx.workspaceConnections.get(connectionKey) : ctx.getWorkspaceConnection(workspacePath)
       if (!entry || !entry.connected) {
         throw new Error('Workspace connection is not available for archiving.')
       }

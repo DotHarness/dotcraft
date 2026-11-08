@@ -15,7 +15,7 @@ import * as windowFrame from './windowFrame'
 import * as windowLifecycle from './windowLifecycle'
 import * as windowLinks from './windowLinks'
 import * as windowProjects from './windowProjects'
-import type { AppServerBridge } from '../pairedComputers/appServerBridge'
+import * as windowDeviceConnections from './windowDeviceConnections'
 import * as windowRemoteActions from './windowRemoteActions'
 import * as windowRemoteConnections from './windowRemoteConnections'
 import * as windowRemoteProjects from './windowRemoteProjects'
@@ -43,10 +43,9 @@ export interface DesktopWindowState {
   activeRemoteProject: ActiveRemoteProject | null
   previousLocalForegroundWorkspacePath: string | null
   lastRemoteStackLocalPort: number | null
-  activeDeviceBridge: AppServerBridge | null
+  deviceOpenGeneration: number
   sshMachinesManager: SshMachinesManager | null
   remoteProjectRefreshTimer: ReturnType<typeof setTimeout> | null
-  connectionGeneration: number
   workspaceConnections: Map<string, WorkspaceConnectionEntry>
   activeRemoteReconnectTimer: ReturnType<typeof setTimeout> | null
   activeRemoteReconnectAttempt: number
@@ -78,6 +77,7 @@ export type DesktopWindowRuntime = DesktopWindowState &
   BoundActions<typeof windowFrame> &
   BoundActions<typeof windowRemoteActions> &
   BoundActions<typeof windowConnections> &
+  BoundActions<typeof windowDeviceConnections> &
   BoundActions<typeof windowSecondaryConnections> &
   BoundActions<typeof windowWorkspaceActions> &
   BoundActions<typeof windowForegroundConnection> &
@@ -125,10 +125,9 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     activeRemoteProject: null,
     previousLocalForegroundWorkspacePath: null,
     lastRemoteStackLocalPort: null,
-    activeDeviceBridge: null,
+    deviceOpenGeneration: 0,
     sshMachinesManager: null,
     remoteProjectRefreshTimer: null,
-    connectionGeneration: 0,
     workspaceConnections: new Map<string, WorkspaceConnectionEntry>(),
     activeRemoteReconnectTimer: null,
     activeRemoteReconnectAttempt: 0,
@@ -150,6 +149,7 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     ...bindActions(() => ctx, windowFrame),
     ...bindActions(() => ctx, windowRemoteActions),
     ...bindActions(() => ctx, windowConnections),
+    ...bindActions(() => ctx, windowDeviceConnections),
     ...bindActions(() => ctx, windowSecondaryConnections),
     ...bindActions(() => ctx, windowWorkspaceActions),
     ...bindActions(() => ctx, windowForegroundConnection),

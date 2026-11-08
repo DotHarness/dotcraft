@@ -123,7 +123,10 @@ export class DesktopApplication implements DesktopApplicationServices {
       onEvent: (event) => {
         broadcastPairedComputerEvent(event)
         if (event.kind !== 'changed') return
-        for (const window of this.windows.values()) window.emitWorkspaceProjects()
+        for (const window of this.windows.values()) {
+          window.handlePairedComputerProjectsChanged(event.computers)
+          window.emitWorkspaceProjects()
+        }
       },
       onRemoved: (computerId) => {
         for (const window of this.windows.values()) window.handlePairedComputerRemoved(computerId)

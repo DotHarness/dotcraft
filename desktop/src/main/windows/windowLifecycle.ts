@@ -48,7 +48,7 @@ export async function restoreEnabledModuleTracking(ctx: DesktopWindowRuntime): P
 export async function teardownRuntime(
   ctx: DesktopWindowRuntime,
   reason: string,
-  options?: { clearWorkspace?: boolean; cleanupIpcHandlers?: boolean }
+  options?: { clearWorkspace?: boolean; cleanupIpcHandlers?: boolean; preserveDeviceConnections?: boolean }
 ): Promise<void> {
   const win = ctx.mainWindow
   if (win) viewerBrowserManager.destroyAllTabs(win)
@@ -67,13 +67,12 @@ export async function teardownRuntime(
   if (ctx.remoteProjectRefreshTimer) clearTimeout(ctx.remoteProjectRefreshTimer)
   ctx.remoteProjectRefreshTimer = null
   ctx.clearActiveRemoteReconnectTimer()
-  ctx.connectionGeneration += 1
+  ctx.deviceOpenGeneration += 1
   ctx.resetThreadToolState()
-  for (const entry of ctx.workspaceConnections.values()) {
-    entry.client.dispose()
+  for (const entry of [...ctx.workspaceConnections.values()]) {
+    if (!options?.preserveDeviceConnections || !entry.device) ctx.disposeWorkspaceConnection(entry)
   }
   ctx.userInputAutoResolution.clear()
-  ctx.workspaceConnections.clear()
   ctx.wireClient?.dispose()
   ctx.wireClient = null
   ctx.setActiveRemoteProject(null)

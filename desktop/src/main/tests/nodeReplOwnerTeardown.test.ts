@@ -2,6 +2,9 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { NodeReplManager, nodeReplManager } from '../nodeReplManager'
 import { teardownRuntime } from '../windows/windowLifecycle'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
+import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
+import { disposeWorkspaceConnection } from '../windows/windowProjects'
+import { disposeDeviceProjectConnection } from '../windows/windowDeviceConnections'
 import { createReplWorkerFixture } from './helpers/replWorkerFixture'
 
 vi.mock('electron', () => ({ app: { getAppPath: () => process.cwd() }, BrowserWindow: vi.fn() }))
@@ -19,7 +22,7 @@ const runtime = (win: Electron.BrowserWindow) => ({
   mainWindow: win,
   getThreadTasks: () => ({ abandonOffersForOwner: vi.fn() }),
   clearActiveRemoteReconnectTimer: vi.fn(), resetThreadToolState: vi.fn(),
-  connectionGeneration: 0, workspaceConnections: new Map(),
+  deviceOpenGeneration: 0, workspaceConnections: new Map(),
   userInputAutoResolution: { clear: vi.fn() }, setActiveRemoteProject: vi.fn()
 }) as unknown as DesktopWindowRuntime
 
@@ -43,6 +46,38 @@ function createManager(onDisplay: () => void = () => {}) {
 }
 
 describe('window REPL teardown', () => {
+  it('releases foreground and secondary device bridges and cancels their retries on window teardown', async () => {
+    vi.useFakeTimers()
+    try {
+      const ctx = runtime(owner(33))
+      const retry = vi.fn()
+      const entries = ['foreground', 'secondary'].map((role, index) => ({
+        key: `remote:device:computer:${index}`, role,
+        client: { dispose: vi.fn() },
+        device: { bridge: { close: vi.fn() }, retryTimer: setTimeout(retry, 1000), generation: 0 }
+      })) as unknown as WorkspaceConnectionEntry[]
+      const bridges = entries.map(entry => entry.device!.bridge!)
+      ctx.workspaceConnections = new Map(entries.map(entry => [entry.key, entry]))
+      ctx.wireClient = entries[0].client
+      ctx.disposeDeviceProjectConnection = entry => disposeDeviceProjectConnection(ctx, entry)
+      ctx.disposeWorkspaceConnection = entry => disposeWorkspaceConnection(ctx, entry)
+      ctx.emitWorkspaceProjects = vi.fn()
+      ctx.runtimeIsStopping = () => true
+
+      await teardownRuntime(ctx, 'window close', { clearWorkspace: true })
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(ctx.workspaceConnections.size).toBe(0)
+      expect(ctx.wireClient).toBeNull()
+      for (const bridge of bridges) expect(bridge.close).toHaveBeenCalledOnce()
+      for (const entry of entries) expect(entry.client.dispose).toHaveBeenCalledOnce()
+      expect(retry).not.toHaveBeenCalled()
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
   it('cancels admission before a runtime exists while leaving the window alive', async () => {
     const { manager, browserManager } = createManager()
     const first = owner(11)

@@ -4,11 +4,11 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ThreadSummary } from '../types/thread'
 
-export function getWorkspaceArchiveThreads(workspacePath: string, fallback: ThreadSummary[]): ThreadSummary[] {
+export function getWorkspaceArchiveThreads(projectKey: string, fallback: ThreadSummary[]): ThreadSummary[] {
   const { projects, chat } = useWorkspaceProjectsStore.getState()
-  const key = normalizeWorkspaceProjectKey(workspacePath)
+  const key = normalizeWorkspaceProjectKey(projectKey)
   const project = [...projects, ...(chat ? [chat] : [])].find(entry =>
-    entry.kind !== 'remote' && normalizeWorkspaceProjectKey(entry.path) === key)
+    normalizeWorkspaceProjectKey(entry.projectId ?? entry.path) === key)
   const threads = (project?.threads ?? fallback).filter((entry): entry is ThreadSummary =>
     entry != null && typeof entry === 'object' && typeof (entry as ThreadSummary).id === 'string')
   const ids = new Set(threads.map(entry => entry.id))

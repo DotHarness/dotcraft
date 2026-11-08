@@ -92,17 +92,28 @@ describe('thread row selection', () => {
     expect(selections).not.toContain(false)
   })
 
-  it('marks a clicked row in another project as current and withdraws it when the switch fails', async () => {
+  it.each(['local', 'device'] as const)('withdraws a clicked %s project row when promotion fails', async (source) => {
+    const project: WorkspaceProjectSummary = source === 'device'
+      ? {
+          ...PROJECT_B, projectId: 'remote:device:computer-b:project-b', kind: 'remote',
+          remote: { source: 'device', hostId: 'computer-b', remoteProjectId: 'project-b' }
+        }
+      : PROJECT_B
     let rejectSwitch: (error: Error) => void = () => {}
-    window.api.workspace.switch = vi.fn(
-      () => new Promise<void>((_resolve, reject) => { rejectSwitch = reject })
-    )
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    if (source === 'device') {
+      window.api.pairedComputers.openProject = vi.fn(
+        () => new Promise<{ ok: true; value: null }>((_resolve, reject) => { rejectSwitch = reject })
+      )
+    } else {
+      window.api.workspace.switch = vi.fn(
+        () => new Promise<void>((_resolve, reject) => { rejectSwitch = reject })
+      )
+    }
 
     render(
       <LocaleProvider>
         <Placement>
-          <ReadonlyThreadRow thread={THREAD_B} project={PROJECT_B} />
+          <ReadonlyThreadRow thread={THREAD_B} project={project} />
         </Placement>
       </LocaleProvider>
     )
@@ -110,9 +121,15 @@ describe('thread row selection', () => {
 
     fireEvent.click(row)
     expect(row).toHaveAttribute('aria-current', 'true')
+    expect(useUIStore.getState().pendingProjectThreadOpen?.projectKey).toBe(
+      source === 'device' ? 'remote:device:computer-b:project-b' : 'x:/fixtures/workspace-b'
+    )
+    if (source === 'device') {
+      expect(window.api.pairedComputers.openProject).toHaveBeenCalledWith('computer-b', 'project-b')
+      expect(window.api.workspace.switch).not.toHaveBeenCalled()
+    }
 
     await act(async () => rejectSwitch(new Error('switch failed')))
     await waitFor(() => expect(row).not.toHaveAttribute('aria-current'))
-    consoleError.mockRestore()
   })
 })

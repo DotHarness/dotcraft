@@ -98,7 +98,7 @@ describe('secondary workspace archive runtime', () => {
 
 describe('project archive runtime scope', () => {
   const archive = (threads: ThreadSummary[], live: boolean) =>
-    archiveProjectThreads({ projectLabel: 'project', workspacePath: '/secondary', threads, live, t })
+    archiveProjectThreads({ projectLabel: 'project', workspacePath: '/secondary', connectionKey: '/secondary', threads, live, t })
 
   it('uses the latest store state instead of the running summary captured by a menu', async () => {
     const captured = thread('parent', running)
@@ -109,7 +109,8 @@ describe('project archive runtime scope', () => {
     await archive([captured], true)
 
     expect(requestConfirmDialog).toHaveBeenCalledWith(expect.objectContaining({ danger: false }))
-    expect(sendRequest.mock.calls.map(call => call[0])).toEqual(['thread/read', 'thread/archive'])
+    expect(archiveWorkspace).toHaveBeenCalledWith('/secondary', 'parent', '/secondary')
+    expect(sendRequest).not.toHaveBeenCalled()
   })
 
   it('includes running descendants when the menu only contains their idle parent', async () => {
@@ -122,6 +123,54 @@ describe('project archive runtime scope', () => {
     expect(sendRequest).not.toHaveBeenCalled()
   })
 
+  it('targets a device connection and its cached descendants instead of a local project at the same path', async () => {
+    const key = 'remote:device:computer-a:project-a'
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/secondary', secondaryLimit: 8,
+      projects: [
+        { path: '/secondary', kind: 'local', name: 'local', state: 'foreground', running: true, loaded: true,
+          threadCount: 1, threads: [thread('shared-id')], pinned: false },
+        { projectId: key, path: '/secondary', kind: 'remote', name: 'remote', state: 'secondary', running: true,
+          loaded: true, threadCount: 2, threads: [thread('shared-id'), thread('child', running, 'shared-id')], pinned: false }
+      ]
+    })
+    state().setThreadList([thread('shared-id')], '/secondary')
+    vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
+
+    await archiveProjectThreads({
+      projectLabel: 'remote', workspacePath: '/secondary', connectionKey: key,
+      threads: [thread('shared-id')], live: false, t
+    })
+
+    expect(requestConfirmDialog).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
+    expect(archiveWorkspace).toHaveBeenCalledWith('/secondary', 'shared-id', key)
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(state().threadList.map(item => item.id)).toEqual(['shared-id'])
+  })
+
+  it('does not remove a newly selected foreground thread when a keyed archive confirmation resolves', async () => {
+    let confirm!: (value: boolean) => void
+    vi.mocked(requestConfirmDialog).mockReturnValue({
+      result: new Promise<boolean>(resolve => { confirm = resolve }), dismiss: vi.fn()
+    })
+    const key = 'remote:device:computer-a:project-a'
+    state().setThreadList([thread('shared-id')], key)
+    const archiving = archiveProjectThreads({
+      projectLabel: 'remote', workspacePath: '/secondary', connectionKey: key,
+      threads: [thread('shared-id')], live: true, t
+    })
+    state().setThreadList([thread('shared-id')], '/foreground')
+    state().setActiveThreadId('shared-id')
+
+    confirm(true)
+    await archiving
+
+    expect(archiveWorkspace).toHaveBeenCalledWith('/secondary', 'shared-id', key)
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(state().activeThreadId).toBe('shared-id')
+    expect(state().threadList.map(item => item.id)).toEqual(['shared-id'])
+  })
+
   it('does not apply foreground activity to a secondary workspace with the same thread id', async () => {
     state().setThreadList([thread('shared-id', running)])
     vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
@@ -129,7 +178,7 @@ describe('project archive runtime scope', () => {
     await archive([thread('shared-id')], false)
 
     expect(requestConfirmDialog).toHaveBeenCalledWith(expect.objectContaining({ danger: false }))
-    expect(archiveWorkspace).toHaveBeenCalledWith('/secondary', 'shared-id')
+    expect(archiveWorkspace).toHaveBeenCalledWith('/secondary', 'shared-id', '/secondary')
     expect(sendRequest).not.toHaveBeenCalled()
     expect(state().runningTurnThreadIds.has('shared-id')).toBe(true)
   })

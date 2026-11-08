@@ -207,10 +207,7 @@ export function createSecondaryWorkspaceConnection(
 ): WorkspaceConnectionEntry {
   const key = ctx.normalizeWorkspaceConnectionKey(workspacePath)
   const existing = ctx.workspaceConnections.get(key)
-  if (existing) {
-    existing.lastUsedAt = Date.now()
-    return existing
-  }
+  if (existing) return existing
 
   const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
     initializeProfile: 'secondary'
@@ -343,27 +340,31 @@ export async function ensureDefaultChatConnection(ctx: DesktopWindowRuntime): Pr
   }
 }
 
-export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
-  if (
-    ctx.runtimeIsStopping() ||
-    ctx.activeRemoteWorkspace ||
-    ctx.resolveConnectionMode(ctx.settings) !== 'local'
-  ) {
-    return
+function isIdleSecondary(entry: WorkspaceConnectionEntry): boolean {
+  return entry.role === 'secondary' && entry.kind !== 'chat' &&
+    !(entry.kind !== 'remote' && isDefaultChatWorkspace(entry.workspacePath)) &&
+    !entry.client.hasRetainedThreadAttachments
+}
+
+export function enforceSecondaryWorkspaceBudget(ctx: DesktopWindowRuntime): void {
+  const idle = [...ctx.workspaceConnections.values()]
+    .filter(isIdleSecondary)
+    .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
+  for (const entry of idle.slice(SECONDARY_WORKSPACE_CONNECTION_LIMIT)) {
+    ctx.disposeWorkspaceConnection(entry)
   }
+}
+
+export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
+  if (ctx.runtimeIsStopping()) return
+  enforceSecondaryWorkspaceBudget(ctx)
+  if (ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
   await ctx.ensureDefaultChatConnection()
   if (ctx.runtimeIsStopping()) return
-  const candidates = ctx.app.localProjects
-    .list()
-    .filter((project) => !ctx.isWorkspaceForeground(project.path))
-  if (candidates.length === 0) {
-    ctx.emitWorkspaceProjects()
-    return
-  }
 
-  let liveAppServers: HubAppServerResponse[] = []
+  let liveAppServers: HubAppServerResponse[]
   try {
     liveAppServers = await ctx.app.createHubClient(ctx.settings).listAppServers()
   } catch (error) {
@@ -371,6 +372,7 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
     ctx.emitWorkspaceProjects()
     return
   }
+  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
 
   const liveByKey = new Map<string, HubAppServerResponse>()
   for (const appServer of liveAppServers) {
@@ -383,32 +385,36 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
     }
   }
 
+  const candidates = ctx.app.localProjects.list()
+    .filter((project) => !ctx.isWorkspaceForeground(project.path))
+    .flatMap((project) => {
+      const key = ctx.normalizeWorkspaceConnectionKey(project.path)
+      const entry = ctx.workspaceConnections.get(key)
+      const endpoint = liveByKey.get(key)?.endpoints?.appServerWebSocket
+      if (!endpoint?.trim() && !entry?.client.hasRetainedThreadAttachments) return []
+      return [{ key, entry, workspacePath: project.path, endpoint,
+        lastUsedAt: entry?.lastUsedAt ?? (project.lastOpenedAt ? Date.parse(project.lastOpenedAt) || 0 : 0) }]
+    })
+  const devices = [...ctx.workspaceConnections.values()]
+    .filter((entry) => entry.role === 'secondary' && entry.remote?.source === 'device')
+    .map((entry) => ({ key: entry.key, entry, workspacePath: entry.workspacePath,
+      endpoint: undefined, lastUsedAt: entry.lastUsedAt }))
+  const ranked = [...candidates, ...devices].sort((left, right) => right.lastUsedAt - left.lastUsedAt)
   const allowedKeys = new Set<string>()
   let idleCount = 0
-  for (const project of candidates) {
-    const key = ctx.normalizeWorkspaceConnectionKey(project.path)
-    const existing = ctx.workspaceConnections.get(key)
-    if (existing?.client.hasRetainedThreadAttachments) {
-      allowedKeys.add(key)
-      continue
-    }
-    if (idleCount >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) continue
-    const live = liveByKey.get(key)
-    const endpoint = live?.endpoints?.appServerWebSocket
-    if (endpoint?.trim()) {
-      allowedKeys.add(key)
-      idleCount += 1
-      ctx.createSecondaryWorkspaceConnection(project.path, endpoint)
+  for (const candidate of ranked) {
+    const protectedEntry = candidate.entry?.client.hasRetainedThreadAttachments
+    if (!protectedEntry && idleCount >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) continue
+    allowedKeys.add(candidate.key)
+    if (!protectedEntry) idleCount += 1
+    if (candidate.endpoint && !protectedEntry) {
+      const entry = ctx.createSecondaryWorkspaceConnection(candidate.workspacePath, candidate.endpoint)
+      if (!candidate.entry) entry.lastUsedAt = candidate.lastUsedAt
     }
   }
 
   for (const entry of [...ctx.workspaceConnections.values()]) {
-    if (entry.role !== 'secondary') continue
-    // Default Chat has its own connection owner outside the project list.
-    if (isDefaultChatWorkspace(entry.workspacePath)) continue
-    if (!allowedKeys.has(entry.key) && !entry.client.hasRetainedThreadAttachments) {
-      ctx.disposeWorkspaceConnection(entry)
-    }
+    if (isIdleSecondary(entry) && !allowedKeys.has(entry.key)) ctx.disposeWorkspaceConnection(entry)
   }
   ctx.emitWorkspaceProjects()
 }

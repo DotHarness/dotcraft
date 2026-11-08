@@ -3,6 +3,7 @@ import { type RemoteStack } from '../../shared/dockerDeployments'
 import { resolveRemoteWebSocketConfig, type ConnectionSettingsDraft } from '../../shared/remoteConnection'
 import { type SshMachine } from '../../shared/sshMachines'
 import { ensureDefaultChatWorkspace } from '../defaultChatWorkspace'
+import type { OpenedPairedProject } from '../pairedComputers/pairedComputersManager'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { type AppSettings } from '../settings'
@@ -114,12 +115,7 @@ export function closeSettingsRemoteForwards(ctx: DesktopWindowRuntime, settings:
   if (projectRef?.machineId && projectRef.projectId) {
     ctx.sshMachinesManager?.closeProjectForward(projectRef.machineId, projectRef.projectId)
   }
-  if (settings.activeRemoteDevice) closeDeviceBridge(ctx)
-}
-
-function closeDeviceBridge(ctx: DesktopWindowRuntime): void {
-  ctx.activeDeviceBridge?.close()
-  ctx.activeDeviceBridge = null
+  if (settings.activeRemoteDevice) ctx.demoteDeviceProject()
 }
 
 export function closeActiveRemoteForwards(
@@ -150,8 +146,8 @@ export async function disconnectActiveRemoteProject(
   if (project?.source === 'ssh' && project.remote.hostId && project.remote.remoteProjectId) {
     ctx.sshMachinesManager?.closeProjectForward(project.remote.hostId, project.remote.remoteProjectId)
   }
+  ctx.deviceOpenGeneration += 1
   ctx.disposeActiveRemoteConnection()
-  closeDeviceBridge(ctx)
   ctx.setActiveRemoteProject(null)
   ctx.lastRemoteStackLocalPort = null
 
@@ -311,25 +307,53 @@ export async function openPairedComputerProject(
   if (ctx.argv.includes('--remote')) {
     throw new Error('Remote projects cannot be opened while Desktop was launched with --remote.')
   }
-  const opened = await ctx.app.pairedComputers.openProject(computerId, projectId)
+  const generation = ++ctx.deviceOpenGeneration
+  ctx.clearActiveRemoteReconnectTimer()
+  const current = (): boolean => !ctx.runtimeIsStopping() && ctx.deviceOpenGeneration === generation &&
+    Boolean(ctx.app.pairedComputers.find(computerId, projectId))
+  const key = ctx.deviceRemoteProjectId(computerId, projectId)
+  const existing = ctx.workspaceConnections.get(key)
+  if (existing?.connected && existing.device && ctx.activeRemoteProject?.projectId === key) return
+  let opened: OpenedPairedProject | null = null
   try {
-    await ctx.probeRemoteAppServerConnection(opened.bridge.wsUrl)
+    if (!existing?.device || !existing.initializeResult) {
+      opened = await ctx.app.pairedComputers.openProject(computerId, projectId)
+      if (!current()) throw new Error('Project opening was cancelled.')
+      await ctx.probeRemoteAppServerConnection(opened.bridge.wsUrl)
+    }
+    if (!current()) throw new Error('Project opening was cancelled.')
+    if (ctx.activeRemoteProject?.projectId !== key) {
+      ctx.closeSettingsRemoteForwards({
+        activeRemoteStack: ctx.settings.activeRemoteStack,
+        activeRemoteProject: ctx.settings.activeRemoteProject
+      })
+    }
+    await ctx.updateSettings({
+      connectionMode: 'remote',
+      remote: undefined,
+      activeRemoteStack: undefined,
+      activeRemoteProject: undefined,
+      activeRemoteDevice: { computerId, projectId }
+    })
+    if (!current()) throw new Error('Project opening was cancelled.')
+    const target = ctx.workspaceConnections.get(key)
+    if (target?.device && target.initializeResult) {
+      ctx.promoteDeviceProject(target)
+    } else if (opened) {
+      await ctx.installDeviceProjectConnection(opened, ctx.remoteForegroundAnchorPath())
+    } else {
+      if (!await ctx.connectDeviceProject(computerId, projectId, ctx.remoteForegroundAnchorPath())) {
+        throw new Error('Project opening was cancelled.')
+      }
+      return
+    }
+    if (!current()) throw new Error('Project opening was cancelled.')
   } finally {
-    opened.bridge.close()
+    const bridge = opened?.bridge
+    if (bridge && ctx.workspaceConnections.get(key)?.device?.bridge !== bridge) {
+      bridge.close()
+    }
   }
-  ctx.closeSettingsRemoteForwards({
-    activeRemoteStack: ctx.settings.activeRemoteStack,
-    activeRemoteProject: ctx.settings.activeRemoteProject,
-    activeRemoteDevice: ctx.settings.activeRemoteDevice
-  })
-  await ctx.updateSettings({
-    connectionMode: 'remote',
-    remote: undefined,
-    activeRemoteStack: undefined,
-    activeRemoteProject: undefined,
-    activeRemoteDevice: { computerId, projectId }
-  })
-  await ctx.connectToAppServer(ctx.remoteForegroundAnchorPath())
 }
 
 export async function leavePairedComputerProject(
@@ -338,6 +362,22 @@ export async function leavePairedComputerProject(
   projectId?: string
 ): Promise<void> {
   const ref = ctx.settings.activeRemoteDevice
-  if (ref?.computerId !== computerId || (projectId && ref.projectId !== projectId)) return
-  await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
+  const foregroundMatches = ref?.computerId === computerId && (!projectId || ref.projectId === projectId)
+  if (foregroundMatches) ctx.deviceOpenGeneration += 1
+  for (const entry of [...ctx.workspaceConnections.values()]) {
+    if (entry.remote?.source === 'device' && entry.remote.hostId === computerId &&
+      (!projectId || entry.remote.remoteProjectId === projectId) && entry.projectId !== ctx.activeRemoteProject?.projectId) {
+      ctx.disposeWorkspaceConnection(entry)
+    }
+  }
+  if (foregroundMatches) await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
+}
+
+export async function disconnectRemoteProject(ctx: DesktopWindowRuntime, projectId?: string): Promise<void> {
+  if (!projectId || projectId === ctx.activeRemoteProject?.projectId) {
+    await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
+    return
+  }
+  const entry = ctx.workspaceConnections.get(projectId)
+  if (entry?.device) ctx.disposeWorkspaceConnection(entry)
 }

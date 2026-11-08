@@ -16,9 +16,7 @@ export function handleSshMachineDisconnected(ctx: DesktopWindowRuntime, machineI
 }
 
 export function handlePairedComputerRemoved(ctx: DesktopWindowRuntime, computerId: string): void {
-  const project = ctx.activeRemoteProject
-  if (project?.source !== 'device' || project.remote.hostId !== computerId) return
-  void ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true }).catch((error) => {
+  void ctx.leavePairedComputerProject(computerId).catch((error) => {
     console.warn('[desktop] failed to leave the project of a removed computer', error)
   })
 }

@@ -28,11 +28,13 @@ export async function connectViaWebSocket(
     return
   }
   const win = ctx.mainWindow!
-  ctx.lastAppServerWsUrl = wsUrl
-  ctx.emitConnectionStatus(win, { status: 'connecting' })
-  ctx.reregisterIpcForWorkspace(workspacePath)
+  const role = options.role ?? 'foreground'
+  if (role === 'foreground') {
+    ctx.lastAppServerWsUrl = wsUrl
+    ctx.emitConnectionStatus(win, { status: 'connecting' })
+    ctx.reregisterIpcForWorkspace(workspacePath)
+  }
 
-  const generation = ++ctx.connectionGeneration
   const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
     autoReconnect: options.autoReconnect,
     initializeTimeoutMs: options.initializeTimeoutMs,
@@ -43,9 +45,14 @@ export async function connectViaWebSocket(
   const identityWorkspacePath = options.identityWorkspacePath ?? workspacePath
   const previousEntry = ctx.workspaceConnections.get(connectionKey)
   if (previousEntry && previousEntry.client !== client) {
+    ctx.workspaceConnections.delete(connectionKey)
     previousEntry.client.dispose()
+    if (previousEntry.device && previousEntry.device !== options.device) {
+      ctx.disposeDeviceProjectConnection(previousEntry)
+    }
   }
   const entry: WorkspaceConnectionEntry = {
+    ...options.existingEntry,
     key: connectionKey,
     projectId,
     kind: options.projectKind ?? 'local',
@@ -55,18 +62,20 @@ export async function connectViaWebSocket(
     remote: options.remote,
     wsUrl,
     client,
-    role: 'foreground',
+    role,
     connected: false,
     connecting: true,
-    lastUsedAt: Date.now(),
-    threads: []
+    lastUsedAt: options.existingEntry?.lastUsedAt ?? Date.now(),
+    threads: options.existingEntry?.threads ?? [],
+    device: options.device
   }
   ctx.workspaceConnections.set(connectionKey, entry)
-  ctx.wireClient = client
+  if (role === 'foreground') ctx.wireClient = client
+  const deviceGeneration = entry.device?.generation
   const isCurrentConnectAttempt = (): boolean =>
     !ctx.runtimeIsStopping() &&
-    ctx.wireClient === client &&
-    ctx.connectionGeneration === generation &&
+    ctx.workspaceConnections.get(connectionKey) === entry &&
+    (!entry.device || entry.device.generation === deviceGeneration) &&
     ctx.mainWindow === win &&
     !win.isDestroyed()
   const isCurrentForegroundClient = (): boolean =>
@@ -80,21 +89,20 @@ export async function connectViaWebSocket(
     })
 
   client.onNotification((method, params) => {
-    if (!ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry) {
-      const turn = readBrowserTurnNotification(method, params)
-      const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
-      handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
-      handleWorkspaceNodeReplNotification(entry, method, params)
-      ctx.getThreadTasks().handleNotification(method, params)
-      if (ownsThread) {
-        if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
-        browserUseManager.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
-      }
-      if (turn?.terminal) {
-        void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn).finally(() => {
-          if (!ctx.runtimeIsStopping()) ctx.scheduleSecondaryWorkspaceRefresh()
-        })
-      }
+    if (!isCurrentConnectAttempt()) return
+    const turn = readBrowserTurnNotification(method, params)
+    const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
+    handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
+    handleWorkspaceNodeReplNotification(entry, method, params)
+    ctx.getThreadTasks().handleNotification(method, params)
+    if (ownsThread) {
+      if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
+      browserUseManager.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
+    }
+    if (turn?.terminal) {
+      void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn).finally(() => {
+        if (!ctx.runtimeIsStopping()) ctx.scheduleSecondaryWorkspaceRefresh()
+      })
     }
     const foreground = getWorkspaceNotificationForeground(method, {
       appQuitting: ctx.runtimeIsStopping(),
@@ -114,6 +122,7 @@ export async function connectViaWebSocket(
   })
 
   client.onServerRequest(async (method, params) => {
+    if (!isCurrentConnectAttempt()) throw new Error('Workspace connection is no longer available.')
     const routingState = {
       appQuitting: ctx.runtimeIsStopping(),
       mainWindow: ctx.mainWindow,
@@ -138,7 +147,23 @@ export async function connectViaWebSocket(
     stage: string
   ): void => {
     if (initialFailureEmitted || !isCurrentConnectAttempt()) return
+    if (!entry.device && !isCurrentForegroundClient()) return
     initialFailureEmitted = true
+    if (entry.device) {
+      entry.connected = false
+      entry.connecting = false
+      entry.errorMessage = error instanceof Error ? error.message : String(error)
+      entry.device.generation += 1
+      client.dispose()
+      entry.device.bridge?.close()
+      entry.device.bridge = null
+      if (isCurrentForegroundClient()) {
+        ctx.emitConnectionStatus(win, { status: 'error', errorMessage: entry.errorMessage, errorType })
+      }
+      ctx.emitWorkspaceProjects()
+      ctx.scheduleDeviceProjectReconnect(entry, error)
+      return
+    }
     const message = error instanceof Error ? error.message : String(error)
     ctx.resetThreadToolState()
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
@@ -157,22 +182,24 @@ export async function connectViaWebSocket(
     entry.errorMessage = message
     ctx.emitWorkspaceProjects()
     client.dispose()
-    options.onInitialFailure?.(error)
   }
   const emitConnected = (result: InitializeResult): void => {
+    if (!isCurrentConnectAttempt()) return
+    if (entry.device) ctx.deviceProjectConnectionReady(entry)
     entry.connected = true
     entry.connecting = false
     entry.errorMessage = undefined
     entry.initializeResult = result
-    entry.lastUsedAt = Date.now()
+    const firstReady = !connectedOnce
+    connectedOnce = true
 
     if (entry.role === 'secondary') {
+      ctx.emitWorkspaceProjects()
       void ctx.refreshConnectionThreadList(entry)
       return
     }
     if (!isCurrentForegroundClient()) return
-    if (!connectedOnce) options.onReady?.()
-    connectedOnce = true
+    if (firstReady) options.onReady?.()
     ctx.clearActiveRemoteReconnectTimer()
     ctx.activeRemoteReconnectAttempt = 0
     ctx.resetThreadToolState()
@@ -209,22 +236,30 @@ export async function connectViaWebSocket(
       ctx.resolveConnectionMode(ctx.settings) === 'local'
   })
   client.on('close', () => {
+    if (!isCurrentConnectAttempt() || initialFailureEmitted) return
     entry.connected = false
     entry.connecting = false
     entry.errorMessage = undefined
     ctx.emitWorkspaceProjects()
     if (!ctx.runtimeIsStopping() && entry.kind !== 'remote') ctx.scheduleSecondaryWorkspaceRefresh()
+    if (entry.device) {
+      if (!connectedOnce && options.initialDisconnectIsError) {
+        emitInitialConnectionFailure(new Error('Remote AppServer WebSocket closed before initialize completed.'), 'remote-config-invalid', 'websocket-close-before-ready')
+      } else {
+        if (isCurrentForegroundClient()) ctx.emitConnectionStatus(win, { status: 'disconnected' })
+        ctx.scheduleDeviceProjectReconnect(entry)
+      }
+      return
+    }
     if (entry.role === 'secondary') return
     if (!isCurrentForegroundClient()) return
     ctx.resetThreadToolState()
     if (!connectedOnce && options.initialDisconnectIsError) {
-      if (!initialFailureEmitted) {
-        emitInitialConnectionFailure(
-          new Error('Remote AppServer WebSocket closed before initialize completed.'),
-          'remote-config-invalid',
-          'websocket-close-before-ready'
-        )
-      }
+      emitInitialConnectionFailure(
+        new Error('Remote AppServer WebSocket closed before initialize completed.'),
+        'remote-config-invalid',
+        'websocket-close-before-ready'
+      )
       return
     }
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
@@ -237,6 +272,11 @@ export async function connectViaWebSocket(
     ctx.scheduleActiveRemoteStackReconnect('websocket closed')
   })
   client.on('reconnect-error', (err) => {
+    if (!isCurrentConnectAttempt()) return
+    if (entry.device) {
+      emitInitialConnectionFailure(err, ctx.classifyRemoteInitialError(err instanceof Error ? err.message : String(err)), 'initialize')
+      return
+    }
     entry.errorMessage = err instanceof Error ? err.message : String(err)
     entry.connecting = false
     ctx.emitWorkspaceProjects()

@@ -2,7 +2,6 @@ import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import type { ThreadSummary } from '../types/thread'
-import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
 import { needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
 import { getWorkspaceArchiveThreads } from './archiveWorkspaceThread'
 
@@ -11,12 +10,14 @@ type Translate = (key: string, vars?: Record<string, string | number>) => string
 export async function archiveProjectThreads({
   projectLabel,
   workspacePath,
+  connectionKey,
   threads,
   live,
   t
 }: {
   projectLabel: string
   workspacePath: string
+  connectionKey: string
   threads: ThreadSummary[]
   live: boolean
   t: Translate
@@ -27,7 +28,7 @@ export async function archiveProjectThreads({
   const listedIds = new Set(threadList.map(thread => thread.id))
   const currentThreads = live
     ? [...threadList, ...threads.filter(thread => !listedIds.has(thread.id))]
-    : getWorkspaceArchiveThreads(workspacePath, threads)
+    : getWorkspaceArchiveThreads(connectionKey, threads)
   const running = threads.some(thread => needsThreadTreeArchiveConfirmation(
     thread.id, currentThreads, live ? runningTurnThreadIds : undefined
   ))
@@ -45,14 +46,12 @@ export async function archiveProjectThreads({
   }).result
   if (!confirmed) return
 
-  const archiveOne = live
-    ? (threadId: string) => stopBeforeArchive((method, params) => window.api.appServer.sendRequest(method, params), threadId)
-    : (threadId: string) => window.api.workspace.archiveThread(workspacePath, threadId)
-  const results = await Promise.allSettled(threads.map((thread) => archiveOne(thread.id)))
+  const results = await Promise.allSettled(threads.map((thread) =>
+    window.api.workspace.archiveThread(workspacePath, thread.id, connectionKey)))
   const archived = threads.filter((_, index) => results[index].status === 'fulfilled')
 
-  if (live && archived.length > 0) {
-    const store = useThreadStore.getState()
+  const store = useThreadStore.getState()
+  if (live && archived.length > 0 && store.threadListProjectKey === connectionKey) {
     if (archived.some((thread) => thread.id === store.activeThreadId)) store.setActiveThreadId(null)
     for (const thread of archived) useThreadStore.getState().removeThreadTree(thread.id)
   }

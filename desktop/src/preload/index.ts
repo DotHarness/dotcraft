@@ -1054,8 +1054,8 @@ const api = {
       return ipcRenderer.invoke('workspace:remove-project', path)
     },
 
-    disconnectRemote(): Promise<void> {
-      return ipcRenderer.invoke('workspace:disconnect-remote')
+    disconnectRemote(projectId?: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:disconnect-remote', projectId)
     },
 
     restart(path: string): Promise<void> {
@@ -1066,8 +1066,8 @@ const api = {
       return ipcRenderer.invoke('workspace:stop', path)
     },
 
-    archiveThread(workspacePath: string, threadId: string): Promise<void> {
-      return ipcRenderer.invoke('workspace:archive-thread', { workspacePath, threadId })
+    archiveThread(workspacePath: string, threadId: string, connectionKey?: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:archive-thread', { workspacePath, threadId, connectionKey })
     },
 
     onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn {
