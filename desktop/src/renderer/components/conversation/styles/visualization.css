@@ -165,20 +165,6 @@
   opacity: 0.55;
 }
 
-.visualization-fallback {
-  display: flex;
-  min-height: 44px;
-  margin: 8px 0;
-  padding: 8px 10px 8px 12px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: var(--conversation-secondary-size);
-}
-
 .visualization-scroll-hint {
   margin-top: 4px;
   color: var(--text-secondary);

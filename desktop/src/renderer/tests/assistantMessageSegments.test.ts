@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { assistantMessageCopyText, splitAssistantMessage } from '../components/conversation/assistantMessageSegments'
 
-const CHART_PATH = '/workspace/.craft/visualizations/thread-test/alpha-chart.html'
+const CHART_PATH = 'alpha_chart.HTML'
 const reference = `visualize${JSON.stringify({ path: CHART_PATH })}`
 const program = 'DotCraft.render(<Text value="Hi" />)'
 

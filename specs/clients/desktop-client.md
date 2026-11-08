@@ -469,7 +469,7 @@ Reference grammar, authority, workspace ownership, updates, and cleanup are defi
 
 **Recognition and layout**
 
-- Desktop recognizes visualization references only on their own lines in completed assistant messages, outside fenced code; invalid or inline references stay Markdown. Multiple references keep source order with surrounding Markdown. Streaming messages never mount a possibly incomplete reference. The reference `title` is the View's accessible name.
+- Desktop recognizes visualization references only on their own lines in completed assistant messages, outside fenced code. A complete standalone reference with malformed JSON or invalid recognized fields shows an unavailable notice with a fix action; inline references and examples inside code remain Markdown. Unknown fields do not invalidate a reference. Multiple references keep source order with surrounding Markdown. Streaming messages never mount a possibly incomplete reference. The reference `title` is the View's accessible name. References and client state use the exact thread-local file name as identity, without operating-system path normalization.
 - A `"mode":"wide"` View may break out of the text column into free conversation space, never into lanes occupied by other conversation surfaces; otherwise Views keep the column width.
 
 **Loading and binding**
@@ -477,7 +477,7 @@ Reference grammar, authority, workspace ownership, updates, and cleanup are defi
 - Historical Views load only when near the viewport; before that Desktop reserves a placeholder and sends no request. Loaded Views stay mounted when scrolled away.
 - On a new connection, the first View opened for a thread resumes that thread first; concurrent opens share one resume, and connection reset clears the binding. `thread/read`, subscription, and thread-list loading never resume threads or open Views.
 - When a newly completed message references a path with loaded Views in the same thread, those Views reopen to show the current file.
-- Unmounting, switching threads, or disconnecting closes the handle; a handle returned after cancellation is closed without mounting. Load failure shows an unavailable fallback with Retry.
+- Unmounting, switching threads, or disconnecting closes the handle; a handle returned after cancellation is closed without mounting. Load failure shows its reason with Retry and a fix action that fills, but never sends, a request in the composer.
 
 **Sandbox runtime**
 
@@ -489,6 +489,7 @@ Reference grammar, authority, workspace ownership, updates, and cleanup are defi
 - The runtime provides tooltips, tabs, a day-schedule element, a variant carousel, and the `Tweak` design-controls helper. Carousel navigation is local and never persisted or sent to the model.
 - `Tweak` groups describe bounded controls; Desktop renders the Design controls panel only when the user toggles it. Edits are validated by the View, shared in memory across mounted Views of the same path, never persisted, and reach the model only through **Add to message**, which adds one `visualizationChanges` context per path to the composer. Nothing is sent until the user sends.
 - The first uncaught error in a View shows a quiet notice with an action that fills (never sends) a fix request in the composer.
+- The built-in visualize skill offers an optional standalone preview helper for browser inspection before a response. Preview assets are generated from the Desktop visualization runtime, run inside a sandboxed iframe, and do not grant host actions.
 - A View never navigates. `http`/`https` links open in the system browser after a trusted confirmation showing the full URL; other targets do nothing. `blob:`/`data:` downloads go through the native save dialog, with a size limit. Bridge requests share a per-View rate limit.
 
 **Fullscreen and copy**

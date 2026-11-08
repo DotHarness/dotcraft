@@ -1,10 +1,9 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace DotCraft.Visualizations;
 
 /// <summary>Parses visualization content references from assistant Markdown.</summary>
-public static partial class VisualizationContentReferenceParser
+public static class VisualizationContentReferenceParser
 {
     private const string WideMode = "wide";
     public const int MaxTitleLength = 200;
@@ -53,16 +52,10 @@ public static partial class VisualizationContentReferenceParser
         return result;
     }
 
-    /// <summary>Returns whether a path is absolute, has no dot segments, and names a safe visualization file.</summary>
-    public static bool IsValidPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !AbsolutePathRegex().IsMatch(path))
-            return false;
-
-        var segments = path.Split('/', '\\');
-        return !segments.Any(segment => segment is "." or "..")
-               && FileNameRegex().IsMatch(segments[^1]);
-    }
+    public static bool IsValidFileName(string? path) =>
+        !string.IsNullOrEmpty(path)
+        && path.IndexOfAny(['/', '\\', '\0']) < 0
+        && path.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryParseLine(string line, out string path, out string? title, out string? mode)
     {
@@ -89,6 +82,8 @@ public static partial class VisualizationContentReferenceParser
 
             foreach (var property in document.RootElement.EnumerateObject())
             {
+                if (property.Name is not ("path" or "title" or "mode"))
+                    continue;
                 if (property.Value.ValueKind != JsonValueKind.String)
                     return false;
                 var value = property.Value.GetString();
@@ -103,8 +98,6 @@ public static partial class VisualizationContentReferenceParser
                     case "mode":
                         mode = value;
                         break;
-                    default:
-                        return false;
                 }
             }
         }
@@ -113,7 +106,7 @@ public static partial class VisualizationContentReferenceParser
             return false;
         }
 
-        if (!IsValidPath(parsedPath)
+        if (!IsValidFileName(parsedPath)
             || title is not null && (string.IsNullOrWhiteSpace(title) || title.Length > MaxTitleLength)
             || mode is not null && mode != WideMode)
         {
@@ -135,12 +128,6 @@ public static partial class VisualizationContentReferenceParser
             length++;
         return length >= 3;
     }
-
-    [GeneratedRegex("^(?:[A-Za-z]:[\\\\/]|\\\\\\\\|/)", RegexOptions.CultureInvariant)]
-    private static partial Regex AbsolutePathRegex();
-
-    [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*\\.html$", RegexOptions.CultureInvariant)]
-    private static partial Regex FileNameRegex();
 }
 
 /// <summary>A validated visualization content reference.</summary>

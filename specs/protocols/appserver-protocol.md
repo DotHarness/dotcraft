@@ -1945,9 +1945,9 @@ Both peers must advertise `visualizations`. These methods render current HTML fr
 
 #### 22.10A.1 `visualization/view/open`
 
-Params `threadId`, `turnId`, `itemId`, `path` (the absolute path from the reference). Result `{ viewHandle, fragment, mimeType: "text/html", widgetState }`.
+Params `threadId`, `turnId`, `itemId`, `path` (the thread-local file name from the reference). Result `{ viewHandle, fragment, mimeType: "text/html", widgetState }`.
 
-The server reloads authoritative thread state, verifies the completed item references the same normalized path, resolves it directly inside the thread workspace's `.craft/visualizations/<threadId>/` (never a user-global directory, regardless of execution or worktree overrides), reads the current file (so a rewritten visualization opens at its latest version), and returns a connection-owned handle bound to thread, turn, item, and path. `widgetState` (`modelContent`, `privateContent`) is the stored snapshot for the thread and path, or `null`.
+The server reloads authoritative thread state, verifies the completed item references the same exact file name, resolves it directly inside the thread workspace's `.craft/visualizations/<threadId>/` (never a user-global directory, regardless of execution or worktree overrides), reads the current file (so a rewritten visualization opens at its latest version), and returns a connection-owned handle bound to thread, turn, item, and path. `widgetState` (`modelContent`, `privateContent`) is the stored snapshot for the thread and path, or `null`.
 
 #### 22.10A.2 `visualization/view/message`
 
@@ -1963,9 +1963,9 @@ Params `viewHandle`; result `{ closed }`. Idempotent.
 
 #### 22.10A.5 `visualization/widgetState/updated`
 
-Notification `{ threadId, path, widgetState }` sent after a successful save to every other connection that advertised `visualizations` and subscribes to the thread; the saving connection does not receive it. `widgetState` is `null` when the save removed it.
+Notification `{ threadId, path, widgetState }`, where `path` is the same thread-local file name used to open the View, sent after a successful save to every other connection that advertised `visualizations` and subscribes to the thread; the saving connection does not receive it. `widgetState` is `null` when the save removed it.
 
-Stable reason codes: `not_available`, `not_referenced`, `not_found`, `unsafe_path`, `stale_view`, `state_too_large`, `context_too_large`.
+Stable reason codes: `not_available`, `not_referenced`, `not_found`, `unsafe_path`, `fragment_too_large`, `stale_view`, `state_too_large`, `context_too_large`.
 
 ### 22.10B Generative UI State
 

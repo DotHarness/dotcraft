@@ -1,10 +1,11 @@
-import { isPendingVisualizationReference, parseVisualizationReferenceLine, type VisualizationContentReference } from './visualizationParser'
+import { isCompleteVisualizationReference, isPendingVisualizationReference, parseVisualizationReferenceLine, type VisualizationContentReference } from './visualizationParser'
 
 export const GENERATIVE_UI_FENCE_INFO = 'dotcraft-ui'
 
 export type AssistantMessageSegment =
   | { kind: 'markdown'; start: number; text: string }
   | { kind: 'visualization'; start: number; reference: VisualizationContentReference }
+  | { kind: 'invalidVisualization'; start: number; text: string }
   | { kind: 'generativeUi'; start: number; index: number; code: string; closed: boolean }
 
 type VisualizationReferenceMode = 'render' | 'strip' | 'keep'
@@ -64,6 +65,13 @@ export function splitAssistantMessage(text: string, { streaming, visualizations 
         if (visualizations === 'render') {
           flush()
           segments.push({ kind: 'visualization', start, reference })
+        }
+        continue
+      }
+      if (isCompleteVisualizationReference(line)) {
+        if (visualizations === 'render' && !streaming) {
+          flush()
+          segments.push({ kind: 'invalidVisualization', start, text: line.trim() })
         }
         continue
       }

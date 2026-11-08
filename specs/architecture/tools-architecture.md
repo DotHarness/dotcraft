@@ -500,21 +500,21 @@ The projected `PresentationId` selects only an already active local renderer; to
 Visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with a visualization content reference on its own line, in either form:
 
 ```text
-visualize{"path":"<absolute-path>/example-name.html"}
-visualize{"path":"<absolute-path>/example-name.html"}
+visualize{"path":"example_name.html"}
+visualize{"path":"example_name.html"}
 ```
 
-The second form wraps the same JSON object in the private-use delimiters U+E200, U+E202, and U+E201. The object has a required absolute `path`, an optional non-empty `title` of at most 200 characters, and an optional `mode` whose only value is `"wide"`. Any other key, a malformed object, or an invalid value is not a reference. The file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$` and the path MUST NOT contain `.` or `..` segments.
+The second form wraps the same JSON object in the private-use delimiters U+E200, U+E202, and U+E201. The object has a required `path` naming one HTML file in the thread visualization directory, an optional non-empty `title` of at most 200 characters, and an optional `mode` whose only value is `"wide"`. Unknown keys are ignored. A malformed object or an invalid value for a recognized key is not a reference. The file name may contain underscores, spaces, Unicode, and uppercase letters. It must end in `.html` (case-insensitively) and contain no directory separators or NUL characters.
 
 The reference remains ordinary persisted assistant text and introduces no Session item, delta, payload kind, or provider-history type; clients without the capability show it as text.
 
-Only a completed `AgentMessage` containing the reference outside fenced code may authorize a View. The path MUST resolve, case-insensitively on Windows, to a file directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, with no user-global fallback; execution and worktree overrides do not change ownership. Authoring uses ordinary file tools.
+Only a completed `AgentMessage` containing the reference outside fenced code may authorize a View. The host resolves the file name directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, with no user-global fallback; execution and worktree overrides do not change ownership. Directory boundaries and reparse-point checks apply before reading. Authoring uses ordinary file tools.
 
-Opening a View always reads the current file, so a rewritten file shows its latest version in every message that references it. These files are transient workspace resources with no archive, fork, migration, or cross-device guarantee. Permanently deleting a thread deletes its visualization directory on a best-effort basis without following reparse points.
+Opening a View always reads the current file, with a maximum fragment size of 1,000,000 bytes, so a rewritten file shows its latest version in every message that references it. Oversized fragments are rejected with `fragment_too_large`. These files are transient workspace resources with no archive, fork, migration, or cross-device guarantee. Permanently deleting a thread deletes its visualization directory on a best-effort basis without following reparse points.
 
 The host issues a connection-owned opaque handle after revalidating the connection/thread binding, completed source item, exact path, workspace boundary, reparse-point safety, and current file. The handle binds its source thread, Turn, Item, and path, which a View cannot override. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
 
-A View may save a widget state snapshot `{ modelContent, privateContent }`, each any JSON value or `null`. The thread owns one snapshot per visualization, keyed by normalized path (case-insensitive on Windows) and stored with the thread's metadata, so every View of that path, on any client and after reload, opens with the latest snapshot. Each save replaces it; a snapshot with both fields `null` is removed. Snapshots are deleted with their thread and not copied by fork.
+A View may save a widget state snapshot `{ modelContent, privateContent }`, each any JSON value or `null`. The thread owns one snapshot per visualization, keyed by the exact file name and stored with the thread's metadata, so every View of that name, on any client and after reload, opens with the latest snapshot. File-name identity is ordinal and case-sensitive on all hosts; filesystem resolution follows the host's rules. Each save replaces it; a snapshot with both fields `null` is removed. Snapshots are deleted with their thread and not copied by fork.
 
 Saving never starts a Turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model last saw is delivered keyed by path, and one that became `null` or was removed is delivered once as cleared. The section labels `modelContent` as untrusted data, not instructions. `privateContent` restores View presentation only and never reaches the model. A follow-up may carry explicit View context, appended to the user's message as a visible JSON block.
 

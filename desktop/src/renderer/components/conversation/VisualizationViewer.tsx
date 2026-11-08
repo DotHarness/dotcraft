@@ -7,7 +7,6 @@ import { IconButton } from '../ui/IconButton'
 import { stepGalleryIndex } from './imagePreview/imageZoom'
 import type { VisualizationEntry } from './visualizationGallery'
 import { copyVisualizationImage } from './visualizationHost'
-import { visualizationFileName } from './visualizationParser'
 
 export type VisualizationViewerKey = 'Escape' | 'ArrowLeft' | 'ArrowRight'
 
@@ -47,7 +46,7 @@ export function VisualizationViewer({ entries, initialIndex, onClose, renderView
   const [designOpen, setDesignOpen] = useState(false)
   const [maxHeight, setMaxHeight] = useState(() => window.innerHeight - VIEWER_CHROME_HEIGHT - PANEL_PADDING * 2)
   const entry = entries[index]
-  const title = entry.title ?? visualizationFileName(entry.path)
+  const title = entry.title ?? entry.path
   const hasPrevious = stepGalleryIndex(index, -1, entries.length) != null
   const hasNext = stepGalleryIndex(index, 1, entries.length) != null
 

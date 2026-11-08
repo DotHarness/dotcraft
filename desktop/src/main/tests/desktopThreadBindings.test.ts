@@ -56,7 +56,7 @@ describe('Desktop connection-local thread bindings', () => {
       return {}
     })
     const second = client()
-    const params = { threadId: 'same-thread', path: '/chart.html' }
+    const params = { threadId: 'same-thread', path: 'chart.html' }
     const old = sendDesktopAppServerRequest(first, 'visualization/view/open', params, undefined, rebind)
     const rejected = expect(old).rejects.toThrow('no longer active')
     await resumed.promise

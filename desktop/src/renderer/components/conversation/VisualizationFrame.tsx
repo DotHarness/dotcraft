@@ -1,18 +1,15 @@
 import { useContext, useEffect, useId, useRef, useState } from 'react'
 import type { JsonValue } from '@dotcraft/sdk/contracts'
-import { CircleAlert, Copy, Maximize2, SlidersHorizontal } from 'lucide-react'
+import { Copy, Maximize2, SlidersHorizontal } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { VISUALIZATION_DOWNLOAD_METHOD, VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD, MCP_APP_SANDBOX_PROXY_READY_METHOD, MCP_APP_SANDBOX_PROXY_URL } from '../../../shared/mcpAppSandbox'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import { addToast } from '../../stores/toastStore'
-import { useUIStore } from '../../stores/uiStore'
 import { Skeleton } from '../ui/Skeleton'
-import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { buildVisualizationDocument, VISUALIZATION_MAX_HEIGHT, VISUALIZATION_MIN_HEIGHT, type VisualizationDisplayMode, type VisualizationWidgetState } from './visualizationSecurity'
 import { copyVisualizationImage, openExternalLinkAfterConfirmation, openVisualizationPopup, readVisualizationDownload, readVisualizationLinkUrl, readVisualizationThemeTokens } from './visualizationHost'
-import { visualizationFileName } from './visualizationParser'
 import { ConversationVisualizationsContext, galleryForVisualization, type VisualizationEntry } from './visualizationGallery'
 import { VisualizationViewer, type VisualizationFullscreenHost, type VisualizationViewerKey } from './VisualizationViewer'
 import { useVisualizationWideLayout } from './useVisualizationWideLayout'
@@ -23,6 +20,8 @@ import { clearVisualizationDesignValues, useVisualizationDesignState } from './u
 import { buildVisualizationChangesContext } from './visualizationDesignControls'
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useNearMessageViewport } from './useNearMessageViewport'
+import { VisualizationNotice } from './VisualizationNotice'
+import { describeAppServerError } from '../../utils/appServerErrorText'
 
 interface Props { threadId: string; turnId: string; itemId: string; path: string; title?: string; mode?: 'wide'; fullscreen?: VisualizationFullscreenHost }
 interface OpenResult { viewHandle: string; fragment: string; mimeType: string; widgetState?: VisualizationWidgetState | null }
@@ -50,6 +49,7 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
   const designPanelId = useId()
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle')
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [loadError, setLoadError] = useState<unknown>(null)
   const [contentHeight, setContentHeight] = useState(260)
   const [actionsVisible, setActionsVisible] = useState(false)
   const [copying, setCopying] = useState(false)
@@ -95,6 +95,7 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
     if (!loadRequested) return
     let cancelled = false
     setStatus('loading')
+    setLoadError(null)
     setRuntimeError(null)
     clearDesign()
     setInlineDesignOpen(false)
@@ -110,7 +111,11 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
         widgetStateRef.current = opened.widgetState ?? null
         if (iframeRef.current) iframeRef.current.src = MCP_APP_SANDBOX_PROXY_URL
       })
-      .catch(() => { if (!cancelled) setStatus('failed') })
+      .catch(error => {
+        if (cancelled) return
+        setLoadError(error)
+        setStatus('failed')
+      })
     return () => {
       cancelled = true
       const handle = handleRef.current
@@ -354,21 +359,17 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
   const actionsShown = coarsePointer || actionsVisible || designOpen
 
   if (status === 'failed') {
+    const error = describeAppServerError(locale, loadError).trim() || t('visualization.unavailable')
     return (
       <>
-        <div role="status" className="visualization-fallback">
-          <span>{t('visualization.unavailable')}</span>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setStatus('loading')
-              setLoadAttempt(attempt => attempt + 1)
-            }}
-          >
-            {t('common.retry')}
-          </Button>
-        </div>
+        <VisualizationNotice
+          message={error}
+          fixPrompt={t('visualization.fixPrompt', { file: path, error })}
+          onRetry={() => {
+            setStatus('loading')
+            setLoadAttempt(attempt => attempt + 1)
+          }}
+        />
         {viewerNode}
       </>
     )
@@ -387,7 +388,7 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
       >
         {status === 'idle' && <div data-testid="visualization-idle" aria-hidden="true" className="visualization-placeholder" />}
         {status === 'loading' && <div role="status" aria-live="polite"><span className="visualization-visually-hidden">{t('visualization.loading')}</span><Skeleton width="100%" height={180} radius={8} /></div>}
-        <iframe ref={iframeRef} title={title ?? t('visualization.frameTitle', { file: visualizationFileName(path) })} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="" className="visualization-frame" style={{ height, display: status === 'ready' ? 'block' : 'none' }} />
+        <iframe ref={iframeRef} title={title ?? t('visualization.frameTitle', { file: path })} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="" className="visualization-frame" style={{ height, display: status === 'ready' ? 'block' : 'none' }} />
         {status === 'ready' && !fullscreen && (
           <div className="visualization-actions" style={{ opacity: actionsShown ? 1 : 0, pointerEvents: actionsShown ? 'auto' : 'none' }}>
             <IconButton
@@ -433,23 +434,16 @@ export function VisualizationFrame({ threadId, turnId, itemId, path, title, mode
             hidden={copying || fullscreen?.capturing}
             onClose={() => setDesignOpen(false)}
             onAddToMessage={() => {
-              const context = design.controls && buildVisualizationChangesContext(path, title ?? visualizationFileName(path), design.controls, design.values)
+              const context = design.controls && buildVisualizationChangesContext(path, title ?? path, design.controls, design.values)
               if (context) useComposerContextStore.getState().addContext(threadId, context)
             }}
           />
         )}
         {status === 'ready' && runtimeError != null && (
-          <div role="status" className="visualization-notice">
-            <CircleAlert size={14} aria-hidden className="visualization-notice__icon" />
-            <span className="visualization-notice__text">{t('visualization.runtimeError')}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => useUIStore.getState().setComposerPrefill(t('visualization.fixPrompt', { file: visualizationFileName(path), error: runtimeError }))}
-            >
-              {t('visualization.fixAction')}
-            </Button>
-          </div>
+          <VisualizationNotice
+            message={t('visualization.runtimeError')}
+            fixPrompt={t('visualization.fixPrompt', { file: path, error: runtimeError })}
+          />
         )}
         {overflowed && !fullscreen && <div role="status" className="visualization-scroll-hint">{t('visualization.scrollHint')}</div>}
       </div>

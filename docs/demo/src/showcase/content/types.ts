@@ -18,5 +18,5 @@ export function uiBlock(strings: unknown, program: string): string {
 }
 
 export function visualizationReference(file: string, title: string): string {
-  return `visualize${JSON.stringify({ path: `/home/you/projects/notes/.craft/visualizations/${file}`, title })}`
+  return `visualize${JSON.stringify({ path: file, title })}`
 }
