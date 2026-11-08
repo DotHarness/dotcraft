@@ -29,7 +29,8 @@ import { PluginBrowseSurface, PluginSurfaceTabs } from './PluginBrowseSurface'
 import { PluginDetailView } from './PluginDetailView'
 import { buildMarketplaceNotices, filterVisibleDiagnostics } from './pluginDiagnostics'
 import { PluginManageSurface } from './PluginManageSurface'
-import { PLUGIN_CREATOR_SKILL, stagePluginCreationInChat, stagePluginTryInChat } from './pluginDraft'
+import { PLUGIN_CREATOR_SKILL, stagePluginTryInChat } from './pluginDraft'
+import { stageSkillRequestInChat } from '../conversation/skillRequestDraft'
 import { showPluginInstalledToast, showPluginUninstalledToast } from './pluginToasts'
 import {
   buildCategoryOptions,
@@ -241,21 +242,8 @@ export function PluginsView(): JSX.Element {
     })
   }
 
-  // The skill mention is only staged when the skill actually resolves, so the composer
-  // never shows a chip that cannot be resolved.
   async function handleCreatePlugin(): Promise<void> {
-    let available = skills
-    if (available.length === 0) {
-      try {
-        await fetchSkills()
-        available = useSkillsStore.getState().skills
-      } catch {
-        available = []
-      }
-    }
-
-    const hasCreatorSkill = available.some((skill) => skill.name === PLUGIN_CREATOR_SKILL)
-    stagePluginCreationInChat(t('plugins.create.prompt'), hasCreatorSkill)
+    await stageSkillRequestInChat(PLUGIN_CREATOR_SKILL, t('plugins.create.prompt'))
   }
 
   async function handleOpenSkill(plugin: PluginEntry, name: string): Promise<void> {

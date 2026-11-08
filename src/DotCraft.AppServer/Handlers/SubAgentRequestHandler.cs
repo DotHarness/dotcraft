@@ -42,6 +42,13 @@ internal sealed class SubAgentRequestHandler(
         _ = ct;
         EnsureSubAgentManagementAvailable();
 
+        if (runtimeConfig.RefreshSubAgentProfilesChangedOnDisk())
+        {
+            appConfigMonitor?.NotifyChanged(
+                Protocol.AppServer.AppServerMethodNames.SubAgentProfileList,
+                [ConfigChangeRegions.SubAgent]);
+        }
+
         var listResult = BuildSubAgentProfileListResult();
         return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileListResult>.FromResult(listResult));
     }

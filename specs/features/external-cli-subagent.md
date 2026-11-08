@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.4 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-08 |
 | **Parent Specs** | [SubAgent Core](subagents.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: extend the shared SubAgent Core contract for external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later tasks to continue the same external CLI session without a long-lived process.
@@ -32,6 +32,8 @@ Profiles are the runtime-specific extension point and part of workspace configur
 | `resumeArgTemplate`, `resumeSessionIdJsonPath`, `resumeSessionIdRegex` | Session resume (section 3.2). |
 
 When `supportsResume=true`, the profile must define `resumeArgTemplate` and at least one session-id extractor.
+
+Custom profiles are authored by the agent, not through a form. Desktop SubAgents settings offers to add a custom agent by opening a new chat that invokes `dotcraft-guide`, which probes the CLI, runs one trial task, and writes the profile into workspace configuration. Settings lists custom profiles with an enable switch and removal; changing one opens the same chat flow. When `subagent/profiles/list` finds that profiles in the configuration files differ from the running ones, AppServer reloads them and rebuilds thread agents, so a hand edit takes effect without a restart.
 
 ## 3. Execution
 
@@ -84,4 +86,3 @@ Built-in defaults:
 | `cursor-cli` | `prompt` | `interactive` → `--mode ask --trust --approve-mcps`; `auto-approve` → `--mode auto --trust --approve-mcps`; `restricted` → `--mode ask` |
 | `custom-cli-oneshot` | `restricted` | Empty |
 
-Desktop exposes the resume switch and resume-specific fields for custom external CLI profiles in SubAgents settings.

@@ -4390,13 +4390,13 @@ export const MESSAGES_EN = {
   'settings.subAgents.savedToast': 'Saved subagent {{name}}',
   'settings.subAgents.deletedToast': 'Deleted subagent {{name}}',
   'settings.subAgents.restoredToast': 'Restored defaults for {{name}}',
-  'settings.subAgents.save': 'Save',
   'settings.subAgents.saving': 'Saving…',
   'settings.subAgents.delete': 'Delete',
   'settings.subAgents.deleting': 'Deleting…',
   'settings.subAgents.cancel': 'Cancel',
   'settings.subAgents.back': 'Back',
   'settings.subAgents.toggleAria': 'Toggle subagent {{name}}',
+  'settings.subAgents.removeAria': 'Remove subagent {{name}}',
   'settings.subAgents.settings.resumeTitle': 'Resume external CLI sessions',
   'settings.subAgents.settings.resumeDescription': 'Let external CLIs pick up where they left off in this workspace.',
 
@@ -4405,8 +4405,9 @@ export const MESSAGES_EN = {
   'settings.subAgents.list.customSection': 'Custom agents',
   'settings.subAgents.list.customEmpty': 'No custom agents yet.',
   'settings.subAgents.list.addCustomAgent': 'Add custom agent',
-  'settings.subAgents.list.addCustomAgentHint':
-    'Describe how DotCraft should invoke your own CLI.',
+  'settings.subAgents.list.addCustomAgentHint': 'Name the CLI and DotCraft sets it up in a chat.',
+  'settings.subAgents.list.createPrompt': 'Add a custom subagent that runs this CLI: ',
+  'settings.subAgents.list.changePrompt': 'Change the custom subagent {{name}}: ',
   'settings.subAgents.card.customizedBadge': 'Customized',
   'settings.subAgents.card.nativeSubtitle': 'Runs inside DotCraft.',
   'settings.subAgents.card.codexSubtitle': 'Delegates tasks to the official codex CLI.',
@@ -4471,157 +4472,6 @@ export const MESSAGES_EN = {
   'settings.subAgents.preset.overrideTimeoutHint':
     'Maximum wait before the delegated task is cancelled.',
 
-  // Custom editor surface
-  'settings.subAgents.custom.newTitle': 'New custom agent',
-  'settings.subAgents.custom.editTitle': 'Custom agent',
-  'settings.subAgents.custom.description':
-    'Describe how DotCraft should invoke your CLI and how to read its reply back.',
-  'settings.subAgents.custom.identityTitle': 'Identity',
-  'settings.subAgents.custom.identityDescription':
-    'A short, unique name that appears to the main agent.',
-  'settings.subAgents.custom.nameLabel': 'Name',
-  'settings.subAgents.custom.nameHint':
-    'Unique within this workspace. Use a short, filesystem-safe identifier (e.g. my-coder).',
-  'settings.subAgents.custom.nameLocked': 'The name cannot be changed after the agent is created.',
-  'settings.subAgents.custom.namePlaceholder': 'my-coder',
-
-  'settings.subAgents.custom.launcherTitle': 'Launcher',
-  'settings.subAgents.custom.launcherDescription':
-    'What DotCraft runs, where it runs, and which arguments come first.',
-  'settings.subAgents.custom.runtimeLabel': 'Runtime',
-  'settings.subAgents.custom.runtimeValue': 'One-shot CLI',
-  'settings.subAgents.custom.runtimeHint':
-    'The binary is launched once per delegated task and returns a single reply.',
-  'settings.subAgents.custom.binLabel': 'Binary',
-  'settings.subAgents.custom.binHint':
-    'An absolute path or a command resolvable via PATH.',
-  'settings.subAgents.custom.binPlaceholder': 'my-coder',
-  'settings.subAgents.custom.argsLabel': 'Base arguments',
-  'settings.subAgents.custom.argsHint':
-    'These arguments come before the task payload. One per line.',
-  'settings.subAgents.custom.argsPlaceholder': 'exec',
-  'settings.subAgents.custom.workingDirLabel': 'Working directory',
-  'settings.subAgents.custom.workingDirHint':
-    'Where the CLI runs. "Workspace root" uses the currently opened workspace.',
-  'settings.subAgents.custom.workingDirWorkspace': 'Workspace root',
-  'settings.subAgents.custom.workingDirSpecified': 'Specified path',
-
-  'settings.subAgents.custom.inputTitle': 'How DotCraft sends the task',
-  'settings.subAgents.custom.inputDescription':
-    'Choose how the delegated task text reaches the CLI.',
-  'settings.subAgents.custom.inputMode.arg': 'As a positional argument',
-  'settings.subAgents.custom.inputMode.argHint':
-    'The task text is appended as the final argument.',
-  'settings.subAgents.custom.inputMode.argTemplate': 'As a templated argument',
-  'settings.subAgents.custom.inputMode.argTemplateHint':
-    'Substitute {task} into a custom argument string.',
-  'settings.subAgents.custom.inputMode.stdin': 'Over standard input',
-  'settings.subAgents.custom.inputMode.stdinHint':
-    'The task text is piped to the CLI on stdin.',
-  'settings.subAgents.custom.inputMode.env': 'Via an environment variable',
-  'settings.subAgents.custom.inputMode.envHint':
-    'The named env var is set to the task text before launch.',
-  'settings.subAgents.custom.inputModeLabel': 'Method',
-  'settings.subAgents.custom.inputArgTemplateLabel': 'Argument template',
-  'settings.subAgents.custom.inputArgTemplateHint':
-    '{task} is replaced with the task text at launch.',
-  'settings.subAgents.custom.inputArgTemplatePlaceholder': '--task {task}',
-  'settings.subAgents.custom.inputEnvKeyLabel': 'Env variable name',
-  'settings.subAgents.custom.inputEnvKeyHint':
-    'This env var will hold the task text.',
-  'settings.subAgents.custom.inputEnvKeyPlaceholder': 'SUBAGENT_TASK',
-
-  'settings.subAgents.custom.outputTitle': 'How DotCraft reads the reply',
-  'settings.subAgents.custom.outputDescription':
-    'Tell DotCraft how to find the assistant\u2019s reply in the CLI output.',
-  'settings.subAgents.custom.outputFormatLabel': 'Output format',
-  'settings.subAgents.custom.outputFormat.text': 'Plain text on stdout',
-  'settings.subAgents.custom.outputFormat.json': 'JSON on stdout',
-  'settings.subAgents.custom.outputJsonPathLabel': 'JSON path for the reply',
-  'settings.subAgents.custom.outputJsonPathHint':
-    'Dotted path from the top-level JSON object (e.g. message.content).',
-  'settings.subAgents.custom.outputJsonPathPlaceholder': 'result',
-  'settings.subAgents.custom.outputFileArgTemplateLabel': 'Reply-file flag (optional)',
-  'settings.subAgents.custom.outputFileArgTemplateHint':
-    'If the CLI can write the reply to a file, pass this flag with {path} substituted in.',
-  'settings.subAgents.custom.outputFileArgTemplatePlaceholder': '--output-last-message {path}',
-  'settings.subAgents.custom.readOutputFileLabel': 'Read the reply from the generated file',
-  'settings.subAgents.custom.readOutputFileHint':
-    'Recommended when the CLI writes the final message to the file above.',
-  'settings.subAgents.custom.deleteOutputFileLabel': 'Delete the reply file after reading',
-  'settings.subAgents.custom.deleteOutputFileHint': 'Keep the temporary workspace clean.',
-  'settings.subAgents.custom.tokenPathsTitle': 'Token usage (optional)',
-  'settings.subAgents.custom.tokenPathsHint':
-    'If the CLI emits token counts in its JSON response, enter their paths so usage can be recorded.',
-  'settings.subAgents.custom.outputInputTokensLabel': 'Input tokens path',
-  'settings.subAgents.custom.outputInputTokensPlaceholder': 'usage.prompt_tokens',
-  'settings.subAgents.custom.outputOutputTokensLabel': 'Output tokens path',
-  'settings.subAgents.custom.outputOutputTokensPlaceholder': 'usage.completion_tokens',
-  'settings.subAgents.custom.outputTotalTokensLabel': 'Total tokens path',
-  'settings.subAgents.custom.outputTotalTokensPlaceholder': 'usage.total_tokens',
-
-  'settings.subAgents.custom.envTitle': 'Environment',
-  'settings.subAgents.custom.envDescription':
-    'Fixed env vars set at launch, or names inherited from DotCraft\u2019s own environment.',
-  'settings.subAgents.custom.envLabel': 'Fixed env vars',
-  'settings.subAgents.custom.envHint': 'Key/value pairs merged into the launch environment.',
-  'settings.subAgents.custom.envKeyPlaceholder': 'KEY',
-  'settings.subAgents.custom.envValuePlaceholder': 'value',
-  'settings.subAgents.custom.envPassthroughLabel': 'Passthrough env vars',
-  'settings.subAgents.custom.envPassthroughHint':
-    'Names of env vars to inherit from the DotCraft process.',
-  'settings.subAgents.custom.envPassthroughPlaceholder': 'OPENAI_API_KEY',
-
-  'settings.subAgents.custom.limitsTitle': 'Limits',
-  'settings.subAgents.custom.limitsDescription':
-    'Keep delegated runs from hanging or producing oversized output.',
-  'settings.subAgents.custom.timeoutLabel': 'Timeout (seconds)',
-  'settings.subAgents.custom.timeoutHint':
-    'Cancel the CLI if it runs longer than this.',
-  'settings.subAgents.custom.maxOutputBytesLabel': 'Max output bytes',
-  'settings.subAgents.custom.maxOutputBytesHint':
-    'Cap on how much stdout DotCraft will capture (default 1 MiB).',
-
-  'settings.subAgents.custom.advancedTitle': 'Advanced',
-  'settings.subAgents.custom.advancedDescription':
-    'Leave the defaults unless you know you need these.',
-  'settings.subAgents.custom.advancedToggleShow': 'Show advanced options',
-  'settings.subAgents.custom.advancedToggleHide': 'Hide advanced options',
-  'settings.subAgents.custom.trustLevelLabel': 'Trust level',
-  'settings.subAgents.custom.trustLevelHint':
-    'Tells DotCraft how much to trust the CLI before prompting for approval.',
-  'settings.subAgents.custom.trustLevel.inherit': 'Inherit default',
-  'settings.subAgents.custom.trustLevel.trusted': 'Trusted (skip most prompts)',
-  'settings.subAgents.custom.trustLevel.prompt': 'Prompt (default)',
-  'settings.subAgents.custom.trustLevel.restricted': 'Restricted (no writes without prompt)',
-  'settings.subAgents.custom.permissionMappingTitle': 'Approval mode arguments',
-  'settings.subAgents.custom.permissionMappingHint':
-    'Extra arguments appended for each DotCraft approval mode.',
-  'settings.subAgents.custom.permissionMappingInteractive': 'Interactive',
-  'settings.subAgents.custom.permissionMappingAutoApprove': 'Auto approve',
-  'settings.subAgents.custom.permissionMappingRestricted': 'Restricted',
-  'settings.subAgents.custom.permissionMappingPlaceholder': '--mode ask --trust',
-  'settings.subAgents.custom.supportsResumeLabel': 'Support resumable external sessions',
-  'settings.subAgents.custom.supportsResumeHint':
-    'Enable this only when the CLI exposes a stable session id and a non-interactive resume command.',
-  'settings.subAgents.custom.resumeArgTemplateLabel': 'Resume argument template',
-  'settings.subAgents.custom.resumeArgTemplateHint':
-    'Arguments inserted before approval flags when DotCraft resumes a saved session. Use {sessionId}.',
-  'settings.subAgents.custom.resumeArgTemplatePlaceholder': '--resume {sessionId}',
-  'settings.subAgents.custom.resumeSessionIdJsonPathLabel': 'Session id JSON path',
-  'settings.subAgents.custom.resumeSessionIdJsonPathHint':
-    'Optional when stdout is JSON and the session id lives at a stable path.',
-  'settings.subAgents.custom.resumeSessionIdJsonPathPlaceholder': 'session_id',
-  'settings.subAgents.custom.resumeSessionIdRegexLabel': 'Session id regex',
-  'settings.subAgents.custom.resumeSessionIdRegexHint':
-    'Optional when stdout is not a single JSON object. Capture the id with a named group sessionId or the first group.',
-  'settings.subAgents.custom.resumeSessionIdRegexPlaceholder': '"thread_id"\\s*:\\s*"(?<sessionId>[^"]+)"',
-  'settings.subAgents.custom.resumeWorkspaceToggleOff':
-    'The workspace-wide resume switch is currently off, so DotCraft will still launch fresh sessions until you enable it above.',
-  'settings.subAgents.custom.sanitizationRulesLabel': 'Sanitization rules (JSON)',
-  'settings.subAgents.custom.sanitizationRulesHint':
-    'Optional JSON object passed to the runtime for output sanitization.',
-  'settings.subAgents.custom.sanitizationRulesPlaceholder': '{ "redactEmails": true }',
 
   // Agent Builder chat
   'agentBuilder.chat.createTitle': "Describe the agent you want",
@@ -4794,23 +4644,7 @@ export const MESSAGES_EN = {
   'agentBuilder.toolbar.create': 'Create',
 
   // Validation
-  'settings.subAgents.validation.nameRequired': 'A name is required.',
-  'settings.subAgents.validation.binRequired': 'The binary path is required.',
-  'settings.subAgents.validation.inputArgTemplateRequired':
-    'An argument template is required when the input mode is templated.',
-  'settings.subAgents.validation.inputEnvKeyRequired':
-    'An env variable name is required when the input mode is env.',
-  'settings.subAgents.validation.outputJsonPathRequired':
-    'A JSON path is required when the output format is JSON.',
-  'settings.subAgents.validation.resumeArgTemplateRequired':
-    'A resume argument template is required when resumable sessions are enabled.',
-  'settings.subAgents.validation.resumeSessionExtractorRequired':
-    'Provide either a session id JSON path or a session id regex when resumable sessions are enabled.',
   'settings.subAgents.validation.integerRequired': 'Numeric fields must be whole numbers.',
-  'settings.subAgents.validation.sanitizationRulesObject':
-    'Sanitization rules must be a JSON object.',
-  'settings.subAgents.validation.sanitizationRulesJson':
-    'Sanitization rules must be valid JSON.',
   'mcp.elicitation.title': 'MCP server request',
   'mcp.elicitation.message': '{{server}} needs additional information.',
   'mcp.elicitation.unsupported': 'This request uses an unsupported or unsafe schema.',

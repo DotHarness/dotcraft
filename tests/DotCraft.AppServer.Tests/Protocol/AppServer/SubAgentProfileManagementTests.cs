@@ -64,6 +64,24 @@ public sealed class SubAgentProfileManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task List_PicksUpProfilesWrittenDirectlyToTheConfigFile()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+        await ListAsync(harness);
+        Assert.DoesNotContain(harness.Monitor.Current.SubAgentProfiles, profile => profile.Name == "my-cli");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(_workspaceCraftPath, "config.json"),
+            "{\"SubAgentProfiles\":{\"my-cli\":{\"runtime\":\"cli-oneshot\",\"bin\":\"my-cli\",\"inputMode\":\"stdin\",\"outputFormat\":\"text\"}}}");
+
+        var listed = Profiles(await ListAsync(harness));
+        Assert.Equal("my-cli", listed["my-cli"].GetProperty("definition").GetProperty("bin").GetString());
+        var live = Assert.Single(harness.Monitor.Current.SubAgentProfiles, profile => profile.Name == "my-cli");
+        Assert.Equal("stdin", live.InputMode);
+    }
+
+    [Fact]
     public async Task SetEnabled_PersistsDisabledProfilesButRejectsTheProtectedDefault()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
