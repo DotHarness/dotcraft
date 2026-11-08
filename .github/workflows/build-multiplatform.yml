@@ -63,6 +63,7 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -188,6 +189,14 @@ jobs:
       run: npm run build:all
       working-directory: sdk/typescript
 
+    - name: Restore companion archives
+      if: runner.os != 'Linux'
+      id: companion-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: cache/downloads
+        key: companion-archives-v1-${{ matrix.runtime_id }}-${{ hashFiles('sdk/typescript/packages/channel-feishu/official-cli/lark-cli.lock.json', 'desktop/src/main/computerUse/cua-driver.lock.json') }}
+
     - name: Stage Feishu CLI companion for desktop
       if: runner.os != 'Linux'
       run: >-
@@ -209,6 +218,13 @@ jobs:
     - name: Stage computer use driver for desktop - Windows
       if: runner.os == 'Windows'
       run: node desktop/scripts/stage-cua-driver.mjs --platform win32 --arch ${{ matrix.companion_arch }}
+
+    - name: Save companion archives
+      if: runner.os != 'Linux' && steps.companion-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: cache/downloads
+        key: ${{ steps.companion-cache.outputs.cache-primary-key }}
 
     - name: Stage embedded binary for desktop - macOS
       if: runner.os == 'macOS'
