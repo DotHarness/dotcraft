@@ -15,7 +15,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 
 `--workspace` accepts either the workspace root or its `.craft` directory. When omitted, the current directory is used. This mode ignores `DashBoard.Enabled`, but reuses `DashBoard.Host`, `DashBoard.Port`, `Username`, and `Password` from config unless `--host` or `--port` override them.
 
-Read-only mode only exposes trace, session listing, token usage, tools, runtime metadata, and event stream endpoints. It does not register Settings write endpoints, Dreams endpoints, Automations endpoints, or session/thread deletion endpoints, and it opens existing `state.db` data without creating or migrating workspace state. The command exits with an error when `.craft/state.db` does not exist.
+Read-only mode only exposes trace, session listing, token usage, tools, runtime metadata, and event stream endpoints. It does not register Settings write endpoints, Dreams endpoints, Automations endpoints, or session/thread deletion endpoints. It reads the workspace's existing `state.db` for diagnostics and the user-owned `usage.db` for usage filtered to that workspace, without modifying either database. The command exits with an error when `.craft/state.db` does not exist. A missing statistics database means no recorded usage.
 
 ## Trace event types
 
@@ -199,11 +199,11 @@ When thread or trace cleanup fails, the request still succeeds with `partial: tr
 
 ### `DELETE /dashboard/api/sessions/{sessionKey}`
 
-Deletes one Dashboard session record.
+Deletes one Dashboard session record. Historical usage statistics are retained.
 
 ### `DELETE /dashboard/api/sessions`
 
-Clears Dashboard session records.
+Clears Dashboard session records without clearing historical usage statistics.
 
 ### `GET /dashboard/api/events/stream`
 

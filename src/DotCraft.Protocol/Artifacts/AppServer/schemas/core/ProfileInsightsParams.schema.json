@@ -13,6 +13,16 @@
           "type": "null"
         }
       ]
+    },
+    "tzOffsetMinutes": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true

@@ -6,13 +6,16 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { openWorkspaceFileViewer } from './conversationDeepLink'
 import { openWorkspaceThread } from './openWorkspaceThread'
 import { toAbsoluteWorkspacePath } from './workspacePaths'
+import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
 
-export async function openThread(threadId: string, workspacePath?: string): Promise<void> {
-  const foregroundWorkspacePath = useWorkspaceProjectsStore.getState().foregroundWorkspacePath
+export async function openThread(threadId: string, workspacePath?: string, options: { includeArchived?: boolean } = {}): Promise<void> {
+  const foreground = useWorkspaceProjectsStore.getState()
+  const foregroundWorkspacePath = isRemoteProjectKey(foreground.foregroundProjectId) ? '' : foreground.foregroundWorkspacePath
   await openWorkspaceThread({
     threadId,
     workspacePath,
     foregroundWorkspacePath,
+    includeArchived: options.includeArchived,
     switchWorkspace: (nextPath) => window.api.workspace.switch(nextPath),
     setPending: (payload) => useUIStore.getState().setPendingProjectThreadOpen(payload),
     clearPending: (projectKey, pendingThreadId) =>

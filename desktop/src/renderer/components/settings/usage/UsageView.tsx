@@ -1,11 +1,9 @@
-import { useEffect, useMemo, type JSX } from 'react'
+import { useMemo, type JSX } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
-import { useConnectionStore } from '../../../stores/connectionStore'
+import { useUsageConnectionStore } from '../../../stores/usageConnectionStore'
 import { usePluginStore } from '../../../stores/pluginStore'
 import { useUsageStore, USAGE_RANGE_DAYS, type UsageRange } from '../../../stores/usageStore'
 import { addLocalDays, localDayKeys } from '../../../utils/localDay'
-import { OpenInBrowserIcon } from '../../ui/AppIcons'
-import { IconButton } from '../../ui/IconButton'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { settingsPlaceholderStyle } from '../settingsTypography'
@@ -13,11 +11,12 @@ import { ToolActivityCharts } from './ToolActivityCharts'
 import { TopThreadsTable } from './TopThreadsTable'
 import { UsageHistoryChart } from './UsageHistoryChart'
 import styles from './usage.module.css'
+import { useUsageRefresh } from './useUsageRefresh'
 
-export function UsageView({ dashboardUrl }: { dashboardUrl: string | null }): JSX.Element {
+export function UsageView(): JSX.Element {
   const t = useT()
   const locale = useLocale()
-  const capable = useConnectionStore((s) => s.capabilities?.usageTelemetry === true)
+  const capable = useUsageConnectionStore((s) => s.capable !== false)
   const ranges = useUsageStore((s) => s.ranges)
   const historyGroup = useUsageStore((s) => s.historyGroup)
   const historyMetric = useUsageStore((s) => s.historyMetric)
@@ -32,9 +31,7 @@ export function UsageView({ dashboardUrl }: { dashboardUrl: string | null }): JS
   const load = useUsageStore((s) => s.load)
   const plugins = usePluginStore((s) => s.plugins)
 
-  useEffect(() => {
-    if (capable) void load()
-  }, [capable, load])
+  useUsageRefresh(load)
 
   const dayKeys = useMemo((): Record<UsageRange, string[]> => {
     const today = new Date()
@@ -103,19 +100,6 @@ export function UsageView({ dashboardUrl }: { dashboardUrl: string | null }): JS
           />
         </div>
       )}
-
-      <div className={styles.footer}>
-        <span>{dashboardUrl ?? t('settings.usage.dashboardUnavailable')}</span>
-        <IconButton
-          icon={<OpenInBrowserIcon size={15} />}
-          label={t('settings.openDashboard')}
-          tooltipLabel={t('settings.openDashboard')}
-          onClick={() => {
-            if (dashboardUrl) void window.api.shell.openExternal(dashboardUrl)
-          }}
-          disabled={!dashboardUrl}
-        />
-      </div>
     </SettingsPanelShell>
   )
 }

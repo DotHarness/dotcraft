@@ -869,6 +869,7 @@ public sealed partial class SessionService
                 {
                     traceCollector?.BindThreadMainSession(threadId);
                 }
+                ObserveUsageThread(thread);
                 RecordPromptSuggestionOutcome(thread, turn, started: true);
                 TracingChatClient.CurrentSessionKey = threadId;
                 TracingChatClient.ResetCallState(threadId);

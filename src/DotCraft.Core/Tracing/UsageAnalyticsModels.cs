@@ -165,6 +165,7 @@ public sealed record UsageHistory(
 
 /// <summary>One root thread's lifetime usage (spec §27A.4); subagent turns are rolled into the root.</summary>
 public sealed record UsageThreadUsage(
+    string WorkspacePath,
     string ThreadId,
     string? Title,
     string OriginChannel,
@@ -196,6 +197,7 @@ public sealed record UsageThreadBreakdownGroup(
 }
 
 public sealed record UsageThreadBreakdown(
+    string WorkspacePath,
     string ThreadId,
     int Turns,
     long InputTokens,
@@ -209,7 +211,7 @@ public sealed record UsageThreadBreakdown(
     public double CacheHitRate => InputTokens > 0 ? CachedInputTokens / (double)InputTokens : 0;
 }
 
-/// <summary>Range-scoped workspace aggregate served by <c>usage/summary</c> (spec §27A.2).</summary>
+/// <summary>Range-scoped user aggregate served by <c>usage/summary</c> (spec §27A.2).</summary>
 public sealed class UsageAnalyticsSummary
 {
     public int ThreadCount { get; init; }

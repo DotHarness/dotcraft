@@ -66,6 +66,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   let disposed = false
   let refreshTimer: ReturnType<typeof globalThis.setTimeout> | null = null
   let threadId = host.session.threadId
+  let workspacePath = host.session.workspacePath
   let activeTurnId: string | null = null
   let liveTotalsSeen = false
   const meter = new ThroughputMeter()
@@ -90,10 +91,11 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
 
   async function refreshThreadUsage(): Promise<void> {
     const requestedThreadId = threadId
-    if (disposed || !requestedThreadId) return
+    const requestedWorkspacePath = workspacePath
+    if (disposed || !requestedThreadId || !requestedWorkspacePath) return
     try {
-      const result = await host.appServer.request('usage/thread', { threadId: requestedThreadId })
-      if (disposed || threadId !== requestedThreadId) return
+      const result = await host.appServer.request('usage/thread', { workspacePath: requestedWorkspacePath, threadId: requestedThreadId })
+      if (disposed || threadId !== requestedThreadId || workspacePath !== requestedWorkspacePath) return
       update({ threadUsage: toThreadUsage(result) })
       if (!liveTotalsSeen) showTotals(toSessionTotals(result))
     } catch {
@@ -113,8 +115,9 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   void refreshThreadUsage()
 
   const stopSession = host.session.onChange((session) => {
-    if (session.threadId === threadId) return
+    if (session.threadId === threadId && session.workspacePath === workspacePath) return
     threadId = session.threadId
+    workspacePath = session.workspacePath
     activeTurnId = null
     liveTotalsSeen = false
     meter.startTurn()

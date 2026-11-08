@@ -1,8 +1,12 @@
 import { useState, type JSX } from 'react'
 import { useLocale } from '../../../contexts/LocaleContext'
 import type { LoadState, UsageRange, UsageThreadWire } from '../../../stores/usageStore'
-import { useThreadStore } from '../../../stores/threadStore'
-import { useUIStore } from '../../../stores/uiStore'
+import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
+import { isDefaultChatWorkspacePathCandidate } from '../../../../shared/defaultChatWorkspace'
+import { sameWorkspaceProjectKey, normalizeWorkspaceProjectKey } from '../../../../shared/workspaceProjectKey'
+import { openThread } from '../../../utils/desktopNavigation'
+import { projectLabel } from '../../conversation/workspaceProjectMenu'
+import { addToast } from '../../../stores/toastStore'
 import { formatCompactCount } from '../../../utils/formatCompactCount'
 import { formatUsd } from '../../../utils/formatUsd'
 import { Button } from '../../ui/Button'
@@ -23,13 +27,14 @@ interface TopThreadsTableProps {
   t: TFn
 }
 
-function openThread(threadId: string): void {
-  useUIStore.getState().setActiveMainView('conversation')
-  useThreadStore.getState().setActiveThreadId(threadId)
-}
-
 export function TopThreadsTable({ state, range, onRangeChange, formatDateTime, onRetry, t }: TopThreadsTableProps): JSX.Element {
   const locale = useLocale()
+  const projects = useWorkspaceProjectsStore((state) => state.projects)
+  const workspaceName = (path: string): string => {
+    if (isDefaultChatWorkspacePathCandidate(path)) return t('chatsRail.title')
+    const project = projects.find((item) => item.kind !== 'remote' && sameWorkspaceProjectKey(item.path, path))
+    return project ? projectLabel(project) : path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
+  }
   const [expanded, setExpanded] = useState(false)
   const rows = state.data ?? []
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS)
@@ -62,16 +67,21 @@ export function TopThreadsTable({ state, range, onRangeChange, formatDateTime, o
           </thead>
           <tbody>
             {visible.map((thread) => (
-              <tr key={thread.threadId}>
+              <tr key={`${normalizeWorkspaceProjectKey(thread.workspacePath)}:${thread.threadId}`}>
                 <td className={styles.threadCell}>
                   <button
                     type="button"
                     className={styles.threadButton}
                     title={thread.title ?? thread.threadId}
-                    onClick={() => openThread(thread.threadId)}
+                    onClick={() => void openThread(thread.threadId, thread.workspacePath, { includeArchived: thread.archived }).catch(() => {
+                      addToast(t('settings.workspace.switchFailed', { name: workspaceName(thread.workspacePath) }), 'error')
+                    })}
                   >
                     {thread.title?.trim() || t('settings.usage.threads.untitled')}
                   </button>
+                  <span className={styles.threadWorkspace} title={thread.workspacePath}>
+                    {workspaceName(thread.workspacePath)}
+                  </span>
                 </td>
                 <td className={styles.threadMeta}>{usageKeyLabel(t, 'surface', thread.originChannel)}</td>
                 <td className={styles.numeric}>{thread.turns.toLocaleString()}</td>

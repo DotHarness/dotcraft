@@ -41,7 +41,7 @@ public static class SessionServiceFactory
             sp.GetRequiredService<SessionGate>(),
             sp.GetService<HookRunner>(),
             sp.GetService<TraceCollector>(),
-            sp.GetService<TokenUsageStore>(),
+            sp.GetService<UsageStatisticsStore>(),
             logger: loggerFactory?.CreateLogger<SessionService>(),
             approvalStore: sp.GetService<ApprovalStore>(),
             toolProfileRegistry: sp.GetService<IToolProfileRegistry>(),

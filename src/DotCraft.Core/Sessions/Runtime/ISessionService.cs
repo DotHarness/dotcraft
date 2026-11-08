@@ -183,9 +183,6 @@ public interface ISessionService
         bool includeSubAgents = false,
         ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity);
 
-    /// <summary>Counts top-level Threads in a workspace, including archived Threads.</summary>
-    Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default);
-
     /// <summary>
     /// Returns an excerpt of the first user or agent message in a Thread's rollout that contains the term, ignoring case,
     /// or null when none does.

@@ -219,7 +219,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `agentProfileManagement` | `agent/profiles/*`, including builder drafts and Agent package methods. |
 | `subAgentManagement` | `subagent/profiles/*`, `subagent/settings/update`. |
 | `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`, `subagent/board/*`. |
-| `usageTelemetry` | `usage/*` and `profile/insights`. Absent when tracing is disabled. |
+| `usageTelemetry` | User-level `usage/*` and `profile/insights` queries. Available when the host provides the statistics service, independently of the current workspace's trace collection switch. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
 | `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `dynamicWorkflows`). |
 
@@ -2506,9 +2506,13 @@ Params: optional `includeArchived`. Result `{ runs }`.
 
 ### 27A.1 Scope
 
-These methods expose workspace usage analytics (overviews, history charts, tool activity, top threads). Gated by `capabilities.usageTelemetry`, which is `false` when tracing is disabled (the usage fact table and trace store are not written); methods then return `-32601`.
+These methods expose usage analytics across all workspaces sharing the host's user data root (`UserDataPath`; `~/.craft` in the official host). `capabilities.usageTelemetry` means this user-level statistics service is available; methods return `-32601` when it is absent. `Tracing.Enabled` controls collection in each workspace, not access to previously collected statistics.
 
-Usage facts are recorded once per completed Turn: timestamp, origin channel, root thread, model, reasoning effort, LLM call count, token breakdown, and cost. Tool calls, skill references, and errors come from persisted trace events. Every aggregate buckets a fact by its own timestamp.
+Statistics are stored in the user-owned `usage.db`, separately from workspace conversations and diagnostic traces. Statistics cover facts recorded by this service. Usage facts are recorded once per completed Turn: timestamp, workspace identity, origin channel, thread and root thread, model, reasoning effort, speed, LLM call count, token breakdown, and cost. Activity facts retain only the fields needed for response, tool, skill, error, compaction, and duration statistics. Every aggregate buckets a fact by its own timestamp.
+
+Archiving or permanently deleting a conversation, deleting its descendants, or clearing diagnostic traces never removes these historical facts. Conversation titles belong only to the live conversation index and are removed with that index entry; messages, prompts, tool arguments, and tool results are not retained in statistics.
+
+Desktop's Personal Usage and Profile use one local statistics connection independently of the foreground workspace, including while viewing a remote project. Local and remote hosts keep separate statistics. Top chats ranks existing conversations and shows each conversation's workspace beneath its title; opening a row switches to that workspace. Desktop opens a workspace's Dashboard through the application menu or its per-workspace tray entry.
 
 #### Cost
 
@@ -2520,7 +2524,7 @@ A fact's cost is in USD and covers the Turn's own model requests. A request uses
 
 #### Surface attribution
 
-The `surface` dimension is the origin channel of the **root** thread: SubAgent facts roll up under the thread that spawned them. Facts whose root thread no longer exists use their own origin channel.
+The `surface` dimension is the origin channel of the **root** thread, captured when the fact is recorded: SubAgent facts roll up under the thread that spawned them. Deleting the root thread does not change the recorded attribution.
 
 ### 27A.2 `usage/summary`
 
@@ -2560,19 +2564,23 @@ Groups are ranked by range total; the leading `topLimit` keep their keys on ever
 
 Params: the date-range fields and `limit` (default 5, clamped 1-50). A thread is active in range when its most recent completed Turn falls inside it.
 
-Result `{ threads }`: root threads (SubAgents rolled up) ordered by lifetime `totalTokens`, then `lastActiveAt`, each with `threadId`, `title` (display name, else first user message; omitted when neither exists), `originChannel`, `lastActiveAt`, lifetime `turns` and token totals, `cacheHitRate`, `costUsd` (sum over priced Turns; omitted when none is priced), and `archived`.
+Result `{ threads }`: existing root threads across the user statistics store (SubAgents rolled up), including archived threads, ordered by lifetime `totalTokens`, then `lastActiveAt`. Each row includes `workspacePath`, `threadId`, `title` (display name; omitted when absent), `originChannel`, `lastActiveAt`, lifetime `turns` and token totals, `cacheHitRate`, `costUsd` (sum over priced Turns; omitted when none is priced), and `archived`. Lifetime refers to facts collected by this statistics store. Deleted threads are omitted from this ranking without removing their contribution to summaries, histories, or Profile.
 
 ### 27A.5 `usage/thread`
 
-Params `threadId` (root thread, required; blank → `-32602`). Result: lifetime `turns`, token totals, `cacheHitRate`, and `costUsd` across the thread and its SubAgents, plus `groups`: one entry per distinct model × reasoning effort × speed (dimensions omitted when the Turns carry none) with its own `costUsd`, ordered by `totalTokens`; empty without completed Turns. `costUsd` follows `usage/threads`.
+Params `workspacePath` and `threadId` (root thread; both required, blank → `-32602`) identify the root thread's statistics. Result includes `workspacePath`, `threadId`, lifetime `turns`, token totals, `cacheHitRate`, and `costUsd` across the thread and its SubAgents, plus `groups`: one entry per distinct model × reasoning effort × speed (dimensions omitted when the Turns carry none) with its own `costUsd`, ordered by `totalTokens`; empty without completed Turns. `costUsd` follows `usage/threads`.
 
 ### 27A.6 `profile/insights`
 
-Workspace activity insights. Params: `topSkills` (default 5, clamped 1-20).
+User-level lifetime activity insights. Params: `topSkills` (default 5, clamped 1-20) and `tzOffsetMinutes` (same semantics as usage history).
 
-**Result**: `topModel` and `topReasoning` (`{ key, count, total }`, where `count / total` is the share; omitted when none recorded), `skillsExplored` (distinct skills referenced), `totalSkillsUsed`, `totalThreads` (non-internal threads, active and archived), `longestTaskMs` (longest single Turn), and `skills` (most-referenced, by count then name, with `pluginId` for plugin skills).
+**Result**: `lifetimeTokens`, `peakDailyTokens`, `currentStreakDays`, `longestStreakDays`, `topModel` and `topReasoning` (`{ key, count, total }`, where `count / total` is the share; omitted when none recorded), `skillsExplored` (distinct skills referenced), `totalSkillsUsed`, `totalThreads`, `longestTaskMs` (longest single Turn), and `skills` (most-referenced, by count then name, with `pluginId` for plugin skills).
 
-Models are keyed by model id only (provider not distinguished), counted from response trace events. A skill use is counted only when the agent loads it through `SkillView`; skills injected otherwise (for example `always: true`) are not counted.
+The lifetime summary uses all collected history, not the limited history window displayed by the activity heatmap. A day is active when its token total is positive. The current streak starts today, or yesterday if today is not active; the longest streak covers all recorded local days. Empty numeric metrics are zero.
+
+`totalThreads` counts persistent non-internal, non-SubAgent conversations first created or used while collection is enabled, including subsequently archived or deleted conversations. Reading or updating metadata does not register a conversation; ephemeral threads do not contribute to the count.
+
+Models are keyed by model id only (provider not distinguished), counted from response activity facts. A skill use is counted only when the agent loads it through `SkillView`; skills injected otherwise (for example `always: true`) are not counted.
 
 ## 28. Protocol Ownership
 

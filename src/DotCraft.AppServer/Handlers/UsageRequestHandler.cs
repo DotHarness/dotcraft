@@ -1,14 +1,11 @@
 using DotCraft.Tracing;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
 /// <summary>Handles the <c>usage/*</c> and <c>profile/insights</c> wire methods.</summary>
 internal sealed class UsageRequestHandler(
-    UsageAnalyticsService? usageAnalytics,
-    TraceStore? traceStore,
-    ISessionService sessionService) : IAppServerDomainHandler
+    UsageAnalyticsService? usageAnalytics) : IAppServerDomainHandler
 {
     private const int DefaultThreadLimit = 5;
     private const int MaxThreadLimit = 50;
@@ -118,6 +115,7 @@ internal sealed class UsageRequestHandler(
             Threads = threads
                 .Select(thread => new Contract.UsageThreadRow
                 {
+                    WorkspacePath = thread.WorkspacePath,
                     ThreadId = thread.ThreadId,
                     Title = thread.Title == null ? default : Protocol.Optional<string?>.FromValue(thread.Title),
                     OriginChannel = thread.OriginChannel,
@@ -145,9 +143,13 @@ internal sealed class UsageRequestHandler(
         if (string.IsNullOrEmpty(threadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");
 
-        var usage = analytics.GetThreadUsage(threadId);
+        var workspacePath = request.Params.WorkspacePath.IsSet ? request.Params.WorkspacePath.Value?.Trim() : null;
+        if (string.IsNullOrEmpty(workspacePath) || !Path.IsPathFullyQualified(workspacePath))
+            throw AppServerErrors.InvalidParams("'workspacePath' must be an absolute workspace path.");
+        var usage = analytics.GetThreadUsage(workspacePath, threadId);
         return Task.FromResult(AppServerTypedResult<Contract.UsageThreadResult>.FromResult(new Contract.UsageThreadResult
         {
+            WorkspacePath = usage.WorkspacePath,
             ThreadId = usage.ThreadId,
             Turns = usage.Turns,
             TotalTokens = usage.TotalTokens,
@@ -179,37 +181,34 @@ internal sealed class UsageRequestHandler(
     private static Protocol.Optional<double?> OptionalCost(double? value) =>
         value is null ? default : Protocol.Optional<double?>.FromValue(value);
 
-    private async Task<AppServerTypedResult<Contract.ProfileInsightsResult>> HandleProfileInsightsAsync(
+    private Task<AppServerTypedResult<Contract.ProfileInsightsResult>> HandleProfileInsightsAsync(
         AppServerTypedRequest<Contract.ProfileInsightsParams> request,
         CancellationToken ct)
     {
-        if (traceStore == null)
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ProfileInsights);
+        var analytics = RequireAnalytics(Protocol.AppServer.AppServerMethodNames.ProfileInsights);
         var p = request.Params;
-        var topSkills = Math.Clamp(p.TopSkills.IsSet ? p.TopSkills.Value ?? 5 : 5, 1, 20);
-
-        var insights = traceStore.GetProfileInsights(topSkills);
-
-        // Workspace-scoped count (not identity-scoped): the Profile page reflects all threads in
-        // this workspace, regardless of which channel/user (e.g. channelContext) created them.
-        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(ct);
-
-        return AppServerTypedResult<Contract.ProfileInsightsResult>.FromResult(new Contract.ProfileInsightsResult
+        var insights = analytics.GetProfileInsights(
+            p.TopSkills.IsSet ? p.TopSkills.Value ?? 5 : 5,
+            p.TzOffsetMinutes.IsSet ? p.TzOffsetMinutes.Value ?? 0 : 0);
+        return Task.FromResult(AppServerTypedResult<Contract.ProfileInsightsResult>.FromResult(new Contract.ProfileInsightsResult
         {
+            LifetimeTokens = insights.LifetimeTokens,
+            PeakDailyTokens = insights.PeakDailyTokens,
+            CurrentStreakDays = insights.CurrentStreakDays,
+            LongestStreakDays = insights.LongestStreakDays,
             TopModel = ToRankedMetric(insights.TopModel),
             TopReasoning = ToRankedMetric(insights.TopReasoning),
             SkillsExplored = insights.DistinctSkillCount,
             TotalSkillsUsed = insights.TotalSkillCount,
-            TotalThreads = totalThreads,
-            LongestTaskMs = traceStore.GetLongestTurnDurationMs(),
+            TotalThreads = insights.TotalThreads,
+            LongestTaskMs = insights.LongestTaskMs,
             Skills = insights.TopSkills.Select(MapSkillUsage).ToList()
-        });
+        }));
     }
 
     private UsageAnalyticsService RequireAnalytics(string method) =>
         usageAnalytics ?? throw AppServerErrors.MethodNotFound(method);
 
-    /// <summary>Maps an aggregated skill bucket to wire form using the plugin id recorded at reference time.</summary>
     private static Contract.SkillUsage MapSkillUsage(SkillUsageBucket bucket)
     {
         var pluginId = ToolUsageSource.PluginIdOf(bucket.ToolSource);

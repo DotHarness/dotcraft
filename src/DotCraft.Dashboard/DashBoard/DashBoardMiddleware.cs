@@ -38,7 +38,7 @@ public static class DashBoardMiddleware
         this IEndpointRouteBuilder endpoints,
         TraceStore traceStore,
         DotCraftPaths paths,
-        TokenUsageStore? tokenUsageStore = null,
+        UsageStatisticsStore? tokenUsageStore = null,
         IEnumerable<IOrchestratorSnapshotProvider>? orchestratorProviders = null,
         IReadOnlyList<ConfigSchemaSection>? configSchema = null,
         SessionPersistenceService? persistence = null,

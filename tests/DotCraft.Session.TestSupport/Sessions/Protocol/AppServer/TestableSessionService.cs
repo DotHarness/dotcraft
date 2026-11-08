@@ -442,14 +442,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             .ToList();
     }
 
-    public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default)
-    {
-        var index = await _store.LoadIndexAsync(ct);
-        return index.Count(s =>
-            !ThreadVisibility.IsInternal(s)
-            && !(string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
-    }
+
 
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
     {

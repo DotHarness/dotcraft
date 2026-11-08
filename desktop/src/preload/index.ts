@@ -560,6 +560,10 @@ const api = {
       return appServerDelivery.request(method, params, timeoutMs, options)
     },
 
+    getUsageConnection(): Promise<import('../shared/usageStatistics').UsageStatisticsConnection> {
+      return ipcRenderer.invoke('appserver:get-usage-connection')
+    },
+
     getConnectionKey(): Promise<string | null> {
       return ipcRenderer.invoke('appserver:get-connection-key')
     },

@@ -43,7 +43,7 @@ public sealed class TokenUsageRecord
 
     public string? ThreadId { get; init; }
 
-    public string? SessionKey { get; init; }
+    public string? TurnId { get; init; }
 
     /// <summary>Root thread this turn rolls up into; equals <see cref="ThreadId"/> for top-level threads.</summary>
     public string? RootThreadId { get; init; }

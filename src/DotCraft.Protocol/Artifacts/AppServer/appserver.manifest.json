@@ -14770,6 +14770,13 @@
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "tzOffsetMinutes",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
         }
       ],
       "variants": []
@@ -14783,7 +14790,39 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "currentStreakDays",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "lifetimeTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "longestStreakDays",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "longestTaskMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "peakDailyTokens",
           "type": "integer",
           "required": false,
           "nullable": false,
@@ -27063,6 +27102,13 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "workspacePath",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -27142,6 +27188,13 @@
         {
           "name": "turns",
           "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspacePath",
+          "type": "string",
           "required": false,
           "nullable": false,
           "const": null
@@ -27245,6 +27298,13 @@
         {
           "name": "turns",
           "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspacePath",
+          "type": "string",
           "required": false,
           "nullable": false,
           "const": null

@@ -4,6 +4,14 @@
   gap: 40px;
 }
 
+.error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--error);
+  font-size: var(--type-secondary-size);
+}
+
 .column {
   display: flex;
   flex-direction: column;

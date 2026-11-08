@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type CSSProperties, type JSX } from 'react'
+import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { Pencil } from 'lucide-react'
 import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
-import { useConnectionStore } from '../../stores/connectionStore'
-import { useProfileStore, type UsageDayWire } from '../../stores/profileStore'
+import { useUsageConnectionStore } from '../../stores/usageConnectionStore'
+import { useProfileStore, type ProfileInsightsWire, type UsageDayWire } from '../../stores/profileStore'
+import { useUsageRefresh } from './usage/useUsageRefresh'
 import { formatCompactCount } from '../../utils/formatCompactCount'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { GitHubIcon } from '../ui/AppIcons'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Skeleton } from '../ui/Skeleton'
@@ -26,7 +28,7 @@ function openGithubProfile(username: string): void {
 
 export function ProfileView(): JSX.Element {
   const t = useT()
-  const capable = useConnectionStore((s) => s.capabilities?.usageTelemetry === true)
+  const capable = useUsageConnectionStore((s) => s.capable !== false)
 
   const days = useProfileStore((s) => s.days)
   const loading = useProfileStore((s) => s.loading)
@@ -40,6 +42,8 @@ export function ProfileView(): JSX.Element {
   const insightsLoading = useProfileStore((s) => s.insightsLoading)
   const insightsLoadedOnce = useProfileStore((s) => s.insightsLoadedOnce)
   const fetchInsights = useProfileStore((s) => s.fetchInsights)
+  const insightsError = useProfileStore((s) => s.insightsError)
+  const load = useProfileStore((s) => s.load)
 
   const [mode, setMode] = useState<HeatmapMode>('daily')
   const [editing, setEditing] = useState(false)
@@ -48,15 +52,10 @@ export function ProfileView(): JSX.Element {
     void loadIdentity()
   }, [loadIdentity])
 
-  useEffect(() => {
-    if (capable) {
-      void fetchHistory()
-      void fetchInsights()
-    }
-  }, [capable, fetchHistory, fetchInsights])
+  useUsageRefresh(load)
 
   const editAction = editing ? undefined : (
-    <Button variant="ghost" iconLeft={<Pencil size={14} />} onClick={() => setEditing(true)}>
+    <Button variant="ghost" iconLeft={githubUsername ? <Pencil size={14} /> : <GitHubIcon size={14} />} onClick={() => setEditing(true)}>
       {githubUsername ? t('settings.profile.edit') : t('settings.profile.linkGithub')}
     </Button>
   )
@@ -72,10 +71,14 @@ export function ProfileView(): JSX.Element {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', marginTop: '48px' }}>
         <ProfileHeader editing={editing} onClose={() => setEditing(false)} t={t} />
 
-        {capable && loadedOnce && (
-          <StatStrip days={days} longestTaskMs={insights?.longestTaskMs ?? 0} t={t} />
+        {capable && insightsLoadedOnce && insights && <StatStrip insights={insights} t={t} />}
+        {capable && !insightsLoadedOnce && insightsLoading && <StatStripSkeleton />}
+        {capable && !insightsLoadedOnce && insightsError && (
+          <div className={insightsStyles.error} role="alert">
+            <span>{t('settings.usage.loadError')}</span>
+            <Button variant="secondary" onClick={() => void fetchInsights()}>{t('settings.usage.retry')}</Button>
+          </div>
         )}
-        {capable && !loadedOnce && loading && <StatStripSkeleton />}
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -297,38 +300,29 @@ function ProfileHeader({
   )
 }
 
-function StatStrip({
-  days,
-  longestTaskMs,
-  t
-}: {
-  days: UsageDayWire[]
-  longestTaskMs: number
-  t: TFn
-}): JSX.Element {
-  const stats = useMemo(() => computeStats(days), [days])
+function StatStrip({ insights, t }: { insights: ProfileInsightsWire; t: TFn }): JSX.Element {
   const cards: Array<{ label: MessageKey; value: string; full?: string }> = [
     {
       label: 'settings.profile.stat.lifetime',
-      value: formatCompactCount(stats.lifetimeTokens),
-      full: stats.lifetimeTokens.toLocaleString()
+      value: formatCompactCount(insights.lifetimeTokens),
+      full: insights.lifetimeTokens.toLocaleString()
     },
     {
       label: 'settings.profile.stat.peak',
-      value: formatCompactCount(stats.peakTokens),
-      full: stats.peakTokens.toLocaleString()
+      value: formatCompactCount(insights.peakDailyTokens),
+      full: insights.peakDailyTokens.toLocaleString()
     },
     {
       label: 'settings.profile.stat.longestTask',
-      value: formatDuration(longestTaskMs)
+      value: formatDuration(insights.longestTaskMs)
     },
     {
       label: 'settings.profile.stat.currentStreak',
-      value: t('settings.profile.stat.days', { count: stats.currentStreak })
+      value: t('settings.profile.stat.days', { count: insights.currentStreakDays })
     },
     {
       label: 'settings.profile.stat.longestStreak',
-      value: t('settings.profile.stat.days', { count: stats.longestStreak })
+      value: t('settings.profile.stat.days', { count: insights.longestStreakDays })
     }
   ]
 
@@ -420,74 +414,6 @@ function ModeTabs({
       })}
     </div>
   )
-}
-
-interface ProfileStats {
-  lifetimeTokens: number
-  peakTokens: number
-  currentStreak: number
-  longestStreak: number
-}
-
-function computeStats(days: UsageDayWire[]): ProfileStats {
-  let lifetime = 0
-  let peak = 0
-  const active = new Set<string>()
-  for (const d of days) {
-    lifetime += d.totalTokens
-    if (d.totalTokens > peak) peak = d.totalTokens
-    if (d.totalTokens > 0) active.add(d.date)
-  }
-
-  return {
-    lifetimeTokens: lifetime,
-    peakTokens: peak,
-    currentStreak: computeCurrentStreak(active),
-    longestStreak: computeLongestStreak(active)
-  }
-}
-
-function dayKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function computeCurrentStreak(active: Set<string>): number {
-  if (active.size === 0) return 0
-  const cursor = new Date()
-  cursor.setHours(0, 0, 0, 0)
-  // Allow the streak to count even if today has no usage yet (start from yesterday).
-  if (!active.has(dayKey(cursor))) {
-    cursor.setDate(cursor.getDate() - 1)
-    if (!active.has(dayKey(cursor))) return 0
-  }
-  let streak = 0
-  while (active.has(dayKey(cursor))) {
-    streak++
-    cursor.setDate(cursor.getDate() - 1)
-  }
-  return streak
-}
-
-function computeLongestStreak(active: Set<string>): number {
-  if (active.size === 0) return 0
-  const sorted = [...active].sort()
-  let longest = 1
-  let run = 1
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(`${sorted[i - 1]}T00:00:00`)
-    const curr = new Date(`${sorted[i]}T00:00:00`)
-    const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86_400_000)
-    if (diffDays === 1) {
-      run++
-      longest = Math.max(longest, run)
-    } else {
-      run = 1
-    }
-  }
-  return longest
 }
 
 /** Compact duration: "2h 10m" / "10m" / "45s"; em-dash when none. */

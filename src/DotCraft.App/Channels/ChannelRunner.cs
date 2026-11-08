@@ -199,7 +199,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             throw new InvalidOperationException("Call BuildPoolThroughBuildAll first.");
 
         var traceStore = _sp.GetService<TraceStore>();
-        var tokenUsageStore = _sp.GetService<TokenUsageStore>();
+        var tokenUsageStore = _sp.GetService<UsageStatisticsStore>();
         var orchestratorProviders = _sp.GetServices<IOrchestratorSnapshotProvider>().ToList();
         _sessionService = sessionService;
         _dreamsService = dreamsService;

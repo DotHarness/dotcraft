@@ -549,172 +549,6 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
-    public void TokenUsageStore_RoundTrips_Records_Via_StateDb()
-    {
-        var writer = new TokenUsageStore(_stateRuntime);
-        writer.Record(new TokenUsageRecord
-        {
-            SourceId = "qq",
-            SourceMode = TokenUsageSourceModes.ServerManaged,
-            SubjectKind = TokenUsageSubjectKinds.User,
-            SubjectId = "u1",
-            SubjectLabel = "Alice",
-            SessionKey = "thread-1",
-            ThreadId = "thread-1",
-            InputTokens = 3,
-            OutputTokens = 5,
-            CachedInputTokens = 1,
-            CacheWriteInputTokens = 1,
-            ReasoningOutputTokens = 2,
-            LlmCallCount = 2
-        });
-        writer.Record(new TokenUsageRecord
-        {
-            SourceId = "qq",
-            SourceMode = TokenUsageSourceModes.ServerManaged,
-            SubjectKind = TokenUsageSubjectKinds.User,
-            SubjectId = "u2",
-            SubjectLabel = "Bob",
-            ContextKind = TokenUsageContextKinds.Group,
-            ContextId = "42",
-            ContextLabel = "Team",
-            SessionKey = "thread-2",
-            ThreadId = "thread-2",
-            InputTokens = 7,
-            OutputTokens = 11,
-            CachedInputTokens = 4,
-            CacheWriteInputTokens = 2,
-            ReasoningOutputTokens = 3,
-            LlmCallCount = 3
-        });
-
-        var reader = new TokenUsageStore(_stateRuntime);
-
-        var summary = Assert.Single(reader.GetSourceSummaries());
-        Assert.Equal("qq", summary.SourceId);
-        Assert.Equal(26, summary.TotalTokens);
-        Assert.Equal(5, summary.TotalCachedInputTokens);
-        Assert.Equal(3, summary.TotalCacheWriteInputTokens);
-        Assert.Equal(2, summary.TotalFreshInputTokens);
-        Assert.Equal(5, summary.TotalNonCachedInputTokens);
-        Assert.Equal(5, summary.TotalReasoningOutputTokens);
-        Assert.Equal(0.5, summary.CacheHitRate);
-        Assert.Equal(2, summary.RequestCount);
-        Assert.Equal(5, summary.LlmCallCount);
-        Assert.Equal(2, summary.SubjectCount);
-        Assert.Equal(1, summary.ContextCount);
-        Assert.Equal(TokenUsageSubjectKinds.User, summary.SubjectKind);
-        Assert.Equal(TokenUsageContextKinds.Group, summary.ContextKind);
-
-        Assert.Equal(2, reader.GetSubjectBreakdown("qq").Count);
-        var context = Assert.Single(reader.GetContextBreakdown("qq"));
-        Assert.Equal("42", context.Id);
-        Assert.Equal("Team", context.Label);
-        Assert.Equal(1, context.RelatedSubjectCount);
-        Assert.Equal(4, context.TotalCachedInputTokens);
-        Assert.Equal(2, context.TotalCacheWriteInputTokens);
-        Assert.Equal(3, context.LlmCallCount);
-    }
-
-    [Fact]
-    public void TokenUsageStore_StateDb_Aggregates_MixedKinds_And_Sorts_Breakdowns()
-    {
-        var writer = new TokenUsageStore(_stateRuntime);
-        writer.Record(new TokenUsageRecord
-        {
-            Timestamp = new DateTimeOffset(2026, 4, 24, 8, 0, 0, TimeSpan.Zero),
-            SourceId = "mixed",
-            SourceMode = TokenUsageSourceModes.ServerManaged,
-            SubjectKind = TokenUsageSubjectKinds.User,
-            SubjectId = "user-2",
-            SubjectLabel = "Zulu",
-            ContextKind = TokenUsageContextKinds.Group,
-            ContextId = "group-1",
-            ContextLabel = "Team",
-            InputTokens = 2,
-            OutputTokens = 3
-        });
-        writer.Record(new TokenUsageRecord
-        {
-            Timestamp = new DateTimeOffset(2026, 4, 24, 8, 5, 0, TimeSpan.Zero),
-            SourceId = "mixed",
-            SourceMode = TokenUsageSourceModes.ClientManaged,
-            SubjectKind = TokenUsageSubjectKinds.Session,
-            SubjectId = "session-1",
-            SubjectLabel = "Alpha",
-            ContextKind = "room",
-            ContextId = "room-1",
-            ContextLabel = "Room",
-            InputTokens = 4,
-            OutputTokens = 1
-        });
-        writer.Record(new TokenUsageRecord
-        {
-            Timestamp = new DateTimeOffset(2026, 4, 24, 8, 10, 0, TimeSpan.Zero),
-            SourceId = "apple",
-            SourceMode = TokenUsageSourceModes.ClientManaged,
-            SubjectKind = TokenUsageSubjectKinds.Session,
-            SubjectId = "session-2",
-            SubjectLabel = "Apple Session",
-            InputTokens = 5,
-            OutputTokens = 5
-        });
-
-        var reader = new TokenUsageStore(_stateRuntime);
-
-        var summaries = reader.GetSourceSummaries();
-        Assert.Equal(["apple", "mixed"], summaries.Select(summary => summary.SourceId).ToArray());
-        Assert.Null(summaries[0].ContextKind);
-
-        var mixed = summaries[1];
-        Assert.Equal(TokenUsageSourceModes.Mixed, mixed.SourceMode);
-        Assert.Equal(TokenUsageSubjectKinds.Mixed, mixed.SubjectKind);
-        Assert.Equal(TokenUsageContextKinds.Mixed, mixed.ContextKind);
-        Assert.Equal(2, mixed.SubjectCount);
-        Assert.Equal(2, mixed.ContextCount);
-        Assert.Equal(2, mixed.RequestCount);
-        Assert.Equal(10, mixed.TotalTokens);
-
-        var subjects = reader.GetSubjectBreakdown("MIXED");
-        Assert.Collection(
-            subjects,
-            first =>
-            {
-                Assert.Equal(TokenUsageSubjectKinds.Session, first.Kind);
-                Assert.Equal("session-1", first.Id);
-                Assert.Equal("Alpha", first.Label);
-                Assert.Equal(5, first.TotalTokens);
-            },
-            second =>
-            {
-                Assert.Equal(TokenUsageSubjectKinds.User, second.Kind);
-                Assert.Equal("user-2", second.Id);
-                Assert.Equal("Zulu", second.Label);
-                Assert.Equal(5, second.TotalTokens);
-            });
-
-        var contexts = reader.GetContextBreakdown("mixed");
-        Assert.Collection(
-            contexts,
-            first =>
-            {
-                Assert.Equal("room", first.Kind);
-                Assert.Equal("room-1", first.Id);
-                Assert.Equal("Room", first.Label);
-                Assert.Equal(1, first.RelatedSubjectCount);
-                Assert.Equal(5, first.TotalTokens);
-            },
-            second =>
-            {
-                Assert.Equal(TokenUsageContextKinds.Group, second.Kind);
-                Assert.Equal("group-1", second.Id);
-                Assert.Equal("Team", second.Label);
-                Assert.Equal(1, second.RelatedSubjectCount);
-                Assert.Equal(5, second.TotalTokens);
-            });
-    }
-
-    [Fact]
     public async Task TraceSessionBindingStore_InferBindings_For_Main_Child_And_Unbound_Sessions()
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
@@ -760,15 +594,11 @@ public sealed class StateBackedStoreTests : IDisposable
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
         var traceStore = new TraceStore(_stateRuntime, 5000);
-        var tokenUsageStore = new TokenUsageStore(_stateRuntime);
-        var persistence = new SessionPersistenceService(threadStore, traceStore, tokenUsageStore, _stateRuntime);
+        var persistence = new SessionPersistenceService(threadStore, traceStore, stateRuntime: _stateRuntime);
         var thread = CreateThread();
         await threadStore.SaveThreadAsync(thread);
 
         InsertThreadContextUsage(thread.Id);
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, thread.Id));
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, $"{thread.Id}:sub:child1"));
-        tokenUsageStore.Record(CreateUsageRecord(null, null));
 
         traceStore.Record(new TraceEvent
         {
@@ -804,8 +634,6 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(0L, (long)(eventCommand.ExecuteScalar() ?? 0L));
         Assert.Equal(0L, CountRows("thread_context_usage", $"thread_id = '{thread.Id}'"));
         Assert.Equal(0L, CountRows("trace_session_bindings", $"root_thread_id = '{thread.Id}'"));
-        Assert.Equal(0L, CountRows("dashboard_usage_records", $"thread_id = '{thread.Id}' OR session_key = '{thread.Id}' OR session_key = '{thread.Id}:sub:child1'"));
-        Assert.Equal(1L, CountRows("dashboard_usage_records", "thread_id IS NULL AND session_key IS NULL"));
     }
 
     [Fact]
@@ -813,12 +641,9 @@ public sealed class StateBackedStoreTests : IDisposable
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
         var traceStore = new TraceStore(_stateRuntime, 5000);
-        var tokenUsageStore = new TokenUsageStore(_stateRuntime);
-        var persistence = new SessionPersistenceService(threadStore, traceStore, tokenUsageStore, _stateRuntime);
+        var persistence = new SessionPersistenceService(threadStore, traceStore, stateRuntime: _stateRuntime);
         var thread = CreateThread();
         await threadStore.SaveThreadAsync(thread);
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, thread.Id));
-        tokenUsageStore.Record(CreateUsageRecord(null, "standalone:trace"));
 
         traceStore.Record(new TraceEvent
         {
@@ -842,8 +667,6 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.NotNull(traceStore.GetSession(thread.Id));
         Assert.Null(traceStore.GetSession("standalone:trace"));
         Assert.Equal("unbound", traceStore.DescribeSessionDeletion("standalone:trace").BindingKind);
-        Assert.Equal(0L, CountRows("dashboard_usage_records", "session_key = 'standalone:trace'"));
-        Assert.Equal(1L, CountRows("dashboard_usage_records", $"thread_id = '{thread.Id}'"));
     }
 
     [Fact]
@@ -851,12 +674,9 @@ public sealed class StateBackedStoreTests : IDisposable
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
         var traceStore = new TraceStore(_stateRuntime, 5000);
-        var tokenUsageStore = new TokenUsageStore(_stateRuntime);
-        var persistence = new SessionPersistenceService(threadStore, traceStore, tokenUsageStore, _stateRuntime);
+        var persistence = new SessionPersistenceService(threadStore, traceStore, stateRuntime: _stateRuntime);
         var thread = CreateThread();
         await threadStore.SaveThreadAsync(thread);
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, thread.Id));
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, $"{thread.Id}:sub:child1"));
 
         traceStore.Record(new TraceEvent
         {
@@ -885,21 +705,16 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Null(await threadStore.LoadThreadAsync(thread.Id));
         Assert.Null(traceStore.GetSession(thread.Id));
         Assert.Null(traceStore.GetSession($"{thread.Id}:sub:child1"));
-        Assert.Equal(0L, CountRows("dashboard_usage_records"));
     }
 
     [Fact]
-    public async Task ThreadTraceDeletionService_DeleteTraceSessionsAsync_Removes_Related_Usage_And_Preserves_Global_Usage()
+    public async Task ThreadTraceDeletionService_DeleteTraceSessionsAsync_RemovesThreadsAndTraces()
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
         var traceStore = new TraceStore(_stateRuntime, 5000);
-        var tokenUsageStore = new TokenUsageStore(_stateRuntime);
-        var persistence = new SessionPersistenceService(threadStore, traceStore, tokenUsageStore, _stateRuntime);
+        var persistence = new SessionPersistenceService(threadStore, traceStore, stateRuntime: _stateRuntime);
         var thread = CreateThread();
         await threadStore.SaveThreadAsync(thread);
-        tokenUsageStore.Record(CreateUsageRecord(thread.Id, thread.Id));
-        tokenUsageStore.Record(CreateUsageRecord(null, "standalone:trace"));
-        tokenUsageStore.Record(CreateUsageRecord(null, null));
 
         traceStore.Record(new TraceEvent
         {
@@ -922,8 +737,6 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Null(await threadStore.LoadThreadAsync(thread.Id));
         Assert.Null(traceStore.GetSession(thread.Id));
         Assert.Null(traceStore.GetSession("standalone:trace"));
-        Assert.Equal(1L, CountRows("dashboard_usage_records"));
-        Assert.Equal(1L, CountRows("dashboard_usage_records", "thread_id IS NULL AND session_key IS NULL"));
     }
 
     private void InsertThreadContextUsage(string threadId)
@@ -949,19 +762,6 @@ public sealed class StateBackedStoreTests : IDisposable
             : $"SELECT COUNT(*) FROM {tableName} WHERE {whereClause}";
         return Convert.ToInt64(command.ExecuteScalar());
     }
-
-    private static TokenUsageRecord CreateUsageRecord(string? threadId, string? sessionKey) => new()
-    {
-        SourceId = "dashboard",
-        SourceMode = TokenUsageSourceModes.ServerManaged,
-        SubjectKind = threadId == null ? TokenUsageSubjectKinds.User : TokenUsageSubjectKinds.Thread,
-        SubjectId = threadId ?? "global-user",
-        SubjectLabel = threadId ?? "Global User",
-        ThreadId = threadId,
-        SessionKey = sessionKey,
-        InputTokens = 10,
-        OutputTokens = 5
-    };
 
     private static SessionThread CreateThread() => new()
     {

@@ -6,7 +6,9 @@ DotCraft 的 Dashboard 是一个网页，用来看清 Agent 刚才到底做了�
 
 ## 打开 Dashboard
 
-Dashboard 默认开启，相关字段名和 JSON 示例见[入口与服务](../configuration/services)。启动它：
+Dashboard 默认开启，相关字段名和 JSON 示例见[入口与服务](../configuration/services)。在 Desktop 中，选择**视图 → 打开 Dashboard**，或按 **Ctrl+Shift+D**（macOS 上是 **⌘⇧D**），即可查看当前工作区。托盘也为每个工作区提供 Dashboard 入口。
+
+启动独立查看器：
 
 ```bash
 dotcraft dashboard

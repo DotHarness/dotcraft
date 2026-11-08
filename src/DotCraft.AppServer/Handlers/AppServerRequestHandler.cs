@@ -210,7 +210,7 @@ public sealed class AppServerRequestHandler(
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync, ThreadHandler.AttachCreatedThreadAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
         new SubAgentBoardRequestHandler(sessionService),
-        new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService),
+        new UsageRequestHandler(services.UsageAnalytics),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
 

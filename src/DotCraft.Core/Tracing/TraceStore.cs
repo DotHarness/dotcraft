@@ -16,6 +16,7 @@ public sealed class TraceStore
     private readonly int _maxEventsPerSession;
     private readonly bool _synchronousPersist;
     private readonly WorkspaceStateDatabase? _stateRuntime;
+    private readonly UsageStatisticsStore? _statistics;
     private readonly TraceSinkDispatcher? _sinkDispatcher;
     private readonly TraceSessionBindingStore? _bindingStore;
     private readonly object _diskMutationLock = new();
@@ -91,8 +92,9 @@ public sealed class TraceStore
         WorkspaceStateDatabase stateRuntime,
         int maxEventsPerSession,
         bool synchronousPersist = false,
-        TraceSinkDispatcher? sinkDispatcher = null)
-        : this(maxEventsPerSession, synchronousPersist, stateRuntime, sinkDispatcher)
+        TraceSinkDispatcher? sinkDispatcher = null,
+        UsageStatisticsStore? statistics = null)
+        : this(maxEventsPerSession, synchronousPersist, stateRuntime, sinkDispatcher, statistics)
     {
     }
 
@@ -100,18 +102,21 @@ public sealed class TraceStore
         int maxEventsPerSession,
         bool synchronousPersist,
         WorkspaceStateDatabase? stateRuntime,
-        TraceSinkDispatcher? sinkDispatcher)
+        TraceSinkDispatcher? sinkDispatcher,
+        UsageStatisticsStore? statistics = null)
     {
         _maxEventsPerSession = maxEventsPerSession;
         _synchronousPersist = synchronousPersist;
         _stateRuntime = stateRuntime;
+        _statistics = statistics;
         _sinkDispatcher = sinkDispatcher;
         _bindingStore = stateRuntime != null ? new TraceSessionBindingStore(stateRuntime) : null;
     }
 
     public void Record(TraceEvent evt)
     {
-        _bindingStore?.GetOrCreateBinding(evt.SessionKey, evt.Timestamp);
+        var binding = _bindingStore?.GetOrCreateBinding(evt.SessionKey, evt.Timestamp);
+        _statistics?.RecordActivity(evt, binding?.RootThreadId);
         ApplyEvent(evt, writeToSse: true);
 
         // After application, so a sink observes exactly the event the store accepted.
@@ -583,161 +588,6 @@ public sealed class TraceStore
             TotalReasoningOutputTokens = totalReasoningOutput,
             TotalTokens = totalInput + totalOutput
         };
-    }
-
-    /// <summary>
-    /// Longest single Turn duration (ms) across all sessions — the workspace "longest task"
-    /// (spec §27A.5). Returns 0 when no turn durations have been recorded.
-    /// </summary>
-    public long GetLongestTurnDurationMs()
-    {
-        if (_stateRuntime != null)
-            return GetLongestTurnDurationMsFromDb();
-
-        long max = 0;
-        foreach (var session in _sessions.Values)
-            max = Math.Max(max, session.MaxTurnDurationMs);
-        return max;
-    }
-
-    /// <summary>
-    /// Aggregates Profile "activity insights" metrics (spec §27A.5): the most-used model and
-    /// reasoning effort (ranked by Response-event count), the distinct/total count of skill
-    /// references, and the top-N referenced skills. Model usage reflects all persisted history
-    /// (model id is recorded on every Response event); reasoning and skill metrics are
-    /// forward-only (recorded from when tracking shipped, so they may be empty initially).
-    /// Uses SQL aggregation when DB-backed; otherwise aggregates the in-memory event log.
-    /// </summary>
-    public ProfileInsights GetProfileInsights(int topSkills = 5)
-    {
-        var limit = Math.Clamp(topSkills, 1, 50);
-        if (_stateRuntime == null)
-            return GetProfileInsightsFromMemory(limit);
-
-        WaitForPendingPersistence();
-        return GetProfileInsightsFromDb(limit);
-    }
-
-    private ProfileInsights GetProfileInsightsFromDb(int topSkills)
-    {
-        using var connection = _stateRuntime!.OpenConnection();
-
-        var topModel = QueryTopRanked(
-            connection,
-            "SELECT model_id, COUNT(*) FROM trace_events WHERE type = 'Response' AND model_id IS NOT NULL AND model_id <> '' GROUP BY model_id ORDER BY COUNT(*) DESC, model_id ASC LIMIT 1",
-            "SELECT COUNT(*) FROM trace_events WHERE type = 'Response' AND model_id IS NOT NULL AND model_id <> ''");
-
-        var topReasoning = QueryTopRanked(
-            connection,
-            "SELECT reasoning_effort, COUNT(*) FROM trace_events WHERE type = 'Response' AND reasoning_effort IS NOT NULL AND reasoning_effort <> '' GROUP BY reasoning_effort ORDER BY COUNT(*) DESC, reasoning_effort ASC LIMIT 1",
-            "SELECT COUNT(*) FROM trace_events WHERE type = 'Response' AND reasoning_effort IS NOT NULL AND reasoning_effort <> ''");
-
-        long distinctSkills = 0;
-        long totalSkills = 0;
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = "SELECT COUNT(DISTINCT tool_name), COUNT(*) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> ''";
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
-            {
-                distinctSkills = reader.GetInt64(0);
-                totalSkills = reader.GetInt64(1);
-            }
-        }
-
-        var skills = new List<SkillUsageBucket>();
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = "SELECT tool_name, COUNT(*), MAX(tool_source) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> '' GROUP BY tool_name ORDER BY COUNT(*) DESC, tool_name ASC LIMIT $limit";
-            command.Parameters.AddWithValue("$limit", topSkills);
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                skills.Add(new SkillUsageBucket(
-                    reader.GetString(0),
-                    reader.GetInt64(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2)));
-            }
-        }
-
-        return new ProfileInsights(topModel, topReasoning, (int)distinctSkills, totalSkills, skills);
-    }
-
-    private static RankedUsage? QueryTopRanked(
-        Microsoft.Data.Sqlite.SqliteConnection connection,
-        string topSql,
-        string totalSql)
-    {
-        string? key = null;
-        long count = 0;
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = topSql;
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
-            {
-                key = reader.GetString(0);
-                count = reader.GetInt64(1);
-            }
-        }
-
-        if (string.IsNullOrEmpty(key))
-            return null;
-
-        using var totalCommand = connection.CreateCommand();
-        totalCommand.CommandText = totalSql;
-        var total = Convert.ToInt64(totalCommand.ExecuteScalar() ?? 0L);
-        return new RankedUsage(key, count, total);
-    }
-
-    private ProfileInsights GetProfileInsightsFromMemory(int topSkills)
-    {
-        var events = _sessions.Values.SelectMany(static session => session.Events).ToList();
-
-        var topModel = TopRankedFromMemory(events
-            .Where(e => e.Type == TraceEventType.Response && !string.IsNullOrWhiteSpace(e.ModelId))
-            .Select(e => e.ModelId!));
-
-        var topReasoning = TopRankedFromMemory(events
-            .Where(e => e.Type == TraceEventType.Response && !string.IsNullOrWhiteSpace(e.ReasoningEffort))
-            .Select(e => e.ReasoningEffort!));
-
-        var skillEvents = events
-            .Where(e => e.Type == TraceEventType.SkillReferenced && !string.IsNullOrWhiteSpace(e.ToolName))
-            .ToList();
-
-        var grouped = skillEvents
-            .GroupBy(e => e.ToolName!, StringComparer.Ordinal)
-            .Select(g => new SkillUsageBucket(
-                g.Key,
-                g.LongCount(),
-                g.Select(e => e.ToolSource).LastOrDefault(source => !string.IsNullOrEmpty(source))))
-            .OrderByDescending(b => b.Count)
-            .ThenBy(b => b.Name, StringComparer.Ordinal)
-            .ToList();
-
-        return new ProfileInsights(
-            topModel,
-            topReasoning,
-            grouped.Count,
-            skillEvents.Count,
-            grouped.Take(topSkills).ToList());
-    }
-
-    private static RankedUsage? TopRankedFromMemory(IEnumerable<string> keys)
-    {
-        var list = keys.ToList();
-        if (list.Count == 0)
-            return null;
-
-        var top = list
-            .GroupBy(key => key, StringComparer.Ordinal)
-            .Select(g => new { g.Key, Count = g.LongCount() })
-            .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Key, StringComparer.Ordinal)
-            .First();
-
-        return new RankedUsage(top.Key, top.Count, list.Count);
     }
 
     private void ApplyEvent(TraceEvent evt, bool writeToSse)
@@ -1337,16 +1187,6 @@ public sealed class TraceStore
         };
     }
 
-    private long GetLongestTurnDurationMsFromDb()
-    {
-        WaitForPendingPersistence();
-
-        using var connection = _stateRuntime!.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COALESCE(MAX(max_turn_duration_ms), 0) FROM trace_sessions";
-        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-    }
-
     private TraceSession? LoadSessionFromDbEvents(string sessionKey, bool keepEvents)
     {
         using var connection = _stateRuntime!.OpenConnection();
@@ -1849,20 +1689,3 @@ public sealed class TraceSummary
 
     public long TotalTokens { get; init; }
 }
-
-/// <summary>
-/// Profile "activity insights" aggregate produced by <see cref="TraceStore.GetProfileInsights"/>
-/// (spec §27A.5). <see cref="TopModel"/>/<see cref="TopReasoning"/> are null when no data exists.
-/// </summary>
-public sealed record ProfileInsights(
-    RankedUsage? TopModel,
-    RankedUsage? TopReasoning,
-    int DistinctSkillCount,
-    long TotalSkillCount,
-    IReadOnlyList<SkillUsageBucket> TopSkills);
-
-/// <summary>A leading value and its count out of <see cref="Total"/> observations (for share%).</summary>
-public sealed record RankedUsage(string Key, long Count, long Total);
-
-/// <summary>One referenced skill, how many times it was invoked, and its recorded <see cref="ToolUsageSource"/> key.</summary>
-public sealed record SkillUsageBucket(string Name, long Count, string? ToolSource = null);

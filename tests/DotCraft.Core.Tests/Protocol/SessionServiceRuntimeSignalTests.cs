@@ -106,7 +106,7 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
     protected SessionService CreateService(
         AgentFactory agentFactory,
         IChatClient chatClient,
-        TokenUsageStore? tokenUsageStore = null,
+        UsageStatisticsStore? tokenUsageStore = null,
         bool useStreamingFunctionInvoker = false,
         TraceCollector? traceCollector = null)
     {
@@ -2525,7 +2525,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
     }
 
     [Fact]
-    public async Task SubmitInputAsync_RecordsServerManagedUsage_InTokenUsageStore()
+    public async Task SubmitInputAsync_RecordsServerManagedUsage_InUsageStatisticsStore()
     {
         IChatClient chatClient = new FakeChatClient(
         [
@@ -2535,7 +2535,8 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
             UsageUpdate(requestIndex: 3, input: 41_000, output: 8, cachedInput: 40_000)
         ]);
         await using var agentFactory = CreateAgentFactory(chatClient);
-        var tokenUsageStore = new TokenUsageStore();
+        using var statistics = new UsageStatisticsDatabase(Path.Combine(_tempDir, "user"));
+        var tokenUsageStore = new UsageStatisticsStore(statistics, _tempDir);
         var svc = CreateService(agentFactory, chatClient, tokenUsageStore);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
 
@@ -2594,7 +2595,8 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
             Cost(0.025m)
         ]);
         await using var agentFactory = CreateAgentFactory(chatClient);
-        var tokenUsageStore = new TokenUsageStore();
+        using var statistics = new UsageStatisticsDatabase(Path.Combine(_tempDir, "user"));
+        var tokenUsageStore = new UsageStatisticsStore(statistics, _tempDir);
         var svc = CreateService(agentFactory, chatClient, tokenUsageStore);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
 

@@ -41,6 +41,7 @@ describe('Token HUD usage', () => {
 
     const stop = startUsageFeed(host)
     await vi.advanceTimersByTimeAsync(0)
+    expect(request).toHaveBeenCalledWith('usage/thread', { workspacePath: '/workspace/example', threadId: 'thread-1' })
     expect(getUsage().totalTokens).toBe(9_000)
     expect(getUsage().cacheHitRate).toBeCloseTo(0.75)
 

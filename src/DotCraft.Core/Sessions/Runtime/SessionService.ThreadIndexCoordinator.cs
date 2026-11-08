@@ -74,24 +74,6 @@ public sealed partial class SessionService
                 .ToList();
         }
 
-        public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct)
-        {
-            var all = await owner.Persistence.LoadIndexAsync(ct);
-            var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
-            foreach (var summary in all)
-                mergedById[summary.Id] = summary;
-            foreach (var thread in owner._runtimeRegistry.Values.Select(runtime => runtime.Thread))
-            {
-                if (thread.Ephemeral)
-                    continue;
-                mergedById[thread.Id] = ThreadSummary.FromThread(thread);
-            }
-
-            return mergedById.Values.Count(s =>
-                !ThreadVisibility.IsInternal(s)
-                && !IsSubAgentSummary(s));
-        }
-
         private static bool IsSubAgentSummary(ThreadSummary summary) =>
             string.Equals(summary.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
             || string.Equals(summary.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase);

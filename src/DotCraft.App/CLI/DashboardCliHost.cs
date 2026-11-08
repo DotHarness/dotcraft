@@ -30,7 +30,7 @@ internal static class DashboardCliHost
         var config = AppConfig.LoadWithGlobalFallback(configPath);
         args.ApplyTo(config);
 
-        var stores = DashBoardReadOnlyStoreLoader.Load(craftPath);
+        var stores = DashBoardReadOnlyStoreLoader.Load(craftPath, HubPaths.ForCurrentUser().CraftHomePath);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         var app = builder.Build();
@@ -48,7 +48,7 @@ internal static class DashboardCliHost
         app.MapDashBoard(
             stores.TraceStore,
             paths,
-            stores.TokenUsageStore,
+            stores.UsageStatisticsStore,
             refreshTraceFromDiskBeforeRead: true,
             runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer());
 

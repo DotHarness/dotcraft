@@ -7,18 +7,11 @@ using Microsoft.Data.Sqlite;
 namespace DotCraft.Tracing;
 
 /// <summary>
-/// Aggregates completed-Turn usage facts and trace events into the summaries, daily histories,
-/// and thread rankings served by the <c>usage/*</c> methods (spec §27A). Every aggregate buckets
-/// a fact by its own timestamp shifted into the caller's local day.
+/// Queries user-level statistics independently of workspace conversation and trace retention.
 /// </summary>
-public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
+public sealed partial class UsageAnalyticsService(UsageStatisticsDatabase stateRuntime)
 {
-    private const string ToolCallCompleted = nameof(TraceEventType.ToolCallCompleted);
-    private const string SkillReferenced = nameof(TraceEventType.SkillReferenced);
-    private const string ErrorType = nameof(TraceEventType.Error);
-    private const string ProviderErrorType = nameof(TraceEventType.ProviderError);
-
-    private readonly WorkspaceStateDatabase _stateRuntime =
+    private readonly UsageStatisticsDatabase _stateRuntime =
         stateRuntime ?? throw new ArgumentNullException(nameof(stateRuntime));
 
     public UsageAnalyticsSummary GetSummary(UsageDateRange range)
@@ -32,7 +25,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         {
             var sql = new StringBuilder("""
                 SELECT
-                    COUNT(DISTINCT root_thread_id),
+                    COUNT(DISTINCT workspace_key || char(0) || root_thread_id),
                     COALESCE(SUM(llm_call_count), 0),
                     COALESCE(SUM(input_tokens), 0),
                     COALESCE(SUM(output_tokens), 0),
@@ -41,7 +34,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     COALESCE(SUM(reasoning_output_tokens), 0),
                     COALESCE(SUM(cost_usd), 0),
                     COALESCE(SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END), 0)
-                FROM dashboard_usage_records
+                FROM usage_turns
                 """);
             AppendRange(sql, command, range, "timestamp", hasWhere: false);
             command.CommandText = sql.ToString();
@@ -71,7 +64,7 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
                     MAX(CASE WHEN type = 'ToolCallCompleted' THEN duration_ms END),
                     SUM(CASE WHEN type IN ('Error', 'ProviderError') THEN 1 ELSE 0 END),
                     SUM(CASE WHEN type = 'ContextCompaction' THEN 1 ELSE 0 END)
-                FROM trace_events
+                FROM usage_events
                 """);
             AppendRange(sql, command, range, "timestamp", hasWhere: false);
             command.CommandText = sql.ToString();
@@ -118,229 +111,6 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
             : ReadTraceFacts(query);
 
         return Fold(query, facts);
-    }
-
-    public IReadOnlyList<UsageThreadUsage> GetTopThreads(UsageDateRange range, int limit)
-    {
-        limit = Math.Clamp(limit, 1, 50);
-        using var connection = _stateRuntime.OpenConnection();
-
-        var rows = new List<(string ThreadId, int Turns, long Input, long Output, long Cached, DateTimeOffset LastActiveAt, string OwnOrigin, double? Cost)>();
-        using (var command = connection.CreateCommand())
-        {
-            var sql = new StringBuilder("""
-                SELECT
-                    root_thread_id AS root,
-                    COUNT(*),
-                    COALESCE(SUM(input_tokens), 0),
-                    COALESCE(SUM(output_tokens), 0),
-                    COALESCE(SUM(cached_input_tokens), 0),
-                    MAX(timestamp),
-                    COALESCE(MAX(CASE WHEN thread_id = root_thread_id THEN source_id END), MIN(source_id)),
-                    SUM(cost_usd)
-                FROM dashboard_usage_records
-                WHERE root_thread_id IS NOT NULL
-                GROUP BY root_thread_id
-                """);
-            AppendRange(sql, command, range, "MAX(timestamp)", hasWhere: false, keyword: "HAVING");
-            sql.Append(" ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC, MAX(timestamp) DESC LIMIT $limit");
-            command.Parameters.AddWithValue("$limit", limit);
-            command.CommandText = sql.ToString();
-
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                rows.Add((
-                    reader.GetString(0),
-                    ReadInt32(reader, 1),
-                    ReadInt64(reader, 2),
-                    ReadInt64(reader, 3),
-                    ReadInt64(reader, 4),
-                    ParseTimestamp(reader.GetString(5)),
-                    reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
-                    ReadOptionalDouble(reader, 7)));
-            }
-        }
-
-        var metadata = ReadThreadMetadata(connection, rows.Select(row => row.ThreadId));
-        return rows
-            .Select(row =>
-            {
-                metadata.TryGetValue(row.ThreadId, out var meta);
-                return new UsageThreadUsage(
-                    row.ThreadId,
-                    meta.Title,
-                    string.IsNullOrWhiteSpace(meta.OriginChannel) ? row.OwnOrigin : meta.OriginChannel!,
-                    row.LastActiveAt,
-                    row.Turns,
-                    row.Input,
-                    row.Output,
-                    row.Cached,
-                    row.Cost,
-                    meta.Archived);
-            })
-            .ToList();
-    }
-
-    public UsageThreadBreakdown GetThreadUsage(string threadId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        using var connection = _stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT
-                model,
-                reasoning_effort,
-                speed,
-                COUNT(*),
-                COALESCE(SUM(input_tokens), 0),
-                COALESCE(SUM(output_tokens), 0),
-                COALESCE(SUM(cached_input_tokens), 0),
-                SUM(cost_usd)
-            FROM dashboard_usage_records
-            WHERE root_thread_id = $thread_id
-            GROUP BY model, reasoning_effort, speed
-            ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC, model, reasoning_effort, speed
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-
-        var groups = new List<UsageThreadBreakdownGroup>();
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            groups.Add(new UsageThreadBreakdownGroup(
-                reader.IsDBNull(0) ? null : reader.GetString(0),
-                reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                ReadInt32(reader, 3),
-                ReadInt64(reader, 4),
-                ReadInt64(reader, 5),
-                ReadInt64(reader, 6),
-                ReadOptionalDouble(reader, 7)));
-        }
-
-        var priced = groups.Where(group => group.CostUsd is not null).ToList();
-        return new UsageThreadBreakdown(
-            threadId,
-            groups.Sum(group => group.Turns),
-            groups.Sum(group => group.InputTokens),
-            groups.Sum(group => group.OutputTokens),
-            groups.Sum(group => group.CachedInputTokens),
-            priced.Count == 0 ? null : priced.Sum(group => group.CostUsd!.Value),
-            groups);
-    }
-
-    private List<(DateOnly Day, string Key, double Value)> ReadTurnFacts(UsageHistoryQuery query)
-    {
-        using var connection = _stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        var sql = new StringBuilder("""
-            SELECT
-                d.timestamp,
-                d.input_tokens,
-                d.output_tokens,
-                d.cached_input_tokens,
-                d.cache_write_input_tokens,
-                d.llm_call_count,
-                d.model,
-                COALESCE(t.origin_channel, d.source_id),
-                d.reasoning_effort,
-                d.speed,
-                d.cost_usd
-            FROM dashboard_usage_records d
-            LEFT JOIN threads t ON t.thread_id = d.root_thread_id
-            """);
-        AppendRange(sql, command, query.Range, "d.timestamp", hasWhere: false);
-        command.CommandText = sql.ToString();
-
-        var facts = new List<(DateOnly, string, double)>();
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            var day = query.Range.LocalDayOf(ParseTimestamp(reader.GetString(0)));
-            var cost = ReadOptionalDouble(reader, 10);
-            if (query.Metric == UsageMetric.Cost && cost is null)
-                continue;
-            var input = ReadInt64(reader, 1);
-            var output = ReadInt64(reader, 2);
-            var cached = ReadInt64(reader, 3);
-            var cacheWrite = ReadInt64(reader, 4);
-            var llmCalls = ReadInt64(reader, 5);
-            var model = reader.IsDBNull(6) ? null : reader.GetString(6);
-            var surface = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var reasoning = reader.IsDBNull(8) ? null : reader.GetString(8);
-            var speed = reader.IsDBNull(9) ? null : reader.GetString(9);
-
-            if (query.GroupBy == UsageDimension.TokenType)
-            {
-                facts.Add((day, UsageAnalyticsNames.TokenTypeUncached, Math.Max(0, input - cached - cacheWrite)));
-                facts.Add((day, UsageAnalyticsNames.TokenTypeCached, cached));
-                facts.Add((day, UsageAnalyticsNames.TokenTypeCacheWrite, cacheWrite));
-                facts.Add((day, UsageAnalyticsNames.TokenTypeOutput, output));
-                continue;
-            }
-
-            var key = query.GroupBy switch
-            {
-                UsageDimension.Model => KeyOrUnknown(model),
-                UsageDimension.Surface => KeyOrUnknown(surface),
-                UsageDimension.Reasoning => KeyOrUnknown(reasoning),
-                UsageDimension.Speed => KeyOrUnknown(speed),
-                _ => string.Empty
-            };
-            var value = query.Metric switch
-            {
-                UsageMetric.Tokens => input + output,
-                UsageMetric.Requests => llmCalls,
-                UsageMetric.Cost => cost!.Value,
-                _ => 1
-            };
-            facts.Add((day, key, value));
-        }
-
-        return facts;
-    }
-
-    private List<(DateOnly Day, string Key, double Value)> ReadTraceFacts(UsageHistoryQuery query)
-    {
-        using var connection = _stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        var types = query.Metric switch
-        {
-            UsageMetric.ToolCalls => $"'{ToolCallCompleted}'",
-            UsageMetric.SkillUses => $"'{SkillReferenced}'",
-            _ => $"'{ErrorType}', '{ProviderErrorType}'"
-        };
-        var sql = new StringBuilder($"""
-            SELECT
-                e.timestamp,
-                e.tool_name,
-                e.tool_source,
-                t.origin_channel
-            FROM trace_events e
-            LEFT JOIN trace_session_bindings b ON b.session_key = e.session_key
-            LEFT JOIN threads t ON t.thread_id = COALESCE(b.root_thread_id, e.session_key)
-            WHERE e.type IN ({types})
-            """);
-        AppendRange(sql, command, query.Range, "e.timestamp", hasWhere: true);
-        command.CommandText = sql.ToString();
-
-        var facts = new List<(DateOnly, string, double)>();
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            var day = query.Range.LocalDayOf(ParseTimestamp(reader.GetString(0)));
-            var key = query.GroupBy switch
-            {
-                UsageDimension.Tool or UsageDimension.Skill => KeyOrUnknown(reader.IsDBNull(1) ? null : reader.GetString(1)),
-                UsageDimension.ToolSource => KeyOrUnknown(reader.IsDBNull(2) ? null : reader.GetString(2)),
-                UsageDimension.Surface => KeyOrUnknown(reader.IsDBNull(3) ? null : reader.GetString(3)),
-                _ => string.Empty
-            };
-            facts.Add((day, key, 1));
-        }
-
-        return facts;
     }
 
     private static UsageHistory Fold(UsageHistoryQuery query, List<(DateOnly Day, string Key, double Value)> facts)
@@ -399,46 +169,6 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
         return new UsageHistory(unit, query.GroupBy, days, series);
     }
 
-    private static Dictionary<string, (string? Title, string? OriginChannel, bool Archived)> ReadThreadMetadata(
-        SqliteConnection connection,
-        IEnumerable<string> threadIds)
-    {
-        var ids = threadIds.Distinct(StringComparer.Ordinal).ToArray();
-        var result = new Dictionary<string, (string?, string?, bool)>(StringComparer.Ordinal);
-        if (ids.Length == 0)
-            return result;
-
-        using var command = connection.CreateCommand();
-        var placeholders = new string[ids.Length];
-        for (var i = 0; i < ids.Length; i++)
-        {
-            placeholders[i] = $"$id{i}";
-            command.Parameters.AddWithValue(placeholders[i], ids[i]);
-        }
-
-        command.CommandText = $"""
-            SELECT thread_id, display_name, first_user_message, origin_channel, archived_at
-            FROM threads
-            WHERE thread_id IN ({string.Join(", ", placeholders)})
-            """;
-
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            var displayName = reader.IsDBNull(1) ? null : reader.GetString(1);
-            var firstMessage = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var title = !string.IsNullOrWhiteSpace(displayName)
-                ? displayName.Trim()
-                : string.IsNullOrWhiteSpace(firstMessage) ? null : firstMessage.Trim();
-            result[reader.GetString(0)] = (
-                title,
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                !reader.IsDBNull(4));
-        }
-
-        return result;
-    }
-
     private static void AppendRange(
         StringBuilder sql,
         SqliteCommand command,
@@ -461,9 +191,6 @@ public sealed class UsageAnalyticsService(WorkspaceStateDatabase stateRuntime)
             command.Parameters.AddWithValue("$range_end", UsageDateRange.FormatTimestamp(end));
         }
     }
-
-    private static string KeyOrUnknown(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? UsageAnalyticsNames.UnknownKey : value;
 
     private static DateTimeOffset ParseTimestamp(string value) =>
         DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
