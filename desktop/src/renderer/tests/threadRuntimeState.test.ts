@@ -11,7 +11,7 @@ const running: ThreadRuntimeSnapshot = {
   ...idle, running: true, busy: true,
   activeTurnId: 'turn-active', activeTurnStartedAt: '2026-10-24T00:00:00Z'
 }
-const options = { isActive: true, isDesktopOrigin: true }
+const options = { isDesktopOrigin: true }
 
 function thread(id: string, runtime = running): ThreadSummary {
   return {
@@ -66,8 +66,9 @@ describe('thread runtime synchronization', () => {
     store().setThreadList([thread('background', { ...running, waitingOnApproval: true, waitingOnInput: true })])
     store().parkApproval('background', { bridgeId: 'approval', turnId: 'turn-active', rawParams: {} })
     store().parkUserInput('background', { bridgeId: 'input', turnId: 'turn-active', rawParams: {} })
+    store().setActiveThreadId('background')
     store().applyRuntimeSnapshot('background', { ...idle, waitingOnPlanConfirmation: true }, {
-      isActive: false, isDesktopOrigin: true
+      isDesktopOrigin: true
     })
     expect(store().parkedApprovals.has('background')).toBe(false)
     expect(store().parkedUserInputs.has('background')).toBe(false)
@@ -104,7 +105,7 @@ describe('thread runtime synchronization', () => {
       ...thread('child'), originChannel: 'subagent',
       source: { kind: 'subagent', subAgent: { parentThreadId: 'parent', depth: 1 } }
     }])
-    store().applyRuntimeSnapshot('child', idle, { isActive: false, isDesktopOrigin: false })
+    store().applyRuntimeSnapshot('child', idle, { isDesktopOrigin: false })
     store().applyRuntimeSnapshot('unknown', running, options)
     expect(store().threadList.map(entry => entry.id)).toEqual(['child'])
     expect(store().threadList[0].runtime?.running).toBe(false)

@@ -75,8 +75,6 @@ interface ThreadStoreActions {
   consumeParkedUserInput(threadId: string): ParkedUserInput | null
   clearParkedUserInput(threadId: string): void
   applyRuntimeSnapshot(threadId: string, runtime: ThreadRuntimeSnapshot, options: ApplyRuntimeSnapshotOptions): void
-  markPlanConfirmationPending(threadId: string): void
-  clearPlanConfirmationPending(threadId: string): void
   setThreadReadState(threadId: string, readState: ThreadReadState): void
   setThreadGoal(goal: ThreadGoal): void
   clearThreadGoal(threadId: string): void
@@ -299,7 +297,6 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
         const snapshot = thread.runtime
         if (!snapshot) continue
-        const isActive = state.activeThreadId === thread.id
         const isDesktopOrigin = thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
         runtimeSnapshots.set(thread.id, snapshot)
 
@@ -327,7 +324,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
           }
         }
 
-        if (snapshot.waitingOnPlanConfirmation && !isActive && isDesktopOrigin) {
+        if (snapshot.waitingOnPlanConfirmation && isDesktopOrigin) {
           pendingPlanConfirmationThreadIds.add(thread.id)
         } else {
           pendingPlanConfirmationThreadIds.delete(thread.id)
@@ -554,19 +551,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   setActiveThreadId(id) {
-    set((state) => {
-      if (!id) {
-        return { activeThreadId: id, activeThreadLoadError: null }
-      }
-
-      const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-      pendingPlanConfirmationThreadIds.delete(id)
-      return {
-        activeThreadId: id,
-        activeThreadLoadError: null,
-        pendingPlanConfirmationThreadIds
-      }
-    })
+    set({ activeThreadId: id, activeThreadLoadError: null })
   },
 
   setActiveThread(thread) {
@@ -705,23 +690,6 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   applyRuntimeSnapshot(threadId, runtime, options) {
     set((state) => applyThreadRuntimeSnapshot(state, threadId, runtime, options))
-  },
-
-  markPlanConfirmationPending(threadId) {
-    set((state) => {
-      const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-      pendingPlanConfirmationThreadIds.add(threadId)
-      return { pendingPlanConfirmationThreadIds }
-    })
-  },
-
-  clearPlanConfirmationPending(threadId) {
-    set((state) => {
-      if (!state.pendingPlanConfirmationThreadIds.has(threadId)) return state
-      const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-      pendingPlanConfirmationThreadIds.delete(threadId)
-      return { pendingPlanConfirmationThreadIds }
-    })
   },
 
   setThreadReadState(threadId, readState) {

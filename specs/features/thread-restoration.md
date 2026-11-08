@@ -130,7 +130,9 @@ Requests are parked by logical identity during client restoration. Resolved or w
 
 Plan confirmation is separate from an approval/input request. Eligibility uses current Plan mode, the latest completed Turn's successful CreatePlan call/result, current plan content, and local dismissal state.
 
-Apply those values together before exposing the choice. A revised plan becomes actionable after its own successful planning Turn completes. Approvals and questions take precedence. Accepting implementation confirms the scoped mode change before submitting the implementation instruction. A target or mode change superseding that operation prevents submission. Older history cannot revive a consumed choice.
+Apply those values together before exposing the choice. Selecting, reading, or leaving a thread does not consume its pending plan choice. A client may hide the selected thread's plan badge while its choice is visible in the conversation, without clearing the underlying waiting state. Foreground and secondary thread rows distinguish plan confirmation from approval and input waits.
+
+A revised plan becomes actionable after its own successful planning Turn completes. Approvals and questions take precedence. Accepting implementation confirms the scoped mode change before submitting the implementation instruction. A target or mode change superseding that operation prevents submission. Explicit dismissal remains scoped to the plan Turn; older history cannot revive a consumed choice.
 
 ## 6. Client Workflows
 

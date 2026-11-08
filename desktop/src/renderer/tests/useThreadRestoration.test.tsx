@@ -152,6 +152,37 @@ describe('thread restoration', () => {
     expect(sendRequest).not.toHaveBeenCalled()
   })
 
+  it('retains a restored plan choice across selection and a warm return without another request', async () => {
+    renderHook(() => useThreadRestoration(props))
+    await select('thread-0')
+    const result = snapshot('thread-0')
+    result.thread.configuration = { mode: 'plan' }
+    result.thread.runtime = {
+      running: false, waitingOnApproval: false, waitingOnInput: false, waitingOnPlanConfirmation: true
+    }
+    result.thread.plan = { title: 'Plan', overview: '', content: 'Do it', todos: [] }
+    result.currentState = {
+      turnId: 'plan-turn', turnStatus: 'completed', planTurnId: 'plan-turn', itemCount: 0, pendingRequests: []
+    }
+    result.initialTurnsPage = {
+      data: [{
+        id: 'plan-turn', threadId: 'thread-0', status: 'completed', startedAt: '2026-11-07T00:00:00Z',
+        itemsView: 'summary', itemCount: 0, items: []
+      }], nextCursor: null
+    }
+    await act(async () => respond('thread-0', result))
+    expect(useThreadStore.getState().pendingPlanConfirmationThreadIds.has('thread-0')).toBe(true)
+    expect(useConversationStore.getState().restoredPlanTurnId).toBe('plan-turn')
+
+    await select('thread-1')
+    await act(async () => respond('thread-1'))
+    sendRequest.mockClear()
+    await select('thread-0')
+    expect(useConversationStore.getState().restoredPlanTurnId).toBe('plan-turn')
+    expect(useThreadStore.getState().pendingPlanConfirmationThreadIds.has('thread-0')).toBe(true)
+    expect(sendRequest).not.toHaveBeenCalled()
+  })
+
   it('keeps a newer selection authoritative when an earlier restore finishes late', async () => {
     renderHook(() => useThreadRestoration(props))
     await select('thread-0')

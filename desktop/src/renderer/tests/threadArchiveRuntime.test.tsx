@@ -47,7 +47,7 @@ describe('archive after runtime completion', () => {
       thread('child', activeId === 'child' ? running : idle, 'parent'),
       thread('grandchild', activeId === 'grandchild' ? running : idle, 'child')
     ])
-    state().applyRuntimeSnapshot(activeId, idle, { isActive: activeId === 'parent', isDesktopOrigin: true })
+    state().applyRuntimeSnapshot(activeId, idle, { isDesktopOrigin: true })
 
     expect(await archiveThreadWithUndo({ threadId: 'parent', t })).toBe(true)
     expect(requestConfirmDialog).not.toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('project archive runtime scope', () => {
   it('uses the latest store state instead of the running summary captured by a menu', async () => {
     const captured = thread('parent', running)
     state().setThreadList([captured, thread('child', running, 'parent')])
-    for (const id of ['parent', 'child']) state().applyRuntimeSnapshot(id, idle, { isActive: false, isDesktopOrigin: true })
+    for (const id of ['parent', 'child']) state().applyRuntimeSnapshot(id, idle, { isDesktopOrigin: true })
     vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
 
     await archive([captured], true)

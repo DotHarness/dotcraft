@@ -3,7 +3,6 @@ import type { ThreadStore } from './threadStore'
 import { normalizeThreadRuntime } from '../utils/threadRuntime'
 
 export interface ApplyRuntimeSnapshotOptions {
-  isActive: boolean
   isDesktopOrigin: boolean
 }
 
@@ -50,7 +49,7 @@ export function applyThreadRuntimeSnapshot(
   }
 
   const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-  if (runtime.waitingOnPlanConfirmation && !options.isActive && options.isDesktopOrigin) {
+  if (runtime.waitingOnPlanConfirmation && options.isDesktopOrigin) {
     pendingPlanConfirmationThreadIds.add(threadId)
   } else {
     pendingPlanConfirmationThreadIds.delete(threadId)

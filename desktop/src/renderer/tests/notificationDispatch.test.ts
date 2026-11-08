@@ -72,7 +72,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
         waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true
       }
       threads.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
-        isActive: threads.activeThreadId === threadId,
         isDesktopOrigin: true
       })
       useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)

@@ -26,7 +26,6 @@ export function applyThreadTurnRuntime(
     waitingOnPlanConfirmation
   })
   threads.applyRuntimeSnapshot(threadId, runtime, {
-    isActive: threads.activeThreadId === threadId,
     isDesktopOrigin: threads.threadList.find(thread => thread.id === threadId)?.originChannel?.toLowerCase() === 'dotcraft-desktop'
   })
 }

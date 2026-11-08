@@ -59,7 +59,7 @@ describe('restored composer selection', () => {
     act(() => {
       useThreadStore.getState().applyRuntimeSnapshot('thread', {
         running: true, waitingOnApproval: false, waitingOnInput: true, waitingOnPlanConfirmation: false
-      }, { isActive: true, isDesktopOrigin: true })
+      }, { isDesktopOrigin: true })
       finishThreadRestoration(gate)
     })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))

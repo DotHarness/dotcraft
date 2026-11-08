@@ -1464,7 +1464,6 @@ export function App(): JSX.Element {
             const threadSummary = threadStore.threadList.find((thread) => thread.id === threadId)
             const runtimeSnapshot = normalizeThreadRuntime(pp.runtime ?? {})
             threadStore.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
-              isActive: threadStore.activeThreadId === threadId,
               isDesktopOrigin: threadSummary?.originChannel?.toLowerCase() === 'dotcraft-desktop'
             })
             useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)

@@ -18,9 +18,11 @@ import { PinIcon } from './ThreadEntry'
 import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
-import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
+import { isRemoteProject, isThreadRunning, projectIdentity } from './projectThreads'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
+import { ThreadWaitingBadge } from './ThreadWaitingBadge'
+import { useThreadWaitingStatus } from './threadWaitingStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { openProjectThread } from './projectConnectionActions'
 
@@ -61,7 +63,8 @@ export function ReadonlyThreadRow({
   const t = useT()
   const rememberRowSelection = useRememberRowSelection()
   const selected = useThreadRowSelected(thread.id)
-  const waiting = isThreadWaiting(thread)
+  const waitingStatus = useThreadWaitingStatus(thread.id, thread.runtime)
+  const waiting = waitingStatus != null
   const running = !waiting && isThreadRunning(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
@@ -133,9 +136,7 @@ export function ReadonlyThreadRow({
           />
         </span>
       ) : waiting ? (
-        <span className="dc-status-badge" data-size="compact" data-tone="warning">
-          <span className="dc-status-badge__label">{t('projectsRail.awaitingResponse')}</span>
-        </span>
+        <ThreadWaitingBadge status={waitingStatus} />
       ) : showUnreadDot ? (
         <ActionTooltip label={t('threadEntry.unread')}>
           <span

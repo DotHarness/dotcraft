@@ -72,7 +72,6 @@ export function applyThreadRestoration(result: ThreadResumeResult): void {
   threads.upsertThreads([thread])
   threads.setActiveThread({ ...thread, turns: [] })
   threads.applyRuntimeSnapshot(threadId, runtime, {
-    isActive: true,
     isDesktopOrigin: thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
   })
 }

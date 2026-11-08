@@ -29,6 +29,8 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
+import { ThreadWaitingBadge } from './ThreadWaitingBadge'
+import { useThreadWaitingStatus } from './threadWaitingStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
@@ -61,7 +63,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
   const hasRunningTurn = runningTurnThreadIds.has(thread.id)
-  const hasPendingPlanConfirmation = pendingPlanConfirmationThreadIds.has(thread.id)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -120,14 +121,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const rowPull = threadDetails.rowPull
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
-  const showPendingApprovalBadge = pendingApprovalThreadIds.has(thread.id)
-  const showPendingUserInputBadge = !showPendingApprovalBadge && pendingUserInputThreadIds.has(thread.id)
-  const showPendingPlanBadge =
-    !isActive && !showPendingApprovalBadge && !showPendingUserInputBadge && hasPendingPlanConfirmation
-  const showPendingBadge =
-    showPendingApprovalBadge || showPendingUserInputBadge || showPendingPlanBadge
+  const waitingStatus = useThreadWaitingStatus(thread.id, {
+    waitingOnApproval: pendingApprovalThreadIds.has(thread.id),
+    waitingOnInput: pendingUserInputThreadIds.has(thread.id),
+    waitingOnPlanConfirmation: pendingPlanConfirmationThreadIds.has(thread.id)
+  }, isActive)
   const showPendingInStatus =
-    showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
+    waitingStatus != null && !dropActive && !alreadyBound && anim !== 'success'
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
   const showUnreadDot =
     !hasRunningTurn
@@ -456,27 +456,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               }}
             >
               {showPendingInStatus ? (
-                <span
-                  className="dc-status-badge"
-                  data-size="compact"
-                  data-tone={showPendingApprovalBadge || showPendingUserInputBadge ? 'warning' : 'info'}
-                  data-quiet={isActive ? 'true' : undefined}
-                  data-testid={
-                    showPendingApprovalBadge
-                      ? `thread-pending-approval-${thread.id}`
-                      : showPendingUserInputBadge
-                        ? `thread-pending-input-${thread.id}`
-                        : `thread-pending-confirmation-${thread.id}`
-                  }
-                >
-                  <span className="dc-status-badge__label">
-                    {showPendingApprovalBadge
-                      ? t('threadEntry.pendingApproval')
-                      : showPendingUserInputBadge
-                        ? t('threadEntry.pendingUserInput')
-                        : t('threadEntry.pendingPlanConfirmation')}
-                  </span>
-                </span>
+                <ThreadWaitingBadge status={waitingStatus} quiet={isActive} />
               ) : hasRunningTurn ? (
                 <span className="dc-status-indicator">
                   <Spinner

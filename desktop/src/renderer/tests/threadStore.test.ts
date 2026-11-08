@@ -204,7 +204,6 @@ describe('threadStore.upsertThreads', () => {
       waitingOnInput: true,
       waitingOnPlanConfirmation: true
     }, {
-      isActive: false,
       isDesktopOrigin: true
     })
     s().parkApproval('leaked', {
@@ -248,13 +247,12 @@ describe('threadStore.upsertThreads', () => {
     s().setActiveThread(makeThread('builder', { metadata: { 'dotcraft.internal': 'agent-builder' } }))
 
     for (const id of ['fork', 'builder']) {
-      s().applyRuntimeSnapshot(id, runningSnapshot, { isActive: false, isDesktopOrigin: true })
+      s().applyRuntimeSnapshot(id, runningSnapshot, { isDesktopOrigin: true })
       s().applyRuntimeSnapshot(id, { ...runningSnapshot, running: false, waitingOnApproval: false }, {
-        isActive: false,
         isDesktopOrigin: true
       })
     }
-    s().applyRuntimeSnapshot('visible', runningSnapshot, { isActive: false, isDesktopOrigin: true })
+    s().applyRuntimeSnapshot('visible', runningSnapshot, { isDesktopOrigin: true })
 
     const state = s()
     expect(state.threadList.map((thread) => thread.id)).toEqual(['visible'])
@@ -480,22 +478,22 @@ describe('threadStore indicator state', () => {
     expect(s().parkedUserInputs.has('t1')).toBe(false)
   })
 
-  it('preserves unresolved approval state while clearing plan attention on thread activation', () => {
-    s().applyRuntimeSnapshot('thread-a', {
-      running: false,
-      waitingOnApproval: true,
-      waitingOnPlanConfirmation: false
-    }, {
-      isActive: false,
-      isDesktopOrigin: true
+  it('retains a pending plan through selection, new chat, and a selected thread list refresh', () => {
+    const planned = makeThreadSummary('thread-a', {
+      originChannel: 'dotcraft-desktop',
+      runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: true }
     })
-    s().markPlanConfirmationPending('thread-a')
-    expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
-    expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
+    const other = makeThreadSummary('thread-b')
+    s().setThreadList([planned, other])
 
-    s().setActiveThreadId('thread-a')
-    expect(s().pendingApprovalThreadIds.has('thread-a')).toBe(true)
-    expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(false)
+    for (const selected of ['thread-a', 'thread-b', null, 'thread-a']) {
+      s().setActiveThreadId(selected)
+      expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
+      expect(s().runtimeSnapshots.get('thread-a')?.waitingOnPlanConfirmation).toBe(true)
+    }
+
+    s().setThreadList([planned, other])
+    expect(s().pendingPlanConfirmationThreadIds.has('thread-a')).toBe(true)
   })
 
   it('applies runtime snapshots for running, approval, and plan state', () => {
@@ -506,7 +504,6 @@ describe('threadStore indicator state', () => {
       waitingOnApproval: true,
       waitingOnPlanConfirmation: false
     }, {
-      isActive: false,
       isDesktopOrigin: true
     })
 
@@ -518,7 +515,6 @@ describe('threadStore indicator state', () => {
       waitingOnApproval: false,
       waitingOnPlanConfirmation: true
     }, {
-      isActive: false,
       isDesktopOrigin: true
     })
 
