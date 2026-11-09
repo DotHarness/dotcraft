@@ -109,17 +109,20 @@ describe('shared Workflow run cache', () => {
     expect(h.entry()?.run?.status).toBe('stopped')
   })
 
-  it('retries a failed terminal read without another notification', async () => {
+  it('retains a failed read for explicit retry and accepts the recovered result', async () => {
     const h = host()
     await h.cache.getState().load('thread-1', 'run-1')
     h.request.mockRejectedValueOnce(new Error('Disconnected'))
-    h.request.mockResolvedValueOnce({ run: run('succeeded') })
     h.notify()
     await h.cache.getState().load('thread-1', 'run-1')
+    expect(h.request).toHaveBeenCalledTimes(2)
+    expect(h.entry()?.run?.status).toBe('running')
+    expect(h.entry()?.error).toBe('Disconnected')
 
+    h.request.mockResolvedValueOnce({ run: run('succeeded') })
+    await h.cache.getState().load('thread-1', 'run-1')
     expect(h.entry()?.run?.status).toBe('succeeded')
     expect(h.entry()?.error).toBeNull()
-    expect(h.request).toHaveBeenCalledTimes(3)
   })
 
   it('preserves the last snapshot on repeated errors and recovers known runs on reconnect', async () => {

@@ -45,7 +45,7 @@ interface ThreadStoreState {
 interface ThreadStoreActions {
   setThreadList(threads: ThreadSummary[], projectKey?: string | null): void
   addThread(thread: ThreadSummary): void
-  upsertThreads(threads: ThreadSummary[]): void
+  upsertThreads(threads: ThreadSummary[], runtimeBaseline?: ReadonlyMap<string, ThreadRuntimeSnapshot>): void
   updateThreadStatus(threadId: string, newStatus: ThreadStatus): void
   removeThread(threadId: string): void
   removeThreadTree(rootThreadId: string): void
@@ -235,6 +235,13 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       const threadListProjectKey = nextProjectKey
       const retained = new Set(retainedThreadIds())
       const threadIds = new Set([...visibleThreads.map((thread) => thread.id), ...retained])
+      for (const child of state.threadList) {
+        const rootId = child.source?.subAgent?.rootThreadId ?? getSubAgentParentThreadId(child)
+        if (isSubAgentThread(child) && rootId && threadIds.has(rootId) && !threadIds.has(child.id)) {
+          visibleThreads.push(child)
+          threadIds.add(child.id)
+        }
+      }
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
       const parkedApprovals = filterMapToThreadList(state.parkedApprovals, threadIds)
       const parkedUserInputs = filterMapToThreadList(state.parkedUserInputs, threadIds)
@@ -321,15 +328,23 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       } else if (thread.goal) {
         goalSnapshots.set(thread.id, thread.goal)
       }
-      return { threadList: [thread, ...state.threadList], goalSnapshots, hiddenThreadIds }
+      const runtime = state.runtimeSnapshots.get(thread.id) ?? thread.runtime
+      const runtimeSnapshots = new Map(state.runtimeSnapshots)
+      if (runtime) runtimeSnapshots.set(thread.id, runtime)
+      return { threadList: [{ ...thread, runtime }, ...state.threadList], runtimeSnapshots, goalSnapshots, hiddenThreadIds }
     })
   },
 
-  upsertThreads(threads) {
+  upsertThreads(threads, runtimeBaseline) {
     const internalThreadIds = new Set(threads.filter((thread) => isHiddenThread(thread)).map((thread) => thread.id))
-    const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
-    if (visibleThreads.length === 0 && internalThreadIds.size === 0) return
+    if (threads.length === 0) return
     set((state) => {
+      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map((thread) => {
+        const current = state.runtimeSnapshots.get(thread.id)
+        return normalizeThreadSummaryRuntime(runtimeBaseline && current !== runtimeBaseline.get(thread.id)
+          ? { ...thread, runtime: current }
+          : thread)
+      })
       const incoming = new Map(visibleThreads.map((thread) => [thread.id, thread]))
       const seen = new Set<string>()
       const existingThreadList = internalThreadIds.size > 0

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
+import { isSubAgentChildClosed, isSubAgentChildWorking, isSubAgentChildFinished, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { findSubAgentChild } from '../../utils/subAgentIdentity'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
@@ -228,15 +228,13 @@ function agentState(
   if (display.pending) return 'running'
   if (child) {
     if (isSubAgentChildClosed(child)) return 'done'
-    if (child.runtime?.running === true) return 'running'
+    if (isSubAgentChildWorking(child)) return 'running'
     if (isFailureStatus(child.status)) return 'failed'
-    if (child.runtime?.running === false || child.isCompleted || isTerminalSubAgentStatus(child.status)) return 'done'
+    return isSubAgentChildFinished(child) ? 'done' : 'unknown'
   }
   if (isFailureStatus(display.resultStatus)) return 'failed'
   if (isTerminalSubAgentStatus(display.resultStatus)) return 'done'
-  if (turnRunning) return 'running'
-  if (discovery.discovered) return 'done'
-  return discovery.status === 'error' ? 'unknown' : 'running'
+  return !discovery.discovered && discovery.status !== 'error' && turnRunning ? 'running' : 'unknown'
 }
 
 function isFailureStatus(status: string | null): boolean {

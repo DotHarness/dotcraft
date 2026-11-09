@@ -82,6 +82,13 @@ public sealed class AppServerEventDispatcher
         if (evt.TerminalInteractionPayload is not null && !_connection.SupportsCommandExecutionStreaming)
             return;
 
+        if (evt.RuntimeSnapshot is { } runtime && CanSendToClient(Contract.AppServerRpc.ThreadStatusChanged.Name))
+            await SendNotificationAsync(Contract.AppServerRpc.ThreadStatusChanged.Name, new Contract.ThreadStatusChangedNotification
+            {
+                ThreadId = evt.ThreadId,
+                Runtime = AppServerContractMapper.ToContract(runtime.ToWireRuntimeState())
+            }, ct);
+
         switch (evt.EventType)
         {
             case SessionEventType.TurnStarted:
@@ -558,7 +565,16 @@ public sealed class AppServerEventDispatcher
 
         try
         {
-            await SendMappedNotificationAsync(method, @params, ct);
+            if (method is Protocol.AppServer.AppServerMethodNames.ThreadStarted
+                or Protocol.AppServer.AppServerMethodNames.ThreadResumed
+                or Protocol.AppServer.AppServerMethodNames.TurnStarted
+                or Protocol.AppServer.AppServerMethodNames.TurnCompleted
+                or Protocol.AppServer.AppServerMethodNames.TurnFailed
+                or Protocol.AppServer.AppServerMethodNames.TurnCancelled
+                or Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged)
+                await _connection.SendThreadNotificationAsync(_transport, method, @params!, ct);
+            else
+                await SendMappedNotificationAsync(method, @params, ct);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -572,14 +588,6 @@ public sealed class AppServerEventDispatcher
 
     private Task SendMappedNotificationAsync(string method, object? parameters, CancellationToken ct) => method switch
     {
-        Protocol.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
-            Contract.AppServerRpc.ThreadStarted,
-            Require<Contract.ThreadNotification>(method, parameters),
-            ct),
-        Protocol.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
-            Contract.AppServerRpc.ThreadResumed,
-            Require<Contract.ThreadNotification>(method, parameters),
-            ct),
         Protocol.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadUpdated,
             Require<Contract.ThreadNotification>(method, parameters),
@@ -587,22 +595,6 @@ public sealed class AppServerEventDispatcher
         Protocol.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadDeleted,
             Require<Contract.ThreadDeletedNotification>(method, parameters),
-            ct),
-        Protocol.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
-            Contract.AppServerRpc.TurnStarted,
-            Require<Contract.TurnNotification>(method, parameters),
-            ct),
-        Protocol.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
-            Contract.AppServerRpc.TurnCompleted,
-            Require<Contract.TurnNotification>(method, parameters),
-            ct),
-        Protocol.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
-            Contract.AppServerRpc.TurnFailed,
-            Require<Contract.TurnNotification>(method, parameters),
-            ct),
-        Protocol.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
-            Contract.AppServerRpc.TurnCancelled,
-            Require<Contract.TurnNotification>(method, parameters),
             ct),
         Protocol.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.ItemStarted,

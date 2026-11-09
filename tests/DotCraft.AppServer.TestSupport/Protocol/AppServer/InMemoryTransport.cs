@@ -88,6 +88,23 @@ public sealed class InMemoryTransport : IAppServerTransport
         return msgs;
     }
 
+    public async Task<List<JsonDocument>> ReadTurnMessagesAsync(int count, TimeSpan? timeout = null)
+    {
+        var messages = new List<JsonDocument>();
+        while (messages.Count < count)
+        {
+            var message = await ReadNextSentAsync(timeout);
+            if (!message.RootElement.TryGetProperty("method", out var method)
+                || method.GetString() is { } name && (name.StartsWith("turn/", StringComparison.Ordinal)
+                    || name.StartsWith("item/", StringComparison.Ordinal)
+                    || name == DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProgress))
+                messages.Add(message);
+            else
+                message.Dispose();
+        }
+        return messages;
+    }
+
     /// <summary>
     /// Optional override for server-initiated approval requests (item/approval/request).
     /// When null, the transport auto-accepts all approval requests.

@@ -4,11 +4,15 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildClosed,
   isSubAgentChildRunning,
+  isSubAgentChildWorking,
+  isSubAgentChildFinished,
+  subAgentChildRuntime,
   useSubAgentStore,
   type SubAgentChild
 } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
+import { useSubAgentTaskActivity } from '../../stores/subAgentTaskActivity'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { IconButton } from '../ui/IconButton'
 import { Spinner } from '../ui/Spinner'
@@ -60,9 +64,10 @@ function findChild(
 
 function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JSX.Element {
   const t = useT()
-  const children = useSubAgentStore((s) =>
-    parentThreadId ? s.childrenByParent.get(parentThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
-  )
+  const graph = useSubAgentStore((s) => s.childrenByParent)
+  const children = parentThreadId ? graph.get(parentThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
+  const runtimes = useThreadStore((s) => s.runtimeSnapshots)
+  const taskActivity = useSubAgentTaskActivity()
   const [finishedOpen, setFinishedOpen] = useState(false)
   const [closedOpen, setClosedOpen] = useState(false)
 
@@ -75,11 +80,11 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
     const closedChildren: SubAgentChild[] = []
     for (const child of children) {
       if (isSubAgentChildClosed(child)) closedChildren.push(child)
-      else if (isSubAgentChildRunning(child)) running.push(child)
-      else finished.push(child)
+      else if (isSubAgentChildFinished(child)) finished.push(child)
+      else running.push(child)
     }
     return { active: running, done: finished, closed: closedChildren }
-  }, [children])
+  }, [children, graph, runtimes, taskActivity])
 
   if (children.length === 0) {
     return (
@@ -179,19 +184,20 @@ function SubagentRow({
   const locale = useLocale()
   const [stopping, setStopping] = useState(false)
   const running = isSubAgentChildRunning(child)
+  const working = isSubAgentChildWorking(child)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
     runtimeType: child.runtimeType
   })
-  const ended = running ? null : endedStatus(child, t)
-  const timeLabel = running
-    ? formatRunningElapsed(child.runtime?.activeTurnStartedAt, elapsedNowMs)
+  const ended = working ? null : endedStatus(child, t)
+  const timeLabel = working
+    ? running ? formatRunningElapsed(subAgentChildRuntime(child)?.activeTurnStartedAt, elapsedNowMs) : ''
     : ended ?? (child.threadSummary?.lastActiveAt
       ? formatRelativeTime(child.threadSummary.lastActiveAt, new Date(elapsedNowMs), locale)
       : '')
   const canOpen = child.isPlaceholder !== true
-  const canStop = running && child.isPlaceholder !== true
+  const canStop = running && !!subAgentChildRuntime(child)?.activeTurnId && child.isPlaceholder !== true
   const stop = (): void => {
     setStopping(true)
     useSubAgentStore.getState().interruptChild(child).then(

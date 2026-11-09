@@ -26,6 +26,28 @@ public sealed class AppServerConnection
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
     private readonly ConcurrentDictionary<string, ThreadObservation> _observations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ThreadObservation?>> _openingObservations = new(StringComparer.Ordinal);
+    private Lazy<OrderedAppServerNotificationQueue>? _threadNotifications;
+
+    internal Task SendThreadNotificationAsync(IAppServerTransport transport, string method, object parameters, CancellationToken ct = default)
+    {
+        var notifications = Volatile.Read(ref _threadNotifications);
+        if (notifications is null)
+        {
+            var candidate = new Lazy<OrderedAppServerNotificationQueue>(() => new(transport, MarkClosed));
+            notifications = Interlocked.CompareExchange(ref _threadNotifications, candidate, null) ?? candidate;
+        }
+        var queue = notifications.Value;
+        if (_isClosed) queue.Complete();
+        return queue.EnqueueAsync(method, parameters, ct);
+    }
+
+    internal Task CompleteThreadNotificationsAsync()
+    {
+        var notifications = Volatile.Read(ref _threadNotifications);
+        if (notifications is null) return Task.CompletedTask;
+        notifications.Value.Complete();
+        return notifications.Value.Completion;
+    }
 
     internal void BeginObservation(string threadId) =>
         _openingObservations[threadId] = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -319,6 +341,7 @@ public sealed class AppServerConnection
         _appPrincipalId = null;
         _appPrincipalAppId = null;
         _closedTcs.TrySetResult();
+        _ = CompleteThreadNotificationsAsync();
         foreach (var threadId in _openingObservations.Keys)
             CompleteObservation(threadId, null);
         CancelAllSubscriptions();

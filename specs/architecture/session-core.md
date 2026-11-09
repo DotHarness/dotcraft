@@ -68,7 +68,7 @@ Terminal persistence is owned by one Turn committer, which atomically commits te
 
 ### 3.5 Published Presentation State
 
-Each loaded runtime has a thread-scoped projection of its latest published Turn, Items and streaming presentation data. Event publication updates that projection before fan-out; capturing its snapshot and registering a future observer use the same ordering boundary. Every update belongs to the captured prefix or the observer's continuation, without historical lifecycle replay.
+Each loaded runtime has a thread-scoped projection of its latest published Turn, Items and streaming presentation data. Event publication updates that projection before fan-out; capturing its snapshot and registering a future observer use the same ordering boundary. Every update belongs to the captured prefix or the observer's continuation, without historical lifecycle replay. Ending an older Turn preserves the newer published Turn and its runtime.
 
 Metadata, summary and full views select Items before payload copying. The current view retains streaming text, argument previews, progress and diff state, including the latest terminal head while durable history catches up.
 
@@ -176,12 +176,7 @@ A queued input that starts a Turn copies its trigger metadata and id into the `U
 
 ##### Task notifications
 
-A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls. Envelope, wake policy, and per-kind fields are owned by the background-task subsystem. Session-level delivery:
-
-- While the owner Thread has an active Turn, the notification is added as `guidancePending` and drained at the next sampling boundary. It does not preempt a model request, does not hand over a waiting foreground command, and skips `UserPromptSubmit` hooks. If the Turn ends first, it becomes queued input.
-- Otherwise it is added as `queued`, and an Active idle Thread starts the next queued Turn when the wake policy allows.
-- Every Turn admits all `queued` task notifications as guidance before its first sampling request, so notifications that end together reach the model with that Turn's input.
-- Selecting the next queued Turn skips notifications that may not wake the Thread. A notification is never dropped; on a non-Active Thread it waits for the next Turn.
+A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls. Its envelope, wake policy, admission, and delivery follow [Background Tasks §5](background-tasks.md#5-notifications).
 
 Queued-input materialization is local-only. Inline `image` parts (base64 data URLs) are decoded without network access; `localImage` parts are read from their persisted paths. Rebuilding model history from an input snapshot (forks, interruption, a Turn without stored model history) reads `localImage` files the same way; an unreadable file becomes the text `[localImage:<path>]`. Session Core never dereferences HTTP(S) image URLs when starting a queued Turn or admitting guidance; such a part becomes a text notice that remote image URLs are not supported, and the remaining parts continue.
 

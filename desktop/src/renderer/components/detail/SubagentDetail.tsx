@@ -4,7 +4,9 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useConversationStore } from '../../stores/conversationStore'
-import { isSubAgentChildRunning, type SubAgentChild } from '../../stores/subAgentStore'
+import { isSubAgentChildRunning, isSubAgentChildWorking, useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
+import { useThreadStore } from '../../stores/threadStore'
+import { useSubAgentTaskActivity } from '../../stores/subAgentTaskActivity'
 import { useSubAgentTranscriptStore, type SubAgentTranscript } from '../../stores/subAgentTranscriptStore'
 import type { TranscriptLiveText } from '../../stores/subAgentTranscriptEvents'
 import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
@@ -28,10 +30,6 @@ const NO_ROWS: TurnFileChange[] = []
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
-function isTurnLive(turn: ConversationTurn | undefined): boolean {
-  return turn?.status === 'running' || turn?.status === 'waitingApproval' || turn?.status === 'waitingInput'
-}
-
 export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack: () => void }): JSX.Element {
   const t = useT()
   const childThreadId = child.childThreadId
@@ -40,8 +38,11 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
   const connected = useConnectionStore((s) => s.status === 'connected')
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const projectKey = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
-  const lastTurn = transcript?.turns.at(-1)
-  const running = lastTurn ? isTurnLive(lastTurn) : isSubAgentChildRunning(child)
+  useThreadStore((s) => s.runtimeSnapshots.get(childThreadId))
+  useSubAgentTaskActivity((s) => s.activeThreadIds)
+  useSubAgentStore((s) => s.childrenByParent)
+  const running = isSubAgentChildRunning(child)
+  const working = isSubAgentChildWorking(child)
   const viewportKey = JSON.stringify([projectKey, childThreadId])
 
   useLayoutEffect(() => {
@@ -76,7 +77,7 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
         </span>
         {modelLabel && <span className={styles.model}>{modelLabel}</span>}
       </div>
-      <SubagentTranscript key={viewportKey} viewportKey={viewportKey} childThreadId={childThreadId} transcript={transcript} running={running} />
+      <SubagentTranscript key={viewportKey} viewportKey={viewportKey} childThreadId={childThreadId} transcript={transcript} running={running} working={working} />
     </div>
   )
 }
@@ -85,12 +86,14 @@ function SubagentTranscript({
   childThreadId,
   viewportKey,
   transcript,
-  running
+  running,
+  working
 }: {
   childThreadId: string
   viewportKey: string
   transcript: SubAgentTranscript | undefined
   running: boolean
+  working: boolean
 }): JSX.Element {
   const t = useT()
   const turns = transcript?.turns ?? []
@@ -112,7 +115,7 @@ function SubagentTranscript({
   }, [childThreadId, loadEarlier, scrollRef, transcript?.status])
   const waiting = turns.length === 0 && (transcript == null
     || transcript.status === 'loading'
-    || (transcript.status === 'ready' && running))
+    || (transcript.status === 'ready' && working))
   const unavailable = !waiting && turns.length === 0
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const getConversationImages = useCallback(
@@ -149,7 +152,7 @@ function SubagentTranscript({
           </div>
         )}
       </div>
-      {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={running} />}
+      {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={working} />}
     </div>
   )
 }

@@ -39,6 +39,10 @@ public sealed class SessionEvent
     /// </summary>
     public object? Payload { get; set; }
 
+    /// <summary>The runtime at this event's publication boundary, not part of the serialized event.</summary>
+    [JsonIgnore]
+    public ThreadSummaryRuntime? RuntimeSnapshot { get; set; }
+
     // Typed payload accessors
 
     [JsonIgnore]

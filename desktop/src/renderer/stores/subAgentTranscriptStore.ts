@@ -1,13 +1,15 @@
 import { create } from 'zustand'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
-import type { ThreadConfigurationWire } from '../types/thread'
+import type { ThreadConfigurationWire, ThreadRuntimeSnapshot } from '../types/thread'
+import { normalizeThreadRuntime } from '../utils/threadRuntime'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
 import { readTurnItemsPage, THREAD_OPENING_PAGE } from '../utils/threadHistory'
 import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
 import { parseUnifiedDiff } from '../utils/unifiedDiff'
 import { useTurnItemsLoadStore } from './turnItemsLoadStore'
+import { useThreadStore } from './threadStore'
 import { wireItemToConversationItem } from '../types/conversation'
 import { mergeRestoredTurns, mergeTurnItemsPage } from './turnItemsHydration'
 import {
@@ -280,6 +282,9 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
                   release()
                   return
                 }
+                useThreadStore.getState().applyRuntimeSnapshot(childThreadId, normalizeThreadRuntime(result.currentState.runtime as ThreadRuntimeSnapshot), {
+                  isDesktopOrigin: false
+                })
                 turnCursor = result.initialTurnsPage?.nextCursor ?? null
                 update(childThreadId, (cached) => {
                   const timeline = restoreTranscript(result, cached.turns)

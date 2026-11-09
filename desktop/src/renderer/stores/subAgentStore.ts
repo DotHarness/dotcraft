@@ -4,13 +4,14 @@ import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
 import { getThreadConnection, requestThreadConnection } from './threadConnectionStore'
+import { syncSubAgentTaskActivity, clearSubAgentTaskActivity, resetSubAgentTaskActivity, useSubAgentTaskActivity } from './subAgentTaskActivity'
 import {
   childFromWire, createPlaceholderChild,
-  isSubAgentChildClosed, isSubAgentChildRunning, mergeExistingProgress,
+  isSubAgentChildClosed, isTerminalSubAgentStatus, mergeExistingProgress,
   type SubAgentChild, type SubAgentChildWire
 } from './subAgentChildren'
 
-export { isSubAgentChildClosed, isSubAgentChildRunning, isTerminalSubAgentStatus } from './subAgentChildren'
+export { isSubAgentChildClosed, isTerminalSubAgentStatus } from './subAgentChildren'
 export type { SubAgentChild } from './subAgentChildren'
 
 export interface SubAgentDiscovery {
@@ -43,7 +44,6 @@ interface SubAgentStoreActions {
   updateChildUsage(childThreadId: string, contextTokens: number): void
   interruptChild(child: SubAgentChild): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
-  updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
   selectChild(parentThreadId: string, childThreadId: string | null): void
   clearParent(parentThreadId: string): void
   reset(): void
@@ -58,18 +58,30 @@ const initialState: SubAgentStoreState = {
   selectedChildByParent: new Map()
 }
 
+interface ChildLifetime {
+  connectionKey: string | null
+  connectionId: string | null
+}
+
 interface ChildRequest {
   promise: Promise<void>
   refresh: boolean
   authoritative: boolean
+  lifetime: ChildLifetime
 }
 
 const requests = new Map<string, ChildRequest>()
-const lifetimes = new Map<string, object>()
-function lifetime(parentThreadId: string): object {
+const lifetimes = new Map<string, ChildLifetime>()
+function childConnection(parentThreadId: string): ChildLifetime {
+  const source = getThreadConnection(parentThreadId) ?? useConnectionStore.getState()
+  return { connectionKey: source.connectionKey, connectionId: source.connectionId }
+}
+
+function lifetime(parentThreadId: string): ChildLifetime {
   let token = lifetimes.get(parentThreadId)
-  if (!token) {
-    token = {}
+  const source = childConnection(parentThreadId)
+  if (!token || token.connectionKey !== source.connectionKey || token.connectionId !== source.connectionId) {
+    token = source
     lifetimes.set(parentThreadId, token)
   }
   return token
@@ -140,9 +152,11 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   ensureChildren(parentThreadId) {
+    const previous = lifetimes.get(parentThreadId)
+    const token = lifetime(parentThreadId)
     const pending = requests.get(parentThreadId)
-    if (pending) return pending.promise
-    if (get().discoveryByParent.has(parentThreadId)) return Promise.resolve()
+    if (pending?.lifetime === token) return pending.promise
+    if (previous === token && get().discoveryByParent.has(parentThreadId)) return Promise.resolve()
     return get().fetchChildren(parentThreadId)
   },
 
@@ -150,21 +164,20 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     const connection = getThreadConnection(parentThreadId)
     const capabilities = connection ? connection.capabilities : useConnectionStore.getState().capabilities
     if (!parentThreadId || capabilities?.subAgentSessions !== true) return Promise.resolve()
+    const token = lifetime(parentThreadId)
     const pending = requests.get(parentThreadId)
-    if (pending) {
+    if (pending?.lifetime === token) {
       pending.refresh = true
       pending.authoritative ||= options?.authoritative === true
       return pending.promise
     }
-    const token = lifetime(parentThreadId)
     const current = (): boolean => {
-      const source = getThreadConnection(parentThreadId)
+      const source = childConnection(parentThreadId)
       return lifetimes.get(parentThreadId) === token
-        && source?.connectionKey === connection?.connectionKey
-        && source?.connectionId === connection?.connectionId
+        && source.connectionKey === token.connectionKey && source.connectionId === token.connectionId
     }
     const task: ChildRequest = {
-      promise: Promise.resolve(), refresh: false, authoritative: options?.authoritative === true
+      promise: Promise.resolve(), refresh: false, authoritative: options?.authoritative === true, lifetime: token
     }
     requests.set(parentThreadId, task)
     const setDiscovery = (status: SubAgentDiscovery['status']): void => {
@@ -185,6 +198,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         const authoritative = task.authoritative
         task.authoritative = false
         setDiscovery('loading')
+        const runtimeBaseline = useThreadStore.getState().runtimeSnapshots
         try {
           const result = await requestThreadConnection(parentThreadId, 'subagent/children/list', {
             parentThreadId, includeClosed: true, includeThreads: true
@@ -193,14 +207,22 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           const children = (result.data ?? [])
             .map((entry) => childFromWire(parentThreadId, entry))
             .filter((entry): entry is SubAgentChild => entry != null)
-          if (!connection || useThreadStore.getState().threadListProjectKey === connection.workspaceKey) {
-            useThreadStore.getState().upsertThreads(children
-              .map((child) => child.threadSummary)
-              .filter((thread): thread is ThreadSummary => thread != null))
+          const threads = children.map((child) => child.threadSummary)
+            .filter((thread): thread is ThreadSummary => thread != null)
+          const threadStore = useThreadStore.getState()
+          if (!connection || threadStore.threadListProjectKey === connection.workspaceKey) {
+            threadStore.upsertThreads(threads, runtimeBaseline)
+          } else {
+            for (const thread of threads) {
+              if (thread.runtime) threadStore.applyRuntimeSnapshot(thread.id, thread.runtime, {
+                isDesktopOrigin: false, baseline: runtimeBaseline
+              })
+            }
           }
           get().setChildren(parentThreadId, children, authoritative
             ? { preserveRunningPlaceholders: false, blockStaleProgressWhenEmpty: children.length === 0 }
             : undefined)
+          syncSubAgentTaskActivity(parentThreadId, get().childrenByParent.get(parentThreadId) ?? [])
           setDiscovery('ready')
           failure = undefined
         } catch (error) {
@@ -231,7 +253,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   async interruptChild(child) {
-    const turnId = child.runtime?.activeTurnId
+    const turnId = subAgentChildRuntime(child)?.activeTurnId
       ?? ((await requestThreadConnection(child.parentThreadId, 'thread/read', { threadId: child.childThreadId })) as { thread: ThreadSummary }).thread.runtime?.activeTurnId
     if (turnId) await requestThreadConnection(child.parentThreadId, 'turn/interrupt', { threadId: child.childThreadId, turnId })
   },
@@ -248,15 +270,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         const index = unmatched.findIndex((entry) => entry.label === child.nickname)
         const progress = index >= 0 ? unmatched.splice(index, 1)[0] : unmatched.shift()
         if (!progress) return child
-        const isCompleted = child.runtime?.running === false || progress.isCompleted
         return {
           ...child,
+          status: child.isPlaceholder ? progress.isCompleted ? 'completed' : 'open' : child.status,
           lastToolDisplay: progress.currentToolDisplay ?? progress.currentTool ?? child.lastToolDisplay,
-          currentTool: isCompleted ? null : progress.currentTool ?? child.currentTool,
-          isCompleted,
-          runtime: child.runtime
-            ? { ...child.runtime, running: child.runtime.running === false ? false : !isCompleted }
-            : child.runtime
+          currentTool: subAgentChildRuntime(child)?.running === false || progress.isCompleted
+            ? null : progress.currentTool ?? child.currentTool
         }
       })
       if (allowPlaceholderCreation) {
@@ -276,27 +295,6 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     })
   },
 
-  updateChildRuntime(childThreadId, runtime) {
-    set((state) => {
-      let changed = false
-      const childrenByParent = new Map(state.childrenByParent)
-      for (const [parentThreadId, children] of childrenByParent) {
-        const next = children.map((child) => {
-          if (child.childThreadId !== childThreadId || isSubAgentChildClosed(child)) return child
-          changed = true
-          return {
-            ...child,
-            runtime,
-            currentTool: runtime.running ? child.currentTool : null,
-            isCompleted: !runtime.running
-          }
-        })
-        childrenByParent.set(parentThreadId, next)
-      }
-      return changed ? { childrenByParent } : state
-    })
-  },
-
   selectChild(parentThreadId, childThreadId) {
     set((state) => {
       if ((state.selectedChildByParent.get(parentThreadId) ?? null) === childThreadId) return state
@@ -308,6 +306,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   clearParent(parentThreadId) {
+    clearSubAgentTaskActivity(parentThreadId)
     lifetimes.delete(parentThreadId)
     requests.delete(parentThreadId)
     set((state) => {
@@ -324,6 +323,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   reset() {
+    resetSubAgentTaskActivity()
     lifetimes.clear()
     requests.clear()
     set({
@@ -334,3 +334,26 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     })
   }
 }))
+
+export function subAgentChildRuntime(child: SubAgentChild): ThreadRuntimeSnapshot | undefined {
+  return useThreadStore.getState().runtimeSnapshots.get(child.childThreadId)
+}
+
+export function isSubAgentChildRunning(child: SubAgentChild): boolean {
+  if (isSubAgentChildClosed(child)) return false
+  return subAgentChildRuntime(child)?.running
+    ?? (child.isPlaceholder === true && !isTerminalSubAgentStatus(child.status))
+}
+
+export function isSubAgentChildWorking(child: SubAgentChild): boolean {
+  if (isSubAgentChildClosed(child)) return false
+  return isSubAgentChildRunning(child)
+    || useSubAgentTaskActivity.getState().activeThreadIds.has(child.childThreadId)
+    || (useSubAgentStore.getState().childrenByParent.get(child.childThreadId) ?? []).some(isSubAgentChildWorking)
+}
+
+export function isSubAgentChildFinished(child: SubAgentChild): boolean {
+  return isSubAgentChildClosed(child) || (!isSubAgentChildWorking(child)
+    && !useSubAgentTaskActivity.getState().pendingThreadIds.has(child.childThreadId)
+    && (subAgentChildRuntime(child)?.running === false || (child.isPlaceholder === true && isTerminalSubAgentStatus(child.status))))
+}

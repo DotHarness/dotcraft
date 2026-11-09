@@ -74,7 +74,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
       threads.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
         isDesktopOrigin: true
       })
-      useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)
       if (threads.activeThreadId === threadId) {
         const conversation = useConversationStore.getState()
         const pendingApproval = conversation.pendingApproval
@@ -408,7 +407,7 @@ describe('notification dispatch payload format', () => {
         nickname: 'Lovelace',
         isPlaceholder: true,
         lastToolDisplay: 'Reading sprite atlas',
-        runtime: expect.objectContaining({ running: true })
+        status: 'open'
       })
     )
 
@@ -417,7 +416,7 @@ describe('notification dispatch payload format', () => {
         parentThreadId: 'thread-1',
         includeClosed: true,
         includeThreads: true
-      })
+      }, undefined, undefined)
       expect(useSubAgentStore.getState().childrenByParent.get('thread-1')?.[0]).toEqual(
         expect.objectContaining({
           childThreadId: 'child-1',
@@ -445,14 +444,8 @@ describe('notification dispatch payload format', () => {
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
+        model: null,
+        contextTokens: null
       }
     ])
 
@@ -470,17 +463,11 @@ describe('notification dispatch payload format', () => {
       }
     })
 
-    expect(useSubAgentStore.getState().childrenByParent.get('thread-1')?.[0]).toEqual(
-      expect.objectContaining({
-        currentTool: 'ReadFile',
-        isCompleted: false,
-        runtime: expect.objectContaining({
-          running: true,
-          activeTurnId: 'turn-2',
-          activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
-        })
-      })
-    )
+    expect(useThreadStore.getState().runtimeSnapshots.get('child-1')).toMatchObject({
+      running: true,
+      activeTurnId: 'turn-2',
+      activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
+    })
   })
 
   it('releases the active Desktop approval bridge when runtime shows remote approval resolved', () => {

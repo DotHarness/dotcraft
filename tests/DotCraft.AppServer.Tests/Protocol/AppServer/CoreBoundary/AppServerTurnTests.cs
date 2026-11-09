@@ -52,7 +52,7 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await _h.ExecuteRequestAsync(msg);
 
-        var all = await _h.Transport.WaitAndDrainAsync(6, TimeSpan.FromSeconds(10));
+        var all = await _h.Transport.ReadTurnMessagesAsync(6, TimeSpan.FromSeconds(10));
 
         AppServerTestHarness.AssertIsSuccessResponse(all[0]);
         Assert.True(all[0].RootElement.GetProperty("result").TryGetProperty("turn", out _));
@@ -102,7 +102,7 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await _h.ExecuteRequestAsync(msg);
 
-        var all = await _h.Transport.WaitAndDrainAsync(4, TimeSpan.FromSeconds(10));
+        var all = await _h.Transport.ReadTurnMessagesAsync(4, TimeSpan.FromSeconds(10));
 
         var reasoningDelta = all[2];
         AssertMethod(reasoningDelta, DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta);
@@ -130,7 +130,7 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await harness.ExecuteRequestAsync(msg);
 
-        var all = await harness.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
+        var all = await harness.Transport.ReadTurnMessagesAsync(5, TimeSpan.FromSeconds(10));
 
         var methods = all
             .Skip(1)
@@ -283,7 +283,7 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await _h.ExecuteRequestAsync(msg);
 
-        var all = await _h.Transport.WaitAndDrainAsync(7, TimeSpan.FromSeconds(10));
+        var all = await _h.Transport.ReadTurnMessagesAsync(7, TimeSpan.FromSeconds(10));
         AssertMethod(all[3], DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta);
         var @params = all[3].RootElement.GetProperty("params");
         Assert.Equal("toolCallArguments", @params.GetProperty("deltaKind").GetString());

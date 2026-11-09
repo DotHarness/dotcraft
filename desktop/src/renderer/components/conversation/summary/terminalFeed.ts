@@ -23,7 +23,7 @@ interface TerminalSnapshot {
 const TERMINAL_ENDS = new Set(['completed', 'failed', 'killed', 'timedOut', 'lost'])
 
 export function createTerminalFeed(
-  services: SummaryServices,
+  services: Pick<SummaryServices, 'appServer'>,
   threadId: string,
   onChange: (terminals: readonly SummaryTerminal[]) => void
 ) {

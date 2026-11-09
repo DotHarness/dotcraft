@@ -7,8 +7,8 @@ export function makeSubAgent(overrides: Partial<SubAgentChild> = {}): SubAgentCh
     childThreadId: 'child-B', parentThreadId: 'parent-B', agentPath: '/root/review_core',
     nickname: 'Core B', agentRole: 'explorer', profileName: 'native', runtimeType: 'native',
     supportsClose: true, supportsResume: true, supportsSendInput: true,
-    status: 'open', isCompleted: false, currentTool: null, lastToolDisplay: null,
-    model: null, contextTokens: null,    runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
+    status: 'open', currentTool: null, lastToolDisplay: null,
+    model: null, contextTokens: null,
     ...overrides
   }
 }

@@ -174,20 +174,13 @@ internal sealed class ThreadObservationState
                 turn.Input = turn.Items.FirstOrDefault(item => item.Id == input.Id);
         }
 
-        var mode = header.Configuration?.Mode;
-        var runtimeThread = new SessionThread
-        {
-            Id = header.Id,
-            Configuration = mode is null ? null : new ThreadConfiguration { Mode = mode },
-            Turns = _turn is null ? [] : [_turn]
-        };
-        var runtime = ThreadSummaryRuntime.FromThread(runtimeThread, maintenanceKind);
+        var runtime = GetRuntimeSnapshot(header, maintenanceKind);
         var selected = turn?.Items.Select(item => item.Id).ToHashSet(StringComparer.Ordinal) ?? [];
         var toolExecutionCount = _items.Items.Count(item => item.Type == ItemType.ToolExecution);
         return new ThreadObservationSnapshot
         {
             ThreadId = header.Id,
-            Mode = mode,
+            Mode = header.Configuration?.Mode,
             Configuration = header.Configuration is null ? null : ThreadConfigurationCloner.Clone(header.Configuration),
             Runtime = runtime,
             Turn = turn,
@@ -204,6 +197,14 @@ internal sealed class ThreadObservationState
             PendingRequests = _pending.Values.ToArray()
         };
     }
+
+    public ThreadSummaryRuntime GetRuntimeSnapshot(SessionThread header, string? maintenanceKind = null) =>
+        ThreadSummaryRuntime.FromThread(new SessionThread
+        {
+            Id = header.Id,
+            Configuration = header.Configuration,
+            Turns = _turn is null ? [] : [_turn]
+        }, maintenanceKind);
 
     private void MergeItems(SessionTurn source, bool initialize = false)
     {

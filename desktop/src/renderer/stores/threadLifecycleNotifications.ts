@@ -39,7 +39,10 @@ export function applyThreadLifecycleNotification(
     case 'thread/updated': {
       const pp = p as { thread?: Thread }
       if (pp.thread) {
-        if (context.foreground) useThreadStore.getState().upsertThreads([pp.thread])
+        if (context.foreground) {
+          const threads = useThreadStore.getState()
+          threads.upsertThreads([{ ...pp.thread, runtime: threads.runtimeSnapshots.get(pp.thread.id) ?? pp.thread.runtime }])
+        }
         if (useThreadStore.getState().activeThreadId === pp.thread.id) {
           useThreadStore.getState().setActiveThread(pp.thread)
         }
@@ -137,7 +140,6 @@ export function applyThreadLifecycleNotification(
           (threadSummary?.originChannel ?? getThreadConnection(threadId)?.originChannel)?.toLowerCase() ===
           'dotcraft-desktop'
       })
-      useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)
       const conversation = conversationFor(threadId)
       if (conversation) {
         const pendingApprovals =

@@ -116,20 +116,15 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     const work = async (): Promise<void> => {
       do {
         dirty.delete(key)
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          const generation = version(key)
-          update(key, { loading: true, error: null })
-          try {
-            const result = await client.request('workflow/run/read', { threadId, runId })
-            if (!current(started)) return
-            if (versions.get(key) !== generation) break
-            applyRun(key, result.run)
-            break
-          } catch (error) {
-            if (!current(started)) return
-            if (versions.get(key) !== generation) break
-            update(key, { loading: false, error: normalizeReadError(error) })
-          }
+        const generation = version(key)
+        update(key, { loading: true, error: null })
+        try {
+          const result = await client.request('workflow/run/read', { threadId, runId })
+          if (!current(started)) return
+          if (versions.get(key) === generation) applyRun(key, result.run)
+        } catch (error) {
+          if (!current(started)) return
+          if (versions.get(key) === generation) update(key, { loading: false, error: normalizeReadError(error) })
         }
       } while (current(started) && dirty.has(key))
     }
@@ -149,16 +144,13 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     const work = async (): Promise<void> => {
       let cursor: string | undefined
       do {
-        let page: ClientRequestMethods['workflow/run/list']['result'] | undefined
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          try {
-            page = await client.request('workflow/run/list', { threadId, limit: 50, ...(cursor ? { cursor } : {}) })
-            break
-          } catch {
-            if (!current(started)) return
-          }
+        let page: ClientRequestMethods['workflow/run/list']['result']
+        try {
+          page = await client.request('workflow/run/list', { threadId, limit: 50, ...(cursor ? { cursor } : {}) })
+        } catch {
+          return
         }
-        if (!current(started) || !page) return
+        if (!current(started)) return
         for (const summary of [...(page.runs ?? [])].reverse()) {
           if (summary.threadId !== threadId) continue
           const key = keyOf(threadId, summary.runId)

@@ -214,6 +214,41 @@ public sealed class ThreadObservationBrokerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pump);
     }
 
+    [Fact]
+    public async Task OlderTerminalEvent_CarriesTheStillActivePublishedRuntime()
+    {
+        var thread = Thread();
+        var broker = new ThreadEventBroker(thread.Id);
+        broker.Initialize(thread, 1);
+        var first = new SessionTurn
+        {
+            Id = "turn_001", ThreadId = thread.Id, Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.Parse("2026-11-01T00:00:00Z")
+        };
+        var next = new SessionTurn
+        {
+            Id = "turn_002", ThreadId = thread.Id, Status = TurnStatus.Running,
+            StartedAt = first.StartedAt.AddMinutes(1)
+        };
+        var oldChannel = broker.CreateTurnChannel(first.Id);
+        oldChannel.EmitTurnStarted(first);
+        var nextChannel = broker.CreateTurnChannel(next.Id);
+        nextChannel.EmitTurnStarted(next);
+        first.Status = TurnStatus.Completed;
+        oldChannel.EmitTurnCompleted(first);
+        oldChannel.Complete();
+        var events = new List<SessionEvent>();
+        await foreach (var evt in oldChannel.ReadAllAsync(CancellationToken.None)) events.Add(evt);
+
+        var runtime = Assert.IsType<ThreadSummaryRuntime>(events[^1].RuntimeSnapshot);
+        Assert.True(runtime.Running);
+        Assert.Equal(next.Id, runtime.ActiveTurnId);
+        Assert.Equal(next.Id, broker.GetRuntimeSnapshot(thread, null).ActiveTurnId);
+        using var observation = broker.Observe(thread, null, ThreadObservationView.Metadata, []);
+        Assert.True(observation.Snapshot.Runtime.Running);
+        Assert.Equal(next.Id, observation.Snapshot.Runtime.ActiveTurnId);
+    }
+
     private static SessionThread Thread() => new()
     {
         Id = "thread_001", Status = ThreadStatus.Active,
