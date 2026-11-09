@@ -1,5 +1,4 @@
 import { useId, useState, type FocusEvent, type JSX, type KeyboardEvent, type ReactNode } from 'react'
-import { RotateCcw } from 'lucide-react'
 import type { DesktopPluginSettingField } from '@dotcraft/plugin'
 import { useT } from '../../../contexts/LocaleContext'
 import { SettingsGroup, SettingsRow } from '../../settings/SettingsGroup'
@@ -12,7 +11,6 @@ import {
   rowsToRecord,
   rowsToValues
 } from '../../settings/ui/EditableList'
-import { IconButton } from '../../ui/IconButton'
 import { Input, Textarea } from '../../ui/Input'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Select } from '../../ui/Select'
@@ -76,7 +74,6 @@ function ConfigFieldRow({ field, state, disabled }: {
   const controlId = useId()
   const snapshot = state.snapshot!
   const setByWorkspace = storedKey(snapshot.workspace, field.key) !== undefined
-  const setByUser = storedKey(snapshot.personal, field.key) !== undefined
   const pending = state.pendingChange?.key === field.key
   const value = pending && state.pendingChange?.value !== undefined
     ? state.pendingChange.value
@@ -87,16 +84,6 @@ function ConfigFieldRow({ field, state, disabled }: {
     : field.description
   const block = BLOCK_TYPES.has(field.type)
   const list = field.type === 'stringList' || field.type === 'keyValueMap'
-  const resetButton = setByUser && !setByWorkspace
-    ? (
-      <IconButton
-        icon={<RotateCcw size={14} />}
-        label={t('plugins.settings.reset')}
-        disabled={disabled}
-        onClick={() => state.reset(field.key)}
-      />
-    )
-    : null
   const control = (
     <ConfigControl
       id={controlId}
@@ -113,8 +100,7 @@ function ConfigFieldRow({ field, state, disabled }: {
       description={description}
       htmlFor={list ? undefined : controlId}
       orientation={block ? 'block' : 'inline'}
-      labelAction={block ? resetButton : undefined}
-      control={block ? control : <span className={styles.controlWithReset}>{control}{resetButton}</span>}
+      control={control}
     />
   )
 }

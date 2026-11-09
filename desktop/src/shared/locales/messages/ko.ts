@@ -2981,8 +2981,6 @@ export const MESSAGES_KO = {
   'plugins.settings.jsonRequired': '올바른 JSON을 입력하세요',
   'plugins.settings.keyPlaceholder': '키',
   'plugins.settings.valuePlaceholder': '값',
-  'plugins.settings.pageDescription': '이 플러그인은 자체 페이지에서 설정을 관리합니다.',
-  'plugins.settings.openPage': '열기',
   'plugins.detail.info': '정보',
   'plugins.detail.privacy': '개인정보 보호정책',
   'plugins.detail.terms': '서비스 약관',

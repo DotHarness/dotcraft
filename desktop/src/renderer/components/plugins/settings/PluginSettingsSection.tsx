@@ -1,17 +1,13 @@
 import { useId, type JSX } from 'react'
-import { useLocale, useT } from '../../../contexts/LocaleContext'
-import {
-  resolveDesktopPluginLabel,
-  useDesktopPluginRegistry,
-  type ActiveDesktopPluginSettingsPage
-} from '../../../plugins/desktopPluginRegistry'
+import { RotateCcw } from 'lucide-react'
+import { useT } from '../../../contexts/LocaleContext'
+import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
 import type { PluginEntry } from '../../../stores/pluginStore'
-import { useUIStore } from '../../../stores/uiStore'
-import { SettingsGroup, SettingsRow } from '../../settings/SettingsGroup'
 import { SETTINGS_SURFACE_CLASS } from '../../settings/settingsTypography'
-import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { McpServerSettings } from './McpServerSettings'
 import { PluginConfigSettings } from './PluginConfigSettings'
+import { hasPersonalOverride } from './pluginConfigModel'
 import { usePluginConfig } from './usePluginConfig'
 import { usePluginSettingsServers } from './useMcpServerSettings'
 import styles from './PluginSettings.module.css'
@@ -22,45 +18,43 @@ export function PluginSettingsSection({ plugin }: { plugin: PluginEntry }): JSX.
   const active = plugin.installed && plugin.enabled
   const config = usePluginConfig(plugin.id, active)
   const servers = usePluginSettingsServers(plugin.id, active)
-  const settingsPage = useDesktopPluginRegistry((state) =>
-    state.settingsPages.find((page) => page.pluginId === plugin.id))
-  if (!config.declared && servers.length === 0) return null
+  const ownsSettingsUi = useDesktopPluginRegistry((state) =>
+    state.settingsPages.some((page) => page.pluginId === plugin.id)
+    || state.mainViews.some((view) => view.pluginId === plugin.id))
+  const showConfig = config.declared && !ownsSettingsUi
+  if (!showConfig && servers.length === 0) return null
+  const snapshot = config.snapshot
+  const canReset = showConfig
+    && snapshot != null
+    && snapshot.writableScopes.includes('personal')
+    && hasPersonalOverride(snapshot)
   return (
     <section
       className={`${styles.section} ${SETTINGS_SURFACE_CLASS}`}
       aria-labelledby={headingId}
       data-plugin-settings
     >
-      <h2 id={headingId} className={styles.heading}>{t('plugins.detail.settings')}</h2>
-      {config.declared && (settingsPage
-        ? <SettingsPageLink page={settingsPage} />
-        : <PluginConfigSettings state={config} />)}
+      <div className={styles.header}>
+        <h2 id={headingId} className={styles.heading}>{t('plugins.detail.settings')}</h2>
+        {canReset && (
+          <IconButton
+            className={styles.headerAction}
+            icon={<RotateCcw size={14} />}
+            label={t('plugins.settings.reset')}
+            tooltipLabel={t('plugins.settings.reset')}
+            disabled={config.failed || config.pendingChange != null}
+            onClick={config.resetAll}
+          />
+        )}
+      </div>
+      {showConfig && <PluginConfigSettings state={config} />}
       {servers.map((server) => (
         <McpServerSettings
           key={server.status.name}
           server={server}
-          serverName={servers.length > 1 || config.declared ? server.status.declaredName || server.status.name : undefined}
+          serverName={servers.length > 1 || showConfig ? server.status.declaredName || server.status.name : undefined}
         />
       ))}
     </section>
-  )
-}
-
-function SettingsPageLink({ page }: { page: ActiveDesktopPluginSettingsPage }): JSX.Element {
-  const t = useT()
-  const locale = useLocale()
-  const open = (): void => {
-    const ui = useUIStore.getState()
-    ui.setActiveSettingsTab(page.settingsKey)
-    ui.setActiveMainView('settings')
-  }
-  return (
-    <SettingsGroup>
-      <SettingsRow
-        label={resolveDesktopPluginLabel(page.label, locale)}
-        description={t('plugins.settings.pageDescription')}
-        control={<Button onClick={open}>{t('plugins.settings.openPage')}</Button>}
-      />
-    </SettingsGroup>
   )
 }

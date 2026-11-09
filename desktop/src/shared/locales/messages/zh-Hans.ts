@@ -2506,8 +2506,6 @@ export const MESSAGES_ZH_HANS = {
   'plugins.settings.jsonRequired': '请输入有效的 JSON',
   'plugins.settings.keyPlaceholder': '键',
   'plugins.settings.valuePlaceholder': '值',
-  'plugins.settings.pageDescription': '此插件在自己的设置页中管理设置。',
-  'plugins.settings.openPage': '打开',
   'plugins.detail.info': '信息',
   'plugins.detail.category': '类别',
   'plugins.detail.capabilities': '能力',

@@ -7,16 +7,16 @@ import {
   readDesktopPluginSettings
 } from '../../../plugins/desktopPluginSettings'
 import { useConnectionStore } from '../../../stores/connectionStore'
-import type { PluginConfigSnapshot } from './pluginConfigModel'
+import { storedKey, type PluginConfigSnapshot } from './pluginConfigModel'
 
 export interface PluginConfigState {
   declared: boolean
   snapshot: PluginConfigSnapshot | null
   loading: boolean
   failed: boolean
-  pendingChange: { key: string; value: unknown } | null
+  pendingChange: { key: string | null; value: unknown } | null
   set: (key: string, value: unknown) => void
-  reset: (key: string) => void
+  resetAll: () => void
   retry: () => void
 }
 
@@ -64,20 +64,29 @@ export function usePluginConfig(pluginId: string, active: boolean): PluginConfig
     }
   }, [connectionEpoch, enabled, pluginId, read])
 
-  const mutate = useCallback((operation: DesktopPluginSettingsMutation, value: unknown) => {
+  const mutate = useCallback((
+    operations: DesktopPluginSettingsMutation[],
+    change: NonNullable<PluginConfigState['pendingChange']>
+  ) => {
     const current = generation.current
-    setPendingChange({ key: operation.key, value })
+    setPendingChange(change)
     setFailed(false)
-    void mutateDesktopPluginSettings(pluginId, 'personal', [operation])
+    void mutateDesktopPluginSettings(pluginId, 'personal', operations)
       .then(
         (next) => { if (generation.current === current) setSnapshot(next) },
         () => { if (generation.current === current) setFailed(true) })
       .finally(() => { if (generation.current === current) setPendingChange(null) })
   }, [pluginId])
 
-  const set = useCallback((key: string, value: unknown) => mutate({ op: 'set', key, value }, value), [mutate])
-  const reset = useCallback((key: string) => mutate({ op: 'unset', key }, undefined), [mutate])
+  const set = useCallback((key: string, value: unknown) => mutate([{ op: 'set', key, value }], { key, value }), [mutate])
+  const resetAll = useCallback(() => {
+    if (!snapshot) return
+    const operations = snapshot.schema.fields
+      .filter((field) => storedKey(snapshot.personal, field.key) !== undefined)
+      .map((field): DesktopPluginSettingsMutation => ({ op: 'unset', key: field.key }))
+    if (operations.length > 0) mutate(operations, { key: null, value: undefined })
+  }, [mutate, snapshot])
   const retry = useCallback(() => { void read() }, [read])
 
-  return { declared, snapshot, loading, failed, pendingChange, set, reset, retry }
+  return { declared, snapshot, loading, failed, pendingChange, set, resetAll, retry }
 }

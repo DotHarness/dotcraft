@@ -5,10 +5,21 @@
   margin-top: 28px;
 }
 
-.heading {
-  margin: 0;
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.headerAction {
+  margin-block: -4px;
+}
+
+.heading {
+  margin: 0;
   font-size: var(--type-heading-size);
   line-height: var(--type-heading-line-height);
   font-weight: 600;
@@ -49,12 +60,6 @@
 
 .numberField .inputError {
   text-align: end;
-}
-
-.controlWithReset {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
 }
 
 .fieldDescription {

@@ -29,7 +29,7 @@ function formState(overrides: Partial<PluginConfigState>): PluginConfigState {
     failed: false,
     pendingChange: null,
     set: vi.fn(),
-    reset: vi.fn(),
+    resetAll: vi.fn(),
     retry: vi.fn(),
     ...overrides
   }
@@ -95,21 +95,37 @@ describe('plugin configuration settings', () => {
     expect(result.current.snapshot?.value.limit).toBe(9)
   })
 
-  it('locks workspace-set fields and resets a personal override whatever their stored casing', () => {
+  it('locks workspace-set fields whatever their stored casing', () => {
     const state = formState({
       snapshot: {
         ...snapshot,
-        personal: { LIMIT: 5 },
         workspace: { Endpoint: 'https://example.test' },
-        value: { Endpoint: 'https://example.test', LIMIT: 5 }
+        value: { Endpoint: 'https://example.test', limit: 5 }
       }
     })
     render(<LocaleProvider loadSettings={false}><PluginConfigSettings state={state} /></LocaleProvider>)
 
     expect(screen.getByLabelText('Endpoint')).toBeDisabled()
     expect(screen.getByLabelText('Endpoint')).toHaveValue('https://example.test')
-    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
-    expect(state.reset).toHaveBeenCalledWith('limit')
+  })
+
+  it('restores every personal override in one change', async () => {
+    const stored = { ...snapshot, personal: { LIMIT: 5, endpoint: 'https://personal.test' } }
+    const sendRequestRaw = vi.fn(async (method: string) => method === 'plugin/config/get'
+      ? stored
+      : { ...snapshot, personal: {} })
+    installDesktopApiMock({ appServer: { sendRequestRaw, onNotificationRaw: () => () => {} } })
+
+    const { result } = renderHook(() => usePluginConfig('acme', true))
+    await waitFor(() => expect(result.current.snapshot).not.toBeNull())
+    act(() => result.current.resetAll())
+
+    await waitFor(() => expect(result.current.snapshot?.personal).toEqual({}))
+    expect(sendRequestRaw).toHaveBeenCalledWith('plugin/config/mutate', {
+      id: 'acme',
+      scope: 'personal',
+      operations: [{ op: 'unset', key: 'endpoint' }, { op: 'unset', key: 'limit' }]
+    })
   })
 
   it('leaves an untouched list alone when focus moves away', () => {

@@ -13,6 +13,11 @@ export function storedKey(record: Partial<Record<string, unknown>>, key: string)
   return Object.keys(record).find((candidate) => candidate.toLowerCase() === lower)
 }
 
+export function hasPersonalOverride(snapshot: PluginConfigSnapshot): boolean {
+  return snapshot.schema.fields.some((field) =>
+    storedKey(snapshot.personal, field.key) !== undefined && storedKey(snapshot.workspace, field.key) === undefined)
+}
+
 export function formatConfigInput(field: DesktopPluginSettingField, value: unknown): string {
   if (field.type === 'json') return value === undefined ? '' : JSON.stringify(value, null, 2)
   return value == null ? '' : String(value)

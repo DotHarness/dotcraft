@@ -79,34 +79,33 @@ export function ChannelModuleDetailPage({
           />
         )}
       />
+      <header className={styles.header}>
+        <div className={styles.iconRow}>
+          <ChannelDetailIcon logoPath={logoPath} role="hero" />
+        </div>
+        <div className={styles.identityRow}>
+          <div className={styles.identity}>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
+          <div className={styles.actions}>
+            <IconButton
+              icon={<Settings size={16} aria-hidden />}
+              label={t('plugins.manage')}
+              tooltipLabel={t('plugins.manage')}
+              onClick={() => onModeChange('manage')}
+            />
+            <MorphingActionPill
+              label={t(active ? 'appBinding.disconnect' : 'appBinding.connect')}
+              loading={busy}
+              disabled={!controlsAvailable}
+              onClick={onToggleConnection}
+            />
+          </div>
+        </div>
+      </header>
       <main className={`${styles.scroll} dc-scrollbar-stable`}>
         <div className={styles.content}>
-          <header className={styles.header}>
-            <div className={styles.iconRow}>
-              <ChannelDetailIcon logoPath={logoPath} role="hero" />
-            </div>
-            <div className={styles.identityRow}>
-              <div className={styles.identity}>
-                <h1>{title}</h1>
-                <p>{subtitle}</p>
-              </div>
-              <div className={styles.actions}>
-                <IconButton
-                  icon={<Settings size={16} aria-hidden />}
-                  label={t('plugins.manage')}
-                  tooltipLabel={t('plugins.manage')}
-                  onClick={() => onModeChange('manage')}
-                />
-                <MorphingActionPill
-                  label={t(active ? 'appBinding.disconnect' : 'appBinding.connect')}
-                  loading={busy}
-                  disabled={!controlsAvailable}
-                  onClick={onToggleConnection}
-                />
-              </div>
-            </div>
-          </header>
-
           <div className={styles.preview} aria-label={t('channels.detail.preview')}>
             <div className={styles.prompt}>
               <span className={styles.promptPrefix}>

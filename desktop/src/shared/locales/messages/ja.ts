@@ -2979,8 +2979,6 @@ export const MESSAGES_JA = {
   'plugins.settings.jsonRequired': '有効な JSON を入力してください',
   'plugins.settings.keyPlaceholder': 'キー',
   'plugins.settings.valuePlaceholder': '値',
-  'plugins.settings.pageDescription': 'このプラグインは専用のページで設定を管理します。',
-  'plugins.settings.openPage': '開く',
   'plugins.detail.info': '情報',
   'plugins.detail.privacy': 'プライバシーポリシー',
   'plugins.detail.terms': '利用規約',

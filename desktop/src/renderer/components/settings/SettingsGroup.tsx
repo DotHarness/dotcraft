@@ -55,7 +55,6 @@ interface SettingsRowProps {
   control?: ReactNode
   controlMinWidth?: number | string
   orientation?: 'inline' | 'block'
-  labelAction?: ReactNode
   children?: ReactNode
   align?: 'center' | 'flex-start'
   style?: CSSProperties
@@ -73,7 +72,6 @@ export function SettingsRow({
   control,
   controlMinWidth,
   orientation = 'inline',
-  labelAction,
   children,
   align = 'center',
   style,
@@ -95,16 +93,13 @@ export function SettingsRow({
         style={{ ...rowStyle(), flexDirection: 'column', alignItems: 'stretch', gap: '10px', ...style }}
       >
         {(label || description) && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {label && (
-                <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
-                  {label}
-                </label>
-              )}
-              {description && <div style={settingsHintStyle()}>{description}</div>}
-            </div>
-            {labelAction}
+          <div style={{ minWidth: 0 }}>
+            {label && (
+              <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
+                {label}
+              </label>
+            )}
+            {description && <div style={settingsHintStyle()}>{description}</div>}
           </div>
         )}
         {control}

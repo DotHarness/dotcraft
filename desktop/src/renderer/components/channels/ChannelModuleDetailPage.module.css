@@ -17,11 +17,13 @@
   box-sizing: border-box;
   width: min(760px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 22px 0 48px;
+  padding: 0 0 48px;
 }
 
 .header {
-  margin-bottom: 28px;
+  box-sizing: border-box;
+  width: min(760px, calc(100% - 48px));
+  margin: 22px auto 28px;
 }
 
 .iconRow {
@@ -232,6 +234,7 @@
 }
 
 @media (max-width: 760px) {
+  .header,
   .content {
     width: calc(100% - 32px);
   }
