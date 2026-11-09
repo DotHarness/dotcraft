@@ -12,13 +12,6 @@ import { SidebarNavIcon } from './SidebarNavIcon'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
-/**
- * Sidebar footer: a single Settings row. Per-project connection/run status is
- * shown as a dot on each project's folder icon (see ThreadList), so the footer
- * itself carries no status dot. App version and the "What's New" entry live under
- * Settings → General.
- * Spec §9.6
- */
 export function SidebarFooter(): JSX.Element {
   const t = useT()
   const { activeMainView, setActiveMainView } = useUIStore()

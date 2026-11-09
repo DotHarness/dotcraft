@@ -1,0 +1,42 @@
+.glyph {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+}
+
+.glyph[data-cold] {
+  color: var(--text-tertiary);
+}
+
+.coldBadge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
+  background-color: var(--bg-secondary);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--bg-secondary),
+    0 0 0 2px color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+
+.statusBadge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px var(--bg-primary);
+}
+
+.statusBadge[data-state='connecting'] {
+  background-color: var(--warning);
+}
+
+.statusBadge[data-state='error'] {
+  background-color: var(--error);
+}

@@ -10,7 +10,8 @@ import { addToast } from '../../stores/toastStore'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
-import { ThreadList, ProjectGlyph } from '../sidebar/ThreadList'
+import { ThreadList } from '../sidebar/ThreadList'
+import { ProjectGlyph } from '../sidebar/ProjectGlyph'
 import {
   isColdProject,
   isProjectForeground,
@@ -301,9 +302,8 @@ function CollapsedSidebar(): JSX.Element {
                     icon={(
                       <ProjectGlyph
                         project={project}
-                        collapsed={!isForeground}
+                        collapsed
                         cold={isColdProject(project)}
-                        active={isForeground}
                       />
                     )}
                     label={label}
@@ -312,7 +312,6 @@ function CollapsedSidebar(): JSX.Element {
                     size={32}
                     radius={8}
                     className="dc-sidebar-icon-button"
-                    active={isForeground}
                     aria-current={isForeground ? 'true' : undefined}
                     onClick={() => void handleProjectClick(project, isForeground)}
                   />

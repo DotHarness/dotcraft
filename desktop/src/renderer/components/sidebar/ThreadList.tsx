@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
   Archive,
-  Cloud,
   CircleDashed,
   ExternalLink,
   Folder,
@@ -13,8 +12,7 @@ import {
   Server,
   Settings,
   SquarePen,
-  Trash2,
-  Monitor
+  Trash2
 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -33,10 +31,11 @@ import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { archiveProjectThreads } from '../../utils/archiveProjectThreads'
-import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
+import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { ThreadEntry } from './ThreadEntry'
+import { ProjectGlyph } from './ProjectGlyph'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
@@ -707,58 +706,6 @@ function getProjectActivity(threads: ThreadSummary[]): ProjectActivity {
 
 type ProjectActivity = 'running' | 'waiting' | null
 
-/**
- * Shared by the expanded Projects rail (ProjectHeader) and the collapsed sidebar
- * so both render a project's identity and status identically.
- */
-export function ProjectGlyph({
-  project,
-  collapsed,
-  cold,
-  active
-}: {
-  project: WorkspaceProjectSummary
-  collapsed: boolean
-  cold: boolean
-  /** Foreground (currently open) workspace — gets an accent ring on its dot. */
-  active: boolean
-}): JSX.Element {
-  const ProjectIcon = isRemoteProject(project)
-    ? (project.remote?.source === 'device'
-      ? Monitor
-      : project.remote?.source === 'servers' || project.remote?.source === 'ssh' ? Server : Cloud)
-    : (collapsed ? Folder : FolderOpen)
-  return (
-    <span style={projectIconSlotStyle}>
-      <ProjectIcon
-        size={15}
-        strokeWidth={1.7}
-        aria-hidden
-        style={{ color: cold ? 'var(--text-tertiary)' : 'var(--text-dimmed)' }}
-      />
-      {cold ? (
-        <CircleDashed
-          size={9}
-          strokeWidth={2.35}
-          aria-hidden
-          style={projectColdBadgeStyle}
-        />
-      ) : (
-        <span
-          aria-hidden
-          style={{
-            ...projectStatusBadgeStyle,
-            backgroundColor: projectStatusDotColor(project.state),
-            boxShadow: active
-              ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px color-mix(in srgb, var(--accent) 85%, transparent)'
-              : projectStatusBadgeStyle.boxShadow
-          }}
-        />
-      )}
-    </span>
-  )
-}
-
 function ProjectHeader({
   project,
   active,
@@ -1028,7 +975,7 @@ function ProjectHeader({
         userSelect: 'none'
       }}
     >
-      <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
+      <ProjectGlyph project={project} collapsed={collapsed} cold={cold} />
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
         <span
             style={{
@@ -1138,45 +1085,6 @@ const projectStatusIndicatorSlotStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0
-}
-
-const projectIconSlotStyle: CSSProperties = {
-  position: 'relative',
-  width: '18px',
-  height: '18px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center'
-}
-
-const projectColdBadgeStyle: CSSProperties = {
-  position: 'absolute',
-  right: 0,
-  bottom: 0,
-  color: 'color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary))',
-  backgroundColor: 'var(--bg-secondary)',
-  borderRadius: '999px',
-  boxShadow: [
-    '0 0 0 1px var(--bg-secondary)',
-    '0 0 0 2px color-mix(in srgb, var(--text-primary) 18%, transparent)'
-  ].join(', ')
-}
-
-/** Cold/stopped projects use the dashed-circle badge instead of this dot. */
-const projectStatusBadgeStyle: CSSProperties = {
-  position: 'absolute',
-  right: 0,
-  bottom: 0,
-  width: '7px',
-  height: '7px',
-  borderRadius: '999px',
-  boxShadow: '0 0 0 1.5px var(--bg-primary)'
-}
-
-function projectStatusDotColor(state: WorkspaceProjectState): string {
-  if (state === 'error') return 'var(--error)'
-  if (state === 'connecting') return 'var(--warning)'
-  return 'var(--success)'
 }
 
 function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
