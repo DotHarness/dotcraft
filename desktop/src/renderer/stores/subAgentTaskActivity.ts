@@ -15,7 +15,7 @@ export const useSubAgentTaskActivity = create<{
 interface TaskObservation {
   connectionKey: string
   connectionId: string
-  children: Map<string, () => void>
+  children: Map<string, { refresh(): Promise<void>; dispose(): void }>
   client: WorkflowRunClient
   dispose(): void
 }
@@ -90,14 +90,14 @@ function createObservation(parentThreadId: string, connectionKey: string, connec
     },
     dispose() {
       disposed = true
-      for (const stop of this.children.values()) stop()
+      for (const child of this.children.values()) child.dispose()
       for (const cleanup of cleanups) cleanup()
       cleanups.clear()
     }
   }
 }
 
-export function syncSubAgentTaskActivity(parentThreadId: string, children: readonly SubAgentChild[]): void {
+export async function syncSubAgentTaskActivity(parentThreadId: string, children: readonly SubAgentChild[]): Promise<void> {
   const source = sourceFor(parentThreadId)
   let observation = observations.get(parentThreadId)
   if (observation && (observation.connectionKey !== source.connectionKey || observation.connectionId !== source.connectionId)) {
@@ -118,13 +118,18 @@ export function syncSubAgentTaskActivity(parentThreadId: string, children: reado
     observation = createObservation(parentThreadId, source.connectionKey, source.connectionId)
     observations.set(parentThreadId, observation)
   }
-  for (const [id, stop] of observation.children) {
+  for (const [id, child] of observation.children) {
     if (ids.has(id)) continue
-    stop()
+    child.dispose()
     observation.children.delete(id)
   }
+  const discoveries: Promise<void>[] = []
   for (const id of ids) {
-    if (observation.children.has(id)) continue
+    const existing = observation.children.get(id)
+    if (existing) {
+      if (useSubAgentTaskActivity.getState().pendingThreadIds.has(id)) discoveries.push(existing.refresh())
+      continue
+    }
     let disposed = false
     let terminalActive = false
     let workflowActive = false
@@ -139,26 +144,35 @@ export function syncSubAgentTaskActivity(parentThreadId: string, children: reado
       workflowActive = values.length > 0
       publish()
     })
-    const stopConnection = observation.client.onConnectionChange(connected => {
-      if (connected) return
+    const client = observation.client
+    const refresh = async (): Promise<void> => {
+      const results = await Promise.all([terminals.refresh(), workflows.getState().list(id)])
+      if (!disposed && client.connectionKey() && results.every(Boolean)) setPending(id, false)
+    }
+    const stopConnection = client.onConnectionChange(connected => {
+      if (connected) {
+        void refresh()
+        return
+      }
       terminalActive = false
       workflowActive = false
       setPending(id, true)
       publish()
     })
-    observation.children.set(id, () => {
-      disposed = true
-      terminals.dispose()
-      stopWorkflows()
-      stopConnection()
-      setActive(id, false)
-      setPending(id, false)
+    observation.children.set(id, {
+      refresh,
+      dispose() {
+        disposed = true
+        terminals.dispose()
+        stopWorkflows()
+        stopConnection()
+        setActive(id, false)
+        setPending(id, false)
+      }
     })
-    const client = observation.client
-    void Promise.all([terminals.refresh(), workflows.getState().list(id)]).then(() => {
-      if (!disposed && client.connectionKey()) setPending(id, false)
-    })
+    discoveries.push(refresh())
   }
+  await Promise.all(discoveries)
 }
 
 export function clearSubAgentTaskActivity(parentThreadId: string): void {

@@ -9,6 +9,7 @@ import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
 import { retainedThreadActions, type ParkedApproval, type ParkedUserInput } from './retainedThreadState'
 import { retainedThreadIds } from './threadConnectionStore'
+import { useSubAgentStore } from './subAgentStore'
 export { readStateChangedSince, readStateMark } from './retainedThreadState'
 export type { ParkedApproval, ParkedUserInput } from './retainedThreadState'
 import { normalizeThreadSummaryRuntime, syncActiveThreadRuntime } from '../utils/threadRuntime'
@@ -234,12 +235,18 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
       const threadListProjectKey = nextProjectKey
       const retained = new Set(retainedThreadIds())
+      const childrenByParent = useSubAgentStore.getState().childrenByParent
+      for (const parentId of retained) {
+        for (const child of childrenByParent.get(parentId) ?? []) retained.add(child.childThreadId)
+      }
       const threadIds = new Set([...visibleThreads.map((thread) => thread.id), ...retained])
-      for (const child of state.threadList) {
-        const rootId = child.source?.subAgent?.rootThreadId ?? getSubAgentParentThreadId(child)
-        if (isSubAgentThread(child) && rootId && threadIds.has(rootId) && !threadIds.has(child.id)) {
-          visibleThreads.push(child)
-          threadIds.add(child.id)
+      if (state.threadListProjectKey === (nextProjectKey || null)) {
+        for (const child of state.threadList) {
+          const rootId = child.source?.subAgent?.rootThreadId ?? getSubAgentParentThreadId(child)
+          if (isSubAgentThread(child) && rootId && threadIds.has(rootId) && !threadIds.has(child.id)) {
+            visibleThreads.push(child)
+            threadIds.add(child.id)
+          }
         }
       }
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)

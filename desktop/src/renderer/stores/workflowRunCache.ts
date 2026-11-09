@@ -23,7 +23,7 @@ export interface WorkflowRunState {
   scope: string
   entries: Map<string, WorkflowRunEntry>
   load(threadId: string, runId: string): Promise<void>
-  list(threadId: string): Promise<void>
+  list(threadId: string): Promise<boolean>
   refresh(threadId: string): Promise<void>
   stop(threadId: string, runId: string): Promise<void>
   observe(threadId: string, listener: (runs: readonly WorkflowRunSummary[]) => void): () => void
@@ -38,7 +38,7 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
   let subscribed = false
   const versions = new Map<string, number>()
   const loads = new Map<string, Promise<void>>()
-  const lists = new Map<string, Promise<void>>()
+  const lists = new Map<string, Promise<boolean>>()
   const dirty = new Set<string>()
   const observers = new Map<string, number>()
 
@@ -135,22 +135,22 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     return pending
   }
 
-  function list(threadId: string): Promise<void> {
+  function list(threadId: string): Promise<boolean> {
     ensureConnection()
     const existing = lists.get(threadId)
     if (existing) return existing
     const started = epoch
     const before = revision
-    const work = async (): Promise<void> => {
+    const work = async (): Promise<boolean> => {
       let cursor: string | undefined
       do {
         let page: ClientRequestMethods['workflow/run/list']['result']
         try {
           page = await client.request('workflow/run/list', { threadId, limit: 50, ...(cursor ? { cursor } : {}) })
         } catch {
-          return
+          return false
         }
-        if (!current(started)) return
+        if (!current(started)) return false
         for (const summary of [...(page.runs ?? [])].reverse()) {
           if (summary.threadId !== threadId) continue
           const key = keyOf(threadId, summary.runId)
@@ -167,6 +167,7 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
         }
         cursor = page.nextCursor
       } while (cursor)
+      return current(started)
     }
     const pending = work().finally(() => {
       if (lists.get(threadId) === pending) lists.delete(threadId)

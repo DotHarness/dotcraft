@@ -120,6 +120,38 @@ describe('subagent owned background activity', () => {
     expect(isSubAgentChildWorking(metadata())).toBe(false)
   })
 
+  it('keeps failed task discovery unknown until refresh or reconnect succeeds', async () => {
+    state().setChildren(parent, [makeSubAgent()])
+    useThreadStore.getState().applyRuntimeSnapshot(child, { running: false }, { isDesktopOrigin: false })
+    let failure = 'terminal/list'
+    request.mockImplementation(async (_connection, method) => {
+      if (method === failure) throw new Error('list unavailable')
+      return method === 'terminal/list' ? { terminals: [] } : { runs: [] }
+    })
+
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    expect(isSubAgentChildFinished(metadata())).toBe(false)
+    expect(useSubAgentTaskActivity.getState().pendingThreadIds.has(child)).toBe(true)
+    failure = 'workflow/run/list'
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    expect(isSubAgentChildFinished(metadata())).toBe(false)
+    expect(useSubAgentTaskActivity.getState().pendingThreadIds.has(child)).toBe(true)
+    failure = ''
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    expect(isSubAgentChildFinished(metadata())).toBe(true)
+
+    projectConnection('A1', false)
+    expect(isSubAgentChildFinished(metadata())).toBe(false)
+    const ready = new Promise<void>(resolve => {
+      const stop = useSubAgentTaskActivity.subscribe(snapshot => {
+        if (!snapshot.pendingThreadIds.has(child)) { stop(); resolve() }
+      })
+    })
+    projectConnection('A1')
+    await ready
+    expect(isSubAgentChildFinished(metadata())).toBe(true)
+  })
+
   it('releases old connection observers and ignores a delayed old task snapshot', async () => {
     const old = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
     request.mockImplementation(async (_connection, method, _params, _timeout, options) => {

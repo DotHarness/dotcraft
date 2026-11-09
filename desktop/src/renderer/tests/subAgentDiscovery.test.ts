@@ -128,7 +128,7 @@ describe('background subagent discovery', () => {
     capabilities: { subAgentSessions: true }
   }
 
-  it('queries the parent connection while another workspace is foreground', async () => {
+  it('keeps a secondary parent child runtime across foreground list reloads without exposing its summary', async () => {
     registerThreadConnection(parent, source)
     const sendConnectionRequest = vi.fn().mockResolvedValue(wire())
     vi.stubGlobal('window', { api: { appServer: { sendRequest: request, onNotificationRaw: () => () => {}, sendConnectionRequest } } })
@@ -143,7 +143,13 @@ describe('background subagent discovery', () => {
       { parentThreadId: parent, includeClosed: true, includeThreads: true },
       undefined, expect.objectContaining({ connectionId: source.connectionId })
     )
-    expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('child-B')
+    const child = store().childrenByParent.get(parent)![0]
+    expect(child.childThreadId).toBe('child-B')
+    expect(isSubAgentChildRunning(child)).toBe(true)
+    expect(useThreadStore.getState().threadList).toEqual([])
+
+    useThreadStore.getState().setThreadList([], 'workspace-B')
+    expect(isSubAgentChildRunning(child)).toBe(true)
     expect(useThreadStore.getState().threadList).toEqual([])
   })
 
