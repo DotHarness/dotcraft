@@ -33,7 +33,7 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'project.cantStart': '{{computer}} 现在无法启动 {{project}}，因此无法查看它的对话。',
 
   'state.running': '运行中',
-  'state.needsApproval': '等待审批',
+  'state.needsApproval': '等待批准',
   'state.needsAnswer': '需要选择',
   'state.done': '已完成',
   'state.failed': '失败',

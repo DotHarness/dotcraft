@@ -115,6 +115,8 @@ and shows a Stopped line. Thread summaries do not carry the last turn's result, 
 
 Equivalent states and actions use Desktop's current wording and punctuation in every supported
 locale, including thinking, tool activity, approvals, background tasks, and shared controls.
+A chat paused for permission uses **Awaiting approval** (**等待批准** in Simplified Chinese),
+distinct from permission-policy requirements and **Allow** or **Reject** actions.
 Phone-only pairing, connection, and notification instructions retain their own wording; references
 to Desktop settings and buttons use their current labels.
 
