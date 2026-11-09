@@ -20,6 +20,7 @@ import {
   configFieldLabel,
   formatConfigInput,
   parseConfigInput,
+  storedKey,
   type PluginConfigInputError
 } from './pluginConfigModel'
 import { FailedNotice } from './SettingsStates'
@@ -74,10 +75,12 @@ function ConfigFieldRow({ field, state, disabled }: {
   const t = useT()
   const controlId = useId()
   const snapshot = state.snapshot!
-  const setByWorkspace = Object.hasOwn(snapshot.workspace, field.key)
-  const setByUser = Object.hasOwn(snapshot.personal, field.key)
+  const setByWorkspace = storedKey(snapshot.workspace, field.key) !== undefined
+  const setByUser = storedKey(snapshot.personal, field.key) !== undefined
   const pending = state.pendingChange?.key === field.key
-  const value = pending && state.pendingChange?.value !== undefined ? state.pendingChange.value : snapshot.value[field.key]
+  const value = pending && state.pendingChange?.value !== undefined
+    ? state.pendingChange.value
+    : snapshot.value[storedKey(snapshot.value, field.key) ?? field.key]
   const label = configFieldLabel(field)
   const description = setByWorkspace
     ? <>{field.description && <span className={styles.fieldDescription}>{field.description}</span>}{t('plugins.settings.setByWorkspace')}</>
@@ -246,8 +249,10 @@ function CommitOnLeave({ label, onLeave, children }: {
 function StringListControl({ label, value, disabled, onChange }: ControlProps): JSX.Element {
   const t = useT()
   const stored = (value as string[] | undefined) ?? []
-  const [rows, setRows] = useState(() => normalizeValueRows(stored))
+  const [initial] = useState(() => normalizeValueRows(stored))
+  const [rows, setRows] = useState(initial)
   const commit = (): void => {
+    if (rows === initial) return
     const next = rowsToValues(rows)
     if (JSON.stringify(next) !== JSON.stringify(stored)) onChange(next)
   }
@@ -263,8 +268,10 @@ function StringListControl({ label, value, disabled, onChange }: ControlProps): 
 function KeyValueMapControl({ label, value, disabled, onChange }: ControlProps): JSX.Element {
   const t = useT()
   const stored = (value as Record<string, string> | undefined) ?? {}
-  const [rows, setRows] = useState(() => normalizeKeyValueRows(stored))
+  const [initial] = useState(() => normalizeKeyValueRows(stored))
+  const [rows, setRows] = useState(initial)
   const commit = (): void => {
+    if (rows === initial) return
     const next = rowsToRecord(rows)
     if (JSON.stringify(next) !== JSON.stringify(stored)) onChange(next)
   }

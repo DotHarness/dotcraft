@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DesktopPluginSettingsMutation } from '@dotcraft/plugin'
 import { readAppServerErrorFields } from '../../../../shared/appServerError'
 import {
@@ -29,20 +29,24 @@ export function usePluginConfig(pluginId: string, active: boolean): PluginConfig
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
   const [pendingChange, setPendingChange] = useState<PluginConfigState['pendingChange']>(null)
+  const generation = useRef(0)
 
   const read = useCallback(async (): Promise<void> => {
+    const current = generation.current
     setLoading(true)
     try {
       const next = await readDesktopPluginSettings(pluginId)
+      if (generation.current !== current) return
       setSnapshot(next)
       setDeclared(next.schema.fields.length > 0)
       setFailed(false)
     } catch (error) {
+      if (generation.current !== current) return
       const notDeclared = readAppServerErrorFields(error).data?.code === 'PluginConfigurationNotDeclared'
       setDeclared(!notDeclared)
       setFailed(!notDeclared)
     } finally {
-      setLoading(false)
+      if (generation.current === current) setLoading(false)
     }
   }, [pluginId])
 
@@ -50,17 +54,25 @@ export function usePluginConfig(pluginId: string, active: boolean): PluginConfig
     setSnapshot(null)
     setDeclared(false)
     setFailed(false)
+    setPendingChange(null)
     if (!enabled) return
     void read()
-    return onDesktopPluginSettingsChange(pluginId, setSnapshot)
+    const stop = onDesktopPluginSettingsChange(pluginId, setSnapshot)
+    return () => {
+      generation.current += 1
+      stop()
+    }
   }, [connectionEpoch, enabled, pluginId, read])
 
   const mutate = useCallback((operation: DesktopPluginSettingsMutation, value: unknown) => {
+    const current = generation.current
     setPendingChange({ key: operation.key, value })
     setFailed(false)
     void mutateDesktopPluginSettings(pluginId, 'personal', [operation])
-      .then(setSnapshot, () => setFailed(true))
-      .finally(() => setPendingChange(null))
+      .then(
+        (next) => { if (generation.current === current) setSnapshot(next) },
+        () => { if (generation.current === current) setFailed(true) })
+      .finally(() => { if (generation.current === current) setPendingChange(null) })
   }, [pluginId])
 
   const set = useCallback((key: string, value: unknown) => mutate({ op: 'set', key, value }, value), [mutate])

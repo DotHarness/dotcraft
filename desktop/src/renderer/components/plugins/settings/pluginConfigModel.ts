@@ -8,6 +8,11 @@ export function configFieldLabel(field: DesktopPluginSettingField): string {
   return field.title || field.key
 }
 
+export function storedKey(record: Partial<Record<string, unknown>>, key: string): string | undefined {
+  const lower = key.toLowerCase()
+  return Object.keys(record).find((candidate) => candidate.toLowerCase() === lower)
+}
+
 export function formatConfigInput(field: DesktopPluginSettingField, value: unknown): string {
   if (field.type === 'json') return value === undefined ? '' : JSON.stringify(value, null, 2)
   return value == null ? '' : String(value)

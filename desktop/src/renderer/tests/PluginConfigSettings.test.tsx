@@ -1,4 +1,4 @@
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -19,6 +19,20 @@ const snapshot = {
   workspace: { endpoint: 'https://example.test' },
   value: { endpoint: 'https://example.test', limit: 5 },
   writableScopes: ['personal', 'workspace'] as const
+}
+
+function formState(overrides: Partial<PluginConfigState>): PluginConfigState {
+  return {
+    declared: true,
+    snapshot,
+    loading: false,
+    failed: false,
+    pendingChange: null,
+    set: vi.fn(),
+    reset: vi.fn(),
+    retry: vi.fn(),
+    ...overrides
+  }
 }
 
 function notDeclared(): Error {
@@ -63,22 +77,59 @@ describe('plugin configuration settings', () => {
     })
   })
 
-  it('locks workspace-set fields and resets a personal override', () => {
-    const state: PluginConfigState = {
-      declared: true,
-      snapshot,
-      loading: false,
-      failed: false,
-      pendingChange: null,
-      set: vi.fn(),
-      reset: vi.fn(),
-      retry: vi.fn()
-    }
+  it('ignores a read that finishes after the connection changed', async () => {
+    const pending: Array<(value: unknown) => void> = []
+    const sendRequestRaw = vi.fn(() => new Promise((resolve) => { pending.push(resolve) }))
+    installDesktopApiMock({ appServer: { sendRequestRaw, onNotificationRaw: () => () => {} } })
+
+    const { result } = renderHook(() => usePluginConfig('acme', true))
+    await waitFor(() => expect(pending.length).toBeGreaterThan(0))
+    const stale = pending.length
+    act(() => useConnectionStore.setState((state) => ({ connectionEpoch: state.connectionEpoch + 1 })))
+    await waitFor(() => expect(pending.length).toBeGreaterThan(stale))
+
+    const current = { ...snapshot, value: { ...snapshot.value, limit: 9 } }
+    await act(async () => { pending.slice(stale).forEach((resolve) => resolve(current)) })
+    await act(async () => { pending.slice(0, stale).forEach((resolve) => resolve(snapshot)) })
+
+    expect(result.current.snapshot?.value.limit).toBe(9)
+  })
+
+  it('locks workspace-set fields and resets a personal override whatever their stored casing', () => {
+    const state = formState({
+      snapshot: {
+        ...snapshot,
+        personal: { LIMIT: 5 },
+        workspace: { Endpoint: 'https://example.test' },
+        value: { Endpoint: 'https://example.test', LIMIT: 5 }
+      }
+    })
     render(<LocaleProvider loadSettings={false}><PluginConfigSettings state={state} /></LocaleProvider>)
 
     expect(screen.getByLabelText('Endpoint')).toBeDisabled()
+    expect(screen.getByLabelText('Endpoint')).toHaveValue('https://example.test')
     fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
     expect(state.reset).toHaveBeenCalledWith('limit')
+  })
+
+  it('leaves an untouched list alone when focus moves away', () => {
+    const tags = [' a ', '']
+    const state = formState({
+      snapshot: {
+        schema: { fields: [{ key: 'tags', type: 'stringList' as const, title: 'Tags' }] },
+        personal: { tags },
+        workspace: {},
+        value: { tags },
+        writableScopes: ['personal']
+      }
+    })
+    render(<LocaleProvider loadSettings={false}><PluginConfigSettings state={state} /></LocaleProvider>)
+
+    const [first] = screen.getAllByPlaceholderText('Value')
+    fireEvent.focus(first)
+    fireEvent.blur(first, { relatedTarget: document.body })
+
+    expect(state.set).not.toHaveBeenCalled()
   })
 
   it('validates typed numbers and JSON before saving', () => {
