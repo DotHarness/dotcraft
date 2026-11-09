@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events'
+import { createInterface } from 'node:readline'
+import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
@@ -81,6 +84,62 @@ describe('source-bound Node REPL routing', () => {
     expect(a.client.retainBrowserTurn).toHaveBeenCalledWith('thread', 'turn')
     expect(b.client.sendRequest).not.toHaveBeenCalled()
     expect(b.client.retainBrowserTurn).not.toHaveBeenCalled()
+  })
+
+  it('admits the first background evaluation through the source client after its view detaches', async () => {
+    const { a, b, owner, ctx, request, promoteB } = fixture()
+    const fromServer = new PassThrough()
+    const toServer = new PassThrough()
+    const output = createInterface({ input: toServer, crlfDelay: Infinity })
+    const outbound = output[Symbol.asyncIterator]()
+    const client = new DesktopAppServerClient(fromServer, toServer)
+    a.client = client
+    ctx.wireClient = client
+    client.onServerRequest((method, params) => request(a, method, params))
+    const read = async () => {
+      const line = await outbound.next()
+      expect(line.done).toBe(false)
+      return JSON.parse(line.value!) as Record<string, unknown>
+    }
+    const push = (message: Record<string, unknown>) => fromServer.write(`${JSON.stringify(message)}\n`)
+    const snapshot = { currentState: { turnId: 'turn', turnStatus: 'running' } }
+
+    try {
+      const resume = client.sendRequest('thread/resume', { threadId: 'thread' })
+      const initial = await read()
+      push({ jsonrpc: '2.0', id: initial.id, result: snapshot })
+      await resume
+      promoteB()
+      const detach = client.releaseViewAttachments()
+      const unsubscribe = await read()
+      expect(unsubscribe).toMatchObject({ method: 'thread/unsubscribe', params: { threadId: 'thread' } })
+      push({ jsonrpc: '2.0', id: unsubscribe.id, result: {} })
+      await detach
+
+      for (const evaluationId of ['first', 'second']) {
+        push({
+          jsonrpc: '2.0', id: evaluationId, method: 'ext/nodeRepl/evaluate',
+          params: { threadId: 'thread', turnId: 'turn', evaluationId, code: '42' }
+        })
+        if (evaluationId === 'first') {
+          const retained = await read()
+          expect(retained).toMatchObject({ method: 'thread/resume', params: { threadId: 'thread' } })
+          push({ jsonrpc: '2.0', id: retained.id, result: snapshot })
+        }
+        expect(await read()).toEqual({
+          jsonrpc: '2.0', id: evaluationId, result: { resultText: '42', images: [], logs: [] }
+        })
+      }
+
+      expect(runtime.evaluate).toHaveBeenCalledTimes(2)
+      expect(runtime.evaluate).toHaveBeenLastCalledWith(owner, expect.objectContaining({
+        workspacePath: '/local/a', projectKey: a.projectId
+      }))
+      expect(b.client.retainBrowserTurn).not.toHaveBeenCalled()
+    } finally {
+      client.dispose()
+      output.close()
+    }
   })
 
   it('rejects a replaced connection before evaluation admission, including a late subscription', async () => {

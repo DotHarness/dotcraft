@@ -144,8 +144,9 @@ export class BrowserTurnSubscriptions {
   }
 
   private snapshot(threadId: string, state: BrowserSubscription, result: ResumeState, pin?: string): void {
-    state.currentTurnId = result.currentState.turnId
-    state.currentTurnActive = result.currentState.turnStatus === 'inProgress'
+    const { turnId, turnStatus } = result.currentState
+    state.currentTurnId = turnId
+    state.currentTurnActive = turnStatus === 'running' || turnStatus === 'waitingApproval' || turnStatus === 'waitingInput'
     if (state.turnId && state.turnId === pin && (state.turnId !== state.currentTurnId || !state.currentTurnActive)) {
       const turnId = state.turnId
       state.turnId = undefined
