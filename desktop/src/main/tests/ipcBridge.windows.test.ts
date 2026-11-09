@@ -29,7 +29,7 @@ vi.mock('../desktopRuntimeThreadTools', () => ({
 import { ipcMain } from 'electron'
 import { registerAppServerHandlers } from '../ipcAppServer'
 import type { IpcHandlerCallbacks, WindowIpcContext } from '../ipcBridgeContracts'
-import { broadcastServerRequest, cancelWindowServerRequests, createServerRequestBridge } from '../ipcServerRequests'
+import { broadcastServerRequest, cancelConnectionServerRequests, cancelWindowServerRequests, createServerRequestBridge } from '../ipcServerRequests'
 import { createWindowIpcMain, type WindowIpcMain } from '../windowIpc'
 
 const scopes: WindowIpcMain[] = []
@@ -136,6 +136,18 @@ describe('window-owned IPC', () => {
     expect(() => invoke(a, 'window:get-workspace-path')).toThrow('active Desktop window')
     expect(invoke(b, 'window:get-workspace-path')).toBe('/b')
     expect(() => invoke(window(999), 'window:get-workspace-path')).toThrow('active Desktop window')
+  })
+
+  it('cancels only requests of an ended source connection', async () => {
+    const a = window(31)
+    register(a, '/a', null)
+    const first = createServerRequestBridge(undefined, a, { connectionKey: 'a', connectionId: 'one' })
+    const second = createServerRequestBridge(undefined, a, { connectionKey: 'b', connectionId: 'two' })
+    const rejected = expect(first.promise).rejects.toThrow('cancelled')
+    cancelConnectionServerRequests('one')
+    await rejected
+    invoke(a, 'appserver:server-response', second.bridgeId, { answers: {} })
+    await expect(second.promise).resolves.toEqual({ answers: {} })
   })
 
   it('rejects cross-window answers and cancellations without settling the rightful request', async () => {

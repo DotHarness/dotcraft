@@ -26,7 +26,7 @@ export interface ResolvedBinaryRequest {
   binaryPath?: string
 }
 export interface IpcHandlerCallbacks {
-  onSwitchWorkspace: (newPath: string) => Promise<void>
+  onSwitchWorkspace: (newPath: string, connectionKey?: string) => Promise<void>
   onOpenDesktopLink: (url: string) => Promise<void>
   onClearWorkspaceSelection: () => Promise<void>
   onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<void>
@@ -48,7 +48,6 @@ export interface IpcHandlerCallbacks {
   getSettings: () => AppSettings
   /** Absent leaves the satellite channels unregistered. */
   getHubClient?: () => DesktopHubClient
-  /** Null unless the AppServer is a Hub-managed local one. */
   getAppServerWsConfig?: () => { wsUrl: string; token?: string } | null
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
   getLocalProjectPaths: () => string[]

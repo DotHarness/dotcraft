@@ -9,6 +9,8 @@ import type {
 } from '../../shared/workspaceProjects'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
+import { cancelConnectionServerRequests } from '../ipcServerRequests'
+import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { type HubAppServerResponse } from '../desktopHub'
 import { getLocalProjectDetails } from '../settings'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -21,6 +23,7 @@ import {
   type WorkspaceThreadListResult
 } from '../workspaceThreadCache'
 import { SECONDARY_WORKSPACE_CONNECTION_LIMIT } from './windowConstants'
+import { clearRemoteProjectReconnect } from './windowRemoteConnections'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
 
@@ -127,6 +130,13 @@ export function findWorkspaceConnectionByClient(
   return [...ctx.workspaceConnections.values()].find((entry) => entry.client === client)
 }
 
+export function demoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): void {
+  entry.role = 'secondary'
+  entry.lastUsedAt = Date.now()
+  ctx.releaseConnectionViewAttachments(entry, 'workspace demote')
+  if (ctx.wireClient === entry.client) ctx.wireClient = null
+}
+
 export function releaseConnectionViewAttachments(
   ctx: DesktopWindowRuntime,
   entry: WorkspaceConnectionEntry,
@@ -149,7 +159,6 @@ export function observeAppServerRequestCompletion(
   if (!entry) return
   if (applyWorkspaceThreadListRequestResult(entry, method, params, result, requestGeneration)) {
     ctx.emitWorkspaceProjects()
-    return
   }
 }
 
@@ -179,6 +188,14 @@ export function emitWorkspaceProjects(ctx: DesktopWindowRuntime): void {
   win.webContents.send('workspace:projects-changed', ctx.getWorkspaceProjectsPayload())
 }
 
+function connectionSummary(entry: WorkspaceConnectionEntry | undefined): Pick<WorkspaceProjectSummary, 'connectionKey' | 'connectionId' | 'capabilities'> {
+  return entry ? {
+    connectionKey: entry.key,
+    ...(entry.connected && entry.client.connectionId ? { connectionId: entry.client.connectionId } : {}),
+    capabilities: entry.initializeResult?.capabilities
+  } : {}
+}
+
 export function buildDefaultChatSummary(ctx: DesktopWindowRuntime): WorkspaceProjectSummary | undefined {
   if (hasRemoteEndpointArg(ctx.argv)) return undefined
   const chatPath = resolveDefaultChatWorkspacePath()
@@ -199,6 +216,7 @@ export function buildDefaultChatSummary(ctx: DesktopWindowRuntime): WorkspacePro
     loaded: Boolean(entry?.connected),
     threadCount: entry?.threads.length ?? 0,
     threads: entry?.threads ?? [],
+    ...connectionSummary(entry),
     pinnedThreadIds: ctx.getPinnedThreadIdsForWorkspace(chatPath),
     pinned: false,
     ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
@@ -228,6 +246,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       loaded: Boolean(entry?.connected),
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
+      ...connectionSummary(entry),
       pinnedThreadIds: ctx.getPinnedThreadIdsForWorkspace(project.path),
       pinned: ctx.isProjectPinned(projectId),
       secondaryFolders: details?.secondaryFolders ?? [],
@@ -237,6 +256,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
   for (const machine of normalizeSshMachines(ctx.settings.remoteHosts)) {
     for (const remoteProject of machine.projects) {
       const saved = ctx.buildSshRemoteProject(machine, remoteProject, undefined, '')
+      const entry = ctx.workspaceConnections.get(saved.projectId)
       if (saved.projectId === ctx.activeRemoteProject?.projectId) continue
       projects.push({
         projectId: saved.projectId,
@@ -244,11 +264,12 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
         path: saved.displayPath,
         identityWorkspacePath: saved.identityWorkspacePath,
         name: saved.name,
-        state: 'cold',
-        running: false,
-        loaded: false,
-        threadCount: 0,
-        threads: [],
+        state: entry?.connecting ? 'connecting' : entry?.errorMessage ? 'error' : entry?.connected ? 'secondary' : 'cold',
+        running: Boolean(entry?.connected || entry?.connecting),
+        loaded: Boolean(entry?.connected),
+        threadCount: entry?.threads.length ?? 0,
+        threads: entry?.threads ?? [],
+        ...connectionSummary(entry),
         pinnedThreadIds: ctx.getPinnedThreadIdsForProject(saved.projectId),
         pinned: ctx.isProjectPinned(saved.projectId),
         remote: saved.remote
@@ -277,10 +298,24 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       loaded: Boolean(entry?.connected || entry?.initializeResult),
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
+      ...connectionSummary(entry),
       pinnedThreadIds: ctx.getPinnedThreadIdsForProject(saved.projectId),
       pinned: ctx.isProjectPinned(saved.projectId),
       remote: saved.remote,
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
+    })
+  }
+  for (const entry of ctx.workspaceConnections.values()) {
+    const project = entry.remoteProject
+    if (!project || project.projectId === ctx.activeRemoteProject?.projectId || projects.some(row => row.projectId === project.projectId)) continue
+    projects.push({
+      projectId: project.projectId, kind: 'remote', path: project.displayPath,
+      identityWorkspacePath: project.identityWorkspacePath, name: project.name, remote: project.remote,
+      state: entry.connecting ? 'connecting' : entry.errorMessage ? 'error' : entry.connected ? 'secondary' : 'cold',
+      running: entry.connected || entry.connecting, loaded: entry.connected,
+      threadCount: entry.threads.length, threads: entry.threads,
+      pinnedThreadIds: ctx.getPinnedThreadIdsForProject(project.projectId), pinned: ctx.isProjectPinned(project.projectId),
+      ...connectionSummary(entry), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {})
     })
   }
   if (ctx.activeRemoteProject) {
@@ -301,6 +336,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       loaded: Boolean(entry?.connected),
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
+      ...connectionSummary(entry),
       pinnedThreadIds: ctx.getPinnedThreadIdsForProject(ctx.activeRemoteProject.projectId),
       pinned: ctx.isProjectPinned(ctx.activeRemoteProject.projectId),
       remote: ctx.activeRemoteProject.remote,
@@ -368,7 +404,15 @@ export function disposeWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
   if (ctx.wireClient === entry.client) {
     ctx.wireClient = null
   }
+  clearRemoteProjectReconnect(ctx, entry)
+  if (entry.client.connectionId) cancelConnectionServerRequests(entry.client.connectionId)
+  resetDesktopThreadToolBindings(entry.client)
   ctx.disposeDeviceProjectConnection(entry)
+  if (entry.remote?.source === 'ssh') {
+    ctx.sshMachinesManager?.closeProjectForward(entry.remote.hostId!, entry.remote.remoteProjectId!)
+  } else if (entry.remote?.source === 'servers') {
+    ctx.sshMachinesManager?.docker.closeStackTunnels(entry.remote.hostId!, entry.remote.stackId!)
+  }
   entry.client.dispose()
   ctx.emitWorkspaceProjects()
 }

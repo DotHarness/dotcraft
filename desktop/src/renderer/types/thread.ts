@@ -55,9 +55,6 @@ export interface SubAgentThreadSourceWire {
   taskName?: string
   agentNickname?: string
   agentRole?: string
-  agentType?: string
-  agent_type?: string
-  role?: string
   profileName?: string
   runtimeType?: string
   supportsSendInput?: boolean

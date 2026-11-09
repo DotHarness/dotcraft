@@ -3,6 +3,7 @@ import type { SubAgentEntry } from '../types/toolCall'
 import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
+import { getThreadConnection, requestThreadConnection } from './threadConnectionStore'
 import {
   childFromWire, createPlaceholderChild,
   isSubAgentChildClosed, isSubAgentChildRunning, mergeExistingProgress,
@@ -146,9 +147,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   fetchChildren(parentThreadId, options) {
-    if (!parentThreadId || useConnectionStore.getState().capabilities?.subAgentSessions !== true) {
-      return Promise.resolve()
-    }
+    const connection = getThreadConnection(parentThreadId)
+    const capabilities = connection ? connection.capabilities : useConnectionStore.getState().capabilities
+    if (!parentThreadId || capabilities?.subAgentSessions !== true) return Promise.resolve()
     const pending = requests.get(parentThreadId)
     if (pending) {
       pending.refresh = true
@@ -156,7 +157,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       return pending.promise
     }
     const token = lifetime(parentThreadId)
-    const current = (): boolean => lifetimes.get(parentThreadId) === token
+    const current = (): boolean => {
+      const source = getThreadConnection(parentThreadId)
+      return lifetimes.get(parentThreadId) === token
+        && source?.connectionKey === connection?.connectionKey
+        && source?.connectionId === connection?.connectionId
+    }
     const task: ChildRequest = {
       promise: Promise.resolve(), refresh: false, authoritative: options?.authoritative === true
     }
@@ -180,16 +186,18 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         task.authoritative = false
         setDiscovery('loading')
         try {
-          const result = await window.api.appServer.sendRequest('subagent/children/list', {
+          const result = await requestThreadConnection(parentThreadId, 'subagent/children/list', {
             parentThreadId, includeClosed: true, includeThreads: true
           }) as { data?: SubAgentChildWire[] }
           if (!current()) return
           const children = (result.data ?? [])
             .map((entry) => childFromWire(parentThreadId, entry))
             .filter((entry): entry is SubAgentChild => entry != null)
-          useThreadStore.getState().upsertThreads(children
-            .map((child) => child.threadSummary)
-            .filter((thread): thread is ThreadSummary => thread != null))
+          if (!connection || useThreadStore.getState().threadListProjectKey === connection.workspaceKey) {
+            useThreadStore.getState().upsertThreads(children
+              .map((child) => child.threadSummary)
+              .filter((thread): thread is ThreadSummary => thread != null))
+          }
           get().setChildren(parentThreadId, children, authoritative
             ? { preserveRunningPlaceholders: false, blockStaleProgressWhenEmpty: children.length === 0 }
             : undefined)
@@ -224,8 +232,8 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
 
   async interruptChild(child) {
     const turnId = child.runtime?.activeTurnId
-      ?? ((await window.api.appServer.sendRequest('thread/read', { threadId: child.childThreadId })) as { thread: ThreadSummary }).thread.runtime?.activeTurnId
-    if (turnId) await window.api.appServer.sendRequest('turn/interrupt', { threadId: child.childThreadId, turnId })
+      ?? ((await requestThreadConnection(child.parentThreadId, 'thread/read', { threadId: child.childThreadId })) as { thread: ThreadSummary }).thread.runtime?.activeTurnId
+    if (turnId) await requestThreadConnection(child.parentThreadId, 'turn/interrupt', { threadId: child.childThreadId, turnId })
   },
 
   updateProgress(parentThreadId, entries) {

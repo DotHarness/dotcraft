@@ -10,10 +10,14 @@ import { finishThreadRestoration, stageThreadNotification, useThreadRestorationS
 import type { ThreadResumeResult } from '../stores/applyThreadRestoration'
 import type { Thread } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { applyThreadNotification } from '../stores/threadNotifications'
+import { applyThreadServerRequest } from '../stores/threadServerRequests'
+import { getThreadConnection } from '../stores/threadConnectionStore'
 
 vi.mock('../utils/startPendingWelcomeTurn', () => ({ startPendingWelcomeTurn: vi.fn() }))
 
-const props = { workspaceIdentity: 'workspace', workspaceKey: 'workspace', protocolWorkspacePath: 'workspace', locale: 'en' as const }
+const props = { workspaceKey: 'workspace', protocolWorkspacePath: 'workspace', locale: 'en' as const }
 const requests: Array<{
   threadId: string
   apply(result: ThreadResumeResult): void
@@ -77,8 +81,10 @@ beforeEach(() => {
     if (method === 'thread/turns/list') return preview
     return Promise.resolve({})
   })
-  installDesktopApiMock({ appServer: { sendRequest } })
-  useConnectionStore.getState().setStatus({ status: 'connected' })
+  installDesktopApiMock({ appServer: { sendRequest,
+    sendConnectionRequest: (_key, method, params, timeout, options) => sendRequest(method, params, timeout, options) } })
+  useWorkspaceProjectsStore.getState().reset()
+  useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: 'workspace', connectionId: 'connection-1' })
   useThreadStore.getState().setThreadList(Array.from({ length: 13 }, (_, i) => thread('thread-' + i)), 'workspace')
 })
 
@@ -171,6 +177,67 @@ describe('thread restoration', () => {
     expect(sendRequest).not.toHaveBeenCalled()
   })
 
+  it('keeps tools and interactive requests live across workspaces without reloading the warm transcript', async () => {
+    const hook = renderHook(value => useThreadRestoration(value), { initialProps: props })
+    await select('thread-0')
+    await act(async () => respond('thread-0', snapshot('thread-0', 'A')))
+    const original = getThreadConversation('thread-0')!
+    act(() => {
+      original.getState().onItemStarted({ threadId: 'thread-0', turnId: 'turn-current',
+        item: { id: 'tool', type: 'toolCall', createdAt: '2026-11-07T00:00:01Z',
+          payload: { toolName: 'Exec', callId: 'call', arguments: '{}' } } })
+      useWorkspaceProjectsStore.getState().setPayload({
+        foregroundWorkspacePath: 'other', foregroundProjectId: 'other', secondaryLimit: 8,
+        projects: [
+          { path: 'workspace', name: 'A', state: 'secondary', loaded: true, running: true,
+            threadCount: 1, threads: [], pinned: false, connectionKey: 'workspace', connectionId: 'connection-1' },
+          { path: 'other', name: 'B', state: 'foreground', loaded: true, running: true,
+            threadCount: 1, threads: [], pinned: false, connectionKey: 'other', connectionId: 'other-1' }
+        ]
+      })
+      useThreadStore.getState().resetForeground()
+      useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: 'other', connectionId: 'other-1' })
+      useThreadStore.getState().setThreadList([thread('thread-1')], 'other')
+      hook.rerender({ ...props, workspaceKey: 'other', protocolWorkspacePath: 'other' })
+      useThreadStore.getState().setActiveThreadId('thread-1')
+    })
+    await act(async () => respond('thread-1', snapshot('thread-1', 'B')))
+    const context = { locale: 'en' as const, foreground: true, ...hook.result.current,
+      reloadThreadList: async () => {} }
+    act(() => {
+      applyThreadNotification({ method: 'item/completed', connectionKey: 'workspace', connectionId: 'connection-1',
+        foreground: false, params: { threadId: 'thread-0', turnId: 'turn-current', item: {
+          id: 'result', type: 'toolResult', status: 'completed', createdAt: '2026-11-07T00:00:02Z',
+          payload: { callId: 'call', result: 'Finished in A', success: true }
+        } } }, context)
+      applyThreadNotification({ method: 'item/agentMessage/delta', connectionKey: 'workspace', connectionId: 'connection-1',
+        foreground: false, params: { threadId: 'thread-0', delta: ' updated' } }, context)
+      applyThreadServerRequest({ method: 'item/approval/request', bridgeId: 'A-bridge',
+        connectionKey: 'workspace', connectionId: 'connection-1', params: {
+          threadId: 'thread-0', turnId: 'turn-current', itemId: 'approval', requestId: 'A-request',
+          approvalType: 'command', operation: 'exec', target: 'test'
+        } })
+    })
+    await waitFor(() => expect(original.getState().streamingMessage).toBe('A updated'))
+    expect(original.getState().turns.flatMap(turn => turn.items).find(item => item.toolCallId === 'call')?.result).toBe('Finished in A')
+    expect(useConversationStore.getState().streamingMessage).toBe('B')
+    expect(useConversationStore.getState().pendingApproval).toBeNull()
+    expect(useThreadStore.getState().parkedApprovals.get('thread-0')?.[0].bridgeId).toBe('A-bridge')
+    sendRequest.mockClear()
+    act(() => {
+      useThreadStore.getState().resetForeground()
+      useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: 'workspace', connectionId: 'connection-1' })
+      useThreadStore.getState().setThreadList([thread('thread-0')], 'workspace')
+      hook.rerender(props)
+      useThreadStore.getState().setActiveThreadId('thread-0')
+    })
+    expect(getThreadConversation('thread-0')).toBe(original)
+    expect(useConversationStore.getState().streamingMessage).toBe('A updated')
+    expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('A-bridge')
+    expect(getThreadConnection('thread-0')?.connectionId).toBe('connection-1')
+    expect(sendRequest).not.toHaveBeenCalled()
+  })
+
   it('retains a restored plan choice across selection and a warm return without another request', async () => {
     renderHook(() => useThreadRestoration(props))
     await select('thread-0')
@@ -210,7 +277,8 @@ describe('thread restoration', () => {
     await act(async () => respond('thread-0', snapshot('thread-0', 'late')))
     expect(useThreadStore.getState().activeThread?.id).toBe('thread-1')
     expect(useConversationStore.getState().turns).toHaveLength(0)
-    expect(sendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'thread-0' })
+    expect(sendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'thread-0' }, undefined,
+      { connectionId: 'connection-1', attachmentOwner: 'warm' })
   })
 
   it('does not let an older same-thread request release a newer selected lifetime', async () => {
@@ -226,27 +294,40 @@ describe('thread restoration', () => {
     expect(getThreadConversation('thread-0')).toBeDefined()
   })
 
+  it('releases an archived selection instead of retaining it as warm', async () => {
+    const hook = renderHook(() => useThreadRestoration(props))
+    await select('thread-0')
+    await act(async () => respond('thread-0'))
+    await act(async () => {
+      applyThreadNotification({ method: 'thread/archived',
+        connectionKey: 'workspace', connectionId: 'connection-1', params: { threadId: 'thread-0' }
+      }, { locale: 'en', foreground: true, ...hook.result.current, reloadThreadList: async () => {} })
+    })
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(getThreadConversation('thread-0')).toBeUndefined()
+    expect(getThreadConnection('thread-0')).toBeUndefined()
+  })
+
   it('releases the oldest attachment when an eleventh warm view is left', async () => {
     renderHook(() => useThreadRestoration(props))
     for (let i = 0; i < 12; i++) {
       await select('thread-' + i)
       await act(async () => respond('thread-' + i))
     }
-    expect(sendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'thread-0' })
+    expect(sendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'thread-0' }, undefined,
+      { connectionId: 'connection-1', attachmentOwner: 'warm' })
     expect(getThreadConversation('thread-0')).toBeUndefined()
     expect(getThreadConversation('thread-1')).toBeDefined()
   })
 
-  it('discards stale connection and workspace results even when their thread id matches', async () => {
-    const { rerender } = renderHook(value => useThreadRestoration(value), { initialProps: props })
+  it('discards stale connection results even when their thread id matches', async () => {
+    renderHook(() => useThreadRestoration(props))
     await select('thread-0')
-    act(() => useConnectionStore.getState().setStatus({ status: 'connected' }))
+    act(() => useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: 'workspace', connectionId: 'connection-2' }))
     await waitFor(() => expect(requests).toHaveLength(2))
     await act(async () => respond('thread-0', snapshot('thread-0', 'old connection')))
     expect(useThreadRestorationStore.getState().restoringThreadId).toBe('thread-0')
     await act(async () => respond('thread-0', snapshot('thread-0', 'new connection')))
     expect(useConversationStore.getState().streamingMessage).toBe('new connection')
-    rerender({ ...props, workspaceIdentity: 'other', workspaceKey: 'other' })
-    expect(useThreadStore.getState().activeThreadId).toBe('thread-0')
   })
 })

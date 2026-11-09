@@ -11,13 +11,14 @@ export type ConnectionErrorType =
 
 export interface ConnectionStatusPayload {
   status: ConnectionStatus
+  connectionKey?: string
+  connectionId?: string
   serverInfo?: {
     name: string
     version: string
     protocolVersion?: string
   }
   capabilities?: Record<string, unknown>
-  /** DashBoard URL when the server hosts it (initialize). */
   dashboardUrl?: string
   errorMessage?: string
   errorDetails?: string

@@ -633,7 +633,6 @@ const api = {
       }
     },
 
-    /** The payload carries a bridgeId that must be passed back to sendServerResponse. */
     onServerRequest(callback: (payload: KnownServerRequestPayload) => void): UnsubscribeFn {
       const token = ++serverRequestToken
       activeServerRequestCallback = callback
@@ -1038,8 +1037,8 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    switch(newPath: string): Promise<void> {
-      return ipcRenderer.invoke('workspace:switch', newPath)
+    switch(newPath: string, connectionKey?: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:switch', newPath, connectionKey)
     },
 
     clearSelection(): Promise<void> {

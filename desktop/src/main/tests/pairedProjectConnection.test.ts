@@ -25,9 +25,9 @@ import * as deviceConnections from '../windows/windowDeviceConnections'
 import { enforceSecondaryWorkspaceBudget } from '../windows/windowSecondaryConnections'
 import { disconnectRemoteProject, leavePairedComputerProject, openPairedComputerProject } from '../windows/windowRemoteActions'
 import {
-  clearActiveRemoteReconnectTimer,
-  hasRecoverableActiveRemoteStack,
-  scheduleActiveRemoteStackReconnect
+  clearPendingDeviceOpenRetry,
+  canRetryPendingDeviceOpen,
+  schedulePendingDeviceOpenRetry
 } from '../windows/windowRemoteConnections'
 
 class Client extends EventEmitter {
@@ -81,7 +81,7 @@ function fixture() {
       localWorkspacePath, status: {}, remote: { source: 'device', hostId: owner.computerId, remoteProjectId: project.projectId }
     }),
     deviceOpenGeneration: 0, workspaceConnections: new Map(),
-    activeRemoteReconnectTimer: null, activeRemoteReconnectAttempt: 0,
+    pendingDeviceOpenTimer: null, pendingDeviceOpenAttempt: 0,
     reregisterIpcForWorkspace: vi.fn(), flushPendingWorkspaceOpenThread: () => {},
     formatRemoteConnectionError: (message: string) => message,
     classifyRemoteInitialError: () => 'remote-config-invalid',
@@ -111,9 +111,9 @@ function fixture() {
   }
   ctx.connectToAppServer = vi.fn((path) => connectToAppServer(ctx, path))
   ctx.connectViaWebSocket = (...args) => connectViaWebSocket(ctx, ...args)
-  ctx.hasRecoverableActiveRemoteStack = () => hasRecoverableActiveRemoteStack(ctx)
-  ctx.scheduleActiveRemoteStackReconnect = (reason) => scheduleActiveRemoteStackReconnect(ctx, reason)
-  ctx.clearActiveRemoteReconnectTimer = () => clearActiveRemoteReconnectTimer(ctx)
+  ctx.canRetryPendingDeviceOpen = () => canRetryPendingDeviceOpen(ctx)
+  ctx.schedulePendingDeviceOpenRetry = () => schedulePendingDeviceOpenRetry(ctx)
+  ctx.clearPendingDeviceOpenRetry = () => clearPendingDeviceOpenRetry(ctx)
   ctx.leavePairedComputerProject = (...args) => leavePairedComputerProject(ctx, ...args)
   return { ctx, clients, result, openProject, computer, computers }
 }

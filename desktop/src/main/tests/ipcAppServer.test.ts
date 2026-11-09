@@ -98,6 +98,15 @@ describe('AppServer ordered IPC requests', () => {
     expect(entryA.errorMessage).toBeUndefined()
   })
 
+  it('rejects a keyed request from an expired connection lifetime before sending it', async () => {
+    const server = wire()
+    const send = vi.spyOn(server.client, 'sendRequest')
+    const ipc = bridge(() => server.client, { getConnectionClient: () => server.client })
+    await expect(ipc.consumer.request('thread/unsubscribe', { threadId: 'thread' }, undefined,
+      { connectionId: 'expired', attachmentOwner: 'warm' }, 'a')).rejects.toThrow('no longer active')
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('rejects foreground requests without a connection and preserves wire error delivery order and fields', async () => {
     const unavailable = bridge(() => null)
     await expect(unavailable.consumer.request('command/list', {})).rejects.toMatchObject({ message: 'AppServer is not connected (command/list)' })

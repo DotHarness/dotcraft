@@ -21,7 +21,7 @@ const owner = (id: number) => ({ id, isDestroyed: () => false, webContents: { id
 const runtime = (win: Electron.BrowserWindow) => ({
   mainWindow: win,
   getThreadTasks: () => ({ abandonOffersForOwner: vi.fn() }),
-  clearActiveRemoteReconnectTimer: vi.fn(), resetThreadToolState: vi.fn(),
+  clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(),
   deviceOpenGeneration: 0, workspaceConnections: new Map(),
   userInputAutoResolution: { clear: vi.fn() }, setActiveRemoteProject: vi.fn()
 }) as unknown as DesktopWindowRuntime

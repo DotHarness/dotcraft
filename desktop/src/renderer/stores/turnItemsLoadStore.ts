@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getThreadConversation } from './conversationStore'
+import { requestThreadConnection } from './threadConnectionStore'
 import { wireItemToConversationItem } from '../types/conversation'
 import { createHistoryReadQueue, readTurnItemsPage, type HistoryRequest } from '../utils/threadHistory'
 
@@ -12,7 +13,7 @@ interface TurnItemsLoadState {
 export const useTurnItemsLoadStore = create<TurnItemsLoadState>(() => ({ statuses: {} }))
 
 const requestAppServer: HistoryRequest = (method, params, options) =>
-  window.api.appServer.sendRequest(method, params, undefined, options)
+  requestThreadConnection(String(params.threadId), method, params, undefined, options)
 const readDetail = createHistoryReadQueue(4)
 const inFlight = new WeakMap<NonNullable<ReturnType<typeof getThreadConversation>>, Map<string, Promise<void>>>()
 

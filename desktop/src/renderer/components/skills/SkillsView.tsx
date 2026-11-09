@@ -619,7 +619,7 @@ async function startDotCraftInstallThread(
     },
     historyMode: 'server',
     config: { mode: 'agent' }
-  }) as unknown as { thread: ThreadSummary }
+  }, undefined, { attachmentOwner: 'warm' }) as unknown as { thread: ThreadSummary }
 
   await window.api.skillMarket.bindDotCraftInstall?.({
     threadId: result.thread.id,

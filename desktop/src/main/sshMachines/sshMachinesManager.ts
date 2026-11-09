@@ -524,13 +524,14 @@ export class SshMachinesManager {
     const abort = new AbortController()
     rt.eventsAbort = abort
     const onEvent = (event: HubEvent): void => {
-      const foreground = this.deps.getForegroundProject?.()
-      if (!foreground || foreground.machineId !== id) return
-      const project = this.deps.loadMachines().find((m) => m.id === id)?.projects.find((p) => p.id === foreground.projectId)
-      if (!project || !isEndpointChangeEvent(event, project.path)) return
-      const port = eventEndpointPort(event)
-      if (port !== undefined && port === this.projectRemotePorts.get(projectKey(id, project.id))) return
-      this.deps.onProjectEndpointChanged?.(id, project.id)
+      const projects = this.deps.loadMachines().find(machine => machine.id === id)?.projects ?? []
+      for (const project of projects) {
+        const previousPort = this.projectRemotePorts.get(projectKey(id, project.id))
+        if (previousPort == null || !isEndpointChangeEvent(event, project.path)) continue
+        const port = eventEndpointPort(event)
+        if (port !== undefined && port === previousPort) continue
+        this.deps.onProjectEndpointChanged?.(id, project.id)
+      }
     }
     hub.client.subscribeEvents(onEvent, abort.signal).then(
       () => {

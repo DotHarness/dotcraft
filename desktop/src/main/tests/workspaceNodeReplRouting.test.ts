@@ -3,23 +3,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
-const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: vi.fn() }))
+const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: vi.fn(), handleTool: vi.fn(), hasTools: vi.fn(), createBridge: vi.fn(), broadcast: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: runtime }))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }))
 vi.mock('../chatFoldersIpc', () => ({ createChatFolderFromSettings: vi.fn() }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: { handleTurnEnded: vi.fn() }, rememberAlwaysAllowedApp: vi.fn() }))
-vi.mock('../desktopRuntimeThreadTools', () => ({ handleDesktopRuntimeThreadToolCall: vi.fn(), resetDesktopThreadToolBindings: vi.fn() }))
-vi.mock('../ipcBridge', () => ({ broadcastServerRequest: vi.fn(), createServerRequestBridge: vi.fn() }))
+vi.mock('../desktopRuntimeThreadTools', () => ({ handleDesktopRuntimeThreadToolCall: runtime.handleTool, hasDesktopThreadTools: runtime.hasTools, resetDesktopThreadToolBindings: vi.fn() }))
+vi.mock('../ipcBridge', () => ({ broadcastServerRequest: runtime.broadcast, createServerRequestBridge: runtime.createBridge }))
 vi.mock('../viewerTerminal', () => ({ viewerTerminalManager: {} }))
 vi.mock('../windowAttentionNotifier', () => ({ NEW_TASK_OFFER_ATTENTION: 'offer' }))
 
-import { handleWorkspaceServerRequest } from '../windows/windowRequests'
+import { bridgeServerRequestToRenderer, handleServerRequestInMain, handleWorkspaceServerRequest, observeComputerUseApproval } from '../windows/windowRequests'
 import { handleWorkspaceNodeReplNotification } from '../windows/windowNodeReplRequests'
 
 const clients: EventEmitter[] = []
 function entry(key: string): WorkspaceConnectionEntry {
   const client = Object.assign(new EventEmitter(), {
+    connectionId: `connection-${key}`,
     retainBrowserTurn: vi.fn(async () => true),
     releaseBrowserTurn: vi.fn(async () => {}),
     sendRequest: vi.fn(async () => ({ approved: true }))
@@ -53,6 +54,8 @@ function fixture(windowId = 1) {
 beforeEach(() => {
   runtime.evaluate.mockResolvedValue({ resultText: '42', images: [], logs: [] })
   runtime.cancel.mockReturnValue({ ok: true })
+  runtime.hasTools.mockReturnValue(false)
+  runtime.handleTool.mockResolvedValue({ success: true })
 })
 afterEach(() => {
   for (const client of clients.splice(0)) client.emit('disposed')
@@ -144,6 +147,47 @@ describe('source-bound Node REPL routing', () => {
     await expect(request(a, 'ext/nodeRepl/evaluate', { threadId: 'two', evaluationId: '2', code: '42', browserSession: { sessionId: 'shared' } })).rejects.toThrow('another thread')
     await expect(request(a, 'ext/nodeRepl/evaluate', { threadId: 'two', code: '42', browserSession: { threadId: 'one' } })).resolves.toMatchObject({ error: 'Invalid Node REPL evaluate request.' })
     expect(runtime.evaluate).toHaveBeenCalledOnce()
+  })
+
+  it('keeps background interactions source-bound and promotes their project only on notification click', async () => {
+    const { a, ctx, promoteB, owner } = fixture()
+    promoteB()
+    let onOpen!: (threadId: string) => void
+    let opened!: () => void
+    const didOpen = new Promise<void>(resolve => { opened = resolve })
+    Object.assign(ctx, {
+      userInputAutoResolution: { remove: vi.fn() }, settings: {},
+      app: { notifyWindowAttention: vi.fn(async (_method: string, _params: unknown, options: { openThread(threadId: string): void }) => { onOpen = options.openThread }) },
+      showWindowSafely: vi.fn(), sendOpenThread: vi.fn(() => opened()),
+      observeComputerUseApproval: vi.fn(),
+      promoteWorkspaceConnection: vi.fn(async () => { a.role = 'foreground'; ctx.wireClient = a.client; return true })
+    })
+    runtime.createBridge.mockReturnValue({ bridgeId: 'approval', promise: Promise.resolve({ decision: 'accept' }) })
+    await bridgeServerRequestToRenderer(ctx, 'item/approval/request', { threadId: 'thread', turnId: 'turn' }, a)
+    expect(runtime.broadcast).toHaveBeenCalledWith(owner, expect.objectContaining({
+      connectionKey: a.key, connectionId: 'connection-a', bridgeId: 'approval'
+    }))
+    expect(ctx.observeComputerUseApproval).toHaveBeenCalledWith(owner, expect.any(Object), expect.any(Promise), false)
+    observeComputerUseApproval(ctx, owner, { threadId: 'thread', turnId: 'turn' }, Promise.resolve({}), false)
+    expect(ctx.showWindowSafely).not.toHaveBeenCalled()
+    onOpen('thread')
+    await didOpen
+    expect(ctx.promoteWorkspaceConnection).toHaveBeenCalledWith(a)
+    expect(ctx.sendOpenThread).toHaveBeenCalledWith(owner, 'thread')
+  })
+
+  it('routes registered Desktop tools through their background source instead of the foreground', async () => {
+    const { a, b, ctx, promoteB, request } = fixture()
+    promoteB()
+    a.initializeResult = { capabilities: { dynamicToolRebind: true } } as WorkspaceConnectionEntry['initializeResult']
+    ctx.desktopThreadToolOptions = vi.fn(() => ({ supportsDynamicToolRebind: true }))
+    ctx.handleServerRequestInMain = (method, params, source) => handleServerRequestInMain(ctx, method, params, source)
+    runtime.hasTools.mockReturnValue(true)
+    const params = { threadId: 'thread', namespace: 'desktop', tool: 'ListThreads', arguments: {} }
+    await expect(request(a, 'item/tool/call', params)).resolves.toEqual({ success: true })
+    expect(runtime.handleTool).toHaveBeenCalledExactlyOnceWith(a.client, params, a.workspacePath, { supportsDynamicToolRebind: true })
+    expect(ctx.desktopThreadToolOptions).toHaveBeenCalledWith(a)
+    expect(b.client.sendRequest).not.toHaveBeenCalled()
   })
 
   it('does not broaden other background tools or allow background remote evaluations', async () => {

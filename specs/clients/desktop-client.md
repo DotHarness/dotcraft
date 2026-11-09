@@ -47,7 +47,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Embedding the DotCraft runtime in-process.
 - Acting as a full IDE, terminal emulator, or general-purpose file browser.
 - Freezing a specific visual layout or frontend architecture.
-- Aggregating SSH, Docker, manual-endpoint, or CLI remote workspaces in the background. Those remote projects are foreground-only; explicitly opened paired-computer projects may remain secondary connections.
+- Eagerly connecting every known remote project or persisting live connections across application restarts.
 
 ## 3. Connection and Session Lifecycle
 
@@ -56,8 +56,8 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 ### 3.1 Workspace Entry
 
 - The client is workspace-centric and may show multiple known workspaces in one window.
-- Exactly one workspace is the foreground workspace at any time. Foreground workspace state owns the composer, active conversation, settings, capabilities, model/provider selection, workspace tools, and server-initiated interactive requests.
-- Additional local workspaces and previously opened paired-computer projects may be connected as secondary workspaces. They may contribute thread-list rows and lightweight runtime indicators but do not own workspace-scoped panels or interactive protocol surfaces until promoted to foreground.
+- Exactly one workspace is the foreground workspace at any time. Foreground workspace state owns the composer, active conversation, settings, capabilities, model/provider selection, and workspace panels. Thread-bound subscriptions, tools, and interactive requests retain their originating connection independently of selection.
+- Additional local workspaces and previously opened remote projects may remain secondary connections. They update thread summaries and retained warm conversations without owning the foreground workspace's panels.
 - Opening or selecting a stopped workspace starts a connection to an AppServer for that workspace, then promotes it to foreground after initialization succeeds. Thread operations remain unavailable until initialization succeeds.
 - Demoting the previous foreground immediately removes its ownership of default renderer RPC. For a stopped target, Desktop publishes `connecting` before the new workspace identity; until the target connection is installed, default requests cannot fall back to a secondary connection. Explicit connection-key requests remain available for background work.
 - Workspace and successful reconnection boundaries invalidate workspace configuration, provider usage and model catalogs before loading target data. Late results from an earlier scope cannot refill these stores; duplicate `connected` status reports do not constitute another reconnection.
@@ -69,9 +69,9 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 - Remote connection changes use test-and-connect: Desktop validates the draft `ws://`/`wss://` URL and token, completes an `initialize` probe against the draft endpoint, and persists the settings and switches only after the probe succeeds. A failed probe leaves persisted settings unchanged.
 - When Desktop is launched with a transient `--remote` endpoint, persistent connection-mode switching is unavailable for that session, and Settings explains why.
 - Remote projects and Docker deployments opened from SSH Machines ([§6.10](#610-ssh-machines)) are a forwarded case of Remote mode: Desktop connects through a local SSH forward and reuses the same test-and-connect path.
-- Projects opened from paired computers ([§6.16](#616-control-other-devices)) use Remote mode through the [Device Gateway](../protocols/device-gateway.md). Unlike other remote sources, their initialized connections may remain secondary when another project becomes foreground.
+- Projects opened from paired computers ([§6.16](#616-control-other-devices)) use Remote mode through the [Device Gateway](../protocols/device-gateway.md). Like other initialized project connections, they may remain secondary when another project becomes foreground.
 - A Remote-mode session is a distinct foreground project identity, separate from the local workspace that initiated it. Local threads, pinned state, and welcome drafts stay isolated from the remote project.
-- Connecting to a remote project records the previous local foreground workspace. Explicitly disconnecting the foreground remote project closes its client and forward and restores the previous local foreground when possible. Selecting another project demotes an initialized paired-computer connection without closing its bridge; other remote sources disconnect. Disconnecting a secondary paired-computer project affects only that project.
+- Connecting to a remote project records the previous local foreground workspace. Explicitly disconnecting the foreground remote project closes its client and forward and restores the previous local foreground when possible. Selecting another project demotes the initialized connection without closing its client, SSH forward, or device bridge. Disconnecting a secondary project affects only that project.
 - A failed connection remains recoverable without restarting Desktop.
 
 ### 3.2 Connection States
@@ -95,7 +95,7 @@ Desktop is a host adapter over the TypeScript SDK. Its AppServer and Hub transpo
 
 Desktop uses the SDK Wire reconnect profile. Already-written requests fail on disconnect and are never replayed; calls made while reconnecting are ordered behind a successful `initialize` / `initialized` handshake. Desktop restores UI subscriptions, interactive-request state, runtime Dynamic Tools, SSH forwards, and other workspace resources once the connection is ready.
 
-- On unexpected disconnect, the client transitions to `disconnected` and reconnects automatically. Explicit disconnect ends recovery for that project. A retained paired-computer secondary connection recovers in its own project context; selecting another target ends recovery for other remote sources. Late open results and secondary recovery cannot replace the foreground or its status.
+- On unexpected disconnect, the client transitions to `disconnected` and reconnects automatically. Explicit disconnect ends recovery for that project. Each retained secondary connection recovers in its own project context; selecting another target does not end its recovery. Late open results and secondary recovery cannot replace the foreground or its status.
 - During reconnect, the user can tell that displayed thread data is local while live updates are unavailable.
 - After reconnect, the client reloads capabilities, re-establishes the active thread subscription, and refreshes thread and automation data that may have changed.
 - If recovery succeeds, the state returns to `connected` without the user rebuilding context. If recovery fails persistently, the state becomes `error` with a retry path.
@@ -147,14 +147,14 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 
 **Ownership**
 
-- Foreground workspace state owns the composer, settings, capabilities, tools and active renderer subscription. Secondary workspaces update thread summaries and compact runtime indicators, while existing thread-bound browser work retains its originating connection and approval path without changing the foreground UI. The local Chat workspace is ensured independently of foreground mode, including remote startup and recovery; its local Hub lifecycle events never replace or disconnect a remote foreground client.
-- For local projects whose AppServer is already running, Desktop may open secondary connections. Previously opened paired-computer projects share the same per-window budget of eight idle secondary connections (LRU); excess projects remain cold until selected. Desktop does not connect to or start other paired-computer projects just to populate the rail.
-- Secondary connections normally load thread summaries and compact runtime notifications, not foreground renderer streams. A bound local browser turn is the narrow exception: its originating connection retains the required turn lifecycle and handles Node REPL evaluation/cancellation in its own context until cleanup, as defined in [Thread Panels](../features/desktop-thread-panels.md). Active browser leases are exempt from the idle secondary connection budget; unrelated background tools are not enabled.
+- Foreground workspace state owns the composer, settings, capabilities and workspace panels. Retained warm conversations and thread-bound tools keep their originating connection, event stream and approval path without changing the foreground UI. The local Chat workspace is ensured independently of foreground mode, including remote startup and recovery; its local Hub lifecycle events never replace or disconnect a remote foreground client.
+- For local projects whose AppServer is already running, Desktop may open secondary connections. Previously opened remote projects share the same per-window budget of eight idle secondary connections (LRU); excess projects remain cold until selected. Connections held by warm conversations, native resources or tasks are not idle. Desktop does not connect to or start other remote projects just to populate the rail.
+- Secondary connections forward full conversation events for threads with retained display subscriptions, in addition to summary notifications. Thread-bound tools use the source connection and its registered bindings; workspace configuration and panel updates remain foreground-only. Native resource ownership follows [Thread Panels](../features/desktop-thread-panels.md).
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
 - Foreground and secondary rows show the unread dot from the thread's server read receipt ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from `thread/list` and updated by `thread/readState/changed`. Desktop marks a thread read only while it is open in a focused window. Promoting a project keeps its receipts.
 - Both row types distinguish approval, input, and plan-confirmation waits, in that priority order. Plan confirmation uses the existing Awaiting confirmation/info badge rather than a generic input wait. Selection may hide that badge on the foreground thread but never clears the waiting fact; leaving the thread reveals it without another resume or list refresh. For a loaded plan identity, the existing local Turn dismissal also suppresses its badge without changing the server runtime. Unloaded identities use the server summary; Desktop does not load history just to classify a sidebar row.
-- Paired-computer projects may remain secondary, retaining thread summaries, unread receipts, and lightweight runtime indicators without owning the foreground UI. Returning to a connected project reuses its client and bridge. Other remote sources are foreground-only. Explicit disconnect leaves a saved project cold without live thread rows; an unsaved remote project disappears from the rail.
+- Opened remote projects may remain secondary, retaining warm conversations, thread summaries and unread receipts without owning the foreground UI. Returning to a connected project reuses its client and transport resources. Explicit disconnect leaves a saved project cold without live thread rows; an unsaved remote project disappears from the rail.
 
 **Actions**
 
@@ -182,7 +182,7 @@ This section defines how protocol messages affect user-visible behavior, as UX o
 | `thread/status/changed` | Activity indicators update in the owning workspace's navigation, including secondary workspaces. Summaries use the current Turn identity and start time for elapsed-time display when available. |
 | `thread/readState/changed` | The thread's unread dot updates in the owning workspace's navigation, including secondary workspaces. |
 
-A client that displays multiple workspaces routes each notification with the workspace identity of the connection that received it. For secondary connections, only thread-list and runtime notifications update background project groups; notifications affecting conversation content, configuration, tools, MCP, jobs, approvals, user-input requests, or other interactive surfaces are foreground-only.
+A client that displays multiple workspaces routes each notification with the workspace identity of the connection that received it. Secondary connections apply conversation events and interactive requests to retained source threads without selecting them, marking them read, or opening their panels. Configuration, provider, plugin and workspace-level surfaces remain foreground-only.
 
 ### 4.2 Turn Events
 
@@ -306,7 +306,7 @@ Selecting an active thread starts one coordinated restoration, observation and p
 
 The conversation never blanks while it restores. A thread present in the thread list opens at once with its header and composer, using the list summary until the header read lands; only the transcript area waits, with an indicator revealed after 400ms. Submitting before the thread is ready keeps the message in the composer and says the conversation is still loading.
 
-Leaving a thread keeps it **warm**: its observation stays attached and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 threads are warm per foreground connection. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
+Leaving a thread keeps it **warm**: its observation stays attached and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 non-selected threads are warm per window, across workspace connections. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
 
 Activating a new conversation, a cached thread, or the new-chat surface synchronizes its workspace path and local/remote status with the current window context. Inherited or cached conversation state does not override that context. Returning to a local workspace restores local image attachment previews without reopening the window; remote attachment paths remain unavailable to local file reads.
 
@@ -320,7 +320,7 @@ Selecting a thread opens a restore generation. The [Thread Restoration and Obser
 2. Apply mode, runtime, current interaction state, and the opening page at the ordered response boundary before releasing staged updates. Action readiness follows that application; drafts retain their loading behavior.
 3. Load detail in 100-Item pages with four workers and at most two preview jobs. Preserve cursors and summary Items. Viewport demand and explicit expansion drive continuation.
 4. Keep loaded history in segments. Gaps load from the nearer viewport edge; navigation loads a segment around the selected Turn. Adjacent segments merge and insertion preserves the scroll anchor.
-5. Scope restoration and late results to foreground workspace, connection epoch, and thread id. Start/fork and worktree creation attach when a real thread id exists.
+5. Scope restoration and late results to the originating project, actual connection lifetime, and thread id. Promotion and demotion do not change that connection identity. Start/fork and worktree creation attach when a real thread id exists.
 6. Warm views retain their state until eviction. Native execution and background tasks retain observation independently of navigation. The final owner releases the attachment.
 7. Rejoining a native Turn uses metadata-only resume. An already-ended Turn triggers cleanup from the returned state.
 
@@ -347,7 +347,7 @@ Desktop restores the current view through the ordered resume response and subseq
 - Reconnect restores current interactions. Failed restoration keeps their requests parked.
 - Subagent token counts sum the child's turn `tokenUsage` and rise with `thread/tokenUsage/updated`; they never decrease. Subagent elapsed time derives from `runtime.activeTurnStartedAt` and shows unknown when unavailable.
 - Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect resumes actual active owners at a new ordered boundary and invalidates pre-disconnect cursors. Archived threads remain query-only.
-- Reconciliation is scoped to the active foreground thread and workspace.
+- Reconciliation is scoped to the originating thread and connection; only the selected thread owns the foreground interaction composer.
 - Conversation updates apply whether or not the window is visible; showing a hidden or minimized window reads nothing.
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface

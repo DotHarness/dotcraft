@@ -117,7 +117,7 @@ export async function installDeviceProjectConnection(
     projectId: project.projectId, projectKind: 'remote',
     identityWorkspacePath: project.identityWorkspacePath, displayPath: project.displayPath, remote: project.remote,
     remoteDiagnostic: { stage: 'paired-computer', hostName: opened.computer.name, localPort: opened.bridge.port },
-    role, device, existingEntry
+    role, device, existingEntry, remoteProject: project
   })
   ctx.enforceSecondaryWorkspaceBudget()
 }
@@ -135,8 +135,8 @@ export function demoteDeviceProject(ctx: DesktopWindowRuntime): boolean {
   } else if (entry) {
     ctx.disposeWorkspaceConnection(entry)
   }
-  ctx.clearActiveRemoteReconnectTimer()
-  ctx.activeRemoteReconnectAttempt = 0
+  ctx.clearPendingDeviceOpenRetry()
+  ctx.pendingDeviceOpenAttempt = 0
   ctx.setActiveRemoteProject(null)
   ctx.enforceSecondaryWorkspaceBudget()
   return true
@@ -159,7 +159,8 @@ export function promoteDeviceProject(ctx: DesktopWindowRuntime, entry: Workspace
     const result = entry.initializeResult
     ctx.emitConnectionStatus(ctx.mainWindow, entry.connected && result ? {
       status: 'connected', serverInfo: result.serverInfo,
-      capabilities: result.capabilities as Record<string, unknown>, dashboardUrl: result.dashboardUrl
+      capabilities: result.capabilities as Record<string, unknown>, dashboardUrl: result.dashboardUrl,
+      connectionKey: entry.key, ...(entry.client.connectionId ? { connectionId: entry.client.connectionId } : {})
     } : { status: 'connecting' })
   }
   if (!entry.connected && !entry.connecting) ctx.scheduleDeviceProjectReconnect(entry)
@@ -197,7 +198,7 @@ export async function connectDeviceProject(
       errorType: 'remote-config-invalid'
     })
     if (error instanceof PairedProjectOpenError && error.retryable) {
-      ctx.scheduleActiveRemoteStackReconnect('paired project open failed')
+      ctx.schedulePendingDeviceOpenRetry()
     }
     return false
   }

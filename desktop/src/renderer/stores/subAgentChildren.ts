@@ -1,31 +1,10 @@
+import type { ThreadSpawnEdge } from '@dotcraft/sdk/contracts'
 import type { SubAgentEntry } from '../types/toolCall'
 import type { ContextUsageSnapshotWire, ThreadConfigurationWire, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useThreadStore } from './threadStore'
 
-interface SubAgentEdgeWire {
-  parentThreadId?: string
-  childThreadId?: string
-  parentTurnId?: string | null
-  depth?: number
-  agentPath?: string | null
-  taskName?: string | null
-  agentNickname?: string | null
-  agentRole?: string | null
-  agentType?: string | null
-  agent_type?: string | null
-  role?: string | null
-  profileName?: string | null
-  runtimeType?: string | null
-  supportsSendInput?: boolean
-  supportsResume?: boolean
-  supportsSendMessage?: boolean
-  supportsFollowupTask?: boolean
-  supportsClose?: boolean
-  status?: string
-}
-
 export interface SubAgentChildWire {
-  edge?: SubAgentEdgeWire
+  edge?: ThreadSpawnEdge
   thread?: (ThreadSummary & {
     configuration?: ThreadConfigurationWire | null
     contextUsage?: ContextUsageSnapshotWire | null
@@ -67,18 +46,6 @@ function lastAgentPathSegment(agentPath: string | null | undefined): string | nu
   return parts.length > 0 ? parts[parts.length - 1] : null
 }
 
-function normalizeRole(source: {
-  agentRole?: unknown
-  agentType?: unknown
-  agent_type?: unknown
-  role?: unknown
-} | null | undefined): string | null {
-  return normalizeText(source?.agentRole)
-    ?? normalizeText(source?.agentType)
-    ?? normalizeText(source?.agent_type)
-    ?? normalizeText(source?.role)
-}
-
 export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
   const normalized = status?.trim().toLowerCase()
   return normalized === 'closed'
@@ -88,7 +55,6 @@ export function isTerminalSubAgentStatus(status: string | null | undefined): boo
     || normalized === 'canceled'
 }
 
-/** True when the subagent's spawn edge has been closed (by `subagent/close` or residency reclaim). */
 export function isSubAgentChildClosed(child: SubAgentChild): boolean {
   return child.status.trim().toLowerCase() === 'closed'
 }
@@ -129,7 +95,7 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     agentPath,
     taskName,
     nickname,
-    agentRole: normalizeRole(edge) ?? normalizeRole(source),
+    agentRole: normalizeText(edge.agentRole) ?? normalizeText(source?.agentRole),
     profileName: normalizeText(edge.profileName) ?? normalizeText(source?.profileName),
     runtimeType: normalizeText(edge.runtimeType) ?? normalizeText(source?.runtimeType),
     supportsSendInput: edge.supportsSendInput ?? source?.supportsSendInput ?? true,
@@ -140,7 +106,7 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     status,
     lastToolDisplay: null,
     currentTool: null,
-    model: normalizeText(wire.thread?.configuration?.model) ?? normalizeText(wire.thread?.configuration?.Model),
+    model: normalizeText(wire.thread?.configuration?.model),
     contextTokens: wire.thread?.contextUsage?.tokens ?? null,
     isCompleted,
     isPlaceholder: false,

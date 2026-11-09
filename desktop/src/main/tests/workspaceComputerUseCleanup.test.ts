@@ -61,10 +61,10 @@ beforeEach(() => {
     settings: { locale: 'en' }, workspaceConnections: new Map(),
     runtimeIsStopping: () => false, resetThreadToolState: () => {}, emitConnectionStatus: () => {},
     reregisterIpcForWorkspace: () => {}, localProjectId: (path: string) => path,
-    clearActiveRemoteReconnectTimer: () => {}, flushPendingWorkspaceOpenThread: () => {},
+    clearPendingDeviceOpenRetry: () => {}, flushPendingWorkspaceOpenThread: () => {},
     emitWorkspaceProjects: () => {}, resolveConnectionMode: () => 'local',
     restoreEnabledModuleTracking: async () => {}, scheduleSecondaryWorkspaceRefresh: () => {},
-    scheduleActiveRemoteStackReconnect: () => {}, getThreadTasks: () => ({ handleNotification: () => {} }),
+    schedulePendingDeviceOpenRetry: () => {}, getThreadTasks: () => ({ handleNotification: () => {} }),
     applyWorkspaceThreadNotification: () => {}
   } as unknown as DesktopWindowRuntime
 })

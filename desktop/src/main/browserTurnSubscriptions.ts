@@ -120,13 +120,17 @@ export class BrowserTurnSubscriptions {
   async releaseViews(): Promise<void> {
     ++this.viewGeneration
     await Promise.all([...this.threads].map(([threadId, state]) => this.enqueue(state, async () => {
-      for (const owner of state.owners) if (owner !== 'task') state.owners.delete(owner)
+      for (const owner of state.owners) if (owner !== 'task' && owner !== 'warm') state.owners.delete(owner)
       await this.detachUnused(threadId, state)
     })))
   }
 
   get retained(): boolean {
     return [...this.threads.values()].some(state => this.used(state))
+  }
+
+  hasWarmThread(threadId: string): boolean {
+    return this.threads.get(threadId)?.owners.has('warm') === true
   }
 
   clear(): void { ++this.viewGeneration; ++this.connectionGeneration; this.threads.clear() }
@@ -152,7 +156,7 @@ export class BrowserTurnSubscriptions {
 
   private acquired(state: BrowserSubscription, owner: string, generation: number): void {
     state.attached = true
-    if (owner === 'task' || generation === this.viewGeneration) state.owners.add(owner)
+    if (owner === 'task' || owner === 'warm' || generation === this.viewGeneration) state.owners.add(owner)
   }
 
   private used(state: BrowserSubscription): boolean {

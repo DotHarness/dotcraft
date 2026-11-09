@@ -122,8 +122,8 @@ export function closeActiveRemoteForwards(
   ctx: DesktopWindowRuntime,
   settings: AppSettings = ctx.settings
 ): void {
-  ctx.clearActiveRemoteReconnectTimer()
-  ctx.activeRemoteReconnectAttempt = 0
+  ctx.clearPendingDeviceOpenRetry()
+  ctx.pendingDeviceOpenAttempt = 0
   ctx.closeSettingsRemoteForwards(settings)
   ctx.disposeActiveRemoteConnection()
   ctx.setActiveRemoteProject(null)
@@ -137,15 +137,8 @@ export async function disconnectActiveRemoteProject(
     targetWorkspacePath?: string
   } = {}
 ): Promise<void> {
-  const project = ctx.activeRemoteProject
-  ctx.clearActiveRemoteReconnectTimer()
-  ctx.activeRemoteReconnectAttempt = 0
-  if (project?.source === 'servers' && project.remote.hostId && project.remote.stackId) {
-    ctx.sshMachinesManager?.docker.closeStackTunnels(project.remote.hostId, project.remote.stackId)
-  }
-  if (project?.source === 'ssh' && project.remote.hostId && project.remote.remoteProjectId) {
-    ctx.sshMachinesManager?.closeProjectForward(project.remote.hostId, project.remote.remoteProjectId)
-  }
+  ctx.clearPendingDeviceOpenRetry()
+  ctx.pendingDeviceOpenAttempt = 0
   ctx.deviceOpenGeneration += 1
   ctx.disposeActiveRemoteConnection()
   ctx.setActiveRemoteProject(null)
@@ -187,15 +180,12 @@ export async function connectDockerDeployment(
     throw new Error('Saved remote stacks cannot be activated while Desktop was launched with --remote.')
   }
 
-  const manager = ctx.getSshMachinesManager()
-  const previousActive = ctx.settings.activeRemoteStack
-  if (
-    previousActive?.hostId &&
-    previousActive.stackId &&
-    (previousActive.hostId !== host.id || previousActive.stackId !== stack.id)
-  ) {
-    manager.docker.closeStackTunnels(previousActive.hostId, previousActive.stackId)
+  const existing = ctx.workspaceConnections.get(ctx.buildServersRemoteProject(host, stack).projectId)
+  if (existing?.connected) {
+    await ctx.promoteWorkspaceConnection(existing)
+    return {}
   }
+  const manager = ctx.getSshMachinesManager()
 
   const result = await manager.docker.openAppServerTunnel(host, stack)
   try {
@@ -215,10 +205,6 @@ export async function connectDockerDeployment(
     )
   }
 
-  ctx.closeSettingsRemoteForwards({
-    activeRemoteProject: ctx.settings.activeRemoteProject,
-    activeRemoteDevice: ctx.settings.activeRemoteDevice
-  })
   await ctx.updateSettings({
     connectionMode: 'remote',
     remote: undefined,
@@ -237,7 +223,9 @@ export async function disconnectDockerDeployment(
 ): Promise<void> {
   const active = ctx.settings.activeRemoteStack
   if (active?.hostId !== hostId || active.stackId !== stackId) {
-    ctx.sshMachinesManager?.docker.closeStackTunnels(hostId, stackId)
+    const entry = ctx.workspaceConnections.get(`remote:servers:${hostId}:${stackId}`)
+    if (entry) ctx.disposeWorkspaceConnection(entry)
+    else ctx.sshMachinesManager?.docker.closeStackTunnels(hostId, stackId)
     return
   }
 
@@ -249,9 +237,13 @@ export async function leaveSshRemoteProject(
   machineId: string,
   projectId: string
 ): Promise<void> {
-  const ref = ctx.settings.activeRemoteProject
-  if (ref?.machineId !== machineId || ref.projectId !== projectId) return
-  await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
+  const key = ctx.sshRemoteProjectId(machineId, projectId)
+  if (ctx.activeRemoteProject?.projectId === key) {
+    await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: true })
+  } else {
+    const entry = ctx.workspaceConnections.get(key)
+    if (entry) ctx.disposeWorkspaceConnection(entry)
+  }
 }
 
 export async function openSshRemoteProject(
@@ -261,6 +253,11 @@ export async function openSshRemoteProject(
 ): Promise<void> {
   if (ctx.argv.includes('--remote')) {
     throw new Error('Remote projects cannot be opened while Desktop was launched with --remote.')
+  }
+  const existing = ctx.workspaceConnections.get(ctx.sshRemoteProjectId(machineId, projectId))
+  if (existing?.connected) {
+    await ctx.promoteWorkspaceConnection(existing)
+    return
   }
   const manager = ctx.getSshMachinesManager()
   const opened = await manager.openProject(machineId, projectId)
@@ -280,15 +277,6 @@ export async function openSshRemoteProject(
     )
   }
 
-  const previousProject = ctx.settings.activeRemoteProject
-  ctx.closeSettingsRemoteForwards({
-    activeRemoteStack: ctx.settings.activeRemoteStack,
-    activeRemoteDevice: ctx.settings.activeRemoteDevice,
-    activeRemoteProject:
-      previousProject && (previousProject.machineId !== machineId || previousProject.projectId !== projectId)
-        ? previousProject
-        : undefined
-  })
   await ctx.updateSettings({
     connectionMode: 'remote',
     remote: undefined,
@@ -308,7 +296,7 @@ export async function openPairedComputerProject(
     throw new Error('Remote projects cannot be opened while Desktop was launched with --remote.')
   }
   const generation = ++ctx.deviceOpenGeneration
-  ctx.clearActiveRemoteReconnectTimer()
+  ctx.clearPendingDeviceOpenRetry()
   const current = (): boolean => !ctx.runtimeIsStopping() && ctx.deviceOpenGeneration === generation &&
     Boolean(ctx.app.pairedComputers.find(computerId, projectId))
   const key = ctx.deviceRemoteProjectId(computerId, projectId)
@@ -322,12 +310,6 @@ export async function openPairedComputerProject(
       await ctx.probeRemoteAppServerConnection(opened.bridge.wsUrl)
     }
     if (!current()) throw new Error('Project opening was cancelled.')
-    if (ctx.activeRemoteProject?.projectId !== key) {
-      ctx.closeSettingsRemoteForwards({
-        activeRemoteStack: ctx.settings.activeRemoteStack,
-        activeRemoteProject: ctx.settings.activeRemoteProject
-      })
-    }
     await ctx.updateSettings({
       connectionMode: 'remote',
       remote: undefined,
@@ -379,5 +361,5 @@ export async function disconnectRemoteProject(ctx: DesktopWindowRuntime, project
     return
   }
   const entry = ctx.workspaceConnections.get(projectId)
-  if (entry?.device) ctx.disposeWorkspaceConnection(entry)
+  if (entry?.kind === 'remote') ctx.disposeWorkspaceConnection(entry)
 }

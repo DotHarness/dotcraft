@@ -150,7 +150,7 @@ A read-only preview only fills an unchanged, empty view. Resume merges matching 
 
 ### 6.2 Warm and background observations
 
-Desktop retains its bounded warm set and releases observations on eviction. Mobile retains visible chats and running/waiting/task chats required by its live-session contract.
+Desktop retains one bounded warm set across workspace connections: at most 10 non-selected threads for 3 hours since last viewed. Workspace selection does not end observation or reset loaded history. Each warm view applies source-thread events while backgrounded and reopens without resume or history reads. Eviction releases its display owner on the originating connection; native and task owners remain independent. Actual connection loss invalidates warm readiness and requires restoration. Mobile retains visible chats and running/waiting/task chats required by its live-session contract.
 
 ### 6.3 Transcript and archived viewing
 

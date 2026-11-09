@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ipcMain, Notification, shell } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { PassThrough, type Readable, type Writable } from 'stream'
 import { EventEmitter } from 'events'
 
 const {
@@ -144,7 +143,6 @@ import { normalizeSshMachines } from '../../shared/sshMachines'
 import { registerWindowFileAccess } from '../windowFileAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
-import { DesktopAppServerClient } from '../DesktopAppServerClient'
 
 type IpcCallbacks = Parameters<typeof registerIpcHandlers>[2]
 type ExecFileCallback = (
@@ -1235,6 +1233,18 @@ describe('task completion notifications', () => {
 })
 
 describe('unregisterIpcHandlers', () => {
+  it('keeps pending interactions across a workspace rebind and cancels them when the window closes', async () => {
+    registerHandlersForTest('/first')
+    const first = createServerRequestBridge(undefined, testWindow)
+    registerIpcHandlers(() => null, '/second', createIpcCallbacks(), testWindow)
+    resolveServerRequestBridge(first.bridgeId, { decision: 'accept' }, testWindow.webContents.id)
+    await expect(first.promise).resolves.toEqual({ decision: 'accept' })
+    const second = createServerRequestBridge(undefined, testWindow)
+    const cancelled = expect(second.promise).rejects.toThrow('cancelled')
+    testWindow.emit('closed')
+    await cancelled
+  })
+
   it('closes one full IPC registration without disposing another window or its workspace routing', () => {
     registerHandlersForTest('/first')
     const other = Object.assign(new EventEmitter(), {
@@ -1268,55 +1278,5 @@ describe('unregisterIpcHandlers', () => {
     for (const channel of ['workspace:get-projects', 'workspace:remove-project', 'workspace:disconnect-remote']) {
       expect(removedChannels.filter((candidate) => candidate === channel)).toHaveLength(1)
     }
-  })
-})
-
-describe('DesktopAppServerClient bidirectional routing', () => {
-  async function respondToServerRequest(
-    handler: Parameters<DesktopAppServerClient['onServerRequest']>[0],
-    request: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    const toServer = new PassThrough()
-    const fromServer = new PassThrough()
-    const client = new DesktopAppServerClient(fromServer as unknown as Readable, toServer as unknown as Writable)
-    const response = new Promise<Record<string, unknown>>((resolve) => {
-      toServer.on('data', (chunk: Buffer) => {
-        for (const line of chunk.toString('utf8').split('\n').filter(Boolean)) {
-          const message = JSON.parse(line)
-          if (message.id === request.id && ('result' in message || 'error' in message)) resolve(message)
-        }
-      })
-    })
-    client.onServerRequest(handler)
-    fromServer.push(JSON.stringify({ jsonrpc: '2.0', ...request }) + '\n')
-    try {
-      return await response
-    } finally {
-      client.dispose()
-      toServer.destroy()
-      fromServer.destroy()
-    }
-  }
-
-  it('sends the handler result back as a JSON-RPC response with the original id', async () => {
-    const response = await respondToServerRequest(
-      async (_method, params) => ({ decision: (params as Record<string, unknown>).defaultDecision ?? 'accept' }),
-      {
-        id: 42,
-        method: 'item/approval/request',
-        params: { approvalType: 'shell', operation: 'rm -rf /tmp', defaultDecision: 'decline' }
-      }
-    )
-
-    expect(response).toMatchObject({ jsonrpc: '2.0', id: 42, result: { decision: 'decline' } })
-  })
-
-  it('sends an internal error response when the handler throws', async () => {
-    const response = await respondToServerRequest(
-      async () => { throw new Error('Bridge unavailable') },
-      { id: 77, method: 'item/approval/request', params: {} }
-    )
-
-    expect((response.error as { code: number }).code).toBe(-32603)
   })
 })

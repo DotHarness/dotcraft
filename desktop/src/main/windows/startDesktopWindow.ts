@@ -92,7 +92,7 @@ export function startDesktopWindow(
           ? threadTaskConnection(
               client,
               entry?.workspacePath ?? ctx.getProtocolWorkspacePath(),
-              ctx.desktopThreadToolOptions()
+              ctx.desktopThreadToolOptions(entry)
             )
           : null
       }

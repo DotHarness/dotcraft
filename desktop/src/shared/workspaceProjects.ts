@@ -19,6 +19,9 @@ export interface WorkspaceRemoteProjectMetadata {
 
 export interface WorkspaceProjectSummary {
   projectId?: string
+  connectionKey?: string
+  connectionId?: string
+  capabilities?: Record<string, unknown>
   kind?: WorkspaceProjectKind
   path: string
   identityWorkspacePath?: string

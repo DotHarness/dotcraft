@@ -696,7 +696,7 @@ function ConversationWelcomeCore({
           config,
           ...nameField,
           ...(chatFolder ? { cwd: chatFolder.cwd } : rootsField)
-        }) as unknown as { thread: ThreadSummary }).thread
+        }, undefined, { attachmentOwner: 'warm' }) as unknown as { thread: ThreadSummary }).thread
 
     if (welcomeChangelist && welcomeChangelist !== 'default') {
       try {

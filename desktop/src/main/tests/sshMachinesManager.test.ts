@@ -392,9 +392,8 @@ describe('SshMachinesManager machines and projects', () => {
     expect(env.machines()[0].autoConnect).toBe(false)
   })
 
-  it('follows AppServer port changes for the foreground project only', async () => {
+  it('follows AppServer port changes for opened projects without requiring foreground selection', async () => {
     const env = setup(remote())
-    env.setForeground({ machineId: 'm_1', projectId: 'p_1' })
     await env.manager.openProject('m_1', 'p_1')
     const emit = env.eventHandlers[env.eventHandlers.length - 1]
 
@@ -403,6 +402,9 @@ describe('SshMachinesManager machines and projects', () => {
     expect(env.endpointChanges).toEqual([])
 
     emit({ kind: 'port.allocated', at: '', workspacePath: '/home/dev/src', data: { service: 'appServerWebSocket', port: 41001 } })
+    expect(env.endpointChanges).toEqual(['m_1/p_1'])
+    env.manager.closeProjectForward('m_1', 'p_1')
+    emit({ kind: 'port.allocated', at: '', workspacePath: '/home/dev/src', data: { service: 'appServerWebSocket', port: 41002 } })
     expect(env.endpointChanges).toEqual(['m_1/p_1'])
   })
 

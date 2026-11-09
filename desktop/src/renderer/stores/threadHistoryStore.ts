@@ -2,6 +2,7 @@ import { createStore } from 'zustand'
 import { getThreadConversation } from './conversationStore'
 import { createThreadScopedStores } from './threadScopedStore'
 import { useThreadStore } from './threadStore'
+import { requestThreadConnection } from './threadConnectionStore'
 import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
 import type { Turn } from '../types/thread'
 import { listThreadTurns, type HistoryRequest } from '../utils/threadHistory'
@@ -42,7 +43,7 @@ export const useThreadHistoryStore = histories.useActive
 export const activateThreadHistory = histories.activate
 export const releaseThreadHistory = histories.release
 
-const requestAppServer: HistoryRequest = (method, params) => window.api.appServer.sendRequest(method, params)
+const requestAppServer: HistoryRequest = (method, params) => requestThreadConnection(String(params.threadId), method, params)
 const inFlightEdgeLoads = new Map<string, Promise<void>>()
 const layoutChangeListeners = new Set<() => void>()
 let nextGapId = 1
@@ -141,7 +142,6 @@ export function restartThreadHistory(
   applyThreadHistoryHead(threadId, chronological, olderCursor)
 }
 
-/** Concurrent calls for the same gap edge share one request. */
 export function loadThreadHistoryGap(gapId: number, edge: HistoryGapEdge): Promise<void> {
   const { threadId, generation, gaps } = useThreadHistoryStore.getState()
   const gap = gaps.find((candidate) => candidate.id === gapId)
@@ -187,7 +187,6 @@ async function readGapEdge(
   })
 }
 
-/** Resolves with the listed Turn's id once it is in the conversation store. */
 export async function openThreadHistoryAround(
   threadId: string,
   position: ListedTurnPosition

@@ -1,9 +1,11 @@
 import { BrowserWindow } from 'electron'
 import { type ThreadTask } from '../../shared/threadTasks'
 import { createChatFolderFromSettings } from '../chatFoldersIpc'
+import { isDefaultChatWorkspace } from '../defaultChatWorkspace'
 import { computerUseManager, rememberAlwaysAllowedApp } from '../computerUse/runtime'
 import {
   handleDesktopRuntimeThreadToolCall,
+  hasDesktopThreadTools,
   resetDesktopThreadToolBindings,
   type DesktopAppServerRequestOptions
 } from '../desktopRuntimeThreadTools'
@@ -17,9 +19,9 @@ import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
 import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWorkspaceNodeReplRequest } from './windowNodeReplRequests'
 
-export function desktopThreadToolOptions(ctx: DesktopWindowRuntime): DesktopAppServerRequestOptions {
+export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: WorkspaceConnectionEntry): DesktopAppServerRequestOptions {
   return {
-    supportsDynamicToolRebind: ctx.lastConnectionStatus.capabilities?.dynamicToolRebind === true,
+    supportsDynamicToolRebind: (source ? source.initializeResult?.capabilities : ctx.lastConnectionStatus.capabilities)?.dynamicToolRebind === true,
     projectWorkspaceFor: (client, workspacePath) => {
       const connection = [...ctx.workspaceConnections.values()].find((entry) => entry.client === client)
       if (connection?.kind !== 'local' || !ctx.app.localProjects.has(workspacePath)) return undefined
@@ -27,7 +29,7 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime): DesktopAppS
       const cwd = details?.primaryFolder ?? workspacePath
       return { cwd, runtimeWorkspaceRoots: [cwd, ...(details?.secondaryFolders ?? [])] }
     },
-    ...(ctx.isLocalChatsForeground()
+    ...((source ? source.kind !== 'remote' && isDefaultChatWorkspace(source.workspacePath) : ctx.isLocalChatsForeground())
       ? {
           createChatFolder: (firstMessage: string) => createChatFolderFromSettings(ctx.settings, firstMessage)
         }
@@ -61,25 +63,33 @@ export function getThreadTasks(ctx: DesktopWindowRuntime): DesktopThreadTasks {
 export function notifyNewTaskOffer(ctx: DesktopWindowRuntime, task: ThreadTask): void {
   const win = ctx.mainWindow
   if (!win || win.isDestroyed()) return
-  const entry = [...ctx.workspaceConnections.values()].find(
-    (candidate) => candidate.client === ctx.wireClient
-  )
+  const entry = [...ctx.workspaceConnections.values()].find(candidate => candidate.connected
+    && candidate.threads.some(value => value && typeof value === 'object' && (value as { id?: string }).id === task.threadId))
+  if (!entry) return
   void ctx.app
     .notifyWindowAttention(
       NEW_TASK_OFFER_ATTENTION,
       { threadId: task.threadId, turnId: task.turnId, requestId: task.id },
       {
-        connectionKind: entry?.kind ?? 'local',
+        connectionKind: entry.kind,
         window: win,
         settings: ctx.settings,
-        threads: entry?.threads ?? [],
-        openThread: (threadId) => {
-          ctx.showWindowSafely(win)
-          ctx.sendOpenThread(win, threadId)
-        }
+        threads: entry.threads,
+        openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
       }
     )
     .catch(console.warn)
+}
+
+function openSourceThread(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry, win: BrowserWindow, threadId: string): void {
+  void (async () => {
+    if (!isCurrentWorkspaceRequestSource(ctx, entry)) return
+    if (entry.role !== 'foreground' || ctx.wireClient !== entry.client) {
+      if (await ctx.promoteWorkspaceConnection(entry) === false) return
+    }
+    ctx.showWindowSafely(win)
+    ctx.sendOpenThread(win, threadId)
+  })().catch(console.warn)
 }
 
 export function resetThreadToolState(ctx: DesktopWindowRuntime): void {
@@ -90,22 +100,19 @@ export function resetThreadToolState(ctx: DesktopWindowRuntime): void {
 export async function handleServerRequestInMain(
   ctx: DesktopWindowRuntime,
   method: string,
-  params: unknown
+  params: unknown,
+  source: WorkspaceConnectionEntry
 ): Promise<unknown | undefined> {
   if (!ctx.mainWindow || ctx.mainWindow.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
   }
 
   if (method === 'item/tool/call') {
-    const client = ctx.wireClient
-    if (!client) {
-      return undefined
-    }
     return handleDesktopRuntimeThreadToolCall(
-      client,
+      source.client,
       params,
-      ctx.getProtocolWorkspacePath(),
-      ctx.desktopThreadToolOptions()
+      source.workspacePath,
+      ctx.desktopThreadToolOptions(source)
     )
   }
 
@@ -116,10 +123,12 @@ export function observeComputerUseApproval(
   ctx: DesktopWindowRuntime,
   win: BrowserWindow,
   params: unknown,
-  response: Promise<unknown>
+  response: Promise<unknown>,
+  foreground: boolean
 ): void {
   const request = (params ?? {}) as Record<string, unknown>
   if (
+    foreground &&
     typeof request.threadId === 'string' &&
     typeof request.turnId === 'string' &&
     computerUseManager.hasActiveTurn(request.threadId, request.turnId)
@@ -150,8 +159,11 @@ export async function bridgeServerRequestToRenderer(
   if (!win || win.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
   }
+  const connectionId = entry.client.connectionId
+  if (!connectionId) throw new Error('Workspace connection is no longer available.')
+  const source = { connectionKey: entry.key, connectionId }
   let bridgeId = ''
-  const bridge = createServerRequestBridge(() => ctx.userInputAutoResolution.remove(bridgeId), win)
+  const bridge = createServerRequestBridge(() => ctx.userInputAutoResolution.remove(bridgeId), win, source)
   bridgeId = bridge.bridgeId
   const { promise } = bridge
   if (method === 'item/tool/requestUserInput') {
@@ -169,20 +181,19 @@ export async function bridgeServerRequestToRenderer(
       })
     }
   }
-  broadcastServerRequest(win, { bridgeId, method, params })
+  broadcastServerRequest(win, { bridgeId, method, params, ...source })
   void ctx.app
     .notifyWindowAttention(method, params, {
       connectionKind: entry.kind,
       window: win,
       settings: ctx.settings,
       threads: entry.threads,
-      openThread: (threadId) => {
-        ctx.showWindowSafely(win)
-        ctx.sendOpenThread(win, threadId)
-      }
+      openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
     })
     .catch(console.warn)
-  if (method === 'item/approval/request') ctx.observeComputerUseApproval(win, params, promise)
+  if (method === 'item/approval/request') {
+    ctx.observeComputerUseApproval(win, params, promise, entry.role === 'foreground' && ctx.wireClient === entry.client)
+  }
   return promise
 }
 
@@ -200,13 +211,16 @@ export async function handleWorkspaceServerRequest(
   if (isWorkspaceNodeReplRequest(method)) return handleWorkspaceNodeReplRequest(ctx, entry, method, params)
   canUseForegroundMainHandlers = canUseForegroundMainHandlers && entry.role === 'foreground' && ctx.wireClient === entry.client
   const isInteractive = isRendererInteractiveServerRequest(method)
+  const threadId = (params as { threadId?: string } | null)?.threadId
+  const registeredTool = method === 'item/tool/call' && typeof threadId === 'string'
+    && hasDesktopThreadTools(entry.client, threadId, ctx.desktopThreadToolOptions(entry))
 
-  if (!canUseForegroundMainHandlers && !isInteractive) {
+  if (!canUseForegroundMainHandlers && !isInteractive && !registeredTool) {
     throw new Error(`Server request ${method} is not routed to the current foreground workspace connection.`)
   }
 
-  if (canUseForegroundMainHandlers) {
-    const handledInMain = await ctx.handleServerRequestInMain(method, params)
+  if (canUseForegroundMainHandlers || registeredTool) {
+    const handledInMain = await ctx.handleServerRequestInMain(method, params, entry)
     if (handledInMain !== undefined) return handledInMain
   }
 
