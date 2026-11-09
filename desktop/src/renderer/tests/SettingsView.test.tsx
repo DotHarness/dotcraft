@@ -269,6 +269,7 @@ describe('SettingsView', () => {
       settings: { get: settingsGet, set: settingsSet },
       appServer: {
         sendRequest: appServerSendRequest,
+        onNotification: () => () => undefined,
         restartManaged: appServerRestartManaged,
         applyConnectionSettings: appServerApplyConnectionSettings,
         getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
