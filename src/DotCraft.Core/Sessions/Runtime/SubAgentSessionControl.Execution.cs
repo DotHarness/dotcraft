@@ -18,34 +18,16 @@ public static partial class SubAgentSessionControl
     {
         try
         {
-            SessionTurn? finalTurn = null;
             using var triggerScope = triggerInfo == null ? null : TurnTriggerScope.Set(triggerInfo);
             var observeAdmission = dispatchStarted != null && sessionService is ISubAgentInitialInputService;
             var events = observeAdmission
                 ? ((ISubAgentInitialInputService)sessionService).SubmitSubAgentInitialInput(childThreadId, [new TextContent(prompt)], ct)
                 : sessionService.SubmitInputAsync(childThreadId, [new TextContent(prompt)], ct: ct);
-            await using var enumerator = events.GetAsyncEnumerator(observeAdmission ? CancellationToken.None : ct);
-            while (await enumerator.MoveNextAsync())
-            {
-                var ev = enumerator.Current;
-                if (ev.EventType == SessionEventType.TurnStarted)
-                    dispatchStarted?.TrySetResult();
-                if (ev.EventType is SessionEventType.TurnCompleted
-                    or SessionEventType.TurnCancelled
-                    or SessionEventType.TurnFailed)
-                {
-                    finalTurn = ev.TurnPayload;
-                }
-            }
-            if (dispatchStarted is { Task.IsCompleted: false })
-                throw new InvalidOperationException("Subagent input ended before a Turn was admitted.");
-
-            return new SubAgentRunResult
-            {
-                ThreadId = childThreadId,
-                Status = finalTurn?.Status.ToString().ToLowerInvariant() ?? "completed",
-                Message = ExtractFinalAgentText(finalTurn)
-            };
+            return await ReadChildTurnResultAsync(
+                childThreadId,
+                events,
+                _ => dispatchStarted?.TrySetResult(),
+                observeAdmission ? CancellationToken.None : ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -312,29 +294,19 @@ public static partial class SubAgentSessionControl
         CancellationToken stop)
     {
         await Task.Yield();
-        SessionTurn? finalTurn = null;
         CancellationTokenRegistration? registration = null;
         try
         {
-            await foreach (var ev in events.WithCancellation(CancellationToken.None))
+            return await ReadChildTurnResultAsync(childThreadId, events, turnId =>
             {
-                if (ev.EventType == SessionEventType.TurnStarted && registration == null && ev.TurnId is { } turnId)
+                if (turnId != null)
                     registration = stop.Register(() => _ = sessionService.CancelTurnAsync(childThreadId, turnId, CancellationToken.None));
-                if (ev.EventType is SessionEventType.TurnCompleted or SessionEventType.TurnCancelled or SessionEventType.TurnFailed)
-                    finalTurn = ev.TurnPayload;
-            }
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         finally
         {
             registration?.Dispose();
         }
-
-        return new SubAgentRunResult
-        {
-            ThreadId = childThreadId,
-            Status = finalTurn?.Status.ToString().ToLowerInvariant() ?? "completed",
-            Message = ExtractFinalAgentText(finalTurn)
-        };
     }
 
     private static (SubAgentPreparedRun Run, SubAgentCapabilities Capabilities) PrepareExternalChildRun(

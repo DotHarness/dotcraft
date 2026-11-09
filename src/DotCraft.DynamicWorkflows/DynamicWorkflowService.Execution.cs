@@ -1,10 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Configuration;
 using DotCraft.Scripting;
 using DotCraft.Sessions;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.DynamicWorkflows;
@@ -19,12 +17,13 @@ public sealed partial class DynamicWorkflowService
         var agentTasks = new List<Task>();
         Task? stderrTask = null;
         Task? rssTask = null;
+        ScriptProtocolConnection? connection = null;
         try
         {
             await UpdateStateAsync(active, state => state with { StartedAt = DateTimeOffset.UtcNow }, token).ConfigureAwait(false);
             active.Worker = ScriptWorkerProcess.Start(processFactory, "workflow", workspacePath);
             var process = active.Worker.Process;
-            await using var connection = new ScriptProtocolConnection(
+            connection = new ScriptProtocolConnection(
                 process.StandardOutput.BaseStream,
                 process.StandardInput.BaseStream,
                 active.State.Limits.MaxFrameBytes);
@@ -48,22 +47,12 @@ public sealed partial class DynamicWorkflowService
                 ["limits"] = JsonSerializer.SerializeToNode(active.State.Limits, ScriptProtocolConnection.JsonOptions),
                 ["budget"] = BuildBudget(active)
             }, token).ConfigureAwait(false);
-            using var workerCancellationRegistration = active.Cancellation.Token.Register(() =>
-            {
-                _ = connection.WriteAsync(
-                    WorkerScope(active.State),
-                    "cancel",
-                    null,
-                    CancellationToken.None);
-            });
-
             var terminalSeen = false;
             while (!token.IsCancellationRequested)
             {
                 var frame = await connection.ReadAsync(token).ConfigureAwait(false)
                     ?? throw new ScriptProtocolException("worker_eof", "Workflow worker exited without a terminal frame.");
                 ValidateIdentity(active.State, frame);
-                if (terminalSeen) throw new ScriptProtocolException("duplicate_terminal", "Worker sent a message after its terminal frame.");
                 switch (frame.Type)
                 {
                     case "ready":
@@ -84,14 +73,17 @@ public sealed partial class DynamicWorkflowService
                         break;
                     case "complete":
                         terminalSeen = true;
-                        await Task.WhenAll(agentTasks).ConfigureAwait(false);
+                        active.WorkerCompleted = true;
+                        await Task.WhenAll(agentTasks).WaitAsync(token).ConfigureAwait(false);
+                        token.ThrowIfCancellationRequested();
                         var result = CanonicalJson.Normalize(frame.Payload?["result"]);
                         await CompleteAsync(active, DynamicWorkflowStatuses.Succeeded, result, null, notify: true).ConfigureAwait(false);
                         break;
                     case "failed":
                         terminalSeen = true;
-                        await Task.WhenAll(agentTasks).ConfigureAwait(false);
                         var message = frame.Payload?["message"]?.GetValue<string>() ?? "Workflow worker failed.";
+                        timeout.Cancel();
+                        await TerminateAttemptAsync(active, agentTasks, stderrTask, rssTask).ConfigureAwait(false);
                         await CompleteAsync(active, DynamicWorkflowStatuses.Failed, null, message, notify: true).ConfigureAwait(false);
                         break;
                     default:
@@ -101,10 +93,11 @@ public sealed partial class DynamicWorkflowService
             }
 
             if (!terminalSeen) token.ThrowIfCancellationRequested();
-            try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+            try { if (!token.IsCancellationRequested) await process.WaitForExitAsync(CancellationToken.None).WaitAsync(CompletionWait).ConfigureAwait(false); }
             catch (TimeoutException) { }
             timeout.Cancel();
-            try { await Task.WhenAll(stderrTask, rssTask).ConfigureAwait(false); } catch (OperationCanceledException) { }
+            try { await Task.WhenAll(stderrTask, rssTask).WaitAsync(CompletionWait).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException) { }
         }
         catch (OperationCanceledException)
         {
@@ -130,16 +123,19 @@ public sealed partial class DynamicWorkflowService
         }
         finally
         {
-            if (active.Worker != null) await active.Worker.DisposeAsync().ConfigureAwait(false);
-            _active.TryRemove(active.State.RunId, out _);
-            active.Capacity.Dispose();
-            active.Gate.Dispose();
-            active.JournalGate.Dispose();
-            active.Cancellation.Dispose();
+            timeout.Cancel();
+            try
+            {
+                if (active.Worker != null) await active.Worker.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) { logger?.LogWarning(ex, "Workflow worker cleanup failed for {RunId}.", active.State.RunId); }
+            var notification = StartNotificationDelivery(active);
+            _active.TryRemove(new KeyValuePair<string, ActiveRun>(active.State.RunId, active));
+            TrackRetirement(active, agentTasks.Concat([stderrTask, rssTask, notification]).OfType<Task>().ToArray(), connection);
         }
     }
 
-    private static async Task TerminateAttemptAsync(
+    private async Task TerminateAttemptAsync(
         ActiveRun active,
         IReadOnlyCollection<Task> agentTasks,
         Task? stderrTask,
@@ -154,10 +150,13 @@ public sealed partial class DynamicWorkflowService
         try
         {
             await Task.WhenAll(pendingTasks)
-                .WaitAsync(TimeSpan.FromSeconds(5))
+                .WaitAsync(CompletionWait)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or TimeoutException) { }
+        catch (TimeoutException)
+        {
+            logger?.LogWarning("Workflow {RunId} settled with child cleanup still pending.", active.State.RunId);
+        }
         catch { }
     }
 
@@ -173,13 +172,10 @@ public sealed partial class DynamicWorkflowService
             operationId = request["operationId"]?.GetValue<string>()
                 ?? throw new ScriptProtocolException("agent_request_invalid", "Agent operation id is required.");
             var result = await ExecuteAgentAsync(active, operationId, request, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(WorkerScope(active.State), "agent.result", new JsonObject
-            {
-                ["operationId"] = operationId,
-                ["result"] = result
-            }, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await SendAgentResultAsync(active, connection, operationId, result, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is OperationCanceledException || cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is ScriptProtocolException or WorkflowRunFatalException)
         {
             active.CancellationStatus = DynamicWorkflowStatuses.Failed;
@@ -190,393 +186,24 @@ public sealed partial class DynamicWorkflowService
         catch (Exception ex)
         {
             await JournalAsync(active, "agent.failed", new JsonObject { ["operationId"] = operationId, ["error"] = ex.Message }, cancellationToken).ConfigureAwait(false);
-            await connection.WriteAsync(WorkerScope(active.State), "agent.result", new JsonObject
-            {
-                ["operationId"] = operationId,
-                ["result"] = null
-            }, cancellationToken).ConfigureAwait(false);
+            await SendAgentResultAsync(active, connection, operationId!, null, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task<JsonNode?> ExecuteAgentAsync(
-        ActiveRun active,
-        string operationId,
-        JsonObject request,
-        CancellationToken cancellationToken)
+    private async Task SendAgentResultAsync(
+        ActiveRun active, ScriptProtocolConnection connection, string operationId, JsonNode? result, CancellationToken cancellationToken)
     {
-        var session = _sessionService ?? throw new InvalidOperationException("Session service has not been bound.");
-        if (Interlocked.Increment(ref active.AgentCalls) > active.State.Limits.MaxAgentCalls)
-            throw new WorkflowRunFatalException("Workflow Agent-call limit reached.");
-        var options = request["options"] as JsonObject ?? new JsonObject();
-        var input = request["input"];
-        var fingerprint = ComputeAgentFingerprint(active.State.Args, input, options);
-        var label = options["label"]?.GetValue<string>() ?? operationId;
-        var phase = options["phase"]?.GetValue<string>() ?? active.CurrentPhase;
-        DynamicWorkflowReplayCall? replayed = null;
-        lock (active.ReplayGate)
-        {
-            if (!active.ReplayDiverged && active.ReplayCursor < active.ReplayCalls.Count)
-            {
-                var cached = active.ReplayCalls[active.ReplayCursor++];
-                if (cached.Completed && string.Equals(cached.Fingerprint, fingerprint, StringComparison.Ordinal))
-                    replayed = cached;
-                else
-                    active.ReplayDiverged = true;
-            }
-            else if (!active.ReplayDiverged)
-            {
-                active.ReplayDiverged = true;
-            }
-        }
-        phase = replayed?.Phase ?? phase;
-        label = replayed?.Label ?? label;
-        await JournalAsync(active, "agent.requested", new JsonObject
-        {
-            ["operationId"] = operationId,
-            ["label"] = label,
-            ["phase"] = phase,
-            ["model"] = options["model"]?.DeepClone(),
-            ["effort"] = options["effort"]?.DeepClone(),
-            ["isolation"] = options["isolation"]?.DeepClone(),
-            ["fingerprint"] = fingerprint
-        }, cancellationToken).ConfigureAwait(false);
-        if (replayed != null)
-        {
-            await UpdateUsageAsync(active, replayed.InputTokens, replayed.OutputTokens, cancellationToken).ConfigureAwait(false);
-            await JournalAsync(active, "agent.replayed", new JsonObject
-            {
-                ["operationId"] = operationId,
-                ["fingerprint"] = fingerprint,
-                ["sourceRunId"] = active.State.ResumedFromRunId,
-                ["phase"] = phase,
-                ["label"] = label,
-                ["childThreadId"] = replayed.ChildThreadId,
-                ["inputTokens"] = replayed.InputTokens,
-                ["outputTokens"] = replayed.OutputTokens,
-                ["result"] = replayed.Result?.DeepClone()
-            }, cancellationToken).ConfigureAwait(false);
-            return replayed.Result?.DeepClone();
-        }
-        if (active.State.TokenBudget is { } budget && active.State.InputTokens + active.State.OutputTokens >= budget)
-            throw new InvalidOperationException("Workflow token budget is exhausted.");
-        await active.Capacity.WaitAsync(cancellationToken).ConfigureAwait(false);
-        string? childThreadId = null;
+        if (active.WorkerCompleted) return;
         try
         {
-            var prompt = input is JsonValue scalar && scalar.TryGetValue<string>(out var text)
-                ? text
-                : input?["prompt"]?.GetValue<string>() ?? input?.ToJsonString() ?? string.Empty;
-            if (input is JsonObject inputObject && inputObject["context"] != null)
-                prompt += $"\n\nContext:\n{inputObject["context"]!.ToJsonString()}";
-            var schema = options["schema"]?.DeepClone();
-            var isolation = options["isolation"]?.GetValue<string>();
-            var parent = await session.GetThreadAsync(active.State.ParentThreadId, cancellationToken).ConfigureAwait(false);
-            var invocationModelOverride = BuildInvocationModelOverride(options);
-            var childPrompt = BuildChildPrompt(active.State, operationId, label, phase, prompt, schema);
-            var result = await SubAgentSessionControl.SpawnAgentAsync(
-                new SubAgentSessionContext
-                {
-                    SessionService = session,
-                    ParentThread = parent,
-                    ParentTurnId = active.State.ParentTurnId,
-                    RootThreadId = parent.Id,
-                    Depth = 0
-                },
-                new SubAgentSpawnOptions
-                {
-                    AgentPrompt = childPrompt,
-                    TaskName = $"workflow_{active.State.RunId}_{operationId}",
-                    AgentNickname = label,
-                    AgentRole = options["agentType"]?.GetValue<string>(),
-                    RoleConfigs = roleConfigs,
-                    InvocationModelOverride = invocationModelOverride,
-                    RuntimeConfig = _runtimeConfig,
-                    ForkTurns = "none",
-                    MaxDepth = 1,
-                    MaxConcurrentSubAgents = active.State.Limits.MaxConcurrency,
-                    Purpose = "dynamicWorkflow",
-                    SilentCompletion = true,
-                    ChildStarted = async (child, ct) =>
-                    {
-                        await JournalAsync(active, "agent.started", new JsonObject
-                        {
-                            ["operationId"] = operationId,
-                            ["childThreadId"] = child.Id,
-                            ["phase"] = phase,
-                            ["label"] = label
-                        }, ct).ConfigureAwait(false);
-                    },
-                    StartupFailed = (child, ct) => CleanupWorktreeAsync(active, child, ct),
-                    ChildCreated = async (child, ct) =>
-                    {
-                        childThreadId = child.Id;
-                        if (schema != null) structuredResults.Bind(child.Id, schema, active.State.Limits.MaxResultBytes);
-                        if (string.Equals(isolation, "worktree", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await session.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
-                            {
-                                ThreadId = child.Id,
-                                Mode = WorktreeHandoffModes.Worktree,
-                                BranchName = $"dotcraft/workflow/{active.State.RunId}/{operationId}",
-                                CopyDirtyChanges = true
-                            }, ct).ConfigureAwait(false);
-                        }
-                    }
-                },
-                waitForCompletion: true,
-                coordinator: null,
-                cancellationToken).ConfigureAwait(false);
-
-            var child = await session.GetThreadAsync(result.ChildThreadId, cancellationToken).ConfigureAwait(false);
-            childThreadId = child.Id;
-            var turn = child.Turns.LastOrDefault();
-            var usage = turn?.TokenUsage;
-            await UpdateUsageAsync(active, usage?.InputTokens ?? 0, usage?.OutputTokens ?? 0, cancellationToken).ConfigureAwait(false);
-            JsonNode? value = null;
-            if (schema != null)
-            {
-                if (structuredResults.TryGetResult(child.Id, out var submitted)) value = submitted;
-            }
-            else if (string.Equals(result.Status, "completed", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(result.Message))
-            {
-                value = JsonValue.Create(result.Message);
-            }
-            await CleanupWorktreeAsync(active, child, cancellationToken).ConfigureAwait(false);
-            await JournalAsync(active, "agent.completed", new JsonObject
-            {
-                ["operationId"] = operationId,
-                ["childThreadId"] = child.Id,
-                ["status"] = result.Status,
-                ["inputTokens"] = usage?.InputTokens ?? 0,
-                ["outputTokens"] = usage?.OutputTokens ?? 0,
-                ["effectiveModel"] = child.Configuration?.Model,
-                ["effectiveEffort"] = child.Configuration?.Reasoning?.Effort.ToString(),
-                ["fingerprint"] = fingerprint,
-                ["result"] = value?.DeepClone()
-            }, cancellationToken).ConfigureAwait(false);
-            return value;
+            await connection.WriteAsync(WorkerScope(active.State), "agent.result",
+                new JsonObject { ["operationId"] = operationId, ["result"] = result }, cancellationToken).ConfigureAwait(false);
         }
-        finally
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
-            if (childThreadId != null) structuredResults.Remove(childThreadId);
-            active.Capacity.Release();
+            // The read loop owns worker EOF and terminal-frame classification.
+            logger?.LogDebug(ex, "Worker no longer accepts the result of {OperationId}.", operationId);
         }
-    }
-
-    private static string ComputeAgentFingerprint(JsonNode? rootArgs, JsonNode? input, JsonObject options)
-    {
-        var normalized = CanonicalJson.Normalize(new JsonObject
-        {
-            ["args"] = rootArgs?.DeepClone(),
-            ["input"] = input?.DeepClone(),
-            ["options"] = options.DeepClone()
-        });
-        var bytes = Encoding.UTF8.GetBytes(normalized?.ToJsonString() ?? "null");
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
-    }
-
-    private static SubAgentInvocationModelOverride? BuildInvocationModelOverride(JsonObject options)
-    {
-        var model = options["model"]?.GetValue<string>()?.Trim();
-        var effortText = options["effort"]?.GetValue<string>();
-        ModelReasoningEffort? effort = null;
-        if (!string.IsNullOrWhiteSpace(effortText)
-            && Enum.TryParse<ModelReasoningEffort>(NormalizeEffort(effortText), true, out var parsedEffort))
-            effort = parsedEffort;
-        if (string.IsNullOrWhiteSpace(model) && effort == null) return null;
-        return new SubAgentInvocationModelOverride
-        {
-            Model = string.IsNullOrWhiteSpace(model) ? null : model,
-            Effort = effort
-        };
-    }
-
-    private static string NormalizeEffort(string value) => value.ToLowerInvariant() switch
-    {
-        "xhigh" => "ExtraHigh",
-        _ => value
-    };
-
-    private static string BuildChildPrompt(
-        DynamicWorkflowRun run,
-        string operationId,
-        string label,
-        string? phase,
-        string prompt,
-        JsonNode? schema)
-    {
-        var header = new JsonObject
-        {
-            ["runId"] = run.RunId,
-            ["operationId"] = operationId,
-            ["label"] = label,
-            ["phase"] = phase,
-            ["schema"] = schema?.DeepClone()
-        };
-        var task = $"Workflow task metadata:\n{header.ToJsonString()}\n\nTask:\n{prompt}";
-        return schema == null
-            ? task
-            : task + "\n\nWhen done, call SubmitWorkflowResult exactly once with a result that matches `schema`. That call is your final answer; do not reply in prose instead.";
-    }
-
-    private async Task CleanupWorktreeAsync(ActiveRun active, SessionThread child, CancellationToken cancellationToken)
-    {
-        if (child.Worktree == null) return;
-        var session = _sessionService!;
-        var status = await session.GetWorktreeStatusAsync(child.Id, cancellationToken).ConfigureAwait(false);
-        var retained = status.HasUncommittedChanges || status.HasCommitsAheadOfBase;
-        await JournalAsync(active, "agent.worktree", JsonSerializer.SerializeToNode(new
-        {
-            childThreadId = child.Id,
-            status.Path,
-            status.BranchName,
-            retained,
-            status.HasUncommittedChanges,
-            status.HasCommitsAheadOfBase
-        }), cancellationToken).ConfigureAwait(false);
-        if (!retained)
-        {
-            await session.RemoveManagedWorktreeAsync(new WorktreeRemoveOptions
-            {
-                ThreadId = child.Id,
-                Path = status.Path,
-                BranchName = status.BranchName,
-                DeleteBranch = true
-            }, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private async Task CompleteAsync(ActiveRun active, string status, JsonNode? result, string? error, bool notify)
-    {
-        notify = notify && active.Latch.TryClaimNotification();
-        await UpdateStateAsync(active, state => state with
-        {
-            Status = status,
-            Result = result?.DeepClone(),
-            Error = error,
-            CompletedAt = DateTimeOffset.UtcNow,
-            NotificationStatus = notify ? "pending" : "notApplicable"
-        }, CancellationToken.None).ConfigureAwait(false);
-        await JournalAsync(active, $"run.{status}", error == null ? null : new JsonObject { ["error"] = error }, CancellationToken.None).ConfigureAwait(false);
-        if (notify) await NotifyParentAsync(active).ConfigureAwait(false);
-    }
-
-    private static async Task<bool> WasDeliveredToParentAsync(ISessionService session, DynamicWorkflowRun state)
-    {
-        await foreach (var turn in session
-                           .ReadThreadTurnsAsync(state.ParentThreadId, ThreadHistorySortDirection.Descending)
-                           .ConfigureAwait(false))
-        {
-            if (turn.Items.Any(item =>
-                    item.AsUserMessage is { } message
-                    && string.Equals(message.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
-                    && string.Equals(message.TriggerRefId, state.RunId, StringComparison.Ordinal)))
-            {
-                return true;
-            }
-            if (string.Equals(turn.Id, state.ParentTurnId, StringComparison.Ordinal))
-                return false;
-        }
-
-        return false;
-    }
-
-    private async Task NotifyParentAsync(ActiveRun active)
-    {
-        if (active.State.NotificationStatus == "queued") return;
-        var session = _sessionService!;
-        var parent = await session.GetThreadAsync(active.State.ParentThreadId, CancellationToken.None).ConfigureAwait(false);
-        var alreadyDelivered = parent.QueuedInputs.Any(input =>
-                string.Equals(input.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
-                && string.Equals(input.TriggerRefId, active.State.RunId, StringComparison.Ordinal))
-            || await WasDeliveredToParentAsync(session, active.State).ConfigureAwait(false);
-        if (alreadyDelivered)
-        {
-            await UpdateStateAsync(active, state => state with { NotificationStatus = "queued" }, CancellationToken.None).ConfigureAwait(false);
-            return;
-        }
-        var notifications = session as IBackgroundTaskNotifications
-            ?? throw new InvalidOperationException("Session service does not deliver background task notifications.");
-        var queuedId = await notifications.NotifyBackgroundTaskEndedAsync(
-            BuildTaskEnding(active.State, store.GetRunDirectory(active.State.RunId), active.Latch),
-            CancellationToken.None).ConfigureAwait(false);
-        await UpdateStateAsync(active, state => state with
-        {
-            NotificationStatus = "queued",
-            NotificationInputId = queuedId
-        }, CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private const string WorkflowTriggerKind = "workflow";
-
-    internal static BackgroundTaskEnding BuildTaskEnding(DynamicWorkflowRun run, string runDirectory, BackgroundTaskLatch? latch)
-    {
-        var status = run.Status switch
-        {
-            DynamicWorkflowStatuses.Succeeded => BackgroundTaskStatus.Completed,
-            DynamicWorkflowStatuses.Stopped => BackgroundTaskStatus.Stopped,
-            _ => BackgroundTaskStatus.Failed
-        };
-        var stoppedByUser = BackgroundTaskLatch.IsUserStop(status, latch);
-        return new BackgroundTaskEnding
-        {
-            TaskId = run.RunId,
-            Kind = BackgroundTaskKinds.Workflow,
-            OwnerThreadId = run.ParentThreadId,
-            Label = run.Name,
-            Status = status,
-            KindStatus = run.Status,
-            Summary = run.Status switch
-            {
-                DynamicWorkflowStatuses.Succeeded => $"Workflow \"{run.Name}\" succeeded",
-                DynamicWorkflowStatuses.Stopped => stoppedByUser ? $"Workflow \"{run.Name}\" was stopped by the user" : $"Workflow \"{run.Name}\" was stopped",
-                DynamicWorkflowStatuses.Failed => $"Workflow \"{run.Name}\" failed",
-                _ => $"Workflow \"{run.Name}\" ended with status {run.Status}"
-            },
-            OutputPath = runDirectory,
-            Result = run.Status switch
-            {
-                DynamicWorkflowStatuses.Succeeded => run.Result?.ToJsonString(),
-                DynamicWorkflowStatuses.Stopped => null,
-                _ => run.Error
-            },
-            StoppedByUser = stoppedByUser
-        };
-    }
-
-    private async Task UpdateUsageAsync(ActiveRun active, long inputTokens, long outputTokens, CancellationToken cancellationToken) =>
-        await UpdateStateAsync(active, state => state with
-        {
-            InputTokens = state.InputTokens + inputTokens,
-            OutputTokens = state.OutputTokens + outputTokens
-        }, cancellationToken).ConfigureAwait(false);
-
-    private async Task UpdateStateAsync(
-        ActiveRun active,
-        Func<DynamicWorkflowRun, DynamicWorkflowRun> update,
-        CancellationToken cancellationToken)
-    {
-        await active.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            active.State = update(active.State);
-            await store.WriteStateAsync(active.State, cancellationToken).ConfigureAwait(false);
-            PublishChanged(active.State, "state");
-        }
-        finally { active.Gate.Release(); }
-    }
-
-    private async Task JournalAsync(ActiveRun active, string type, JsonNode? payload, CancellationToken cancellationToken)
-    {
-        await active.JournalGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await store.AppendJournalAsync(active.State.RunId, type, payload, cancellationToken).ConfigureAwait(false);
-            if (type is "workflow.phase" or "agent.requested" or "agent.started" or "agent.completed" or "agent.failed" or "agent.replayed"
-                || type.StartsWith("run.", StringComparison.Ordinal))
-                PublishChanged(active.State, "progress");
-        }
-        finally { active.JournalGate.Release(); }
     }
 
     private async Task JournalBoundLogAsync(

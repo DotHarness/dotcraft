@@ -4,7 +4,7 @@ import type {
   DesktopPluginSavedProjectAction,
   DesktopPluginSubAgent
 } from '@dotcraft/plugin'
-import type { ClientRequestMethods, ServerNotificationMethods } from '@dotcraft/sdk/contracts'
+import type { WorkflowRunClient } from '../../../stores/workflowRunCache'
 
 import { translate } from '../../../../shared/locales'
 import { readDesktopPluginEnvironment } from '../../../plugins/desktopPluginEnvironment'
@@ -32,7 +32,7 @@ import {
 import { useConnectionStore } from '../../../stores/connectionStore'
 import { useConversationStore, type ContextUsage } from '../../../stores/conversationStore'
 import { useThreadStore } from '../../../stores/threadStore'
-import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
+import { desktopWorkflowRunClient } from '../../../stores/workflowRunStore'
 import { showToast } from '../../../stores/toastStore'
 import { openActiveThreadFile, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
 import { openAutomationTab } from '../AutomationCard'
@@ -54,18 +54,7 @@ export interface SummaryContextState {
 }
 
 export interface SummaryServices {
-  readonly appServer: {
-    connectionKey(): string
-    onConnectionChange(listener: (connected: boolean) => void): () => void
-    request<M extends keyof ClientRequestMethods>(
-      method: M,
-      params: ClientRequestMethods[M]['params']
-    ): Promise<ClientRequestMethods[M]['result']>
-    onNotification<M extends keyof ServerNotificationMethods>(
-      method: M,
-      listener: (params: ServerNotificationMethods[M]['params']) => void
-    ): () => void
-  }
+  readonly appServer: WorkflowRunClient
   readonly subagents: {
     list(parentThreadId: string): readonly DesktopPluginSubAgent[]
     onChange(parentThreadId: string, listener: (subagents: readonly DesktopPluginSubAgent[]) => void): () => void
@@ -116,26 +105,7 @@ export interface SummaryServices {
 }
 
 export const desktopSummaryServices: SummaryServices = {
-  appServer: {
-    connectionKey: () => useWorkspaceProjectsStore.getState().foregroundProjectId,
-    onConnectionChange(listener) {
-      const stopConnection = useConnectionStore.subscribe((next, previous) => {
-        if (next.connectionEpoch !== previous.connectionEpoch) listener(next.status === 'connected')
-      })
-      const stopProject = useWorkspaceProjectsStore.subscribe((next, previous) => {
-        if (next.foregroundProjectId !== previous.foregroundProjectId) listener(false)
-      })
-      return () => { stopConnection(); stopProject() }
-    },
-    request(method, params) {
-      return window.api.appServer.sendRequestRaw(method, params) as never
-    },
-    onNotification(method, listener) {
-      return window.api.appServer.onNotificationRaw((notification) => {
-        if (notification.method === method) listener(notification.params as never)
-      })
-    }
-  },
+  appServer: desktopWorkflowRunClient,
   subagents: {
     list: listDesktopPluginSubAgents,
     onChange: onDesktopPluginSubAgentsChange

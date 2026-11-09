@@ -311,7 +311,10 @@ gives that phase the same state. A tolerated failed Agent does not fail its phas
 
 Agent status is `queued`, `running`, `completed`, `failed`, `stopped`, or `replayed`; child `cancelled`
 and `stopped` project as `stopped`. Metrics come from Session Core when the child exists and otherwise
-from journaled usage. The server emits `startedAt`/`completedAt`, not a ticking duration.
+from journaled usage. The server emits `startedAt`/`completedAt`, not a ticking duration. Once execution
+ends, unfinished operations are projected as failed for a failed/interrupted run, or stopped for a
+paused/stopped/cancelled run, with an end timestamp. Recorded terminal operation results are preserved;
+unentered phases remain pending.
 
 ### 8.4 Files
 
@@ -338,7 +341,10 @@ After an observable run change persists, AppServer broadcasts `workflow/run/upda
 `runId`, and an open reason string such as `created`, `progress`, `control`, or `terminal`, without a
 snapshot. Clients coalesce and call `workflow/run/read`; a later read wins. Clients may opt out through
 the standard notification opt-out and establish state with list and read; no polling is needed. This
-channel never starts an Agent Turn.
+channel never starts an Agent Turn. Desktop summary, tool cards, and details share one connection-scoped
+run cache and request coordinator. Reconnects refresh known active runs; stale list/read responses
+cannot overwrite newer control results or revive settled execution. Read failures retain the last
+confirmed result and remain recoverable.
 
 ### 8.6 Parent Continuation
 
@@ -348,7 +354,10 @@ the envelope and delivery of [Background Tasks](../architecture/background-tasks
 `triggerKind = "workflow"`, `triggerLabel` is the workflow name, `triggerRefId` is the run id,
 `triggerStatus` is the run status, `output_file` is the run directory, and `result` is the run result
 on success or the error otherwise. A run stopped through `workflow/run/stop` is reported as stopped by
-the user. Journaled delivery state prevents duplicate continuation.
+the user. Execution outcome is committed once, independently of notification delivery. An owed
+notification is persisted as pending and retried through Session Core's idempotent notification entry
+point, including during startup reconciliation. Delivery, acknowledgement, and cleanup failures never
+replace a committed outcome.
 
 ## 9. Limits and Cancellation
 
@@ -356,9 +365,12 @@ The run owns one concurrency semaphore of capacity `min(16, max(1, logicalProces
 start at most 1000 Agent calls; further calls fail the run without starting a child. `budget` exposes
 these limits, accumulated token usage (including replayed usage), and any explicit token budget.
 
-Cancellation flows to queued calls, active child Turns, and the worker without discarding completed
-journal entries. Final results, structured submissions, logs, stderr, and protocol frames have
-independent size bounds.
+Successful script completion joins all issued Agent calls within the run deadline. Worker failure
+cancels queued calls, active child Turns, and the worker before bounded draining; cancellation uses the
+same cleanup path without discarding completed journal entries. Late handlers remain observed and
+cannot mutate a settled run or access disposed run resources. Worktree cleanup also runs after
+cancellation or failure with its own bounded token; uncertain or modified worktrees are retained.
+Final results, structured submissions, logs, stderr, and protocol frames have independent size bounds.
 
 ## 10. Approval and Permissions
 

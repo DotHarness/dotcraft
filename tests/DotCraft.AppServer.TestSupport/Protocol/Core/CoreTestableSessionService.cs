@@ -860,7 +860,21 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             return YieldEvents(events, ct);
 
         if (_cache.TryGetValue(threadId, out var child) && child.Source.SubAgent != null)
-            return YieldEvents([new SessionEvent { ThreadId = threadId, EventType = SessionEventType.TurnStarted }], ct);
+        {
+            var turnId = SessionIdGenerator.NewTurnId(child.Turns.Count + 1);
+            return YieldEvents([
+                new SessionEvent
+                {
+                    ThreadId = threadId, TurnId = turnId, EventType = SessionEventType.TurnStarted,
+                    Payload = new SessionTurn { Id = turnId, ThreadId = threadId, Status = TurnStatus.Running }
+                },
+                new SessionEvent
+                {
+                    ThreadId = threadId, TurnId = turnId, EventType = SessionEventType.TurnCompleted,
+                    Payload = new SessionTurn { Id = turnId, ThreadId = threadId, Status = TurnStatus.Completed }
+                }
+            ], ct);
+        }
         return EmptyEvents();
     }
 

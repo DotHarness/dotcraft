@@ -29,8 +29,17 @@ public sealed partial class SessionService
             };
             var queue = thread.QueuedInputs.ToList();
             queue.Add(queued);
+            var previous = thread.QueuedInputs;
             thread.QueuedInputs = queue;
-            await PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(thread.Id, queued)], ct).ConfigureAwait(false);
+            try
+            {
+                await PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(thread.Id, queued)], ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                thread.QueuedInputs = previous;
+                throw;
+            }
             queueSnapshot = queue.ToList();
         }
 

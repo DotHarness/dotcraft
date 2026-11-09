@@ -120,11 +120,12 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
             if (!string.IsNullOrWhiteSpace(agent.Phase) && !entered.Contains(agent.Phase, StringComparer.Ordinal)) entered.Add(agent.Phase);
         }
 
-        if (state.Status is DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Cancelled)
+        if (state.Status != DynamicWorkflowStatuses.Running)
         {
-            var stoppedAt = state.CompletedAt ?? state.CreatedAt;
+            var endedAt = state.CompletedAt ?? state.CreatedAt;
+            var status = state.Status is DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Interrupted ? "failed" : "stopped";
             foreach (var agent in agents.Values)
-                agent.MarkStopped(stoppedAt);
+                agent.MarkEnded(status, endedAt);
         }
 
         foreach (var agent in agents.Values)
@@ -144,7 +145,8 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
                     members,
                     enteredIndex >= 0,
                     enteredIndex >= 0 && enteredIndex == entered.Count - 1,
-                    enteredIndex >= 0 && enteredIndex < entered.Count - 1),
+                    enteredIndex >= 0 && enteredIndex < entered.Count - 1,
+                    agents.Values.Any(agent => agent.Phase == name && agent.EndedWithRun)),
                 Agents = members
             };
         }).ToArray();
@@ -217,15 +219,22 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
         IReadOnlyList<DynamicWorkflowAgentView> agents,
         bool wasEntered,
         bool isCurrent,
-        bool hasLaterPhase)
+        bool hasLaterPhase,
+        bool endedWithRun)
     {
+        if (endedWithRun)
+        {
+            if (runStatus == DynamicWorkflowStatuses.Paused) return "paused";
+            if (runStatus is DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Interrupted) return "failed";
+            return "stopped";
+        }
         if (agents.Any(static agent => agent.Status == "running")) return "running";
         if (hasLaterPhase || (wasEntered && runStatus == DynamicWorkflowStatuses.Succeeded)) return "completed";
         if (isCurrent)
         {
             if (runStatus == DynamicWorkflowStatuses.Paused) return "paused";
             if (runStatus is DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Cancelled) return "stopped";
-            if (runStatus == DynamicWorkflowStatuses.Failed) return "failed";
+            if (runStatus is DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Interrupted) return "failed";
             if (runStatus == DynamicWorkflowStatuses.Running) return "running";
         }
         if (agents.Any(static agent => agent.Status == "failed")) return "failed";
@@ -248,6 +257,7 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
         public DateTimeOffset? StartedAt { get; private set; }
         public DateTimeOffset? CompletedAt { get; private set; }
         public bool Replayed { get; private set; }
+        public bool EndedWithRun { get; private set; }
 
         public void Apply(string type, JsonObject payload, DateTimeOffset at)
         {
@@ -272,11 +282,12 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
             }
         }
 
-        public void MarkStopped(DateTimeOffset at)
+        public void MarkEnded(string status, DateTimeOffset at)
         {
             if (Status is not ("pending" or "running")) return;
-            Status = "stopped";
+            Status = status;
             CompletedAt = at;
+            EndedWithRun = true;
         }
 
         private static string ProjectCompletedStatus(string? status) => status?.Trim().ToLowerInvariant() switch

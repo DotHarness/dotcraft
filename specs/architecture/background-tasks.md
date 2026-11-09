@@ -201,6 +201,17 @@ completion notifications continue to wake an idle Thread regardless of how many 
 were started by task notifications. With `off`, notifications stay queued until the Thread's next
 Turn. A notification is never dropped.
 
+Workflow completion delivery is idempotent by owner Thread and run id. Session Core checks pending
+inputs, active guidance, and consumed history in the same serialized transition that enqueues the
+notification. A retry of an already queued notification still attempts any required wake; a consumed
+notification never starts another Turn. This identity does not apply to repeated Agent invocations or
+shell stall notifications.
+
+The notified latch arbitrates whether an ending is owed, not whether delivery succeeded. A Workflow
+persists an owed ending as pending with its execution outcome and retries through the same notification
+entry point. Delivery or wake failures do not change that outcome; acknowledgement is recorded only
+after delivery succeeds or the owner no longer exists.
+
 An Agent's ending reaches its parent only as a task notification; Agent messages travel through the
 mailbox (§4.2).
 

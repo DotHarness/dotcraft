@@ -48,7 +48,7 @@ describe('Summary feed cache', () => {
     const second = renderHook(() => useSummaryState(services, 'thread-1'))
     expect(second.result.current?.ready).toBe(true)
     await settle()
-    expect(request.mock.calls.slice(reads).map(([method]) => method)).toEqual(['terminal/list'])
+    expect(request.mock.calls.slice(reads).map(([method]) => method)).toEqual(['terminal/list', 'workflow/run/list'])
     second.unmount()
   })
 
@@ -89,8 +89,15 @@ describe('Summary feed cache', () => {
     useConversationStore.getState().setWorkspacePath('/checkout')
     services.appServer.connectionKey = desktopSummaryServices.appServer.connectionKey
     services.appServer.onConnectionChange = desktopSummaryServices.appServer.onConnectionChange
-    request.mockImplementation(async (method) => method === 'terminal/list'
-      ? { terminals: [{ sessionId: services.appServer.connectionKey(), threadId: 'thread-1', status: 'running' }] } : {})
+    request.mockImplementation(async (method) => {
+      if (method === 'terminal/list') return {
+        terminals: [{ sessionId: services.appServer.connectionKey(), threadId: 'thread-1', status: 'running' }]
+      }
+      const workflow = { runId: 'run-1', threadId: 'thread-1', name: services.appServer.connectionKey(), status: 'running' }
+      if (method === 'workflow/run/list') return { runs: [workflow] }
+      if (method === 'workflow/run/read') return { run: workflow }
+      return {}
+    })
     const first = renderHook(() => useSummaryState(services, 'thread-1'))
     await settle()
     expect(first.result.current!.terminals[0].sessionId).toBe('project-a')
@@ -101,16 +108,21 @@ describe('Summary feed cache', () => {
     })
     expect(first.result.current!.terminals).toEqual([])
     first.unmount()
-    const cached = renderHook(() => useSummaryState(services, 'thread-1'))
-    expect(cached.result.current!.ready).toBe(true)
+    const cached = renderHook(() => ({
+      state: useSummaryState(services, 'thread-1'),
+      count: useRunningTaskCount(services, 'thread-1')
+    }))
+    expect(cached.result.current.state!.ready).toBe(true)
     await settle()
-    expect(cached.result.current!.terminals).toEqual([])
+    expect(cached.result.current.state!.terminals).toEqual([])
     expect(request.mock.calls.filter(([method]) => method === 'thread/turns/list')).toHaveLength(1)
-    cached.unmount()
-
-    useWorkspaceProjectsStore.setState({ foregroundProjectId: 'project-b' })
-    const second = renderHook(() => useSummaryState(services, 'thread-1'))
+    await act(async () => {
+      useWorkspaceProjectsStore.setState({ foregroundProjectId: 'project-b' })
+    })
     await settle()
-    expect(second.result.current!.terminals.map((entry) => entry.sessionId)).toEqual(['project-b'])
+    expect(cached.result.current.state!.terminals.map((entry) => entry.sessionId)).toEqual(['project-b'])
+    expect(cached.result.current.state!.workflows.map((entry) => entry.name)).toEqual(['project-b'])
+    expect(cached.result.current.count).toBe(2)
+    cached.unmount()
   })
 })

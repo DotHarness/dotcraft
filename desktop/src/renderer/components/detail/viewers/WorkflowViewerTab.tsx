@@ -92,6 +92,7 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
     ? state.getThreadState(currentThreadId).tabs.find((candidate): candidate is WorkflowViewerTabDescriptor =>
         candidate.id === tabId && candidate.kind === 'workflow')
     : undefined)
+  const scope = useWorkflowRunStore((state) => state.scope)
   const entries = useWorkflowRunStore((state) => state.entries)
   const load = useWorkflowRunStore((state) => state.load)
   const stop = useWorkflowRunStore((state) => state.stop)
@@ -99,7 +100,7 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
   const entry = tab ? selectWorkflowRunEntry(entries, tab.threadId, tab.runId) : undefined
   const run = entry?.run
 
-  useEffect(() => { if (tab) void load(tab.threadId, tab.runId) }, [load, tab])
+  useEffect(() => { if (tab) void load(tab.threadId, tab.runId) }, [load, tab, scope])
   if (!tab) return <div className="dc-workflow-runtime__notice">{t('workflow.missing')}</div>
   if (!run) return (
     <div className={entry?.error ? 'dc-workflow-runtime__notice dc-workflow-runtime__notice--recoverable' : 'dc-workflow-runtime__notice'}>

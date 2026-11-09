@@ -75,6 +75,46 @@ public sealed class DynamicWorkflowProjectionTests : IDisposable
         Assert.Equal(2, view.Totals.StoppedCount);
     }
 
+    [Theory]
+    [InlineData(DynamicWorkflowStatuses.Failed, "failed", "failed")]
+    [InlineData(DynamicWorkflowStatuses.Interrupted, "failed", "failed")]
+    [InlineData(DynamicWorkflowStatuses.Paused, "stopped", "paused")]
+    public async Task Read_SettlesUnfinishedOperationsWithoutChangingCompletedOrFuturePhases(
+        string runStatus, string agentStatus, string phaseStatus)
+    {
+        var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
+        var endedAt = DateTimeOffset.UtcNow;
+        var run = new DynamicWorkflowRun
+        {
+            RunId = "run_projection_terminal", AttemptId = "attempt_001", Name = "terminal",
+            ParentThreadId = "thread_parent", ParentTurnId = "turn_parent",
+            ScriptPath = Path.Combine(store.GetRunDirectory("run_projection_terminal"), "script.js"),
+            ScriptHash = new string('a', 64), CreatedAt = endedAt.AddMinutes(-1),
+            CompletedAt = endedAt, Status = runStatus, DeclaredPhases = ["done", "active", "future"]
+        };
+        await store.CreateAsync(run, "return null;", CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "agent.completed",
+            new JsonObject { ["operationId"] = "complete", ["phase"] = "done", ["status"] = "completed" }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "agent.started",
+            new JsonObject { ["operationId"] = "running", ["phase"] = "active" }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "agent.requested",
+            new JsonObject { ["operationId"] = "queued", ["phase"] = "active" }, CancellationToken.None);
+        var view = await new DynamicWorkflowProjectionService(store).ReadAsync("thread_parent", run.RunId, CancellationToken.None);
+
+        Assert.NotNull(view);
+        Assert.Equal("completed", view.Phases[0].Status);
+        Assert.Equal("completed", Assert.Single(view.Phases[0].Agents).Status);
+        Assert.Equal(phaseStatus, view.Phases[1].Status);
+        Assert.All(view.Phases[1].Agents, agent =>
+        {
+            Assert.Equal(agentStatus, agent.Status);
+            Assert.Equal(endedAt, agent.CompletedAt);
+        });
+        Assert.Equal("pending", view.Phases[2].Status);
+        Assert.Equal(0, view.Totals.RunningCount);
+        Assert.Equal(0, view.Totals.QueuedCount);
+    }
+
     [Fact]
     public async Task Read_ProjectsJsonPhaseDetailsAndPreservesCancelledAgentStatus()
     {

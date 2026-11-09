@@ -22,13 +22,16 @@ public sealed partial class DynamicWorkflowService(
 {
     private sealed class ActiveRun(DynamicWorkflowRun state, IReadOnlyList<DynamicWorkflowReplayCall>? replayCalls = null)
     {
-        public DynamicWorkflowRun State = state;
+        public volatile DynamicWorkflowRun State = state;
         public CancellationTokenSource Cancellation { get; } = new();
         public SemaphoreSlim Capacity { get; } = new(state.Limits.MaxConcurrency, state.Limits.MaxConcurrency);
         public SemaphoreSlim Gate { get; } = new(1, 1);
-        public SemaphoreSlim JournalGate { get; } = new(1, 1);
+        public bool? NotificationOwed;
+        public Task? Retirement;
+        public ConcurrentBag<Task> CleanupTasks { get; } = [];
         public BackgroundTaskLatch Latch { get; } = new();
         public ManagedChildProcess? Worker;
+        public volatile bool WorkerCompleted;
         public Task? Execution;
         public int AgentCalls;
         public long LogBytes;
@@ -75,19 +78,10 @@ public sealed partial class DynamicWorkflowService(
                 await store.AppendJournalAsync(runId, "run.interrupted", null, cancellationToken).ConfigureAwait(false);
                 continue;
             }
-            if (state.NotificationStatus == "pending"
-                && state.Status is DynamicWorkflowStatuses.Succeeded or DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Stopped)
+            if (state.NotificationStatus == "pending")
             {
                 var pending = new ActiveRun(state);
-                try { await NotifyParentAsync(pending).ConfigureAwait(false); }
-                catch (Exception ex) { logger?.LogWarning(ex, "Failed to reconcile workflow notification for {RunId}.", runId); }
-                finally
-                {
-                    pending.Capacity.Dispose();
-                    pending.Gate.Dispose();
-                    pending.JournalGate.Dispose();
-                    pending.Cancellation.Dispose();
-                }
+                TrackRetirement(pending, [StartNotificationDelivery(pending)]);
             }
         }
         _accepting = true;
@@ -96,18 +90,20 @@ public sealed partial class DynamicWorkflowService(
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _accepting = false;
+        _notificationStopping.Cancel();
         foreach (var active in _active.Values)
         {
+            if (active.State.Status != DynamicWorkflowStatuses.Running) continue;
             active.CancellationStatus = DynamicWorkflowStatuses.Interrupted;
             active.CancellationError = "The AppServer stopped before this workflow completed.";
+            try { active.Cancellation.Cancel(); }
+            catch (ObjectDisposedException) when (active.State.Status != DynamicWorkflowStatuses.Running) { }
         }
-        foreach (var active in _active.Values) active.Cancellation.Cancel();
-        var executions = _active.Values.Select(value => value.Execution).OfType<Task>().ToArray();
-        if (executions.Length > 0)
-        {
-            try { await Task.WhenAll(executions).WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { }
-        }
+        var executions = _active.Values.Select(value => value.Execution).OfType<Task>()
+            .Concat(_notifications.Values.Select(value => value.Completion.Task))
+            .Concat(_retiring.Values.Select(value => value.Retirement).OfType<Task>()).ToArray();
+        try { await Task.WhenAll(executions).WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { }
     }
 
     public async Task<DynamicWorkflowRun> StartInlineAsync(
@@ -200,11 +196,22 @@ public sealed partial class DynamicWorkflowService(
         cancellationToken.ThrowIfCancellationRequested();
         if (_active.TryGetValue(runId, out var active))
         {
-            active.CancellationStatus = status;
-            active.CancellationError = error;
-            active.Cancellation.Cancel();
+            try
+            {
+                await active.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    if (active.State.Status == DynamicWorkflowStatuses.Running)
+                    {
+                        active.CancellationStatus = status;
+                        active.CancellationError = error;
+                        active.Cancellation.Cancel();
+                    }
+                }
+                finally { active.Gate.Release(); }
+            }
+            catch (ObjectDisposedException) when (active.State.Status != DynamicWorkflowStatuses.Running) { }
             if (active.Execution != null) await active.Execution.WaitAsync(cancellationToken).ConfigureAwait(false);
-            return;
         }
         var persisted = await store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
         if (persisted == null) return;
@@ -223,14 +230,7 @@ public sealed partial class DynamicWorkflowService(
             PublishChanged(stopped, "control");
             if (!notifyParent) return;
             var pending = new ActiveRun(stopped);
-            try { await NotifyParentAsync(pending).ConfigureAwait(false); }
-            finally
-            {
-                pending.Capacity.Dispose();
-                pending.Gate.Dispose();
-                pending.JournalGate.Dispose();
-                pending.Cancellation.Dispose();
-            }
+            TrackRetirement(pending, [StartNotificationDelivery(pending)]);
         }
     }
 
@@ -307,7 +307,7 @@ public sealed partial class DynamicWorkflowService(
                     payload?["phase"]?.GetValue<string>(),
                     payload?["label"]?.GetValue<string>()));
             }
-            else if (type == "agent.completed" && indexByOperation.TryGetValue(operationId, out var index))
+            else if (type is "agent.completed" or "agent.replayed" && indexByOperation.TryGetValue(operationId, out var index))
             {
                 calls[index] = calls[index] with
                 {
@@ -340,6 +340,11 @@ public sealed partial class DynamicWorkflowService(
                 try { await active.Execution.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false); }
                 catch (Exception ex) when (ex is TimeoutException or OperationCanceledException) { }
             }
+            if (_notifications.TryGetValue(runId, out var delivery))
+            {
+                delivery.Cancel();
+                await delivery.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
             await store.DeleteAsync(runId).ConfigureAwait(false);
         }
     }
@@ -354,6 +359,12 @@ public sealed partial class DynamicWorkflowService(
         return $"run_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}_{suffix.ToString()}";
     }
 
-    private void PublishChanged(DynamicWorkflowRun run, string reason) =>
-        RunChanged?.Invoke(new DynamicWorkflowRunChanged(run.ParentThreadId, run.RunId, reason));
+    private void PublishChanged(DynamicWorkflowRun run, string reason)
+    {
+        foreach (var observer in RunChanged?.GetInvocationList() ?? [])
+        {
+            try { ((Action<DynamicWorkflowRunChanged>)observer)(new(run.ParentThreadId, run.RunId, reason)); }
+            catch (Exception ex) { logger?.LogWarning(ex, "Workflow observer failed for {RunId}.", run.RunId); }
+        }
+    }
 }

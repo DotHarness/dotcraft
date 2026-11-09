@@ -3,12 +3,15 @@ import { THREAD_OPENING_PAGE } from '../../../utils/threadHistory'
 import { diffTotals, rolledBackTurns, toSummaryItem, type FileChanges, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
 import { createTerminalFeed, type SummaryTerminal } from './terminalFeed'
+import { workflowRunsFor } from '../../../stores/workflowRunCache'
 
 export type { SummaryTerminal } from './terminalFeed'
 
 export interface SummaryFeed {
   stop(): void
   refreshTerminals(): Promise<void>
+  refreshWorkflows(): Promise<void>
+  stopWorkflow(runId: string): Promise<void>
   stopTerminals(sessionIds: readonly string[]): Promise<void>
 }
 
@@ -43,17 +46,7 @@ export interface SummaryState {
   readonly terminals: readonly SummaryTerminal[]
 }
 
-interface WorkflowRunSnapshot {
-  readonly runId: string
-  readonly threadId: string
-  readonly name: string
-  readonly status: string
-  readonly createdAt?: string
-  readonly startedAt?: string
-}
-
 const TURN_PAGE_LIMIT = 100
-const WORKFLOW_PAGE_LIMIT = 50
 
 export function startSummaryFeed(
   services: SummaryServices,
@@ -109,41 +102,16 @@ export function startSummaryFeed(
     if (pendingLoads === 0) publish({ ready: true })
   }
 
-  const upsertWorkflow = (run: WorkflowRunSnapshot): void => {
-    const others = state.workflows.filter((workflow) => workflow.runId !== run.runId)
-    if (run.status !== 'running' && run.status !== 'paused') {
-      if (others.length !== state.workflows.length) publish({ workflows: others })
-      return
-    }
-    const index = state.workflows.findIndex((workflow) => workflow.runId === run.runId)
-    const next = [...others]
-    next.splice(index < 0 ? next.length : index, 0, {
+  const workflows = workflowRunsFor(services.appServer)
+  const stopWorkflows = workflows.getState().observe(threadId, (runs) => publish({
+    workflows: runs.map((run) => ({
       runId: run.runId,
       name: run.name,
       paused: run.status === 'paused',
       startedAt: run.startedAt ?? run.createdAt ?? null
-    })
-    publish({ workflows: next })
-  }
-
-  const loadWorkflows = async (): Promise<void> => {
-    try {
-      const result = await services.appServer.request('workflow/run/list', { threadId, limit: WORKFLOW_PAGE_LIMIT })
-      if (disposed) return
-      for (const run of [...(result.runs ?? [])].reverse()) upsertWorkflow(run)
-    } catch {
-      return
-    }
-  }
-
-  const refreshWorkflow = async (runId: string): Promise<void> => {
-    try {
-      const result = await services.appServer.request('workflow/run/read', { threadId, runId })
-      if (!disposed && result.run) upsertWorkflow(result.run)
-    } catch {
-      return
-    }
-  }
+    }))
+  }))
+  const loadWorkflows = (): Promise<void> => workflows.getState().list(threadId)
 
   const loadHistory = async (): Promise<void> => {
     const loaded: SummaryItem[] = []
@@ -264,10 +232,6 @@ export function startSummaryFeed(
     publish({ automations: next })
   })
 
-  const stopWorkflows = services.appServer.onNotification('workflow/run/updated', (params) => {
-    if (params.threadId === threadId) void refreshWorkflow(params.runId)
-  })
-
   const stopTurnStarted = services.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId === threadId) void reconcileRollback()
   })
@@ -284,6 +248,8 @@ export function startSummaryFeed(
 
   return {
     refreshTerminals: terminals.refresh,
+    refreshWorkflows: () => workflows.getState().refresh(threadId),
+    stopWorkflow: (runId) => workflows.getState().stop(threadId, runId),
     stopTerminals: terminals.stopMany,
     stop() {
       disposed = true

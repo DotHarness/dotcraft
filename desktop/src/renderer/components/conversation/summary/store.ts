@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { startSummaryFeed, type SummaryFeed, type SummaryState } from './feed'
 import type { SummaryServices } from './summaryServices'
 
@@ -55,18 +55,32 @@ export function stopSummaryTerminals(services: SummaryServices, threadId: string
   return entryFor(services, threadId).feed!.stopTerminals(sessionIds)
 }
 
+export function stopSummaryWorkflow(services: SummaryServices, threadId: string, runId: string): Promise<void> {
+  return entryFor(services, threadId).feed!.stopWorkflow(runId)
+}
+
+function useSummaryScope(services: SummaryServices): string {
+  const subscribe = useCallback((changed: () => void) => services.appServer.onConnectionChange(changed), [services])
+  const snapshot = useCallback(() => services.appServer.connectionKey(), [services])
+  return useSyncExternalStore(subscribe, snapshot)
+}
+
 export function useSummaryState(services: SummaryServices, threadId: string): SummaryState | null {
+  const scope = useSummaryScope(services)
   const [state, setState] = useState<SummaryState | null>(() => entryFor(services, threadId).state)
   useEffect(() => {
     const entry = entryFor(services, threadId)
     setState(entry.state)
     entry.listeners.add(setState)
-    if (entry.state?.ready) void entry.feed?.refreshTerminals()
+    if (entry.state?.ready) {
+      void entry.feed?.refreshTerminals()
+      void entry.feed?.refreshWorkflows()
+    }
     return () => {
       entry.listeners.delete(setState)
       evictIdleFeeds()
     }
-  }, [services, threadId])
+  }, [services, threadId, scope])
   return state
 }
 
@@ -77,6 +91,7 @@ function runningTaskCount(state: SummaryState | null): number {
 }
 
 export function useRunningTaskCount(services: SummaryServices, threadId: string | null): number {
+  const scope = useSummaryScope(services)
   const [count, setCount] = useState(() => threadId ? runningTaskCount(entryFor(services, threadId).state) : 0)
   useEffect(() => {
     if (!threadId) {
@@ -91,6 +106,6 @@ export function useRunningTaskCount(services: SummaryServices, threadId: string 
       entry.listeners.delete(listener)
       evictIdleFeeds()
     }
-  }, [services, threadId])
+  }, [services, threadId, scope])
   return count
 }

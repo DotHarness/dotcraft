@@ -228,7 +228,7 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         Summary = $"{label} ended."
     };
 
-    private async Task<Harness> CreateHarnessAsync(Action<AppConfig>? configure = null)
+    private async Task<Harness> CreateHarnessAsync(Action<AppConfig>? configure = null, IRolloutWriter? rolloutWriter = null)
     {
         var client = new NotificationChatClient();
         var config = AppConfigTestFactory.CreateOpenAI();
@@ -248,7 +248,9 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         var service = new SessionService(
             agentFactory,
             new StreamingFunctionInvokingChatClient(client).AsAIAgent(),
-            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionPersistenceService(rolloutWriter == null
+                ? new ThreadStore(_tempDir)
+                : new ThreadStore(_tempDir, null, null, rolloutWriter)),
             new SessionGate());
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
