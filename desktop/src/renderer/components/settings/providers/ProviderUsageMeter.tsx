@@ -36,11 +36,11 @@ export function ProviderUsageMeter({ provider }: { provider: ProviderInfoWire })
     const outside = (event: PointerEvent): void => { if (!root.current?.contains(event.target as Node)) close() }
     const escape = (event: KeyboardEvent): void => { if (event.key === 'Escape') close() }
     window.addEventListener('pointerdown', outside, true)
-    window.addEventListener('keydown', escape)
+    window.addEventListener('keydown', escape, true)
     window.addEventListener('scroll', close, true)
     return () => {
       window.removeEventListener('pointerdown', outside, true)
-      window.removeEventListener('keydown', escape)
+      window.removeEventListener('keydown', escape, true)
       window.removeEventListener('scroll', close, true)
     }
   }, [position])
