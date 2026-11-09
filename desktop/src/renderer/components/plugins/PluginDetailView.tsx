@@ -15,6 +15,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
+import { PluginMcpSettingsSection } from './mcpSettings/PluginMcpSettingsSection'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginContentIcon } from './PluginContentIcon'
 import { PluginOriginBadge, pluginOriginTitleClassName } from './PluginOriginBadge'
@@ -161,6 +162,7 @@ export function PluginDetailView({
               </Button>
             </div>
           )}
+          <PluginMcpSettingsSection plugin={plugin} />
           <section style={detailSection}>
             <h2 style={detailSectionTitle}>{t('plugins.detail.info')}</h2>
             <div style={infoTable}>
@@ -313,9 +315,6 @@ const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 
 const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const longDescription: CSSProperties = { margin: '28px 8px 0', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
-// Detail sections are frameless: a section is marked by a rule under its heading,
-// not by a box around its rows, so stacked groups read as one column instead of a
-// stack of cards. See the Detail Sections part of DESIGN.md.
 const detailSection: CSSProperties = { marginTop: 28 }
 const detailSectionTitle: CSSProperties = {
   margin: '0 0 8px',

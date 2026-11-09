@@ -30,15 +30,9 @@ public sealed class McpServerStatusChangedEventArgs : EventArgs
     public McpServerStatusSnapshot Status { get; init; } = new();
 }
 
-/// <summary>Raw MCP tool and resource inventory for one runtime generation.</summary>
-/// <param name="ServerInfo">The server implementation reported during initialization.</param>
-/// <param name="ServerInstructions">The untrusted server instructions reported during initialization.</param>
-/// <param name="Tools">The raw-generation MCP tool wrappers.</param>
-/// <param name="Resources">The raw resources returned for the generation.</param>
-/// <param name="ResourceTemplates">The raw resource templates returned for the generation.</param>
-/// <param name="Generation">The live manager generation from which the inventory was captured.</param>
 public sealed record McpServerInventorySnapshot(
     Implementation? ServerInfo,
+    ServerCapabilities? ServerCapabilities,
     string? ServerInstructions,
     IReadOnlyList<AIFunction> Tools,
     IReadOnlyList<Resource> Resources,
@@ -82,14 +76,12 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
     public IReadOnlyList<AITool> Tools => Volatile.Read(ref _toolsSnapshot);
 
-    /// <summary>Gets the optional user-owned directory used for MCP authentication state.</summary>
     public string? UserDataPath => _userDataPath;
     public IReadOnlyList<McpServerConfig> ServerConfigs => Volatile.Read(ref _serverConfigsSnapshot);
     public IReadOnlyDictionary<string, string> ToolServerMap => Volatile.Read(ref _toolServerMapSnapshot);
 
     public event EventHandler<McpServerStatusChangedEventArgs>? StatusChanged;
 
-    /// <summary>Returns raw MCP inventory cached for a live server generation.</summary>
     public async Task<McpServerInventorySnapshot?> GetInventoryAsync(
         string serverName,
         CancellationToken cancellationToken = default)
@@ -101,6 +93,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 return null;
             return new McpServerInventorySnapshot(
                 state.ProtocolClient?.ServerInfo,
+                state.ProtocolClient?.ServerCapabilities,
                 state.ProtocolClient?.ServerInstructions,
                 state.CachedTools.ToArray(),
                 state.CachedResources.ToArray(),
@@ -113,7 +106,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    /// <summary>Refreshes optional resources for a ready server without changing startup readiness.</summary>
+    /// <summary>Refreshing resources never changes startup readiness.</summary>
     public async Task RefreshResourceInventoryAsync(
         string serverName,
         CancellationToken cancellationToken = default)
@@ -147,10 +140,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             OnStatusChanged(snapshot);
     }
 
-    /// <summary>
-    /// Configures the host elicitation broker used by subsequently created MCP sessions.
-    /// Unknown or unavailable client interactions are rejected safely.
-    /// </summary>
+    /// <summary>Applies to sessions created afterwards.</summary>
     public void ConfigureElicitationHandler(
         Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? handler) =>
         _elicitationHandler = handler;
@@ -163,10 +153,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ? ValueTask.FromResult(new ElicitResult { Action = "decline" })
             : _elicitationHandler(serverName, request, cancellationToken);
 
-    /// <summary>
-    /// Calls a raw MCP tool through the live protocol session. The caller remains responsible for
-    /// thread authority, approval, lifecycle recording, and model-result normalization.
-    /// </summary>
+    /// <summary>The caller remains responsible for thread authority, approval, lifecycle recording, and model-result normalization.</summary>
     public async Task<CallToolResult> CallToolAsync(
         string serverName,
         string toolName,
@@ -183,19 +170,13 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             cancellationToken);
     }
 
-    /// <summary>
-    /// Reads a raw MCP resource through the live protocol session without producing a tool item.
-    /// </summary>
     public async Task<ReadResourceResult> ReadResourceAsync(
         string serverName,
         string uri,
         CancellationToken cancellationToken = default)
         => await ReadResourceAsync(serverName, uri, expectedGeneration: null, cancellationToken);
 
-    /// <summary>
-    /// Reads a raw MCP resource only when the named server still has the expected runtime
-    /// generation. This prevents a live view from crossing a reconnect boundary.
-    /// </summary>
+    /// <summary>Fails when the server reconnected since <paramref name="expectedGeneration"/>, so a live view never crosses a reconnect.</summary>
     public async Task<ReadResourceResult> ReadResourceAsync(
         string serverName,
         string uri,
@@ -216,7 +197,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         return await session.Client.ReadResourceAsync(uri, options: null, cancellationToken);
     }
 
-    /// <summary>Gets the current live generation for a server.</summary>
     public async Task<long?> GetGenerationAsync(
         string serverName,
         CancellationToken cancellationToken = default)
@@ -356,10 +336,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    /// <summary>
-    /// Waits until all currently enabled MCP servers have left the startup phase.
-    /// This does not initiate connections; it only observes the current runtime state.
-    /// </summary>
+    /// <summary>Observes startup without initiating connections.</summary>
     public async Task WaitForStartupCompletionAsync(CancellationToken cancellationToken = default)
     {
         var deadline = DateTimeOffset.UtcNow + await GetCurrentStartupWaitBudgetAsync(cancellationToken);
@@ -795,7 +772,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
             catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested)
             {
-                // Runtime is shutting down.
             }
             catch (Exception ex)
             {

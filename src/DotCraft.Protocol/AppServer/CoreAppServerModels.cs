@@ -2189,6 +2189,10 @@ public sealed class McpServerRuntimeStatus : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> RuntimeName { get; init; }
 
+    [JsonPropertyName("serverCapabilities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> ServerCapabilities { get; init; }
+
     [JsonPropertyName("serverInfo")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement?> ServerInfo { get; init; }

@@ -11,10 +11,6 @@ using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Handles the <c>mcp/*</c> wire methods, sharing workspace MCP persistence with plugin mutations
-/// through <see cref="AppServerMcpConfigService"/>.
-/// </summary>
 internal sealed class McpRequestHandler(
     McpClientManager? mcpClientManager,
     AppServerMcpConfigService configService,
@@ -281,6 +277,7 @@ internal sealed class McpRequestHandler(
                     ? "loginRequired"
                     : "notRequired",
                 ServerInfo = inventory?.ServerInfo is null ? null : ToElement(inventory.ServerInfo),
+                ServerCapabilities = inventory?.ServerCapabilities is null ? null : ToElement(inventory.ServerCapabilities),
                 Tools = new Protocol.Optional<IReadOnlyDictionary<string, Contract.McpRuntimeTool>>(tools),
                 Resources = new Protocol.Optional<IReadOnlyList<JsonElement>>(resources),
                 ResourceTemplates = new Protocol.Optional<IReadOnlyList<JsonElement>>(resourceTemplates),
@@ -464,13 +461,9 @@ internal sealed class McpRequestHandler(
         {
             await manager.RefreshResourceInventoryAsync(serverName, timeout.Token);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Optional inventory timeout does not affect server readiness.
-        }
         catch
         {
-            // Optional inventory failure is represented as an empty collection.
+            // Resource inventory is optional: a timeout or failure leaves it empty without affecting readiness.
         }
     }
 

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadResumeInitialTurnsPageParams.schema.json",
+  "title": "ThreadResumeInitialTurnsPageParams",
+  "type": "object",
+  "properties": {
+    "itemsView": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "limit": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "summaryTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ThreadSummaryTool.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

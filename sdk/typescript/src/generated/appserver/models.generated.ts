@@ -2430,6 +2430,7 @@ export interface McpServerRuntimeStatus {
   resourceTemplates?: JsonValue[];
   resources?: JsonValue[];
   runtimeName?: string;
+  serverCapabilities?: JsonValue;
   serverInfo?: JsonValue;
   startupState?: string;
   toolCount?: number;

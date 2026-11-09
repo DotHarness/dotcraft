@@ -105,6 +105,7 @@ Effective MCP merge rules:
 - Enabled plugin servers are added as read-only runtime entries with origin metadata (`kind=plugin`, `pluginId`, display name, declared server name).
 - A plugin runtime name that conflicts with a workspace server or a higher-priority plugin server is marked shadowed and not connected.
 - `mcp/list` returns the effective runtime view. Workspace config writes (`mcp/upsert`, `mcp/remove`) never persist plugin-origin servers; clients may edit or delete only workspace-origin entries.
+- A plugin server's own settings use the MCP settings extension ([Tool Architecture §12.4](tools-architecture.md#124-settings-extension)). The server stores them; plugin configuration (§2.5) is not passed to MCP servers.
 - Plugin MCP startup is non-fatal. Failures are reported through MCP runtime status (`mcpServerStatus/list` / `mcpServer/startupStatus/updated`) and diagnostics and never block plugin discovery, AppServer readiness, or client connection. Agent tool materialization waits for the current startup attempt to settle, so ready plugin MCP tools reach new turns without making AppServer startup synchronous.
 
 ### 2.3 Hooks
