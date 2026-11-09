@@ -18,6 +18,7 @@ import { isThreadActionToolItem, parseThreadToolAction, threadTaskCardKind } fro
 import { TurnThreadTaskCards } from './threadTasks/TurnThreadTaskCards'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
+import { SystemStatusDivider } from './SystemStatusDivider'
 import { UserMessageBlock } from './UserMessageBlock'
 import { ImageGenerationStatus } from './ImageGenerationStatus'
 import { WebSearchItemRow } from './WebSearchItemRow'
@@ -62,6 +63,7 @@ interface AgentResponseBlockProps {
   isLastTurn?: boolean
   isLastVisibleTurn?: boolean
   showWorkingLine?: boolean
+  systemLabel?: string | null
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
   readOnly?: boolean
@@ -93,6 +95,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   isLastTurn = false,
   isLastVisibleTurn = false,
   showWorkingLine = false,
+  systemLabel = null,
   activeItemIdOverride,
   shellRuntimeScope = 'conversation',
   readOnly = false,
@@ -350,6 +353,14 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
+  if (systemLabel) {
+    renderNodes.push({
+      key: 'system-status',
+      kind: 'other',
+      node: <SystemStatusDivider labelKey={systemLabel} />
+    })
+  }
+
   const lastNode = renderNodes.at(-1)
   const lastKind = lastNode && (lastNode.lastKind ?? lastNode.kind)
 
@@ -358,7 +369,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       normalizedErrorMessage(item.text) === normalizedErrorMessage(turn.error)
   )
 
-  if (isEmptyCompletedTurn(turn, hasFileChanges)) return null
+  if (!systemLabel && isEmptyCompletedTurn(turn, hasFileChanges)) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-tool-assistant-gap)' }}>

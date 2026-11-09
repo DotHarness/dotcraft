@@ -1358,6 +1358,7 @@ reduced motion.
 | Viewed image | image |
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
+| Remote machine tools | satellite dish |
 | Question to the user | speech bubble with question mark |
 | Any other tool | wrench |
 

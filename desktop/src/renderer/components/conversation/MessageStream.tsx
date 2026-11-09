@@ -275,6 +275,7 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
                     isActiveTurn={isActiveTurn}
                     isLastTurn={idx === turns.length - 1}
                     isLastVisibleTurn={turn === visibleTurns.at(-1)}
+                    systemLabel={turn === visibleTurns.at(-1) ? systemLabel : null}
                     isFirstTurn={turn === visibleTurns[0] && threadStartLoaded}
                     threadOrigin={threadOrigin}
                     isIdle={turnStatus === 'idle'}
@@ -327,7 +328,7 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
             />
           )}
 
-          {systemLabel && <SystemStatusDivider labelKey={systemLabel} />}
+          {systemLabel && visibleTurns.length === 0 && <SystemStatusDivider labelKey={systemLabel} />}
 
           {streamRetry && <StreamRetryNotice status={streamRetry} />}
 
@@ -368,6 +369,7 @@ interface TurnBlockProps {
   isActiveTurn: boolean
   isLastTurn: boolean
   isLastVisibleTurn: boolean
+  systemLabel: string | null
   isFirstTurn: boolean
   threadOrigin: { refId: string; label?: string } | null
   isIdle: boolean
@@ -387,6 +389,7 @@ const TurnBlock = memo(function TurnBlock({
   isActiveTurn,
   isLastTurn,
   isLastVisibleTurn,
+  systemLabel,
   isFirstTurn,
   threadOrigin,
   isIdle,
@@ -444,6 +447,7 @@ const TurnBlock = memo(function TurnBlock({
         showWorkingLine={showWorkingLine}
         isLastTurn={isLastTurn}
         isLastVisibleTurn={isLastVisibleTurn}
+        systemLabel={systemLabel}
       />
     </div>
   )
@@ -458,6 +462,7 @@ function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps):
     previous.isActiveTurn === next.isActiveTurn &&
     previous.isLastTurn === next.isLastTurn &&
     previous.isLastVisibleTurn === next.isLastVisibleTurn &&
+    previous.systemLabel === next.systemLabel &&
     previous.isFirstTurn === next.isFirstTurn &&
     previous.threadOrigin === next.threadOrigin &&
     previous.isIdle === next.isIdle &&

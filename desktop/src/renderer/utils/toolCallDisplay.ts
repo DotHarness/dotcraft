@@ -8,6 +8,7 @@ import {
   MessagesSquare,
   Monitor,
   Pencil,
+  SatelliteDish,
   Search,
   Send,
   ShieldAlert,
@@ -326,6 +327,7 @@ export function getToolRowIcon(
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
   if (exploreIcon) return { icon: exploreIcon }
   if (kind === 'board') return { icon: MessagesSquare }
+  if (kind === 'remoteToolHost') return { icon: SatelliteDish }
   if (kind === 'skillView') return { icon: BookOpen }
   if (kind === 'write' || kind === 'edit') return { icon: Pencil }
   if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe }

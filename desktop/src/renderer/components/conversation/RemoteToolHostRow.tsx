@@ -1,4 +1,3 @@
-import { SatelliteDish } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import type { AppLocale } from '../../../shared/locales'
 import { useThreadRouteStore } from '../../stores/threadRouteStore'
@@ -12,7 +11,6 @@ import {
   type RemoteToolHostNames
 } from '../../utils/remoteToolHostDisplay'
 import { RunningShimmer } from '../ui/RunningShimmer'
-import styles from './RemoteToolHostRow.module.css'
 
 interface RemoteToolHostRowInput {
   item: ConversationItem
@@ -77,12 +75,9 @@ export function useRemoteToolHostRow({
     failed: transfer?.stage === 'failed',
     ...(transfer ? { transfer } : {}),
     title: (
-      <span className={styles.title} data-testid="remote-tool-host-row-title">
-        <SatelliteDish size={13} strokeWidth={1.8} aria-hidden className={styles.glyph} />
-        <RunningShimmer active={running} className={styles.label}>
-          {label}
-        </RunningShimmer>
-      </span>
+      <RunningShimmer active={running} className="dc-tool-row-running-label">
+        {label}
+      </RunningShimmer>
     )
   }
 }
