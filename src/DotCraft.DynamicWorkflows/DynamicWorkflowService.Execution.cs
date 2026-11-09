@@ -96,8 +96,6 @@ public sealed partial class DynamicWorkflowService
             try { if (!token.IsCancellationRequested) await process.WaitForExitAsync(CancellationToken.None).WaitAsync(CompletionWait).ConfigureAwait(false); }
             catch (TimeoutException) { }
             timeout.Cancel();
-            try { await Task.WhenAll(stderrTask, rssTask).WaitAsync(CompletionWait).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is OperationCanceledException or TimeoutException) { }
         }
         catch (OperationCanceledException)
         {

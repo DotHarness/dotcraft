@@ -565,7 +565,7 @@ Interrupt active thread maintenance such as manual compaction. Gated by `capabil
 
 ### 4.17 Worktree Methods
 
-Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#41112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
+Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
 
 Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind. `worktree/createAndStart` and `worktree/createAndFork` also accept `environmentPath` and `operationId` ([Section 4.17.7](#4177-environments)).
 
@@ -604,7 +604,7 @@ Remove a managed worktree and its branch. Params: `path`, `discardChanges` (defa
 
 #### 4.17.7 Environments
 
-A worktree can be created with a [local environment](../features/local-environments.md), whose setup script prepares it and whose cleanup script runs before it is removed ([Session Core §4.1.1.2](../architecture/session-core.md#41112-worktrees)).
+A worktree can be created with a [local environment](../features/local-environments.md), whose setup script prepares it and whose cleanup script runs before it is removed ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)).
 
 - **`environmentPath`** on `worktree/createAndStart` and `worktree/createAndFork` is the absolute path of an environment file: a `.json` file directly in a `.craft/environments` folder of the source workspace or a parent up to the repository root, that parses as a valid environment. Otherwise the request fails with `-32106` `environmentInvalid` before anything is created. Without it, no setup runs and the worktree records no environment.
 - **Setup.** With `environmentPath`, the server runs the setup script after the worktree is created and its files are copied, and before the thread is created. With an `operationId`, it reports `worktree/createProgress` steps and streams `worktree/setupOutput`. The result adds `setup: { status, exitCode?, outputTail }` where `status` is `succeeded`, `failed`, or `skipped` (no script for this platform). A failed setup still creates the thread and keeps the worktree.
@@ -797,6 +797,8 @@ A workspace-level broadcast of a thread's aggregated **runtime snapshot**, deliv
 - `queuePaused`: the latest Turn was cancelled, so queued input waits for `turn/queue/start` ([5.2.6](#526-turnqueuestart)).
 
 Emitted when the snapshot changes because a turn starts or ends, an approval or user-input request is created or resolved, plan confirmation is set or cleared, or maintenance starts or completes. The server should emit only on effective change; duplicates are allowed and the latest payload replaces the cached snapshot. Clients ignore unknown `runtime` fields.
+
+For each connection and thread, the runtime update precedes the corresponding Turn lifecycle notification. Thread creation and runtime broadcasts share that ordered delivery path, using [Session Core's published state](../architecture/session-core.md#35-published-presentation-state).
 
 ### 6.2 Turn Notifications
 

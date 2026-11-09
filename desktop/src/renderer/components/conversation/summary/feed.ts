@@ -111,7 +111,7 @@ export function startSummaryFeed(
       startedAt: run.startedAt ?? run.createdAt ?? null
     }))
   }))
-  const loadWorkflows = (): Promise<void> => workflows.getState().list(threadId)
+  const loadWorkflows = async (): Promise<void> => { await workflows.getState().list(threadId) }
 
   const loadHistory = async (): Promise<void> => {
     const loaded: SummaryItem[] = []
@@ -247,7 +247,7 @@ export function startSummaryFeed(
   for (const load of [loadHistory, loadAutomations, loadThread, terminals.refresh, loadWorkflows]) void load().finally(settleLoad)
 
   return {
-    refreshTerminals: terminals.refresh,
+    refreshTerminals: async () => { await terminals.refresh() },
     refreshWorkflows: () => workflows.getState().refresh(threadId),
     stopWorkflow: (runId) => workflows.getState().stop(threadId, runId),
     stopTerminals: terminals.stopMany,

@@ -57,6 +57,35 @@ describe('subagent discovery lifecycle', () => {
     expect(store().discoveryByParent.get(parent)?.status).toBe('ready')
   })
 
+  it('preserves live runtime across an older idle discovery response', async () => {
+    const response = deferred<ReturnType<typeof wire>>()
+    request.mockReturnValue(response.promise)
+    const load = store().fetchChildren(parent)
+    useThreadStore.getState().applyRuntimeSnapshot('child-B', {
+      running: true, activeTurnId: 'turn-2', waitingOnApproval: false, waitingOnPlanConfirmation: false
+    }, { isDesktopOrigin: false })
+    response.resolve({ data: [{ ...wire().data[0], thread: { id: 'child-B', displayName: 'child-B', runtime: { running: false } } }] })
+    await load
+    expect(isSubAgentChildRunning(store().childrenByParent.get(parent)![0])).toBe(true)
+    expect(useThreadStore.getState().runtimeSnapshots.get('child-B')?.activeTurnId).toBe('turn-2')
+  })
+
+  it('establishes a new discovery baseline on reconnect and ignores the old connection response', async () => {
+    const old = deferred<ReturnType<typeof wire>>()
+    const fresh = deferred<ReturnType<typeof wire>>()
+    useConnectionStore.setState({ connectionKey: 'workspace', connectionId: 'old' })
+    request.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
+    const first = store().fetchChildren(parent)
+    useConnectionStore.setState({ connectionId: 'new' })
+    const next = store().ensureChildren(parent)
+    old.resolve(wire('stale'))
+    await first
+    expect(store().childrenByParent.has(parent)).toBe(false)
+    fresh.resolve(wire('fresh'))
+    await next
+    expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('fresh')
+  })
+
   it('does not complete discovery on failure and allows a later refresh to recover', async () => {
     request.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: [] })
     await expect(store().ensureChildren(parent)).rejects.toThrow('offline')
@@ -99,10 +128,10 @@ describe('background subagent discovery', () => {
     capabilities: { subAgentSessions: true }
   }
 
-  it('queries the parent connection while another workspace is foreground', async () => {
+  it('keeps a secondary parent child runtime across foreground list reloads without exposing its summary', async () => {
     registerThreadConnection(parent, source)
     const sendConnectionRequest = vi.fn().mockResolvedValue(wire())
-    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, onNotificationRaw: () => () => {}, sendConnectionRequest } } })
     useConnectionStore.setState({ capabilities: { subAgentSessions: false } })
     useThreadStore.getState().setThreadList([], 'workspace-B')
 
@@ -114,14 +143,20 @@ describe('background subagent discovery', () => {
       { parentThreadId: parent, includeClosed: true, includeThreads: true },
       undefined, expect.objectContaining({ connectionId: source.connectionId })
     )
-    expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('child-B')
+    const child = store().childrenByParent.get(parent)![0]
+    expect(child.childThreadId).toBe('child-B')
+    expect(isSubAgentChildRunning(child)).toBe(true)
+    expect(useThreadStore.getState().threadList).toEqual([])
+
+    useThreadStore.getState().setThreadList([], 'workspace-B')
+    expect(isSubAgentChildRunning(child)).toBe(true)
     expect(useThreadStore.getState().threadList).toEqual([])
   })
 
   it('does not borrow the foreground capability for a background parent', async () => {
     registerThreadConnection(parent, { ...source, capabilities: { subAgentSessions: false } })
     const sendConnectionRequest = vi.fn()
-    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, onNotificationRaw: () => () => {}, sendConnectionRequest } } })
     await store().ensureChildren(parent)
     expect(sendConnectionRequest).not.toHaveBeenCalled()
     expect(request).not.toHaveBeenCalled()
@@ -131,7 +166,7 @@ describe('background subagent discovery', () => {
     registerThreadConnection(parent, source)
     const response = deferred<unknown>()
     const sendConnectionRequest = vi.fn().mockReturnValue(response.promise)
-    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, onNotificationRaw: () => () => {}, sendConnectionRequest } } })
     const load = store().fetchChildren(parent)
     registerThreadConnection(parent, { ...source, connectionId: 'new-connection' })
     response.resolve(wire())
@@ -142,10 +177,11 @@ describe('background subagent discovery', () => {
   it('interrupts a child on its parent connection without using the foreground', async () => {
     registerThreadConnection(parent, source)
     const sendConnectionRequest = vi.fn().mockResolvedValue({})
-    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
-    await store().interruptChild(makeSubAgent({ parentThreadId: parent, runtime: {
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, onNotificationRaw: () => () => {}, sendConnectionRequest } } })
+    useThreadStore.getState().applyRuntimeSnapshot('child-B', {
       running: true, activeTurnId: 'child-turn', waitingOnApproval: false, waitingOnPlanConfirmation: false
-    } }))
+    }, { isDesktopOrigin: false })
+    await store().interruptChild(makeSubAgent({ parentThreadId: parent }))
     expect(request).not.toHaveBeenCalled()
     expect(sendConnectionRequest).toHaveBeenCalledWith(
       source.connectionKey, 'turn/interrupt', { threadId: 'child-B', turnId: 'child-turn' },
@@ -156,8 +192,10 @@ describe('background subagent discovery', () => {
 
 describe('closed subagent history', () => {
   it('keeps closed records terminal across stale runtime, progress and list refreshes', () => {
-    store().setChildren(parent, [makeSubAgent({ status: 'closed', isCompleted: true })])
-    store().updateChildRuntime('child-B', { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false })
+    store().setChildren(parent, [makeSubAgent({ status: 'closed' })])
+    useThreadStore.getState().applyRuntimeSnapshot('child-B', {
+      running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false
+    }, { isDesktopOrigin: false })
     store().updateProgress(parent, [{ label: 'Core B', currentTool: 'Exec', inputTokens: 3, outputTokens: 2, isCompleted: false }])
     store().setChildren(parent, [makeSubAgent()])
     expect(store().childrenByParent.get(parent)).toHaveLength(1)
@@ -168,7 +206,7 @@ describe('closed subagent history', () => {
 
   it('does not let a closed row consume progress intended for a live child', () => {
     store().setChildren(parent, [
-      makeSubAgent({ childThreadId: 'closed', nickname: 'Old', status: 'closed', isCompleted: true }),
+      makeSubAgent({ childThreadId: 'closed', nickname: 'Old', status: 'closed' }),
       makeSubAgent()
     ])
     store().updateProgress(parent, [{ label: 'runtime label', currentTool: 'Exec', inputTokens: 11, outputTokens: 2, isCompleted: false }])

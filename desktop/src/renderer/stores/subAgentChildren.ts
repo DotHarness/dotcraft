@@ -1,6 +1,6 @@
 import type { ThreadSpawnEdge } from '@dotcraft/sdk/contracts'
 import type { SubAgentEntry } from '../types/toolCall'
-import type { ContextUsageSnapshotWire, ThreadConfigurationWire, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
+import type { ContextUsageSnapshotWire, ThreadConfigurationWire, ThreadSummary } from '../types/thread'
 import { useThreadStore } from './threadStore'
 
 export interface SubAgentChildWire {
@@ -30,9 +30,7 @@ export interface SubAgentChild {
   currentTool: string | null
   model: string | null
   contextTokens: number | null
-  isCompleted: boolean
   isPlaceholder?: boolean
-  runtime?: ThreadRuntimeSnapshot
   threadSummary?: ThreadSummary | null
 }
 
@@ -59,15 +57,6 @@ export function isSubAgentChildClosed(child: SubAgentChild): boolean {
   return child.status.trim().toLowerCase() === 'closed'
 }
 
-export function isSubAgentChildRunning(child: SubAgentChild): boolean {
-  // A closed edge is terminal even if a stale runtime snapshot still says running.
-  if (isSubAgentChildClosed(child)) return false
-  if (child.runtime?.running === true) return true
-  if (child.runtime?.running === false) return false
-  if (child.isPlaceholder === true) return !child.isCompleted && !isTerminalSubAgentStatus(child.status)
-  return false
-}
-
 export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgentChild | null {
   const edge = wire.edge ?? {}
   const childThreadId = normalizeText(edge.childThreadId) ?? normalizeText(wire.thread?.id)
@@ -75,13 +64,9 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
   const cachedThread = useThreadStore.getState().threadList.find((thread) => thread.id === childThreadId)
   const threadSummary = wire.thread ?? cachedThread ?? null
   const source = threadSummary?.source?.subAgent
-  const runtime = threadSummary?.runtime
   const status = normalizeText(edge.status) ?? 'open'
   const agentPath = normalizeText(edge.agentPath) ?? normalizeText(source?.agentPath)
   const taskName = normalizeText(edge.taskName) ?? normalizeText(source?.taskName)
-  const isCompleted = status === 'closed' ? true : runtime?.running === true
-    ? false
-    : runtime?.running === false || isTerminalSubAgentStatus(status)
   const nickname =
     normalizeText(wire.thread?.displayName)
     ?? normalizeText(edge.agentNickname)
@@ -108,9 +93,7 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     currentTool: null,
     model: normalizeText(wire.thread?.configuration?.model),
     contextTokens: wire.thread?.contextUsage?.tokens ?? null,
-    isCompleted,
     isPlaceholder: false,
-    runtime,
     threadSummary
   }
 }
@@ -118,18 +101,6 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
 export function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | undefined): SubAgentChild {
   if (!existing) return next
   if (isSubAgentChildClosed(existing)) next = { ...next, status: 'closed' }
-  let runtime = next.runtime ?? existing.runtime
-  const nextCompleted = isSubAgentChildClosed(next) ? true : next.runtime?.running === true
-    ? false
-    : next.isCompleted || next.runtime?.running === false || isTerminalSubAgentStatus(next.status)
-  if (nextCompleted && runtime) {
-    runtime = { ...runtime, running: false }
-  }
-  const isCompleted = nextCompleted
-    ? true
-    : runtime?.running === true
-      ? false
-      : existing.isCompleted
   return {
     ...next,
     agentPath: next.agentPath ?? existing.agentPath,
@@ -138,12 +109,11 @@ export function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChi
     profileName: next.profileName ?? existing.profileName,
     runtimeType: next.runtimeType ?? existing.runtimeType,
     lastToolDisplay: existing.lastToolDisplay,
-    currentTool: isCompleted ? null : existing.currentTool,
+    currentTool: isSubAgentChildClosed(next) || useThreadStore.getState().runtimeSnapshots.get(next.childThreadId)?.running === false
+      ? null : existing.currentTool,
     model: next.model ?? existing.model,
     contextTokens: next.contextTokens ?? existing.contextTokens,
-    isCompleted,
-    isPlaceholder: false,
-    runtime
+    isPlaceholder: false
   }
 }
 
@@ -175,13 +145,7 @@ export function createPlaceholderChild(
     currentTool: isCompleted ? null : progress.currentTool,
     model: null,
     contextTokens: null,
-    isCompleted,
     isPlaceholder: true,
-    runtime: {
-      running: !isCompleted,
-      waitingOnApproval: false,
-      waitingOnPlanConfirmation: false
-    },
     threadSummary: null
   }
 }

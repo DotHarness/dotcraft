@@ -2,25 +2,37 @@ import type { DesktopPluginSubAgent, DesktopPluginSubAgentState } from '@dotcraf
 
 import {
   isSubAgentChildClosed,
-  isSubAgentChildRunning,
+  isSubAgentChildWorking,
+  isSubAgentChildFinished,
+  subAgentChildRuntime,
   useSubAgentStore,
   type SubAgentChild
 } from '../stores/subAgentStore'
+import { useThreadStore } from '../stores/threadStore'
+import { useSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
+import type { ThreadRuntimeSnapshot } from '../types/thread'
 
 const NO_SUBAGENTS: readonly DesktopPluginSubAgent[] = []
-const snapshots = new WeakMap<SubAgentChild[], readonly DesktopPluginSubAgent[]>()
+const snapshots = new WeakMap<SubAgentChild[], {
+  graph: ReadonlyMap<string, SubAgentChild[]>
+  runtimes: ReadonlyMap<string, ThreadRuntimeSnapshot>
+  tasks: ReadonlySet<string>
+  pendingTasks: ReadonlySet<string>
+  agents: readonly DesktopPluginSubAgent[]
+}>()
 
 export function desktopPluginSubAgentState(child: SubAgentChild): DesktopPluginSubAgentState {
   if (isSubAgentChildClosed(child)) return 'done'
-  if (isSubAgentChildRunning(child)) {
-    return child.runtime?.waitingOnApproval === true || child.runtime?.waitingOnInput === true
+  if (isSubAgentChildWorking(child)) {
+    const runtime = subAgentChildRuntime(child)
+    return runtime?.waitingOnApproval === true || runtime?.waitingOnInput === true
       ? 'waiting'
       : 'working'
   }
   const status = child.status.trim().toLowerCase()
   if (status === 'failed') return 'failed'
   if (status === 'cancelled' || status === 'canceled') return 'cancelled'
-  return 'done'
+  return isSubAgentChildFinished(child) ? 'done' : 'waiting'
 }
 
 function toDesktopPluginSubAgent(parentThreadId: string, child: SubAgentChild): DesktopPluginSubAgent {
@@ -34,14 +46,17 @@ function toDesktopPluginSubAgent(parentThreadId: string, child: SubAgentChild): 
 }
 
 export function listDesktopPluginSubAgents(parentThreadId: string): readonly DesktopPluginSubAgent[] {
-  const children = useSubAgentStore.getState().childrenByParent.get(parentThreadId)
+  const graph = useSubAgentStore.getState().childrenByParent
+  const children = graph.get(parentThreadId)
   if (!children || children.length === 0) return NO_SUBAGENTS
+  const runtimes = useThreadStore.getState().runtimeSnapshots
+  const { activeThreadIds: tasks, pendingThreadIds: pendingTasks } = useSubAgentTaskActivity.getState()
   let snapshot = snapshots.get(children)
-  if (!snapshot) {
-    snapshot = children.map((child) => toDesktopPluginSubAgent(parentThreadId, child))
+  if (!snapshot || snapshot.graph !== graph || snapshot.runtimes !== runtimes || snapshot.tasks !== tasks || snapshot.pendingTasks !== pendingTasks) {
+    snapshot = { graph, runtimes, tasks, pendingTasks, agents: children.map((child) => toDesktopPluginSubAgent(parentThreadId, child)) }
     snapshots.set(children, snapshot)
   }
-  return snapshot
+  return snapshot.agents
 }
 
 function sameSubAgents(a: readonly DesktopPluginSubAgent[], b: readonly DesktopPluginSubAgent[]): boolean {
@@ -59,11 +74,18 @@ export function onDesktopPluginSubAgentsChange(
   listener: (subagents: readonly DesktopPluginSubAgent[]) => void
 ): () => void {
   let current = listDesktopPluginSubAgents(parentThreadId)
-  return useSubAgentStore.subscribe((state, previous) => {
-    if (state.childrenByParent === previous.childrenByParent) return
+  const changed = (): void => {
     const next = listDesktopPluginSubAgents(parentThreadId)
     if (sameSubAgents(current, next)) return
     current = next
     listener(next)
+  }
+  const stopChildren = useSubAgentStore.subscribe((state, previous) => {
+    if (state.childrenByParent !== previous.childrenByParent) changed()
   })
+  const stopRuntime = useThreadStore.subscribe((state, previous) => {
+    if (state.runtimeSnapshots !== previous.runtimeSnapshots) changed()
+  })
+  const stopTasks = useSubAgentTaskActivity.subscribe(changed)
+  return () => { stopChildren(); stopRuntime(); stopTasks() }
 }

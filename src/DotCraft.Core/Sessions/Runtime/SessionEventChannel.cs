@@ -43,9 +43,9 @@ internal sealed class SessionEventChannel(
             Timestamp = DateTimeOffset.UtcNow,
             Payload = payload
         };
+        publish?.Invoke(evt);
         _channel.Writer.TryWrite(evt);
         debugTap?.Invoke(evt);
-        publish?.Invoke(evt);
     }
 
     private void WriteThreadLevel(SessionEventType type, string? threadId, object? payload)
@@ -60,9 +60,9 @@ internal sealed class SessionEventChannel(
             Timestamp = DateTimeOffset.UtcNow,
             Payload = payload
         };
+        publish?.Invoke(evt);
         _channel.Writer.TryWrite(evt);
         debugTap?.Invoke(evt);
-        publish?.Invoke(evt);
     }
 
     // -------------------------------------------------------------------------

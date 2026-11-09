@@ -3,6 +3,7 @@ import { useSubAgentTranscriptStore } from '../stores/subAgentTranscriptStore'
 import { makeRestoreResult } from './threadRestorationFixtures'
 import type { Thread } from '../types/thread'
 import { useTurnItemsLoadStore } from '../stores/turnItemsLoadStore'
+import { useThreadStore } from '../stores/threadStore'
 
 const request = vi.fn()
 let notify: (payload: { method: string; params: unknown }) => void
@@ -26,6 +27,7 @@ async function settle(): Promise<void> {
 beforeEach(() => {
   vi.useFakeTimers()
   archived = false
+  useThreadStore.getState().reset()
   itemPages = {}
   useTurnItemsLoadStore.setState({ statuses: {} })
   request.mockReset().mockImplementation((_connection, method, params, _timeout, options) => {
@@ -80,6 +82,7 @@ describe('child transcript observation', () => {
     apply(snapshot)
     resolve(snapshot)
     await settle()
+    expect(useThreadStore.getState().runtimeSnapshots.get('child')?.running).toBe(false)
     itemPages.initial = itemPage(['tool'], null)
     await store.loadTurnItems('child', 'turn')
     expect(useSubAgentTranscriptStore.getState().transcripts.get('child')?.turns[0].summary).toBeUndefined()

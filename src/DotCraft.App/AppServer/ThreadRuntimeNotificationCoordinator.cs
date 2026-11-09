@@ -8,226 +8,109 @@ namespace DotCraft.AppServer;
 internal sealed class ThreadRuntimeNotificationCoordinator
 {
     private readonly ConcurrentDictionary<Task, byte> _pendingDeliveries = new();
-    private readonly object _signalGate = new();
-    private readonly ConcurrentDictionary<string, RuntimeFacts> _threadRuntime = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _notificationQueues = new();
+    private readonly object _publicationGate = new();
+    private readonly Dictionary<string, ThreadSummaryRuntime> _lastSnapshots = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<IAppServerTransport, AppServerConnection> _connections = new();
 
-    public bool ApplySignal(
+    public bool ApplySnapshot(
         string threadId,
-        SessionThreadRuntimeSignal signal,
-        SessionTurn? turn,
+        ThreadSummaryRuntime runtime,
         ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports,
         Func<AppServerConnection, bool> accepts)
     {
-        lock (_signalGate)
+        lock (_publicationGate)
         {
-            _threadRuntime.TryGetValue(threadId, out var previous);
-            var current = turn?.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput
-                ? previous with
-                {
-                    Running = true,
-                    ActiveTurnId = turn.Id,
-                    ActiveTurnStartedAt = turn.StartedAt
-                }
-                : previous;
-            var next = signal switch
-            {
-                SessionThreadRuntimeSignal.TurnStarted => current with
-                {
-                    Running = true,
-                    ActiveTurnId = turn?.Id,
-                    ActiveTurnStartedAt = turn?.StartedAt,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCompleted => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = true
-                },
-                SessionThreadRuntimeSignal.TurnFailed => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCancelled => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.HistoryRolledBack => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.ApprovalRequested => current with
-                {
-                    PendingApprovals = previous.PendingApprovals + 1
-                },
-                SessionThreadRuntimeSignal.ApprovalResolved => current with
-                {
-                    PendingApprovals = Math.Max(0, previous.PendingApprovals - 1)
-                },
-                SessionThreadRuntimeSignal.UserInputRequested => current with
-                {
-                    PendingUserInputs = previous.PendingUserInputs + 1
-                },
-                SessionThreadRuntimeSignal.UserInputResolved => current with
-                {
-                    PendingUserInputs = Math.Max(0, previous.PendingUserInputs - 1)
-                },
-                SessionThreadRuntimeSignal.MaintenanceCompactingStarted => current with
-                {
-                    MaintenanceKind = "compacting"
-                },
-                SessionThreadRuntimeSignal.MaintenanceCompleted => current with
-                {
-                    MaintenanceKind = null
-                },
-                _ => current
-            };
-
-            if (next.Equals(previous))
+            if (_lastSnapshots.TryGetValue(threadId, out var previous) && SameRuntime(previous, runtime))
                 return false;
-
-            _threadRuntime[threadId] = next;
-            Broadcast(threadId, next.ToContract(), activeTransports, accepts);
+            _lastSnapshots[threadId] = runtime;
+            foreach (var (transport, connection) in activeTransports)
+            {
+                if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStatusChanged.Name) || !accepts(connection))
+                    continue;
+                Deliver(transport, connection, activeTransports, () => connection.RunThreadNotificationAsync(threadId, snapshot =>
+                {
+                    snapshot?.EnsureCurrent();
+                    return connection.SendThreadNotificationAsync(transport, Contract.AppServerRpc.ThreadStatusChanged.Name,
+                        new Contract.ThreadStatusChangedNotification
+                        {
+                            ThreadId = threadId,
+                            Runtime = AppServerContractMapper.ToContract((snapshot?.Runtime ?? runtime).ToWireRuntimeState())
+                        });
+                }));
+            }
             return true;
+        }
+    }
+
+    public void BroadcastThreadStarted(
+        Contract.ThreadNotification notification,
+        ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports,
+        Func<IAppServerTransport, AppServerConnection, bool> accepts)
+    {
+        lock (_publicationGate)
+        {
+            foreach (var (transport, connection) in activeTransports)
+            {
+                if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStarted.Name) || !accepts(transport, connection))
+                    continue;
+                Deliver(transport, connection, activeTransports,
+                    () => connection.SendThreadNotificationAsync(transport, Contract.AppServerRpc.ThreadStarted.Name, notification));
+            }
         }
     }
 
     public void RemoveThread(string threadId)
     {
-        lock (_signalGate)
-            _threadRuntime.TryRemove(threadId, out _);
+        lock (_publicationGate)
+            _lastSnapshots.Remove(threadId);
     }
 
     public void RemoveTransport(IAppServerTransport transport)
     {
-        if (_notificationQueues.TryRemove(transport, out var queue) && queue.IsValueCreated)
-            queue.Value.Complete();
+        if (_connections.TryRemove(transport, out var connection))
+            _ = connection.CompleteThreadNotificationsAsync();
     }
 
     public async Task CompleteAsync()
     {
-        var queues = _notificationQueues.Keys
-            .Select(transport =>
-            {
-                if (!_notificationQueues.TryRemove(transport, out var queue) || !queue.IsValueCreated)
-                    return null;
-                queue.Value.Complete();
-                return queue.Value.Completion;
-            })
-            .OfType<Task>()
-            .ToArray();
-
-        await Task.WhenAll(queues.Concat(_pendingDeliveries.Keys)).ConfigureAwait(false);
+        var completions = _connections.Values.Select(connection => connection.CompleteThreadNotificationsAsync()).ToArray();
+        await Task.WhenAll(completions.Concat(_pendingDeliveries.Keys)).ConfigureAwait(false);
+        _connections.Clear();
     }
 
-    private void Broadcast(
-        string threadId,
-        Contract.ThreadRuntimeState runtime,
+    private void Deliver(
+        IAppServerTransport transport,
+        AppServerConnection connection,
         ConcurrentDictionary<IAppServerTransport, AppServerConnection> activeTransports,
-        Func<AppServerConnection, bool> accepts)
+        Func<Task> send)
     {
-        var parameters = new Contract.ThreadStatusChangedNotification
+        _connections.TryAdd(transport, connection);
+        var delivery = SendAsync();
+        _pendingDeliveries.TryAdd(delivery, 0);
+        _ = delivery.ContinueWith(completed => _pendingDeliveries.TryRemove(completed, out _),
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+        async Task SendAsync()
         {
-            ThreadId = threadId,
-            Runtime = runtime
-        };
-
-        foreach (var (transport, connection) in activeTransports)
-        {
-            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadStatusChanged.Name)
-                || !accepts(connection))
-                continue;
-
-            var queue = _notificationQueues.GetOrAdd(
-                transport,
-                candidate => new Lazy<OrderedAppServerNotificationQueue>(
-                    () => new OrderedAppServerNotificationQueue(
-                        candidate,
-                        () =>
-                        {
-                            activeTransports.TryRemove(candidate, out _);
-                            RemoveTransport(candidate);
-                        }),
-                    LazyThreadSafetyMode.ExecutionAndPublication));
-            var delivery = DeliverAsync();
-            _pendingDeliveries.TryAdd(delivery, 0);
-            _ = delivery.ContinueWith(completed => _pendingDeliveries.TryRemove(completed, out _),
-                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-
-            async Task DeliverAsync()
+            try { await send().ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch
             {
-                try
-                {
-                    await connection.RunThreadNotificationAsync(threadId, snapshot =>
-                    {
-                        if (snapshot is null)
-                        {
-                            queue.Value.Enqueue(Contract.AppServerRpc.ThreadStatusChanged.Name, parameters);
-                            return Task.CompletedTask;
-                        }
-
-                        snapshot.EnsureCurrent();
-                        return transport.NotifyAsync(Contract.AppServerRpc.ThreadStatusChanged,
-                            new Contract.ThreadStatusChangedNotification
-                            {
-                                ThreadId = threadId,
-                                Runtime = AppServerContractMapper.ToContract(snapshot.Runtime.ToWireRuntimeState())
-                            }, CancellationToken.None);
-                    });
-                }
-                catch (OperationCanceledException) { }
-                catch
-                {
-                    activeTransports.TryRemove(transport, out _);
-                    RemoveTransport(transport);
-                }
+                activeTransports.TryRemove(transport, out _);
+                connection.MarkClosed();
+                RemoveTransport(transport);
             }
         }
     }
 
-    private readonly record struct RuntimeFacts(
-        int PendingApprovals,
-        int PendingUserInputs,
-        bool Running,
-        string? ActiveTurnId,
-        DateTimeOffset? ActiveTurnStartedAt,
-        bool WaitingOnPlanConfirmation,
-        string? MaintenanceKind)
-    {
-        public Contract.ThreadRuntimeState ToContract() => new()
-        {
-            Running = Running,
-            ActiveTurnId = ActiveTurnId is null
-                ? default
-                : DotCraft.Protocol.Optional<string?>.FromValue(ActiveTurnId),
-            ActiveTurnStartedAt = ActiveTurnStartedAt is null
-                ? default
-                : DotCraft.Protocol.Optional<DateTimeOffset?>.FromValue(ActiveTurnStartedAt),
-            WaitingOnApproval = PendingApprovals > 0,
-            WaitingOnInput = PendingUserInputs > 0,
-            WaitingOnPlanConfirmation = WaitingOnPlanConfirmation,
-            MaintenanceKind = MaintenanceKind is null
-                ? default
-                : DotCraft.Protocol.Optional<string?>.FromValue(MaintenanceKind),
-            Busy = Running || PendingApprovals > 0 || PendingUserInputs > 0 || MaintenanceKind != null
-        };
-    }
+    private static bool SameRuntime(ThreadSummaryRuntime left, ThreadSummaryRuntime right) =>
+        left.Running == right.Running
+        && left.ActiveTurnId == right.ActiveTurnId
+        && left.ActiveTurnStartedAt == right.ActiveTurnStartedAt
+        && left.WaitingOnApproval == right.WaitingOnApproval
+        && left.WaitingOnInput == right.WaitingOnInput
+        && left.WaitingOnPlanConfirmation == right.WaitingOnPlanConfirmation
+        && left.Busy == right.Busy
+        && left.MaintenanceKind == right.MaintenanceKind
+        && left.QueuePaused == right.QueuePaused;
 }

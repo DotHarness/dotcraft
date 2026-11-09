@@ -1,7 +1,8 @@
+using System.Text.Json;
 using DotCraft.AppServer;
 using Xunit;
 
-namespace DotCraft.App.Tests.AppServer;
+namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class OrderedAppServerNotificationQueueTests
 {
@@ -11,9 +12,9 @@ public sealed class OrderedAppServerNotificationQueueTests
         var transport = new BlockingFirstWriteTransport();
         var queue = new OrderedAppServerNotificationQueue(transport, () => { });
 
-        Assert.True(queue.Enqueue(1));
-        Assert.True(queue.Enqueue(2));
-        Assert.True(queue.Enqueue(3));
+        Assert.True(queue.Enqueue("test/notification", new { sequence = 1 }));
+        Assert.True(queue.Enqueue("test/notification", new { sequence = 2 }));
+        Assert.True(queue.Enqueue("test/notification", new { sequence = 3 }));
 
         await transport.FirstWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal([1], transport.StartedWrites);
@@ -27,25 +28,22 @@ public sealed class OrderedAppServerNotificationQueueTests
     }
 
     [Fact]
-    public async Task Queue_PrerequisiteBlocksItsEntryWithoutAllowingLaterEntriesToOvertake()
+    public async Task Queue_PrerequisiteFailureStopsItsEntryAndLaterNotifications()
     {
         var transport = new BlockingFirstWriteTransport();
         transport.ReleaseFirstWrite.TrySetResult();
-        var queue = new OrderedAppServerNotificationQueue(transport, () => { });
+        var failed = false;
+        var queue = new OrderedAppServerNotificationQueue(transport, () => failed = true);
         var responseCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Assert.True(queue.Enqueue("test/notification", new { snapshotRevision = 1 }, responseCompleted.Task));
-        Assert.True(queue.Enqueue(2));
-        await Task.Delay(50);
-        Assert.Empty(transport.StartedWrites);
-
-        responseCompleted.SetResult();
-        await transport.ContractWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(queue.Enqueue("test/notification", new { sequence = 1 }, responseCompleted.Task));
+        Assert.True(queue.Enqueue("test/notification", new { sequence = 2 }));
+        responseCompleted.SetException(new IOException("Response delivery failed."));
         queue.Complete();
         await queue.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal([2], transport.CompletedWrites);
-        Assert.Equal(1, transport.ContractWrites);
+        Assert.True(failed);
+        Assert.Empty(transport.StartedWrites);
     }
 
     private sealed class BlockingFirstWriteTransport : IAppServerTransport
@@ -53,21 +51,12 @@ public sealed class OrderedAppServerNotificationQueueTests
         private int _concurrentWrites;
 
         public List<int> StartedWrites { get; } = [];
-
         public List<int> CompletedWrites { get; } = [];
-
         public int MaxConcurrentWrites { get; private set; }
-
         public TaskCompletionSource FirstWriteObserved { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         public TaskCompletionSource ReleaseFirstWrite { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource ContractWriteObserved { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public int ContractWrites { get; private set; }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -76,12 +65,7 @@ public sealed class OrderedAppServerNotificationQueueTests
 
         public async Task WriteMessageAsync(object message, CancellationToken ct = default)
         {
-            if (message is not int value)
-            {
-                ContractWrites++;
-                ContractWriteObserved.TrySetResult();
-                return;
-            }
+            var value = JsonSerializer.SerializeToElement(message).GetProperty("params").GetProperty("sequence").GetInt32();
             var concurrent = Interlocked.Increment(ref _concurrentWrites);
             MaxConcurrentWrites = Math.Max(MaxConcurrentWrites, concurrent);
             StartedWrites.Add(value);

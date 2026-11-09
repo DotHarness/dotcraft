@@ -65,12 +65,8 @@ canonical task path takes precedence over the requested relative path; messages 
 the child's transcript.
 
 Desktop discovers children through `subagent/children/list` including closed children and threads,
-and refreshes on notifications. Status precedence: resolved runtime and explicit terminal state win
-over stale running notifications; closed edges are finished; failure displays `interrupted`. After
-successful discovery, a created historical agent with no active entity or runtime is finished. A
-failed initial discovery with no reliable prior state shows only the name and navigation entry.
-Groups prioritize failure, then running, and show finished only when every entry is confirmed
-finished. Closed records never count as running.
+and refreshes on notifications. Shared runtime and activity classification follow
+[Desktop snapshot and realtime reconciliation](../clients/desktop-client.md#533-snapshot-and-realtime-reconciliation).
 
 A spawn group records when its agents started. An entry whose agent has a later ending notification
 in the Thread (matched by agent path) stops tracking live status, since that ending has its own row;

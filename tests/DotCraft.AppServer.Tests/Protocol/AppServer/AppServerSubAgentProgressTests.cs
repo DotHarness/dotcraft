@@ -28,7 +28,7 @@ public sealed class AppServerSubAgentProgressTests
             ]));
 
         await StartTurnAsync(harness, thread.Id);
-        var all = await harness.Transport.WaitAndDrainAsync(7, TimeSpan.FromSeconds(10));
+        var all = await harness.Transport.ReadTurnMessagesAsync(7, TimeSpan.FromSeconds(10));
         var methods = all.Select(Method).ToList();
         var progress = all.Where(d => Method(d) == DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProgress).ToList();
 
@@ -65,7 +65,7 @@ public sealed class AppServerSubAgentProgressTests
             [new SubAgentProgressEntry { Label = "default-task", InputTokens = 100, OutputTokens = 50 }]));
 
         await StartTurnAsync(harness, thread.Id);
-        var all = await harness.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
+        var all = await harness.Transport.ReadTurnMessagesAsync(5, TimeSpan.FromSeconds(10));
 
         Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProgress, all.Select(Method));
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, Method(all[^1]));

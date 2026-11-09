@@ -183,6 +183,7 @@ public sealed partial class SessionService
             var broker = owner.GetOrCreateBroker(threadId);
             broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, item);
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, item);
+            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             if (isError)
             {
                 broker.PublishTurnFailed(turn, text);
@@ -194,7 +195,6 @@ public sealed partial class SessionService
                 owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted, turn);
             }
 
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             return turn;
         }
 
@@ -213,10 +213,10 @@ public sealed partial class SessionService
             turn.Status = TurnStatus.Cancelled;
             turn.CompletedAt = DateTimeOffset.UtcNow;
             thread.LastActiveAt = DateTimeOffset.UtcNow;
+            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             var broker = owner.GetOrCreateBroker(threadId);
             broker.PublishTurnCancelled(turn, reason);
             owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
             return turn;
         }
     }

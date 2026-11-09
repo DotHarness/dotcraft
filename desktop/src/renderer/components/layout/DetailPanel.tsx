@@ -12,7 +12,8 @@ import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
 import { BoardTab } from '../detail/BoardTab'
-import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
+import { isSubAgentChildWorking, useSubAgentStore } from '../../stores/subAgentStore'
+import { useSubAgentTaskActivity } from '../../stores/subAgentTaskActivity'
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -79,11 +80,11 @@ export function DetailPanel({
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
   const fileCount = useConversationStore((s) => turnPatchTotals(latestTurnDiff(s.turnDiffs, s.turns)?.files ?? []).files)
-  const runningSubagentCount = useSubAgentStore((s) =>
-    activeThreadId
-      ? (s.childrenByParent.get(activeThreadId) ?? []).filter(isSubAgentChildRunning).length
-      : 0
-  )
+  const subagents = useSubAgentStore((s) => s.childrenByParent)
+  useThreadStore((s) => s.runtimeSnapshots)
+  useSubAgentTaskActivity((s) => s.activeThreadIds)
+  const runningSubagentCount = activeThreadId
+    ? (subagents.get(activeThreadId) ?? []).filter(isSubAgentChildWorking).length : 0
 
   const sideChatAvailable = useCanOpenSideChat()
   const boardAvailable = useConnectionStore((state) => state.capabilities?.subAgentSessions === true)

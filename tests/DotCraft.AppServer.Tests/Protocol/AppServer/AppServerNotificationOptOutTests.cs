@@ -31,7 +31,7 @@ public sealed class AppServerNotificationOptOutTests
             input = new[] { new { type = "text", text = "Hello" } }
         }));
 
-        var all = await harness.Transport.WaitAndDrainAsync(expectedMethods.Length + 1, TimeSpan.FromSeconds(10));
+        var all = await harness.Transport.ReadTurnMessagesAsync(expectedMethods.Length + 1, TimeSpan.FromSeconds(10));
         AppServerTestHarness.AssertIsSuccessResponse(all[0]);
         Assert.Equal(
             expectedMethods,

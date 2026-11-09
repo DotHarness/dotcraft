@@ -154,6 +154,40 @@ public sealed class SessionEventChannelTests
         Assert.Empty(Assert.IsType<SessionTurn>(events[2].Payload).Items);
     }
 
+    [Theory]
+    [InlineData(SessionEventType.TurnStarted)]
+    [InlineData(SessionEventType.TurnCompleted)]
+    public async Task TurnEvent_IsNotReadableUntilItsPublicationCompletes(SessionEventType type)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var channel = new SessionEventChannel(TestThreadId, TestTurnId, publish: _ =>
+        {
+            entered.TrySetResult();
+            release.Wait();
+        });
+        await using var reader = channel.ReadAllAsync(CancellationToken.None).GetAsyncEnumerator();
+        var reading = reader.MoveNextAsync().AsTask();
+        var writer = Task.Run(() =>
+        {
+            if (type == SessionEventType.TurnStarted) channel.EmitTurnStarted(MakeTurn());
+            else channel.EmitTurnCompleted(MakeTurn());
+        });
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(reading.IsCompleted);
+        }
+        finally
+        {
+            release.Set();
+            await writer.WaitAsync(TimeSpan.FromSeconds(10));
+            channel.Complete();
+        }
+        Assert.True(await reading);
+        Assert.Equal(type, reader.Current.EventType);
+    }
+
     private static async Task<List<SessionEvent>> CollectAsync(
         SessionEventChannel channel,
         CancellationToken ct = default)

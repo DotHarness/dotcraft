@@ -48,6 +48,9 @@ beforeEach(() => {
   useSubAgentStore
     .getState()
     .setChildren('parent-A', [makeSubAgent({ parentThreadId: 'parent-A', childThreadId: 'child-A' })])
+  useThreadStore.getState().applyRuntimeSnapshot('child-A', {
+    running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false
+  }, { isDesktopOrigin: false })
 })
 afterEach(() => {
   releaseThreadConnection('parent-A')
@@ -76,8 +79,7 @@ describe('source-scoped conversation notifications', () => {
         context
       )
     ).toBe(true)
-    const child = useSubAgentStore.getState().childrenByParent.get('parent-A')?.[0]
-    expect(child?.runtime).toMatchObject({
+    expect(useThreadStore.getState().runtimeSnapshots.get('child-A')).toMatchObject({
       running: false,
       waitingOnApproval: true
     })
@@ -99,6 +101,6 @@ describe('source-scoped conversation notifications', () => {
       },
       context
     )
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-A')?.[0].runtime?.running).toBe(true)
+    expect(useThreadStore.getState().runtimeSnapshots.get('child-A')?.running).toBe(true)
   })
 })

@@ -12,6 +12,7 @@ internal sealed class ThreadEventBroker(string threadId)
     private readonly ConcurrentDictionary<long, Channel<object>> _subscribers = new();
     private readonly Lock _publicationLock = new();
     private readonly ThreadObservationState _current = new();
+    private SessionThread? _thread;
     private long _runtimeGeneration;
     private long _publicationGeneration;
     private bool _closed;
@@ -46,6 +47,7 @@ internal sealed class ThreadEventBroker(string threadId)
         lock (_publicationLock)
         {
             ObjectDisposedException.ThrowIf(_closed, this);
+            _thread = thread;
             if (_runtimeGeneration == runtimeGeneration) return;
             _runtimeGeneration = runtimeGeneration;
             _publicationGeneration++;
@@ -98,8 +100,15 @@ internal sealed class ThreadEventBroker(string threadId)
         {
             if (_closed || _runtimeGeneration != runtimeGeneration) return;
             _publicationGeneration++;
+            _thread = thread;
             _current.Initialize(thread);
         }
+    }
+
+    public ThreadSummaryRuntime GetRuntimeSnapshot(SessionThread thread, string? maintenanceKind)
+    {
+        lock (_publicationLock)
+            return _current.GetRuntimeSnapshot(thread, maintenanceKind);
     }
 
     public void ReleaseCurrentState(long runtimeGeneration)
@@ -110,6 +119,7 @@ internal sealed class ThreadEventBroker(string threadId)
             _runtimeGeneration = 0;
             _publicationGeneration++;
             _current.Clear();
+            _thread = null;
             CloseSubscribers();
         }
     }
@@ -121,6 +131,7 @@ internal sealed class ThreadEventBroker(string threadId)
             _closed = true;
             _publicationGeneration++;
             _current.Clear();
+            _thread = null;
             CloseSubscribers();
         }
     }
@@ -444,6 +455,9 @@ internal sealed class ThreadEventBroker(string threadId)
             MarkActivity();
             if (_runtimeGeneration != 0 || _publicationGeneration == 0)
                 _current.Apply(evt);
+            if (_thread is not null && evt.EventType is SessionEventType.TurnStarted
+                or SessionEventType.TurnCompleted or SessionEventType.TurnFailed or SessionEventType.TurnCancelled)
+                evt.RuntimeSnapshot = _current.GetRuntimeSnapshot(_thread);
 
             foreach (var subscriber in _subscribers.Values)
             {

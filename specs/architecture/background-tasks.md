@@ -185,21 +185,23 @@ final status, or `waitingForInput` for a stall. Clients do not present these inp
 
 ### 5.3 Delivery
 
-- While the owner Thread has an active Turn, the notification is drained at the next sampling
-  boundary as guidance. It does not preempt a model request, does not hand over a waiting foreground
-  `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it becomes queued input.
-- While the owner Thread is idle, the notification is queued and the next queued Turn is started.
-  Notifications that are pending when that Turn starts are admitted together as its input, so tasks
-  that end together wake the Thread once.
+- While the owner Thread has an active Turn, the notification is queued as `guidancePending` and
+  drained at the next sampling boundary as guidance. It does not preempt a model request or hand over
+  a waiting foreground `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it becomes
+  queued input.
+- While the owner Thread is Active and idle, the notification is queued and the next queued Turn
+  is started when the wake policy allows.
+- Every Turn admits all queued task notifications as guidance before its first sampling request,
+  so tasks that end together reach the model with that Turn's input.
 - When the owner Thread is not Active, the notification stays queued for the Thread's next Turn.
-- A SubAgent's own tasks notify that SubAgent, not its parent.
+- A SubAgent's own tasks notify that SubAgent, not its parent. Its current Turn may finish while those
+  tasks continue; the child remains open and a task notification can start another Turn.
 - An Agent whose Turn was cancelled because its parent's Turn was cancelled notifies the parent as
   a user stop, but the notification does not start a Turn.
 
 `Tools.BackgroundTasks.CompletionDelivery` selects `wake` (default) or `off`. With `wake`,
-completion notifications continue to wake an idle Thread regardless of how many preceding Turns
-were started by task notifications. With `off`, notifications stay queued until the Thread's next
-Turn. A notification is never dropped.
+completion notifications start the next queued Turn when the owner Thread is Active and idle.
+With `off`, notifications stay queued until the Thread's next Turn.
 
 Workflow completion delivery is idempotent by owner Thread and run id. Session Core checks pending
 inputs, active guidance, and consumed history in the same serialized transition that enqueues the
@@ -207,10 +209,9 @@ notification. A retry of an already queued notification still attempts any requi
 notification never starts another Turn. This identity does not apply to repeated Agent invocations or
 shell stall notifications.
 
-The notified latch arbitrates whether an ending is owed, not whether delivery succeeded. A Workflow
-persists an owed ending as pending with its execution outcome and retries through the same notification
-entry point. Delivery or wake failures do not change that outcome; acknowledgement is recorded only
-after delivery succeeds or the owner no longer exists.
+The notified latch arbitrates whether an ending is owed, not whether delivery succeeded.
+[Workflow parent continuation](../features/dynamic-workflows.md#86-parent-continuation) defines
+persistent notification delivery and acknowledgement.
 
 An Agent's ending reaches its parent only as a task notification; Agent messages travel through the
 mailbox (§4.2).
@@ -221,7 +222,7 @@ Clients control tasks through `terminal/*`, `subagent/*`, and `workflow/run/*`, 
 by interrupting the child thread's active turn with `turn/interrupt`, which leaves it open as the
 model's `TaskStop` does. `subagent/close` closes the child. A Turn started by a task notification is
 presented by its task origin rather than as a user message, and identifies the tool call that started
-the task.
+the task. SubAgent activity presentation follows [Desktop snapshot and realtime reconciliation](../clients/desktop-client.md#533-snapshot-and-realtime-reconciliation).
 
 ## 7. Constraints
 

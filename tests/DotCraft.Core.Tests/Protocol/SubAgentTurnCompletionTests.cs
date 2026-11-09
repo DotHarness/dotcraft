@@ -104,6 +104,50 @@ public sealed class SubAgentTurnCompletionTests
     }
 
     [Fact]
+    public async Task BackgroundTaskNotification_WakesTheSameOpenChildWithANewRunningRuntime()
+    {
+        using var host = new ContributionAgentHost("SubAgentBackgroundWake");
+        var client = new ContributionChatClient("done");
+        var factory = host.CreateFactory(null, client);
+        await using var store = new ThreadStore(host.WorkspacePath);
+        var service = new SessionService(factory, client.AsAIAgent(), new SessionPersistenceService(store), new SessionGate());
+        var context = await CreateContextAsync(service, host.WorkspacePath);
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(context,
+            new() { AgentPrompt = "first", TaskName = "worker", ForkTurns = "none", SilentCompletion = true },
+            true, null, CancellationToken.None);
+        var child = await service.GetThreadAsync(spawned.ChildThreadId);
+        var initialTurnId = child.Turns[^1].Id;
+        Assert.False(service.GetThreadRuntimeSnapshot(child).Running);
+        using var observation = await service.ObserveThreadAsync(child.Id);
+        var awakened = ObserveWakeAsync();
+        await service.NotifyBackgroundTaskEndedAsync(new BackgroundTaskEnding
+        {
+            TaskId = "term_000000000001", Kind = BackgroundTaskKinds.Shell, OwnerThreadId = child.Id,
+            Label = "background work", Status = BackgroundTaskStatus.Completed, KindStatus = "completed",
+            Summary = "Background work finished"
+        });
+        var (started, completed) = await awakened.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(started.RuntimeSnapshot!.Running);
+        Assert.Equal(started.TurnId, started.RuntimeSnapshot.ActiveTurnId);
+        Assert.False(completed.RuntimeSnapshot!.Running);
+        Assert.NotEqual(initialTurnId, started.TurnId);
+        Assert.Equal(ThreadSpawnEdgeStatus.Open,
+            Assert.Single(await service.ListSubAgentChildrenAsync(context.ParentThread.Id, true)).Status);
+
+        async Task<(SessionEvent Started, SessionEvent Completed)> ObserveWakeAsync()
+        {
+            SessionEvent? started = null;
+            await foreach (var evt in observation.Events)
+            {
+                if (evt.EventType == SessionEventType.TurnStarted) started = evt;
+                if (started is not null && evt.EventType == SessionEventType.TurnCompleted)
+                    return (started, evt);
+            }
+            throw new InvalidOperationException("Child wake did not complete.");
+        }
+    }
+
+    [Fact]
     public async Task Spawn_StreamWithoutTerminalOutcomeDoesNotReturnSuccess()
     {
         using var host = new ContributionAgentHost("SubAgentMissingOutcome");

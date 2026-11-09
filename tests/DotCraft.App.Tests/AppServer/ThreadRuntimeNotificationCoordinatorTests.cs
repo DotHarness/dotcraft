@@ -3,13 +3,14 @@ using System.Text.Json;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using Xunit;
+using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
 public sealed class ThreadRuntimeNotificationCoordinatorTests
 {
     [Fact]
-    public async Task ApplySignal_DeliversCommittedSnapshotsInOrderWithoutConcurrentWrites()
+    public async Task ApplySnapshot_DeliversCreationAndRuntimeInOrderWithoutConcurrentWrites()
     {
         var transport = new BlockingFirstWriteTransport();
         var activeTransports = new ConcurrentDictionary<IAppServerTransport, AppServerConnection>();
@@ -23,19 +24,23 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             StartedAt = DateTimeOffset.Parse("2026-08-25T00:00:00Z")
         };
 
-        Assert.True(coordinator.ApplySignal(
+        var thread = new SessionThread { Id = firstTurn.ThreadId, WorkspacePath = Path.GetTempPath() };
+        coordinator.BroadcastThreadStarted(new Contract.ThreadNotification
+        {
+            Thread = AppServerContractMapper.ToContract(thread.ToWire())
+        }, activeTransports, static (_, _) => true);
+        thread.Turns.Add(firstTurn);
+        Assert.True(coordinator.ApplySnapshot(
             firstTurn.ThreadId,
-            SessionThreadRuntimeSignal.TurnStarted,
-            firstTurn,
+            ThreadSummaryRuntime.FromThread(thread),
             activeTransports,
             static _ => true));
         await transport.FirstWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         firstTurn.Status = TurnStatus.Completed;
-        Assert.True(coordinator.ApplySignal(
+        Assert.True(coordinator.ApplySnapshot(
             firstTurn.ThreadId,
-            SessionThreadRuntimeSignal.TurnCompleted,
-            firstTurn,
+            ThreadSummaryRuntime.FromThread(thread),
             activeTransports,
             static _ => true));
 
@@ -46,50 +51,41 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             Status = TurnStatus.Running,
             StartedAt = DateTimeOffset.Parse("2026-08-25T00:01:00Z")
         };
-        Assert.True(coordinator.ApplySignal(
+        thread.Turns.Add(followUpTurn);
+        Assert.True(coordinator.ApplySnapshot(
             followUpTurn.ThreadId,
-            SessionThreadRuntimeSignal.TurnStarted,
-            followUpTurn,
+            ThreadSummaryRuntime.FromThread(thread),
             activeTransports,
             static _ => true));
 
         transport.ReleaseFirstWrite.TrySetResult();
-        await transport.ThirdWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await coordinator.CompleteAsync();
 
         Assert.Equal(1, transport.MaxConcurrentWrites);
         Assert.Collection(
             transport.Writes,
+            created => Assert.Equal("thread/started", created.GetProperty("method").GetString()),
             first => AssertRuntime(first, running: true, activeTurnId: "turn-1"),
             second => AssertRuntime(second, running: false, activeTurnId: null),
             third => AssertRuntime(third, running: true, activeTurnId: "turn-2"));
     }
 
     [Fact]
-    public async Task ApplySignal_HistoryRolledBack_ResetsRuntimeWithoutTurnCompletion()
+    public async Task ApplySnapshot_ForwardsPlanConfirmationAndItsRemoval()
     {
         var transport = new RecordingTransport();
         var activeTransports = new ConcurrentDictionary<IAppServerTransport, AppServerConnection>();
         Assert.True(activeTransports.TryAdd(transport, new AppServerConnection()));
         var coordinator = new ThreadRuntimeNotificationCoordinator();
-        var turn = new SessionTurn
-        {
-            Id = "turn-1",
-            ThreadId = "thread-1",
-            Status = TurnStatus.Completed,
-            StartedAt = DateTimeOffset.Parse("2026-08-25T00:00:00Z")
-        };
-
-        Assert.True(coordinator.ApplySignal(
-            turn.ThreadId,
-            SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation,
-            turn,
+        const string threadId = "thread-1";
+        Assert.True(coordinator.ApplySnapshot(
+            threadId,
+            new ThreadSummaryRuntime { WaitingOnPlanConfirmation = true },
             activeTransports,
             static _ => true));
-        Assert.True(coordinator.ApplySignal(
-            turn.ThreadId,
-            SessionThreadRuntimeSignal.HistoryRolledBack,
-            null,
+        Assert.True(coordinator.ApplySnapshot(
+            threadId,
+            new ThreadSummaryRuntime(),
             activeTransports,
             static _ => true));
         await coordinator.CompleteAsync();
@@ -159,9 +155,6 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
         public TaskCompletionSource FirstWriteObserved { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource ThirdWriteObserved { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         public TaskCompletionSource ReleaseFirstWrite { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -186,10 +179,6 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             {
                 FirstWriteObserved.TrySetResult();
                 await ReleaseFirstWrite.Task.WaitAsync(ct);
-            }
-            else if (writeCount == 3)
-            {
-                ThirdWriteObserved.TrySetResult();
             }
 
             Interlocked.Decrement(ref _concurrentWrites);

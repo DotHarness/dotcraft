@@ -781,29 +781,8 @@ public sealed partial class AppServerHost(
             ? AppServerRequestContext.CurrentTransport
             : null;
 
-        foreach (var (transport, connection) in _activeTransports)
-        {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted))
-                continue;
-
-            if (skipTransport != null && ReferenceEquals(transport, skipTransport))
-                continue;
-
-            if (!_hiddenThreads.Accepts(thread.Id, connection))
-                continue;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await transport.NotifyAsync(Contract.AppServerRpc.ThreadStarted, parameters, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
-            });
-        }
+        _threadRuntimeNotifications.BroadcastThreadStarted(parameters, _activeTransports,
+            (transport, connection) => !ReferenceEquals(transport, skipTransport) && _hiddenThreads.Accepts(thread.Id, connection));
     }
 
     private void BroadcastSubAgentGraphChanged(string parentThreadId, string childThreadId)
@@ -919,10 +898,10 @@ public sealed partial class AppServerHost(
 
     private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal, SessionTurn? turn)
     {
-        if (_threadRuntimeNotifications.ApplySignal(
+        var thread = runtime.SessionService.TryGetLoadedThread(threadId);
+        if (thread is not null && _threadRuntimeNotifications.ApplySnapshot(
                 threadId,
-                signal,
-                turn,
+                runtime.SessionService.GetThreadRuntimeSnapshot(thread),
                 _activeTransports,
                 connection => _hiddenThreads.Accepts(threadId, connection)))
             RequestHubTurnNotification(threadId, signal);

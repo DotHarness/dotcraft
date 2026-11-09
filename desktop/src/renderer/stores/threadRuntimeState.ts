@@ -4,6 +4,7 @@ import { normalizeThreadRuntime } from '../utils/threadRuntime'
 
 export interface ApplyRuntimeSnapshotOptions {
   isDesktopOrigin: boolean
+  baseline?: ReadonlyMap<string, ThreadRuntimeSnapshot>
 }
 
 type RuntimeState = Pick<ThreadStore,
@@ -20,7 +21,8 @@ export function applyThreadRuntimeSnapshot(
   incoming: ThreadRuntimeSnapshot,
   options: ApplyRuntimeSnapshotOptions
 ): Partial<RuntimeState> {
-  if (state.hiddenThreadIds.has(threadId)) return state
+  if (state.hiddenThreadIds.has(threadId)
+    || (options.baseline && state.runtimeSnapshots.get(threadId) !== options.baseline.get(threadId))) return state
   const runtime = normalizeThreadRuntime(incoming)
   const runtimeSnapshots = new Map(state.runtimeSnapshots)
   runtimeSnapshots.set(threadId, runtime)

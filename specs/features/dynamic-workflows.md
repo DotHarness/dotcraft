@@ -339,12 +339,10 @@ thread retains runs; deleting it cancels active work and removes its run directo
 
 After an observable run change persists, AppServer broadcasts `workflow/run/updated` with `threadId`,
 `runId`, and an open reason string such as `created`, `progress`, `control`, or `terminal`, without a
-snapshot. Clients coalesce and call `workflow/run/read`; a later read wins. Clients may opt out through
-the standard notification opt-out and establish state with list and read; no polling is needed. This
-channel never starts an Agent Turn. Desktop summary, tool cards, and details share one connection-scoped
-run cache and request coordinator. Reconnects refresh known active runs; stale list/read responses
-cannot overwrite newer control results or revive settled execution. Read failures retain the last
-confirmed result and remain recoverable.
+snapshot. Clients coalesce invalidations and call `workflow/run/read`. Clients may opt out through
+the standard notification opt-out and establish state with list and read. This channel never starts
+an Agent Turn. Desktop cache reconciliation follows
+[Desktop tool output](../clients/desktop-client.md#58-view-changes-plans-and-tool-output).
 
 ### 8.6 Parent Continuation
 
@@ -357,7 +355,8 @@ on success or the error otherwise. A run stopped through `workflow/run/stop` is 
 the user. Execution outcome is committed once, independently of notification delivery. An owed
 notification is persisted as pending and retried through Session Core's idempotent notification entry
 point, including during startup reconciliation. Delivery, acknowledgement, and cleanup failures never
-replace a committed outcome.
+replace a committed outcome. Delivery is acknowledged after Session Core accepts the notification
+and any required wake, or when the owner Thread no longer exists.
 
 ## 9. Limits and Cancellation
 
@@ -366,10 +365,10 @@ start at most 1000 Agent calls; further calls fail the run without starting a ch
 these limits, accumulated token usage (including replayed usage), and any explicit token budget.
 
 Successful script completion joins all issued Agent calls within the run deadline. Worker failure
-cancels queued calls, active child Turns, and the worker before bounded draining; cancellation uses the
-same cleanup path without discarding completed journal entries. Late handlers remain observed and
-cannot mutate a settled run or access disposed run resources. Worktree cleanup also runs after
-cancellation or failure with its own bounded token; uncertain or modified worktrees are retained.
+and cancellation stop queued calls, active child Turns, and the worker before bounded draining.
+Result delivery proceeds independently of resource cleanup; the run owns and observes unfinished
+work until its resources can be released. Worktree cleanup runs after cancellation or failure with
+its own bounded token; uncertain or modified worktrees are retained.
 Final results, structured submissions, logs, stderr, and protocol frames have independent size bounds.
 
 ## 10. Approval and Permissions

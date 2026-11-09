@@ -23,7 +23,7 @@ interface TerminalSnapshot {
 const TERMINAL_ENDS = new Set(['completed', 'failed', 'killed', 'timedOut', 'lost'])
 
 export function createTerminalFeed(
-  services: SummaryServices,
+  services: Pick<SummaryServices, 'appServer'>,
   threadId: string,
   onChange: (terminals: readonly SummaryTerminal[]) => void
 ) {
@@ -35,7 +35,7 @@ export function createTerminalFeed(
   let revision = 0
   let generation = 0
   let disposed = false
-  let inFlight: Promise<void> | null = null
+  let inFlight: Promise<boolean> | null = null
   let queued = false
   const current = (): boolean => !disposed && connectionKey === services.appServer.connectionKey()
   const callKey = (turnId: string | null | undefined, callId: string): string => `${turnId}:${callId}`
@@ -62,20 +62,21 @@ export function createTerminalFeed(
     }
   }
 
-  const refresh = (): Promise<void> => {
-    if (!current()) return Promise.resolve()
+  const refresh = (): Promise<boolean> => {
+    if (!current()) return Promise.resolve(false)
     if (inFlight) {
       queued = true
       return inFlight
     }
     const requestGeneration = generation
-    const work = async (): Promise<void> => {
+    const work = async (): Promise<boolean> => {
+      let success = false
       do {
         queued = false
         const before = revision
         try {
           const result = await services.appServer.request('terminal/list', { threadId })
-          if (!current() || requestGeneration !== generation) return
+          if (!current() || requestGeneration !== generation) return false
           const ids = new Set<string>()
           for (const snapshot of result.terminals ?? []) {
             if (snapshot.threadId !== threadId || !snapshot.sessionId) continue
@@ -89,8 +90,12 @@ export function createTerminalFeed(
             }
           }
           publish()
-        } catch {}
+          success = true
+        } catch {
+          success = false
+        }
       } while (queued && current() && requestGeneration === generation)
+      return success && current() && requestGeneration === generation
     }
     const pending = work().finally(() => { if (inFlight === pending) inFlight = null })
     inFlight = pending
