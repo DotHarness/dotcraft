@@ -59,6 +59,7 @@ import { useComposerPrefillRequest } from './useComposerPrefillRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
+import { useSlashSkills } from './useSlashSkills'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
 import { useComposerThreadReferences } from './useComposerThreadReferences'
@@ -286,19 +287,9 @@ function ConversationWelcomeCore({
   const { initAvailable, status: builtinCommandStatus } = useBuiltinCommandAvailability({
     enabled: canUseCommandPicker
   })
-  const skills = useSkillsStore((s) => s.skills)
   const skillsLoading = useSkillsStore((s) => s.loading)
   const fetchSkills = useSkillsStore((s) => s.fetchSkills)
-  const availableSkills = useMemo(
-    () =>
-      skills
-        .map((skill) => ({
-          name: skill.name.replace(/^\/+/, ''),
-          description: skill.description
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [skills]
-  )
+  const availableSkills = useSlashSkills()
 
   useEffect(() => {
     setWelcomeDraftWorkspace(draftProjectKey)

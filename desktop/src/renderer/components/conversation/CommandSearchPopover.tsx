@@ -8,6 +8,7 @@ import {
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { fuzzyFilter, fuzzyHighlightRanges } from '../../utils/fuzzyMatch'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IdentityMark } from '../ui/IdentityMark'
 import {
   MentionRowIcon,
   MentionSectionHeader,
@@ -29,6 +30,7 @@ export interface SlashSystemActionInfo {
 export interface SlashSkillInfo {
   name: string
   description: string
+  iconUrl?: string | null
 }
 
 interface CommandSearchPopoverProps {
@@ -97,9 +99,7 @@ export function CommandSearchPopover({
     setHighlight((current) => Math.min(current, Math.max(0, entries.length - 1)))
   }, [entries.length])
 
-  // Only Arrow keys may move the list. Hover also sets `highlight`, and `entries`
-  // changes identity on unrelated re-renders, so scrolling on every change would
-  // yank a list the user is reading back to the highlighted row.
+  // Only Arrow keys scroll the list; hover and unrelated re-renders also change the highlight.
   useEffect(() => {
     if (!visible || !keyboardNavRef.current) return
     keyboardNavRef.current = false
@@ -253,7 +253,11 @@ export function CommandSearchPopover({
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--ref-skill)">
-                  <Box size={15} strokeWidth={2} aria-hidden />
+                  {skill.iconUrl ? (
+                    <IdentityMark role="compact" size={16} src={skill.iconUrl} fallback={null} />
+                  ) : (
+                    <Box size={15} strokeWidth={2} aria-hidden />
+                  )}
                 </MentionRowIcon>
                 <span style={mentionRowNameStyle}>{highlightMatch(skill.name, query)}</span>
                 <span style={mentionRowDescStyle}>{description}</span>
