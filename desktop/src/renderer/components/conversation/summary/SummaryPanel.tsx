@@ -213,9 +213,9 @@ export function SummaryPanel({
               key={automation.id}
               leading={<Clock {...GLYPH} />}
               label={automation.name}
-              inline={automationNote(automation, locale, t('summary.paused'))}
+              meta={automationNote(automation, locale, t('summary.paused'))}
               title={automation.name}
-              onClick={() => services.navigation.openAutomation(automation.id)}
+              onClick={() => services.navigation.openAutomation(automation.id, automation.name)}
             />
           ))}
         </Section>

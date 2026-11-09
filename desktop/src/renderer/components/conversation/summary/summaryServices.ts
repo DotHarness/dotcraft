@@ -34,7 +34,8 @@ import { useConversationStore, type ContextUsage } from '../../../stores/convers
 import { useThreadStore } from '../../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
 import { showToast } from '../../../stores/toastStore'
-import { openActiveThreadFile, openAutomation, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
+import { openActiveThreadFile, openExternalUrl, revealToolCall } from '../../../utils/desktopNavigation'
+import { openAutomationTab } from '../AutomationCard'
 import { compactThreadContext } from '../../../utils/manualCompaction'
 import { openSkill } from '../../../utils/openSkill'
 import { loadLocalImageDataUrl } from '../imagePreview/galleryImages'
@@ -102,7 +103,7 @@ export interface SummaryServices {
     openFile(path: string): Promise<void>
     openExternal(url: string): Promise<void>
     openSkill(name: string): void
-    openAutomation(automationId: string): void
+    openAutomation(automationId: string, label: string): void
     revealToolCall(threadId: string, callId: string): void
   }
   readonly workspaces: {
@@ -189,7 +190,7 @@ export const desktopSummaryServices: SummaryServices = {
     openFile: openActiveThreadFile,
     openExternal: openExternalUrl,
     openSkill,
-    openAutomation,
+    openAutomation: openAutomationTab,
     revealToolCall
   },
   workspaces: {
