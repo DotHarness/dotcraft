@@ -150,8 +150,9 @@ boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentat
 
 `settings` is an optional manifest-relative path to a settings schema, for example
 `"./settings.schema.json"`. It does not count as a contribution. The schema has a single `fields`
-array. Each field has a required `key` and `type`, plus optional `defaultValue`, `options`, `min`,
-and `max`. Supported types are `text`, `textarea`, `number`, `bool`, `select`, `stringList`,
+array. Each field has a required `key` and `type`, plus optional `title`, `description`,
+`defaultValue`, `options`, `min`, and `max`. `title` and `description` are display text for host
+forms; a field without a `title` is labeled by its key. Supported types are `text`, `textarea`, `number`, `bool`, `select`, `stringList`,
 `keyValueMap`, and `json`. Keys are unique case-insensitively. Defaults must pass the same
 validation as stored values. `select` requires a non-empty string `options` array and accepts only
 listed values. `min` and `max` apply only to `number`.

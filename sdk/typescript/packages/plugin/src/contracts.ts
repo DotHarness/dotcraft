@@ -393,6 +393,8 @@ export type DesktopPluginSettingType =
 export interface DesktopPluginSettingField {
   readonly key: string;
   readonly type: DesktopPluginSettingType;
+  readonly title?: string;
+  readonly description?: string;
   readonly defaultValue?: unknown;
   readonly options?: readonly string[];
   readonly min?: number;

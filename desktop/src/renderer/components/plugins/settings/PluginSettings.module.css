@@ -50,3 +50,24 @@
 .numberField .inputError {
   text-align: end;
 }
+
+.controlWithReset {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.fieldDescription {
+  display: block;
+}
+
+.listField {
+  min-width: 0;
+}
+
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}

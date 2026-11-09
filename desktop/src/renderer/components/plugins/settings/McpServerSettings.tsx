@@ -1,19 +1,13 @@
 import { useId, useState, type JSX, type KeyboardEvent } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { callDesktopPluginMcpTool } from '../../../plugins/desktopPluginMcp'
-import type { PluginEntry } from '../../../stores/pluginStore'
 import { addToast } from '../../../stores/toastStore'
 import { SettingsGroup, SettingsRow } from '../../settings/SettingsGroup'
-import {
-  SETTINGS_SURFACE_CLASS,
-  settingsErrorTextStyle,
-  settingsHintStyle
-} from '../../settings/settingsTypography'
+import { settingsHintStyle } from '../../settings/settingsTypography'
 import { Button } from '../../ui/Button'
 import { Input } from '../../ui/Input'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Select } from '../../ui/Select'
-import { Skeleton, SkeletonRow } from '../../ui/Skeleton'
 import {
   firstTextContent,
   hasTool,
@@ -26,40 +20,17 @@ import {
   type McpSettingsProperty,
   type McpSettingsValue
 } from './mcpSettingsModel'
+import { FailedNotice, SettingsSkeleton } from './SettingsStates'
 import {
   useMcpServerSettings,
-  usePluginSettingsServers,
   type McpServerSettingsState,
   type PluginSettingsServer
 } from './useMcpServerSettings'
-import styles from './PluginMcpSettingsSection.module.css'
+import styles from './PluginSettings.module.css'
 
 type Translate = ReturnType<typeof useT>
 
-export function PluginMcpSettingsSection({ plugin }: { plugin: PluginEntry }): JSX.Element | null {
-  const t = useT()
-  const headingId = useId()
-  const servers = usePluginSettingsServers(plugin.id, plugin.installed && plugin.enabled)
-  if (servers.length === 0) return null
-  return (
-    <section
-      className={`${styles.section} ${SETTINGS_SURFACE_CLASS}`}
-      aria-labelledby={headingId}
-      data-plugin-mcp-settings
-    >
-      <h2 id={headingId} className={styles.heading}>{t('plugins.detail.settings')}</h2>
-      {servers.map((server) => (
-        <McpServerSettings
-          key={server.status.name}
-          server={server}
-          serverName={servers.length > 1 ? server.status.declaredName || server.status.name : undefined}
-        />
-      ))}
-    </section>
-  )
-}
-
-function McpServerSettings({ server, serverName }: {
+export function McpServerSettings({ server, serverName }: {
   server: PluginSettingsServer
   serverName?: string
 }): JSX.Element {
@@ -107,34 +78,6 @@ function McpServerSettings({ server, serverName }: {
         </SettingsGroup>
       ))}
     </>
-  )
-}
-
-const SKELETON_ROWS: Array<[string, string]> = [['28%', '46%'], ['22%', '58%'], ['34%', '40%']]
-
-function SettingsSkeleton({ title }: { title?: string }): JSX.Element {
-  const t = useT()
-  return (
-    <div role="status" aria-busy="true" aria-label={t('plugins.settings.loading')}>
-      <SettingsGroup title={title}>
-        {SKELETON_ROWS.map(([label, hint]) => (
-          <SettingsRow key={label}>
-            <SkeletonRow lines={[label, hint]} style={{ flex: 1 }} />
-            <Skeleton width={96} height={28} radius={8} />
-          </SettingsRow>
-        ))}
-      </SettingsGroup>
-    </div>
-  )
-}
-
-function FailedNotice({ loading, onRetry }: { loading: boolean; onRetry: () => void }): JSX.Element {
-  const t = useT()
-  return (
-    <div className={styles.failed} role="alert">
-      <span style={settingsErrorTextStyle(false)}>{t('plugins.settings.failed')}</span>
-      <Button size="sm" disabled={loading} onClick={onRetry}>{t('plugins.settings.retry')}</Button>
-    </div>
   )
 }
 

@@ -136,6 +136,10 @@ internal sealed partial class PluginRequestHandler
     {
         Key = field.Key,
         Type = field.Type,
+        Title = field.Title is { } title ? DotCraft.Protocol.Optional<string>.FromValue(title) : default,
+        Description = field.Description is { } description
+            ? DotCraft.Protocol.Optional<string>.FromValue(description)
+            : default,
         DefaultValue = field.DefaultValue is { } defaultValue
             ? DotCraft.Protocol.Optional<JsonElement>.FromValue(defaultValue)
             : default,

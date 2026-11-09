@@ -2957,6 +2957,14 @@ public sealed class PluginConfigField : ExtensibleJsonObject
     [JsonPropertyName("type")]
     public required string Type { get; init; }
 
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Description { get; init; }
+
     [JsonPropertyName("defaultValue")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement> DefaultValue { get; init; }
