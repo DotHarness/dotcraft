@@ -41,6 +41,19 @@
   height: 14px;
 }
 
+.dc-ref-skill-image {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.dc-ref > .dc-ref-skill-image {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: -0.2em;
+}
+
 .dc-ref > .dc-ref-favicon {
   position: relative;
   display: inline-block;

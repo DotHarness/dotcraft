@@ -1,7 +1,7 @@
 import { projectInputParts } from '../../utils/inputPresentation'
 import { SentContextAttachments } from './SentContextAttachments'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { Box, Image as ImageIcon, Pencil } from 'lucide-react'
+import { Image as ImageIcon, Pencil } from 'lucide-react'
 import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -26,6 +26,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { FileRefChip } from './FileRefChip'
+import { SkillRefIcon } from './SkillRefIcon'
 import { InlineReferenceLink } from './InlineReferenceLink'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
@@ -492,7 +493,7 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
-        <Box size={12} strokeWidth={2.25} aria-hidden />
+        <SkillRefIcon name={skillName} />
         <span>{skillName}</span>
       </span>
       </ActionTooltip>

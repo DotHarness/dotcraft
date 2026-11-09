@@ -44,7 +44,9 @@ export function ToolDisclosure({
     }
     : {}
 
-  const leadingIcon = icon
+  const leadingIcon = icon?.imageUrl
+    ? <img className="dc-tool-row-icon dc-tool-row-image" src={icon.imageUrl} alt="" aria-hidden />
+    : icon
     ? <icon.icon className="dc-tool-row-icon" data-tone={icon.tone} size={16} strokeWidth={1.6} aria-hidden />
     : null
 

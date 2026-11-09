@@ -3,6 +3,7 @@ import { CHAT_ICON_SVG, REMOVE_ICON_SVG, SKILL_ICON_SVG } from './refIconSvgs'
 import { paintFileRefIcon, referenceBaseName } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { formatThreadMention, splitThreadMentions } from '../../utils/threadReferences'
+import { getSkillIconUrl } from '../../utils/skillIcon'
 
 type RefType = Exclude<ComposerDraftSegment, { type: 'text' }>['type']
 type Match = { type: 'file' | 'skill'; start: number; end: number; value: string }
@@ -64,12 +65,26 @@ export function createRefSpan(kind: RefType, value: string, title = value): HTML
     span.className = `${SKILL_REF_CLASS} dc-ref dc-ref-skill`
     span.setAttribute('data-skill', value)
     label.textContent = value
-    icon.innerHTML = SKILL_ICON_SVG
+    paintSkillRefIcon(icon, value)
     span.title = `$${value}`
   }
   iconSlot.append(icon, removeIcon)
   span.append(iconSlot, label)
   return span
+}
+
+export function paintSkillRefIcon(icon: HTMLElement, skillName: string): void {
+  const iconUrl = getSkillIconUrl(skillName)
+  if (!iconUrl) {
+    icon.innerHTML = SKILL_ICON_SVG
+    return
+  }
+  if (icon.querySelector('img')?.getAttribute('src') === iconUrl) return
+  const img = document.createElement('img')
+  img.className = 'dc-ref-skill-image'
+  img.src = iconUrl
+  img.alt = ''
+  icon.replaceChildren(img)
 }
 
 export function collectComposerDraftSegments(root: HTMLElement): ComposerDraftSegment[] {

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { pluginIconUrl } from '../plugins/PluginCatalogItem'
+import { normalizeSkillName, skillIconUrl } from '../../utils/skillIcon'
 import type { SlashSkillInfo } from './CommandSearchPopover'
 
 export function useSlashSkills(): SlashSkillInfo[] {
@@ -10,14 +10,11 @@ export function useSlashSkills(): SlashSkillInfo[] {
   return useMemo(
     () =>
       skills
-        .map((skill) => {
-          const plugin = skill.pluginId ? plugins.find((entry) => entry.id === skill.pluginId) : undefined
-          return {
-            name: skill.name.replace(/^\/+/, ''),
-            description: skill.description,
-            iconUrl: skill.iconSmallDataUrl || skill.iconLargeDataUrl || (plugin && pluginIconUrl(plugin)) || null
-          }
-        })
+        .map((skill) => ({
+          name: normalizeSkillName(skill.name),
+          description: skill.description,
+          iconUrl: skillIconUrl(skill, plugins)
+        }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [plugins, skills]
   )

@@ -1,7 +1,7 @@
-import { Box } from 'lucide-react'
 import type { JSX, ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { openSkill, openSkillFile } from '../../utils/openSkill'
+import { SkillRefIcon } from './SkillRefIcon'
 
 const SKILL_NAME_TOKEN = '__DOTCRAFT_SKILL_NAME__'
 
@@ -41,7 +41,7 @@ export function SkillRef({ name, file }: { name: string; file?: string }): JSX.E
         else openSkill(name)
       }}
     >
-      <Box size={12} strokeWidth={2.25} aria-hidden />
+      <SkillRefIcon name={name} />
       <span>{name}</span>
     </button>
   )
