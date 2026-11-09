@@ -77,13 +77,6 @@
   flex-shrink: 0;
 }
 
-.dc-tool-row-image {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  object-fit: contain;
-}
-
 .dc-tool-row-icon[data-tone="warning"] {
   color: var(--warning);
 }

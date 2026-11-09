@@ -17,6 +17,7 @@ import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   formatWorkflowFailureLabel,
+  getToolRowIcon,
   isToolExecutionFailure
 } from '../../utils/toolCallDisplay'
 import { resolveDesktopToolOperation } from '../../utils/desktopToolDisplay'
@@ -37,7 +38,6 @@ import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
 import { AgentBuilderEditCard } from './AgentBuilderEditCard'
 import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../agents/agentBuilderDraftSync'
 import { renderSkillToolLabel } from './SkillToolLabel'
-import { useToolRowIcon } from './useToolRowIcon'
 import { McpAppView } from './McpAppView'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { ToolDisclosure } from './ToolDisclosure'
@@ -275,7 +275,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const liveShellRuntime = conversationShellRuntime
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
-  const toolRowIcon = useToolRowIcon(item)
+  const toolRowIcon = getToolRowIcon(item)
   const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 

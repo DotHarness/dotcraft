@@ -27,7 +27,7 @@ import { getToolOutputImages, ToolOutputImageGallery, useGeneratedOutputImage, t
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
-import { isToolExecutionFailure, type ToolRowIcon } from '../../utils/toolCallDisplay'
+import { getToolRowIcon, isToolExecutionFailure, type ToolRowIcon } from '../../utils/toolCallDisplay'
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -36,7 +36,6 @@ import { findSideChat } from '../../utils/sideChat'
 import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
-import { useToolRowIcon } from './useToolRowIcon'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs, useTranscriptTurnHasFileChanges } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
@@ -599,7 +598,7 @@ function ToolActivityRow({
   const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
   const working = liveTool != null
   const iconItem = liveTool ?? getToolGroupIconItem(tools)
-  const rowIcon = useToolRowIcon(iconItem)
+  const rowIcon = iconItem ? getToolRowIcon(iconItem) : undefined
   const { label, icon } = useHeldRowHeader({
     label: liveTool ? formatActiveToolLabel(liveTool, locale)
       : formatToolGroupLabel(tools, locale, itemDiffs),
@@ -628,7 +627,7 @@ interface RowHeader {
 }
 
 function sameRowHeader(a: RowHeader, b: RowHeader): boolean {
-  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone && a.icon?.imageUrl === b.icon?.imageUrl
+  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone
 }
 
 function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
@@ -650,7 +649,7 @@ function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
     }
     const timer = setTimeout(show, wait)
     return () => clearTimeout(timer)
-  }, [header.label, header.icon?.icon, header.icon?.tone, header.icon?.imageUrl, held, hold])
+  }, [header.label, header.icon?.icon, header.icon?.tone, held, hold])
 
   return hold ? held : header
 }
