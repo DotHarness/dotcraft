@@ -1,5 +1,11 @@
 {
   "fields": [
-    { "key": "visible", "type": "bool", "defaultValue": true }
+    {
+      "key": "visible",
+      "type": "bool",
+      "title": "Show in composer",
+      "description": "Show token usage and speed next to the composer.",
+      "defaultValue": true
+    }
   ]
 }

@@ -7,12 +7,15 @@ using DotCraft.Workspaces;
 
 namespace DotCraft.Plugins;
 
-/// <summary>One validated field in a plugin settings schema.</summary>
 public sealed record PluginSettingsField
 {
     public required string Key { get; init; }
 
     public required string Type { get; init; }
+
+    public string? Title { get; init; }
+
+    public string? Description { get; init; }
 
     public JsonElement? DefaultValue { get; init; }
 
@@ -23,7 +26,6 @@ public sealed record PluginSettingsField
     public double? Max { get; init; }
 }
 
-/// <summary>A validated plugin settings schema.</summary>
 public sealed record PluginSettingsSchema
 {
     public required string Path { get; init; }
@@ -31,10 +33,8 @@ public sealed record PluginSettingsSchema
     public IReadOnlyList<PluginSettingsField> Fields { get; init; } = [];
 }
 
-/// <summary>A settings mutation applied to one persistence scope.</summary>
 public sealed record PluginConfigMutation(string Op, string Key, JsonElement? Value = null);
 
-/// <summary>A fresh layered plugin configuration snapshot.</summary>
 public sealed record PluginConfigSnapshot(
     PluginSettingsSchema Schema,
     JsonElement Personal,
@@ -42,7 +42,6 @@ public sealed record PluginConfigSnapshot(
     JsonElement Value,
     IReadOnlyList<string> WritableScopes);
 
-/// <summary>A stable plugin configuration failure.</summary>
 public sealed class PluginConfigException : Exception
 {
     public PluginConfigException(string code, string message, Exception? innerException = null)

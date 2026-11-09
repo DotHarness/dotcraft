@@ -5,6 +5,9 @@
   "type": "object",
   "properties": {
     "defaultValue": {},
+    "description": {
+      "type": "string"
+    },
     "key": {
       "type": "string"
     },
@@ -19,6 +22,9 @@
       "items": {
         "type": "string"
       }
+    },
+    "title": {
+      "type": "string"
     },
     "type": {
       "type": "string"

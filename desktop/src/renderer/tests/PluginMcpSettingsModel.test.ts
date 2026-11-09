@@ -5,7 +5,7 @@ import {
   parseSettingsInput,
   readSettingsTools,
   settingsGroups
-} from '../components/plugins/mcpSettings/mcpSettingsModel'
+} from '../components/plugins/settings/mcpSettingsModel'
 
 const declaration = { readTool: 'settings_read', updateTool: 'settings_update' }
 

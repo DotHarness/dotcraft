@@ -12,10 +12,6 @@ interface SettingsGroupProps {
   description?: ReactNode
   headerAction?: ReactNode
   children: ReactNode
-  /**
-   * When true, the group renders a simple bordered container without row dividers.
-   * Useful for groups whose body is a custom layout (e.g. grid of channel icons).
-   */
   flush?: boolean
   /** Off when the body paints its own box, such as an empty state, so frames do not nest. */
   framed?: boolean
@@ -59,6 +55,7 @@ interface SettingsRowProps {
   control?: ReactNode
   controlMinWidth?: number | string
   orientation?: 'inline' | 'block'
+  labelAction?: ReactNode
   children?: ReactNode
   align?: 'center' | 'flex-start'
   style?: CSSProperties
@@ -76,6 +73,7 @@ export function SettingsRow({
   control,
   controlMinWidth,
   orientation = 'inline',
+  labelAction,
   children,
   align = 'center',
   style,
@@ -97,13 +95,16 @@ export function SettingsRow({
         style={{ ...rowStyle(), flexDirection: 'column', alignItems: 'stretch', gap: '10px', ...style }}
       >
         {(label || description) && (
-          <div>
-            {label && (
-              <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
-                {label}
-              </label>
-            )}
-            {description && <div style={settingsHintStyle()}>{description}</div>}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {label && (
+                <label data-settings-label htmlFor={htmlFor} style={settingsLabelStyle()}>
+                  {label}
+                </label>
+              )}
+              {description && <div style={settingsHintStyle()}>{description}</div>}
+            </div>
+            {labelAction}
           </div>
         )}
         {control}

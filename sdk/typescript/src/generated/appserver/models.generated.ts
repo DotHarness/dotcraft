@@ -2718,10 +2718,12 @@ export interface PluginAppNativeApplication {
 
 export interface PluginConfigField {
   defaultValue?: JsonValue;
+  description?: string;
   key: string;
   max?: number;
   min?: number;
   options?: string[];
+  title?: string;
   type: string;
   [key: string]: unknown;
 }

@@ -120,6 +120,8 @@ public static partial class PluginManifestParser
             {
                 Key = key,
                 Type = type,
+                Title = string.IsNullOrWhiteSpace(rawField.Title) ? null : rawField.Title.Trim(),
+                Description = string.IsNullOrWhiteSpace(rawField.Description) ? null : rawField.Description.Trim(),
                 DefaultValue = rawField.DefaultValue.ValueKind == JsonValueKind.Undefined
                     ? null
                     : rawField.DefaultValue.Clone(),
@@ -161,6 +163,10 @@ public static partial class PluginManifestParser
         public string? Key { get; set; }
 
         public string? Type { get; set; }
+
+        public string? Title { get; set; }
+
+        public string? Description { get; set; }
 
         public JsonElement DefaultValue { get; set; }
 

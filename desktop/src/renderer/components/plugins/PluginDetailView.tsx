@@ -15,7 +15,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
-import { PluginMcpSettingsSection } from './mcpSettings/PluginMcpSettingsSection'
+import { PluginSettingsSection } from './settings/PluginSettingsSection'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginContentIcon } from './PluginContentIcon'
 import { PluginOriginBadge, pluginOriginTitleClassName } from './PluginOriginBadge'
@@ -162,7 +162,7 @@ export function PluginDetailView({
               </Button>
             </div>
           )}
-          <PluginMcpSettingsSection plugin={plugin} />
+          <PluginSettingsSection plugin={plugin} />
           <section style={detailSection}>
             <h2 style={detailSectionTitle}>{t('plugins.detail.info')}</h2>
             <div style={infoTable}>

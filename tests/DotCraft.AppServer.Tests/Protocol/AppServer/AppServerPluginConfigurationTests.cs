@@ -27,6 +27,8 @@ public sealed partial class AppServerPluginManagementTests
             Assert.Equal(2, result.GetProperty("writableScopes").GetArrayLength());
             var field = Assert.Single(result.GetProperty("schema").GetProperty("fields").EnumerateArray());
             Assert.Equal("select", field.GetProperty("type").GetString());
+            Assert.Equal("Density", field.GetProperty("title").GetString());
+            Assert.Equal("Spacing between rows.", field.GetProperty("description").GetString());
         }
 
         await harness.ExecuteRequestAsync(MutateDensity(harness, "unknown"));
@@ -120,6 +122,8 @@ public sealed partial class AppServerPluginManagementTests
                 {
                   "key": "density",
                   "type": "select",
+                  "title": "Density",
+                  "description": "Spacing between rows.",
                   "defaultValue": "comfortable",
                   "options": ["compact", "comfortable"]
                 }
