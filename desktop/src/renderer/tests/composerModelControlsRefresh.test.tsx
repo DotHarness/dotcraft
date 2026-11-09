@@ -115,6 +115,40 @@ describe('useComposerModelControls catalog loading', () => {
     expect(listModels.mock.calls.length).toBe(afterFirstSnapshot)
   })
 
+  it.each(changes)('applies $name changes without a success toast', async ({ apply }) => {
+    listModels.mockImplementation(async (providerId) => ({
+      success: true, providerId, models: [{ id: 'next-model' }]
+    }))
+    render(<LocaleProvider><Probe /></LocaleProvider>)
+    await waitFor(() => expect(controls?.providerId).toBe('openai'))
+
+    await act(async () => apply(controls!))
+
+    expect(sendRequest.mock.calls.some(([method]) => method === 'thread/config/update')).toBe(true)
+    expect(controls?.modelDisabled).toBe(false)
+    expect(useToastStore.getState().toasts).toEqual([])
+  })
+
+  it.each(changes)('reports a failed $name change', async ({ apply }) => {
+    listModels.mockImplementation(async (providerId) => ({
+      success: true, providerId, models: [{ id: 'next-model' }]
+    }))
+    const original = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation((method: string, ...args: unknown[]) => {
+      if (method === 'thread/config/update') throw new Error('update rejected')
+      return original(method, ...args)
+    })
+    render(<LocaleProvider><Probe /></LocaleProvider>)
+    await waitFor(() => expect(controls?.providerId).toBe('openai'))
+
+    await act(async () => apply(controls!))
+
+    expect(useThreadStore.getState().activeThread?.configuration).toEqual({
+      providerId: 'openai', model: 'gpt-5.4'
+    })
+    expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ type: 'error' })])
+  })
+
   it.each(changes)(
     'discards $name changes after a workspace reset while thread/read is pending', async ({ apply }) => {
       listModels.mockImplementation(async (providerId) => ({ success: true, providerId, models: [{ id: 'next-model' }] }))

@@ -640,6 +640,7 @@ The slash surface lists Desktop-owned system actions, extension actions, and Ski
 
 **Compaction status and context usage**
 
+- Manual compaction uses the conversation's compact status and context usage surfaces, without start, success, skipped, or still-running toasts. Request failures still show an error toast.
 - If manual compaction times out while maintenance still reports compacting, Desktop keeps the busy state and stop control and waits for the terminal `system/event`. Skipped or failed outcomes, and terminal `compactFailed`/`compactCancelled` events, show their message in the compact status surface.
 - Selecting the context ring shows the Summary with its Context section open. The section's row follows the same `contextUsage` as the ring. Opened, it reads `thread/contextUsage/read` and reads it again whenever `contextUsage` changes while no turn runs; during a turn, tokens beyond the measured categories show as added since the last update. Its Compact button runs the same manual compaction as `/compact`.
 - The context ring updates from RPC responses that include `contextUsage`, from terminal compaction `system/event.contextUsage`, and from a compacted `SystemNotice`'s after-values, but never from compaction start events, whose counts are estimates.
@@ -829,6 +830,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - One combined picker exposes provider, model, reasoning, and speed with consistent keyboard and menu behavior in Composer, Settings, and Setup. Settings and Setup omit provider choice because the surrounding workflow owns it.
 - Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected mode/model/reasoning/speed/context snapshot (and any explicit approval override) in `thread/start` or `worktree/createAndStart`.
 - Existing threads expose no Default. A provider or preference change sends one full `thread/config/update`, never a workspace configuration write, and updates local state only on success. A provider with no remembered model gets its first listed model; if listing is unavailable, the thread is unchanged and the user is directed to provider settings.
+- Successful provider, model, reasoning, and speed changes are reflected in the picker without success toasts. Failed changes retain error feedback.
 - Missing or deleted providers remain visible as missing thread state until the user migrates the thread.
 
 ### 6.6 Archived Chats

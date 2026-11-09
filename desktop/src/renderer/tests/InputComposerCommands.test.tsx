@@ -461,14 +461,9 @@ describe('InputComposer commands and references', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Compact/i }))
 
     await waitFor(() => {
-      expect(useToastStore.getState().toasts.some(
-        (toast) => toast.message === 'Context compaction is still running'
-      )).toBe(true)
+      expect(useConversationStore.getState().maintenanceKind).toBe('compacting')
     })
-    expect(useToastStore.getState().toasts.some(
-      (toast) => toast.message.startsWith('Failed to compact context')
-    )).toBe(false)
-    expect(useConversationStore.getState().maintenanceKind).toBe('compacting')
+    expect(useToastStore.getState().toasts).toEqual([])
   })
 
   it('handles /goal set locally without starting a turn', async () => {

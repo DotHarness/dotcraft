@@ -248,7 +248,6 @@ export function useComposerModelControls({
         }
         setModelName(nextModel)
         setReasoningConfig(resolveReasoningFromConfiguration(existingConfig))
-        addToast(`Model switched to ${nextModel}`, 'success')
       } catch (err) {
         if (!isCurrent()) return
         const msg = err instanceof Error ? err.message : String(err)
@@ -312,7 +311,6 @@ export function useComposerModelControls({
       setModelName(nextModel)
       setReasoningConfig(resolveReasoningFromConfiguration(existingConfig))
       setSpeedValue(readThreadSpeed(existingConfig))
-      addToast(`Provider switched to ${nextProviderId}`, 'success')
     } catch (err) {
       if (!isCurrent()) return
       await loadModels(false, providerId)
@@ -370,12 +368,6 @@ export function useComposerModelControls({
             configuration: mergedCfg as typeof active.configuration
           })
         }
-        addToast(
-          nextReasoning === 'default'
-            ? 'Using default thinking setting'
-            : `Thinking set to ${reasoningQuickToastLabel(nextReasoning)}`,
-          'success'
-        )
       } catch (err) {
         if (!isCurrent()) return
         const msg = err instanceof Error ? err.message : String(err)
@@ -428,7 +420,6 @@ export function useComposerModelControls({
             configuration: { ...(active.configuration ?? {}), speed: nextSpeed }
           })
         }
-        addToast(nextSpeed === 'fast' ? 'Fast speed enabled' : 'Standard speed enabled', 'success')
       } catch (err) {
         if (!isCurrent()) return
         setSpeedValue(previousSpeed)
@@ -500,17 +491,6 @@ export function useComposerModelControls({
     },
     threadStartConfig
   }
-}
-
-function reasoningQuickToastLabel(value: ReasoningQuickValue): string {
-  if (value === 'off') return 'Off'
-  if (value === 'low') return 'Low'
-  if (value === 'medium') return 'Medium'
-  if (value === 'high') return 'High'
-  if (value === 'extraHigh') return 'Extra High'
-  if (value === 'max') return 'Max'
-  if (value === 'ultra') return 'Ultra'
-  return 'Default'
 }
 
 function readWorkspacePreference(

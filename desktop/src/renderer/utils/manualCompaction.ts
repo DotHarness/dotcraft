@@ -21,7 +21,6 @@ function isRequestTimeoutError(err: unknown): boolean {
 export async function compactThreadContext(threadId: string, t: TranslateFn): Promise<boolean> {
   if (compacting) return false
   compacting = true
-  addToast(t('composer.compact.started'), 'info')
   try {
     const result = (await window.api.appServer.sendRequest(
       'thread/compact/start',
@@ -38,16 +37,12 @@ export async function compactThreadContext(threadId: string, t: TranslateFn): Pr
     const outcome = String(result.outcome ?? '').toLowerCase()
     if (outcome === 'micro' || outcome === 'partial') {
       await refreshThreadAfterManualCompact(threadId)
-      addToast(t('composer.compact.succeeded'), 'success')
-    } else if (outcome === 'skipped') {
-      addToast(t('composer.compact.skipped'), 'info')
-    } else {
+    } else if (outcome !== 'skipped') {
       addToast(t('composer.compact.failed', { error: result.message || outcome || 'unknown' }), 'error')
     }
     return true
   } catch (err) {
     if (isRequestTimeoutError(err) && useConversationStore.getState().maintenanceKind === 'compacting') {
-      addToast(t('composer.compact.stillRunning'), 'info')
       return true
     }
     addToast(t('composer.compact.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
