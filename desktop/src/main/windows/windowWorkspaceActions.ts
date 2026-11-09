@@ -37,7 +37,8 @@ export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPa
   }
   ctx.clearPendingDeviceOpenRetry()
   if (ctx.activeRemoteProject || ctx.settings.activeRemoteDevice) {
-    const previous = ctx.wireClient ? ctx.findWorkspaceConnectionByClient(ctx.wireClient) : undefined
+    const previous = ctx.wireClient ? ctx.findWorkspaceConnectionByClient(ctx.wireClient)
+      : ctx.activeRemoteProject ? ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId) : undefined
     if (previous) ctx.demoteWorkspaceConnection(previous)
     ctx.setActiveRemoteProject(null)
     await ctx.updateSettings({

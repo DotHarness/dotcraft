@@ -13,7 +13,10 @@ vi.mock('../voice/voiceIpc', () => ({ refreshVoiceChatGptAvailability: vi.fn() }
 vi.mock('../workspaceSetup', () => ({ getWorkspaceStatus: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: {} }))
 vi.mock('../threadPanelStateIpc', () => ({ forgetThreadPanelState: vi.fn() }))
+vi.mock('../viewerBrowser', () => ({ viewerBrowserManager: {} }))
+vi.mock('../windowFileAccess', () => ({ invalidateForegroundFileAccess: vi.fn() }))
 import { promoteWorkspaceConnection } from '../windows/windowSecondaryConnections'
+import { switchForegroundWorkspace } from '../windows/windowWorkspaceActions'
 import { demoteWorkspaceConnection, disposeWorkspaceConnection } from '../windows/windowProjects'
 import { clearRemoteProjectReconnect, handleRemoteProjectEndpointChanged, reconnectRemoteProject, scheduleRemoteProjectReconnect } from '../windows/windowRemoteConnections'
 
@@ -87,16 +90,41 @@ describe('remote project connection lifetime', () => {
     expect(ctx.emitConnectionStatus).not.toHaveBeenCalled()
   })
 
-  it.each(['ssh', 'servers'] as const)('recovers a background %s project using its own source', async source => {
-    const { ctx, entry, manager, project } = fixture(source)
-    await reconnectRemoteProject(ctx, entry)
+  it.each(['ssh', 'servers'] as const)('keeps %s recovery secondary after switching to a local workspace', async source => {
+    const { ctx, entry, previous, client, manager, project } = fixture(source)
+    const tunnel = { machine: { id: 'machine' }, project: { id: 'project' }, localPort: 4321, wsUrl: `ws://${source}/ws` }
+    let finishTunnel!: () => void
+    const pendingTunnel = new Promise<typeof tunnel>(resolve => { finishTunnel = () => resolve(tunnel) })
+    manager.openProject.mockReturnValue(pendingTunnel)
+    manager.docker.openAppServerTunnel.mockReturnValue(pendingTunnel)
+    entry.role = 'foreground'
+    Object.assign(previous, { kind: 'local', workspacePath: '/b', role: 'secondary', connected: true,
+      initializeResult: { serverInfo: { name: 'fixture', version: '1' }, capabilities: {} } })
+    ctx.wireClient = client as unknown as WorkspaceConnectionEntry['client']
+    ctx.activeRemoteProject = project
+    ctx.currentWorkspacePath = '/local'
+    Object.assign(ctx.mainWindow!, { webContents: { id: 1 } })
+    ctx.updateSettings = async changes => { Object.assign(ctx.settings, changes) }
+    ctx.setActiveRemoteProject = value => { ctx.activeRemoteProject = value; ctx.activeRemoteWorkspace = value?.status ?? null }
+    ctx.clearPendingDeviceOpenRetry = vi.fn()
+    ctx.recordForegroundWorkspace = vi.fn()
+    ctx.startHubEventSubscription = vi.fn()
+    ctx.app = { createHubClient: () => ({}) } as unknown as DesktopWindowRuntime['app']
+    ctx.connectToAppServer = () => promoteWorkspaceConnection(ctx, previous)
+
+    const recovery = reconnectRemoteProject(ctx, entry)
+    await switchForegroundWorkspace(ctx, '/b')
+    finishTunnel()
+    await recovery
+
+    expect(entry.role).toBe('secondary')
     expect(ctx.currentWorkspacePath).toBe('/b')
-    expect(ctx.setActiveRemoteProject).not.toHaveBeenCalled()
-    expect(ctx.connectViaWebSocket).toHaveBeenCalledWith('/local', source === 'ssh' ? 'ws://ssh/ws' : 'ws://docker/ws', expect.objectContaining({
+    expect(ctx.activeRemoteProject).toBeNull()
+    expect(ctx.wireClient).toBe(previous.client)
+    expect(ctx.reregisterIpcForWorkspace).toHaveBeenCalledExactlyOnceWith('/b')
+    expect(ctx.connectViaWebSocket).toHaveBeenCalledWith('/local', tunnel.wsUrl, expect.objectContaining({
       projectId: project.projectId, role: 'secondary', existingEntry: entry
     }))
-    if (source === 'ssh') expect(manager.openProject).toHaveBeenCalledExactlyOnceWith('machine', 'project')
-    else expect(manager.docker.openAppServerTunnel).toHaveBeenCalledWith(expect.objectContaining({ id: 'machine' }), expect.objectContaining({ id: 'stack' }))
   })
 
   it('cancels a scheduled recovery and closes only the disposed source forward', async () => {
