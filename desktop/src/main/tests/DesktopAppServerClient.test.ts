@@ -88,7 +88,7 @@ describe('DesktopAppServerClient', () => {
     const subscribe = await readRequest()
     expect(subscribe).toMatchObject({ method: 'thread/resume', params: { threadId: 'thread' } })
     const detach = client.sendRequest('thread/unsubscribe', { threadId: 'thread' })
-    push({ jsonrpc: '2.0', id: subscribe.id, result: { currentState: { turnId: 'turn', turnStatus: 'inProgress' } } })
+    push({ jsonrpc: '2.0', id: subscribe.id, result: { currentState: { turnId: 'turn', turnStatus: 'running' } } })
     await expect(retain).resolves.toBe(true)
     await expect(detach).resolves.toEqual({})
     const release = client.releaseBrowserTurn('thread', 'turn')

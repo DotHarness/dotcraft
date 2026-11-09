@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { BrowserTurnSubscriptions } from '../browserTurnSubscriptions'
 
 function fixture() {
-  let snapshot: unknown = { currentState: { turnId: 'one', turnStatus: 'inProgress' } }
+  let snapshot: unknown = { currentState: { turnId: 'one', turnStatus: 'running' } }
   const raw = vi.fn(async (_method: string, _params: unknown) => snapshot)
   const ended = vi.fn()
   const subscriptions = new BrowserTurnSubscriptions(async (method, params, onResponse) => {
@@ -51,6 +51,22 @@ describe('Desktop thread attachments', () => {
     expect(f.subscriptions.retained).toBe(true)
     await f.subscriptions.release('thread', 'one')
     expect(f.raw).toHaveBeenLastCalledWith('thread/unsubscribe', { threadId: 'thread' })
+  })
+
+  it.each(['running', 'waitingApproval', 'waitingInput'])('retains a %s turn after its view detaches', async turnStatus => {
+    const f = fixture()
+    await f.resume()
+    await f.subscriptions.releaseViews()
+    f.raw.mockClear()
+    f.snapshot({ currentState: { turnId: 'one', turnStatus } })
+
+    await expect(f.subscriptions.retain('thread', 'one')).resolves.toBe(true)
+    await f.resume()
+    await f.subscriptions.releaseViews()
+
+    expect(f.ended).not.toHaveBeenCalled()
+    expect(f.subscriptions.retained).toBe(true)
+    expect(f.raw).toHaveBeenCalledExactlyOnceWith('thread/resume', { threadId: 'thread' })
   })
 
   it('cleans an already terminal or no longer retained native turn immediately', async () => {

@@ -17,7 +17,7 @@ import { enforceSecondaryWorkspaceBudget, refreshSecondaryWorkspaceConnections }
 
 function fixture(count: number) {
   const leases = Array.from({ length: count }, () => new BrowserTurnSubscriptions(async (_method, _params, onResponse) => {
-    const result = { currentState: { turnId: 'turn', turnStatus: 'inProgress' } }
+    const result = { currentState: { turnId: 'turn', turnStatus: 'running' } }
     onResponse?.(result)
     return result
   }))
