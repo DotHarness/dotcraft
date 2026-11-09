@@ -1460,24 +1460,6 @@ public sealed partial class SessionService(
     private static string ResolveApprovalSource(string? channelName) =>
         channelName?.ToLowerInvariant() ?? "console";
 
-    private void FailTurn(
-        SessionThread thread,
-        SessionTurn turn,
-        SessionEventChannel channel,
-        string errorMsg,
-        ProviderFailure? providerFailure = null)
-    {
-        turn.Status = TurnStatus.Failed;
-        turn.Error = errorMsg;
-        turn.ProviderError = providerFailure is null
-            ? null
-            : ProviderFailureKinds.ToWireName(providerFailure.Kind);
-        turn.HttpStatus = providerFailure?.HttpStatus;
-        turn.CompletedAt = DateTimeOffset.UtcNow;
-        RecordFailedTurnReadState(thread, turn);
-        channel.EmitTurnFailed(turn, errorMsg);
-    }
-
     private static bool IsConfiguredNetworkTimeoutCancellation(OperationCanceledException ex)
     {
         var text = ex.ToString();

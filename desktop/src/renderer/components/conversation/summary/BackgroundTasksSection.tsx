@@ -7,7 +7,7 @@ import { formatDurationShort } from '../../../utils/formatDurationShort'
 import type { SummaryTerminal, SummaryWorkflow } from './feed'
 import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
-import { stopSummaryTerminals } from './store'
+import { stopSummaryTerminals, stopSummaryWorkflow } from './store'
 
 const STOP_GLYPH = { size: 14, strokeWidth: 1.75 } as const
 
@@ -89,7 +89,7 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
   )
   const stopWorkflow = (runId: string): void => void settle(
     runId,
-    () => services.appServer.request('workflow/run/stop', { threadId, runId }),
+    () => stopSummaryWorkflow(services, threadId, runId),
     t('summary.stopWorkflowFailed')
   )
   const reveal = (callId: string | null | undefined): (() => void) | undefined =>

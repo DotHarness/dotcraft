@@ -1,7 +1,8 @@
-import type { CSSProperties, JSX } from 'react'
+import { useEffect, type CSSProperties, type JSX } from 'react'
 import { Image as ImageIcon, Pencil, Plus } from 'lucide-react'
 import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
+import { useProvidersStore } from '../../../stores/providersStore'
 import {
   findProviderPreference,
   type ModelPreference,
@@ -17,6 +18,7 @@ import { SettingsGroup } from '../SettingsGroup'
 import { settingsPlaceholderStyle } from '../settingsTypography'
 import { providerDetails, providerProblem } from './providerDraft'
 import { ProviderIdentityIcon } from './ProviderIdentityIcon'
+import { ProviderUsageMeter } from './ProviderUsageMeter'
 
 interface ProviderListGroupProps {
   providers: ProviderInfoWire[]
@@ -66,6 +68,10 @@ export function ProviderListGroup({
   onAdd
 }: ProviderListGroupProps): JSX.Element {
   const t = useT()
+  const refreshUsage = useProvidersStore((state) => state.refreshUsage)
+  useEffect(() => {
+    for (const provider of providers) void refreshUsage(provider.id)
+  }, [providers, refreshUsage])
   const countLabel = providers.length === 1
     ? t('settings.llm.providersCount.one', { count: providers.length })
     : t('settings.llm.providersCount.other', { count: providers.length })
@@ -176,6 +182,7 @@ export function ProviderListGroup({
                   </div>
                 )}
               </div>
+              <ProviderUsageMeter provider={provider} />
               <span
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => event.stopPropagation()}

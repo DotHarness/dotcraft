@@ -4,6 +4,7 @@ import { BackgroundTasksSection } from '../components/conversation/summary/Backg
 import { disposeSummaryFeeds, useRunningTaskCount, useSummaryState } from '../components/conversation/summary/store'
 import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { workflowRunsFor, selectWorkflowRunEntry } from '../stores/workflowRunCache'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -53,6 +54,35 @@ const stopButtons = () => screen.queryAllByRole('button', { name: 'Stop all back
 afterEach(() => { cleanup(); disposeSummaryFeeds() })
 
 describe('Background task stop controls', () => {
+  it('settles a Workflow from its stop response and ignores an older read without an invalidation', async () => {
+    const host = createHost([])
+    const workflow = {
+      runId: 'run-1', threadId: 'thread-1', name: 'Review', status: 'running',
+      createdAt: '2026-11-09T00:00:00Z'
+    }
+    const oldRead = deferred<{ run: typeof workflow }>()
+    host.request.mockImplementation(async (method) => {
+      if (method === 'workflow/run/list') return { runs: [workflow] }
+      if (method === 'workflow/run/read') return oldRead.promise
+      if (method === 'workflow/run/stop') return { run: { ...workflow, status: 'stopped' } }
+      return {}
+    })
+    show(host.services)
+    const button = await screen.findByRole('button', { name: 'Stop workflow' })
+    const cache = workflowRunsFor(host.services.appServer)
+    let loading!: Promise<void>
+    act(() => { loading = cache.getState().load('thread-1', 'run-1') })
+    fireEvent.click(button)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop workflow' })).toBeNull())
+    await act(async () => {
+      oldRead.resolve({ run: workflow })
+      await loading
+    })
+
+    expect(selectWorkflowRunEntry(cache.getState().entries, 'thread-1', 'run-1')?.run?.status).toBe('stopped')
+    expect(screen.getByRole('status', { name: 'Running tasks' }).textContent).toBe('0')
+  })
+
   it('clears an already completed terminal and its count from the stop response alone', async () => {
     const host = createHost(['done'])
     show(host.services)

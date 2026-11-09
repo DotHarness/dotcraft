@@ -16,11 +16,12 @@ interface WorkflowToolCardProps {
 
 export function WorkflowToolCard({ threadId, runId, createdAt, callId }: WorkflowToolCardProps): JSX.Element {
   const t = useT()
+  const scope = useWorkflowRunStore((state) => state.scope)
   const entries = useWorkflowRunStore((state) => state.entries)
   const load = useWorkflowRunStore((state) => state.load)
   const entry = selectWorkflowRunEntry(entries, threadId, runId)
   const run = entry?.run
-  useEffect(() => { void load(threadId, runId) }, [load, runId, threadId])
+  useEffect(() => { void load(threadId, runId) }, [load, runId, threadId, scope])
 
   const elapsed = useWorkflowElapsed(run?.startedAt ?? createdAt, run?.completedAt)
   const visiblePhases = run?.phases ?? []

@@ -303,6 +303,7 @@ export function formatCollapsedToolLabel(
 export interface ToolRowIcon {
   icon: LucideIcon
   tone?: 'warning'
+  imageUrl?: string
 }
 
 export function getToolRowIcon(

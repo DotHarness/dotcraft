@@ -760,7 +760,7 @@ public sealed partial class SessionService
 
                 FlushTurnDiff(turnRuntime, eventChannel);
                 await RestoreUndrainedGuidanceAsync(
-                    () => FailTurn(thread, turn, eventChannel, errorMsg, classifiedProviderFailure));
+                    () => SetFailedTurn(thread, turn, errorMsg, classifiedProviderFailure));
                 await AccountGoalUsageAsync(
                     turnKey,
                     new TokenUsageInfo
@@ -777,10 +777,19 @@ public sealed partial class SessionService
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
                 if (session is not null && turnModelHistory is null)
                     TryAppendFailedTurnTailToSession(session, turn);
-                await PersistCurrentTurnCommitAsync();
+                try
+                {
+                    await PersistCurrentTurnCommitAsync();
+                }
+                catch (RolloutPersistenceException ex)
+                {
+                    PublishTurnPersistenceFailure(thread, turn, turnRuntime, eventChannel, NextItemSeq(), ex);
+                    return;
+                }
+                eventChannel.EmitTurnFailed(turn, errorMsg);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }
 
             try
@@ -1927,18 +1936,7 @@ public sealed partial class SessionService
                 await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCompleted(turn);
 
-                ThreadRuntimeSignalForBroadcast?.Invoke(
-                    threadId,
-                    ThreadSummaryRuntime.ContainsSuccessfulCreatePlanInPlanMode(thread, turn)
-                        ? SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
-                        : SessionThreadRuntimeSignal.TurnCompleted,
-                    turn);
-
-                await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
-                retiredResourcesReleased = true;
-                await WakeForAgentMessagesAsync(threadId, CancellationToken.None);
-                await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
-                await MaybeContinueGoalIfIdleAsync(threadId, CancellationToken.None);
+                retiredResourcesReleased = await RunCompletedTurnFollowupAsync(thread, turn).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
@@ -2026,21 +2024,9 @@ public sealed partial class SessionService
             }
             catch (RolloutPersistenceException ex)
             {
-                logger?.LogError(ex, "Turn persistence failed for thread {ThreadId}", threadId);
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
-                var errorItem = CreateErrorItem(
-                    turn,
-                    NextItemSeq(),
-                    ex.Message,
-                    "persistence_error",
-                    fatal: true);
-                turn.Items.Add(errorItem);
-                eventChannel.EmitItemStarted(errorItem);
-                eventChannel.EmitItemCompleted(errorItem);
-                FlushTurnDiff(turnRuntime, eventChannel);
-                FailTurn(thread, turn, eventChannel, ex.Message);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
+                PublishTurnPersistenceFailure(thread, turn, turnRuntime, eventChannel, NextItemSeq(), ex);
             }
             catch (Exception ex)
             {

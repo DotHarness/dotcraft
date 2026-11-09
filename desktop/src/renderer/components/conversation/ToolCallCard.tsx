@@ -17,7 +17,6 @@ import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   formatWorkflowFailureLabel,
-  getToolRowIcon,
   isToolExecutionFailure
 } from '../../utils/toolCallDisplay'
 import { resolveDesktopToolOperation } from '../../utils/desktopToolDisplay'
@@ -38,6 +37,7 @@ import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
 import { AgentBuilderEditCard } from './AgentBuilderEditCard'
 import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../agents/agentBuilderDraftSync'
 import { renderSkillToolLabel } from './SkillToolLabel'
+import { useToolRowIcon } from './useToolRowIcon'
 import { McpAppView } from './McpAppView'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { ToolDisclosure } from './ToolDisclosure'
@@ -275,6 +275,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const liveShellRuntime = conversationShellRuntime
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
+  const toolRowIcon = useToolRowIcon(item)
   const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
@@ -434,7 +435,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <DesktopToolRow item={item} operation={desktopOperation} running={isRunning} success={success} locale={locale} />
   }
 
-  const rowIcon = rendererFamily === 'subagent' ? undefined : getToolRowIcon(item)
+  const rowIcon = rendererFamily === 'subagent' ? undefined : toolRowIcon
 
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning

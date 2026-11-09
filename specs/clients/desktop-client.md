@@ -920,6 +920,8 @@ The provider editor chooses a provider preset, the same list workspace setup off
 
 Composers show a usage control for the active provider when `provider/auth/usage` reports usage, summarizing the most constrained remaining-headroom window, with details listing available windows, remaining usage, reset time, and optional credits and limit warnings. When usage reports `balances` instead of windows, the control shows the provider's mark and the first balance amount, warns when the balance is insufficient, and its details list total, granted and topped-up amounts per currency. Desktop requests usage again when a turn of the active provider completes.
 
+The Providers tab requests usage for every listed provider. A row whose provider reports usage ends with a compact reading (remaining share per window, the first balance, or the API key's allowance or spend) that opens the composer's usage details; rows without usage show nothing.
+
 ### 6.8 Channel Modules
 
 This section defines the user-visible workflow for TypeScript channel modules configured from Desktop. The workspace AppServer owns their runtime lifecycle; module and descriptor contracts are defined by [plugin-architecture.md](../architecture/plugin-architecture.md).

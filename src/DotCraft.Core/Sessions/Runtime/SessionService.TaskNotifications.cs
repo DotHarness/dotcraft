@@ -30,12 +30,20 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
             commandCt => EnqueueTaskNotificationAsync(ending, commandCt),
             ct).ConfigureAwait(false);
         if (wake)
-            await TryStartNextQueuedTurnAsync(ending.OwnerThreadId, CancellationToken.None).ConfigureAwait(false);
+            await InvokeThreadCommandAsync(
+                ending.OwnerThreadId,
+                commandCt => ThreadQueue.TryStartNextAsync(ending.OwnerThreadId, commandCt,
+                    propagateFailure: ending.Kind == BackgroundTaskKinds.Workflow),
+                ct).ConfigureAwait(false);
         return queuedId;
     }
 
     private async Task<(string QueuedId, bool Wake)> EnqueueTaskNotificationAsync(BackgroundTaskEnding ending, CancellationToken ct)
     {
+        if (ending.Kind == BackgroundTaskKinds.Workflow
+            && await FindWorkflowNotificationAsync(ending, ct).ConfigureAwait(false) is { } existing)
+            return existing;
+
         var displayText = BuildTaskNotificationDisplayText(ending);
         var (queued, thread, steered) = await EnqueueTriggeredInputAsync(
             ending.OwnerThreadId,
@@ -62,6 +70,29 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
         if (!wake)
             logger?.LogInformation("Holding notification for background task {TaskId} on thread {ThreadId}", ending.TaskId, thread.Id);
         return (queued.Id, wake);
+    }
+
+    private async Task<(string QueuedId, bool Wake)?> FindWorkflowNotificationAsync(
+        BackgroundTaskEnding ending, CancellationToken ct)
+    {
+        var thread = await GetOrLoadThreadAsync(ending.OwnerThreadId, ct).ConfigureAwait(false);
+        using var lease = await AcquireThreadQueueLockAsync(thread.Id, ct).ConfigureAwait(false);
+        var pending = thread.QueuedInputs.FirstOrDefault(input =>
+            input.TriggerKind == WorkflowTriggerKind && input.TriggerRefId == ending.TaskId);
+        if (pending != null)
+            return (pending.Id, ending.MayWake && thread.Status == ThreadStatus.Active && MayWakeForTaskNotifications());
+
+        await foreach (var turn in ReadTurnsAsync(thread, ThreadHistorySortDirection.Descending, includeItems: true, ct)
+                           .ConfigureAwait(false))
+        {
+            foreach (var item in turn.Items)
+            {
+                if (item.AsUserMessage is { TriggerKind: WorkflowTriggerKind, QueuedInputId: { } queuedId } message
+                    && message.TriggerRefId == ending.TaskId)
+                    return (queuedId, false);
+            }
+        }
+        return null;
     }
 
     private static string TaskNotificationTriggerKind(string kind) => kind switch

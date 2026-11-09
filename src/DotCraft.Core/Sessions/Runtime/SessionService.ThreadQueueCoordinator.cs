@@ -319,8 +319,8 @@ public sealed partial class SessionService
             return queueSnapshot;
         }
 
-        public Task TryStartNextAsync(string threadId, CancellationToken ct) =>
-            StartAsync(threadId, queuedInputId: null, explicitStart: false, observe: null, ct);
+        public Task TryStartNextAsync(string threadId, CancellationToken ct, bool propagateFailure = false) =>
+            StartAsync(threadId, queuedInputId: null, explicitStart: false, observe: null, ct, propagateFailure);
 
         /// <summary>Starts a chosen or the first queued input on an idle thread, even while the queue is paused.</summary>
         public async Task<string> StartQueuedAsync(
@@ -352,7 +352,8 @@ public sealed partial class SessionService
             string? queuedInputId,
             bool explicitStart,
             Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe,
-            CancellationToken ct)
+            CancellationToken ct,
+            bool propagateFailure = false)
         {
             QueuedTurnInput? queued = null;
             SessionThread? thread = null;
@@ -456,7 +457,7 @@ public sealed partial class SessionService
                     if (queueSnapshot != null)
                         owner.PublishQueueUpdated(thread.Id, queueSnapshot);
                 }
-                if (explicitStart)
+                if (explicitStart || propagateFailure)
                     throw;
                 return null;
             }

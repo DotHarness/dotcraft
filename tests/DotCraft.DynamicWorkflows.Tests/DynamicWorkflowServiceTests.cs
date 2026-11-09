@@ -11,7 +11,7 @@ using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.DynamicWorkflows.Tests;
 
-public sealed class DynamicWorkflowServiceTests : IDisposable
+public sealed partial class DynamicWorkflowServiceTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-workflow-service-tests", Guid.NewGuid().ToString("N"));
 
@@ -270,17 +270,13 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             LimitsOverride = new DynamicWorkflowLimits { MaxStatements = int.MaxValue, RunTimeout = TimeSpan.FromSeconds(30) }
         });
         await service.PauseAsync(first.RunId);
-        DynamicWorkflowRun? paused = null;
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            paused = await service.GetRunAsync(first.RunId);
-            if (paused?.Status == DynamicWorkflowStatuses.Paused) break;
-            await Task.Delay(50);
-        }
+        var paused = await service.GetRunAsync(first.RunId);
         Assert.Equal(DynamicWorkflowStatuses.Paused, paused?.Status);
         Assert.Equal(0, proxy.EnqueueCalls);
 
+        var acknowledged = ObserveNotificationAck(service, proxy, 1);
         await service.StopRunAsync(first.RunId);
+        await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
         var stopped = await service.GetRunAsync(first.RunId);
         Assert.Equal(DynamicWorkflowStatuses.Stopped, stopped?.Status);
         Assert.Equal("queued", stopped?.NotificationStatus);
@@ -335,137 +331,4 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         }
     }
 
-    public class SessionServiceProxy : DispatchProxy
-    {
-        public required SessionThread Thread { get; set; }
-        public Dictionary<string, SessionThread> Children { get; } = new(StringComparer.Ordinal);
-        public List<ThreadSpawnEdge> SpawnEdges { get; } = [];
-        public int EnqueueCalls { get; private set; }
-        public BackgroundTaskEnding? LastEnding { get; private set; }
-
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
-        {
-            nameof(ISessionService.GetThreadAsync) => GetThread(args),
-            nameof(ISessionService.CreateThreadAsync) => CreateThread(args),
-            nameof(ISessionService.ListSubAgentChildrenAsync) => ListChildren(args),
-            nameof(ISessionService.UpsertThreadSpawnEdgeAsync) => UpsertSpawnEdge(args),
-            nameof(ISessionService.SetThreadSpawnEdgeStatusAsync) => SetSpawnEdgeStatus(args),
-            nameof(ISessionService.SubmitInputAsync) => CompleteInput(),
-            nameof(ISessionService.AddSubAgentMailboxEntryAsync) => Task.CompletedTask,
-            nameof(IBackgroundTaskNotifications.NotifyBackgroundTaskEndedAsync) => Notify(args),
-            nameof(ISessionService.ReadThreadTurnsAsync) => ReadTurns(args),
-            nameof(ISessionService.ReadThreadAggregatesAsync) => ReadAggregates(args),
-            _ => throw new NotSupportedException($"Unexpected Session method '{targetMethod?.Name}'.")
-        };
-
-        private IAsyncEnumerable<SessionTurn> ReadTurns(object?[]? args)
-        {
-            var turns = GetThread(args).Result.Turns.ToArray();
-            if ((ThreadHistorySortDirection)args![1]! == ThreadHistorySortDirection.Descending)
-                Array.Reverse(turns);
-            return turns.ToAsyncEnumerable();
-        }
-
-        private Task<ThreadHistoryAggregates> ReadAggregates(object?[]? args)
-        {
-            var turns = GetThread(args).Result.Turns;
-            return Task.FromResult(new ThreadHistoryAggregates(
-                turns.Count,
-                turns.Select(static turn => turn.TokenUsage ?? new TokenUsageInfo()).Aggregate(new TokenUsageInfo(), static (a, b) => a + b),
-                turns.SelectMany(static turn => turn.Items).Count(static item => item.IsToolInvocation)));
-        }
-
-        private Task<SessionThread> GetThread(object?[]? args)
-        {
-            var threadId = (string)args![0]!;
-            if (string.Equals(threadId, Thread.Id, StringComparison.Ordinal))
-                return Task.FromResult(Thread);
-            return Task.FromResult(Children[threadId]);
-        }
-
-        private Task<SessionThread> CreateThread(object?[]? args)
-        {
-            var identity = (SessionIdentity)args![0]!;
-            var now = DateTimeOffset.UtcNow;
-            var child = new SessionThread
-            {
-                Id = (string)args[3]!,
-                WorkspacePath = identity.WorkspacePath,
-                UserId = identity.UserId,
-                OriginChannel = identity.ChannelName,
-                ChannelContext = identity.ChannelContext,
-                Configuration = (ThreadConfiguration?)args[1],
-                HistoryMode = (HistoryMode)args[2]!,
-                DisplayName = (string?)args[4],
-                Source = (ThreadSource?)args[6] ?? ThreadSource.User(),
-                Status = ThreadStatus.Active,
-                CreatedAt = now,
-                LastActiveAt = now
-            };
-            Children.Add(child.Id, child);
-            return Task.FromResult(child);
-        }
-
-        private Task<IReadOnlyList<ThreadSpawnEdge>> ListChildren(object?[]? args)
-        {
-            var parentThreadId = (string)args![0]!;
-            var includeClosed = (bool)args[1]!;
-            IReadOnlyList<ThreadSpawnEdge> result = SpawnEdges
-                .Where(edge => edge.ParentThreadId == parentThreadId
-                    && (includeClosed || edge.Status == ThreadSpawnEdgeStatus.Open))
-                .ToArray();
-            return Task.FromResult(result);
-        }
-
-        private Task UpsertSpawnEdge(object?[]? args)
-        {
-            var edge = (ThreadSpawnEdge)args![0]!;
-            SpawnEdges.RemoveAll(existing => existing.ChildThreadId == edge.ChildThreadId);
-            SpawnEdges.Add(edge);
-            return Task.CompletedTask;
-        }
-
-        private Task SetSpawnEdgeStatus(object?[]? args)
-        {
-            var childThreadId = (string)args![1]!;
-            var status = (string)args[2]!;
-            var edge = SpawnEdges.Single(item => item.ChildThreadId == childThreadId);
-            edge.Status = status;
-            edge.UpdatedAt = DateTimeOffset.UtcNow;
-            return Task.CompletedTask;
-        }
-
-        private static async IAsyncEnumerable<SessionEvent> CompleteInput()
-        {
-            await Task.CompletedTask;
-            yield return new SessionEvent { EventType = SessionEventType.TurnStarted };
-        }
-
-        private Task<string?> Notify(object?[]? args)
-        {
-            EnqueueCalls++;
-            LastEnding = (BackgroundTaskEnding)args![0]!;
-            return Task.FromResult<string?>("queued_test");
-        }
-    }
-
-    public interface INotifyingSessionService : ISessionService, IBackgroundTaskNotifications
-    {
-    }
-
-    private sealed class NullTransport : IAppServerTransport
-    {
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
-            Task.FromResult<AppServerIncomingMessage?>(null);
-
-        public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
-            string method,
-            object? @params,
-            CancellationToken ct = default,
-            TimeSpan? timeout = null) => throw new NotSupportedException();
-    }
 }

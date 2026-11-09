@@ -23,6 +23,7 @@ import {
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { usePetEditorBridge } from '../desktopPet/editorBridge'
 import { useRichInputSelectionReferences } from './useRichInputSelectionReferences'
+import { useSkillRefIcons } from './useSkillRefIcons'
 
 const MAX_ROWS = 8
 const MAX_TEXT_LEN = 100_000
@@ -357,6 +358,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     const compositionJustEndedRef = useRef(false)
     const compositionResetTimerRef = useRef<number | null>(null)
     const [showPh, setShowPh] = useState(true)
+    useSkillRefIcons(editorRef)
 
     const clearCompositionJustEndedTimer = useCallback((): void => {
       if (compositionResetTimerRef.current == null) return
