@@ -19,7 +19,7 @@ import { Icon, type IconName } from '../icons'
 import { nativeDriver, Txt } from '../parts'
 import { useReducedMotion } from '../motion'
 import { RunningShimmer } from '../RunningShimmer'
-import { metrics, type, useTheme } from '../theme'
+import { type, useTheme } from '../theme'
 import { useNow } from '../useNow'
 import { TurnChangesCard } from './Changes'
 import { ThinkingGlyph } from './ThinkingGlyph'
@@ -31,6 +31,7 @@ import { PlanCard } from './PlanCard'
 import type { DesktopToolVerb } from '../../core/transcriptTypes'
 import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
 import { TurnWork } from './TurnWork'
+import { QuestionToolRow } from './QuestionToolRow'
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
   terminal: 'squareTerminal',
@@ -189,7 +190,6 @@ const NOTICE_TEXT = {
   allowedForSession: 'notice.allowedForSession',
   allowedAlways: 'notice.allowedAlways',
   rejected: 'notice.rejected',
-  answered: 'notice.answered',
 } as const satisfies Record<string, MessageId>
 
 const WAKE_COPY: Record<TaskWakeKind, { icon: IconName; started: MessageId; generic: MessageId; statuses: Record<string, MessageId> }> = {
@@ -640,6 +640,8 @@ export const TranscriptLine = memo(function TranscriptLine({
       return <ThreadActionCard action={entry.action} />
     case 'failure':
       return <FailureLine entry={entry} />
+    case 'questions':
+      return <QuestionToolRow questions={entry.questions} />
     case 'notice':
       return (
         <View style={styles.process}>
@@ -687,7 +689,4 @@ const styles = StyleSheet.create({
   tight: { marginTop: -6 },
   working: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
   process: { flexDirection: 'row', gap: 6, minWidth: 0 },
-  failure: { flexDirection: 'row', gap: 12, padding: 14, borderWidth: 1, borderRadius: metrics.noticeRadius },
-  failureText: { flex: 1, minWidth: 0, gap: 2 },
-  strong: { fontWeight: '600' },
 })

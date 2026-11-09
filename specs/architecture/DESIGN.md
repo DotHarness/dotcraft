@@ -1353,6 +1353,7 @@ reduced motion.
 | Viewed image | image |
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
+| Question to the user | speech bubble with question mark |
 | Any other tool | wrench |
 
 Tool output images never nest in a tool group. The calls that produced them keep their rows in the group, while one `Viewed an image` / `Viewed N images` disclosure sits below the run, collapsed to its summary.

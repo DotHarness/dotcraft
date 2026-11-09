@@ -4,6 +4,7 @@ import {
   CircleStop,
   Folder,
   Globe,
+  MessageCircleQuestionMark,
   MessagesSquare,
   Monitor,
   Pencil,
@@ -181,13 +182,9 @@ export function getRequestUserInputQuestionCount(args: ToolArgs): number | undef
   return Array.isArray(questions) && questions.length > 0 ? questions.length : undefined
 }
 
-function formatRequestUserInputLabel(
-  args: ToolArgs,
-  locale: AppLocale,
-  streaming: boolean
-): string {
+function formatRequestUserInputLabel(args: ToolArgs, locale: AppLocale): string {
   const count = getRequestUserInputQuestionCount(args)
-  const prefix = streaming ? 'toolCall.streaming.requestUserInput' : 'toolCall.requestUserInput'
+  const prefix = 'toolCall.requestUserInput'
   if (count === 1) return translate(locale, `${prefix}.single`)
   if (count && count > 1) return translate(locale, `${prefix}.multiple`, { count })
   return translate(locale, `${prefix}.generic`)
@@ -259,7 +256,7 @@ export function formatCollapsedToolLabel(
     case 'todoWrite':
       return formatTodoLabel(args, locale)
     case 'requestUserInput':
-      return formatRequestUserInputLabel(args, locale, false)
+      return formatRequestUserInputLabel(args, locale)
     case 'createPlan': {
       const planTitle = typeof args?.plan === 'string' ? extractPlanTitle(args.plan) : ''
       const fallbackTitle = typeof args?.title === 'string' ? args.title.trim() : ''
@@ -321,6 +318,7 @@ export function getToolRowIcon(
     if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
     return { icon: SquareTerminal }
   }
+  if (kind === 'requestUserInput') return { icon: MessageCircleQuestionMark }
   if (kind === 'taskStop') return { icon: CircleStop }
   if (kind === 'channelMessage') return { icon: Send }
   if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
@@ -368,7 +366,7 @@ export function formatExpandedInvocation(
     case 'todoWrite':
       return formatTodoLabel(args, locale)
     case 'requestUserInput':
-      return formatRequestUserInputLabel(args, locale, false)
+      return formatRequestUserInputLabel(args, locale)
     case 'webSearch':
     case 'webFetch':
     case 'toolSearch':

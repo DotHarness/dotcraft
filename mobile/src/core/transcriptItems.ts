@@ -4,11 +4,13 @@ import { baseName, entryId, imageUri, planEntry, str, subagentEndingEntry, toolE
 import type { NoticeKind, TaskWake, TranscriptEntry } from './transcriptTypes'
 import { splitMessageComments } from './messageComments'
 import { userImages, userSegments } from './userSegments'
+import { questionAnswersOf } from './questionAnswers'
 
 interface ItemContext {
   result?: HistoryItem
   execution?: HistoryItem
   approval?: HistoryItem
+  question?: HistoryItem
   turn?: HistoryTurn
   fallbackOrigin: string | null
 }
@@ -36,14 +38,6 @@ const DECISION_NOTICE: Record<string, NoticeKind> = {
   acceptForSession: 'allowedForSession',
   acceptAlways: 'allowedAlways',
 }
-
-function answersOf(payload: Record<string, unknown>): string {
-  const response = payload.response as { answers: Record<string, { answers: string[] }> }
-  return Object.values(response.answers)
-    .flatMap((entry) => entry.answers.map((answer) => answer.replace(/^user_note: /, '')))
-    .join(', ')
-}
-
 
 function plainLine(line: string): string {
   return line
@@ -82,6 +76,8 @@ function dependencies(item: HistoryItem, context: ItemContext): unknown[] {
       return [context.result, context.execution, context.turn ? !DONE.has(context.turn.status) : !isComplete(item)]
     case 'approvalResponse':
       return [context.approval]
+    case 'userInputResponse':
+      return [context.question]
     case 'error':
       return [context.turn?.providerError]
     default:
@@ -144,10 +140,8 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
       const entry = dividerOf(item)
       return entry ? { entry } : {}
     }
-    case 'userInputResponse': {
-      const detail = answersOf(payload)
-      return { entry: { kind: 'notice', id, notice: 'answered', ...(detail ? { detail } : {}) } }
-    }
+    case 'userInputResponse':
+      return { entry: { kind: 'questions', id, questions: questionAnswersOf(context.question, item) } }
     default:
       return {}
   }

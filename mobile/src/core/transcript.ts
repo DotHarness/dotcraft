@@ -76,6 +76,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
       const stopped = new Set(options.stopped ?? [])
       const firstTurn = history.olderCursor ? null : (history.turns[0]?.id ?? null)
       const approvals = new Map<string, HistoryItem>()
+      const questions = new Map<string, HistoryItem>()
       const results = new Map<string, HistoryItem>()
       const executions = new Map<string, HistoryItem>()
       const errorTexts = new Map<string, Set<string>>()
@@ -87,6 +88,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         else relatedItems.set(item.turnId, [item])
         if (item.type === 'commandExecution' && str(item.payload.callId)) executions.set(inTurn(item.turnId, str(item.payload.callId)), item)
         if (item.type === 'approvalRequest') approvals.set(inTurn(item.turnId, str(item.payload.requestId)), item)
+        if (item.type === 'userInputRequest') questions.set(inTurn(item.turnId, str(item.payload.requestId)), item)
         if (item.type === 'toolResult') results.set(inTurn(item.turnId, str(item.payload.callId)), item)
         if (item.type === 'error') errorTexts.set(item.turnId, (errorTexts.get(item.turnId) ?? new Set()).add(str(item.payload.message).trim()))
         let chunk = chunks.at(-1)
@@ -133,6 +135,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
             result: results.get(inTurn(item.turnId, str(item.payload.callId))),
             execution: executions.get(inTurn(item.turnId, str(item.payload.callId))),
             approval: approvals.get(inTurn(item.turnId, str(item.payload.requestId))),
+            question: questions.get(inTurn(item.turnId, str(item.payload.requestId))),
             turn,
             fallbackOrigin: origin,
           })

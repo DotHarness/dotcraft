@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { Box, CircleHelp, Clock, FileText, Globe, ListChecks, Pencil, Plus, Search, Server, Upload, Wrench, X, type LucideIcon } from 'lucide-react'
+import { Box, Clock, FileText, Globe, ListChecks, MessageCircleQuestionMark, Pencil, Plus, Search, Server, Upload, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useModelCatalog } from '../../hooks/useModelCatalog'
@@ -166,10 +166,9 @@ const TOOL_ICON_BY_NAME: Record<string, LucideIcon> = {
   ReadFile: FileText,
   TodoWrite: ListChecks,
   Automation: Clock,
-  RequestUserInput: CircleHelp
+  RequestUserInput: MessageCircleQuestionMark
 }
 
-/** The shape standing in for a capability the catalog holds no artwork for; a skill is the cube as line art. */
 function catalogIcon(kind: CatalogKind, id: string): LucideIcon {
   if (kind === 'mcp') return Server
   if (kind === 'skill') return Box
@@ -446,7 +445,6 @@ export function AgentBuilderView({ initialRoute = 'gallery', leadingAction }: Ag
     void loadProfiles()
   }, [loadProfiles])
 
-  // Load the selector catalogs once. Failures degrade gracefully (free-text fallback).
   const loadCatalogs = useCallback((): void => {
     void rpc<{ tools?: ToolInfo[] }>('tool/list', {})
       .then((res) => setToolCatalog(Array.isArray(res.tools) ? res.tools : []))
@@ -495,7 +493,6 @@ export function AgentBuilderView({ initialRoute = 'gallery', leadingAction }: Ag
         isNew: readOnly,
         saveTarget: writableSource(entry.source),
         saving: false,
-        // An existing writable profile is already "created"; a read-only template is an uncreated copy.
         created: !readOnly,
         updatedAt: readOnly ? null : (res.profile?.updatedAt ?? entry.updatedAt ?? null)
       })
@@ -617,8 +614,6 @@ export function AgentBuilderView({ initialRoute = 'gallery', leadingAction }: Ag
     return () => window.clearTimeout(timer)
   }, [route, loadProfiles])
 
-  // The save target is chosen in the Create dialog rather than a persistent toggle.
-  // After this, auto-save takes over to that target.
   const createProfile = useCallback(async (target: SaveTarget): Promise<void> => {
     if (route.name !== 'builder') return
     const name = route.draft.name.trim().normalize('NFC')
@@ -1449,7 +1444,6 @@ function AgentBuilderChip({
   )
 }
 
-/** Portal popover anchored under the "+ Add" button: a search box + the addable catalog list. */
 function CatalogAddPopover({
   anchor,
   options,
@@ -1527,7 +1521,6 @@ function CatalogAddPopover({
   )
 }
 
-/** An option's mark: a skill or server is an identity, a tool is the glyph Desktop already draws for it. */
 function CatalogOptionMark({ kind, option }: { kind: CatalogKind; option: CatalogOption }): JSX.Element {
   if (kind === 'tool') {
     const Icon = catalogIcon(kind, option.id)

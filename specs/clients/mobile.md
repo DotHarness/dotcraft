@@ -224,6 +224,12 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   width may grow when the leading digit count or displayed units change; no fixed large time slot
   is reserved. In-progress text (running tools, streaming reasoning, generating images) uses
   Desktop's shimmer treatment, still under reduced motion.
+- After a question is submitted, its decision card closes and a collapsed question tool row shows
+  the question count. Desktop and Mobile use the same speech-bubble question-mark icon. The row
+  opens to each original question paired with its answer, in request order, without truncating the
+  expanded answer. Unanswered questions are marked as such; secret answers stay hidden, as do
+  answers whose request metadata has not loaded. The row is separate from adjacent tool groups and
+  is restored from `userInputRequest` and `userInputResponse` paired by Turn and request id.
 - Desktop's runtime thread tools read as Desktop names them, in progress, done, or failed, with no
   details; a line for reading or messaging a chat opens that chat when it is on this computer's list.
 - A file tool call marked as a Skill operation ([Skills](../architecture/skills.md#51-presentation))

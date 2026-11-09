@@ -64,7 +64,6 @@ export type NoticeKind =
   | 'allowedForSession'
   | 'allowedAlways'
   | 'rejected'
-  | 'answered'
 
 export type MessageOrigin = 'workflow' | 'automation' | 'app' | 'goal' | 'thread' | 'subagent'
 
@@ -158,12 +157,20 @@ export type TranscriptEntry =
       pendingTurnId?: string
     }
   | { kind: 'notice'; id: string; notice: NoticeKind; detail?: string }
+  | { kind: 'questions'; id: string; questions: QuestionAnswer[] }
   | { kind: 'failure'; id: string; message: string; overloaded: boolean; retry: { delay: number | null } | null }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
   | { kind: 'plan'; id: string; title: string; overview: string; todos: PlanTodo[]; content: string }
   | { kind: 'changes'; id: string; changes: TurnChanges }
   | { kind: 'divider'; id: string; divider: DividerKind; host?: string; channel?: string; target?: string }
   | { kind: 'threadAction'; id: string; action: ThreadAction }
+
+export interface QuestionAnswer {
+  id: string
+  question: string
+  answers: string[]
+  hidden: boolean
+}
 
 export type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
