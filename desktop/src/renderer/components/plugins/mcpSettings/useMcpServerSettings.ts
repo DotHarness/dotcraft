@@ -16,12 +16,26 @@ export interface PluginSettingsServer {
   tools: McpSettingsTools
 }
 
+async function listServerStatuses(): Promise<McpSettingsServerStatus[]> {
+  const statuses: McpSettingsServerStatus[] = []
+  let cursor: string | null | undefined
+  do {
+    const page = await window.api.appServer.sendRequestRaw('mcpServerStatus/list', {
+      detail: 'toolsAndAuthOnly',
+      ...(cursor ? { cursor } : {})
+    }) as { data?: McpSettingsServerStatus[]; nextCursor?: string | null }
+    statuses.push(...(page.data ?? []))
+    cursor = page.nextCursor
+  } while (cursor)
+  return statuses
+}
+
 // Capabilities exist only after initialization, so the list follows the servers' startup state.
+// Startup notifications carry no origin, so every server's state is observed.
 export function usePluginSettingsServers(pluginId: string, active: boolean): PluginSettingsServer[] {
   const [servers, setServers] = useState<PluginSettingsServer[]>([])
   const connectionEpoch = useConnectionStore((state) => state.connectionEpoch)
   const startupKey = useMcpStore((state) => Object.values(state.statuses)
-    .filter((status) => status.origin?.kind === 'plugin' && status.origin.pluginId === pluginId)
     .map((status) => `${status.name}:${status.startupState}`)
     .sort()
     .join('|'))
@@ -32,11 +46,10 @@ export function usePluginSettingsServers(pluginId: string, active: boolean): Plu
       return
     }
     let cancelled = false
-    void (window.api.appServer.sendRequestRaw('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' }) as
-      Promise<{ data?: McpSettingsServerStatus[] }>)
-      .then((result) => {
+    void listServerStatuses()
+      .then((statuses) => {
         if (cancelled) return
-        setServers((result.data ?? [])
+        setServers(statuses
           .filter((status) => status.origin?.kind === 'plugin' && status.origin.pluginId === pluginId)
           .flatMap((status) => {
             const tools = settingsToolsForServer(status)
