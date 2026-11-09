@@ -59,7 +59,8 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
     onStarted?: (client: DesktopAppServerClient, requestParams: unknown) => number | undefined,
     resolveClient: () => DesktopAppServerClient | null = getWireClient,
     attachmentOwner?: string,
-    deliver?: (result: unknown) => void
+    deliver?: (result: unknown) => void,
+    expectedConnectionId?: string
   ): Promise<void> => {
     let delivered = false
     const respond = (result: unknown): void => {
@@ -71,6 +72,9 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
       const client = resolveClient()
       if (!client) {
         throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
+      }
+      if (expectedConnectionId !== undefined && client.connectionId !== expectedConnectionId) {
+        throw new Error('The AppServer connection is no longer active.')
       }
       const connection = callbacks.getConnectionContext(client)
       if (!connection) throw new Error('The AppServer connection is no longer active.')
@@ -108,7 +112,8 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
         if (!owner.isDestroyed() && !owner.webContents.isDestroyed()) {
           owner.webContents.send('appserver:delivery', { kind: 'response', requestId: request.requestId, result })
         }
-      }
+      },
+      request.connectionId
     )
   })
 

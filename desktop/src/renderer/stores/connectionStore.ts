@@ -53,7 +53,6 @@ export interface ConnectionState {
   status: ConnectionStatus
   serverInfo: ServerInfo | null
   capabilities: ServerCapabilities | null
-  /** DashBoard URL when AppServer reports it at initialize; null if unavailable. */
   dashboardUrl: string | null
   errorMessage: string | null
   errorDetails: string | null
@@ -62,6 +61,8 @@ export interface ConnectionState {
   isExpectedRestart: boolean
   /** Increments for every Main Process connection status event, including connected -> connected promotions. */
   connectionEpoch: number
+  connectionKey: string | null
+  connectionId: string | null
 }
 
 interface ConnectionStore extends ConnectionState {
@@ -80,7 +81,9 @@ const initialState: ConnectionState = {
   errorType: null,
   binarySource: null,
   isExpectedRestart: false,
-  connectionEpoch: 0
+  connectionEpoch: 0,
+  connectionKey: null,
+  connectionId: null
 }
 
 export const useConnectionStore = create<ConnectionStore>((set, get) => ({
@@ -99,7 +102,9 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       errorType: payload.errorType ?? null,
       binarySource: payload.binarySource ?? null,
       isExpectedRestart: connected ? false : state.isExpectedRestart,
-      connectionEpoch: state.connectionEpoch + 1
+      connectionEpoch: state.connectionEpoch + 1,
+      connectionKey: payload.connectionKey ?? null,
+      connectionId: payload.connectionId ?? null
     }))
   },
 
@@ -112,7 +117,6 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   }
 }))
 
-/** Call this once at app initialization; returns an unsubscribe function. */
 export function initConnectionStore(): () => void {
   const unsubscribe = window.api.appServer.onConnectionStatus((payload) => {
     useConnectionStore.getState().setStatus(payload)

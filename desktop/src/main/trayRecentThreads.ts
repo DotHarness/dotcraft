@@ -42,7 +42,6 @@ export type TrayThreadClientFactory = (endpoint: string) => TrayThreadClient
 function createTrayThreadClient(endpoint: string): TrayThreadClient {
   return DesktopAppServerClient.fromWebSocket(endpoint, {
     autoReconnect: true,
-    initializeProfile: 'secondary',
     initializeTimeoutMs: CONNECTION_READY_TIMEOUT_MS
   })
 }

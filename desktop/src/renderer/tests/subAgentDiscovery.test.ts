@@ -3,6 +3,7 @@ import { isSubAgentChildRunning, useSubAgentStore } from '../stores/subAgentStor
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { deferred, makeSubAgent } from './subAgentFixtures'
+import { registerThreadConnection, releaseThreadConnection } from '../stores/threadConnectionStore'
 
 const request = vi.fn()
 const store = useSubAgentStore.getState
@@ -14,6 +15,7 @@ const wire = (id = 'child-B', status = 'open') => ({ data: [{
 
 beforeEach(() => {
   request.mockReset()
+  releaseThreadConnection(parent)
   store().reset()
   useThreadStore.getState().reset()
   useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
@@ -30,7 +32,7 @@ describe('subagent discovery lifecycle', () => {
     expect(store().discoveryByParent.get(parent)).toEqual({ status: 'loading', discovered: false })
     expect(request).toHaveBeenCalledExactlyOnceWith('subagent/children/list', {
       parentThreadId: parent, includeClosed: true, includeThreads: true
-    })
+    }, undefined, undefined)
     response.resolve(wire())
     await Promise.all([first, second])
     await store().ensureChildren(parent)
@@ -87,6 +89,68 @@ describe('subagent discovery lifecycle', () => {
     fresh.resolve(wire('fresh'))
     await next
     expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('fresh')
+  })
+})
+
+describe('background subagent discovery', () => {
+  const source = {
+    threadId: parent, connectionKey: 'workspace-A', connectionId: 'connection-A',
+    workspaceKey: 'workspace-A',
+    capabilities: { subAgentSessions: true }
+  }
+
+  it('queries the parent connection while another workspace is foreground', async () => {
+    registerThreadConnection(parent, source)
+    const sendConnectionRequest = vi.fn().mockResolvedValue(wire())
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    useConnectionStore.setState({ capabilities: { subAgentSessions: false } })
+    useThreadStore.getState().setThreadList([], 'workspace-B')
+
+    await store().ensureChildren(parent)
+
+    expect(request).not.toHaveBeenCalled()
+    expect(sendConnectionRequest).toHaveBeenCalledWith(
+      source.connectionKey, 'subagent/children/list',
+      { parentThreadId: parent, includeClosed: true, includeThreads: true },
+      undefined, expect.objectContaining({ connectionId: source.connectionId })
+    )
+    expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('child-B')
+    expect(useThreadStore.getState().threadList).toEqual([])
+  })
+
+  it('does not borrow the foreground capability for a background parent', async () => {
+    registerThreadConnection(parent, { ...source, capabilities: { subAgentSessions: false } })
+    const sendConnectionRequest = vi.fn()
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    await store().ensureChildren(parent)
+    expect(sendConnectionRequest).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('does not apply a response from a replaced parent connection', async () => {
+    registerThreadConnection(parent, source)
+    const response = deferred<unknown>()
+    const sendConnectionRequest = vi.fn().mockReturnValue(response.promise)
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    const load = store().fetchChildren(parent)
+    registerThreadConnection(parent, { ...source, connectionId: 'new-connection' })
+    response.resolve(wire())
+    await load
+    expect(store().childrenByParent.has(parent)).toBe(false)
+  })
+
+  it('interrupts a child on its parent connection without using the foreground', async () => {
+    registerThreadConnection(parent, source)
+    const sendConnectionRequest = vi.fn().mockResolvedValue({})
+    vi.stubGlobal('window', { api: { appServer: { sendRequest: request, sendConnectionRequest } } })
+    await store().interruptChild(makeSubAgent({ parentThreadId: parent, runtime: {
+      running: true, activeTurnId: 'child-turn', waitingOnApproval: false, waitingOnPlanConfirmation: false
+    } }))
+    expect(request).not.toHaveBeenCalled()
+    expect(sendConnectionRequest).toHaveBeenCalledWith(
+      source.connectionKey, 'turn/interrupt', { threadId: 'child-B', turnId: 'child-turn' },
+      undefined, expect.objectContaining({ connectionId: source.connectionId })
+    )
   })
 })
 

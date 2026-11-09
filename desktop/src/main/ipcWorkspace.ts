@@ -43,8 +43,8 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
     return { path: target, gitInitialized }
   })
 
-  handleSafe('workspace:switch', async (_event, newPath: string) => {
-    await callbacks.onSwitchWorkspace(newPath)
+  handleSafe('workspace:switch', async (_event, newPath: string, connectionKey?: string) => {
+    await callbacks.onSwitchWorkspace(newPath, connectionKey)
   })
 
   handleSafe('workspace:clear-selection', async () => {

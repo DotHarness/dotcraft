@@ -62,6 +62,7 @@ import { FileSearchPopover } from './FileSearchPopover'
 import { useComposerThreadReferences } from './useComposerThreadReferences'
 import { mentionedThreadIds } from '../../utils/threadReferences'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
+import { useSlashSkills } from './useSlashSkills'
 import { useChannelBindingCommands } from './useChannelBindingCommands'
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
@@ -374,19 +375,9 @@ function InputComposerCore({
   const { initAvailable, reloadSkillsAvailable, status: builtinCommandStatus, reload: reloadCommands } = useBuiltinCommandAvailability({
     enabled: canUseCommandPicker
   })
-  const skills = useSkillsStore((s) => s.skills)
   const skillsLoading = useSkillsStore((s) => s.loading)
   const fetchSkills = useSkillsStore((s) => s.fetchSkills)
-  const availableSkills = useMemo(
-    () =>
-      skills
-        .map((skill) => ({
-          name: skill.name.replace(/^\/+/, ''),
-          description: skill.description
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [skills]
-  )
+  const availableSkills = useSlashSkills()
   const richRefCatalog = useMemo(
     () => ({
       skills: availableSkills

@@ -1,5 +1,6 @@
 import { getThreadConversation, selectLatestCreatePlanTurnId } from './conversationStore'
 import { useThreadStore } from './threadStore'
+import { getThreadConnection } from './threadConnectionStore'
 import { useUIStore } from './uiStore'
 import { normalizeThreadRuntime } from '../utils/threadRuntime'
 
@@ -26,6 +27,7 @@ export function applyThreadTurnRuntime(
     waitingOnPlanConfirmation
   })
   threads.applyRuntimeSnapshot(threadId, runtime, {
-    isDesktopOrigin: threads.threadList.find(thread => thread.id === threadId)?.originChannel?.toLowerCase() === 'dotcraft-desktop'
+    isDesktopOrigin: (threads.threadList.find(thread => thread.id === threadId)?.originChannel
+      ?? getThreadConnection(threadId)?.originChannel)?.toLowerCase() === 'dotcraft-desktop'
   })
 }

@@ -21,7 +21,7 @@ function creationParams(params: RequestParams, operationId: string, environment:
 }
 
 async function threadOf(method: string, params: RequestParams, timeoutMs?: number | null): Promise<ThreadSummary> {
-  const result = await window.api.appServer.sendRequestRaw(method, params, timeoutMs) as { thread?: ThreadSummary }
+  const result = await window.api.appServer.sendRequestRaw(method, params, timeoutMs, { attachmentOwner: 'warm' }) as { thread?: ThreadSummary }
   if (!result.thread?.id) throw new Error(`${method} did not return a thread`)
   return result.thread
 }
@@ -48,7 +48,8 @@ export async function createWelcomeWorktreeThread({
     create: async (operationId) => await window.api.appServer.sendRequestRaw(
       'worktree/createAndStart',
       creationParams(params, operationId, environment),
-      environment ? null : WORKTREE_CREATION_TIMEOUT_MS
+      environment ? null : WORKTREE_CREATION_TIMEOUT_MS,
+      { attachmentOwner: 'warm' }
     ) as WorktreeCreationResult<ThreadSummary>,
     createWithoutWorktree: () => threadOf('thread/start', localParams)
   })
@@ -77,7 +78,8 @@ export async function createForkWorktreeThread({
     create: async (operationId) => await window.api.appServer.sendRequestRaw(
       'worktree/createAndFork',
       creationParams(params, operationId, environment),
-      environment ? null : WORKTREE_CREATION_TIMEOUT_MS
+      environment ? null : WORKTREE_CREATION_TIMEOUT_MS,
+      { attachmentOwner: 'warm' }
     ) as WorktreeCreationResult<ThreadSummary>,
     createWithoutWorktree: () => threadOf('thread/fork', localParams)
   })

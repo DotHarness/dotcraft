@@ -12,6 +12,8 @@ import {
 import { DesktopAppServerClient, type InitializeResult } from '../DesktopAppServerClient'
 import { type DesktopHubClient, type HubAppServerResponse, type HubEvent } from '../desktopHub'
 import { broadcastNotification } from '../ipcBridge'
+import { cancelConnectionServerRequests } from '../ipcServerRequests'
+import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
@@ -159,33 +161,47 @@ export function startHubEventSubscription(
     })
 }
 
-export function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): void {
-  const previous = ctx.currentWorkspacePath ? ctx.getWorkspaceConnection(ctx.currentWorkspacePath) : undefined
-  if (previous && previous.client !== entry.client) {
-    previous.role = 'secondary'
-    previous.lastUsedAt = Date.now()
-    ctx.releaseConnectionViewAttachments(previous, 'workspace demote')
+export async function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): Promise<boolean> {
+  const generation = ++ctx.deviceOpenGeneration
+  const project = entry.remoteProject ?? entry.device?.project
+  if (project) {
+    await ctx.updateSettings({
+      connectionMode: 'remote',
+      activeRemoteStack: project.source === 'servers' ? { hostId: project.remote.hostId!, stackId: project.remote.stackId! } : undefined,
+      activeRemoteProject: project.source === 'ssh' ? { machineId: project.remote.hostId!, projectId: project.remote.remoteProjectId! } : undefined,
+      activeRemoteDevice: project.source === 'device' ? { computerId: project.remote.hostId!, projectId: project.remote.remoteProjectId! } : undefined,
+      remote: project.source === 'manual' ? { url: entry.wsUrl } : undefined
+    })
+  } else {
+    await ctx.updateSettings({ connectionMode: 'local', activeRemoteStack: undefined, activeRemoteProject: undefined, activeRemoteDevice: undefined })
   }
+  if (ctx.deviceOpenGeneration !== generation || ctx.workspaceConnections.get(entry.key) !== entry) return false
+  const previous = ctx.wireClient ? ctx.findWorkspaceConnectionByClient(ctx.wireClient)
+    : ctx.activeRemoteProject ? ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId) : undefined
+  if (previous && previous.client !== entry.client) ctx.demoteWorkspaceConnection(previous)
 
   entry.role = 'foreground'
   entry.lastUsedAt = Date.now()
   ctx.wireClient = entry.client
-  ctx.currentWorkspacePath = entry.workspacePath
+  const workspacePath = project?.localWorkspacePath ?? entry.workspacePath
+  ctx.currentWorkspacePath = workspacePath
   ctx.lastAppServerWsUrl = entry.wsUrl
   ctx.lastDashboardUrl = entry.initializeResult?.dashboardUrl ?? null
-  ctx.setActiveRemoteProject(null)
-  ctx.previousLocalForegroundWorkspacePath = null
+  ctx.setActiveRemoteProject(project ?? null)
+  if (!project) ctx.previousLocalForegroundWorkspacePath = null
   ctx.lastRemoteStackLocalPort = null
-  ctx.reregisterIpcForWorkspace(entry.workspacePath)
+  ctx.reregisterIpcForWorkspace(workspacePath)
 
-  ctx.emitCurrentWorkspaceStatus(entry.workspacePath)
+  ctx.emitCurrentWorkspaceStatus(workspacePath)
   if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
     if (entry.initializeResult) {
       ctx.emitConnectionStatus(ctx.mainWindow, {
         status: 'connected',
         serverInfo: entry.initializeResult.serverInfo,
         capabilities: entry.initializeResult.capabilities as Record<string, unknown>,
-        dashboardUrl: entry.initializeResult.dashboardUrl
+        dashboardUrl: entry.initializeResult.dashboardUrl,
+        connectionKey: entry.key,
+        ...(entry.client.connectionId ? { connectionId: entry.client.connectionId } : {})
       })
     } else {
       ctx.emitConnectionStatus(ctx.mainWindow, { status: entry.connected ? 'connected' : 'connecting' })
@@ -195,8 +211,9 @@ export function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
       translate(loc, 'app.titleWithWorkspace', { name: ctx.workspaceTitleName(entry.workspacePath, loc) })
     )
   }
-  ctx.startHubEventSubscription(entry.workspacePath, ctx.app.createHubClient(ctx.settings))
+  if (entry.kind !== 'remote') ctx.startHubEventSubscription(entry.workspacePath, ctx.app.createHubClient(ctx.settings))
   ctx.emitWorkspaceProjects()
+  return true
 }
 
 export function createSecondaryWorkspaceConnection(
@@ -209,9 +226,7 @@ export function createSecondaryWorkspaceConnection(
   const existing = ctx.workspaceConnections.get(key)
   if (existing) return existing
 
-  const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
-    initializeProfile: 'secondary'
-  })
+  const client = DesktopAppServerClient.fromWebSocket(wsUrl)
   const entry: WorkspaceConnectionEntry = {
     key,
     projectId: ctx.localProjectId(workspacePath),
@@ -253,13 +268,14 @@ export function createSecondaryWorkspaceConnection(
       wireClient: ctx.wireClient,
       client,
       role: entry.role
-    })
+    }, params)
     if (foreground == null) return
     if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
 
     ctx.applyWorkspaceThreadNotification(entry, method, params)
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-      broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground)
+      broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground,
+        client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
     }
   })
 
@@ -285,12 +301,25 @@ export function createSecondaryWorkspaceConnection(
     entry.connecting = false
     entry.errorMessage = undefined
     entry.initializeResult = result
-
+    ctx.emitWorkspaceProjects()
+    if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+      ctx.emitConnectionStatus(ctx.mainWindow, {
+        status: 'connected', serverInfo: result.serverInfo, capabilities: result.capabilities,
+        dashboardUrl: result.dashboardUrl, connectionKey: entry.key,
+        ...(client.connectionId ? { connectionId: client.connectionId } : {})
+      })
+    }
     void ctx.refreshConnectionThreadList(entry)
   }
   client.on('ready', onReady)
   client.on('reconnected', onReady)
-  client.on('close', () => {
+  client.on('disposed', (connectionId: string | null) => {
+    if (connectionId) cancelConnectionServerRequests(connectionId)
+    resetDesktopThreadToolBindings(client)
+  })
+  client.on('close', (connectionId: string | null) => {
+    if (connectionId) cancelConnectionServerRequests(connectionId)
+    resetDesktopThreadToolBindings(client)
     entry.connected = false
     entry.connecting = false
     entry.errorMessage = undefined
@@ -412,11 +441,11 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
       return [{ key, entry, workspacePath: project.path, endpoint,
         lastUsedAt: entry?.lastUsedAt ?? (project.lastOpenedAt ? Date.parse(project.lastOpenedAt) || 0 : 0) }]
     })
-  const devices = [...ctx.workspaceConnections.values()]
-    .filter((entry) => entry.role === 'secondary' && entry.remote?.source === 'device')
+  const remoteConnections = [...ctx.workspaceConnections.values()]
+    .filter((entry) => entry.role === 'secondary' && entry.kind === 'remote')
     .map((entry) => ({ key: entry.key, entry, workspacePath: entry.workspacePath,
       endpoint: undefined, lastUsedAt: entry.lastUsedAt }))
-  const ranked = [...candidates, ...devices].sort((left, right) => right.lastUsedAt - left.lastUsedAt)
+  const ranked = [...candidates, ...remoteConnections].sort((left, right) => right.lastUsedAt - left.lastUsedAt)
   const allowedKeys = new Set<string>()
   let idleCount = 0
   for (const candidate of ranked) {

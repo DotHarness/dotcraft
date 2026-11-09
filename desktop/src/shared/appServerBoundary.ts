@@ -7,9 +7,15 @@ import {
 
 export type AppServerRequestMethod = keyof ClientRequestMethods
 
+export interface AppServerConnectionSource {
+  connectionKey: string
+  connectionId: string
+}
+
 export interface AppServerResponseOptions<T = unknown> {
   onResponse?: (result: T) => void
   attachmentOwner?: string
+  connectionId?: string
 }
 
 export interface AppServerIpcRequest {
@@ -18,6 +24,7 @@ export interface AppServerIpcRequest {
   params?: unknown
   timeoutMs?: number | null
   connectionKey?: string
+  connectionId?: string
   attachmentOwner?: string
 }
 
@@ -41,6 +48,8 @@ export type KnownNotificationPayload = {
     params: ServerNotificationMethods[M]['params']
     workspacePath?: string
     foreground?: boolean
+    connectionKey?: string
+    connectionId?: string
   }
 }[keyof ServerNotificationMethods]
 
@@ -49,11 +58,15 @@ export interface RawNotificationPayload {
   params: unknown
   workspacePath?: string
   foreground?: boolean
+  connectionKey?: string
+  connectionId?: string
 }
 
 export type KnownServerRequestPayload = {
   [M in keyof ServerRequestMethods]: {
     bridgeId: string
+    connectionKey?: string
+    connectionId?: string
     method: M
     params: ServerRequestMethods[M]['params']
   }
@@ -61,6 +74,8 @@ export type KnownServerRequestPayload = {
 
 export interface RawServerRequestPayload {
   bridgeId: string
+  connectionKey?: string
+  connectionId?: string
   method: string
   params: unknown
 }

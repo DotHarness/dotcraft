@@ -34,6 +34,9 @@ export interface WorkspaceConnectionEntry {
   threads: unknown[]
   errorMessage?: string
   device?: DeviceProjectConnection
+  remoteProject?: ActiveRemoteProject
+  reconnectTimer?: ReturnType<typeof setTimeout> | null
+  reconnectAttempt?: number
 }
 
 export interface ActiveRemoteProject {
@@ -71,4 +74,5 @@ export interface ConnectViaWebSocketOptions {
   identityWorkspacePath?: string
   displayPath?: string
   remote?: WorkspaceRemoteProjectMetadata
+  remoteProject?: ActiveRemoteProject
 }

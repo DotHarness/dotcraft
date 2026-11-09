@@ -64,7 +64,7 @@ function fixture() {
     normalizeWorkspaceConnectionKey: (path: string) => path, localProjectId: (path: string) => path,
     getPinnedThreadIdsForWorkspace: () => [], getPinnedThreadIdsForProject: () => [], isProjectPinned: () => false,
     emitWorkspaceProjects: vi.fn(), emitConnectionStatus: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
-    clearActiveRemoteReconnectTimer: vi.fn(), resetThreadToolState: vi.fn(), flushPendingWorkspaceOpenThread: vi.fn(),
+    clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(), flushPendingWorkspaceOpenThread: vi.fn(),
     scheduleSecondaryWorkspaceRefresh: vi.fn(), disposeDeviceProjectConnection: vi.fn(),
     makeThreadListIdentity: (path: string) => ({ workspacePath: path })
   } as unknown as DesktopWindowRuntime

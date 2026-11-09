@@ -45,10 +45,9 @@ export interface DesktopWindowState {
   lastRemoteStackLocalPort: number | null
   deviceOpenGeneration: number
   sshMachinesManager: SshMachinesManager | null
-  remoteProjectRefreshTimer: ReturnType<typeof setTimeout> | null
   workspaceConnections: Map<string, WorkspaceConnectionEntry>
-  activeRemoteReconnectTimer: ReturnType<typeof setTimeout> | null
-  activeRemoteReconnectAttempt: number
+  pendingDeviceOpenTimer: ReturnType<typeof setTimeout> | null
+  pendingDeviceOpenAttempt: number
   hubEventAbortController: AbortController | null
   secondaryRefreshTimer: ReturnType<typeof setTimeout> | null
   pendingChromeSettingsDeepLink: boolean
@@ -127,10 +126,9 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     lastRemoteStackLocalPort: null,
     deviceOpenGeneration: 0,
     sshMachinesManager: null,
-    remoteProjectRefreshTimer: null,
     workspaceConnections: new Map<string, WorkspaceConnectionEntry>(),
-    activeRemoteReconnectTimer: null,
-    activeRemoteReconnectAttempt: 0,
+    pendingDeviceOpenTimer: null,
+    pendingDeviceOpenAttempt: 0,
     hubEventAbortController: null,
     secondaryRefreshTimer: null,
     pendingChromeSettingsDeepLink: false,

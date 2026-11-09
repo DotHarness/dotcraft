@@ -56,24 +56,25 @@ it.each([INITIAL_WORKSPACE, '/projects/two'])(
     installDesktopApiMock({
       settings: { get: async () => ({}) },
       workspace: { switch: switchWorkspace },
-      appServer: { sendRequest }
+      appServer: { sendRequest, sendConnectionRequest: vi.fn((_key, method, params) =>
+        sendRequest(method, params as { includeArchived?: boolean })) }
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: INITIAL_WORKSPACE, connectionId: 'initial-connection' })
     useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: INITIAL_WORKSPACE, foregroundProjectId: INITIAL_WORKSPACE })
     useThreadStore.getState().setThreadList([thread('initial-active', INITIAL_WORKSPACE)], INITIAL_WORKSPACE)
     const project = { current: INITIAL_WORKSPACE }
     const protocol = { current: INITIAL_WORKSPACE }
     const hook = renderHook((path: string) => {
       const list = useForegroundThreadList(project, protocol)
-      useThreadRestoration({ workspaceIdentity: path, workspaceKey: path, protocolWorkspacePath: path, locale: 'en' })
+      useThreadRestoration({ workspaceKey: path, protocolWorkspacePath: path, locale: 'en' })
       return list
     }, { initialProps: INITIAL_WORKSPACE })
     switchWorkspace.mockImplementation(async (path: string) => {
       project.current = path
       protocol.current = path
-      useThreadStore.getState().reset()
+      useThreadStore.getState().resetForeground()
       useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: path, foregroundProjectId: path })
-      useConnectionStore.getState().setStatus({ status: 'connected' })
+      useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: path, connectionId: 'target-connection' })
       hook.rerender(path)
       await hook.result.current.reloadThreadList()
     })

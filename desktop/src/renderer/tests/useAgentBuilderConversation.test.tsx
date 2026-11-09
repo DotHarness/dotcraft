@@ -53,7 +53,7 @@ function Harness({
 }
 
 function RestoringHarness(): JSX.Element {
-  useThreadRestoration({ workspaceIdentity: 'workspace-a', workspaceKey: 'workspace-a', protocolWorkspacePath: 'workspace-a', locale: 'en' })
+  useThreadRestoration({ workspaceKey: 'workspace-a', protocolWorkspacePath: 'workspace-a', locale: 'en' })
   return <Harness />
 }
 

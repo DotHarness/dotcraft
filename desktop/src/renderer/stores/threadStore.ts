@@ -6,21 +6,13 @@ import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
-import { applyThreadRuntimeSnapshot, type ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
+import type { ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
+import { retainedThreadActions, type ParkedApproval, type ParkedUserInput } from './retainedThreadState'
+import { retainedThreadIds } from './threadConnectionStore'
+export { readStateChangedSince, readStateMark } from './retainedThreadState'
+export type { ParkedApproval, ParkedUserInput } from './retainedThreadState'
 import { normalizeThreadSummaryRuntime, syncActiveThreadRuntime } from '../utils/threadRuntime'
 export type { ThreadRuntimeSnapshot } from '../types/thread'
-
-export interface ParkedApproval {
-  bridgeId: string
-  turnId: string | null
-  rawParams: Record<string, unknown>
-}
-
-export interface ParkedUserInput {
-  bridgeId: string
-  turnId: string | null
-  rawParams: Record<string, unknown>
-}
 
 interface ThreadStoreState {
   threadList: ThreadSummary[]
@@ -52,9 +44,7 @@ interface ThreadStoreState {
 
 interface ThreadStoreActions {
   setThreadList(threads: ThreadSummary[], projectKey?: string | null): void
-  /** Prepend a new thread to the list (newest first). No-op if the same id already exists. */
   addThread(thread: ThreadSummary): void
-  /** Insert or refresh thread summaries without replacing the whole list. */
   upsertThreads(threads: ThreadSummary[]): void
   updateThreadStatus(threadId: string, newStatus: ThreadStatus): void
   removeThread(threadId: string): void
@@ -83,6 +73,8 @@ interface ThreadStoreActions {
   togglePinnedThread(threadId: string): void
   removePinnedThread(threadId: string): void
   prunePinnedThreadIds(): void
+  resetForeground(): void
+  releaseRetainedThread(threadId: string): void
   reset(): void
 }
 
@@ -129,25 +121,6 @@ function filterMapToThreadList<T>(current: Map<string, T>, ids: Set<string>): Ma
   return new Map([...current].filter(([id]) => ids.has(id)))
 }
 
-function parkedApprovalKey(approval: ParkedApproval): string {
-  const requestId = typeof approval.rawParams.requestId === 'string' ? approval.rawParams.requestId : ''
-  if (requestId) return `request:${requestId}`
-  const itemId = typeof approval.rawParams.itemId === 'string' ? approval.rawParams.itemId : ''
-  if (itemId) return `item:${itemId}`
-  return `bridge:${approval.bridgeId}`
-}
-
-function upsertParkedApproval(queue: ParkedApproval[], approval: ParkedApproval): ParkedApproval[] {
-  const key = parkedApprovalKey(approval)
-  const index = queue.findIndex((candidate) => parkedApprovalKey(candidate) === key)
-  if (index < 0) return [...queue, approval]
-  return queue.map((candidate, i) => i === index ? approval : candidate)
-}
-
-function normalizeComparableWorkspacePath(path: string | null | undefined): string {
-  return normalizeWorkspaceProjectKey(path)
-}
-
 function firstNonEmpty(...values: Array<string | null | undefined>): string | undefined {
   for (const value of values) {
     const trimmed = value?.trim()
@@ -156,15 +129,11 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | un
   return undefined
 }
 
-function hasOwnWorktreeProperty(thread: ThreadSummary): boolean {
-  return Object.prototype.hasOwnProperty.call(thread, 'worktree')
-}
-
 function normalizeIncomingWorkspaceState<T extends ThreadSummary>(
   incoming: T,
   existing: ThreadSummary | null | undefined
 ): T {
-  if (!existing?.worktree || hasOwnWorktreeProperty(incoming)) return incoming
+  if (!existing?.worktree || Object.hasOwn(incoming, 'worktree')) return incoming
 
   const incomingWorkspacePath = firstNonEmpty(incoming.workspacePath)
   const incomingEffectiveWorkspacePath = firstNonEmpty(incoming.effectiveWorkspacePath)
@@ -180,8 +149,8 @@ function normalizeIncomingWorkspaceState<T extends ThreadSummary>(
   if (!localWorkspacePath || !effectiveWorkspacePath) return incoming
 
   if (
-    normalizeComparableWorkspacePath(effectiveWorkspacePath) !==
-    normalizeComparableWorkspacePath(localWorkspacePath)
+    normalizeWorkspaceProjectKey(effectiveWorkspacePath) !==
+    normalizeWorkspaceProjectKey(localWorkspacePath)
   ) {
     return incoming
   }
@@ -256,17 +225,6 @@ function disposeViewerTabsForThread(threadId: string): void {
   })
 }
 
-let readStateSequence = 0
-const readStateChangedAt = new Map<string, number>()
-
-export function readStateMark(): number {
-  return readStateSequence
-}
-
-export function readStateChangedSince(threadId: string, mark: number): boolean {
-  return (readStateChangedAt.get(threadId) ?? 0) > mark
-}
-
 export const useThreadStore = create<ThreadStore>((set, _get) => ({
   ...initialState,
 
@@ -275,7 +233,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     set((state) => {
       const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
       const threadListProjectKey = nextProjectKey
-      const threadIds = new Set(visibleThreads.map((thread) => thread.id))
+      const retained = new Set(retainedThreadIds())
+      const threadIds = new Set([...visibleThreads.map((thread) => thread.id), ...retained])
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
       const parkedApprovals = filterMapToThreadList(state.parkedApprovals, threadIds)
       const parkedUserInputs = filterMapToThreadList(state.parkedUserInputs, threadIds)
@@ -289,6 +248,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       const goalSnapshots = filterMapToThreadList(state.goalSnapshots, threadIds)
 
       for (const thread of visibleThreads) {
+        if (retained.has(thread.id)) continue
         if (thread.goal === null) {
           goalSnapshots.delete(thread.id)
         } else if (thread.goal) {
@@ -598,150 +558,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     set({ loading })
   },
 
-  markTurnStarted(threadId) {
-    set((state) => {
-      if (state.hiddenThreadIds.has(threadId)) return state
-      const next = new Set(state.runningTurnThreadIds)
-      next.add(threadId)
-      return { runningTurnThreadIds: next }
-    })
-  },
-
-  markTurnEnded(threadId) {
-    set((state) => {
-      const next = new Set(state.runningTurnThreadIds)
-      next.delete(threadId)
-      return { runningTurnThreadIds: next }
-    })
-  },
-
-  parkApproval(threadId, approval) {
-    set((state) => {
-      const parkedApprovals = new Map(state.parkedApprovals)
-      parkedApprovals.set(
-        threadId,
-        upsertParkedApproval(parkedApprovals.get(threadId) ?? [], approval)
-      )
-      return { parkedApprovals }
-    })
-  },
-
-  consumeParkedApproval(threadId) {
-    const state = _get()
-    const approvals = state.parkedApprovals.get(threadId) ?? []
-    const approval = approvals[0] ?? null
-    if (!approval) return null
-    const parkedApprovals = new Map(state.parkedApprovals)
-    const remaining = approvals.slice(1)
-    if (remaining.length > 0) {
-      parkedApprovals.set(threadId, remaining)
-    } else {
-      parkedApprovals.delete(threadId)
-    }
-    set({ parkedApprovals })
-    return approval
-  },
-
-  consumeParkedApprovals(threadId) {
-    const state = _get()
-    const approvals = state.parkedApprovals.get(threadId) ?? []
-    if (approvals.length === 0) return []
-    const parkedApprovals = new Map(state.parkedApprovals)
-    parkedApprovals.delete(threadId)
-    set({ parkedApprovals })
-    return approvals
-  },
-
-  clearParkedApproval(threadId) {
-    set((state) => {
-      if (!state.parkedApprovals.has(threadId)) return state
-      const parkedApprovals = new Map(state.parkedApprovals)
-      parkedApprovals.delete(threadId)
-      return { parkedApprovals }
-    })
-  },
-
-  parkUserInput(threadId, request) {
-    set((state) => {
-      const parkedUserInputs = new Map(state.parkedUserInputs)
-      parkedUserInputs.set(threadId, request)
-      return { parkedUserInputs }
-    })
-  },
-
-  consumeParkedUserInput(threadId) {
-    const state = _get()
-    const request = state.parkedUserInputs.get(threadId) ?? null
-    if (!request) return null
-    const parkedUserInputs = new Map(state.parkedUserInputs)
-    parkedUserInputs.delete(threadId)
-    set({ parkedUserInputs })
-    return request
-  },
-
-  clearParkedUserInput(threadId) {
-    set((state) => {
-      if (!state.parkedUserInputs.has(threadId)) return state
-      const parkedUserInputs = new Map(state.parkedUserInputs)
-      parkedUserInputs.delete(threadId)
-      return { parkedUserInputs }
-    })
-  },
-
-  applyRuntimeSnapshot(threadId, runtime, options) {
-    set((state) => applyThreadRuntimeSnapshot(state, threadId, runtime, options))
-  },
-
-  setThreadReadState(threadId, readState) {
-    readStateChangedAt.set(threadId, ++readStateSequence)
-    set((state) => ({
-      threadList: state.threadList.map((thread) => thread.id === threadId ? { ...thread, readState } : thread),
-      activeThread: state.activeThread?.id === threadId ? { ...state.activeThread, readState } : state.activeThread
-    }))
-  },
-
-  setThreadGoal(goal) {
-    set((state) => {
-      const goalSnapshots = new Map(state.goalSnapshots)
-      goalSnapshots.set(goal.threadId, goal)
-      return {
-        goalSnapshots,
-        threadList: state.threadList.map((thread) =>
-          thread.id === goal.threadId ? { ...thread, goal } : thread
-        ),
-        activeThread:
-          state.activeThread?.id === goal.threadId
-            ? { ...state.activeThread, goal }
-            : state.activeThread
-      }
-    })
-  },
-
-  clearThreadGoal(threadId) {
-    set((state) => {
-      const goalSnapshots = new Map(state.goalSnapshots)
-      goalSnapshots.delete(threadId)
-      return {
-        goalSnapshots,
-        threadList: state.threadList.map((thread) =>
-          thread.id === threadId ? { ...thread, goal: null } : thread
-        ),
-        activeThread:
-          state.activeThread?.id === threadId
-            ? { ...state.activeThread, goal: null }
-            : state.activeThread
-      }
-    })
-  },
-
-  hydrateThreadGoal(threadId, goal) {
-    if (goal === undefined) return
-    if (goal === null) {
-      _get().clearThreadGoal(threadId)
-      return
-    }
-    _get().setThreadGoal(goal)
-  },
+  ...retainedThreadActions(set, _get),
 
   hydratePinnedThreadIds(workspacePath, threadIds) {
     set({
@@ -810,6 +627,12 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     }
   },
 
+  resetForeground() {
+    set({ threadList: [], threadListProjectKey: null, activeThreadId: null, activeThread: null,
+      activeThreadLoadError: null, searchQuery: '', loading: false,
+      pinnedThreadIds: [], pinnedThreadWorkspacePath: null })
+  },
+
   reset() {
     set({
       ...initialState,
@@ -828,14 +651,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   }
 }))
 
-if (typeof window !== 'undefined') {
-  ;(window as unknown as Record<string, unknown>).__THREAD_STORE_STATE = () =>
-    useThreadStore.getState()
-}
-
 export function selectFilteredThreads(state: ThreadStore): ThreadSummary[] {
-  // Subagent threads are surfaced through the dock (running) and the Subagents
-  // detail tab (Active/Done), never as sidebar thread entries.
   const visible = state.threadList.filter((t) => t.status !== 'archived' && !isSubAgentThread(t))
   if (!state.searchQuery.trim()) return visible
   const q = state.searchQuery.toLowerCase()

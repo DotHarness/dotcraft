@@ -3,6 +3,8 @@ import { translate, type AppLocale } from '../../shared/locales'
 import { readAppServerErrorFields } from '../../shared/appServerError'
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { getThreadConnection, isThreadObservationCurrent, registerThreadConnection } from '../stores/threadConnectionStore'
 import { getThreadConversation } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -24,7 +26,6 @@ import {
   resolveThreadObservationTarget,
   threadObservationTargetKey,
   isSameThreadObservationTarget,
-  isThreadObservationConnectionCurrent,
   type ThreadObservationTarget
 } from '../utils/threadObservationScope'
 import { wireTurnToConversationTurn } from '../types/conversation'
@@ -32,7 +33,6 @@ import type { Thread } from '../types/thread'
 import { addToast } from '../stores/toastStore'
 
 interface Props {
-  workspaceIdentity: string
   workspaceKey: string
   protocolWorkspacePath: string
   locale: AppLocale
@@ -42,8 +42,10 @@ export function useThreadRestoration(props: Props): {
   updateWarmThread(thread: Thread): void
   releaseWarmThread(threadId: string): void
 } {
-  const { status, connectionEpoch } = useConnectionStore()
-  const { activeThreadId, activeThread, threadList, threadListProjectKey } = useThreadStore()
+  const { status, connectionId } = useConnectionStore()
+  const projects = useWorkspaceProjectsStore(state => state.projects)
+  const chat = useWorkspaceProjectsStore(state => state.chat)
+  const { activeThreadId, activeThread } = useThreadStore()
   const latest = useRef(props)
   latest.current = props
   const warm = useRef(createWarmThreads())
@@ -59,39 +61,40 @@ export function useThreadRestoration(props: Props): {
   const targetFor = useCallback((threadId: string) => {
     const connection = useConnectionStore.getState()
     const threads = useThreadStore.getState()
-    return resolveThreadObservationTarget({
+    const target = resolveThreadObservationTarget({
       connected: connection.status === 'connected',
-      workspaceIdentity: latest.current.workspaceIdentity,
       workspaceKey: latest.current.workspaceKey,
-      connectionEpoch: connection.connectionEpoch,
+      connectionKey: connection.connectionKey,
+      connectionId: connection.connectionId,
+      capabilities: connection.capabilities,
       threadListWorkspaceKey: threads.threadListProjectKey,
       threadIds: threads.threadList.map(thread => thread.id)
     }, threadId)
+    return target ? { ...target, originChannel: threads.threadList.find(thread => thread.id === threadId)?.originChannel } : null
   }, [])
 
   const release = useCallback((threadId: string, target?: ThreadObservationTarget) => {
-    parkThreadInteractiveRequests(threadId)
+    const connection = target ?? getThreadConnection(threadId)
     releaseThreadState(threadId)
-    if (target && !isThreadObservationConnectionCurrent(target, {
-      workspaceIdentity: latest.current.workspaceIdentity,
-      workspaceKey: latest.current.workspaceKey,
-      connectionEpoch: useConnectionStore.getState().connectionEpoch
-    })) return
-    void window.api.appServer.sendRequest('thread/unsubscribe', { threadId }).catch(() => {})
+    if (connection) {
+      void window.api.appServer.sendConnectionRequest(connection.connectionKey, 'thread/unsubscribe', { threadId },
+        undefined, { connectionId: connection.connectionId, attachmentOwner: 'warm' }).catch(() => {})
+    }
   }, [])
 
   const releaseWarmThread = useCallback((threadId: string) => {
+    if (selected.current?.threadId === threadId) selected.current.ready = false
     const entry = warm.current.take(threadId)
     if (entry) release(threadId, entry.target)
   }, [release])
 
   useEffect(() => {
     for (const [threadId, entry] of warm.current.entries()) {
-      if (isSameThreadObservationTarget(entry.target, targetFor(threadId))) continue
+      if (isThreadObservationCurrent(entry.target)) continue
       warm.current.remove(threadId)
       release(threadId, entry.target)
     }
-  }, [props.workspaceIdentity, props.workspaceKey, status, connectionEpoch, threadList, threadListProjectKey, release, targetFor])
+  }, [projects, chat, status, connectionId, release])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -112,12 +115,13 @@ export function useThreadRestoration(props: Props): {
       welcome.current = null
     }
     finishThreadRestoration()
-    if (previous && previous.threadId !== activeThreadId) {
+    if (previous) {
       const oldHeader = previous.thread
       if (previous.ready && oldHeader?.id === previous.threadId && !isHiddenThread(oldHeader)
-        && isSameThreadObservationTarget(previous.target, targetFor(previous.threadId))) {
+        && isThreadObservationCurrent(previous.target)) {
+        parkThreadInteractiveRequests(previous.threadId)
         for (const evicted of warm.current.keep({ thread: oldHeader, target: previous.target, viewedAt: Date.now() })) {
-          release(evicted, targetFor(evicted) ?? undefined)
+          release(evicted)
         }
       } else {
         release(previous.threadId, previous.target)
@@ -132,6 +136,9 @@ export function useThreadRestoration(props: Props): {
     if (!target) return
     const selection = { threadId: activeThreadId, target, ready: false }
     selected.current = selection
+    const owned = getThreadConnection(activeThreadId)
+    if (owned && !isSameThreadObservationTarget(owned, target)) releaseThreadState(activeThreadId)
+    registerThreadConnection(activeThreadId, target)
     openThreadState(activeThreadId)
     const cached = warm.current.take(activeThreadId)
     if (cached && isSameThreadObservationTarget(cached.target, target)) {
@@ -142,8 +149,9 @@ export function useThreadRestoration(props: Props): {
         ...cached.thread,
         ...(summary && {
           displayName: summary.displayName, status: summary.status,
-          lastActiveAt: summary.lastActiveAt, runtime: summary.runtime, readState: summary.readState
+          lastActiveAt: summary.lastActiveAt, readState: summary.readState
         }),
+        runtime: threads.runtimeSnapshots.get(activeThreadId) ?? cached.thread.runtime,
         goal: threads.goalSnapshots.get(activeThreadId) ?? null
       })
       activateParkedInteractiveRequests(activeThreadId)
@@ -158,7 +166,8 @@ export function useThreadRestoration(props: Props): {
     const previewStore = getThreadConversation(threadId)!
     const previewTurns = previewStore.getState().turns
     const preview = readThreadHistoryHead(
-      (method, params) => window.api.appServer.sendRequest(method, params), threadId,
+      (method, params) => window.api.appServer.sendConnectionRequest(target.connectionKey, method, params, undefined,
+        { connectionId: target.connectionId }), threadId,
       undefined, undefined, isCurrent
     )
     const showPreview = (result: Awaited<typeof preview>): void => {
@@ -207,17 +216,15 @@ export function useThreadRestoration(props: Props): {
       return
     }
     void preview.then(showPreview, () => {})
-    void window.api.appServer.sendRequest('thread/resume', {
+    void window.api.appServer.sendConnectionRequest(target.connectionKey, 'thread/resume', {
       threadId, initialTurnsPage: THREAD_OPENING_PAGE
     }, undefined, {
+      connectionId: target.connectionId,
+      attachmentOwner: 'warm',
       onResponse: result => {
         if (!isCurrent()) {
           if (useThreadStore.getState().activeThreadId !== threadId
-            && isThreadObservationConnectionCurrent(target, {
-              workspaceIdentity: latest.current.workspaceIdentity,
-              workspaceKey: latest.current.workspaceKey,
-              connectionEpoch: useConnectionStore.getState().connectionEpoch
-            })) {
+            && isThreadObservationCurrent(target)) {
             startWelcome()
             release(threadId, target)
           }
@@ -234,7 +241,7 @@ export function useThreadRestoration(props: Props): {
         startWelcome()
       }
     }).catch(fail)
-  }, [activeThreadId, targetKey, status, connectionEpoch, targetFor, release])
+  }, [activeThreadId, targetKey, status, connectionId, targetFor, release])
 
   return {
     updateWarmThread: useCallback((thread: Thread) => warm.current.updateThread(thread), []),

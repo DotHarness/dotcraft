@@ -94,6 +94,34 @@ describe('Desktop thread attachments', () => {
     expect(f.raw).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps warm ownership across demotion and releases only the evicted owner', async () => {
+    const f = fixture()
+    await f.resume('warm')
+    await f.resume('transcript:panel')
+    await f.subscriptions.releaseViews()
+    expect(f.subscriptions.hasWarmThread('thread')).toBe(true)
+    expect(f.raw).not.toHaveBeenCalled()
+    await f.detach('warm')
+    expect(f.subscriptions.hasWarmThread('thread')).toBe(false)
+    expect(f.raw).toHaveBeenCalledExactlyOnceWith('thread/unsubscribe', { threadId: 'thread' })
+  })
+
+  it('preserves a warm owner acquired by an inflight resume after demotion', async () => {
+    const f = fixture()
+    let finish!: () => void
+    const resumed = f.subscriptions.request('thread/resume', { threadId: 'thread' }, hook => new Promise(resolve => {
+      finish = () => { const result = { currentState: {} }; hook?.(result); resolve(result) }
+    }), 'warm')
+    await Promise.resolve()
+    const demote = f.subscriptions.releaseViews()
+    finish()
+    await Promise.all([resumed, demote])
+    expect(f.subscriptions.hasWarmThread('thread')).toBe(true)
+    expect(f.raw).not.toHaveBeenCalled()
+    f.subscriptions.clear()
+    expect(f.subscriptions.hasWarmThread('thread')).toBe(false)
+  })
+
   it('pins a created task until its turn terminates without treating UI detach as cancellation', async () => {
     const f = fixture()
     await f.send('thread/start', {}, { thread: { id: 'thread' } }, 'task')

@@ -15,12 +15,6 @@ import type { ComposerMascotInteraction } from './ComposerShell'
 import type { InputPart } from '../../types/conversation'
 import type { ThreadSummary } from '../../types/thread'
 
-/**
- * Drives the composer mascot from live conversation state and wires its right-click
- * preset actions. The scenario set is deliberately small: context has its own
- * indicator and approvals keep their dedicated decision UI, so the mascot only nudges.
- */
-
 const DOTCRAFT_PLUGIN_ID = 'dotcraft'
 const SUCCESS_MS = 3200
 
@@ -56,11 +50,8 @@ export function useComposerMascot({
   const isFailed = lastTurnStatus === 'failed'
 
   const [local, setLocal] = useState<LocalBubble>(null)
-  /** turnId:status we've already auto-surfaced, so a dismissed bubble stays dismissed. */
   const handledRef = useRef<string | null>(null)
-  /** Approval itemId the user dismissed, so the nudge doesn't immediately reappear. */
   const dismissedApprovalRef = useRef<string | null>(null)
-  /** Previous turnStatus / threadId, to distinguish a live finish from a thread switch. */
   const prevStatusRef = useRef<string | null>(null)
   const prevThreadRef = useRef<string | null>(null)
 
@@ -70,11 +61,9 @@ export function useComposerMascot({
     prevStatusRef.current = turnStatus
     prevThreadRef.current = threadId
     const threadChanged = prevThread !== threadId
-    // Was the active thread mid-work, so an idle now means it just finished live?
     const wasActive =
       prevStatus === 'running' || prevStatus === 'waitingApproval' || prevStatus === 'waitingInput'
 
-    // Don't disturb a user-initiated override (install confirm or busy state).
     if (local?.kind === 'confirmInstall' || local?.kind === 'busy') return
 
     // Switching into (or first mounting) a thread must never auto-pop a stale outcome,
@@ -139,7 +128,6 @@ export function useComposerMascot({
     [lastTurnError, t, threadId]
   )
 
-  // Install (idempotent) the DotCraft plugin, open a fresh thread, and run `skill`.
   const startDoctorThread = useCallback(
     async (skill: string, context: string): Promise<void> => {
       setLocal({ kind: 'busy' })
@@ -148,9 +136,7 @@ export function useComposerMascot({
         if (store.plugins.length === 0) {
           try {
             await store.fetchPlugins()
-          } catch {
-            /* best effort; install below still attempts */
-          }
+          } catch {}
         }
         const installed = usePluginStore.getState().plugins.some((p) => p.id === DOTCRAFT_PLUGIN_ID && p.installed)
         if (!installed) {
@@ -166,7 +152,7 @@ export function useComposerMascot({
           },
           historyMode: 'server',
           config: { mode: 'agent' }
-        })) as unknown as { thread: ThreadSummary }
+        }, undefined, { attachmentOwner: 'warm' })) as unknown as { thread: ThreadSummary }
 
         const inputParts: InputPart[] = [
           { type: 'skillRef', name: skill },
@@ -190,16 +176,13 @@ export function useComposerMascot({
     [t, workspacePath]
   )
 
-  // Entry point for diagnose/report: confirm install when the plugin is absent.
   const runDoctor = useCallback(
     async (skill: string, context: string): Promise<void> => {
       const store = usePluginStore.getState()
       if (store.plugins.length === 0) {
         try {
           await store.fetchPlugins()
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
       const installed = usePluginStore.getState().plugins.some((p) => p.id === DOTCRAFT_PLUGIN_ID && p.installed)
       if (installed) {
@@ -220,7 +203,6 @@ export function useComposerMascot({
     }
   }, [threadId, workspacePath])
 
-  // Submits to the CURRENT thread, unlike the doctor actions above.
   const submitToCurrent = useCallback(
     async (text: string): Promise<void> => {
       setLocal(null)
@@ -236,7 +218,6 @@ export function useComposerMascot({
   )
 
   return useMemo<ComposerMascotInteraction | undefined>(() => {
-    // Recovery actions stay in the menu even after the error bubble is dismissed.
     const menuItems: ContextMenuItem[] = isFailed
       ? [
           {

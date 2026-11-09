@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { randomUUID } from 'crypto'
 import { BrowserTurnSubscriptions } from './browserTurnSubscriptions'
 import { readBrowserTurnNotification } from './browserTabLifecycle'
 import { createInterface } from 'readline'
@@ -31,13 +32,9 @@ export interface InitializeResult {
 
 export const INITIALIZE_REQUEST_TIMEOUT_MS: number | null = null
 
-export type InitializeProfile = 'foreground' | 'secondary'
-
 export interface DesktopAppServerClientOptions {
   defaultTimeoutMs?: number
-  autoInitializeOnTransportOpen?: boolean
   initializeTimeoutMs?: number | null
-  initializeProfile?: InitializeProfile
   autoReconnect?: boolean
   remoteHost?: boolean
 }
@@ -85,13 +82,13 @@ export class DesktopAppServerClient extends EventEmitter {
   private readonly wire: DotCraftWireClient
   private readonly browserSubscriptions: BrowserTurnSubscriptions
   private readonly initializeTimeoutMs: number | null
-  private readonly initializeProfile: InitializeProfile
   private readonly remoteHost: boolean
   private notificationCallbacks: NotificationCallback[] = []
   private serverRequestHandler: ServerRequestHandler | null = null
   private disposed = false
   private initializedOnce = false
   private reconnectObserved = false
+  private connectionLifetimeId: string | null = null
 
   constructor(
     stdoutOrTransport: Readable | Transport,
@@ -103,7 +100,6 @@ export class DesktopAppServerClient extends EventEmitter {
       ? stdoutOrTransport
       : new DesktopStreamTransport(stdoutOrTransport, stdinOrUndefined!)
     this.initializeTimeoutMs = options.initializeTimeoutMs ?? INITIALIZE_REQUEST_TIMEOUT_MS
-    this.initializeProfile = options.initializeProfile ?? 'foreground'
     this.remoteHost = options.remoteHost ?? false
     this.wire = new DotCraftWireClient(transport, {
       autoReconnect: options.autoReconnect ?? false,
@@ -120,7 +116,7 @@ export class DesktopAppServerClient extends EventEmitter {
 
   static fromWebSocket(
     url: string,
-    options: DesktopAppServerClientOptions & { autoReconnect?: boolean } = {}
+    options: DesktopAppServerClientOptions = {}
   ): DesktopAppServerClient {
     const transport = new WebSocketTransport({ url })
     const client = new DesktopAppServerClient(transport, undefined, {
@@ -155,15 +151,20 @@ export class DesktopAppServerClient extends EventEmitter {
     this.wire.registerServerRequestFallbackRaw((method, id, params) => bridge(id, params, method))
     this.wire.onStateChanged((state, error) => {
       if (state === 'disconnected') {
+        const connectionId = this.connectionLifetimeId
+        this.connectionLifetimeId = null
         this.browserSubscriptions.clear()
         this.reconnectObserved = true
-        this.emit('close')
+        this.emit('close', connectionId)
       } else if (state === 'reconnectError') {
         this.emit('reconnect-error', error)
-      } else if (state === 'ready' && this.initializedOnce && this.reconnectObserved) {
-        this.reconnectObserved = false
-        const result = this.currentInitializeResult()
-        if (result) this.emit('reconnected', result)
+      } else if (state === 'ready' && this.initializedOnce) {
+        this.connectionLifetimeId ??= randomUUID()
+        if (this.reconnectObserved) {
+          this.reconnectObserved = false
+          const result = this.currentInitializeResult()
+          if (result) this.emit('reconnected', result)
+        }
       }
     })
   }
@@ -172,8 +173,7 @@ export class DesktopAppServerClient extends EventEmitter {
     try {
       await this.wire.connect()
       await this.wire.start()
-      const result = await this.initialize(undefined, this.initializeProfile)
-      this.initializedOnce = true
+      const result = await this.initialize()
       this.emit('ready', result)
     } catch (error) {
       this.emit('reconnect-error', error)
@@ -207,6 +207,10 @@ export class DesktopAppServerClient extends EventEmitter {
 
   get hasRetainedThreadAttachments(): boolean { return this.browserSubscriptions.retained }
 
+  hasWarmThread(threadId: string): boolean { return this.browserSubscriptions.hasWarmThread(threadId) }
+
+  get connectionId(): string | null { return this.connectionLifetimeId }
+
   get isDisposed(): boolean { return this.disposed }
 
   async sendNotification(method: string, params?: unknown): Promise<void> {
@@ -228,10 +232,7 @@ export class DesktopAppServerClient extends EventEmitter {
     this.serverRequestHandler = handler
   }
 
-  async initialize(
-    clientVersion = '0.1.0',
-    profile: InitializeProfile = this.initializeProfile
-  ): Promise<InitializeResult> {
+  async initialize(clientVersion = '0.1.0'): Promise<InitializeResult> {
     await this.wire.initialize({
       clientName: 'dotcraft-desktop',
       clientTitle: 'DotCraft',
@@ -242,23 +243,21 @@ export class DesktopAppServerClient extends EventEmitter {
       configChange: true,
       optOutNotifications: [],
       extraCapabilities: {
-        ...buildInitializeCapabilities(profile),
+        ...buildInitializeCapabilities(),
         ...(this.remoteHost ? { remoteHost: true } : {})
       }
     })
+    this.connectionLifetimeId ??= randomUUID()
+    this.initializedOnce = true
     return this.currentInitializeResult()!
-  }
-
-  async reInitialize(clientVersion = '0.1.0'): Promise<InitializeResult> {
-    const result = await this.initialize(clientVersion, this.initializeProfile)
-    this.emit('reconnected', result)
-    return result
   }
 
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    this.emit('disposed')
+    const connectionId = this.connectionLifetimeId
+    this.connectionLifetimeId = null
+    this.emit('disposed', connectionId)
     this.browserSubscriptions.clear()
     this.notificationCallbacks = []
     this.serverRequestHandler = null
@@ -289,7 +288,7 @@ function normalizeDesktopRpcError(error: unknown): AppServerRequestError {
   return fromAppServerErrorEnvelope(toAppServerErrorEnvelope(error))
 }
 
-function buildInitializeCapabilities(_profile: InitializeProfile): Record<string, unknown> {
+function buildInitializeCapabilities(): Record<string, unknown> {
   return {
     commandExecutionStreaming: true,
     toolExecutionLifecycle: true,

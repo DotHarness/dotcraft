@@ -73,7 +73,7 @@ Which tool results stay outside a folded process is a client layout decision, so
 
 Both clients follow these rules for conversation transcripts:
 
-1. Reuse a warm attached view when available. Otherwise stage incoming notifications and requests while a read-only header/five-Turn summary preview runs concurrently with runtime preparation and authoritative resume.
+1. Reuse a warm attached view when available, including after a workspace switch while its originating connection remains valid. Keep loaded Turn/Item pages and cursors; returning does not reread them. Otherwise stage incoming notifications and requests while a read-only header/five-Turn summary preview runs concurrently with runtime preparation and authoritative resume.
 2. Resume requests `initialTurnsPage: { limit: 5, itemsView: "summary", summaryTools }`. Apply its header, current interaction state and reconciled page as one coherent view before exposing actions. A preview alone is not readiness; no additional head-read barrier follows the authoritative response.
 3. Preserve summary rendering for every Turn status. A running, waiting, failed, or cancelled Turn is not forced to full view. Live updates merge by stable identity without marking partial content fully loaded.
 4. Opening detail reads at most one 100-Item page per selected Turn within the five-Turn head, using at most four concurrent workers. Preview hydration uses at most two concurrent jobs. Retain a cursor per Turn and publish usable content without waiting for a large Turn to drain.

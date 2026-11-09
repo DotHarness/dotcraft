@@ -66,7 +66,7 @@ export async function runThreadFork({
           },
           localParams
         })
-      : (await window.api.appServer.sendRequest('thread/fork', localParams) as unknown as ThreadForkResult).thread
+      : (await window.api.appServer.sendRequest('thread/fork', localParams, undefined, { attachmentOwner: 'warm' }) as unknown as ThreadForkResult).thread
     if (!thread?.id) {
       throw new Error(t('fork.toast.missingThread'))
     }

@@ -49,15 +49,33 @@ export function isCurrentForegroundWorkspaceConnection<TClient, TWindow extends 
   )
 }
 
-export function getWorkspaceNotificationForeground<TClient, TWindow extends DestroyableWindow>(
+export function getWorkspaceNotificationForeground<TClient extends { hasWarmThread(threadId: string): boolean }, TWindow extends DestroyableWindow>(
   method: string,
-  state: WorkspaceConnectionRoutingState<TClient, TWindow>
+  state: WorkspaceConnectionRoutingState<TClient, TWindow>,
+  params?: unknown
 ): boolean | null {
   if (state.role === 'secondary') {
-    return SECONDARY_THREAD_NOTIFICATION_METHODS.has(method) ? false : null
+    if (!canBridgeRendererInteractiveServerRequest(state)) return null
+    if (SECONDARY_THREAD_NOTIFICATION_METHODS.has(method)) return false
+    const threadId = readNotificationThreadId(method, params)
+    return threadId && isThreadNotification(method) && state.client.hasWarmThread(threadId) ? false : null
   }
 
   return isCurrentForegroundWorkspaceConnection(state) ? true : null
+}
+
+function isThreadNotification(method: string): boolean {
+  return ['thread/', 'turn/', 'item/', 'terminal/', 'plan/', 'subagent/'].some(prefix => method.startsWith(prefix))
+    || method === 'system/event' || method === 'system/jobResult'
+}
+
+function readNotificationThreadId(method: string, params: unknown): string | undefined {
+  if (!params || typeof params !== 'object') return undefined
+  const p = params as Record<string, unknown>
+  const thread = (p.thread ?? p.turn ?? p.terminal) as { id?: string; threadId?: string } | undefined
+  const id = p.threadId ?? p.parentThreadId ?? p.rootThreadId
+    ?? (method.startsWith('thread/') ? thread?.id : thread?.threadId)
+  return typeof id === 'string' ? id : undefined
 }
 
 export function shouldBridgeWorkspaceServerRequest<TClient, TWindow extends DestroyableWindow>(

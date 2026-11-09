@@ -68,7 +68,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
   } else if (preserveLocalConnections) {
     const existingConnection = ctx.getWorkspaceConnection(workspacePath)
     if (existingConnection?.connected) {
-      ctx.promoteWorkspaceConnection(existingConnection)
+      if (!await ctx.promoteWorkspaceConnection(existingConnection)) return false
       recordConnectionTiming('connection-ready', 'existing-connection')
       void ctx.refreshSecondaryWorkspaceConnections()
       return true
@@ -81,10 +81,9 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
         ctx.releaseConnectionViewAttachments(previous, 'workspace demote')
       }
     } else if (ctx.currentWorkspacePath === workspacePath) {
-      await ctx.teardownRuntime('reconnect current local workspace before new connect', { preserveDeviceConnections: true })
+      const previous = ctx.getWorkspaceConnection(workspacePath)
+      if (previous) ctx.disposeWorkspaceConnection(previous)
     }
-  } else {
-    await ctx.teardownRuntime('switch/reconnect before new connect')
   }
 
   ctx.wireClient = null
@@ -100,6 +99,13 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
   const activeDevice =
     !launchedWithRemoteUrl && connectionMode === 'remote' ? ctx.settings.activeRemoteDevice : undefined
   ctx.lastRemoteStackLocalPort = null
+  const savedRemoteId = activeSshProject
+    ? ctx.sshRemoteProjectId(activeSshProject.machine.id, activeSshProject.project.id)
+    : activeStack ? ctx.buildServersRemoteProject(activeStack.host, activeStack.stack).projectId : null
+  const savedRemote = savedRemoteId ? ctx.workspaceConnections.get(savedRemoteId) : undefined
+  if (savedRemote?.connected) {
+    return ctx.promoteWorkspaceConnection(savedRemote)
+  }
 
   if (launchedWithRemoteUrl) {
     const endpoint = ctx.argv[remoteIdx + 1]
@@ -114,14 +120,15 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
       projectKind: 'remote',
       identityWorkspacePath: project.identityWorkspacePath,
       displayPath: project.displayPath,
-      remote: project.remote
+      remote: project.remote,
+      remoteProject: project
     })
     return true
   }
 
   if (connectionMode === 'remote') {
     if (activeDevice) {
-      ctx.clearActiveRemoteReconnectTimer()
+      ctx.clearPendingDeviceOpenRetry()
       return ctx.connectDeviceProject(activeDevice.computerId, activeDevice.projectId, workspacePath)
     }
 
@@ -150,6 +157,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
           identityWorkspacePath: project.identityWorkspacePath,
           displayPath: project.displayPath,
           remote: project.remote,
+          remoteProject: project,
           remoteDiagnostic: {
             stage: 'active-remote-project',
             hostName: opened.machine.name,
@@ -189,7 +197,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
       try {
         const result = await ctx
           .getSshMachinesManager()
-          .docker.openAppServerTunnel(activeStack.host, activeStack.stack, { forceNew: true })
+          .docker.openAppServerTunnel(activeStack.host, activeStack.stack)
         ctx.lastRemoteStackLocalPort = result.localPort
         const tunnelEndpoint = `ws://127.0.0.1:${result.localPort}/ws`
         const project = ctx.buildServersRemoteProject(
@@ -209,6 +217,7 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
           identityWorkspacePath: project.identityWorkspacePath,
           displayPath: project.displayPath,
           remote: project.remote,
+          remoteProject: project,
           remoteDiagnostic: {
             stage: 'active-remote-stack',
             hostName: activeStack.host.name,
@@ -256,6 +265,10 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
       return false
     }
     const project = ctx.buildEndpointRemoteProject('manual', remoteConfig.connectUrl, workspacePath)
+    const existing = ctx.workspaceConnections.get(project.projectId)
+    if (existing?.connected) {
+      return ctx.promoteWorkspaceConnection(existing)
+    }
     ctx.prepareRemoteForeground(project)
     ctx.emitCurrentWorkspaceStatus(workspacePath)
     await ctx.connectViaWebSocket(workspacePath, remoteConfig.connectUrl, {
@@ -266,7 +279,8 @@ export async function connectToAppServer(ctx: DesktopWindowRuntime, workspacePat
       projectKind: 'remote',
       identityWorkspacePath: project.identityWorkspacePath,
       displayPath: project.displayPath,
-      remote: project.remote
+      remote: project.remote,
+      remoteProject: project
     })
     return true
   }

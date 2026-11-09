@@ -20,7 +20,7 @@ function fixture() {
     recordForegroundWorkspace: vi.fn(), emitWorkspaceProjects: vi.fn(),
     connectToAppServer: vi.fn(async () => {}), workspaceTitleName: () => 'B',
     teardownRuntime: vi.fn(async () => {}), deviceOpenGeneration: 0,
-    clearActiveRemoteReconnectTimer: vi.fn(), demoteDeviceProject: vi.fn(() => false),
+    clearPendingDeviceOpenRetry: vi.fn(), demoteDeviceProject: vi.fn(() => false),
     closeActiveRemoteForwards: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
     emitWorkspaceStatus: vi.fn(), getWorkspaceStatusForRenderer: vi.fn(), emitConnectionStatus: vi.fn()
   } as unknown as DesktopWindowRuntime
@@ -36,6 +36,16 @@ describe('panel resources on foreground workspace changes', () => {
     expect(calls.destroy).not.toHaveBeenCalled()
     expect(ctx.teardownRuntime).not.toHaveBeenCalled()
     expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith('/b')
+  })
+
+  it('promotes a retained remote by connection key without initializing its path locally', async () => {
+    const ctx = fixture()
+    const entry = { initializeResult: {}, key: 'remote:manual:server' }
+    ctx.workspaceConnections = new Map([[entry.key, entry as never]])
+    ctx.promoteWorkspaceConnection = vi.fn(async () => true)
+    await switchForegroundWorkspace(ctx, '/remote/path', entry.key)
+    expect(ctx.promoteWorkspaceConnection).toHaveBeenCalledExactlyOnceWith(entry)
+    expect(ctx.connectToAppServer).not.toHaveBeenCalled()
   })
 
   it('archives through the requested remote connection instead of a local workspace with the same path', async () => {

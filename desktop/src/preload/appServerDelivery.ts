@@ -30,7 +30,7 @@ export class AppServerDeliveryConsumer {
         onResponse: options?.onResponse as ((result: unknown) => void) | undefined
       })
       try {
-        this.send({ requestId, method, params, timeoutMs, connectionKey, attachmentOwner: options?.attachmentOwner })
+        this.send({ requestId, method, params, timeoutMs, connectionKey, connectionId: options?.connectionId, attachmentOwner: options?.attachmentOwner })
       } catch (error) {
         this.pending.delete(requestId)
         reject(error)

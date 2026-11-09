@@ -249,17 +249,9 @@ export function prepareRemoteForeground(ctx: DesktopWindowRuntime, project: Acti
   if (!ctx.previousLocalForegroundWorkspacePath && project.localWorkspacePath) {
     ctx.previousLocalForegroundWorkspacePath = project.localWorkspacePath
   }
-  const previousLocal = project.localWorkspacePath
-    ? ctx.getWorkspaceConnection(project.localWorkspacePath)
-    : undefined
-  if (previousLocal?.role === 'foreground') {
-    previousLocal.role = 'secondary'
-    previousLocal.lastUsedAt = Date.now()
-    ctx.releaseConnectionViewAttachments(previousLocal, 'remote foreground promote')
-  }
-  if (ctx.activeRemoteProject?.projectId !== project.projectId) {
-    if (!ctx.demoteDeviceProject()) ctx.disposeActiveRemoteConnection()
-  }
+  const previous = ctx.wireClient ? ctx.findWorkspaceConnectionByClient(ctx.wireClient)
+    : ctx.activeRemoteProject ? ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId) : undefined
+  if (previous && previous.projectId !== project.projectId) ctx.demoteWorkspaceConnection(previous)
   ctx.setActiveRemoteProject(project)
 }
 

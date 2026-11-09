@@ -1,15 +1,19 @@
-export interface ThreadObservationTarget {
+import type { AppServerConnectionSource } from '../../shared/appServerBoundary'
+import type { ServerCapabilities } from '../stores/connectionStore'
+
+export interface ThreadObservationTarget extends AppServerConnectionSource {
   threadId: string
-  workspaceIdentity: string
   workspaceKey: string
-  connectionEpoch: number
+  capabilities: ServerCapabilities | null
+  originChannel?: string
 }
 
 export interface ActiveThreadObservationState {
   connected: boolean
-  workspaceIdentity: string
   workspaceKey: string
-  connectionEpoch: number
+  connectionKey: string | null
+  connectionId: string | null
+  capabilities: ServerCapabilities | null
   threadListWorkspaceKey: string | null
   threadIds: readonly string[]
 }
@@ -18,26 +22,19 @@ export function resolveThreadObservationTarget(
   state: ActiveThreadObservationState,
   threadId: string
 ): ThreadObservationTarget | null {
-  if (!state.connected) return null
-  if (!state.workspaceIdentity || !state.workspaceKey) return null
+  if (!state.connected || !state.connectionKey || !state.connectionId) return null
+  if (!state.workspaceKey) return null
   if (state.threadListWorkspaceKey !== state.workspaceKey) return null
   if (!state.threadIds.includes(threadId)) return null
 
   return {
-    threadId,
-    workspaceIdentity: state.workspaceIdentity,
-    workspaceKey: state.workspaceKey,
-    connectionEpoch: state.connectionEpoch
+    threadId, workspaceKey: state.workspaceKey,
+    connectionKey: state.connectionKey, connectionId: state.connectionId, capabilities: state.capabilities
   }
 }
 
 export function threadObservationTargetKey(target: ThreadObservationTarget): string {
-  return [
-    target.workspaceIdentity,
-    target.workspaceKey,
-    String(target.connectionEpoch),
-    target.threadId
-  ].join('\u0000')
+  return [target.connectionKey, target.connectionId, target.threadId].join('\u0000')
 }
 
 export function isSameThreadObservationTarget(
@@ -45,13 +42,4 @@ export function isSameThreadObservationTarget(
   right: ThreadObservationTarget | null | undefined
 ): boolean {
   return left != null && right != null && threadObservationTargetKey(left) === threadObservationTargetKey(right)
-}
-
-export function isThreadObservationConnectionCurrent(
-  target: ThreadObservationTarget,
-  current: Pick<ThreadObservationTarget, 'workspaceIdentity' | 'workspaceKey' | 'connectionEpoch'>
-): boolean {
-  return target.workspaceIdentity === current.workspaceIdentity
-    && target.workspaceKey === current.workspaceKey
-    && target.connectionEpoch === current.connectionEpoch
 }

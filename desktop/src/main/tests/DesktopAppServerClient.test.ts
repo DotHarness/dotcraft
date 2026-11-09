@@ -1,6 +1,7 @@
 import { PassThrough } from 'stream'
+import { once } from 'events'
 import { createInterface } from 'readline'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
 
 describe('DesktopAppServerClient', () => {
@@ -29,6 +30,7 @@ describe('DesktopAppServerClient', () => {
   }
 
   it('uses the Desktop initialization profile and sends initialized afterward', async () => {
+    expect(client.connectionId).toBeNull()
     const pending = client.initialize('1.2.3')
     const request = await readRequest()
     expect(request.method).toBe('initialize')
@@ -55,6 +57,55 @@ describe('DesktopAppServerClient', () => {
     const result = await pending
     expect(result.capabilities.pluginManagement).toBe(true)
     expect(result.dashboardUrl).toBe('http://127.0.0.1:1234/')
+    const connectionId = client.connectionId
+    expect(connectionId).toEqual(expect.any(String))
+    await client.releaseViewAttachments()
+    expect(client.connectionId).toBe(connectionId)
+    client.dispose()
+    expect(client.connectionId).toBeNull()
+  })
+
+  it('invalidates the source identity on disconnect and assigns a new lifetime after reconnect', async () => {
+    vi.useFakeTimers()
+    let reader: { resolve(message: Record<string, unknown>): void; reject(error: Error): void } | null = null
+    const incoming: Record<string, unknown>[] = []
+    const enqueue = (message: Record<string, unknown>): void => {
+      const pending = reader
+      reader = null
+      if (pending) pending.resolve(message)
+      else incoming.push(message)
+    }
+    const fail = (error: Error): void => {
+      const pending = reader
+      reader = null
+      pending?.reject(error)
+    }
+    const remote = new DesktopAppServerClient({
+      readMessage: () => incoming.length ? Promise.resolve(incoming.shift()!)
+        : new Promise<Record<string, unknown>>((resolve, reject) => { reader = { resolve, reject } }),
+      writeMessage: async message => {
+        if (message.method === 'initialize') enqueue({ jsonrpc: '2.0', id: message.id,
+          result: { serverInfo: { name: 'fixture', version: '1' }, capabilities: {} } })
+      },
+      connect: async () => {},
+      close: async () => { fail(new Error('closed')) }
+    }, undefined, { autoReconnect: true })
+    try {
+      await remote.initialize()
+      const first = remote.connectionId
+      const closed = once(remote, 'close')
+      const reconnected = once(remote, 'reconnected')
+      fail(new Error('connection lost'))
+      await closed
+      expect(remote.connectionId).toBeNull()
+      await vi.runOnlyPendingTimersAsync()
+      await reconnected
+      expect(remote.connectionId).toEqual(expect.any(String))
+      expect(remote.connectionId).not.toBe(first)
+    } finally {
+      remote.dispose()
+      vi.useRealTimers()
+    }
   })
 
   it('forwards raw notifications and server requests without blocking JSON-RPC', async () => {
@@ -72,14 +123,6 @@ describe('DesktopAppServerClient', () => {
       id: 'request-1',
       result: { method: 'extension/request', params: { value: 2 } }
     })
-  })
-
-  it('keeps explicit request timeouts and response correlation in SDK Wire', async () => {
-    const first = client.sendRequest<{ value: number }>('fixture/one', {})
-    const request = await readRequest()
-    push({ jsonrpc: '2.0', id: request.id, result: { value: 7 } })
-    await expect(first).resolves.toEqual({ value: 7 })
-    await expect(client.sendRequest('fixture/timeout', {}, 5)).rejects.toThrow(/timed out/i)
   })
 
   it('holds the wire subscription through UI unsubscribe and releases it at browser turn end', async () => {

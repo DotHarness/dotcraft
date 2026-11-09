@@ -22,6 +22,8 @@ export async function openProjectConnection(
       await machines.openProject(ssh.machineId, ssh.projectId)
     } else if (!isRemoteProject(project)) {
       await window.api.workspace.switch(project.path)
+    } else if (project.connectionKey && project.loaded) {
+      await window.api.workspace.switch(project.path, project.connectionKey)
     } else {
       return false
     }

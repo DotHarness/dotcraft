@@ -1,5 +1,6 @@
 import { BrowserWindow, Notification } from 'electron'
 import type { ConnectionStatusPayload } from '../shared/connectionStatus'
+import type { AppServerConnectionSource } from '../shared/appServerBoundary'
 import type { WorkspaceStatusPayload } from '../shared/workspaceSetup'
 import { ChannelModuleManager, type ModuleStatusMap } from './channelModuleManager'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
@@ -76,7 +77,7 @@ export function registerIpcHandlers(
   callbacks: IpcHandlerCallbacks,
   owner: BrowserWindow
 ): void {
-  unregisterIpcHandlers(owner, { preserveDesktopPluginModules: true })
+  unregisterIpcHandlers(owner, 'rebind')
   activateFileIndexWorkspace(workspacePath, owner.webContents.id)
   if (workspacePath) void cleanupWorkspaceCache(workspacePath).catch(() => {})
   const ipc = createWindowIpcMain(owner)
@@ -148,7 +149,7 @@ export function registerIpcHandlers(
 
 export function unregisterIpcHandlers(
   owner: BrowserWindow,
-  options: { preserveDesktopPluginModules?: boolean } = {}
+  reason: 'rebind' | 'close' = 'close'
 ): void {
   const registration = registrations.get(owner)
   if (!registration) return
@@ -157,11 +158,12 @@ export function unregisterIpcHandlers(
   registration.ipc.dispose()
   registration.modules.dispose()
   registration.disposeProjectActions?.()
-  cancelWindowServerRequests(owner)
+  const rebinding = reason === 'rebind'
+  if (!rebinding) cancelWindowServerRequests(owner)
   viewerTextWatchManager.disposeSender(owner.webContents.id)
   releaseFileIndex(owner.webContents.id)
-  unregisterDesktopPluginModuleIpc(options.preserveDesktopPluginModules, owner.webContents.id)
-  if (!options.preserveDesktopPluginModules) clearDesktopPluginModuleRoutes(owner.webContents.id)
+  unregisterDesktopPluginModuleIpc(rebinding, owner.webContents.id)
+  if (!rebinding) clearDesktopPluginModuleRoutes(owner.webContents.id)
 }
 
 export function broadcastConnectionStatus(win: BrowserWindow, payload: ConnectionStatusPayload): void {
@@ -210,7 +212,8 @@ export function broadcastNotification(
   params: unknown,
   settings?: AppSettings,
   workspacePath?: string,
-  foreground?: boolean
+  foreground?: boolean,
+  source?: AppServerConnectionSource
 ): void {
   if (method === 'system/jobResult' && !win.isDestroyed() && shouldShowTaskCompletionNotification(win, settings)) {
     const p = (params ?? {}) as Record<string, unknown>
@@ -231,6 +234,7 @@ export function broadcastNotification(
       payload: {
         method,
         params,
+        ...source,
         ...(workspacePath !== undefined ? { workspacePath } : {}),
         ...(foreground !== undefined ? { foreground } : {})
       }

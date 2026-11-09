@@ -1,16 +1,19 @@
 import { getThreadConversation } from './conversationStore'
 import { useThreadStore } from './threadStore'
+import { getThreadConnection } from './threadConnectionStore'
 
 export function activateParkedInteractiveRequests(threadId: string): void {
   const threads = useThreadStore.getState()
   if (threads.activeThreadId !== threadId) return
   const conversation = getThreadConversation(threadId)?.getState()
   if (!conversation) return
+  const connectionId = getThreadConnection(threadId)?.connectionId
   for (const request of threads.consumeParkedApprovals(threadId)) {
+    if (request.connectionId && request.connectionId !== connectionId) continue
     conversation.onApprovalRequest(request.bridgeId, request.rawParams)
   }
   const input = threads.consumeParkedUserInput(threadId)
-  if (input) conversation.onUserInputRequest(input.bridgeId, input.rawParams)
+  if (input && (!input.connectionId || input.connectionId === connectionId)) conversation.onUserInputRequest(input.bridgeId, input.rawParams)
 }
 
 export function parkThreadInteractiveRequests(threadId: string): void {

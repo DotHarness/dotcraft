@@ -26,18 +26,26 @@ export async function removeLocalProject(ctx: DesktopWindowRuntime, workspacePat
   ctx.emitWorkspaceProjects()
 }
 
-export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPath: string): Promise<void> {
+export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPath: string, connectionKey?: string): Promise<void> {
   if (ctx.mainWindow) invalidateForegroundFileAccess(ctx.mainWindow.webContents.id)
   ctx.deviceOpenGeneration += 1
-  ctx.clearActiveRemoteReconnectTimer()
-  if (ctx.demoteDeviceProject()) {
+  if (connectionKey) {
+    const entry = ctx.workspaceConnections.get(connectionKey)
+    if (!entry?.initializeResult) throw new Error('Workspace connection is not available.')
+    await ctx.promoteWorkspaceConnection(entry)
+    return
+  }
+  ctx.clearPendingDeviceOpenRetry()
+  if (ctx.activeRemoteProject || ctx.settings.activeRemoteDevice) {
+    const previous = ctx.wireClient ? ctx.findWorkspaceConnectionByClient(ctx.wireClient)
+      : ctx.activeRemoteProject ? ctx.workspaceConnections.get(ctx.activeRemoteProject.projectId) : undefined
+    if (previous) ctx.demoteWorkspaceConnection(previous)
+    ctx.setActiveRemoteProject(null)
     await ctx.updateSettings({
       connectionMode: 'local', activeRemoteDevice: undefined,
       activeRemoteStack: undefined, activeRemoteProject: undefined
     })
     ctx.previousLocalForegroundWorkspacePath = null
-  } else if (ctx.activeRemoteProject || ctx.settings.activeRemoteDevice) {
-    await ctx.disconnectActiveRemoteProject({ restorePreviousLocal: false })
   }
 
   if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()

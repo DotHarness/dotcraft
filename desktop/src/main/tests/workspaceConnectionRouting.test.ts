@@ -11,8 +11,8 @@ import {
 describe('workspace connection routing', () => {
   it('routes notifications and server requests by the current foreground owner after promotion', () => {
     const win = { isDestroyed: vi.fn(() => false) }
-    const clientA = { id: 'a' }
-    const clientB = { id: 'b' }
+    const clientA = { id: 'a', hasWarmThread: () => false }
+    const clientB = { id: 'b', hasWarmThread: () => false }
     let wireClient: typeof clientA | typeof clientB | null = clientA
     let roleA: WorkspaceConnectionRole = 'foreground'
     let roleB: WorkspaceConnectionRole = 'secondary'
@@ -67,6 +67,20 @@ describe('workspace connection routing', () => {
     expect(notificationForeground('thread/status/changed', clientB, roleB)).toBe(false)
     expect(notificationForeground('turn/started', clientB, roleB)).toBeNull()
     expect(bridgesServerRequest(clientB, roleB)).toBe(false)
+  })
+
+  it('forwards complete events only for source-retained warm threads', () => {
+    const win = { isDestroyed: () => false }
+    const client = { hasWarmThread: (threadId: string) => threadId === 'warm' }
+    const state = { appQuitting: false, mainWindow: win, wireClient: null, client, role: 'secondary' as const }
+    for (const method of ['turn/started', 'item/completed', 'item/agentMessage/delta', 'plan/updated', 'system/event']) {
+      expect(getWorkspaceNotificationForeground(method, state, { threadId: 'warm' })).toBe(false)
+      expect(getWorkspaceNotificationForeground(method, state, { threadId: 'cold' })).toBeNull()
+    }
+    expect(getWorkspaceNotificationForeground('terminal/outputDelta', state, { terminal: { threadId: 'warm' } })).toBe(false)
+    expect(getWorkspaceNotificationForeground('subagent/graph/changed', state, { parentThreadId: 'warm' })).toBe(false)
+    expect(getWorkspaceNotificationForeground('config/changed', state, { threadId: 'warm' })).toBeNull()
+    expect(getWorkspaceNotificationForeground('item/completed', { ...state, appQuitting: true }, { threadId: 'warm' })).toBeNull()
   })
 
   it('returns only the current foreground owner for default renderer requests', () => {

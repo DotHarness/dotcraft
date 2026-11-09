@@ -1,20 +1,17 @@
 import { useThreadRestoration } from './hooks/useThreadRestoration'
 import { useConversationWorkspace } from './hooks/useConversationWorkspace'
-import { applyThreadTurnRuntime } from './stores/threadTurnRuntime'
-import { resolveParkedApproval } from './stores/threadInteractiveRequests'
-import { isThreadRestoring, stageThreadNotification } from './stores/threadRestoration'
+import { applyThreadNotification } from './stores/threadNotifications'
+import { applyThreadServerRequest, useThreadElicitationStore, dismissThreadElicitation } from './stores/threadServerRequests'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
 import { initConnectionStore, useConnectionStore } from './stores/connectionStore'
-import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
+import { useThreadStore } from './stores/threadStore'
 import { canReloadForegroundThreadList, currentForegroundThreadListKey, useForegroundThreadList } from './hooks/useForegroundThreadList'
 import {
-  getThreadConversation,
   useConversationStore,
-  type ConversationStore,
   type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
@@ -30,7 +27,6 @@ import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
 import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
-import { normalizeThreadRuntime } from './utils/threadRuntime'
 import { usePairedComputerNotices } from './hooks/usePairedComputerNotices'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
@@ -49,11 +45,8 @@ import { usePluginStore } from './stores/pluginStore'
 import { prepareDesktopPluginWorkspaceChange } from './plugins/desktopPluginSource'
 import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
-import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
-import { useBoardStore } from './stores/boardStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
-import { useTurnBookmarkStore } from './stores/turnBookmarkStore'
 import { bootstrapSatellites } from './stores/satellitesStore'
 import { useGitStore } from './stores/gitStore'
 import { useWorkspaceReadinessTiming } from './hooks/useWorkspaceReadinessTiming'
@@ -65,8 +58,6 @@ import {
   stopAppNavigationHistory
 } from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
-import { isHiddenThread } from '../shared/hiddenThreads'
-import { serverFallbackText } from './utils/appServerErrorText'
 import { useSideChatStore } from './stores/sideChatStore'
 import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
@@ -99,30 +90,21 @@ import { scheduleIdlePrefetch } from './core/idlePrefetch'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import {
   McpElicitationDialog,
-  type McpElicitationRequest,
   type McpElicitationResponse
 } from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
-import type { ContextUsageSnapshotWire, Thread, ThreadGoal, ThreadReadState, ThreadSummary } from './types/thread'
-import type { ApprovalDecision, QueuedTurnInput } from './types/conversation'
-import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
-import { reloadVisualizationsReferencedBy } from './components/conversation/visualizationReloads'
-import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { handleBrowserEvent } from './utils/browserEventHandler'
 import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { welcomeScopeKey } from './utils/detailPanelScope'
 import { useDetailPanelLifecycle } from './hooks/useDetailPanelLifecycle'
-import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
-import { reloadThreadAfterRollback } from './utils/threadRollback'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { handleFindShortcut } from './find/findShortcut'
 import { FindOverlay } from './find/FindOverlay'
 import { initPromptSuggestionStore } from './stores/promptSuggestionStore'
 import { interruptTurn } from './utils/interruptTurn'
-import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
 import { collectWebCitationSources, formatWebCitations } from './utils/webCitations'
 import {
   isDesktopPluginMainView,
@@ -208,41 +190,6 @@ function resolveWorkspaceDisplayName(status: WorkspaceStatusPayload): string {
   if (remoteName) return remoteName
   const path = status.workspacePath ?? ''
   return path ? basename(path) : 'DotCraft'
-}
-
-function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
-  return value === 'accept' ||
-    value === 'acceptForSession' ||
-    value === 'acceptAlways' ||
-    value === 'decline' ||
-    value === 'cancel'
-    ? value
-    : null
-}
-
-function extractApprovalResolvedParams(params: Record<string, unknown>): {
-  threadId: string | null
-  turnId: string | null
-  requestId: string | null
-  decision: ApprovalDecision | null
-} {
-  const item = params.item && typeof params.item === 'object'
-    ? params.item as Record<string, unknown>
-    : {}
-  const payload = item.payload && typeof item.payload === 'object'
-    ? item.payload as Record<string, unknown>
-    : {}
-
-  return {
-    threadId: typeof params.threadId === 'string' ? params.threadId : null,
-    turnId: typeof params.turnId === 'string' ? params.turnId : null,
-    requestId: typeof payload.requestId === 'string'
-      ? payload.requestId
-      : typeof item.requestId === 'string'
-        ? item.requestId
-        : null,
-    decision: normalizeApprovalDecision(payload.decision ?? item.decision)
-  }
 }
 
 function getWhatsNewReleaseVersions(releases: WhatsNewRelease[]): string[] {
@@ -341,18 +288,15 @@ function currentForegroundThreadListIdentityKey(
 
 function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   prepareDesktopPluginWorkspaceChange(preserveLocalPlugins)
-  useThreadStore.getState().reset()
-  useConversationStore.getState().reset()
+  useThreadStore.getState().resetForeground()
   resetProviderConnectionScope()
   useMcpStore.getState().reset()
   usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
-  useSubAgentStore.getState().reset()
   if (useUIStore.getState().activeMainView !== 'settings') {
     useUIStore.getState().setActiveMainView('conversation')
   }
   useUIStore.getState().setPendingWelcomeTurn(null)
-  // A machine chosen on one workspace's welcome composer means nothing in the next.
   useThreadRouteStore.getState().setPendingRoute(null)
 }
 
@@ -569,7 +513,11 @@ export function App(): JSX.Element {
     releases: WhatsNewRelease[]
     markSeenVersion?: string
   } | null>(null)
-  const [mcpElicitation, setMcpElicitation] = useState<McpElicitationRequest | null>(null)
+  const elicitationThreadId = useThreadStore(state => state.activeThreadId)
+  const elicitationConnectionId = useConnectionStore(state => state.connectionId)
+  const mcpElicitation = useThreadElicitationStore(state => state.requests.find(request =>
+    (!request.connectionId || request.connectionId === elicitationConnectionId)
+    && (request.threadId == null || request.threadId === elicitationThreadId)) ?? null)
   const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
@@ -644,7 +592,6 @@ export function App(): JSX.Element {
   const { reloadThreadList, invalidateThreadList, loadedProjectKey } = useForegroundThreadList(activeProjectKeyRef, protocolWorkspacePathRef)
   useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
   const { updateWarmThread, releaseWarmThread } = useThreadRestoration({
-    workspaceIdentity: foregroundThreadListIdentityKey,
     workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKey),
     protocolWorkspacePath: protocolWorkspacePath || workspacePath,
     locale
@@ -1269,7 +1216,6 @@ export function App(): JSX.Element {
       performance.mark('app:connected')
       performance.measure('app:startup', 'app:bootstrap-start', 'app:connected')
       void reloadThreadList()
-      // Routes are runtime-only, so a new connection starts with none.
       useThreadRouteStore.getState().resetForConnection()
 
       const caps = useConnectionStore.getState().capabilities
@@ -1319,11 +1265,12 @@ export function App(): JSX.Element {
 
     const unsubscribe = window.api.appServer.onNotification(
       function applyNotification(payload) {
-        const params = (payload.params ?? {}) as Record<string, unknown>
-        const thread = (params.thread ?? params.turn ?? params.terminal) as { threadId?: string; id?: string } | undefined
-        const threadId = typeof params.threadId === 'string' ? params.threadId
-          : payload.method.startsWith('thread/') ? thread?.id : thread?.threadId
-        if (stageThreadNotification(threadId, () => applyNotification(payload))) return
+        const foreground = payload.foreground !== false
+          && (!payload.workspacePath || normalizeWorkspacePathForPinnedLookup(payload.workspacePath)
+            === normalizeWorkspacePathForPinnedLookup(protocolWorkspacePathRef.current || workspacePathRef.current))
+        if (applyThreadNotification(payload, {
+          locale: localeRef.current, foreground, updateWarmThread, releaseWarmThread, reloadThreadList
+        })) return
         if (payload.foreground === false) {
           if (payload.method === 'thread/deleted' && payload.workspacePath) {
             const threadId = (payload.params as { threadId?: string } | undefined)?.threadId
@@ -1344,492 +1291,7 @@ export function App(): JSX.Element {
         }
         const method = payload.method
         const p = (payload.params ?? {}) as Record<string, unknown>
-        const conv = useConversationStore.getState()
-        const { addThread: doAddThread, updateThreadStatus: doUpdateStatus } =
-          useThreadStore.getState()
-        const isActiveConversation = (threadId: string | null | undefined): boolean =>
-          !threadId || useThreadStore.getState().activeThreadId === threadId
-        const conversationFor = (threadId: string | null | undefined): ConversationStore | null =>
-          threadId ? getThreadConversation(threadId)?.getState() ?? null : conv
-
-        if (method.startsWith('item/') && typeof p.turnId === 'string') {
-          conversationFor(typeof p.threadId === 'string' ? p.threadId : undefined)?.clearStreamRetry(p.turnId)
-        }
-
         switch (method as string) {
-          case 'thread/started': {
-            const pp = p as { thread: ThreadSummary }
-            doAddThread(pp.thread)
-            if (pp.thread && isSubAgentThread(pp.thread)) {
-              const parentThreadId = getSubAgentParentThreadId(pp.thread)
-              if (parentThreadId) {
-                void useSubAgentStore.getState().fetchChildren(parentThreadId).catch(() => {})
-              }
-            }
-            break
-          }
-
-          case 'thread/updated': {
-            const pp = p as { thread?: Thread }
-            if (pp.thread) {
-              useThreadStore.getState().upsertThreads([pp.thread])
-              if (useThreadStore.getState().activeThreadId === pp.thread.id) {
-                useThreadStore.getState().setActiveThread(pp.thread)
-              }
-              updateWarmThread(pp.thread)
-            }
-            break
-          }
-
-          case 'thread/renamed': {
-            const pp = p as { threadId: string; displayName: string }
-            if (pp.displayName?.trim()) {
-              useThreadStore.getState().renameThread(pp.threadId, pp.displayName)
-            }
-            break
-          }
-
-          case 'thread/deleted': {
-            const pp = p as { threadId: string }
-            if (pp.threadId) {
-              void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: pp.threadId }).catch(() => {})
-              useTurnBookmarkStore.getState().forgetThread(pp.threadId)
-            }
-            useThreadStore.getState().removeThreadTree(pp.threadId)
-            break
-          }
-
-          case 'thread/rolledBack': {
-            const threadId = (p as { threadId?: string }).threadId
-            if (!threadId) break
-            if (useThreadStore.getState().activeThreadId === threadId) {
-              void reloadThreadAfterRollback(threadId).catch((err: unknown) => {
-                console.error('Failed to reload a rolled back thread:', err)
-              })
-            } else {
-              releaseWarmThread(threadId)
-            }
-            break
-          }
-
-          case 'thread/archived': {
-            useThreadStore.getState().removeThreadTree((p as { threadId: string }).threadId)
-            break
-          }
-
-          case 'thread/unarchived': {
-            doUpdateStatus((p as { threadId: string }).threadId, 'active')
-            break
-          }
-
-          case 'thread/queue/updated': {
-            const pp = p as { threadId?: string; queuedInputs?: unknown[] }
-            conversationFor(pp.threadId)?.setQueuedInputs((pp.queuedInputs ?? []) as QueuedTurnInput[])
-            break
-          }
-
-          case 'thread/readState/changed': {
-            const pp = p as { threadId?: string; readState?: ThreadReadState }
-            if (pp.threadId && pp.readState) {
-              useThreadStore.getState().setThreadReadState(pp.threadId, pp.readState)
-            }
-            break
-          }
-
-          case 'thread/goal/updated': {
-            const pp = p as { threadId?: string; goal?: ThreadGoal }
-            if (pp.goal) {
-              useThreadStore.getState().setThreadGoal(pp.goal)
-            }
-            break
-          }
-
-          case 'thread/goal/cleared': {
-            const pp = p as { threadId?: string }
-            if (pp.threadId) {
-              useThreadStore.getState().clearThreadGoal(pp.threadId)
-            }
-            break
-          }
-
-          case 'thread/status/changed': {
-            const pp = p as {
-              threadId?: string
-              runtime?: Partial<ThreadRuntimeSnapshot>
-            }
-            const threadId = typeof pp.threadId === 'string' ? pp.threadId : ''
-            if (!threadId) break
-
-            const threadStore = useThreadStore.getState()
-            const threadSummary = threadStore.threadList.find((thread) => thread.id === threadId)
-            const runtimeSnapshot = normalizeThreadRuntime(pp.runtime ?? {})
-            threadStore.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
-              isDesktopOrigin: threadSummary?.originChannel?.toLowerCase() === 'dotcraft-desktop'
-            })
-            useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)
-            if (threadStore.activeThreadId === threadId) {
-              const conversation = useConversationStore.getState()
-              const pendingApprovals = conversation.pendingApprovals.length > 0
-                ? conversation.pendingApprovals
-                : conversation.pendingApproval != null
-                  ? [conversation.pendingApproval]
-                  : []
-              if (!runtimeSnapshot.waitingOnApproval) {
-                for (const pendingApproval of pendingApprovals) {
-                  if (
-                    pendingApproval.locallySubmittedDecision == null &&
-                    (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
-                  ) {
-                    useConversationStore.getState().onApprovalNoLongerPending({
-                      threadId,
-                      turnId: pendingApproval.turnId,
-                      requestId: pendingApproval.requestId,
-                      nextTurnStatus: runtimeSnapshot.running ? 'running' : 'idle'
-                    })
-                  }
-                }
-              }
-              useConversationStore.getState().setMaintenanceKind(runtimeSnapshot.maintenanceKind)
-            }
-            break
-          }
-
-          case 'thread/error': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const reason = (p.reason as string | undefined) ?? (p.message as string | undefined) ?? 'unknown'
-            if (reason === 'not-found' || reason.includes('not found')) {
-              useThreadStore.getState().removeThread(tid)
-              addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
-            }
-            break
-          }
-
-          case 'turn/started': {
-            const rawTurn = (p.turn ?? p) as Record<string, unknown>
-            const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            const conversation = conversationFor(startedThreadId)
-            if (conversation) {
-              conversation.onTurnStarted(rawTurn)
-            }
-            applyThreadTurnRuntime(startedThreadId, rawTurn, true)
-
-            break
-          }
-
-          case 'turn/completed': {
-            const rawTurn = (p.turn ?? p) as Record<string, unknown>
-            const completedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            const conversation = conversationFor(completedThreadId)
-            if (conversation) {
-              conversation.onTurnCompleted(rawTurn)
-            }
-            applyThreadTurnRuntime(completedThreadId, rawTurn, false)
-            // Fallback: poll thread/read if sidebar still has no displayName (e.g. missed thread/renamed).
-            // Primary updates come from thread/renamed broadcast and thread/read on selection.
-            if (completedThreadId) {
-              void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: completedThreadId }).catch(() => {})
-              const ts = useThreadStore.getState()
-              const threadEntry = ts.threadList.find((t) => t.id === completedThreadId)
-                ?? (ts.activeThread?.id === completedThreadId ? ts.activeThread : null)
-              if (threadEntry && !threadEntry.displayName && !isHiddenThread(threadEntry)) {
-                void window.api.appServer
-                  .sendRequest('thread/read', { threadId: completedThreadId })
-                  .then((res) => {
-                    const r = res as { thread?: { displayName?: string | null } }
-                    const name = r?.thread?.displayName
-                    if (name) useThreadStore.getState().renameThread(completedThreadId, name)
-                  })
-                  .catch(() => {})
-              }
-            }
-
-            break
-          }
-
-          case 'turn/failed': {
-            const rawTurn = (p.turn ?? p) as Record<string, unknown>
-            const failedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            const error = (p.error as string) ?? (p.message as string) ?? 'Unknown error'
-            if (failedThreadId) {
-              void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: failedThreadId }).catch(() => {})
-            }
-            conversationFor(failedThreadId)?.onTurnFailed(rawTurn, error)
-            applyThreadTurnRuntime(failedThreadId, rawTurn, false)
-
-            break
-          }
-
-          case 'turn/cancelled': {
-            const rawTurn = (p.turn ?? p) as Record<string, unknown>
-            const cancelledThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            const reason = (p.reason as string) ?? ''
-            if (cancelledThreadId) {
-              void window.api.skillMarket?.cleanupDotCraftInstall?.({ threadId: cancelledThreadId }).catch(() => {})
-            }
-            conversationFor(cancelledThreadId)?.onTurnCancelled(rawTurn, reason)
-            applyThreadTurnRuntime(cancelledThreadId, rawTurn, false)
-
-            break
-          }
-
-          case 'item/started': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            conversationFor(tid)?.onItemStarted(p)
-
-            break
-          }
-
-          case 'item/agentMessage/delta': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const delta = (p.delta as string) ?? ''
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onAgentMessageDelta(delta)
-            }
-
-            break
-          }
-
-          case 'item/reasoning/delta': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const delta = (p.delta as string) ?? ''
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onReasoningDelta(delta)
-            }
-
-            break
-          }
-
-          case 'item/commandExecution/terminalInteraction': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onTerminalInteraction({
-                turnId: p.turnId as string | undefined,
-                itemId: p.itemId as string | undefined,
-                stdin: p.stdin as string | undefined
-              })
-            }
-
-            break
-          }
-
-          case 'item/commandExecution/outputDelta': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const params = {
-              threadId: (p.threadId as string | undefined),
-              turnId: (p.turnId as string | undefined),
-              itemId: (p.itemId as string | undefined),
-              delta: (p.delta as string | undefined)
-            }
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onCommandExecutionDelta(params)
-            }
-
-            break
-          }
-
-          case 'terminal/started':
-          case 'terminal/outputDelta':
-          case 'terminal/completed':
-          case 'terminal/stalled':
-          case 'terminal/cleaned': {
-            const terminal = (p.terminal ?? {}) as Record<string, unknown>
-            const tid = (terminal.threadId as string | undefined) ?? ''
-            const params = {
-              event: method,
-              terminal,
-              delta: (p.delta as string | undefined)
-            }
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onTerminalEvent(params)
-            }
-
-            break
-          }
-
-          case 'item/toolCall/argumentsDelta': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const conversation = conversationFor(tid)
-            if (conversation) {
-              conversation.onToolCallArgumentsDelta({
-                threadId: (p.threadId as string | undefined),
-                turnId: (p.turnId as string | undefined),
-                itemId: (p.itemId as string | undefined),
-                toolName: (p.toolName as string | undefined),
-                callId: (p.callId as string | undefined),
-                delta: (p.delta as string | undefined)
-              })
-            }
-            break
-          }
-
-          case 'item/toolExecution/progress': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const progress = normalizeRemoteFileTransferProgress(p.progress)
-            const conversation = conversationFor(tid)
-            if (progress && conversation) {
-              conversation.onToolExecutionProgress({
-                turnId: p.turnId as string | undefined,
-                itemId: p.itemId as string | undefined,
-                callId: p.callId as string | undefined,
-                progress
-              })
-            }
-            break
-          }
-
-          case 'item/completed': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const conversation = conversationFor(tid)
-            if (!conversation) break
-            conversation.onItemCompleted(p)
-            if (!isActiveConversation(tid)) break
-            const rawItem = p.item as Record<string, unknown> | undefined
-            const completedMessage = typeof rawItem?.id === 'string'
-              ? useConversationStore.getState().turns
-                .flatMap((turn) => turn.items)
-                .find((item) => item.id === rawItem.id && item.type === 'agentMessage')
-              : undefined
-            if (completedMessage?.text) reloadVisualizationsReferencedBy(tid, completedMessage.id, completedMessage.text)
-            const payload = rawItem?.payload as Record<string, unknown> | undefined
-            const callId = typeof payload?.callId === 'string' ? payload.callId : undefined
-            if (callId) {
-              const toolCall = useConversationStore.getState().turns
-                .flatMap((turn) => turn.items)
-                .find((item) => item.type === 'toolCall' && item.toolCallId === callId)
-              if (toolCall) autoOpenWorkflowLaunch(tid, toolCall.toolName ?? '', toolCall.result, toolCall.success)
-            }
-
-            break
-          }
-
-          case 'item/usage/delta': {
-            const input = (p.inputTokens as number) ?? 0
-            const output = (p.outputTokens as number) ?? 0
-            const petFind = usePetStore.getState().advance(0, input + output)
-            if (petFind) showFindToast(petFind)
-            const tid = (p.threadId as string | undefined) ?? ''
-            const conversation = conversationFor(tid)
-            if (!conversation) break
-            const totalInput = typeof p.totalInputTokens === 'number' ? (p.totalInputTokens as number) : null
-            const totalOutput = typeof p.totalOutputTokens === 'number' ? (p.totalOutputTokens as number) : null
-            const contextUsage = typeof p.contextUsage === 'object' && p.contextUsage !== null
-              ? p.contextUsage as ContextUsageSnapshotWire
-              : null
-            conversation.onUsageDelta(input, output, totalInput, totalOutput, contextUsage)
-            break
-          }
-
-          case 'subagent/progress': {
-            const entries = (p.entries as SubAgentEntry[]) ?? []
-            const threadId = (p.threadId as string | undefined) ?? ''
-            if (threadId) {
-              const subAgentStore = useSubAgentStore.getState()
-              const knownChildCount = subAgentStore.childrenByParent.get(threadId)?.filter((child) => !isSubAgentChildClosed(child)).length ?? 0
-              subAgentStore.updateProgress(threadId, entries)
-              const nextSubAgentStore = useSubAgentStore.getState()
-              if (
-                entries.length > 0
-                && knownChildCount < entries.length
-              ) {
-                void nextSubAgentStore.fetchChildren(threadId).catch(() => {})
-              }
-            }
-            break
-          }
-
-          case 'thread/tokenUsage/updated': {
-            const threadId = (p.threadId as string | undefined) ?? ''
-            const last = (p.tokenUsage as { last?: { inputTokens?: number; outputTokens?: number } } | undefined)?.last
-            if (threadId && typeof last?.inputTokens === 'number') {
-              useSubAgentStore.getState().updateChildUsage(threadId, last.inputTokens + (last.outputTokens ?? 0))
-            }
-            break
-          }
-
-          case 'subagent/board/changed': {
-            const rootThreadId = p.rootThreadId as string | undefined
-            if (rootThreadId) useBoardStore.getState().markChanged(rootThreadId)
-            break
-          }
-
-          case 'subagent/graph/changed': {
-            const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
-            if (parentThreadId) {
-              void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true }).catch(() => {})
-            }
-            void reloadThreadList()
-            break
-          }
-
-          case 'system/event': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const kind = (p.kind as string) ?? ''
-            const serverMessage = serverFallbackText(
-              localeRef.current,
-              p.messageKey,
-              p.params,
-              p.fallbackText,
-              p.message
-            )
-            if (kind === 'guidanceBlocked' && serverMessage) {
-              addToast(serverMessage, 'warning')
-            }
-            const conversation = conversationFor(tid)
-            if (!conversation) break
-            conversation.onSystemEvent(kind, {
-              turnId: typeof p.turnId === 'string' ? (p.turnId as string) : null,
-              message: serverMessage,
-              messageKey: typeof p.messageKey === 'string' ? (p.messageKey as string) : null,
-              params: typeof p.params === 'object' && p.params !== null
-                ? (p.params as Record<string, unknown>)
-                : null,
-              tokenCount: typeof p.tokenCount === 'number' ? (p.tokenCount as number) : null,
-              percentLeft: typeof p.percentLeft === 'number' ? (p.percentLeft as number) : null,
-              contextUsage: typeof p.contextUsage === 'object' && p.contextUsage !== null
-                ? p.contextUsage as ContextUsageSnapshotWire
-                : null
-            })
-            break
-          }
-
-          case 'plan/updated': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            if (tid) conversationFor(tid)?.onPlanUpdated(p as Record<string, unknown>)
-            break
-          }
-
-          case 'turn/diff/updated': {
-            const tid = (p.threadId as string | undefined) ?? ''
-            const conversation = tid ? conversationFor(tid) : null
-            if (!conversation) break
-            conversation.onTurnDiffUpdated({
-              turnId: (p.turnId as string | undefined) ?? '',
-              diff: typeof p.diff === 'string' ? p.diff : ''
-            })
-            break
-          }
-
-          case 'item/approval/resolved': {
-            const resolved = extractApprovalResolvedParams(p)
-            resolveParkedApproval(resolved.threadId, resolved.requestId)
-            conversationFor(resolved.threadId)?.onApprovalResolved(resolved)
-            break
-          }
-
-          case 'item/tool/requestUserInput/resolved': {
-            const threadId = (p.threadId as string | undefined) ?? ''
-            conversationFor(threadId)?.onUserInputResolved()
-            if (!isActiveConversation(threadId)) {
-              useThreadStore.getState().clearParkedUserInput(threadId)
-            }
-            break
-          }
-
           case 'system/jobResult': {
             const jobName = (p.jobName as string) ?? (p.name as string) ?? 'Job'
             const resultText = (p.result as string) ?? (p.text as string) ?? ''
@@ -1971,60 +1433,7 @@ export function App(): JSX.Element {
       const p = (params ?? {}) as Record<string, unknown>
 
       if (useSideChatStore.getState().handleServerRequest(method, bridgeId, p)) return
-      if (method === 'item/approval/request') {
-        const threadId = typeof p.threadId === 'string' ? p.threadId : null
-        const turnId = typeof p.turnId === 'string' ? p.turnId : null
-        const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && (
-          threadId !== activeThreadId
-          || !getThreadConversation(threadId)
-          || isThreadRestoring(threadId)
-        )) {
-          useThreadStore.getState().parkApproval(threadId, {
-            bridgeId,
-            turnId,
-            rawParams: p
-          })
-          return
-        }
-        useConversationStore.getState().onApprovalRequest(bridgeId, p)
-        return
-      }
-      if (method === 'item/tool/requestUserInput') {
-        const threadId = typeof p.threadId === 'string' ? p.threadId : null
-        const turnId = typeof p.turnId === 'string' ? p.turnId : null
-        const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && (
-          threadId !== activeThreadId
-          || !getThreadConversation(threadId)
-          || isThreadRestoring(threadId)
-        )) {
-          useThreadStore.getState().parkUserInput(threadId, {
-            bridgeId,
-            turnId,
-            rawParams: p
-          })
-          return
-        }
-        useConversationStore.getState().onUserInputRequest(bridgeId, p)
-        return
-      }
-      if (method === 'mcpServer/elicitation/request') {
-        const mode = p.mode === 'url' ? 'url' : p.mode === 'form' ? 'form' : null
-        if (mode == null) {
-          window.api.appServer.sendServerResponse(bridgeId, { action: 'decline' })
-          return
-        }
-        setMcpElicitation({
-          bridgeId,
-          serverName: typeof p.serverName === 'string' ? p.serverName : 'MCP',
-          mode,
-          message: typeof p.message === 'string' ? p.message : undefined,
-          url: typeof p.url === 'string' ? p.url : undefined,
-          requestedSchema: p.requestedSchema
-        })
-        return
-      }
+      if (applyThreadServerRequest(payload)) return
 
       window.api.appServer.sendServerResponse(bridgeId, {
         error: `Unsupported server request: ${method}`
@@ -2608,7 +2017,7 @@ export function App(): JSX.Element {
             request={mcpElicitation}
             onRespond={(response: McpElicitationResponse) => {
               window.api.appServer.sendServerResponse(mcpElicitation.bridgeId, response)
-              setMcpElicitation(null)
+              dismissThreadElicitation(mcpElicitation.bridgeId)
             }}
           />
         )}
