@@ -11840,6 +11840,13 @@
           "const": null
         },
         {
+          "name": "serverCapabilities",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "serverInfo",
           "type": "json",
           "required": false,

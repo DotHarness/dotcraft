@@ -25,6 +25,7 @@ internal static class McpLiveToolCatalogReader
             var protocol = inventory.Tools.OfType<McpClientTool>()
                 .GroupBy(static tool => tool.Name, StringComparer.Ordinal)
                 .ToDictionary(static group => group.Key, static group => group.First().ProtocolTool, StringComparer.Ordinal);
+            var settings = McpSettingsExtension.Read(inventory.ServerCapabilities);
             var tools = new List<McpCatalogTool>();
             foreach (var function in inventory.Tools.OfType<AIFunction>().OrderBy(static tool => tool.Name, StringComparer.Ordinal))
             {
@@ -42,7 +43,8 @@ internal static class McpLiveToolCatalogReader
                     function.ReturnJsonSchema,
                     metadata,
                     new ToolPolicyHints(
-                        RequiresApproval: RequiresApproval(approvalMode, hints),
+                        RequiresApproval: !IsUserSettingsTool(settings, function.Name, metadata)
+                                          && RequiresApproval(approvalMode, hints),
                         ReadOnly: hints?.ReadOnlyHint == true,
                         Destructive: hints?.DestructiveHint != false,
                         OpenWorld: hints?.OpenWorldHint != false),
@@ -60,6 +62,14 @@ internal static class McpLiveToolCatalogReader
         }
         return catalogs;
     }
+
+    internal static bool IsUserSettingsTool(
+        (string ReadTool, string UpdateTool)? settings,
+        string toolName,
+        McpAppToolMetadata metadata) =>
+        settings is { } declared
+        && (toolName == declared.ReadTool || toolName == declared.UpdateTool)
+        && !metadata.Visibility.HasFlag(McpAppVisibility.Model);
 
     internal static bool RequiresApproval(McpToolApprovalMode mode, ToolAnnotations? hints) => mode switch
     {

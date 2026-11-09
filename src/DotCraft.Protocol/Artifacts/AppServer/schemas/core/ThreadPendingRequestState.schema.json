@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadPendingRequestState.schema.json",
+  "title": "ThreadPendingRequestState",
+  "type": "object",
+  "properties": {
+    "isBlocking": {
+      "type": "boolean"
+    },
+    "itemId": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "isBlocking",
+    "itemId",
+    "method",
+    "requestId",
+    "turnId"
+  ]
+}

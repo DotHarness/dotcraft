@@ -443,7 +443,25 @@ Whether an MCP invocation requires approval follows the server's `toolApprovalMo
 | `approve` | Never required. The deployer has confirmed the server is safe to call unattended. |
 | `prompt` | Always required, whatever the annotations say. |
 
-The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them, and App Binding MCP keeps its own approval contract. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy.
+The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them, and App Binding MCP keeps its own approval contract. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy. Settings tools follow [§12.4](#124-settings-extension).
+
+### 12.4 Settings extension
+
+A server exposes user-editable settings by advertising `dotcraft/settings` in its `initialize` capabilities, under `extensions` or, for SDKs without that field, `experimental`:
+
+```json
+{ "extensions": { "dotcraft/settings": { "readTool": "settings_read", "updateTool": "settings_update" } } }
+```
+
+The two names must differ and both must be in the server's tool catalog; clients ignore any other declaration. The server owns its settings and their persistence. DotCraft stores no values for it and does not rewrite its launch configuration.
+
+- `readTool` is called with `{}` and returns `structuredContent` `{ schema, values, layout? }`. `schema` is `{ "type": "object", properties, required? }`. Each property has `type` `boolean`, `string`, `number`, or `integer`, optional `title` and `description`, and the constraints `enum` (strings only), `minimum`, `maximum`, `multipleOf`, `minLength`, `maxLength`, `pattern`, and `writeOnly`. `values` holds a valid value for every property.
+- `layout` is an optional array of groups `{ title, items }`. An item is `{ "kind": "property", property }` or `{ "kind": "tool", tool, title?, description? }`. Properties absent from the layout are presented after it as one more group.
+- `updateTool` is called with `{ "set": { <property>: <value> } }`, one property at a time. Clients read again after each update and show the server's values, so a rejected value reverts.
+- A `writeOnly` string holds a credential. `readTool` returns it as an empty string and may describe whether one is stored; clients show a masked input and send only a newly entered value.
+- A `tool` item is an action called with `{}`. An action whose input schema requires arguments is unavailable.
+
+The read and update tools are ordinary catalog tools and normally declare app-only visibility ([§13.2](#132-visibility-and-authority)). A declared read or update tool that is not visible to the model is exempt from invocation approval, because only the user's settings surface or the server's own app can call it. Every other authority check still applies, and layout actions follow §12.3.
 
 ## 13. MCP Apps host
 

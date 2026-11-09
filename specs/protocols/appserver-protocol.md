@@ -1845,7 +1845,7 @@ These method names and base shapes are fixed; DotCraft may add optional safe pro
 
 #### 22.8.1 `mcpServerStatus/list`
 
-Params: optional `threadId` (omitted reads the latest workspace/plugin configuration), `cursor`, `limit`, `detail` (`full` default, or `toolsAndAuthOnly`). Result `{ data, nextCursor }`; each status includes `name`, nullable `serverInfo`, tools, resources, resource templates, `authStatus`, `origin`, `declaredName`, and `runtimeName`. MCP startup is asynchronous and never blocks AppServer readiness.
+Params: optional `threadId` (omitted reads the latest workspace/plugin configuration), `cursor`, `limit`, `detail` (`full` default, or `toolsAndAuthOnly`). Result `{ data, nextCursor }`; each status includes `name`, nullable `serverInfo`, nullable `serverCapabilities` (the capabilities the server advertised at initialization, including the settings extension of [Tool Architecture §12.4](../architecture/tools-architecture.md#124-settings-extension)), tools, resources, resource templates, `authStatus`, `origin`, `declaredName`, and `runtimeName`. MCP startup is asynchronous and never blocks AppServer readiness.
 
 - `authStatus`: `unsupported`, `notLoggedIn`, `bearerToken`, or `oAuth`. Streamable HTTP alone does not imply OAuth; `notLoggedIn` is reported only after the OAuth challenge/discovery path establishes that login is required, and unknown discovery failures report `unsupported` with the startup error preserved. Clients offer Authenticate only for `notLoggedIn`.
 - `failureReason = reauthenticationRequired` only when stored OAuth credentials can no longer be used.

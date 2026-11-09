@@ -1,0 +1,52 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 28px;
+}
+
+.heading {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line-height);
+  font-weight: 600;
+}
+
+.notice {
+  margin-bottom: -8px;
+}
+
+.failed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.textField,
+.numberField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.numberField {
+  align-items: flex-end;
+}
+
+.numberInput {
+  width: 96px;
+}
+
+.inputError {
+  color: var(--warning);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
+}
+
+.numberField .inputError {
+  text-align: end;
+}
