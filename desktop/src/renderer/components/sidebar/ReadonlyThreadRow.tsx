@@ -289,8 +289,8 @@ export function ReadonlyThreadRow({
 }
 
 const readonlyLeadingSlotStyle: CSSProperties = {
-  width: '18px',
-  minWidth: '18px',
+  width: 'var(--sidebar-leading-slot-width)',
+  minWidth: 'var(--sidebar-leading-slot-width)',
   height: '24px',
   display: 'inline-flex',
   alignItems: 'center',
@@ -311,8 +311,8 @@ function ReadonlyPinnedIcon({
         aria-label={label}
         data-testid={testId}
         style={{
-          width: '18px',
-          minWidth: '18px',
+          width: 'var(--sidebar-leading-slot-width)',
+          minWidth: 'var(--sidebar-leading-slot-width)',
           height: '24px',
           display: 'inline-flex',
           alignItems: 'center',

@@ -1734,6 +1734,12 @@ origin channel) may live in a hover annotation instead of layout: a tooltip for
 one line, a details card for several. Metadata only some rows carry belongs there
 by default, so the list stays one shape.
 
+Sidebar section labels, project icon slots, and section-level empty states share
+an origin 16px from the rail edge. Project names, top-level chat titles,
+project-level empty states, loading skeleton titles, and Show more/Show less
+labels share the 42px text origin: 16px plus an 18px leading slot and an 8px gap.
+Loading and empty states keep that slot even when they have no icon.
+
 A sidebar thread title that does not fit fades out over its last 16px instead of
 ending in an ellipsis; a title that fits is never masked. Resting on the row
 scrolls the title once, after 350ms at 2em per second, until its end is fully

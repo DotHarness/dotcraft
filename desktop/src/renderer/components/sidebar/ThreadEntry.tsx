@@ -336,8 +336,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
             {canPin && (
               <span
                 style={{
-                  width: '18px',
-                  minWidth: '18px',
+                  width: 'var(--sidebar-leading-slot-width)',
+                  minWidth: 'var(--sidebar-leading-slot-width)',
                   height: '24px',
                   display: 'inline-flex',
                   alignItems: 'center',

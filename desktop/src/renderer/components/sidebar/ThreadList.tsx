@@ -962,9 +962,9 @@ function ProjectHeader({
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: `18px minmax(0, 1fr) ${actionColumnWidth}`,
+        gridTemplateColumns: `var(--sidebar-leading-slot-width) minmax(0, 1fr) ${actionColumnWidth}`,
         alignItems: 'center',
-        gap: '8px',
+        gap: 'var(--sidebar-leading-gap)',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
         // 4px side inset matches the sidebar nav rows and thread rows so all
         // sidebar buttons share the same width and right-edge alignment.

@@ -12,7 +12,7 @@ export const SIDEBAR_ROW_MIN_HEIGHT = '30px'
  * slots, and section-level empty states. Full-width rows reach this origin via
  * their 4px outer inset plus 12px inner padding.
  */
-export const SIDEBAR_RAIL_CONTENT_INSET = '16px'
+export const SIDEBAR_RAIL_CONTENT_INSET = 'var(--sidebar-rail-content-inset)'
 
 /** Shared geometry for New chat, Search, Automations, Skills, Settings, and project header rows. */
 export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
@@ -27,13 +27,13 @@ export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
   textAlign: 'left',
   display: 'flex',
   alignItems: 'center',
-  gap: '8px',
+  gap: 'var(--sidebar-leading-gap)',
   boxSizing: 'border-box'
 }
 
 export const SIDEBAR_NAV_ICON_SLOT: CSSProperties = {
   display: 'flex',
-  width: 18,
+  width: 'var(--sidebar-leading-slot-width)',
   height: 18,
   flexShrink: 0,
   alignItems: 'center',

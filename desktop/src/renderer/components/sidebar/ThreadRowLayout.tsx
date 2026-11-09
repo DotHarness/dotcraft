@@ -118,7 +118,7 @@ export function ThreadRowLayout({
         boxSizing: 'border-box',
         borderRadius: 'var(--sidebar-row-radius)',
         backgroundColor: active ? 'var(--sidebar-control-active)' : undefined,
-        gap: '8px',
+        gap: 'var(--sidebar-leading-gap)',
         userSelect: 'none',
         ...containerStyle
       }}

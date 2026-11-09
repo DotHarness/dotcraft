@@ -295,17 +295,7 @@ export function ProjectThreadSkeletonList(): JSX.Element {
         <div
           key={index}
           data-testid="project-thread-skeleton-row"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) minmax(24px, max-content)',
-            alignItems: 'center',
-            columnGap: '7px',
-            width: 'calc(100% - 32px)',
-            minHeight: '30px',
-            margin: '2px 10px 2px 22px',
-            padding: '6px 12px',
-            boxSizing: 'border-box'
-          }}
+          className="dc-project-thread-skeleton-row"
         >
           <Skeleton width={row.title} height={12} />
           <Skeleton width={row.time} height={10} />
@@ -323,17 +313,7 @@ export function ProjectHint({
   alignment?: 'thread' | 'section'
 }): JSX.Element {
   return (
-    <div
-      style={{
-        padding: alignment === 'section'
-          ? `4px ${SIDEBAR_RAIL_CONTENT_INSET} 8px`
-          : '4px 16px 8px 32px',
-        color: 'var(--text-dimmed)',
-        fontSize: 'var(--type-secondary-size)',
-        fontWeight: 400,
-        lineHeight: 'var(--type-secondary-line-height)'
-      }}
-    >
+    <div className="dc-project-hint" data-alignment={alignment}>
       {label}
     </div>
   )

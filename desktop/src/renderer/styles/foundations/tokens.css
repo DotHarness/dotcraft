@@ -232,6 +232,10 @@
   --identity-mark-hero-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-radius: var(--control-radius-md);
   --sidebar-row-radius: 10px;
+  --sidebar-rail-content-inset: 16px;
+  --sidebar-leading-slot-width: 18px;
+  --sidebar-leading-gap: 8px;
+  --sidebar-text-inset: calc(var(--sidebar-rail-content-inset) + var(--sidebar-leading-slot-width) + var(--sidebar-leading-gap));
   --sidebar-icon-control-radius: var(--control-radius-md);
 
   --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
