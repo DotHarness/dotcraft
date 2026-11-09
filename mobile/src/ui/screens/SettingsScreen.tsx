@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useMobileState, useSession } from '../../app-state/SessionContext'
 import { computerStatus, type ComputerState } from '../../core/state'
-import { appBuild, appVersion } from '../../platform/device'
+import { appVersion } from '../../platform/device'
 import { useI18n } from '../../i18n'
 import { Icon } from '../icons'
 import { Hero, Screen, ScrollArea, TopBar } from '../layout'
@@ -56,7 +56,6 @@ export function SettingsScreen() {
   const addComputer = useAddComputer()
   const [removing, setRemoving] = useState<string | null>(null)
   const target = removing ? state.computers[removing]?.computer : undefined
-  const version = appBuild ? t('settings.appVersionBuild', { version: appVersion, build: appBuild }) : t('settings.appVersion', { version: appVersion })
 
   return (
     <Screen>
@@ -84,7 +83,7 @@ export function SettingsScreen() {
         <Section title={t('settings.about')}>
           <View style={styles.versionRow}>
             <Txt style={styles.grow}>{t('settings.version')}</Txt>
-            <Txt tone="secondary">{version}</Txt>
+            <Txt tone="secondary">{t('settings.appVersion', { version: appVersion })}</Txt>
           </View>
         </Section>
       </ScrollArea>

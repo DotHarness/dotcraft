@@ -103,15 +103,20 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | Picker | System actions and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
-| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title above a metadata row containing its kind, elapsed or total duration in tabular figures, and an agent's model and tokens, marked Stopped or Failed when it did not finish normally. Duration changes do not take space from the title. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
+| Background tasks | **Running** (expanded) and **Finished** (collapsed, counted). Each task shows its title above a metadata row containing its kind, elapsed or total duration in tabular figures, and an agent's model and tokens, marked Stopped or Failed when it did not finish normally. Duration changes do not take space from the title. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
 | Status | Context left, account usage when the provider reports it, the project folder, and the chat ID to copy. |
 | Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last transcript entry and scrolls with it; the composer stays hidden until the decision is made. |
-| Settings | Every paired computer with its status and Remove, **Add computer**, and app information. |
+| Settings | Every paired computer with its status and Remove, **Add computer**, and app information. The app version reads **DotCraft &lt;version&gt;** without an appended build number. |
 
 Chat states use one vocabulary: **running**, **needs approval**, **needs answer**, **done**,
 **failed**, from `thread/list` runtime snapshots and `thread/status/changed`. A stopped turn is done
 and shows a Stopped line. Thread summaries do not carry the last turn's result, so a list shows
 **failed** only for a failure the phone has seen.
+
+Equivalent states and actions use Desktop's current wording and punctuation in every supported
+locale, including thinking, tool activity, approvals, background tasks, and shared controls.
+Phone-only pairing, connection, and notification instructions retain their own wording; references
+to Desktop settings and buttons use their current labels.
 
 Chat rows on Home and Project show an unread dot from the chat's server read receipt
 ([Thread Read State](../features/thread-read-state.md#6-client-behavior)), hydrated from
@@ -135,7 +140,9 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 - The decision card shows one request at a time and counts the others waiting. Options are choice
   rows: tapping selects, tapping a selected row answers, and **Submit** answers with the selection.
   An option's description shows under its label, since a phone has no hover to reveal it.
-- An approval shows its type, operation, target, and reason, with **Allow once**, **Allow for
+- An approval uses Desktop's question for shell, file, remote-resource, or computer-use operations;
+  computer-use questions name the target application. It shows its type, operation, target, and
+  reason, with **Allow once**, **Allow for
   session**, and **Reject**, answering `item/approval/request` with `accept`, `acceptForSession`, or
   `decline`. The phone never offers `acceptAlways`; permanent grants belong on the computer. An
   approval has no dismiss.

@@ -5,7 +5,6 @@ import { Platform } from 'react-native'
 import type { DeviceInfo } from '../core/session'
 
 export const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '0.0.0'
-export const appBuild = Application.nativeBuildVersion
 
 export function deviceInfo(): DeviceInfo {
   return {
