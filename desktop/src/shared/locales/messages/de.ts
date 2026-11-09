@@ -290,7 +290,7 @@ export const MESSAGES_DE = {
   "automation.day.6": "Sa",
   "automation.day.7": "So",
   'settings.followUpBehavior.label': 'Verhalten bei Folgenachrichten',
-  'settings.followUpBehavior.description': 'Folgenachrichten während einer laufenden Aufgabe in die Warteschlange stellen oder den aktuellen Turn damit steuern.',
+  'settings.followUpBehavior.description': 'Folgenachrichten während einer Aufgabe einreihen oder den Turn steuern, mit {{shortcut}} einmalig wechseln.',
   'settings.followUpBehavior.queue': 'Warteschlange',
   'settings.followUpBehavior.steer': 'Steuern',
   'settings.followUpBehavior.saveFailed': 'Verhalten bei Folgenachrichten konnte nicht gespeichert werden: {{error}}',

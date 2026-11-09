@@ -290,7 +290,7 @@ export const MESSAGES_FR = {
   "automation.day.6": "Sam",
   "automation.day.7": "Dim",
   'settings.followUpBehavior.label': 'Comportement des messages de suivi',
-  'settings.followUpBehavior.description': 'Mettez les messages de suivi en attente pendant une tâche ou utilisez-les pour guider le tour en cours.',
+  'settings.followUpBehavior.description': 'Pendant une tâche, mettez les messages en attente ou guidez le tour, avec {{shortcut}} pour inverser ce choix pour un message.',
   'settings.followUpBehavior.queue': 'En attente',
   'settings.followUpBehavior.steer': 'Guider',
   'settings.followUpBehavior.saveFailed': 'Impossible d’enregistrer le comportement de suivi : {{error}}',

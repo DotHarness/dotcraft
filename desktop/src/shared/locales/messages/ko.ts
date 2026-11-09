@@ -290,7 +290,7 @@ export const MESSAGES_KO = {
   "automation.day.6": "토",
   "automation.day.7": "일",
   'settings.followUpBehavior.label': '후속 메시지 동작',
-  'settings.followUpBehavior.description': '작업 실행 중 후속 메시지를 대기열에 넣거나 현재 턴에 반영합니다.',
+  'settings.followUpBehavior.description': '작업 실행 중 후속 메시지는 설정에 따라 대기열에 넣거나 현재 턴에 반영하며, {{shortcut}}으로 한 번만 전환할 수 있습니다.',
   'settings.followUpBehavior.queue': '대기열',
   'settings.followUpBehavior.steer': '방향 조정',
   'settings.followUpBehavior.saveFailed': '후속 메시지 동작을 저장하지 못했습니다: {{error}}',

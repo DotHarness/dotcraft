@@ -290,7 +290,7 @@ export const MESSAGES_JA = {
   "automation.day.6": "土",
   "automation.day.7": "日",
   'settings.followUpBehavior.label': 'フォローアップの動作',
-  'settings.followUpBehavior.description': 'タスクの実行中に送信したメッセージをキューに追加するか、現在のターンに反映します。',
+  'settings.followUpBehavior.description': 'タスク実行中のフォローアップは設定に従ってキューに追加または反映され、{{shortcut}} でそのメッセージだけ切り替えられます。',
   'settings.followUpBehavior.queue': 'キュー',
   'settings.followUpBehavior.steer': '方向修正',
   'settings.followUpBehavior.saveFailed': 'フォローアップの動作を保存できませんでした：{{error}}',

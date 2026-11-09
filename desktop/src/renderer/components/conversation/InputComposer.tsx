@@ -55,7 +55,7 @@ import {
 } from '../../utils/composerAttachments'
 import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { PendingMessageIndicator } from './PendingMessageIndicator'
-import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
+import { RichInputArea, type ComposerSubmitOptions, type RichInputAreaHandle } from './RichInputArea'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { FileSearchPopover } from './FileSearchPopover'
@@ -1130,7 +1130,7 @@ function InputComposerCore({
     [attachImages, remoteWorkspace, t, threadReferences]
   )
 
-  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput) => {
+  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput, options?: ComposerSubmitOptions) => {
     if (hasPendingPastedText(threadId)) return
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
       await sendGoalFromComposer()
@@ -1322,7 +1322,7 @@ function InputComposerCore({
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       const editingQueued = hasEditPosition()
-      const mode = editingQueued ? 'queue' : followUpMode
+      const mode = editingQueued ? 'queue' : options?.invertFollowUp && isRunning ? (followUpMode === 'steer' ? 'queue' : 'steer') : followUpMode
       const submission = submissionSnapshot()
       const clientUserMessageId = submission.clientUserMessageId ?? crypto.randomUUID()
       const { inputParts, visibleText } = buildComposerInputParts({
@@ -1411,7 +1411,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isRunning, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1599,12 +1599,12 @@ function InputComposerCore({
   const resumeAvailable = canResumeTurn && composerEmpty && !voiceRecording && !voiceProcessing
     && !isWaitingApproval && !isWaitingInput && !modelLoading
   const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
-  const submitOrStopVoice = useCallback((): void => {
+  const submitOrStopVoice = useCallback((options?: ComposerSubmitOptions): void => {
     if (voiceRecording && !isBusyForInput) {
       void useVoiceStore.getState().stopRecording('send')
       return
     }
-    void sendMessage()
+    void sendMessage(undefined, options)
   }, [isBusyForInput, sendMessage, voiceRecording])
 
   const onSelectFile = useCallback(
@@ -1852,9 +1852,9 @@ function InputComposerCore({
                           ? t('composer.placeholder.plan')
                           : placeholder ?? t('composer.placeholder.ask')
                 }
-                onSubmit={() => {
+                onSubmit={(options) => {
                   promptSuggestion.dismiss()
-                  submitOrStopVoice()
+                  submitOrStopVoice(options)
                 }}
                 onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                 onSlashQuery={handleSlashQuery}

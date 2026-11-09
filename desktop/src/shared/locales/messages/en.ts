@@ -288,7 +288,7 @@ export const MESSAGES_EN = {
   "automation.day.6": "Sat",
   "automation.day.7": "Sun",
   'settings.followUpBehavior.label': 'Follow-up behavior',
-  'settings.followUpBehavior.description': 'Queue follow-up messages while a task runs, or use them to steer the current turn.',
+  'settings.followUpBehavior.description': 'Queue or steer follow-ups while a task runs, using {{shortcut}} to switch for one message.',
   'settings.followUpBehavior.queue': 'Queue',
   'settings.followUpBehavior.steer': 'Steer',
   'settings.followUpBehavior.saveFailed': 'Failed to save follow-up behavior: {{error}}',

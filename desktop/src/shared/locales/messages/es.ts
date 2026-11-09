@@ -290,7 +290,7 @@ export const MESSAGES_ES = {
   "automation.day.6": "Sáb",
   "automation.day.7": "Dom",
   'settings.followUpBehavior.label': 'Comportamiento de los mensajes de seguimiento',
-  'settings.followUpBehavior.description': 'Pon los mensajes de seguimiento en cola mientras se ejecuta una tarea o úsalos para guiar el turno actual.',
+  'settings.followUpBehavior.description': 'Pon los mensajes en cola o guía el turno durante una tarea, usando {{shortcut}} para cambiarlo solo para un mensaje.',
   'settings.followUpBehavior.queue': 'En cola',
   'settings.followUpBehavior.steer': 'Guiar',
   'settings.followUpBehavior.saveFailed': 'No se pudo guardar el comportamiento de seguimiento: {{error}}',

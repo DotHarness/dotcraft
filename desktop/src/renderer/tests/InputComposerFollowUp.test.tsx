@@ -217,6 +217,21 @@ describe('InputComposer follow-up routing', () => {
     }
   })
 
+  it.each([
+    ['steer', 'turn/enqueue', 'turn/steer'],
+    ['queue', 'turn/steer', 'turn/enqueue']
+  ] as const)('sends a running follow-up opposite to %s with Ctrl+Enter', async (mode, method, preferred) => {
+    setLocalProject()
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
+    renderComposer()
+    fireEvent.keyDown(draft('one-off follow-up'), { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(method, expect.objectContaining({
+      threadId: 'thread-1', input: [{ type: 'text', text: 'one-off follow-up' }]
+    })))
+    expect(sendRequest).not.toHaveBeenCalledWith(preferred, expect.anything())
+  })
+
   it('returns an edited queued message to its place even when follow-ups steer', async () => {
     const entry = (id: string) => ({
       id, threadId: 'thread-1', displayText: id, status: 'queued' as const, createdAt: '2025-01-01T00:00:00Z',

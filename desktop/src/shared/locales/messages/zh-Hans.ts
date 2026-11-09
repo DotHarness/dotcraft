@@ -290,7 +290,7 @@ export const MESSAGES_ZH_HANS = {
   "automation.day.6": "六",
   "automation.day.7": "日",
   'settings.followUpBehavior.label': '后续消息行为',
-  'settings.followUpBehavior.description': '任务运行时，将后续消息排队等待，或用于引导当前轮次。',
+  'settings.followUpBehavior.description': '任务运行时按偏好排队或引导，按 {{shortcut}} 可单次切换。',
   'settings.followUpBehavior.queue': '排队',
   'settings.followUpBehavior.steer': '引导',
   'settings.followUpBehavior.saveFailed': '保存后续消息行为失败：{{error}}',

@@ -55,6 +55,10 @@ export interface RichInputAreaHandle {
   setPlainText: (text: string) => void
 }
 
+export interface ComposerSubmitOptions {
+  invertFollowUp?: boolean
+}
+
 interface RichInputAreaProps {
   disabled?: boolean
   placeholder?: string
@@ -72,7 +76,7 @@ interface RichInputAreaProps {
   onToggleModeShortcut?: () => void
   onHistoryNavigate?: (direction: 'previous' | 'next') => boolean
   historyNavigationActive?: boolean
-  onSubmit: () => void
+  onSubmit: (options?: ComposerSubmitOptions) => void
   /** Omitted on welcome screen (no @ popover). */
   onAtQuery?: (query: string | null) => void
   onSlashQuery?: (query: string | null) => void
@@ -968,12 +972,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
             clearCompositionJustEndedTimer()
             return
           }
-          if (suppressSubmit) {
-            e.preventDefault()
-            return
-          }
           e.preventDefault()
-          if (!disabled) onSubmit()
+          const invertFollowUp = (e.ctrlKey || e.metaKey) && !e.altKey
+          if (suppressSubmit || (invertFollowUp && e.repeat)) return
+          if (!disabled) onSubmit({ invertFollowUp })
           return
         }
         if (e.key === 'Backspace') {

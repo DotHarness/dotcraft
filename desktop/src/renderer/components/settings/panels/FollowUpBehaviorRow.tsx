@@ -5,6 +5,7 @@ import { useComposerPreferencesStore } from '../../../stores/composerPreferences
 import { addToast } from '../../../stores/toastStore'
 import { SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
+import { formatShortcutParts } from '../../ui/shortcutKeys'
 
 export function FollowUpBehaviorRow(): JSX.Element {
   const t = useT()
@@ -25,7 +26,7 @@ export function FollowUpBehaviorRow(): JSX.Element {
   return (
     <SettingsRow
       label={t('settings.followUpBehavior.label')}
-      description={t('settings.followUpBehavior.description')}
+      description={t('settings.followUpBehavior.description', { shortcut: formatShortcutParts(['Mod', 'Enter']).join('+') })}
       control={
         <SegmentedControl
           value={mode}
