@@ -103,7 +103,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | Picker | System actions and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
-| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title with the elapsed or total duration trailing in tabular figures, over its kind (and an agent's model and tokens), marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
+| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title above a metadata row containing its kind, elapsed or total duration in tabular figures, and an agent's model and tokens, marked Stopped or Failed when it did not finish normally. Duration changes do not take space from the title. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
 | Status | Context left, account usage when the provider reports it, the project folder, and the chat ID to copy. |
 | Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last transcript entry and scrolls with it; the composer stays hidden until the decision is made. |
 | Settings | Every paired computer with its status and Remove, **Add computer**, and app information. |
@@ -210,7 +210,10 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   omitted; Copy keeps only prose.
 - A tool activity line fits one line with the tool kind's icon; tapping shows the full command or
   target and output. A running tool reads in the present tense using Desktop's wording, with
-  elapsed time. In-progress text (running tools, streaming reasoning, generating images) uses
+  elapsed time in localized whole-second units, refreshed once per second, with zero-padded trailing
+  unit values and tabular figures. The timer does not shrink; the tool text truncates to fit. Its natural
+  width may grow when the leading digit count or displayed units change; no fixed large time slot
+  is reserved. In-progress text (running tools, streaming reasoning, generating images) uses
   Desktop's shimmer treatment, still under reduced motion.
 - Desktop's runtime thread tools read as Desktop names them, in progress, done, or failed, with no
   details; a line for reading or messaging a chat opens that chat when it is on this computer's list.

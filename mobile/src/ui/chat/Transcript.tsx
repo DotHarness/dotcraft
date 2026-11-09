@@ -20,6 +20,7 @@ import { nativeDriver, Txt } from '../parts'
 import { useReducedMotion } from '../motion'
 import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
+import { useNow } from '../useNow'
 import { TurnChangesCard } from './Changes'
 import { ThinkingGlyph } from './ThinkingGlyph'
 import { FileChip, SkillChip } from './Chips'
@@ -320,16 +321,6 @@ function WorkingLine({ entry, tight }: { entry: ThinkingEntry; tight: boolean })
   )
 }
 
-export function useNow(ticking: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!ticking) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [ticking])
-  return now
-}
-
 const ACTIVITY_TEXT = {
   working: ['activity.working', 'activity.workingFor'],
   worked: ['activity.worked', 'activity.workedFor'],
@@ -427,14 +418,15 @@ function ToolDetails({ entry }: { entry: ToolEntry }) {
 
 function Elapsed({ since }: { since: string }) {
   const { colors } = useTheme()
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 100)
-    return () => clearInterval(timer)
-  }, [])
+  const { duration } = useI18n()
+  const now = useNow(true)
   const start = Date.parse(since)
-  const seconds = Number.isFinite(start) ? Math.max(0, now - start) / 1000 : 0
-  return <Text style={[type.text, styles.fixed, styles.tabular, { color: colors.textDimmed }]}>{`${seconds.toFixed(1)}s`}</Text>
+  const elapsed = Number.isFinite(start) ? now - start : 0
+  return (
+    <Text numberOfLines={1} style={[type.text, styles.fixed, styles.tabular, { color: colors.textDimmed }]}>
+      {duration(elapsed, { live: true })}
+    </Text>
+  )
 }
 
 function ToolLine({ entry }: { entry: ToolEntry }) {
