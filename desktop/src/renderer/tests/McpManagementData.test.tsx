@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMcpManagementData } from '../components/settings/panels/mcp/useMcpManagementData'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useMcpStore } from '../stores/mcpStore'
+import { useMcpStore, type McpServerStatusWire } from '../stores/mcpStore'
 import { applyMcpNotification } from '../stores/mcpNotifications'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -43,6 +43,38 @@ describe('MCP management scope', () => {
     expect(result.current.mcpServers.map(server => server.name)).toEqual(['new'])
     expect(Object.keys(result.current.mcpStatuses)).toEqual(['new'])
     expect(sendConnectionRequest).toHaveBeenCalledWith('B', 'mcp/list', {}, undefined, { connectionId: 'B1' })
+  })
+
+  it('discards an older refresh after newer results arrive on the same connection', async () => {
+    const oldServers = deferred<{ servers: Array<{ name: string; command: string }> }>()
+    const oldStatuses = deferred<{ data: McpServerStatusWire[] }>()
+    let initialLoad = true
+    const sendConnectionRequest = vi.fn((_key: string, method: string) => {
+      if (initialLoad) return method === 'mcp/list' ? oldServers.promise : oldStatuses.promise
+      return Promise.resolve(method === 'mcp/list'
+        ? { servers: [{ name: 'server', command: 'new' }] }
+        : { data: [status('server')] })
+    })
+    installDesktopApiMock({ appServer: { sendConnectionRequest } })
+    const { result } = renderHook(() => useMcpManagementData(true))
+    await waitFor(() => expect(sendConnectionRequest).toHaveBeenCalledTimes(2))
+
+    initialLoad = false
+    act(() => {
+      applyMcpNotification({
+        method: 'mcpServer/startupStatus/updated', connectionKey: 'A', connectionId: 'A1',
+        params: { name: 'server', status: 'ready' }
+      }, 'en')
+    })
+    await waitFor(() => expect(result.current.mcpServers[0]?.command).toBe('new'))
+    await waitFor(() => expect(result.current.mcpStatuses.server?.startupState).toBe('ready'))
+    await act(async () => {
+      oldServers.resolve({ servers: [{ name: 'server', command: 'old' }] })
+      oldStatuses.resolve({ data: [{ ...status('server'), startupState: 'starting' }] })
+    })
+
+    expect(result.current.mcpServers[0]?.command).toBe('new')
+    expect(result.current.mcpStatuses.server?.startupState).toBe('ready')
   })
 
   it('refreshes management data only for current unscoped terminal notifications', async () => {

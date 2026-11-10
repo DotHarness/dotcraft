@@ -17,16 +17,18 @@ export function useMcpManagementData(enabled: boolean) {
     if (!isCurrentMcpManagementScope(scope)) return
     const result = await window.api.appServer.sendConnectionRequest(connectionKey, 'mcp/list', {},
       undefined, { connectionId })
-    if (isCurrentMcpManagementScope(scope)) setMcpServers((result.servers ?? []) as McpServerConfigWire[])
-  }, [enabled, status, connectionKey, connectionId])
+    if (isCurrentMcpManagementScope(scope) && useMcpStore.getState().catalogRevision === catalogRevision)
+      setMcpServers((result.servers ?? []) as McpServerConfigWire[])
+  }, [enabled, status, connectionKey, connectionId, catalogRevision])
 
   const reloadMcpStatuses = useCallback(async () => {
     if (!enabled || status !== 'connected' || !connectionKey || !connectionId) return
     const scope = { connectionKey, connectionId }
     if (!isCurrentMcpManagementScope(scope)) return
     const statuses = await listMcpManagementStatuses(scope)
-    if (isCurrentMcpManagementScope(scope)) useMcpStore.getState().setStatuses(statuses as McpServerStatusWire[])
-  }, [enabled, status, connectionKey, connectionId])
+    if (isCurrentMcpManagementScope(scope) && useMcpStore.getState().catalogRevision === catalogRevision)
+      useMcpStore.getState().setStatuses(statuses as McpServerStatusWire[])
+  }, [enabled, status, connectionKey, connectionId, catalogRevision])
 
   useEffect(() => {
     setMcpServers([])
