@@ -9,12 +9,18 @@ import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { useDetailPanelStore } from './detailPanelStore'
 import type { ThreadTitleRequest } from '../utils/threadTitleGeneration'
-import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import {
+  projectThreadNavigationActions,
+  type ProjectThreadNavigationActions,
+  type ProjectThreadNavigationState
+} from './projectThreadNavigation'
 import {
   AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
   AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
   AGENT_BUILDER_CHAT_MIN_WIDTH
 } from '../utils/agentBuilderLayout'
+
+export type { PendingProjectThreadOpen, PendingProjectThreadOpenInput } from './projectThreadNavigation'
 
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 200
@@ -66,13 +72,6 @@ export interface WelcomeDraft {
   updatedAt: number
 }
 
-export interface PendingProjectThreadOpen {
-  projectKey: string
-  workspacePath: string
-  threadId: string
-  includeArchived?: boolean
-}
-
 export interface PendingWelcomeTurnInput {
   threadId: string
   text: string
@@ -107,7 +106,7 @@ export interface EnvironmentSettingsTarget {
   returnTo: AppNavigationLocation | null
 }
 
-export interface UIState {
+export interface UIState extends ProjectThreadNavigationState {
   activeMainView: ActiveMainView
   pluginCatalogSurface: PluginCatalogSurface
   browserDownloadHistoryOpen: boolean
@@ -138,7 +137,6 @@ export interface UIState {
   } | null
   pendingWelcomeTurn: (PendingWelcomeTurnInput & { createdAt: number }) | null
   pendingThreadCreation: PendingThreadCreation | null
-  pendingProjectThreadOpen: PendingProjectThreadOpen | null
   welcomeDraft: WelcomeDraft | null
 
   welcomeDraftsByWorkspace: Record<string, WelcomeDraft>
@@ -152,7 +150,7 @@ export interface UIState {
   diffMarkers: DiffMarkerMode
 }
 
-interface UIStore extends UIState {
+interface UIStore extends UIState, ProjectThreadNavigationActions {
   setActiveMainView(view: ActiveMainView): void
   setPluginCatalogSurface(surface: PluginCatalogSurface): void
   goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
@@ -190,9 +188,6 @@ interface UIStore extends UIState {
   resolvePendingThreadCreation(requestId: string, threadId: string): void
   consumePendingWelcomeTurnIfMatch(threadId: string): Omit<PendingWelcomeTurnInput, 'threadId'> | null
   cancelPendingWelcomeTurnForThread(threadId: string): void
-  setPendingProjectThreadOpen(payload: PendingProjectThreadOpen | null): void
-  consumePendingProjectThreadOpen(projectKey: string, threadIds: Iterable<string>): PendingProjectThreadOpen | null
-  clearPendingProjectThreadOpen(projectKey?: string, threadId?: string): void
   setWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'> | null, workspacePath?: string): void
   clearWelcomeDraft(workspacePath?: string): void
   stageWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'>): void
@@ -517,53 +512,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }
   },
 
-  setPendingProjectThreadOpen(payload) {
-    if (payload == null) {
-      set({ pendingProjectThreadOpen: null })
-      return
-    }
-
-    const projectKey = normalizeWorkspaceProjectKey(payload.projectKey || payload.workspacePath)
-    const threadId = payload.threadId.trim()
-    if (!projectKey || !threadId) {
-      set({ pendingProjectThreadOpen: null })
-      return
-    }
-
-    set({
-      pendingProjectThreadOpen: {
-        projectKey,
-        workspacePath: payload.workspacePath,
-        threadId,
-        ...(payload.includeArchived ? { includeArchived: true } : {})
-      }
-    })
-  },
-
-  consumePendingProjectThreadOpen(projectKey, threadIds) {
-    const pending = get().pendingProjectThreadOpen
-    if (!pending) return null
-    if (normalizeWorkspaceProjectKey(projectKey) !== normalizeWorkspaceProjectKey(pending.projectKey)) {
-      return null
-    }
-
-    set({ pendingProjectThreadOpen: null })
-    const matchingThreadId = [...threadIds].some((id) => id === pending.threadId)
-    return matchingThreadId ? pending : null
-  },
-
-  clearPendingProjectThreadOpen(projectKey, threadId) {
-    const pending = get().pendingProjectThreadOpen
-    if (!pending) return
-    if (
-      projectKey != null &&
-      normalizeWorkspaceProjectKey(projectKey) !== normalizeWorkspaceProjectKey(pending.projectKey)
-    ) {
-      return
-    }
-    if (threadId != null && pending.threadId !== threadId) return
-    set({ pendingProjectThreadOpen: null })
-  },
+  ...projectThreadNavigationActions(set, get),
 
   setWelcomeDraft(draft, workspacePath) {
     const current = get()

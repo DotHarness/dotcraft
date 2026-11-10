@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { readStateMark, useThreadStore } from '../stores/threadStore'
-import { useUIStore } from '../stores/uiStore'
+import { useUIStore, type PendingProjectThreadOpen } from '../stores/uiStore'
 import { useTurnBookmarkStore } from '../stores/turnBookmarkStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { withReadStates } from '../utils/threadReadState'
 import type { SessionIdentity, ThreadSummary, ThreadReadState } from '../types/thread'
 
@@ -44,7 +45,6 @@ export function useForegroundThreadList(
   protocolWorkspacePathRef: { current: string }
 ) {
   const [loadedProjectKey, setLoadedProjectKey] = useState<string | null>(null)
-  const setThreadList = useThreadStore((s) => s.setThreadList)
   const setLoading = useThreadStore((s) => s.setLoading)
   const threadListReloadGenerationRef = useRef(0)
   const threadListRetryRef = useRef<{ key: string; attempts: number; timer: number | null }>({
@@ -53,18 +53,28 @@ export function useForegroundThreadList(
     timer: null
   })
 
-  const reloadThreadList = useCallback(async () => {
+  const loadThreadList = useCallback(async function load(pending: PendingProjectThreadOpen | null): Promise<void> {
     const requestGeneration = ++threadListReloadGenerationRef.current
     const path = protocolWorkspacePathRef.current
     if (!canReloadForegroundThreadList(activeProjectKeyRef.current, path)) {
       return
     }
+    if (threadListRetryRef.current.timer != null) {
+      window.clearTimeout(threadListRetryRef.current.timer)
+      threadListRetryRef.current.timer = null
+    }
     const requestProtocolWorkspaceKey = normalizeWorkspaceProjectKey(path)
     const projectKey = currentForegroundThreadListKey(activeProjectKeyRef.current, path)
-    const isCurrentRequest = (): boolean =>
-      requestGeneration === threadListReloadGenerationRef.current &&
-      projectKey === currentForegroundThreadListKey(activeProjectKeyRef.current, protocolWorkspacePathRef.current) &&
-      requestProtocolWorkspaceKey === normalizeWorkspaceProjectKey(protocolWorkspacePathRef.current)
+    const connection = useConnectionStore.getState()
+    const isCurrentRequest = (): boolean => {
+      const currentConnection = useConnectionStore.getState()
+      return requestGeneration === threadListReloadGenerationRef.current &&
+        projectKey === currentForegroundThreadListKey(activeProjectKeyRef.current, protocolWorkspacePathRef.current) &&
+        requestProtocolWorkspaceKey === normalizeWorkspaceProjectKey(protocolWorkspacePathRef.current) &&
+        connection.connectionKey === currentConnection.connectionKey &&
+        connection.connectionId === currentConnection.connectionId &&
+        connection.status === currentConnection.status
+    }
     const identity: SessionIdentity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
@@ -72,19 +82,32 @@ export function useForegroundThreadList(
       workspacePath: path
     }
     const startedAt = performance.now()
+    let listReady = false
+    let settingsReady = false
+    const prunePins = (): void => {
+      if (listReady && settingsReady && isCurrentRequest()) useThreadStore.getState().prunePinnedThreadIds()
+    }
     setLoading(true)
     try {
-      const pending = useUIStore.getState().pendingProjectThreadOpen
+      void window.api.settings.get().then(settings => {
+        if (!isCurrentRequest()) return
+        useThreadStore.getState().hydratePinnedThreadIds(
+          projectKey,
+          resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
+        )
+        useTurnBookmarkStore.getState().hydrate(settings.turnBookmarksByThread)
+        settingsReady = true
+        prunePins()
+      }).catch((error: unknown) => {
+        if (isCurrentRequest()) console.error('Failed to load thread settings:', error)
+      })
       const includeArchived = pending?.projectKey === projectKey && pending.includeArchived === true
       const params = {
         identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true,
         ...(includeArchived ? { includeArchived: true } : {})
       }
       const requestedAtMark = readStateMark()
-      const [settings, result] = await Promise.all([
-        window.api.settings.get(),
-        window.api.appServer.sendRequest('thread/list', params)
-      ])
+      const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
       const res = result as unknown as { data: ThreadSummary[]; readStates?: Record<string, ThreadReadState> }
       const threadStore = useThreadStore.getState()
@@ -96,20 +119,12 @@ export function useForegroundThreadList(
         ? [...listedThreads, selectedArchived]
         : listedThreads
       threadStore.setThreadList(withReadStates(observedThreads, res.readStates, requestedAtMark), projectKey)
-      if (threadListRetryRef.current.timer != null) {
-        window.clearTimeout(threadListRetryRef.current.timer)
-      }
       threadListRetryRef.current = { key: '', attempts: 0, timer: null }
-      threadStore.hydratePinnedThreadIds(
-        projectKey,
-        resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
-      )
-      threadStore.prunePinnedThreadIds()
-      useTurnBookmarkStore.getState().hydrate(settings.turnBookmarksByThread)
-      const pendingProjectThreadOpen = useUIStore.getState().consumePendingProjectThreadOpen(
-        projectKey,
-        listedThreads.map((thread) => thread.id)
-      )
+      listReady = true
+      prunePins()
+      const pendingProjectThreadOpen = pending
+        ? useUIStore.getState().consumePendingProjectThreadOpen(projectKey, listedThreads.map((thread) => thread.id), pending.requestId)
+        : null
       if (pendingProjectThreadOpen) {
         useUIStore.getState().setActiveMainView('conversation')
         useThreadStore.getState().setActiveThreadId(pendingProjectThreadOpen.threadId)
@@ -121,35 +136,35 @@ export function useForegroundThreadList(
     } catch (err: unknown) {
       if (!isCurrentRequest()) return
       console.error('Failed to load thread list:', err)
-      const currentThreadListProjectKey = useThreadStore.getState().threadListProjectKey
-      if (currentThreadListProjectKey !== projectKey) {
-        setThreadList([], projectKey)
-      }
-      const retryKey = `${projectKey}\u0000${requestProtocolWorkspaceKey}`
+      const retryKey = [projectKey, requestProtocolWorkspaceKey, connection.connectionKey, connection.connectionId].join('\u0000')
       const retry = threadListRetryRef.current
       if (retry.key !== retryKey) {
-        if (retry.timer != null) window.clearTimeout(retry.timer)
         threadListRetryRef.current = { key: retryKey, attempts: 0, timer: null }
       }
       const nextRetry = threadListRetryRef.current
-      if (nextRetry.attempts < 3 && nextRetry.timer == null) {
+      if (nextRetry.attempts < 3) {
         nextRetry.attempts += 1
         nextRetry.timer = window.setTimeout(() => {
           nextRetry.timer = null
-          void reloadThreadList()
+          if (isCurrentRequest()) void load(pending)
         }, 1200)
-      } else if (nextRetry.attempts >= 3) {
-        useUIStore.getState().clearPendingProjectThreadOpen(projectKey)
+      } else if (pending) {
+        useUIStore.getState().clearPendingProjectThreadOpen(projectKey, pending.threadId, pending.requestId)
       }
     } finally {
       if (isCurrentRequest()) {
         setLoading(false)
       }
     }
-  }, [activeProjectKeyRef, protocolWorkspacePathRef, setThreadList, setLoading])
+  }, [activeProjectKeyRef, protocolWorkspacePathRef, setLoading])
+
+  const reloadThreadList = useCallback(
+    () => loadThreadList(useUIStore.getState().pendingProjectThreadOpen), [loadThreadList]
+  )
 
   useEffect(() => {
     return () => {
+      threadListReloadGenerationRef.current += 1
       if (threadListRetryRef.current.timer != null) {
         window.clearTimeout(threadListRetryRef.current.timer)
         threadListRetryRef.current.timer = null
@@ -159,8 +174,11 @@ export function useForegroundThreadList(
 
   const invalidateThreadList = useCallback(() => {
     threadListReloadGenerationRef.current += 1
+    if (threadListRetryRef.current.timer != null) window.clearTimeout(threadListRetryRef.current.timer)
+    threadListRetryRef.current = { key: '', attempts: 0, timer: null }
     setLoadedProjectKey(null)
-  }, [])
+    setLoading(false)
+  }, [setLoading])
 
   return { reloadThreadList, invalidateThreadList, loadedProjectKey }
 }

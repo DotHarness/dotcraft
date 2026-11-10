@@ -1,4 +1,4 @@
-import { useThreadRestoration } from './hooks/useThreadRestoration'
+import { useForegroundThreadNavigation } from './hooks/useForegroundThreadNavigation'
 import { useConversationWorkspace } from './hooks/useConversationWorkspace'
 import { applyThreadNotification } from './stores/threadNotifications'
 import { applyThreadServerRequest } from './stores/threadServerRequests'
@@ -9,7 +9,6 @@ import { useLocale } from './contexts/LocaleContext'
 import { basename } from './utils/path'
 import { initConnectionStore, useConnectionStore } from './stores/connectionStore'
 import { useThreadStore } from './stores/threadStore'
-import { canReloadForegroundThreadList, currentForegroundThreadListKey, useForegroundThreadList } from './hooks/useForegroundThreadList'
 import {
   useConversationStore,
   type PendingApproval
@@ -38,11 +37,9 @@ import type { AutomationDefinition, AutomationRun } from './stores/automationsSt
 import { useModelCatalogStore } from './stores/modelCatalogStore'
 import { useConfigStore } from './stores/configStore'
 import { useProvidersStore } from './stores/providersStore'
-import { resetProviderConnectionScope } from './stores/providerConnectionScope'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
-import { prepareDesktopPluginWorkspaceChange } from './plugins/desktopPluginSource'
 import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useAppBindingStore } from './stores/appBindingStore'
@@ -273,30 +270,6 @@ function resolveActiveProjectKey(
   return protocolPath
 }
 
-function currentForegroundThreadListIdentityKey(
-  activeProjectKey: string | null | undefined,
-  protocolWorkspacePath: string | null | undefined,
-  workspacePath: string | null | undefined
-): string {
-  const projectKey = currentForegroundThreadListKey(activeProjectKey, protocolWorkspacePath || workspacePath)
-  const protocolKey = normalizeWorkspaceProjectKey(protocolWorkspacePath || workspacePath || '')
-  return `${projectKey}\u0000${protocolKey}`
-}
-
-function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
-  prepareDesktopPluginWorkspaceChange(preserveLocalPlugins)
-  useThreadStore.getState().resetForeground()
-  resetProviderConnectionScope()
-  useMcpStore.getState().reset()
-  usePluginStore.getState().resetForWorkspaceChange()
-  useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
-  if (useUIStore.getState().activeMainView !== 'settings') {
-    useUIStore.getState().setActiveMainView('conversation')
-  }
-  useUIStore.getState().setPendingWelcomeTurn(null)
-  useThreadRouteStore.getState().setPendingRoute(null)
-}
-
 function buildUiToolApproval(
   p: Record<string, unknown>,
   bridgeId: string,
@@ -471,7 +444,6 @@ export function App(): JSX.Element {
   const { status, errorType, errorMessage } = useConnectionStore()
   const isExpectedRestart = useConnectionStore((s) => s.isExpectedRestart)
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const workspaceOpening = useDelayedFlag(status === 'connecting', WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const foregroundChat = useWorkspaceProjectsStore((s) => s.chat)
@@ -485,11 +457,6 @@ export function App(): JSX.Element {
   )
   const foregroundThreadListKey = activeProjectKey || protocolWorkspacePath || workspacePath
   const welcomeScopeId = welcomeScopeKey(activeProjectKey || workspacePath)
-  const foregroundThreadListIdentityKey = currentForegroundThreadListIdentityKey(
-    activeProjectKey,
-    protocolWorkspacePath,
-    workspacePath
-  )
   const activeProjectKeyRef = useRef(activeProjectKey)
   activeProjectKeyRef.current = activeProjectKey
   const foregroundChatKey = foregroundChat
@@ -581,13 +548,13 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const { reloadThreadList, invalidateThreadList, loadedProjectKey } = useForegroundThreadList(activeProjectKeyRef, protocolWorkspacePathRef)
-  useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
-  const { updateWarmThread, releaseWarmThread } = useThreadRestoration({
-    workspaceKey: normalizeWorkspaceProjectKey(foregroundThreadListKey),
+  const { reloadThreadList, loadedProjectKey, updateWarmThread, releaseWarmThread, foregroundReady } = useForegroundThreadNavigation({
+    projectKey: foregroundThreadListKey,
     protocolWorkspacePath: protocolWorkspacePath || workspacePath,
+    remoteWorkspace: remoteWorkspaceActive,
     locale
   })
+  useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
 
   useEffect(() => {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
@@ -1181,60 +1148,14 @@ export function App(): JSX.Element {
   }, [status, workspacePath])
 
   const prevStatusRef = useRef<string>('')
-  const prevForegroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
-  const lastPluginCatalogConnectionEpochRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const nextIdentityKey = foregroundThreadListIdentityKey
-    const nextKey = normalizeWorkspaceProjectKey(foregroundThreadListKey)
-    const previousIdentityKey = prevForegroundThreadListIdentityKeyRef.current
-    if (nextIdentityKey === previousIdentityKey) return
-
-    prevForegroundThreadListIdentityKeyRef.current = nextIdentityKey
-    invalidateThreadList()
-    resetWorkspaceScopedRendererState(!remoteWorkspaceActive)
-    if (
-      status === 'connected' &&
-      prevStatusRef.current === 'connected' &&
-      nextKey &&
-      canReloadForegroundThreadList(activeProjectKey, protocolWorkspacePath)
-    ) {
-      void reloadThreadList()
-    }
-  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, invalidateThreadList, protocolWorkspacePath, reloadThreadList, remoteWorkspaceActive, status])
 
   useEffect(() => {
     if (status === 'connected' && prevStatusRef.current !== 'connected') {
       performance.mark('app:connected')
       performance.measure('app:startup', 'app:bootstrap-start', 'app:connected')
-      void reloadThreadList()
-      useThreadRouteStore.getState().resetForConnection()
-
-      const caps = useConnectionStore.getState().capabilities
-      if (caps?.automations) {
-        void useAutomationsStore.getState().fetchAutomations()
-      }
     }
-    if (status === 'disconnected' || status === 'error') {
-      invalidateThreadList()
-      resetWorkspaceScopedRendererState()
-    }
-
     prevStatusRef.current = status
-  }, [status, reloadThreadList, invalidateThreadList])
-
-  useEffect(() => {
-    if (status !== 'connected' || capabilities?.pluginManagement !== true) return
-    if (lastPluginCatalogConnectionEpochRef.current === connectionEpoch) return
-
-    lastPluginCatalogConnectionEpochRef.current = connectionEpoch
-    void usePluginStore.getState().fetchPlugins()
-  }, [capabilities?.pluginManagement, connectionEpoch, status])
-
-  useEffect(() => {
-    if (status !== 'connected' || capabilities?.providerManagement !== true) return
-    void useProvidersStore.getState().reload()
-  }, [capabilities?.providerManagement, connectionEpoch, status])
+  }, [status])
 
   const connected = status === 'connected'
   useEffect(() => connected ? scheduleIdlePrefetch() : undefined, [connected])
@@ -1969,6 +1890,7 @@ export function App(): JSX.Element {
                       workspacePath={workspacePath}
                       identityWorkspacePath={protocolWorkspacePath || workspacePath}
                       projectKey={activeProjectKey}
+                      workspaceReady={foregroundReady}
                       remoteWorkspace={remoteWorkspaceActive}
                     />
                   )

@@ -13,6 +13,13 @@ const project: WorkspaceProjectSummary = {
   remote: { source: 'device', hostId: 'computer-a', remoteProjectId: 'project-a' }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail })
+  return { promise, resolve, reject }
+}
+
 beforeEach(() => {
   useThreadStore.getState().reset()
   useUIStore.setState({ pendingProjectThreadOpen: null, activeMainView: 'conversation' })
@@ -41,6 +48,47 @@ describe('device project connection actions', () => {
     await act(async () => { await result.current.reloadThreadList() })
     expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
     expect(useThreadStore.getState().activeThreadId).toBe('shared-thread')
+  })
+
+  it('does not clear a newer request for the same project and thread when the first attempt fails', async () => {
+    const first = deferred<{ ok: true; value: null }>()
+    const second = deferred<{ ok: true; value: null }>()
+    installDesktopApiMock({ pairedComputers: {
+      openProject: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    } })
+
+    const oldOpening = openProjectThread(project, 'thread-b')
+    const newOpening = openProjectThread(project, 'thread-b')
+    const latest = useUIStore.getState().pendingProjectThreadOpen!
+    first.reject(new Error('First attempt failed'))
+    await oldOpening
+    expect(useUIStore.getState().pendingProjectThreadOpen).toBe(latest)
+    second.resolve({ ok: true, value: null })
+    await newOpening
+    expect(useUIStore.getState().pendingProjectThreadOpen).toBe(latest)
+  })
+
+  it('keeps a direct foreground selection after an earlier pending list finishes', async () => {
+    const list = deferred<{ data: Array<{ id: string; status: string }> }>()
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({}) },
+      appServer: { sendRequest: vi.fn().mockReturnValue(list.promise) }
+    })
+    useUIStore.getState().setPendingProjectThreadOpen({
+      projectKey: project.projectId!, workspacePath: project.path, threadId: 'old-thread'
+    })
+    const activeProject = { current: project.projectId! }
+    const { result } = renderHook(() => useForegroundThreadList(activeProject, { current: project.path }))
+    let reload!: Promise<void>
+    act(() => { reload = result.current.reloadThreadList() })
+
+    await act(async () => { await openProjectThread({ ...project, state: 'foreground' }, 'new-thread') })
+    expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
+    await act(async () => {
+      list.resolve({ data: [{ id: 'old-thread', status: 'active' }, { id: 'new-thread', status: 'active' }] })
+      await reload
+    })
+    expect(useThreadStore.getState().activeThreadId).toBe('new-thread')
   })
 
   it('keeps the current conversation until the device project is promoted before opening its new-chat draft', async () => {

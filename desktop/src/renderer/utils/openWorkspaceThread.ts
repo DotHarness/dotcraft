@@ -1,4 +1,5 @@
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import type { PendingProjectThreadOpen, PendingProjectThreadOpenInput } from '../stores/projectThreadNavigation'
 
 export interface OpenWorkspaceThreadOptions {
   threadId: string
@@ -6,8 +7,8 @@ export interface OpenWorkspaceThreadOptions {
   foregroundWorkspacePath: string
   includeArchived?: boolean
   switchWorkspace(path: string): Promise<void>
-  setPending(payload: { projectKey: string; workspacePath: string; threadId: string; includeArchived?: boolean }): void
-  clearPending(projectKey: string, threadId: string): void
+  setPending(payload: PendingProjectThreadOpenInput): PendingProjectThreadOpen | null
+  clearPending(projectKey: string, threadId: string, expectedRequestId: number): void
   activateThread(threadId: string): Promise<void>
 }
 
@@ -16,14 +17,15 @@ export async function openWorkspaceThread(options: OpenWorkspaceThreadOptions): 
   if (targetWorkspace
       && normalizeWorkspaceProjectKey(targetWorkspace) !== normalizeWorkspaceProjectKey(options.foregroundWorkspacePath)) {
     const projectKey = normalizeWorkspaceProjectKey(targetWorkspace)
-    options.setPending({
+    const request = options.setPending({
       projectKey, workspacePath: targetWorkspace, threadId: options.threadId,
       ...(options.includeArchived ? { includeArchived: true } : {})
     })
+    if (!request) return
     try {
       await options.switchWorkspace(targetWorkspace)
     } catch (error) {
-      options.clearPending(projectKey, options.threadId)
+      options.clearPending(projectKey, options.threadId, request.requestId)
       throw error
     }
     return

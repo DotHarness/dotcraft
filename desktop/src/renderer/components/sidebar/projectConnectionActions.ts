@@ -37,9 +37,10 @@ export async function openProjectConnection(
 export async function openProjectThread(project: WorkspaceProjectSummary, threadId: string): Promise<void> {
   if (project.state !== 'foreground') {
     const projectKey = projectIdentity(project)
-    useUIStore.getState().setPendingProjectThreadOpen({ projectKey, workspacePath: project.path, threadId })
+    const request = useUIStore.getState().setPendingProjectThreadOpen({ projectKey, workspacePath: project.path, threadId })
+    if (!request) return
     if (!await openProjectConnection(project)) {
-      useUIStore.getState().clearPendingProjectThreadOpen(projectKey, threadId)
+      useUIStore.getState().clearPendingProjectThreadOpen(projectKey, threadId, request.requestId)
     }
     return
   }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { translate, type AppLocale } from '../../shared/locales'
 import { readAppServerErrorFields } from '../../shared/appServerError'
 import { isHiddenThread } from '../../shared/hiddenThreads'
@@ -10,7 +10,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { openThreadState, releaseThreadState } from '../stores/threadState'
-import { createWarmThreads, WARM_THREAD_SWEEP_MS } from '../stores/warmThreads'
+import { createWarmThreads, readyWarmThread, WARM_THREAD_SWEEP_MS, type WarmThreads } from '../stores/warmThreads'
 import { applyThreadHistoryHead } from '../stores/threadHistoryStore'
 import { applyThreadRestoration } from '../stores/applyThreadRestoration'
 import { activateParkedInteractiveRequests, parkThreadInteractiveRequests } from '../stores/threadInteractiveRequests'
@@ -38,7 +38,7 @@ interface Props {
   locale: AppLocale
 }
 
-export function useThreadRestoration(props: Props): {
+export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
   updateWarmThread(thread: Thread): void
   releaseWarmThread(threadId: string): void
 } {
@@ -48,7 +48,7 @@ export function useThreadRestoration(props: Props): {
   const { activeThreadId, activeThread } = useThreadStore()
   const latest = useRef(props)
   latest.current = props
-  const warm = useRef(createWarmThreads())
+  const [warm] = useState(() => warmThreads ?? createWarmThreads())
   const selected = useRef<{
     threadId: string
     target: ThreadObservationTarget
@@ -69,9 +69,12 @@ export function useThreadRestoration(props: Props): {
       capabilities: connection.capabilities,
       threadListWorkspaceKey: threads.threadListProjectKey,
       threadIds: threads.threadList.map(thread => thread.id)
-    }, threadId)
-    return target ? { ...target, originChannel: threads.threadList.find(thread => thread.id === threadId)?.originChannel } : null
-  }, [])
+    }, threadId, selected.current?.threadId === threadId && selected.current.ready
+      ? selected.current.target : readyWarmThread(warm, threadId)?.target)
+    const summary = threads.threadListProjectKey === latest.current.workspaceKey
+      ? threads.threadList.find(thread => thread.id === threadId) : undefined
+    return target ? { ...target, originChannel: summary?.originChannel ?? target.originChannel } : null
+  }, [warm])
 
   const release = useCallback((threadId: string, target?: ThreadObservationTarget) => {
     const connection = target ?? getThreadConnection(threadId)
@@ -84,21 +87,21 @@ export function useThreadRestoration(props: Props): {
 
   const releaseWarmThread = useCallback((threadId: string) => {
     if (selected.current?.threadId === threadId) selected.current.ready = false
-    const entry = warm.current.take(threadId)
+    const entry = warm.take(threadId)
     if (entry) release(threadId, entry.target)
-  }, [release])
+  }, [release, warm])
 
   useEffect(() => {
-    for (const [threadId, entry] of warm.current.entries()) {
+    for (const [threadId, entry] of warm.entries()) {
       if (isThreadObservationCurrent(entry.target)) continue
-      warm.current.remove(threadId)
+      warm.remove(threadId)
       release(threadId, entry.target)
     }
-  }, [projects, chat, status, connectionId, release])
+  }, [projects, chat, status, connectionId, release, warm])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      for (const threadId of warm.current.expired(Date.now())) releaseWarmThread(threadId)
+      for (const threadId of warm.expired(Date.now())) releaseWarmThread(threadId)
     }, WARM_THREAD_SWEEP_MS)
     return () => window.clearInterval(timer)
   }, [releaseWarmThread])
@@ -120,7 +123,7 @@ export function useThreadRestoration(props: Props): {
       if (previous.ready && oldHeader?.id === previous.threadId && !isHiddenThread(oldHeader)
         && isThreadObservationCurrent(previous.target)) {
         parkThreadInteractiveRequests(previous.threadId)
-        for (const evicted of warm.current.keep({ thread: oldHeader, target: previous.target, viewedAt: Date.now() })) {
+        for (const evicted of warm.keep({ thread: oldHeader, target: previous.target, viewedAt: Date.now() })) {
           release(evicted)
         }
       } else {
@@ -136,15 +139,22 @@ export function useThreadRestoration(props: Props): {
     if (!target) return
     const selection = { threadId: activeThreadId, target, ready: false }
     selected.current = selection
+    const cached = readyWarmThread(warm, activeThreadId)
+    const reuseCached = cached && isSameThreadObservationTarget(cached.target, target)
+    if (!reuseCached) {
+      const stale = warm.take(activeThreadId)
+      if (stale) release(activeThreadId, stale.target)
+    }
     const owned = getThreadConnection(activeThreadId)
     if (owned && !isSameThreadObservationTarget(owned, target)) releaseThreadState(activeThreadId)
     registerThreadConnection(activeThreadId, target)
     openThreadState(activeThreadId)
-    const cached = warm.current.take(activeThreadId)
-    if (cached && isSameThreadObservationTarget(cached.target, target)) {
+    if (reuseCached) {
+      warm.take(activeThreadId)
       selection.ready = true
       const threads = useThreadStore.getState()
-      const summary = threads.threadList.find(thread => thread.id === activeThreadId)
+      const summary = threads.threadListProjectKey === latest.current.workspaceKey
+        ? threads.threadList.find(thread => thread.id === activeThreadId) : undefined
       threads.setActiveThread({
         ...cached.thread,
         ...(summary && {
@@ -241,10 +251,10 @@ export function useThreadRestoration(props: Props): {
         startWelcome()
       }
     }).catch(fail)
-  }, [activeThreadId, targetKey, status, connectionId, targetFor, release])
+  }, [activeThreadId, targetKey, status, connectionId, targetFor, release, warm])
 
   return {
-    updateWarmThread: useCallback((thread: Thread) => warm.current.updateThread(thread), []),
+    updateWarmThread: useCallback((thread: Thread) => warm.updateThread(thread), [warm]),
     releaseWarmThread
   }
 }

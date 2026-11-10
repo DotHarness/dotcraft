@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type { ThreadSummary, Thread, ThreadStatus, ThreadRuntimeSnapshot, ThreadGoal, ThreadReadState } from '../types/thread'
 import { useDetailPanelStore } from './detailPanelStore'
+import { useUIStore } from './uiStore'
+import { beginThreadNavigation } from './projectThreadNavigation'
 import { useComposerDraftStore } from './composerDraftStore'
 import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
@@ -533,6 +535,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   setActiveThreadId(id) {
+    beginThreadNavigation()
+    useUIStore.getState().clearPendingProjectThreadOpen()
     set({ activeThreadId: id, activeThreadLoadError: null })
   },
 
