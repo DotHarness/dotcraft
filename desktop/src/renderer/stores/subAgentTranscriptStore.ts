@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { wireTurnToConversationTurn, type ConversationTurn } from '../types/conversation'
-import type { ThreadConfigurationWire, ThreadRuntimeSnapshot } from '../types/thread'
-import { normalizeThreadRuntime } from '../utils/threadRuntime'
+import type { Thread, ThreadConfigurationWire } from '../types/thread'
+import { runtimeSnapshotFromThread } from '../utils/threadRuntime'
 import type { FileDiff } from '../types/toolCall'
 import type { TurnDiff } from '../types/turnDiff'
 import { readTurnItemsPage, THREAD_OPENING_PAGE } from '../utils/threadHistory'
@@ -282,7 +282,7 @@ export const useSubAgentTranscriptStore = create<SubAgentTranscriptStore>((set, 
                   release()
                   return
                 }
-                useThreadStore.getState().applyRuntimeSnapshot(childThreadId, normalizeThreadRuntime(result.currentState.runtime as ThreadRuntimeSnapshot), {
+                useThreadStore.getState().applyRuntimeSnapshot(childThreadId, runtimeSnapshotFromThread(result.thread as unknown as Thread), {
                   isDesktopOrigin: false
                 })
                 turnCursor = result.initialTurnsPage?.nextCursor ?? null

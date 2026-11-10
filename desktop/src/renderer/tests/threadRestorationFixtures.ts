@@ -5,10 +5,9 @@ import { runtimeSnapshotFromThread } from '../utils/threadRuntime'
 export function makeRestoreResult(thread: Thread): ThreadResumeResult {
   const latest = thread.turns[thread.turns.length - 1]
   return {
-    thread: { ...thread, turns: [] },
+    thread: { ...thread, runtime: thread.runtime ?? runtimeSnapshotFromThread(thread), turns: [] },
     instructionSources: [],
     currentState: {
-      runtime: runtimeSnapshotFromThread(thread),
       turnId: latest?.id,
       turnStatus: latest?.status,
       itemCount: latest?.items?.length ?? 0,
