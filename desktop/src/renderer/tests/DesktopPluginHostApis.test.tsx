@@ -8,6 +8,7 @@ import {
 } from '../plugins/desktopPluginHost'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -23,7 +24,7 @@ function plugin(id: string): PluginEntry {
     installable: false,
     removable: false,
     source: 'local',
-    rootPath: `X:\\fixtures\\${id}`,
+    rootPath: `fixtures/${id}`,
     functions: [],
     skills: [],
     apps: [],
@@ -43,13 +44,16 @@ function threadNotFound(): Error {
   return Object.assign(new Error('Thread not found'), { code: 'threadNotFound', rpcCode: -32010 })
 }
 
+let connectionSequence = 0
+
 function nextConnection(): void {
-  useConnectionStore.setState((state) => ({ connectionEpoch: state.connectionEpoch + 1 }))
+  useConnectionStore.setState((state) => ({ connectionId: `connection-${++connectionSequence}`, connectionEpoch: state.connectionEpoch + 1 }))
 }
 
 function appServer(
   onToolCall: (params: Record<string, unknown>) => unknown = () => ({ content: [] }),
-  onThreadStart: () => void = () => {}
+  onThreadStart: () => void = () => {},
+  onThreadResume: () => void = () => {}
 ) {
   let started = 0
   const sendRequestRaw = vi.fn(async (method: string, params?: unknown) => {
@@ -57,19 +61,26 @@ function appServer(
       onThreadStart()
       return { thread: { id: `hidden-${++started}` } }
     }
+    if (method === 'thread/resume') {
+      onThreadResume()
+      return { thread: { id: (params as { threadId: string }).threadId } }
+    }
+    if (method === 'thread/delete') return {}
     if (method === 'mcpServer/tool/call') return onToolCall(params as Record<string, unknown>)
     throw new Error(`unexpected ${method}`)
   })
-  installDesktopApiMock({ appServer: { sendRequestRaw } })
+  const sendConnectionRequest = vi.fn((_key: string, method: string, params?: unknown) => sendRequestRaw(method, params))
+  installDesktopApiMock({ appServer: { sendRequestRaw, sendConnectionRequest } })
   const calls = (method: string) => sendRequestRaw.mock.calls.filter(([name]) => name === method).map(([, params]) => params)
-  return { sendRequestRaw, calls }
+  return { sendRequestRaw, sendConnectionRequest, calls }
 }
 
 beforeEach(() => {
-  nextConnection()
+  useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: `workspace-${++connectionSequence}`, connectionId: 'initial' })
 })
 
 afterEach(() => {
+  useWorkspaceProjectsStore.getState().reset()
   for (const scope of scopes.splice(0)) disposeDesktopPluginCleanupScope(scope)
 })
 
@@ -166,7 +177,7 @@ describe('Desktop extension mcp.callTool', () => {
 
     expect(first).toEqual({ content: [{ type: 'text', text: 'list' }] })
     expect(second).toEqual({ content: [{ type: 'text', text: 'count' }] })
-    expect(server.calls('thread/start')).toEqual([{ ephemeral: true, config: { approvalPolicy: 'deny' } }])
+    expect(server.calls('thread/start')).toEqual([{ identity: { channelName: 'dotcraft-desktop', userId: 'local' }, ephemeral: true, config: { approvalPolicy: 'deny' } }])
     expect(server.calls('mcpServer/tool/call')).toEqual([
       { server: 'board', tool: 'list', arguments: { limit: 1 }, threadId: 'hidden-1' },
       { server: 'board', tool: 'count', arguments: {}, threadId: 'hidden-1' }
@@ -184,17 +195,56 @@ describe('Desktop extension mcp.callTool', () => {
     ])
   })
 
-  it('starts a new hidden thread after the connection changes', async () => {
+  it('keeps its helper through status updates and resumes it after reconnecting', async () => {
     const server = appServer()
     const mcp = host().mcp
 
     await mcp.callTool({ server: 'board', tool: 'list' })
+    useConnectionStore.setState((state) => ({ connectionEpoch: state.connectionEpoch + 1 }))
+    await mcp.callTool({ server: 'board', tool: 'list' })
+    expect(server.calls('thread/resume')).toEqual([])
+
     nextConnection()
     await mcp.callTool({ server: 'board', tool: 'list' })
-
-    expect(server.calls('thread/start')).toHaveLength(2)
+    expect(server.calls('thread/start')).toHaveLength(1)
+    expect(server.calls('thread/resume')).toEqual([{ threadId: 'hidden-1' }])
     expect(server.calls('mcpServer/tool/call').map((params) => (params as { threadId: string }).threadId))
-      .toEqual(['hidden-1', 'hidden-2'])
+      .toEqual(['hidden-1', 'hidden-1', 'hidden-1'])
+  })
+
+  it('recreates a helper lost across a server restart once for concurrent calls', async () => {
+    const server = appServer(undefined, undefined, () => { throw threadNotFound() })
+    const mcp = host().mcp
+    await mcp.callTool({ server: 'board', tool: 'list' })
+    nextConnection()
+    await Promise.all([
+      mcp.callTool({ server: 'board', tool: 'list' }),
+      mcp.callTool({ server: 'board', tool: 'count' })
+    ])
+    expect(server.calls('thread/start')).toHaveLength(2)
+    expect(server.calls('thread/resume')).toHaveLength(1)
+    expect(server.calls('mcpServer/tool/call').slice(1).map(params => (params as { threadId: string }).threadId))
+      .toEqual(['hidden-2', 'hidden-2'])
+  })
+
+  it('releases a discarded helper through its still-live original connection', async () => {
+    const server = appServer()
+    const mcp = host().mcp
+    const original = useConnectionStore.getState()
+    await mcp.callTool({ server: 'board', tool: 'list' })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: 'other',
+      secondaryLimit: 8,
+      projects: [{
+        path: 'original', name: 'original', state: 'secondary', loaded: true, running: false,
+        threadCount: 0, threads: [], pinned: false,
+        connectionKey: original.connectionKey!, connectionId: original.connectionId!
+      }]
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: 'other', connectionId: 'other-1' })
+    await mcp.callTool({ server: 'board', tool: 'list' })
+    expect(server.sendConnectionRequest).toHaveBeenCalledWith(original.connectionKey, 'thread/delete',
+      { threadId: 'hidden-1' }, undefined, { connectionId: original.connectionId })
   })
 
   it('recreates a missing hidden thread once and retries once', async () => {

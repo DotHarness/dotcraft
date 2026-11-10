@@ -12,7 +12,7 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 namespace DotCraft.Sessions;
 
 /// <summary>Owns loaded Thread runtimes, deletion tombstones, and runtime generations.</summary>
-internal sealed class ThreadManager : IDisposable
+internal sealed class ThreadManager : IAsyncDisposable
 {
     private readonly DotCraft.Memory.PlanStore? _planStore;
 
@@ -29,10 +29,33 @@ internal sealed class ThreadManager : IDisposable
             runtime.Broker.UpdatePlan(plan, runtime.Generation);
     }
 
-    public void Dispose()
+    private Task? _disposeTask;
+    private bool _disposed;
+
+    public ValueTask DisposeAsync()
     {
+        lock (_registrationLock)
+            return new ValueTask(_disposeTask ??= DisposeCoreAsync());
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        ThreadRuntime[] runtimes;
+        lock (_registrationLock)
+        {
+            _disposed = true;
+            runtimes = _runtimes.Values.ToArray();
+            _runtimes.Clear();
+            foreach (var runtime in runtimes)
+                runtime.Commands.Close();
+        }
         if (_planStore is not null)
             _planStore.Saved -= OnPlanSaved;
+        await Task.WhenAll(runtimes.Select(async runtime => await runtime.DisposeAsync().ConfigureAwait(false)))
+            .ConfigureAwait(false);
+        foreach (var broker in _brokers.Values)
+            broker.Close();
+        _brokers.Clear();
     }
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
     private readonly Lock _registrationLock = new();
@@ -68,6 +91,7 @@ internal sealed class ThreadManager : IDisposable
     {
         lock (_registrationLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (!_runtimes.TryGetValue(thread.Id, out var runtime))
             {
                 runtime = new ThreadRuntime(thread, GetBroker(thread.Id));
@@ -145,6 +169,18 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
     public ResidentModelHistory? ResidentModelHistory { get; set; }
 
     public McpClientManager? McpManager { get; set; }
+
+    public EventHandler<McpServerStatusChangedEventArgs>? McpStatusHandler { get; set; }
+
+    public async ValueTask ReleaseMcpAsync()
+    {
+        var manager = McpManager;
+        McpManager = null;
+        if (manager is null) return;
+        manager.StatusChanged -= McpStatusHandler;
+        McpStatusHandler = null;
+        await manager.DisposeAsync().ConfigureAwait(false);
+    }
 
     public IReadOnlyList<McpServerConfig> GetBindingMcpServers()
     {
@@ -243,13 +279,28 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
     public async ValueTask DisposeAsync()
     {
         Commands.Close();
+        var turns = Turns.Values.ToArray();
+        foreach (var turn in turns)
+            turn.Interrupt();
+        Maintenance?.Cancel();
+        await Commands.DisposeAsync().ConfigureAwait(false);
+        await AgentLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await ReleaseMcpAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            AgentLock.Release();
+        }
+        await Task.WhenAll(turns.Select(static turn => turn.ExecutionTask)).ConfigureAwait(false);
         Broker.ReleaseCurrentState(Generation);
-        await Commands.DisposeAsync();
         QueueLock.Dispose();
         AgentLock.Dispose();
         Maintenance?.Dispose();
-        if (McpManager != null)
-            await McpManager.DisposeAsync();
+        foreach (var turn in Turns.Values)
+            turn.Dispose();
+        Turns.Clear();
     }
 
 }
@@ -261,6 +312,8 @@ internal sealed class TurnExecutionState : IDisposable
     private readonly Queue<string> _pendingGoalSteering = new();
 
     public CancellationTokenSource? Cancellation { get; set; }
+
+    public Task ExecutionTask { get; set; } = Task.CompletedTask;
 
     public PersistedTurnItems PersistedItems { get; } = new();
 

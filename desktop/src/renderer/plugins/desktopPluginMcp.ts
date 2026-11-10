@@ -1,67 +1,93 @@
 import type { DesktopPluginMcpToolCall, DesktopPluginMcpToolResult } from '@dotcraft/plugin'
-
+import type { JsonValue } from '@dotcraft/sdk/contracts'
+import type { AppServerConnectionSource } from '../../shared/appServerBoundary'
 import { readAppServerErrorFields } from '../../shared/appServerError'
-import { useConnectionStore } from '../stores/connectionStore'
+import { currentMcpManagementScope, isCurrentMcpManagementScope } from '../stores/mcpManagement'
+import { getThreadConnection, isThreadObservationCurrent } from '../stores/threadConnectionStore'
 
 const THREAD_NOT_FOUND = -32010
 
-interface HiddenThread {
-  epoch: number
+interface HiddenThread extends AppServerConnectionSource {
   id: Promise<string>
-  resolvedId?: string
 }
 
 let hiddenThread: HiddenThread | null = null
 
-function connectionEpoch(): number {
-  return useConnectionStore.getState().connectionEpoch
+function startHiddenThread(scope: AppServerConnectionSource): Promise<string> {
+  return window.api.appServer.sendConnectionRequest(scope.connectionKey, 'thread/start',
+    { identity: { channelName: 'dotcraft-desktop', userId: 'local' }, ephemeral: true, config: { approvalPolicy: 'deny' } },
+    undefined, { connectionId: scope.connectionId })
+    .then((result) => result.thread.id)
 }
 
-function hiddenThreadId(): Promise<string> {
-  const epoch = connectionEpoch()
-  if (hiddenThread?.epoch === epoch) return hiddenThread.id
+function releaseHiddenThread(entry: HiddenThread): void {
+  void entry.id.then(async (threadId) => {
+    if (isThreadObservationCurrent(entry)) {
+      await window.api.appServer.sendConnectionRequest(entry.connectionKey, 'thread/delete', { threadId },
+        undefined, { connectionId: entry.connectionId })
+    }
+  }).catch(() => {})
+}
+
+function hiddenThreadFor(scope: AppServerConnectionSource): HiddenThread {
+  const previous = hiddenThread
+  if (previous?.connectionKey === scope.connectionKey && previous.connectionId === scope.connectionId) return previous
+  if (previous && previous.connectionKey !== scope.connectionKey) releaseHiddenThread(previous)
   const entry: HiddenThread = {
-    epoch,
-    id: window.api.appServer
-      .sendRequestRaw('thread/start', { ephemeral: true, config: { approvalPolicy: 'deny' } })
-      .then((result) => {
-        entry.resolvedId = (result as { thread: { id: string } }).thread.id
-        return entry.resolvedId
-      })
+    ...scope,
+    id: previous?.connectionKey === scope.connectionKey
+      ? previous.id.then(async (threadId) => {
+          try {
+            await window.api.appServer.sendConnectionRequest(scope.connectionKey, 'thread/resume', { threadId },
+              undefined, { connectionId: scope.connectionId })
+            return threadId
+          } catch (error) {
+            if (readAppServerErrorFields(error).rpcCode !== THREAD_NOT_FOUND) throw error
+            return startHiddenThread(scope)
+          }
+        })
+      : startHiddenThread(scope)
   }
   hiddenThread = entry
-  entry.id.catch(() => {
+  void entry.id.catch(() => {
     if (hiddenThread === entry) hiddenThread = null
   })
-  return entry.id
+  return entry
 }
 
-function forgetHiddenThread(threadId: string): void {
-  if (hiddenThread?.resolvedId === threadId) hiddenThread = null
-}
-
-function callTool(call: DesktopPluginMcpToolCall, threadId: string): Promise<DesktopPluginMcpToolResult> {
-  return window.api.appServer.sendRequestRaw('mcpServer/tool/call', {
+function callTool(call: DesktopPluginMcpToolCall, threadId: string, scope: AppServerConnectionSource): Promise<DesktopPluginMcpToolResult> {
+  return window.api.appServer.sendConnectionRequest(scope.connectionKey, 'mcpServer/tool/call', {
     server: call.server,
     tool: call.tool,
-    arguments: call.arguments ?? {},
+    arguments: (call.arguments ?? {}) as Record<string, JsonValue>,
     threadId
-  }) as Promise<DesktopPluginMcpToolResult>
+  }, undefined, { connectionId: scope.connectionId }) as Promise<DesktopPluginMcpToolResult>
 }
 
 export async function callDesktopPluginMcpTool(call: DesktopPluginMcpToolCall): Promise<DesktopPluginMcpToolResult> {
-  if (call.threadId) return callTool(call, call.threadId)
-  const epoch = connectionEpoch()
-  const threadId = await hiddenThreadId()
-  if (connectionEpoch() !== epoch) throw new Error('AppServer connection changed before MCP tool dispatch.')
-  try {
-    return await callTool(call, threadId)
-  } catch (error) {
-    const threadGone = readAppServerErrorFields(error).rpcCode === THREAD_NOT_FOUND
-    if (!threadGone || connectionEpoch() !== epoch) throw error
-    forgetHiddenThread(threadId)
-    const retryThreadId = await hiddenThreadId()
-    if (connectionEpoch() !== epoch) throw error
-    return callTool(call, retryThreadId)
+  if (call.threadId) {
+    const scope = getThreadConnection(call.threadId) ?? currentMcpManagementScope()
+    if (!scope || !isThreadObservationCurrent(scope)) throw new Error('AppServer connection is not available.')
+    return callTool(call, call.threadId, scope)
   }
+  const scope = currentMcpManagementScope()
+  if (!scope) throw new Error('AppServer connection is not available.')
+  const assertCurrent = (): void => {
+    if (!isCurrentMcpManagementScope(scope)) throw new Error('AppServer connection changed before MCP tool dispatch.')
+  }
+  const entry = hiddenThreadFor(scope)
+  let threadId = await entry.id
+  assertCurrent()
+  let result: DesktopPluginMcpToolResult
+  try {
+    result = await callTool(call, threadId, scope)
+  } catch (error) {
+    if (readAppServerErrorFields(error).rpcCode !== THREAD_NOT_FOUND || !isCurrentMcpManagementScope(scope)) throw error
+    if (hiddenThread === entry) hiddenThread = null
+    threadId = await hiddenThreadFor(scope).id
+    assertCurrent()
+    result = await callTool(call, threadId, scope)
+  }
+  assertCurrent()
+  return result
 }

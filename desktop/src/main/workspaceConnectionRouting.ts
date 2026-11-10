@@ -67,6 +67,7 @@ export function getWorkspaceNotificationForeground<TClient extends { hasWarmThre
 function isThreadNotification(method: string): boolean {
   return ['thread/', 'turn/', 'item/', 'terminal/', 'plan/', 'subagent/'].some(prefix => method.startsWith(prefix))
     || method === 'system/event' || method === 'system/jobResult'
+    || method === 'mcpServer/startupStatus/updated'
 }
 
 function readNotificationThreadId(method: string, params: unknown): string | undefined {

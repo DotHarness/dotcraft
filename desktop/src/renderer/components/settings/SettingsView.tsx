@@ -114,11 +114,8 @@ import {
   isDesktopPluginSettingsTab,
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
-import {
-  useMcpStore,
-  type McpServerConfigWire,
-  type McpServerStatusWire
-} from '../../stores/mcpStore'
+import type { McpServerConfigWire } from '../../stores/mcpStore'
+import { useMcpManagementData } from './panels/mcp/useMcpManagementData'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -248,8 +245,6 @@ export function SettingsView({
   const fetchPlugins = usePluginStore((s) => s.fetchPlugins)
   const installPlugin = usePluginStore((s) => s.installPlugin)
   const fetchSkills = useSkillsStore((s) => s.fetchSkills)
-  const mcpStatuses = useMcpStore((s) => s.statuses)
-  const setMcpStatuses = useMcpStore((s) => s.setStatuses)
   const [binarySource, setBinarySource] = useState<BinarySource>('bundled')
   const [binaryPath, setBinaryPath] = useState('')
   const [resolvedBinaryPath, setResolvedBinaryPath] = useState<string | null>(null)
@@ -340,9 +335,6 @@ export function SettingsView({
   const memoryEnabled = memory.value === true
   const defaultApprovalPolicy = typeof defaultApproval.value === 'string' ? defaultApproval.value : ''
 
-  const [mcpServers, setMcpServers] = useState<McpServerConfigWire[]>([])
-  const [mcpLoading, setMcpLoading] = useState(false)
-  const [mcpError, setMcpError] = useState<string | null>(null)
   const mcpEditor = useMcpDraft()
   const { editingServerName, mcpDraft, buildDraftPayload } = mcpEditor
   const [testingMcp, setTestingMcp] = useState(false)
@@ -355,6 +347,7 @@ export function SettingsView({
   const [subAgentRefreshTick, setSubAgentRefreshTick] = useState(0)
 
   const mcpEnabled = capabilities?.mcpManagement === true
+  const { mcpStatuses, mcpServers, mcpLoading, mcpError, reloadMcpServers, reloadMcpStatuses } = useMcpManagementData(mcpEnabled)
   const mcpOriginsEnabled = capabilities?.mcpServerOrigins === true
   const subAgentEnabled = capabilities?.subAgentManagement === true
   const hooksEnabled = capabilities?.hooksManagement === true
@@ -1033,41 +1026,6 @@ export function SettingsView({
   }, [binaryPath, binarySource])
 
   useEffect(() => {
-    if (!mcpEnabled) return
-    let cancelled = false
-
-    async function loadMcpData(): Promise<void> {
-      setMcpLoading(true)
-      setMcpError(null)
-      try {
-        const [listRes, statusRes] = await Promise.all([
-          window.api.appServer.sendRequest('mcp/list', {}),
-          window.api.appServer.sendRequest('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' })
-        ])
-        if (cancelled) return
-        const list = (listRes as { servers?: McpServerConfigWire[] }).servers ?? []
-        const statuses = (statusRes as { data?: McpServerStatusWire[] }).data ?? []
-        setMcpServers(list)
-        setMcpStatuses(statuses)
-      } catch (err) {
-        if (!cancelled) {
-          setMcpServers([])
-          setMcpError(err instanceof Error ? err.message : String(err))
-        }
-      } finally {
-        if (!cancelled) {
-          setMcpLoading(false)
-        }
-      }
-    }
-
-    void loadMcpData()
-    return () => {
-      cancelled = true
-    }
-  }, [mcpEnabled, setMcpStatuses])
-
-  useEffect(() => {
     if (!mcpSavedHint) return
     const timer = window.setTimeout(() => setMcpSavedHint(''), 1500)
     return () => window.clearTimeout(timer)
@@ -1112,18 +1070,6 @@ export function SettingsView({
   function cancelMcpEdit(): void {
     mcpEditor.cancelMcpEdit()
     setMcpTestResult(null)
-  }
-
-  async function reloadMcpServers(): Promise<void> {
-    const listRes = await window.api.appServer.sendRequest('mcp/list', {})
-    const list = (listRes as { servers?: McpServerConfigWire[] }).servers ?? []
-    setMcpServers(list)
-  }
-
-  async function reloadMcpStatuses(): Promise<void> {
-    const statusRes = await window.api.appServer.sendRequest('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' })
-    const statuses = (statusRes as { data?: McpServerStatusWire[] }).data ?? []
-    setMcpStatuses(statuses)
   }
 
   async function handleMcpTest(): Promise<void> {

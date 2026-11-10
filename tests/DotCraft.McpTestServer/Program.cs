@@ -4,6 +4,12 @@ using DotCraft.McpTestServer;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
+if (args.Contains("stateful"))
+{
+    await StatefulMcpFixture.RunAsync();
+    return;
+}
+
 var legacy = args.Contains("legacy");
 if (args.Contains("http"))
 {

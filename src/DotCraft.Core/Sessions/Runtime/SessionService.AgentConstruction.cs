@@ -287,6 +287,7 @@ public sealed partial class SessionService
     {
         var threadId = thread.Id;
         var threadRuntimeState = _runtimeRegistry.SetThread(thread);
+        EnsureMcpRuntimeOwner(thread, threadRuntimeState);
         var config = thread.Configuration ?? new ThreadConfiguration();
         var mode = config.Mode.Equals("plan", StringComparison.OrdinalIgnoreCase)
             ? AgentMode.Plan
@@ -589,7 +590,7 @@ public sealed partial class SessionService
 
     private static AgentRuntimeContext CloneContextWithMcpManager(
         AgentRuntimeContext source,
-        McpClientManager mcpClientManager) =>
+        McpClientManager? mcpClientManager) =>
         new(source)
         {
             EffectiveReasoning = ThreadConfigurationCloner.CloneReasoningConfig(source.EffectiveReasoning),

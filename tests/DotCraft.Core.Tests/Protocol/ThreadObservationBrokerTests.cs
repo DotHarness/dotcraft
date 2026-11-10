@@ -162,7 +162,7 @@ public sealed class ThreadObservationBrokerTests
         {
             using var database = new DotCraft.Persistence.WorkspaceStateDatabase(directory);
             var plans = new DotCraft.Memory.PlanStore(directory, database);
-            using var manager = new ThreadManager(plans);
+            await using var manager = new ThreadManager(plans);
             var thread = Thread();
             await new ThreadStore(directory, database).SaveThreadAsync(thread);
             var runtime = manager.SetThread(thread);
@@ -181,7 +181,6 @@ public sealed class ThreadObservationBrokerTests
             using var next = runtime.Broker.Observe(thread, null, ThreadObservationView.Metadata, []);
             Assert.Equal("first", first.Snapshot.Plan!.Title);
             Assert.Equal("second", next.Snapshot.Plan!.Title);
-            await runtime.DisposeAsync();
         }
         finally
         {

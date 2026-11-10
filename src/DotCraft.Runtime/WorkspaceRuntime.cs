@@ -147,6 +147,8 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
 
     public event Action<McpServerStatusChangedEventArgs>? McpStatusChanged;
 
+    public event Action<string, McpServerStatusSnapshot>? ThreadMcpStatusChanged;
+
     public event Action<string, StructuredPlan>? PlanUpdated;
 
     public event Action<SessionThread>? ThreadStarted;
@@ -259,7 +261,8 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
                     sessionService.SubAgentBoardChangedForBroadcast = null;
                     sessionService.ThreadReadStateChangedForBroadcast = null;
                     sessionService.ThreadTokenUsageUpdatedForBroadcast = null;
-                    sessionService.Dispose();
+                    sessionService.ThreadMcpStatusChangedForBroadcast = null;
+                    await sessionService.DisposeAsync();
                 }
             }
             catch (Exception ex)

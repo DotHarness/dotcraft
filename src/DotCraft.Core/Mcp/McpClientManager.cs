@@ -1,6 +1,5 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using System.Text;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using DotCraft.Workspaces;
@@ -38,13 +37,15 @@ public sealed record McpServerInventorySnapshot(
     IReadOnlyList<ResourceTemplate> ResourceTemplates,
     long Generation);
 
-public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisposable
+public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisposable
 {
     internal const double DefaultStartupTimeoutSeconds = 30;
 
     private sealed class ServerRuntimeState
     {
         public McpServerConfig Config { get; set; } = new();
+        public McpConnectionIdentity ConnectionIdentity { get; set; }
+        public CancellationTokenSource? StartupCancellation { get; set; }
         public IAsyncDisposable? Client { get; set; }
         public McpClient? ProtocolClient { get; set; }
         public bool HasSessionId { get; set; }
@@ -69,7 +70,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCts = new();
     private long _nextGeneration;
-    private string? _effectiveConfigFingerprint;
     private bool _disposed;
     internal IMcpElicitationHandler? ElicitationHandler { get; }
 
@@ -111,8 +111,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         CancellationToken cancellationToken = default)
     {
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration: null, cancellationToken);
-        var resourcesTask = TryListResourcesAsync(session.Client, serverName, cancellationToken);
-        var templatesTask = TryListResourceTemplatesAsync(session.Client, serverName, cancellationToken);
+        var resourcesTask = TryListResourcesAsync(session.Client, serverName, session.CancellationToken);
+        var templatesTask = TryListResourceTemplatesAsync(session.Client, serverName, session.CancellationToken);
         await Task.WhenAll(resourcesTask, templatesTask);
 
         McpServerStatusSnapshot? snapshot = null;
@@ -155,7 +155,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             arguments,
             progress: null,
             options: null,
-            cancellationToken);
+            session.CancellationToken);
     }
 
     public async Task<ReadResourceResult> ReadResourceAsync(
@@ -182,7 +182,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             throw new ArgumentException("A resource URI is required.", nameof(uri));
 
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
-        return await session.Client.ReadResourceAsync(uri, options: null, cancellationToken);
+        return await session.Client.ReadResourceAsync(uri, options: null, session.CancellationToken);
     }
 
     public async Task<long?> GetGenerationAsync(
@@ -215,69 +215,12 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
     internal McpClientManager(
         Func<McpServerConfig, CancellationToken, Task<McpConnectionResult>> connectServer,
-        ILogger<McpClientManager>? logger = null)
+        ILogger<McpClientManager>? logger = null,
+        string? userDataPath = null)
     {
         _connectServer = connectServer;
         _logger = logger;
-    }
-
-    public async Task ConnectAsync(IEnumerable<McpServerConfig> servers, CancellationToken cancellationToken = default)
-    {
-        var configs = servers
-            .Select(s => s.Clone())
-            .Where(s => !string.IsNullOrWhiteSpace(s.Name))
-            .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .ToList();
-        var fingerprint = ComputeConfigFingerprint(configs);
-        var clientsToDispose = new List<IAsyncDisposable>();
-        var statusesToNotify = new List<McpServerStatusSnapshot>();
-        var connectWork = new List<(McpServerConfig Config, long Generation)>();
-
-        await _mutex.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            if (string.Equals(_effectiveConfigFingerprint, fingerprint, StringComparison.Ordinal))
-                return;
-            _effectiveConfigFingerprint = fingerprint;
-            CollectClientsUnsafe(clientsToDispose);
-            _servers.Clear();
-
-            foreach (var config in configs)
-            {
-                var generation = NextGenerationUnsafe();
-                var startupState = config.Enabled ? "starting" : "disabled";
-                var state = new ServerRuntimeState
-                {
-                    Config = config,
-                    Status = CreateStatus(config, startupState),
-                    Generation = generation
-                };
-
-                _servers[config.Name] = state;
-                statusesToNotify.Add(CloneStatus(state.Status));
-
-                if (config.Enabled)
-                    connectWork.Add((config.Clone(), generation));
-            }
-
-            RebuildToolIndexUnsafe();
-            _effectiveConfigFingerprint = ComputeConfigFingerprint(
-                _servers.Values.Select(static state => state.Config));
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-
-        foreach (var status in statusesToNotify)
-            OnStatusChanged(status);
-
-        await DisposeClientsAsync(clientsToDispose);
-
-        foreach (var (config, generation) in connectWork)
-            StartConnectInBackground(config, generation);
+        _userDataPath = userDataPath;
     }
 
     public async Task<McpServerConfig?> GetConfigAsync(string name, CancellationToken cancellationToken = default)
@@ -348,79 +291,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    public async Task<McpServerStatusSnapshot> UpsertAsync(McpServerConfig config, CancellationToken cancellationToken = default)
-    {
-        var clone = config.Clone();
-        var clientsToDispose = new List<IAsyncDisposable>();
-        McpServerStatusSnapshot status;
-        long generation;
-
-        await _mutex.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            generation = NextGenerationUnsafe();
-            if (_servers.TryGetValue(clone.Name, out var existing))
-            {
-                CollectClientUnsafe(existing, clientsToDispose);
-                existing.Config = clone;
-                existing.Generation = generation;
-                existing.Status = CreateStatus(existing.Config, existing.Config.Enabled ? "starting" : "disabled");
-                status = CloneStatus(existing.Status);
-            }
-            else
-            {
-                var state = new ServerRuntimeState
-                {
-                    Config = clone,
-                    Status = CreateStatus(clone, clone.Enabled ? "starting" : "disabled"),
-                    Generation = generation
-                };
-                _servers[clone.Name] = state;
-                status = CloneStatus(state.Status);
-            }
-
-            RebuildToolIndexUnsafe();
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-
-        OnStatusChanged(status);
-        await DisposeClientsAsync(clientsToDispose);
-
-        if (clone.Enabled)
-            StartConnectInBackground(clone.Clone(), generation);
-
-        return status;
-    }
-
-    public async Task<bool> RemoveAsync(string name, CancellationToken cancellationToken = default)
-    {
-        var clientsToDispose = new List<IAsyncDisposable>();
-
-        await _mutex.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            if (!_servers.Remove(name, out var state))
-                return false;
-
-            CollectClientUnsafe(state, clientsToDispose);
-            RebuildToolIndexUnsafe();
-            _effectiveConfigFingerprint = ComputeConfigFingerprint(
-                _servers.Values.Select(static candidate => candidate.Config));
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-
-        await DisposeClientsAsync(clientsToDispose);
-        return true;
-    }
-
     public async Task<McpServerStatusSnapshot> TestAsync(McpServerConfig config, CancellationToken cancellationToken = default)
     {
         var status = CreateStatus(config, config.Enabled ? "starting" : "disabled");
@@ -454,7 +324,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         finally
         {
             if (client != null)
-                await DisposeClientAsync(client);
+                await DisposeClientAsync(client).ConfigureAwait(false);
         }
     }
 
@@ -517,7 +387,12 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
 
             state.ActiveOperations++;
-            return new ProtocolSession(this, state, state.ProtocolClient, state.Generation);
+            var session = new ProtocolSession(this, state, state.ProtocolClient, state.Generation,
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCts.Token));
+            if (_sessions.Count == 0)
+                _sessionsDrained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _sessions.Add(session);
+            return session;
         }
         finally
         {
@@ -548,6 +423,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 var config = state.Config.Clone();
                 activeRefresh = RefreshToolAfterStaleSessionCoreAsync(config, toolName, observedGeneration);
                 state.StaleSessionRefreshTask = activeRefresh;
+                TrackBackgroundTaskUnsafe(activeRefresh);
             }
 
             refreshTask = activeRefresh;
@@ -609,7 +485,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         finally
         {
             if (client != null)
-                await DisposeClientAsync(client);
+                await DisposeClientAsync(client).ConfigureAwait(false);
         }
     }
 
@@ -633,7 +509,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         await _mutex.WaitAsync(cancellationToken);
         try
         {
-            if (_servers.TryGetValue(config.Name, out var state))
+            if (!_disposed && _servers.TryGetValue(config.Name, out var state))
             {
                 if (state.Generation == observedGeneration && CanRefreshAfterStaleSession(state))
                 {
@@ -748,103 +624,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 tool,
                 state.HasSessionId,
                 GetToolTimeout(state.Config));
-    }
-
-    private void StartConnectInBackground(McpServerConfig config, long generation)
-    {
-        var lifetimeToken = _lifetimeCts.Token;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await ConnectServerAsync(config, generation, lifetimeToken);
-            }
-            catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Unhandled MCP background connection error for {ServerName}", config.Name);
-            }
-        }, CancellationToken.None);
-    }
-
-    private async Task ConnectServerAsync(McpServerConfig config, long generation, CancellationToken lifetimeToken)
-    {
-        await UpdateStatusAsync(config.Name, generation, CreateStatus(config, "starting"), lifetimeToken);
-
-        IAsyncDisposable? client = null;
-        IReadOnlyList<AIFunction> tools = [];
-        IReadOnlyList<Resource> resources = [];
-        IReadOnlyList<ResourceTemplate> resourceTemplates = [];
-        var hasSessionId = false;
-        McpClient? protocolClient = null;
-        McpServerStatusSnapshot status;
-        try
-        {
-            using var timeoutCts = CreateStartupTimeoutToken(config, lifetimeToken);
-            var result = await _connectServer(config, timeoutCts.Token);
-            client = result.Client;
-            tools = result.Tools;
-            hasSessionId = result.HasSessionId;
-            protocolClient = result.ProtocolClient;
-            resources = result.Resources ?? [];
-            resourceTemplates = result.ResourceTemplates ?? [];
-
-            if (result.RecoveredFromStaleSession)
-            {
-                _logger?.LogInformation(
-                    "MCP connection to {ServerName} recovered from stale session during startup/listTools",
-                    config.Name);
-            }
-
-            status = CreateStatus(config, "ready");
-            status.ToolCount = tools.Count;
-            status.AuthStatus = result.AuthStatus;
-            status.FailureReason = result.FailureReason;
-            _logger?.LogInformation(
-                "MCP connected to {ServerName} with {ToolCount} tools",
-                config.Name,
-                tools.Count);
-        }
-        catch (OperationCanceledException) when (!lifetimeToken.IsCancellationRequested)
-        {
-            status = CreateStatus(config, "error");
-            status.LastError = CreateStartupTimeoutMessage(config);
-
-            _logger?.LogError("MCP connection to {ServerName} timed out", config.Name);
-        }
-        catch (Exception ex)
-        {
-            status = CreateStatus(config, "error");
-            status.LastError = ex.Message;
-            if (FindAuthenticationRequired(ex) is { } authenticationRequired)
-            {
-                status.AuthStatus = McpAuthenticationStatuses.NotLoggedIn;
-                status.FailureReason = authenticationRequired.ReauthenticationRequired
-                    ? "reauthenticationRequired"
-                    : null;
-            }
-
-            _logger?.LogError(ex, "MCP connection to {ServerName} failed", config.Name);
-        }
-
-        var accepted = await ApplyConnectResultAsync(
-            config,
-            generation,
-            status,
-            tools,
-            client,
-            hasSessionId,
-            protocolClient,
-            resources,
-            resourceTemplates,
-            lifetimeToken);
-        if (accepted)
-            client = null;
-
-        if (client != null)
-            await DisposeClientAsync(client);
     }
 
     private void RebuildToolIndexUnsafe()
@@ -987,7 +766,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         await _mutex.WaitAsync(cancellationToken);
         try
         {
-            if (_servers.TryGetValue(config.Name, out var state) && state.Generation == generation)
+            if (!_disposed && _servers.TryGetValue(config.Name, out var state) && state.Generation == generation)
             {
                 previousClient = state.Client;
                 state.Client = status.StartupState == "ready" ? client : null;
@@ -996,9 +775,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 state.CachedTools = status.StartupState == "ready" ? [.. tools] : [];
                 state.CachedResources = status.StartupState == "ready" ? resources : [];
                 state.CachedResourceTemplates = status.StartupState == "ready" ? resourceTemplates : [];
+                state.Status = status;
                 state.Status.ResourceCount = state.CachedResources.Count;
                 state.Status.ResourceTemplateCount = state.CachedResourceTemplates.Count;
-                state.Status = status;
+                state.Status.Origin = state.Config.Origin.Clone();
                 state.StaleSessionRefreshTask = null;
                 RebuildToolIndexUnsafe();
                 snapshot = CloneStatus(state.Status);
@@ -1058,23 +838,17 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         state.StaleSessionRefreshTask = null;
     }
 
-    private void CollectClientsUnsafe(List<IAsyncDisposable> clients)
-    {
-        foreach (var state in _servers.Values)
-            CollectClientUnsafe(state, clients);
-    }
-
     private async Task DisposeClientsAsync(IEnumerable<IAsyncDisposable> clients)
     {
         foreach (var client in clients)
-            await DisposeClientAsync(client);
+            await DisposeClientAsync(client).ConfigureAwait(false);
     }
 
     private async Task DisposeClientAsync(IAsyncDisposable client, bool expectedSessionMayBeExpired = false)
     {
         try
         {
-            await client.DisposeAsync();
+            await client.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1086,52 +860,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     }
 
     private long NextGenerationUnsafe() => unchecked(++_nextGeneration);
-
-    private static string ComputeConfigFingerprint(IEnumerable<McpServerConfig> configs)
-    {
-        var builder = new StringBuilder();
-        foreach (var config in configs.OrderBy(static value => value.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            AppendFingerprintValue(builder, config.Name);
-            AppendFingerprintValue(builder, config.Enabled.ToString());
-            AppendFingerprintValue(builder, config.NormalizedTransport);
-            AppendFingerprintValue(builder, config.Command);
-            foreach (var argument in config.Arguments)
-                AppendFingerprintValue(builder, argument);
-            foreach (var pair in config.EnvironmentVariables.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
-            {
-                AppendFingerprintValue(builder, pair.Key);
-                AppendFingerprintValue(builder, pair.Value);
-            }
-            foreach (var name in config.EnvVars.OrderBy(static value => value, StringComparer.Ordinal))
-                AppendFingerprintValue(builder, name);
-            AppendFingerprintValue(builder, config.Cwd);
-            AppendFingerprintValue(builder, config.Url);
-            AppendFingerprintValue(builder, config.BearerTokenEnvVar);
-            AppendFingerprintValue(builder, System.Text.Json.JsonSerializer.Serialize(config.OAuth));
-            foreach (var pair in config.Headers.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
-            {
-                AppendFingerprintValue(builder, pair.Key);
-                AppendFingerprintValue(builder, pair.Value);
-            }
-            foreach (var pair in config.EnvHttpHeaders.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
-            {
-                AppendFingerprintValue(builder, pair.Key);
-                AppendFingerprintValue(builder, pair.Value);
-            }
-            AppendFingerprintValue(builder, config.StartupTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            AppendFingerprintValue(builder, config.ToolTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            AppendFingerprintValue(builder, config.ToolApprovalMode.ToString());
-            AppendFingerprintValue(builder, config.Origin.Kind);
-            AppendFingerprintValue(builder, config.Origin.PluginId);
-            AppendFingerprintValue(builder, config.Origin.ThreadId);
-            AppendFingerprintValue(builder, config.Origin.BindingId);
-            AppendFingerprintValue(builder, config.Origin.DeclaredName);
-        }
-
-        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-            Encoding.UTF8.GetBytes(builder.ToString())));
-    }
 
     private async Task<IAsyncDisposable?> RetireClientAsync(
         string serverName,
@@ -1153,53 +881,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         finally
         {
             _mutex.Release();
-        }
-    }
-
-    private async ValueTask ReleaseProtocolSessionAsync(ServerRuntimeState state)
-    {
-        List<IAsyncDisposable>? clients = null;
-        await _mutex.WaitAsync();
-        try
-        {
-            if (state.ActiveOperations > 0)
-                state.ActiveOperations--;
-            if (state.ActiveOperations == 0 && state.RetiredClients.Count > 0)
-            {
-                clients = [.. state.RetiredClients];
-                state.RetiredClients.Clear();
-            }
-        }
-        finally
-        {
-            _mutex.Release();
-        }
-
-        if (clients != null)
-            await DisposeClientsAsync(clients);
-    }
-
-    private static void AppendFingerprintValue(StringBuilder builder, string? value)
-    {
-        value ??= string.Empty;
-        builder.Append(value.Length).Append(':').Append(value).Append(';');
-    }
-
-    private sealed class ProtocolSession(
-        McpClientManager owner,
-        ServerRuntimeState state,
-        McpClient client,
-        long generation) : IAsyncDisposable
-    {
-        private int _disposed;
-
-        public McpClient Client { get; } = client;
-        public long Generation { get; } = generation;
-
-        public async ValueTask DisposeAsync()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0)
-                await owner.ReleaseProtocolSessionAsync(state);
         }
     }
 
@@ -1274,7 +955,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
             catch
             {
-                await client.DisposeAsync();
+                await client.DisposeAsync().ConfigureAwait(false);
                 throw;
             }
         }
@@ -1337,7 +1018,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     {
         try
         {
-            await client.DisposeAsync();
+            await client.DisposeAsync().ConfigureAwait(false);
         }
         catch
         {
@@ -1363,33 +1044,4 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         return null;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        var clientsToDispose = new List<IAsyncDisposable>();
-        _lifetimeCts.Cancel();
-
-        await _mutex.WaitAsync();
-        try
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-            CollectClientsUnsafe(clientsToDispose);
-            _servers.Clear();
-            Volatile.Write(ref _toolsSnapshot, []);
-            Volatile.Write(
-                ref _toolServerMapSnapshot,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-            Volatile.Write(ref _serverConfigsSnapshot, []);
-        }
-        finally
-        {
-            _mutex.Release();
-            _mutex.Dispose();
-            _lifetimeCts.Dispose();
-        }
-
-        await DisposeClientsAsync(clientsToDispose);
-    }
 }

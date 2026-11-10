@@ -6,7 +6,11 @@ Use the SDK MCP runtime surface to inspect the servers visible to a thread, read
 
 An MCP server can come from workspace configuration, a plugin, a thread, or an App Binding. Status entries include an `origin` that identifies the source and, where applicable, the plugin, thread, or binding that owns it.
 
-Pass a thread ID when the visible server set depends on thread configuration or bindings. The runtime `name` is the identifier to pass to resource, tool, and OAuth calls; `declaredName` is the name from its source configuration.
+Each thread owns its MCP connections, including servers inherited from workspace or plugin configuration. Turns in the same loaded thread reuse those sessions; other threads establish separate sessions.
+
+Pass the thread ID to inspect or control that thread's MCP runtime. Omitting it on supported management calls selects the workspace management runtime, not the current conversation. The runtime `name` is the identifier to pass to resource, tool, and OAuth calls; `declaredName` is the name from its source configuration.
+
+Unloading or closing the thread's runtime releases its connections. Loading it again creates new sessions, without restoring server memory state. Connection isolation does not imply separate credentials or application state: a server may still use a shared account or browser profile.
 
 ## Inspect runtime status
 
@@ -146,7 +150,7 @@ await client.McpRuntime.ReloadAsync();
 
 :::
 
-Reload re-reads MCP configuration and reconnects the effective runtime. It does not create a server definition, and it is not a retry loop for a failing server. When a server will not start, read `failureReason` and `lastError` from its status first.
+Reload refreshes configuration and the next thread tool snapshot, retaining unchanged connections. Connection input changes replace only affected servers; tool timeout and approval changes preserve the session.
 
 ## Choose the right tool surface
 

@@ -1875,7 +1875,9 @@ Params none; result `{}`. Marks loaded threads' next tool snapshot dirty without
 
 #### 22.8.6 `mcpServer/startupStatus/updated`
 
-Notification `{ threadId, name, status, error, failureReason, transport?, authStatus? }`, with `status` `starting`, `ready`, `failed`, or `cancelled`. The optional transport and auth fields let clients update a status row without guessing defaults.
+Notification `{ threadId, name, status, error, failureReason, transport?, authStatus? }`, with `status` `starting`, `ready`, `failed`, or `cancelled`. A nullable/omitted `threadId` identifies workspace management state; a non-null value identifies that thread's private runtime and is delivered to its subscribers. The optional transport and auth fields let clients update a status row without guessing defaults.
+
+Clients scope management data by workspace/connection and thread data by connection/thread. Notifications refresh the corresponding catalog rather than overwriting another scope's state. Scope changes reload management data and discard previous owners' responses.
 
 #### 22.8.7 `mcpServer/oauthLogin/completed`
 

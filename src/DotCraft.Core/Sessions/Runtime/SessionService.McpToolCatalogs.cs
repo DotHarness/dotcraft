@@ -8,6 +8,62 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
+    public Action<string, McpServerStatusSnapshot>? ThreadMcpStatusChangedForBroadcast { get; set; }
+
+    public async Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+        if (thread.Status != ThreadStatus.Active)
+            return null;
+        var runtime = _runtimeRegistry.SetThread(thread);
+        using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
+        {
+            EnsureMcpRuntimeOwner(thread, runtime);
+            if (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty)
+                SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, cancellationToken).ConfigureAwait(false));
+        }
+        return runtime.McpManager;
+    }
+
+    public async Task SetBindingMcpServersAsync(
+        string threadId,
+        string bindingId,
+        IReadOnlyList<McpServerConfig> servers,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bindingId);
+        ArgumentNullException.ThrowIfNull(servers);
+        var normalized = servers.Select(server =>
+        {
+            var clone = server.Clone();
+            clone.Origin = McpServerOrigin.Binding(bindingId, server.Origin.DeclaredName ?? server.Name);
+            return clone;
+        }).ToArray();
+        await InvokeThreadCommandAsync(threadId, async commandCt =>
+        {
+            var thread = await GetOrLoadThreadAsync(threadId, commandCt).ConfigureAwait(false);
+            var runtime = _runtimeRegistry.SetThread(thread);
+            using (await AcquireThreadAgentLockAsync(threadId, commandCt).ConfigureAwait(false))
+            {
+                runtime.SetBindingMcpServers(bindingId, normalized);
+                if (thread.Status == ThreadStatus.Active)
+                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, commandCt).ConfigureAwait(false));
+                else
+                    await runtime.ReleaseMcpAsync().ConfigureAwait(false);
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void EnsureMcpRuntimeOwner(SessionThread thread, ThreadRuntime runtime)
+    {
+        if (thread.Status != ThreadStatus.Active || !_runtimeRegistry.IsCurrent(thread.Id, runtime))
+            throw new InvalidOperationException($"Thread '{thread.Id}' has no active runtime.");
+    }
+
     private async Task<AgentRuntimeContext> PrepareMcpToolContextAsync(
         SessionThread thread,
         ThreadRuntime threadRuntimeState,
@@ -15,35 +71,39 @@ public sealed partial class SessionService
         AgentRuntimeContext toolContext,
         CancellationToken ct)
     {
+        var workspaceManager = agentFactory.RuntimeContext.McpClientManager;
         var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
-        if (config.McpServers is not null || bindingMcpServers.Count > 0)
+        var inheritedMcpServers = !config.UseToolProfileOnly && config.McpServers is null && workspaceManager is not null
+            ? await workspaceManager.ListConfigsAsync(ct)
+            : [];
+        var effectiveMcpServers = McpServerComposition.Compose(
+            thread.Id,
+            config.UseToolProfileOnly ? [] : config.McpServers,
+            inheritedMcpServers,
+            bindingMcpServers);
+        if (effectiveMcpServers.Count > 0
+            || (!config.UseToolProfileOnly && (config.McpServers is not null || workspaceManager is not null)))
         {
-            var inheritedMcpServers = config.McpServers is null && toolContext.McpClientManager is not null
-                ? await toolContext.McpClientManager.ListConfigsAsync(ct)
-                : [];
-            var effectiveMcpServers = McpServerComposition.Compose(
-                thread.Id,
-                config.McpServers,
-                inheritedMcpServers,
-                bindingMcpServers);
-            var threadMcpManager = threadRuntimeState.McpManager
-                ?? new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>(),
-                    toolContext.McpClientManager?.ElicitationHandler);
-            await threadMcpManager.ConnectAsync(effectiveMcpServers, ct);
-            await threadMcpManager.WaitForStartupCompletionAsync(ct);
-            threadRuntimeState.McpManager = threadMcpManager;
-            toolContext = CloneContextWithMcpManager(toolContext, threadMcpManager);
+            if (threadRuntimeState.McpManager is null)
+            {
+                var threadManager = new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>(),
+                    workspaceManager?.ElicitationHandler);
+                threadRuntimeState.McpManager = threadManager;
+                threadRuntimeState.McpStatusHandler = (sender, args) =>
+                {
+                    if (ReferenceEquals(sender, threadRuntimeState.McpManager))
+                        ThreadMcpStatusChangedForBroadcast?.Invoke(thread.Id, args.Status);
+                };
+                threadManager.StatusChanged += threadRuntimeState.McpStatusHandler;
+            }
+            await threadRuntimeState.McpManager.ConnectAsync(effectiveMcpServers, ct);
+            await threadRuntimeState.McpManager.WaitForStartupCompletionAsync(ct);
         }
         else
         {
-            if (threadRuntimeState.McpManager is { } obsoleteThreadManager)
-            {
-                threadRuntimeState.McpManager = null;
-                await obsoleteThreadManager.DisposeAsync();
-            }
-            if (toolContext.McpClientManager != null)
-                await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
+            await threadRuntimeState.ReleaseMcpAsync();
         }
+        toolContext = CloneContextWithMcpManager(toolContext, threadRuntimeState.McpManager);
 
         if (config.McpPolicy?.Servers is { Length: > 0 } selectors && toolContext.McpClientManager is { } manager)
         {

@@ -30,6 +30,7 @@ export function applyThreadNotification(payload: RawNotificationPayload, context
   if (!context.foreground && !target) return false
   if (target && !matchesThreadConnection(ownerThreadId!, payload)) return false
   if (stageThreadNotification(threadId, () => applyThreadNotification(payload, context))) return true
+  if (payload.method === 'mcpServer/startupStatus/updated' && threadId) return true
   const p = (payload.params ?? {}) as Record<string, unknown>
   if (payload.method.startsWith('item/') && typeof p.turnId === 'string') {
     const conversation = threadId ? getThreadConversation(threadId)?.getState() : undefined
