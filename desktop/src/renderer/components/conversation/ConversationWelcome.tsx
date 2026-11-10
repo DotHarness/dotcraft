@@ -109,6 +109,7 @@ interface ConversationWelcomeProps {
   identityWorkspacePath?: string
   projectKey?: string
   remoteWorkspace?: boolean
+  workspaceReady?: boolean
 }
 
 interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
@@ -147,7 +148,7 @@ export function ConversationWelcome({
     workspacePath: props.workspacePath || null,
     threadId: null,
     mode: selectedProfileId ? 'agent' : welcomeMode,
-    busy: connectionStatus !== 'connected',
+    busy: connectionStatus !== 'connected' || props.workspaceReady === false,
     awaitingApproval: false,
     variant: 'default',
     minimalChrome: false,
@@ -174,6 +175,7 @@ function ConversationWelcomeCore({
   identityWorkspacePath,
   projectKey,
   remoteWorkspace = false,
+  workspaceReady = true,
   desktopPluginSurfaceContext,
   welcomeMode,
   setWelcomeMode,
@@ -230,7 +232,7 @@ function ConversationWelcomeCore({
     modelListUnsupportedEndpoint, modelCatalogErrorCode, modelCatalogErrorMessage,
     loadModels, hydrateDraft, handleModelChange, handleProviderChange,
     handleReasoningChange, handleSpeedChange
-  } = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef })
+  } = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef, workspaceReady })
   const richRef = useRef<RichInputAreaHandle>(null)
   const welcomeContentRef = useRef<HTMLDivElement>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
@@ -264,8 +266,8 @@ function ConversationWelcomeCore({
   const appBindingApps = useAppBindingStore((s) => s.apps)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
 
-  const isConnected = connectionStatus === 'connected'
-  const openingWorkspace = useDelayedFlag(connectionStatus === 'connecting', WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
+  const isConnected = connectionStatus === 'connected' && workspaceReady
+  const openingWorkspace = useDelayedFlag(connectionStatus === 'connecting' || !workspaceReady, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
   const busy = !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true
@@ -740,7 +742,7 @@ function ConversationWelcomeCore({
       addToast(t('goal.toast.emptyObjective'), 'warning')
       return false
     }
-    if (connectionStatus !== 'connected' || sendInFlightRef.current || modelLoading) {
+    if (!isConnected || sendInFlightRef.current || modelLoading) {
       return false
     }
 
@@ -806,7 +808,7 @@ function ConversationWelcomeCore({
     addThread,
     canUseThreadGoals,
     clearWelcomeDraft,
-    connectionStatus,
+    isConnected,
     draftProjectKey,
     locale,
     modelLoading,
@@ -845,7 +847,7 @@ function ConversationWelcomeCore({
     if (
       (!trimmed && inputImages.length === 0 && inputFiles.length === 0 && inputContexts.length === 0) ||
       sendInFlightRef.current ||
-      connectionStatus !== 'connected' ||
+      !isConnected ||
       modelLoading
     ) {
       return
@@ -953,7 +955,7 @@ function ConversationWelcomeCore({
   }, [
     files,
     images,
-    connectionStatus,
+    isConnected,
     addThread,
     openOrDetachCreatedThread,
     startWelcomeThread,

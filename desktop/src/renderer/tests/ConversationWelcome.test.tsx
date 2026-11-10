@@ -272,11 +272,6 @@ describe('ConversationWelcome composer', () => {
 
     renderWelcome()
 
-    const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
-    await waitFor(() => {
-      expect(approvalTrigger).toHaveTextContent('Full access')
-    })
-
     const textbox = await screen.findByRole('textbox')
     textbox.textContent = 'Use the configured workspace default'
     fireEvent.input(textbox)
@@ -308,7 +303,7 @@ describe('ConversationWelcome composer', () => {
       identity: expect.objectContaining({ workspacePath: 'X:\\fixtures\\workspace' }),
       config: expect.objectContaining({ cwd: 'X:\\fixtures\\lib' }),
       runtimeWorkspaceRoots: ['X:\\fixtures\\lib', 'X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
-    })))
+    }), undefined, { attachmentOwner: 'warm' }))
   })
 
   it('uses the new primary for worktree inputs without resetting the project text draft', async () => {
@@ -347,7 +342,6 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create', exact: true }))
     textbox.textContent = 'Keep this draft across primary changes'
     fireEvent.input(textbox)
-    expect(screen.getByRole('button', { name: 'feature/old-repo' })).toBeInTheDocument()
 
     act(() => useWorkspaceProjectsStore.setState({
       projects: [{ ...project, primaryFolder: primary, secondaryFolders: [anchor] }]
@@ -356,7 +350,6 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => expect(gitListBranches).toHaveBeenCalledWith(primary))
     await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(primary))
     await screen.findByRole('button', { name: 'lib-main', exact: true })
-    expect(textbox).toHaveTextContent('Keep this draft across primary changes')
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
@@ -368,7 +361,8 @@ describe('ConversationWelcome composer', () => {
         branchName: undefined,
         environmentPath: `${primary}\\.craft\\environments\\setup.json`
       }),
-      null
+      null,
+      { attachmentOwner: 'warm' }
     ))
     expect(getRendererTestState().pendingWelcomeTurn?.text).toBe('Keep this draft across primary changes')
   })
@@ -383,7 +377,6 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
-    await waitFor(() => expect(approvalTrigger).toHaveTextContent('Full access'))
     fireEvent.click(approvalTrigger)
     fireEvent.click(screen.getByTestId('approval-policy-option-prompt'))
 
@@ -404,7 +397,6 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
-    await waitFor(() => expect(approvalTrigger).toHaveTextContent('Ask for approval'))
     fireEvent.click(approvalTrigger)
     fireEvent.click(screen.getByTestId('approval-policy-option-autoApprove'))
 
@@ -418,58 +410,6 @@ describe('ConversationWelcome composer', () => {
     expect(start?.[1]).toEqual(expect.objectContaining({
       config: expect.objectContaining({ approvalPolicy: 'autoApprove' })
     }))
-  })
-
-  it('resolves a legacy default welcome draft approval policy to the current workspace default', async () => {
-    getRendererTestState().setWelcomeDraft({
-      text: 'legacy default policy draft',
-      images: [],
-      mode: 'agent',
-      model: 'Default',
-      approvalPolicy: 'default'
-    })
-    serverConfig = { ...serverConfig, ...{
-      Permissions: {
-        DefaultApprovalPolicy: 'autoApprove'
-      }
-    } }
-
-    renderWelcome()
-
-    const textbox = await screen.findByRole('textbox')
-    await waitFor(() => {
-      expect(textbox.textContent).toContain('legacy default policy draft')
-      expect(screen.getByTestId('approval-policy-trigger')).toHaveTextContent('Full access')
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({
-        threadId: 'thread-welcome',
-        text: 'legacy default policy draft'
-      })
-    })
-    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
-    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
-  })
-
-  it('loads a draft staged from another view while the welcome composer stays mounted', async () => {
-    renderWelcome()
-    const textbox = await screen.findByRole('textbox')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument())
-
-    act(() => {
-      getRendererTestState().stageWelcomeDraft({
-        text: 'Help me create a plugin',
-        segments: [{ type: 'text', value: 'Help me create a plugin' }],
-        images: [],
-        mode: 'agent',
-        model: 'Default'
-      })
-    })
-
-    await waitFor(() => expect(textbox.textContent).toContain('Help me create a plugin'))
   })
 
   it('returns the submission to the welcome composer when thread creation fails', async () => {

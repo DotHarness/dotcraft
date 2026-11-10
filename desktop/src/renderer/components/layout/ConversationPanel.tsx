@@ -100,8 +100,9 @@ export function ConversationPanel({
   const pendingThreadCreation = useUIStore((s) => s.pendingThreadCreation)
   const setPendingThreadCreation = useUIStore((s) => s.setPendingThreadCreation)
   const pendingWelcomeTurn = useUIStore((s) => s.pendingWelcomeTurn)
-  const openingProjectThread = useUIStore((s) =>
-    s.pendingProjectThreadOpen != null && sameWorkspaceProjectKey(s.pendingProjectThreadOpen.projectKey, projectKey))
+  const pendingProjectThreadOpen = useUIStore((s) => s.pendingProjectThreadOpen)
+  const openingProjectThread = pendingProjectThreadOpen != null
+    && sameWorkspaceProjectKey(pendingProjectThreadOpen.projectKey, projectKey)
   const hasPendingChannelBinding = useChannelBindingStore((s) => activeThreadId != null && s.pendingByThread[activeThreadId] != null)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const { scrollRequest, onOptimisticEcho } = useComposerSendScroll(
@@ -211,7 +212,7 @@ export function ConversationPanel({
     </div>
   )
 
-  if (!workspaceReady) return loadingIndicator
+  if (!workspaceReady && (thread || activeThreadId || pendingProjectThreadOpen)) return loadingIndicator
 
   if (!creating && !openingThread && (activeThreadId || openingProjectThread) && !activeThread) {
     return loadingIndicator
@@ -224,6 +225,7 @@ export function ConversationPanel({
         identityWorkspacePath={protocolWorkspacePath}
         projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
+        workspaceReady={workspaceReady}
       />
     )
   }

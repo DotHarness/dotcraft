@@ -31,9 +31,10 @@ function draftSelection(draft: WelcomeDraft | null): Selection {
   }
 }
 
-export function useWelcomeModelControls({ workspaceConfig, initialDraftRef }: {
+export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, workspaceReady = true }: {
   workspaceConfig: ConfigObject | null
   initialDraftRef: RefObject<WelcomeDraft | null>
+  workspaceReady?: boolean
 }) {
   const t = useT()
   const status = useConnectionStore((state) => state.status)
@@ -45,7 +46,7 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef }: {
   const resolvedWorkspace = useRef<Selection | null>(null)
   const lastConfigurationKey = useRef<string | null>(null)
   const configKey = configurationKey(workspaceConfig)
-  const modelApiAvailable = status === 'connected' && capabilities?.modelCatalogManagement === true &&
+  const modelApiAvailable = workspaceReady && status === 'connected' && capabilities?.modelCatalogManagement === true &&
     capabilities?.workspaceConfigManagement === true
   const configuredProvider = resolveWorkspaceProviderFromConfig(workspaceConfig ?? {})
   const configuredPreference = findProviderPreference(

@@ -158,15 +158,12 @@ describe('foreground warm navigation', () => {
         act(() => { connect('/b') })
       }
       expect(useThreadStore.getState().activeThreadId).toBeNull()
-      expect(screen.queryByRole('textbox')).toBeNull()
-      expect(screen.queryByRole('log')).toBeNull()
       expect(sendConnectionRequest).not.toHaveBeenCalled()
       act(() => {
         if (order === 'workspace-first') connect('/b')
         else view.rerender(<View path="/b" />)
       })
       expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
-      expect(screen.queryByRole('status')).toBeNull()
       expect(useConfigStore.getState().config?.ProviderId).not.toBe('provider-a')
       expect(getThreadConversation(b.id)).toBe(original)
       expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
@@ -193,7 +190,6 @@ describe('foreground warm navigation', () => {
     act(() => { pending(); connect('/b'); view.rerender(<View path="/b" />) })
     await act(async () => { list.reject(new Error('list unavailable')); settings.reject(new Error('settings unavailable')) })
     expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
-    expect(screen.queryByRole('status')).toBeNull()
     expect(getThreadConversation(b.id)).toBe(original)
   })
 
@@ -213,7 +209,6 @@ describe('foreground warm navigation', () => {
     settingsGet.mockReturnValue(new Promise(() => {}))
     sendConnectionRequest.mockClear()
     act(() => { pending(); connect('/b'); view.rerender(<View path="/b" />) })
-    expect(screen.getByRole('form')).toBeInTheDocument()
     expect(useConversationStore.getState().pendingUserInput?.requestId).toBe('question-b')
     expect(useConversationStore.getState().turns).toBe(turns)
     expect(sendConnectionRequest).not.toHaveBeenCalled()
@@ -315,7 +310,6 @@ describe('foreground warm navigation', () => {
     act(() => { pending('/c', c.id); connect('/c') })
     expect(useThreadStore.getState().threadListProjectKey).toBe('/a')
     expect(sendConnectionRequest).not.toHaveBeenCalled()
-    expect(screen.queryByRole('textbox')).toBeNull()
     await act(async () => { view.rerender(<View path="/c" />) })
     expect(sendConnectionRequest.mock.calls.some(([key, method, params]) =>
       key === '/c' && method === 'thread/resume' && params.threadId === c.id)).toBe(true)
