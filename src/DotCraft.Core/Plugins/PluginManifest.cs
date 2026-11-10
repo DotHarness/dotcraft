@@ -163,7 +163,7 @@ public static partial class PluginManifestParser
                 path: manifestPath));
             return new PluginManifestParseResult(null, diagnostics);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "PluginManifestReadFailed",
@@ -311,7 +311,7 @@ public static partial class PluginManifestParser
             Version = dotnetAdmission.Version,
             DisplayName = raw.DisplayName!.Trim(),
             Description = NormalizeOptional(raw.Description),
-            Capabilities = raw.Capabilities
+            Capabilities = (raw.Capabilities ?? [])
                 .Where(capability => !string.IsNullOrWhiteSpace(capability))
                 .Select(capability => capability.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -771,7 +771,7 @@ public static partial class PluginManifestParser
             LongDescription = NormalizeOptional(raw.LongDescription),
             DeveloperName = NormalizeOptional(raw.DeveloperName),
             Category = NormalizeOptional(raw.Category),
-            Capabilities = raw.Capabilities
+            Capabilities = (raw.Capabilities ?? [])
                 .Where(capability => !string.IsNullOrWhiteSpace(capability))
                 .Select(capability => capability.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -843,7 +843,7 @@ public static partial class PluginManifestParser
 
         public string? Description { get; set; }
 
-        public List<string> Capabilities { get; set; } = [];
+        public List<string>? Capabilities { get; set; }
 
         public Dictionary<string, string>? Paths { get; set; }
 
@@ -898,7 +898,7 @@ public static partial class PluginManifestParser
 
         public string? Category { get; set; }
 
-        public List<string> Capabilities { get; set; } = [];
+        public List<string>? Capabilities { get; set; }
 
         public string? DefaultPrompt { get; set; }
 

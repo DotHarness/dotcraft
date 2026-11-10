@@ -103,6 +103,10 @@ internal sealed class RemoteToolHostExecutionHost : IAsyncDisposable
     {
         Leases.ReleaseWorkspace(workspaceId);
         await Leases.WaitForDrainAsync(workspaceId).ConfigureAwait(false);
+        HostInstalledPluginWorkspace? installed;
+        lock (_gate) _installed.Remove(workspaceId, out installed);
+        if (installed is not null)
+            await installed.DisposeAsync().ConfigureAwait(false);
     }
 
     private async Task DrainWorkspaceAsync(WorkspaceLeaseReleased lease, Task callsDrained)

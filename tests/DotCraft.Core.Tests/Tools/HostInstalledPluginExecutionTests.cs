@@ -70,6 +70,14 @@ public sealed class HostInstalledPluginExecutionTests
     {
         using var plugins = new PluginRuntimeHarness();
         RemotePluginFixture.Write(plugins);
+        var probeManifestPath = Path.Combine(plugins.PluginRoot("probe"), ".craft-plugin", "plugin.json");
+        var probeManifest = JsonNode.Parse(File.ReadAllText(probeManifestPath))!;
+        probeManifest["capabilities"] = null;
+        probeManifest["interface"] = new JsonObject { ["capabilities"] = null };
+        File.WriteAllText(probeManifestPath, probeManifest.ToJsonString());
+        var malformedRoot = Path.Combine(plugins.PluginRoot("malformed"), ".craft-plugin");
+        Directory.CreateDirectory(malformedRoot);
+        File.WriteAllText(Path.Combine(malformedRoot, "plugin.json"), "{");
         plugins.WriteNoop("future");
         var manifestPath = Path.Combine(plugins.PluginRoot("future"), ".craft-plugin", "plugin.json");
         var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!;
@@ -86,6 +94,7 @@ public sealed class HostInstalledPluginExecutionTests
         Assert.DoesNotContain(session.HostPlugins, plugin => plugin.Id == "future");
         Assert.Contains(session.HostPlugins, plugin => plugin.Id == "hidden");
         Assert.Contains(diagnostics, item => item.PluginId == "future" && item.EventName == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
+        Assert.Contains(diagnostics, item => item.EventName == "InvalidPluginManifestJson");
         var tools = await session.ListExportedToolsAsync("thread");
         Assert.DoesNotContain(tools, tool => tool.Name == "Hidden.Run");
         var probe = Assert.Single(tools, tool => tool.Name == "Probe.Run");
@@ -128,6 +137,39 @@ public sealed class HostInstalledPluginExecutionTests
     }
 
     [Fact]
+    public async Task AgentMatching_UsesPreparedSource_WhenInstalledToolHasSameIdAndDifferentName()
+    {
+        using var installed = new PluginRuntimeHarness();
+        RemotePluginFixture.Write(installed, "installed");
+        using var prepared = new PluginRuntimeHarness();
+        RemotePluginFixture.Write(prepared, "prepared", toolName: "Renamed");
+        await using var manager = prepared.CreateManager();
+        await manager.StartAsync(default);
+        var registrations = await manager.ToolSource.GetRegistrationsAsync(PluginRuntimeHarness.PlanningContext(1, "thread"));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(registrations, 1);
+        var local = Assert.Single(registrations);
+        using var home = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        await using var server = new RemoteToolHostTestServer(Setup(home.Path, workspace.Path),
+            hostPluginsDirectory: Path.GetDirectoryName(installed.PluginRoot("probe")));
+        await using var client = new RemoteExecutionClient();
+        await using var session = await OpenAsync(client, server, "session");
+        await session.PrepareAsync("thread", snapshot, "agent");
+
+        var tools = await session.ListExportedToolsAsync("thread");
+        Assert.Contains(tools, tool => tool.Name == "Probe.Run");
+        Assert.Contains(tools, tool => tool.Name == "Probe.Renamed");
+        var summary = await session.DescribeAsync("thread");
+        Assert.Contains("Probe.Renamed", summary.MatchedTools);
+        var result = await session.InvokeAsync(session.Route, local.Definition, RemoteToolContractHasher.Compute(local.Definition),
+            new ToolInvocationContext("thread", "turn", "prepared-call", ToolInvocationAudience.Model,
+                local.Definition.Name, local.Definition.Id, local.Binding.Id, 1, DateTimeOffset.UtcNow),
+            new JsonObject { ["operation"] = "read" });
+        Assert.True(result.Success, result.Error?.Message);
+        Assert.Equal("prepared", JsonSerializer.Deserialize<JsonElement>(result.Content!).GetProperty("implementation").GetString());
+    }
+
+    [Fact]
     public async Task ThreadRelease_CancelsCatalogPlanning_AndPreventsItFromRestarting()
     {
         using var plugins = new PluginRuntimeHarness();
@@ -150,6 +192,48 @@ public sealed class HostInstalledPluginExecutionTests
         await Assert.ThrowsAnyAsync<ModelContextProtocol.McpException>(() =>
             session.ListExportedToolsAsync("thread").AsTask().WaitAsync(TimeSpan.FromSeconds(15)));
         Assert.Single(PluginLogFile.ReadLines(log), line => line == "planning-entered");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WorkspaceDrain_WithoutLease_ReleasesInstalledOwner(bool initializing)
+    {
+        using var plugins = new PluginRuntimeHarness();
+        RemotePluginFixture.Write(plugins);
+        using var home = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        using var leases = new WorkspaceLeaseManager();
+        await using var host = new RemoteToolHostExecutionHost(Setup(home.Path, workspace.Path), leases,
+            hostPluginsDirectory: Path.GetDirectoryName(plugins.PluginRoot("probe")));
+        var marker = Path.Combine(workspace.Path, "block-plugin-activation");
+        if (initializing) File.WriteAllText(marker, "");
+        using var cancellation = new CancellationTokenSource();
+        var loading = host.InstalledPluginsAsync("workspace", workspace.Path, cancellation.Token);
+        if (initializing)
+        {
+            await PluginRuntimeHarness.WaitForLineAsync(Path.Combine(workspace.Path, "activation.log"), "entered");
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => loading);
+        }
+        else
+        {
+            await loading;
+        }
+
+        await host.DrainWorkspaceAsync("workspace").WaitAsync(TimeSpan.FromSeconds(15));
+
+        if (initializing)
+        {
+            Assert.Contains("cancelled", PluginLogFile.ReadLines(Path.Combine(workspace.Path, "activation.log")));
+            File.Delete(marker);
+        }
+        else
+        {
+            Assert.Contains("dispose:first", PluginLogFile.ReadLines(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
+        }
+        var reloaded = await host.InstalledPluginsAsync("workspace", workspace.Path, default);
+        Assert.Contains(reloaded!.Plugins, plugin => plugin.Id == "probe");
     }
 
     private static RemoteToolHostStorage Setup(string home, string workspace)

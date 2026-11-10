@@ -160,7 +160,9 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         var catalog = await ReadCatalogAsync(threadId, route, cancellationToken).ConfigureAwait(false);
         var remote = catalog.Tools
             .Select(ParseRemoteContract)
-            .Where(item => item is not null)
+            .Where(item => item is not null
+                && (item.PreparedBinding is not null
+                    || !item.DefinitionId.StartsWith($"{ToolSourceKind.PluginNative}:", StringComparison.Ordinal)))
             .ToDictionary(item => item!.DefinitionId, item => item!, StringComparer.Ordinal);
         var builds = $"host build {lease.BuildVersion}, agent build {RemoteToolHostProtocol.BuildVersion}";
         var matched = new List<string>();
