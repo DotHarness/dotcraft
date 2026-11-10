@@ -52,6 +52,13 @@ internal sealed class McpOAuthTokenStore : ITokenCache
     public async ValueTask<bool> HasTokensAsync(CancellationToken cancellationToken = default) =>
         await GetTokensAsync(cancellationToken) != null;
 
+    internal async ValueTask<string?> GetCredentialFingerprintAsync(CancellationToken cancellationToken)
+    {
+        var tokens = await GetTokensAsync(cancellationToken).ConfigureAwait(false);
+        return tokens is null ? null : Convert.ToHexStringLower(
+            SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(tokens, SerializerOptions)));
+    }
+
     /// <inheritdoc />
     public async ValueTask StoreTokensAsync(TokenContainer tokens, CancellationToken cancellationToken = default)
     {

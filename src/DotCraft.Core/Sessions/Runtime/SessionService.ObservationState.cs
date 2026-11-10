@@ -1,6 +1,6 @@
 namespace DotCraft.Sessions;
 
-public sealed partial class SessionService : IDisposable
+public sealed partial class SessionService : IDisposable, IAsyncDisposable
 {
     private async Task PrepareObservationStateAsync(ThreadRuntime runtime, CancellationToken ct)
     {
@@ -16,5 +16,7 @@ public sealed partial class SessionService : IDisposable
             runtime.Broker.SeedContextUsageIfMissing(TryGetContextUsageSnapshot(runtime.Thread.Id), runtime.Generation);
     }
 
-    public void Dispose() => _runtimeRegistry.Dispose();
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    public ValueTask DisposeAsync() => _runtimeRegistry.DisposeAsync();
 }

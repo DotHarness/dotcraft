@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { callDesktopPluginMcpTool } from '../../../plugins/desktopPluginMcp'
 import { useConnectionStore } from '../../../stores/connectionStore'
 import { useMcpStore } from '../../../stores/mcpStore'
+import { isCurrentMcpManagementScope, listMcpManagementStatuses } from '../../../stores/mcpManagement'
 import {
   parseSettingsDefinition,
   settingsToolsForServer,
@@ -16,40 +17,23 @@ export interface PluginSettingsServer {
   tools: McpSettingsTools
 }
 
-async function listServerStatuses(): Promise<McpSettingsServerStatus[]> {
-  const statuses: McpSettingsServerStatus[] = []
-  let cursor: string | null | undefined
-  do {
-    const page = await window.api.appServer.sendRequestRaw('mcpServerStatus/list', {
-      detail: 'toolsAndAuthOnly',
-      ...(cursor ? { cursor } : {})
-    }) as { data?: McpSettingsServerStatus[]; nextCursor?: string | null }
-    statuses.push(...(page.data ?? []))
-    cursor = page.nextCursor
-  } while (cursor)
-  return statuses
-}
-
-// Capabilities exist only after initialization, so the list follows the servers' startup state.
-// Startup notifications carry no origin, so every server's state is observed.
 export function usePluginSettingsServers(pluginId: string, active: boolean): PluginSettingsServer[] {
   const [servers, setServers] = useState<PluginSettingsServer[]>([])
-  const connectionEpoch = useConnectionStore((state) => state.connectionEpoch)
-  const startupKey = useMcpStore((state) => Object.values(state.statuses)
-    .map((status) => `${status.name}:${status.startupState}`)
-    .sort()
-    .join('|'))
+  const { status, connectionKey, connectionId } = useConnectionStore()
+  const catalogRevision = useMcpStore((state) => state.catalogRevision)
 
   useEffect(() => {
-    if (!active) {
+    if (!active || status !== 'connected' || !connectionKey || !connectionId) {
       setServers([])
       return
     }
+    const scope = { connectionKey, connectionId }
     let cancelled = false
-    void listServerStatuses()
+    setServers([])
+    void listMcpManagementStatuses(scope)
       .then((statuses) => {
-        if (cancelled) return
-        setServers(statuses
+        if (cancelled || !isCurrentMcpManagementScope(scope)) return
+        setServers((statuses as McpSettingsServerStatus[])
           .filter((status) => status.origin?.kind === 'plugin' && status.origin.pluginId === pluginId)
           .flatMap((status) => {
             const tools = settingsToolsForServer(status)
@@ -57,10 +41,10 @@ export function usePluginSettingsServers(pluginId: string, active: boolean): Plu
           }))
       })
       .catch(() => {
-        if (!cancelled) setServers([])
+        if (!cancelled && isCurrentMcpManagementScope(scope)) setServers([])
       })
     return () => { cancelled = true }
-  }, [active, connectionEpoch, pluginId, startupKey])
+  }, [active, status, connectionKey, connectionId, pluginId, catalogRevision])
 
   return servers
 }

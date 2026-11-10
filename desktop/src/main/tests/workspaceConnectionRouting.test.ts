@@ -73,13 +73,14 @@ describe('workspace connection routing', () => {
     const win = { isDestroyed: () => false }
     const client = { hasWarmThread: (threadId: string) => threadId === 'warm' }
     const state = { appQuitting: false, mainWindow: win, wireClient: null, client, role: 'secondary' as const }
-    for (const method of ['turn/started', 'item/completed', 'item/agentMessage/delta', 'plan/updated', 'system/event']) {
+    for (const method of ['turn/started', 'item/completed', 'item/agentMessage/delta', 'plan/updated', 'system/event', 'mcpServer/startupStatus/updated']) {
       expect(getWorkspaceNotificationForeground(method, state, { threadId: 'warm' })).toBe(false)
       expect(getWorkspaceNotificationForeground(method, state, { threadId: 'cold' })).toBeNull()
     }
     expect(getWorkspaceNotificationForeground('terminal/outputDelta', state, { terminal: { threadId: 'warm' } })).toBe(false)
     expect(getWorkspaceNotificationForeground('subagent/graph/changed', state, { parentThreadId: 'warm' })).toBe(false)
     expect(getWorkspaceNotificationForeground('config/changed', state, { threadId: 'warm' })).toBeNull()
+    expect(getWorkspaceNotificationForeground('mcpServer/startupStatus/updated', state, { name: 'server', status: 'ready' })).toBeNull()
     expect(getWorkspaceNotificationForeground('item/completed', { ...state, appQuitting: true }, { threadId: 'warm' })).toBeNull()
   })
 

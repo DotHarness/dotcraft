@@ -6,7 +6,11 @@
 
 MCP server 可以来自工作区配置、插件、thread 或 App Binding。状态条目的 `origin` 会标识来源，并在适用时给出拥有它的插件、thread 或 binding。
 
-当可见 server 集合取决于 thread 配置或 binding 时，传入 thread ID。运行时 `name` 是 resource、tool 和 OAuth 调用要使用的标识符，`declaredName` 是来源配置中的名称。
+每个 thread 拥有自己的 MCP 连接，包括继承自工作区或插件配置的 server。同一个已加载 thread 的不同 Turn 复用会话，其他 thread 分别建立会话。
+
+检查或控制某个 thread 的 MCP 运行时时，传入该 thread ID。支持省略它的管理调用会选择工作区管理运行时，而不是当前对话。运行时 `name` 是 resource、tool 和 OAuth 调用要使用的标识符，`declaredName` 是来源配置中的名称。
+
+卸载或关闭 thread 的运行时会释放连接。重新加载后会建立新会话，不会恢复 server 的内存状态。连接隔离不代表凭据或应用状态独立，server 仍可能使用共享账号或浏览器 profile。
 
 ## 检查运行时状态
 
@@ -146,7 +150,7 @@ await client.McpRuntime.ReloadAsync();
 
 :::
 
-Reload 会重新读取 MCP 配置并重连生效的运行时。它不会创建 server 定义，也不是失败 server 的重试循环。server 起不来时，先看状态里的 `failureReason` 和 `lastError`。
+Reload 会刷新配置和 thread 下一次使用的工具快照，保留未变化的连接。连接输入变化只替换受影响的 server，工具超时和审批设置变化不重置会话。
 
 ## 选择正确的工具接口
 

@@ -339,6 +339,7 @@ internal sealed class McpRequestHandler(
                     try
                     {
                         await effectiveManager.UpsertAsync(server, CancellationToken.None);
+                        threadAgentRefreshService?.InvalidateThreadAgents();
                     }
                     catch (Exception reloadError)
                     {

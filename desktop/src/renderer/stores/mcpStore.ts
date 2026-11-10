@@ -50,8 +50,9 @@ export interface McpServerStatusWire {
 
 interface McpStore {
   statuses: Record<string, McpServerStatusWire>
+  catalogRevision: number
+  invalidateCatalog(): void
   setStatuses(statuses: McpServerStatusWire[]): void
-  upsertStatus(status: McpServerStatusWire): void
   reset(): void
 }
 
@@ -61,6 +62,11 @@ function normalizeKey(name: string): string {
 
 export const useMcpStore = create<McpStore>((set) => ({
   statuses: {},
+  catalogRevision: 0,
+
+  invalidateCatalog() {
+    set((state) => ({ catalogRevision: state.catalogRevision + 1 }))
+  },
 
   setStatuses(statuses) {
     const next: Record<string, McpServerStatusWire> = {}
@@ -70,16 +76,7 @@ export const useMcpStore = create<McpStore>((set) => ({
     set({ statuses: next })
   },
 
-  upsertStatus(status) {
-    set((state) => ({
-      statuses: {
-        ...state.statuses,
-        [normalizeKey(status.name)]: status
-      }
-    }))
-  },
-
   reset() {
-    set({ statuses: {} })
+    set((state) => ({ statuses: {}, catalogRevision: state.catalogRevision + 1 }))
   }
 }))

@@ -181,8 +181,13 @@ public sealed partial class SessionService
                 return;
 
             var previousStatus = thread.Status;
-            thread.Status = ThreadStatus.Archived;
-            owner.ClearThreadAgentCaches(thread.Id);
+            using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
+            {
+                thread.Status = ThreadStatus.Archived;
+                owner.ClearThreadAgentCaches(thread.Id);
+                if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                    await runtime.ReleaseMcpAsync();
+            }
             owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);

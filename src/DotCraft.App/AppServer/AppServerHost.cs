@@ -117,6 +117,7 @@ public sealed partial class AppServerHost(
     {
         runtime.ConfigChanged += BroadcastConfigChanged;
         runtime.McpStatusChanged += OnRuntimeMcpStatusChanged;
+        runtime.ThreadMcpStatusChanged += BroadcastThreadMcpStatusChanged;
         runtime.PlanUpdated += BroadcastPlanUpdated;
         runtime.ThreadStarted += BroadcastThreadStarted;
         runtime.ThreadRenamed += BroadcastThreadRenamed;
@@ -157,6 +158,7 @@ public sealed partial class AppServerHost(
     {
         runtime.ConfigChanged -= BroadcastConfigChanged;
         runtime.McpStatusChanged -= OnRuntimeMcpStatusChanged;
+        runtime.ThreadMcpStatusChanged -= BroadcastThreadMcpStatusChanged;
         runtime.PlanUpdated -= BroadcastPlanUpdated;
         runtime.ThreadStarted -= BroadcastThreadStarted;
         runtime.ThreadRenamed -= BroadcastThreadRenamed;
@@ -505,11 +507,6 @@ public sealed partial class AppServerHost(
             queue.Value.Complete();
     }
 
-    private void OnRuntimeMcpStatusChanged(McpServerStatusChangedEventArgs e)
-    {
-        BroadcastMcpStatusChanged(e.Status);
-    }
-
     private void OnBackgroundJobResultProduced(BackgroundJobResult result)
     {
         BroadcastJobResult(
@@ -635,44 +632,6 @@ public sealed partial class AppServerHost(
                 {
                     foreach (var notification in notifications)
                         await transport.NotifyContractAsync(Contract.AppServerRpc.ProviderAuthUsageUpdated, notification, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
-            });
-        }
-    }
-
-    private void BroadcastMcpStatusChanged(McpServerStatusSnapshot server)
-    {
-        var status = server.StartupState switch
-        {
-            "ready" => "ready",
-            "starting" => "starting",
-            "disabled" => "cancelled",
-            _ => "failed"
-        };
-        var parameters = new Contract.McpServerStartupStatusUpdatedNotification
-        {
-            Name = server.Name,
-            Status = status,
-            Error = server.LastError,
-            FailureReason = server.FailureReason,
-            Transport = server.Transport,
-            AuthStatus = server.AuthStatus
-        };
-
-        foreach (var (transport, connection) in _activeTransports)
-        {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerStartupStatusUpdated))
-                continue;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.McpServerStartupStatusUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {

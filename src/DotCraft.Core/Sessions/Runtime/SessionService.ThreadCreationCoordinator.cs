@@ -58,17 +58,24 @@ public sealed partial class SessionService
             owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
-            // Every thread gets an immutable initial snapshot. Cache the rebuilt agent only
-            // when its runtime/tool surface differs from the workspace default.
-            using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
+            try
             {
-                var threadAgent = await owner.BuildAgentForThreadAsync(thread, ct);
-                if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(thread))
-                    owner.SetThreadAgent(thread.Id, threadAgent);
+                using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
+                {
+                    var threadAgent = await owner.BuildAgentForThreadAsync(thread, ct);
+                    if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(thread))
+                        owner.SetThreadAgent(thread.Id, threadAgent);
+                }
+                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
             }
-
-            await owner.PersistThreadWithMaterializationAsync(thread, ct);
-            await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
+            catch
+            {
+                if (owner._runtimeRegistry.TryRemove(runtime))
+                    await runtime.DisposeAsync();
+                owner._runtimeRegistry.ForgetBroker(thread.Id);
+                throw;
+            }
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
             owner.ObserveUsageThread(thread);
@@ -162,59 +169,69 @@ public sealed partial class SessionService
             };
 
             owner.BindCacheSharingForkTrace(forked);
-            owner._runtimeRegistry.SetThread(forked);
+            var forkRuntime = owner._runtimeRegistry.SetThread(forked);
             owner._runtimeRegistry.ClearPendingPermanentDeletion(forked.Id);
             var broker = owner.GetOrCreateBroker(forked.Id);
 
-            if (options.Purpose is not null)
-                ((IThreadForkToolBindingService)owner).TryForkThreadToolBindings(source.Id, forked.Id);
-
-            using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
+            try
             {
-                var threadAgent = await owner.BuildAgentForThreadAsync(forked, ct);
-                if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(forked))
-                    owner.SetThreadAgent(forked.Id, threadAgent);
-            }
+                if (options.Purpose is not null)
+                    ((IThreadForkToolBindingService)owner).TryForkThreadToolBindings(source.Id, forked.Id);
 
-            var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
-            var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
-                source, forked, ct, interruptions);
-            if (options.Purpose is not null)
-            {
-                var runningTurn = activeSourceTurns.LastOrDefault();
-                var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, runningTurn?.Id, ct);
-                if (copiedHistory.Count > 0)
+                using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
                 {
-                    if (runningTurn != null && materialization.TurnHistories.TryGetValue(runningTurn.Id, out var partial))
-                        copiedHistory.AddRange(partial.Select(message => message.Clone()));
-                    materialization = materialization with
-                    {
-                        History = copiedHistory,
-                        EstimatedTokens = MessageTokenEstimator.Estimate(copiedHistory),
-                        UsageSource = "copied_model_history"
-                    };
+                    var threadAgent = await owner.BuildAgentForThreadAsync(forked, ct);
+                    if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(forked))
+                        owner.SetThreadAgent(forked.Id, threadAgent);
                 }
+
+                var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
+                var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
+                    source, forked, ct, interruptions);
+                if (options.Purpose is not null)
+                {
+                    var runningTurn = activeSourceTurns.LastOrDefault();
+                    var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, runningTurn?.Id, ct);
+                    if (copiedHistory.Count > 0)
+                    {
+                        if (runningTurn != null && materialization.TurnHistories.TryGetValue(runningTurn.Id, out var partial))
+                            copiedHistory.AddRange(partial.Select(message => message.Clone()));
+                        materialization = materialization with
+                        {
+                            History = copiedHistory,
+                            EstimatedTokens = MessageTokenEstimator.Estimate(copiedHistory),
+                            UsageSource = "copied_model_history"
+                        };
+                    }
+                }
+                var forkTurns = forked.Turns.ToList();
+                if (forked.Ephemeral)
+                    owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
+                else
+                {
+                    await owner.PersistThreadWithMaterializationAsync(forked, ct);
+                    await PersistForkModelHistoryAsync(forked, forkTurns, materialization, ct);
+                }
+                await PersistForkProviderHistoryAsync(source, forked, forkTurns, options, ct);
+                var activeSourceTurn = activeSourceTurns.LastOrDefault();
+                if (activeSourceTurn != null && interruptions.TryGetValue(activeSourceTurn.Id, out var newMarker))
+                    await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
+
+                broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
+                owner.ObserveUsageThread(forked);
+
+                owner.ThreadCreatedForBroadcast?.Invoke(forked);
+                // A fork is a new thread: the source thread's thread-scoped contributions are not copied over.
+                await owner.ContributionLifecycle.ThreadStartedAsync(forked, ct);
+                return forked;
             }
-            var forkTurns = forked.Turns.ToList();
-            if (forked.Ephemeral)
-                owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
-            else
+            catch
             {
-                await owner.PersistThreadWithMaterializationAsync(forked, ct);
-                await PersistForkModelHistoryAsync(forked, forkTurns, materialization, ct);
+                if (owner._runtimeRegistry.TryRemove(forkRuntime))
+                    await forkRuntime.DisposeAsync();
+                owner._runtimeRegistry.ForgetBroker(forked.Id);
+                throw;
             }
-            await PersistForkProviderHistoryAsync(source, forked, forkTurns, options, ct);
-            var activeSourceTurn = activeSourceTurns.LastOrDefault();
-            if (activeSourceTurn != null && interruptions.TryGetValue(activeSourceTurn.Id, out var newMarker))
-                await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
-
-            broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
-            owner.ObserveUsageThread(forked);
-
-            owner.ThreadCreatedForBroadcast?.Invoke(forked);
-            // A fork is a new thread: the source thread's thread-scoped contributions are not copied over.
-            await owner.ContributionLifecycle.ThreadStartedAsync(forked, ct);
-            return forked;
         }
 
         private async Task PersistForkModelHistoryAsync(

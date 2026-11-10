@@ -1145,11 +1145,11 @@ Every host that exposes mode switching must provide per-thread plan persistence,
 
 ### 12.4 MCP Lifecycle
 
-MCP connections are thread-scoped:
+Connection ownership and reconciliation follow [Tool Architecture §12](tools-architecture.md#12-mcp-architecture).
 
-- **Connect**: when a thread with `McpServers` is created, or prepared for Turn execution after a cold load, Session Core connects the servers, waits for the startup attempt to settle, and adds ready tools before execution. Failed servers are reported through MCP status and do not block agent construction. Read-only operations (`GetThread`, discovery) never connect servers.
-- **Disconnect**: archiving the thread or changing its MCP configuration disconnects the previous servers.
-- Connections live while the thread is active. Null `McpServers` means workspace MCP configuration applies.
+- **Prepare**: thread creation/resume or execution preparation waits for effective server startup to settle and publishes ready tools. Individual server failures do not block agent construction. `GetThread` and history reads do not connect servers; explicit MCP discovery may prepare connections.
+- **Retain**: Turn completion/cancellation and agent rebuilds preserve unchanged connections in the loaded runtime.
+- **Release**: archive, deletion, idle unloading, and host shutdown cancel owned startup/operations and await local connection cleanup, including clients created during shutdown. Builds and release share the thread's agent lock. Loading a released runtime creates new sessions, without restoring server memory state.
 
 ### 12.5 Connection-Scoped Extension Capabilities
 

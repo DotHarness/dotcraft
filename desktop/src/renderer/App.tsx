@@ -37,7 +37,7 @@ import type { AutomationDefinition, AutomationRun } from './stores/automationsSt
 import { useModelCatalogStore } from './stores/modelCatalogStore'
 import { useConfigStore } from './stores/configStore'
 import { useProvidersStore } from './stores/providersStore'
-import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
+import { applyMcpNotification } from './stores/mcpNotifications'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
 import { useHooksStore } from './stores/hooksStore'
@@ -1202,6 +1202,7 @@ export function App(): JSX.Element {
         ) {
           return
         }
+        if (applyMcpNotification(payload, localeRef.current)) return
         const method = payload.method
         const p = (payload.params ?? {}) as Record<string, unknown>
         switch (method as string) {
@@ -1237,48 +1238,6 @@ export function App(): JSX.Element {
           }
           case 'automation/run/updated': {
             if (p.run) useAutomationsStore.getState().upsertRun(p.run as AutomationRun)
-            break
-          }
-
-          case 'mcpServer/startupStatus/updated': {
-            const name = typeof p.name === 'string' ? p.name : null
-            if (name) {
-              const runtimeStatus = typeof p.status === 'string' ? p.status : 'failed'
-              const store = useMcpStore.getState()
-              const existing = store.statuses[name.trim().toLowerCase()]
-              const transport = p.transport === 'streamableHttp' || p.transport === 'stdio'
-                ? p.transport
-                : existing?.transport ?? 'stdio'
-              const authStatus = p.authStatus === 'unsupported'
-                || p.authStatus === 'notLoggedIn'
-                || p.authStatus === 'bearerToken'
-                || p.authStatus === 'oAuth'
-                ? p.authStatus
-                : existing?.authStatus ?? null
-              store.upsertStatus({
-                ...existing,
-                name,
-                enabled: runtimeStatus !== 'cancelled',
-                startupState: runtimeStatus === 'failed' ? 'error' : runtimeStatus,
-                lastError: typeof p.error === 'string' ? p.error : null,
-                transport,
-                authStatus,
-                failureReason: p.failureReason === 'reauthenticationRequired'
-                  ? 'reauthenticationRequired'
-                  : null
-              } as McpServerStatusWire)
-            }
-            break
-          }
-
-          case 'mcpServer/oauthLogin/completed': {
-            const success = p.success === true
-            addToast(
-              success
-                ? translate(localeRef.current, 'mcp.oauth.completed')
-                : translate(localeRef.current, 'mcp.oauth.failed'),
-              success ? 'success' : 'error'
-            )
             break
           }
 

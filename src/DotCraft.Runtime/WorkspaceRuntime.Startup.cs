@@ -162,6 +162,8 @@ public sealed partial class WorkspaceRuntime
 
                 var sessionService = SessionServiceFactory.Create(agentFactory, null, Services);
                 _contributionScope.AttachPropagation(sessionService, contextPageManager, Services.GetRequiredService<ModelBackendResolver>());
+                sessionService.ThreadMcpStatusChangedForBroadcast =
+                    (threadId, status) => ThreadMcpStatusChanged?.Invoke(threadId, status);
                 sessionService.ThreadCreatedForBroadcast = thread => ThreadStarted?.Invoke(thread);
                 sessionService.ThreadDeletedForBroadcast = threadId => ThreadDeleted?.Invoke(threadId);
                 sessionService.ThreadRenamedForBroadcast = thread => ThreadRenamed?.Invoke(thread);

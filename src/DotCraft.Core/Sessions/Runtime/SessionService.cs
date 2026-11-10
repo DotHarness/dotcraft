@@ -1030,6 +1030,8 @@ public sealed partial class SessionService(
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
 
         var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+        if (thread.Status != ThreadStatus.Active)
+            throw new InvalidOperationException($"Thread '{threadId}' is not active.");
         var runtime = _runtimeRegistry.SetThread(thread);
         var activeTurn = thread.Turns.LastOrDefault(static turn =>
             turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
@@ -1042,6 +1044,7 @@ public sealed partial class SessionService(
         {
             using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
             {
+                EnsureMcpRuntimeOwner(thread, runtime);
                 if (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty)
                     SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, cancellationToken).ConfigureAwait(false));
             }
@@ -1049,58 +1052,6 @@ public sealed partial class SessionService(
 
         return runtime.LatestToolSnapshot
             ?? throw new InvalidOperationException($"Thread '{threadId}' has no effective tool snapshot.");
-    }
-
-    public async Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
-        string threadId,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(threadId))
-            throw new ArgumentException("A thread identifier is required.", nameof(threadId));
-        var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
-        var runtime = _runtimeRegistry.SetThread(thread);
-        if ((thread.Configuration?.McpServers is not null || runtime.GetBindingMcpServers().Count > 0)
-            && (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty))
-        {
-            using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
-            {
-                if (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty)
-                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, cancellationToken).ConfigureAwait(false));
-            }
-        }
-
-        return runtime.McpManager ?? agentFactory.RuntimeContext.McpClientManager;
-    }
-
-    public async Task SetBindingMcpServersAsync(
-        string threadId,
-        string bindingId,
-        IReadOnlyList<McpServerConfig> servers,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(bindingId);
-        ArgumentNullException.ThrowIfNull(servers);
-
-        var normalized = servers.Select(server =>
-        {
-            var clone = server.Clone();
-            clone.Origin = McpServerOrigin.Binding(bindingId, server.Origin.DeclaredName ?? server.Name);
-            return clone;
-        }).ToArray();
-        await InvokeThreadCommandAsync(
-            threadId,
-            async commandCt =>
-            {
-                var thread = await GetOrLoadThreadAsync(threadId, commandCt).ConfigureAwait(false);
-                var runtime = _runtimeRegistry.SetThread(thread);
-                using (await AcquireThreadAgentLockAsync(threadId, commandCt).ConfigureAwait(false))
-                {
-                    runtime.SetBindingMcpServers(bindingId, normalized);
-                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, commandCt).ConfigureAwait(false));
-                }
-            },
-            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task RebuildAgentAndPersistThreadAsync(SessionThread thread, CancellationToken ct)

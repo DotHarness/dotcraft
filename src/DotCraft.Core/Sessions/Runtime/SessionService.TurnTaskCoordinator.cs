@@ -19,7 +19,9 @@ public sealed partial class SessionService
             Func<Task> run,
             SessionEventChannel eventChannel)
         {
-            _ = RunAsync();
+            var execution = RunAsync();
+            if (runtime.TryGetTurn(turnKey.TurnId, out var turnRuntime))
+                turnRuntime.ExecutionTask = execution;
 
             async Task RunAsync()
             {

@@ -421,13 +421,21 @@ MCP is the standard external tool and interactive app transport. DotCraft suppor
 
 Binding MCP is additive and is never removed or overridden by the thread list.
 
+Inherited servers retain their configuration origin, names, approval rules, and credential partitions.
+
 #### 12.1.1 Policy boundary
 
 MCP registrations are governed by the thread's MCP policy (server selection and namespaced tool selectors), not by the Agent Profile's tool allow/deny name lists: MCP origins are chosen by configuration, the thread's host, or an App Binding, which the Profile author does not enumerate, so a name list would withhold their tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
 
 ### 12.2 Runtime and control surface
 
-OAuth login and standard form and URL elicitation forwarding are generic MCP control-plane capabilities exposed through the AppServer protocol. Thread archive/disposal closes thread and binding MCP sessions. Status distinguishes workspace, thread, plugin, and binding origins, and a server that fails to start reports the server and the reason whatever its origin.
+Each thread that uses MCP owns its connections, including inherited workspace/plugin servers. Child threads and forks inherit configuration, not live clients. Connections span Turns and agent rebuilds; their lifecycle follows [Session Core §12.4](session-core.md#124-mcp-lifecycle). Profile-only tasks do not start servers they cannot use.
+
+Reconciliation retains available connections with matching transport, effective environment/working directory, endpoint, and authentication inputs. Call policy and timeout changes do not replace ready connections. Removed, disabled, changed, or closed connections are released or replaced.
+
+Successful OAuth login invalidates loaded threads' next snapshots. Failed authentication is retried during preparation when that server's saved credentials change; ready clients retain SDK-managed authentication across token renewal.
+
+OAuth login and elicitation forwarding use the AppServer control surface. Thread-scoped status, tool, resource, OAuth, and MCP App operations resolve the thread's runtime. Unscoped management uses a separate workspace runtime, never a thread execution fallback. Status origin identifies configuration provenance, not connection ownership.
 
 Streamable HTTP is only an OAuth candidate transport and does not by itself imply that authentication is supported or required. Runtime status, not transport shape or error text, is the authority for OAuth UX: clients offer authentication only when the server reports `authStatus: "notLoggedIn"`, as reauthentication when `failureReason: "reauthenticationRequired"`. Unknown discovery results fail closed. A connected server with usable OAuth credentials reports `authStatus: "oAuth"`.
 
