@@ -431,7 +431,9 @@ OAuth login and standard form and URL elicitation forwarding are generic MCP con
 
 Streamable HTTP is only an OAuth candidate transport and does not by itself imply that authentication is supported or required. Runtime status, not transport shape or error text, is the authority for OAuth UX: clients offer authentication only when the server reports `authStatus: "notLoggedIn"`, as reauthentication when `failureReason: "reauthenticationRequired"`. Unknown discovery results fail closed. A connected server with usable OAuth credentials reports `authStatus: "oAuth"`.
 
-Startup readiness depends on initialization and tool discovery. Optional resource and resource-template inventory never fails an otherwise usable server; `toolsAndAuthOnly` status reads do not enumerate resources, and full reads treat enumeration failure as an empty inventory.
+Startup readiness depends on SDK protocol negotiation and tool discovery. Clients use the MCP SDK's default automatic discovery/initialize negotiation and fallback. Optional resource and resource-template inventory never fails an otherwise usable server; `toolsAndAuthOnly` status reads do not enumerate resources, and full reads treat enumeration failure as an empty inventory.
+
+Modern MCP input responses stay on the originating tool invocation's async call chain. Core carries the immutable `ToolInvocationContext` and cancellation through that chain; the SDK owns input collection and continuation. A host-provided elicitation handler is shared by workspace, thread, and binding managers. Core does not own AppServer connections. Unassociated reverse requests are unavailable rather than attributed to an active thread. Elicitation is transient, creates no tool Item, and ends with the invocation or its MCP connection. AppServer projects it using the original thread and nullable Turn, with request completion and client cleanup defined in AppServer §22.8.8–22.8.9.
 
 ### 12.3 Approval
 

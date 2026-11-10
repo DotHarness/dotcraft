@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
+    <ProjectReference Include="..\DotCraft.McpTestServer\DotCraft.McpTestServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

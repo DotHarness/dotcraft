@@ -9170,14 +9170,7 @@
           "type": "string"
         },
         "threadId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         },
         "turnId": {
           "anyOf": [
@@ -9200,7 +9193,10 @@
           ]
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
     },
     "McpServerElicitationResponse": {
       "title": "McpServerElicitationResponse",
@@ -13698,6 +13694,23 @@
         "name",
         "protocolVersion",
         "version"
+      ]
+    },
+    "ServerRequestResolvedNotification": {
+      "title": "ServerRequestResolvedNotification",
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "requestId",
+        "threadId"
       ]
     },
     "SessionIdentity": {

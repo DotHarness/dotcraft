@@ -279,7 +279,7 @@ export function createSecondaryWorkspaceConnection(
     }
   })
 
-  client.onServerRequest(async (method, params) => {
+  client.onServerRequest(async (method, params, requestId, signal) => {
     const routingState = {
       appQuitting: ctx.runtimeIsStopping(),
       mainWindow: ctx.mainWindow,
@@ -292,7 +292,9 @@ export function createSecondaryWorkspaceConnection(
       params,
       entry,
       shouldBridgeWorkspaceServerRequest(routingState),
-      canBridgeRendererInteractiveServerRequest(routingState)
+      canBridgeRendererInteractiveServerRequest(routingState),
+      requestId,
+      signal
     )
   })
 

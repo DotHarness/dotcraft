@@ -24,6 +24,7 @@
     "src/preload/index.ts",
     "src/preload/desktopPet.ts",
     "src/preload/notificationDispatcher.ts",
+    "src/preload/serverRequestEvents.ts",
     "src/preload/appServerDelivery.ts",
     "src/preload/viewerPanelState.ts",
     "src/preload/viewerBrowserLifecycle.ts",

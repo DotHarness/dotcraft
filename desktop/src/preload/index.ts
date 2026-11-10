@@ -1,5 +1,6 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import { viewerPanelState } from './viewerPanelState'
+import { serverRequestEvents } from './serverRequestEvents'
 import { viewerBrowserLifecycle } from './viewerBrowserLifecycle'
 import type { ForgeBranchPullResult, ForgeRefResult, ForgeRefTarget, ForgeRepo } from '../shared/forgeReferences'
 import type { LinkPreviewResult } from '../shared/linkPreviews'
@@ -224,11 +225,8 @@ import type { OratorioApi, OratorioRequest, OratorioResponse, OratorioServiceCon
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 import {
   isKnownServerNotification,
-  isKnownServerRequest,
   type KnownNotificationPayload,
-  type KnownServerRequestPayload,
-  type RawNotificationPayload,
-  type RawServerRequestPayload
+  type RawNotificationPayload
 } from '../shared/appServerBoundary'
 import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
 
@@ -353,21 +351,6 @@ ipcRenderer.on(
   'appserver:connection-status',
   (_event: Electron.IpcRendererEvent, status: ConnectionStatusPayload) => {
     activeConnectionStatusCallback?.(status)
-  }
-)
-
-let serverRequestToken = 0
-let activeServerRequestCallback: ((payload: KnownServerRequestPayload) => void) | null = null
-let rawServerRequestToken = 0
-let activeRawServerRequestCallback: ((payload: RawServerRequestPayload) => void) | null = null
-ipcRenderer.on(
-  'appserver:server-request',
-  (_event: Electron.IpcRendererEvent, payload: RawServerRequestPayload) => {
-    if (isKnownServerRequest(payload)) {
-      activeServerRequestCallback?.(payload)
-    } else {
-      activeRawServerRequestCallback?.(payload)
-    }
   }
 )
 
@@ -633,21 +616,7 @@ const api = {
       }
     },
 
-    onServerRequest(callback: (payload: KnownServerRequestPayload) => void): UnsubscribeFn {
-      const token = ++serverRequestToken
-      activeServerRequestCallback = callback
-      return () => {
-        if (serverRequestToken === token) activeServerRequestCallback = null
-      }
-    },
-
-    onServerRequestRaw(callback: (payload: RawServerRequestPayload) => void): UnsubscribeFn {
-      const token = ++rawServerRequestToken
-      activeRawServerRequestCallback = callback
-      return () => {
-        if (rawServerRequestToken === token) activeRawServerRequestCallback = null
-      }
-    },
+    ...serverRequestEvents,
 
     sendServerResponse(bridgeId: string, result: unknown): Promise<void> {
       return ipcRenderer.invoke('appserver:server-response', bridgeId, result)

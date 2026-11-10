@@ -97,6 +97,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<McpServerElicitationRequestParams, McpServerElicitationResponse> McpServerElicitationRequest = new("mcpServer/elicitation/request", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "mcpElicitation", errors: CommonErrors);
 
+    public static readonly RpcNotification<ServerRequestResolvedNotification> ServerRequestResolved = new("serverRequest/resolved", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection");
+
     public static readonly RpcRequest<McpServerOAuthLoginParams, McpServerOAuthLoginResult> McpServerOAuthLogin = new("mcpServer/oauth/login", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "mcpRuntime", errors: CommonErrors);
 
     public static readonly RpcNotification<McpServerOAuthLoginCompletedNotification> McpServerOAuthLoginCompleted = new("mcpServer/oauthLogin/completed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "mcpRuntime", notificationOptOut: true);

@@ -213,10 +213,10 @@ public sealed class AcpSessionObservationTests
         {
             try
             {
-                var answer = await _server.SendClientRequestAsync(Contract.AppServerMethodNames.ApprovalRequest,
+                var pending = await _server.StartClientRequestAsync(Contract.AppServerMethodNames.ApprovalRequest,
                     new { threadId = "session", turnId = "existing", requestId = "pending", approvalType = "shell", operation = "build" },
                     _lifetime.Token, TimeSpan.FromSeconds(10));
-                _permissionAnswer.TrySetResult(answer);
+                _permissionAnswer.TrySetResult(await pending.Response);
             }
             catch (Exception ex)
             {

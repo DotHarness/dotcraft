@@ -22,7 +22,6 @@ function strictApi<T extends object>(overrides: T, path = 'window.api'): T {
   })
 }
 
-/** The app shell, Settings and the composer all mount the bridge, so it is never strict. */
 const PAIRED_COMPUTERS_DEFAULT: ApiOverrides<Api>['pairedComputers'] = {
   list: () => Promise.resolve([]),
   refresh: () => Promise.resolve(),
@@ -36,7 +35,6 @@ const SATELLITES_DEFAULT: ApiOverrides<Api>['satellites'] = {
   onJoinLink: () => () => undefined
 }
 
-/** The app shell watches companion ownership from the start, so a silent bridge is the default. */
 const DESKTOP_PET_DEFAULT: ApiOverrides<Api>['desktopPet'] = {
   command: () => Promise.resolve(),
   onEvent: () => () => undefined
@@ -52,18 +50,19 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
 }
 
 const WORKSPACE_DEFAULT: ApiOverrides<Api>['workspace'] = {
-  getChatsFolder: () => Promise.resolve({ path: '/home/user/Documents/DotCraft/Chats', customized: false })
+  getChatsFolder: () => Promise.resolve({ path: '/workspace/chats', customized: false })
 }
 
-const HAS_DESKTOP_THREAD_TOOLS_DEFAULT: ApiOverrides<Api>['appServer'] = {
-  hasDesktopThreadTools: () => Promise.resolve(true)
+const APP_SERVER_DEFAULT: ApiOverrides<Api>['appServer'] = {
+  hasDesktopThreadTools: () => Promise.resolve(true),
+  onServerRequestSettled: () => () => undefined
 }
 
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
     titleBarOverlayHeight: 0,
     ...overrides,
-    appServer: { ...HAS_DESKTOP_THREAD_TOOLS_DEFAULT, ...overrides.appServer },
+    appServer: { ...APP_SERVER_DEFAULT, ...overrides.appServer },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },

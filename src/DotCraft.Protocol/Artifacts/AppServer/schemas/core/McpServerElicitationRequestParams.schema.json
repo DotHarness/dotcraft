@@ -32,14 +32,7 @@
       "type": "string"
     },
     "threadId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": "string"
     },
     "turnId": {
       "anyOf": [
@@ -62,5 +55,8 @@
       ]
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "threadId"
+  ]
 }

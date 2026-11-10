@@ -46,7 +46,7 @@ function fixture(windowId = 1) {
     bridgeServerRequestToRenderer: vi.fn(async () => ({ bridged: true }))
   } as unknown as DesktopWindowRuntime
   const request = (source: WorkspaceConnectionEntry, method: string, params: unknown) =>
-    handleWorkspaceServerRequest(ctx, method, params, source, source.role === 'foreground' && ctx.wireClient === source.client, true)
+    handleWorkspaceServerRequest(ctx, method, params, source, source.role === 'foreground' && ctx.wireClient === source.client, true, 1, new AbortController().signal)
   const evaluate = (source = a, evaluationId = 'eval', threadId = 'thread') => request(source, 'ext/nodeRepl/evaluate', {
     threadId, turnId: 'turn', evaluationId, code: '42'
   })
@@ -222,7 +222,7 @@ describe('source-bound Node REPL routing', () => {
       promoteWorkspaceConnection: vi.fn(async () => { a.role = 'foreground'; ctx.wireClient = a.client; return true })
     })
     runtime.createBridge.mockReturnValue({ bridgeId: 'approval', promise: Promise.resolve({ decision: 'accept' }) })
-    await bridgeServerRequestToRenderer(ctx, 'item/approval/request', { threadId: 'thread', turnId: 'turn' }, a)
+    await bridgeServerRequestToRenderer(ctx, 'item/approval/request', { threadId: 'thread', turnId: 'turn' }, a, 1, new AbortController().signal)
     expect(runtime.broadcast).toHaveBeenCalledWith(owner, expect.objectContaining({
       connectionKey: a.key, connectionId: 'connection-a', bridgeId: 'approval'
     }))

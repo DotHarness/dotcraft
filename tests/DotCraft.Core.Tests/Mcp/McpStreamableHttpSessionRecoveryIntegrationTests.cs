@@ -12,7 +12,7 @@ namespace DotCraft.Tests.Mcp;
 public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
 {
     [Fact]
-    public async Task StableBaseline_StartsWithInitializeAndNeverProbesDiscovery()
+    public async Task ModernServer_UsesSdkDiscoveryWithoutSession()
     {
         await using var server = MockStreamableHttpMcpServer.Start(new MockStreamableHttpMcpServer.Options
         {
@@ -28,19 +28,13 @@ public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
 
         await tool.InvokeAsync(new AIFunctionArguments());
 
-        Assert.Empty(server.DiscoverRequests);
-        Assert.Equal(1, server.InitializeCount);
+        Assert.Single(server.DiscoverRequests);
+        Assert.Equal(0, server.InitializeCount);
         Assert.Single(server.ToolsListRequests);
         Assert.Single(server.ToolCallRequests);
-        Assert.Equal("initialize", ReadRpcMethod(server.Requests[0]));
-        using (var initialize = JsonDocument.Parse(server.InitializeRequests[0].Body))
-        {
-            Assert.Equal(
-                "2025-06-18",
-                initialize.RootElement.GetProperty("params").GetProperty("protocolVersion").GetString());
-        }
-        Assert.Equal("session-1", server.ToolsListRequests[0].SessionId);
-        Assert.Equal("session-1", server.ToolCallRequests[0].SessionId);
+        Assert.Equal("server/discover", ReadRpcMethod(server.Requests[0]));
+        Assert.Null(server.ToolsListRequests[0].SessionId);
+        Assert.Null(server.ToolCallRequests[0].SessionId);
     }
 
     [Fact]
@@ -112,7 +106,6 @@ public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
 
         Assert.True(manager.Tools.Count > 0, CreateDiagnosticMessage(server, statuses));
         Assert.Single(manager.Tools);
-        Assert.Empty(server.DiscoverRequests);
         Assert.Equal(2, server.InitializeCount);
         Assert.Equal(2, server.ToolsListCount);
         Assert.All(server.InitializeRequests, request => Assert.False(request.Headers.ContainsKey("Mcp-Session-Id")));

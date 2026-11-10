@@ -62,7 +62,7 @@ public static class McpOAuthLoginCoordinator
             var terminalCompletionAttempted = false;
             try
             {
-                await using var client = await McpClientManager.CreateClientAsync(
+                await using var client = await McpProtocolClientFactory.CreateAsync(
                     server,
                     elicitationHandler: null,
                     oauthOptions: oauth,

@@ -141,11 +141,14 @@ describe('window-owned IPC', () => {
   it('cancels only requests of an ended source connection', async () => {
     const a = window(31)
     register(a, '/a', null)
-    const first = createServerRequestBridge(undefined, a, { connectionKey: 'a', connectionId: 'one' })
-    const second = createServerRequestBridge(undefined, a, { connectionKey: 'b', connectionId: 'two' })
+    const first = createServerRequestBridge(undefined, a, { connectionKey: 'a', connectionId: 'one', wireRequestId: 1 })
+    const second = createServerRequestBridge(undefined, a, { connectionKey: 'b', connectionId: 'two', wireRequestId: 2 })
     const rejected = expect(first.promise).rejects.toThrow('cancelled')
     cancelConnectionServerRequests('one')
     await rejected
+    expect(a.webContents.send).toHaveBeenLastCalledWith('appserver:server-request-settled', {
+      bridgeId: first.bridgeId, connectionId: 'one', wireRequestId: 1
+    })
     invoke(a, 'appserver:server-response', second.bridgeId, { answers: {} })
     await expect(second.promise).resolves.toEqual({ answers: {} })
   })

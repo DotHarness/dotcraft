@@ -1,7 +1,7 @@
 import { useThreadRestoration } from './hooks/useThreadRestoration'
 import { useConversationWorkspace } from './hooks/useConversationWorkspace'
 import { applyThreadNotification } from './stores/threadNotifications'
-import { applyThreadServerRequest, useThreadElicitationStore, dismissThreadElicitation } from './stores/threadServerRequests'
+import { applyThreadServerRequest } from './stores/threadServerRequests'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
@@ -88,10 +88,7 @@ import { MainViewOutlet } from './components/layout/MainViewOutlet'
 import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
-import {
-  McpElicitationDialog,
-  type McpElicitationResponse
-} from './components/mcp/McpElicitationDialog'
+import { McpElicitationHost } from './components/mcp/McpElicitationHost'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { handleBrowserEvent } from './utils/browserEventHandler'
@@ -513,11 +510,6 @@ export function App(): JSX.Element {
     releases: WhatsNewRelease[]
     markSeenVersion?: string
   } | null>(null)
-  const elicitationThreadId = useThreadStore(state => state.activeThreadId)
-  const elicitationConnectionId = useConnectionStore(state => state.connectionId)
-  const mcpElicitation = useThreadElicitationStore(state => state.requests.find(request =>
-    (!request.connectionId || request.connectionId === elicitationConnectionId)
-    && (request.threadId == null || request.threadId === elicitationThreadId)) ?? null)
   const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
@@ -2012,15 +2004,7 @@ export function App(): JSX.Element {
             onClose={closeWhatsNew}
           />
         )}
-        {mcpElicitation && (
-          <McpElicitationDialog
-            request={mcpElicitation}
-            onRespond={(response: McpElicitationResponse) => {
-              window.api.appServer.sendServerResponse(mcpElicitation.bridgeId, response)
-              dismissThreadElicitation(mcpElicitation.bridgeId)
-            }}
-          />
-        )}
+        <McpElicitationHost />
       </>
     </WindowFrame>
   )

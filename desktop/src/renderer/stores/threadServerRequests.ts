@@ -8,18 +8,14 @@ import { useThreadStore } from './threadStore'
 import { isThreadRestoring } from './threadRestoration'
 
 interface Elicitation extends McpElicitationRequest {
-  threadId: string | null
+  threadId: string
+  turnId: string | null
+  wireRequestId: string | number
   connectionKey?: string
   connectionId?: string
 }
 
 export const useThreadElicitationStore = create<{ requests: Elicitation[] }>(() => ({ requests: [] }))
-
-export function releaseThreadElicitations(threadId: string): void {
-  useThreadElicitationStore.setState((state) => ({
-    requests: state.requests.filter((request) => request.threadId !== threadId)
-  }))
-}
 
 export function dismissThreadElicitation(bridgeId: string): void {
   useThreadElicitationStore.setState((state) => ({
@@ -28,7 +24,7 @@ export function dismissThreadElicitation(bridgeId: string): void {
 }
 
 export function applyThreadServerRequest(payload: RawServerRequestPayload): boolean {
-  const { bridgeId, method } = payload
+  const { bridgeId, method, wireRequestId } = payload
   if (
     method !== 'item/approval/request' &&
     method !== 'item/tool/requestUserInput' &&
@@ -45,7 +41,7 @@ export function applyThreadServerRequest(payload: RawServerRequestPayload): bool
     (payload.connectionId == null || payload.connectionId === foreground.connectionId)
   if (method === 'mcpServer/elicitation/request') {
     const mode = p.mode === 'url' ? 'url' : p.mode === 'form' ? 'form' : null
-    if (!mode) {
+    if (!mode || !threadId || wireRequestId == null) {
       void window.api.appServer.sendServerResponse(bridgeId, {
         action: 'decline'
       })
@@ -57,6 +53,8 @@ export function applyThreadServerRequest(payload: RawServerRequestPayload): bool
         {
           bridgeId,
           threadId,
+          turnId: typeof p.turnId === 'string' ? p.turnId : null,
+          wireRequestId,
           connectionKey: payload.connectionKey,
           connectionId: payload.connectionId,
           serverName: typeof p.serverName === 'string' ? p.serverName : 'MCP',

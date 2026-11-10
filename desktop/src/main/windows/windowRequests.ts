@@ -153,7 +153,9 @@ export async function bridgeServerRequestToRenderer(
   ctx: DesktopWindowRuntime,
   method: string,
   params: unknown,
-  entry: WorkspaceConnectionEntry
+  entry: WorkspaceConnectionEntry,
+  requestId: string | number,
+  signal: AbortSignal
 ): Promise<unknown> {
   const win = ctx.mainWindow
   if (!win || win.isDestroyed()) {
@@ -161,11 +163,12 @@ export async function bridgeServerRequestToRenderer(
   }
   const connectionId = entry.client.connectionId
   if (!connectionId) throw new Error('Workspace connection is no longer available.')
-  const source = { connectionKey: entry.key, connectionId }
+  const source = { connectionKey: entry.key, connectionId, wireRequestId: requestId }
   let bridgeId = ''
-  const bridge = createServerRequestBridge(() => ctx.userInputAutoResolution.remove(bridgeId), win, source)
+  const bridge = createServerRequestBridge(() => ctx.userInputAutoResolution.remove(bridgeId), win, source, signal)
   bridgeId = bridge.bridgeId
   const { promise } = bridge
+  if (signal.aborted) return promise
   if (method === 'item/tool/requestUserInput') {
     const request = (params ?? {}) as Record<string, unknown>
     if (
@@ -203,7 +206,9 @@ export async function handleWorkspaceServerRequest(
   params: unknown,
   entry: WorkspaceConnectionEntry,
   canUseForegroundMainHandlers: boolean,
-  canBridgeInteractiveToRenderer: boolean
+  canBridgeInteractiveToRenderer: boolean,
+  requestId: string | number,
+  signal: AbortSignal
 ): Promise<unknown> {
   if (!isCurrentWorkspaceRequestSource(ctx, entry)) {
     throw new Error('Workspace request source is no longer active.')
@@ -228,5 +233,5 @@ export async function handleWorkspaceServerRequest(
     throw new Error('Window is not available to handle interactive server request.')
   }
 
-  return ctx.bridgeServerRequestToRenderer(method, params, entry)
+  return ctx.bridgeServerRequestToRenderer(method, params, entry, requestId, signal)
 }

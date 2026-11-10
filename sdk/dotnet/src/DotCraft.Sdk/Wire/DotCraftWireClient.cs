@@ -6,10 +6,7 @@ using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.Sdk.Wire;
 
-/// <summary>
-/// Transport-agnostic JSON-RPC client for DotCraft AppServer.
-/// </summary>
-public sealed class DotCraftWireClient : IAsyncDisposable
+public sealed partial class DotCraftWireClient : IAsyncDisposable
 {
     private readonly IJsonRpcTransport _transport;
     private readonly DotCraftWireClientOptions _options;
@@ -28,7 +25,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     private long _connectionGeneration;
     private bool _disposed;
 
-    /// <summary>Current observable Wire session state.</summary>
     public WireConnectionState State { get; private set; } = WireConnectionState.Disconnected;
 
     /// <summary>
@@ -37,7 +33,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     /// </summary>
     public long ConnectionGeneration => Interlocked.Read(ref _connectionGeneration);
 
-    /// <summary>Raised when <see cref="State"/> changes.</summary>
     public event Action<WireConnectionState, Exception?>? StateChanged;
 
     /// <summary>
@@ -49,18 +44,13 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         _options = options ?? new DotCraftWireClientOptions();
     }
 
-    /// <summary>
-    /// Starts the background reader loop.
-    /// </summary>
     public void Start()
     {
         _readerTask ??= Task.Run(ReadLoopAsync);
         SetState(WireConnectionState.Ready);
     }
 
-    /// <summary>
-    /// Registers a handler for one server-initiated JSON-RPC request method.
-    /// </summary>
+    /// <summary>Handlers run independently of the reader; their token ends with the request or connection.</summary>
     public IDisposable RegisterServerRequestHandlerRaw(
         string method,
         Func<ServerRequest, CancellationToken, Task<object?>> handler)
@@ -70,7 +60,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return new DisposableAction(() => _serverRequestHandlers.TryRemove(method, out _));
     }
 
-    /// <summary>Registers a typed handler for one known server-initiated request.</summary>
     public IDisposable RegisterServerRequestHandler<TParams, TResult>(
         RpcRequest<TParams, TResult> descriptor,
         Func<TParams, CancellationToken, Task<TResult>> handler)
@@ -102,7 +91,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return new DisposableAction(() => _notificationHandlers.TryRemove(id, out _));
     }
 
-    /// <summary>Registers a typed handler for one known server notification.</summary>
     public IDisposable RegisterNotificationHandler<TParams>(
         RpcNotification<TParams> descriptor,
         Action<TParams> handler)
@@ -180,7 +168,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return result;
     }
 
-    /// <summary>Sends one cataloged client request and deserializes its typed result.</summary>
     public async Task<TResult> RequestAsync<TParams, TResult>(
         RpcRequest<TParams, TResult> descriptor,
         TParams parameters,
@@ -198,7 +185,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             ?? throw new JsonException($"Request '{descriptor.Name}' returned an invalid result.");
     }
 
-    /// <summary>Sends one cataloged client notification.</summary>
     public Task NotifyAsync<TParams>(
         RpcNotification<TParams> descriptor,
         TParams parameters,
@@ -213,9 +199,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return NotifyRawAsync(descriptor.Name, parameters, cancellationToken);
     }
 
-    /// <summary>
-    /// Sends a JSON-RPC request and returns the raw result JSON.
-    /// </summary>
     public async Task<JsonElement> RequestRawAsync(
         string method,
         object? parameters = null,
@@ -298,9 +281,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Sends a JSON-RPC notification.
-    /// </summary>
     public Task NotifyRawAsync(
         string method,
         object? parameters = null,
@@ -334,7 +314,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     public IAsyncEnumerable<AppServerNotification> ReadNotificationsAsync(CancellationToken cancellationToken = default) =>
         _notifications.Reader.ReadAllAsync(cancellationToken);
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -344,6 +323,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
 
         _disposed = true;
         SetState(WireConnectionState.Closed);
+        CancelServerRequests();
         await _disposeCts.CancelAsync();
         await _transport.DisposeAsync();
         if (_readerTask is not null)
@@ -380,6 +360,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 if (document is null)
                 {
                     var closed = new IOException("Wire transport disconnected.");
+                    CancelServerRequests();
                     FailPending(closed);
                     SetState(WireConnectionState.Disconnected, closed);
                     if (await TryReconnectAsync(closed))
@@ -389,11 +370,13 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                     break;
                 }
 
-                await DispatchAsync(document);
+                using (document)
+                    Dispatch(document);
             }
         }
         catch (Exception ex)
         {
+            CancelServerRequests();
             FailPending(ex);
             SetState(WireConnectionState.Disconnected, ex);
             if (await TryReconnectAsync(ex))
@@ -403,6 +386,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
         finally
         {
+            CancelServerRequests();
             if (!_disposed && State != WireConnectionState.Disconnected)
             {
                 SetState(WireConnectionState.Disconnected);
@@ -415,7 +399,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
     }
 
-    private async Task DispatchAsync(JsonDocument document)
+    private void Dispatch(JsonDocument document)
     {
         var root = document.RootElement;
         var hasMethod = root.TryGetProperty("method", out var methodElement);
@@ -437,9 +421,12 @@ public sealed class DotCraftWireClient : IAsyncDisposable
 
             if (hasId)
             {
-                await DispatchServerRequestAsync(idElement.Clone(), method, parameters);
+                StartServerRequest(idElement.Clone(), method, parameters);
                 return;
             }
+
+            if (method == "serverRequest/resolved" && parameters.TryGetProperty("requestId", out var resolvedId))
+                CancelServerRequest(resolvedId);
 
             var notification = new AppServerNotification(method, parameters);
             foreach (var handler in _notificationHandlers.Values)
@@ -482,38 +469,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         tcs.TrySetResult(result);
     }
 
-    private async Task DispatchServerRequestAsync(JsonElement id, string method, JsonElement parameters)
-    {
-        if (!_serverRequestHandlers.TryGetValue(method, out var handler))
-        {
-            await SendServerErrorAsync(id, -32601, $"Method not handled: {method}");
-            return;
-        }
-
-        try
-        {
-            var result = await handler(new ServerRequest(id, method, parameters), _disposeCts.Token);
-            await _transport.WriteAsync(new
-            {
-                jsonrpc = "2.0",
-                id,
-                result = result ?? new { }
-            }, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            await SendServerErrorAsync(id, -32603, ex.Message);
-        }
-    }
-
-    private Task SendServerErrorAsync(JsonElement id, int code, string message) =>
-        _transport.WriteAsync(new
-        {
-            jsonrpc = "2.0",
-            id,
-            error = new { code, message }
-        }, CancellationToken.None);
-
     private void ThrowIfDisposed()
     {
         if (_disposed)
@@ -545,7 +500,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 {
                     using var message = await _transport.ReadAsync(_disposeCts.Token)
                         ?? throw new IOException("Wire transport closed during reconnect initialization.");
-                    await DispatchAsync(message);
+                    Dispatch(message);
                     await Task.WhenAny(handshake, Task.Delay(1, _disposeCts.Token));
                 }
                 await handshake;
@@ -557,6 +512,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             }
             catch (Exception reconnectError)
             {
+                CancelServerRequests();
                 FailPending(reconnectError);
                 SetState(WireConnectionState.ReconnectError, reconnectError);
                 delay = TimeSpan.FromMilliseconds(Math.Min(
@@ -604,7 +560,4 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     }
 }
 
-/// <summary>
-/// Server-initiated JSON-RPC request.
-/// </summary>
 public sealed record ServerRequest(JsonElement Id, string Method, JsonElement Params);

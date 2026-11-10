@@ -135,12 +135,12 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             return Task.CompletedTask;
         }
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
             TimeSpan? timeout = null) =>
-            Task.FromException<AppServerIncomingMessage>(new NotSupportedException());
+            Task.FromException<AppServerPendingClientRequest>(new NotSupportedException());
     }
 
     private sealed class BlockingFirstWriteTransport : IAppServerTransport
@@ -184,11 +184,11 @@ public sealed class ThreadRuntimeNotificationCoordinatorTests
             Interlocked.Decrement(ref _concurrentWrites);
         }
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
             TimeSpan? timeout = null) =>
-            Task.FromException<AppServerIncomingMessage>(new NotSupportedException());
+            Task.FromException<AppServerPendingClientRequest>(new NotSupportedException());
     }
 }

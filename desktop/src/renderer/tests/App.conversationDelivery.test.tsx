@@ -1,4 +1,5 @@
 import { act, waitFor } from '@testing-library/react'
+import type { RawNotificationPayload, RawServerRequestPayload } from '../../shared/appServerBoundary'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createThreadConversation, getThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -19,12 +20,8 @@ describe('App conversation delivery', () => {
   })
   it('keeps applying active conversation updates while hidden and reads nothing on restore', async () => {
     const threadId = 'thread-hidden'
-    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
-    let serverRequestHandler: ((payload: {
-      bridgeId: string
-      method: string
-      params?: unknown
-    }) => void) | undefined
+    let notificationHandler: ((payload: RawNotificationPayload) => void) | undefined
+    let serverRequestHandler: ((payload: RawServerRequestPayload) => void) | undefined
     let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
     const onNotification = vi.fn((handler: typeof notificationHandler) => {
       notificationHandler = handler
@@ -60,7 +57,9 @@ describe('App conversation delivery', () => {
       modulesList: vi.fn().mockResolvedValue([]),
       modulesRunning: vi.fn().mockResolvedValue({})
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture'
+    })
     useThreadStore.getState().setActiveThreadId(threadId)
 
     renderApp()
@@ -75,11 +74,13 @@ describe('App conversation delivery', () => {
     await act(async () => {
       visibilityHandler?.({ minimized: true, visible: false, focused: false })
       notificationHandler?.({
+        connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture',
         method: 'item/agentMessage/delta',
         params: { threadId, delta: 'hidden output' }
       })
       serverRequestHandler?.({
         bridgeId: 'bridge-approval-hidden',
+        connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture',
         method: 'item/approval/request',
         params: {
           threadId,
@@ -111,7 +112,7 @@ describe('App conversation delivery', () => {
   it('applies an event for a non-active thread with live state only to that thread', async () => {
     const activeThreadId = 'thread-active'
     const backgroundThreadId = 'thread-background'
-    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+    let notificationHandler: ((payload: RawNotificationPayload) => void) | undefined
     const onNotification = vi.fn((handler: typeof notificationHandler) => {
       notificationHandler = handler
       return vi.fn()
@@ -133,7 +134,9 @@ describe('App conversation delivery', () => {
       modulesList: vi.fn().mockResolvedValue([]),
       modulesRunning: vi.fn().mockResolvedValue({})
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture'
+    })
     useThreadStore.getState().setActiveThreadId(activeThreadId)
 
     renderApp()
@@ -146,10 +149,12 @@ describe('App conversation delivery', () => {
     await act(async () => {
       for (const threadId of [backgroundThreadId, 'thread-without-state']) {
         notificationHandler?.({
+          connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture',
           method: 'turn/started',
           params: { turn: { id: `turn-${threadId}`, threadId, status: 'running', items: [] } }
         })
         notificationHandler?.({
+          connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture',
           method: 'thread/queue/updated',
           params: { threadId, queuedInputs: [{ id: `queued-${threadId}` }] }
         })

@@ -94,7 +94,6 @@ class FakeRuntimeClient {
     return thread;
   }
 
-
   registerHandler(method: string, fn: NotificationHandler): void {
     this.notificationHandlers.set(method, fn);
   }
@@ -102,7 +101,6 @@ class FakeRuntimeClient {
   registerServerRequestHandler(method: string, fn: ServerRequestHandler): void {
     this.requestHandlers.set(method, fn);
   }
-
 }
 
 function asWire(fake: FakeRuntimeClient): ChannelAppServerClient {
@@ -317,6 +315,7 @@ test("ThreadResolver resumes cached threads with runtime context and restores th
 });
 
 test("dispatchers register approval, user-input, delivery, tool, and heartbeat handlers", async () => {
+  const signal = new AbortController().signal;
   const fake = new FakeRuntimeClient();
   const errors: string[] = [];
   new ApprovalDispatcher({
@@ -341,30 +340,31 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
     onError: (message) => errors.push(message),
   }).register();
 
-  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}, signal), {
     decision: "accept",
   });
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {
     choice: "B",
-  }), { answers: { choice: { answers: ["B"] } } });
+  }, signal), { answers: { choice: { answers: ["B"] } } });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {
     target: "chat",
     deliveryId: "d1",
     message: { kind: "image" },
     metadata: {},
-  }), { delivered: true, kind: "image" });
+  }, signal), { delivered: true, kind: "image" });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/toolCall")?.("tool1", {
     tool: "Upload",
-  }), { success: true, tool: "Upload" });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}), {});
+  }, signal), { success: true, tool: "Upload" });
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}, signal), {});
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/configOptionAvailability")?.("a1", {
     key: "scopes",
-  }), { available: ["read"] });
+  }, signal), { available: ["read"] });
 
   assert.deepEqual(errors, []);
 });
 
 test("delivery dispatcher dedupes successful delivery ids and retries failed ones", async () => {
+  const signal = new AbortController().signal;
   const fake = new FakeRuntimeClient();
   const sent: string[] = [];
   new DeliveryDispatcher({
@@ -378,9 +378,9 @@ test("delivery dispatcher dedupes successful delivery ids and retries failed one
   const send = fake.requestHandlers.get("ext/channel/send")!;
   const params = { target: "chat", deliveryId: "d1", message: { kind: "text", text: "hi" } };
 
-  const [first, concurrent] = await Promise.all([send("s1", params), send("s2", params)]);
-  const retried = await send("s3", params);
-  const other = await send("s4", { ...params, deliveryId: "d2" });
+  const [first, concurrent] = await Promise.all([send("s1", params, signal), send("s2", params, signal)]);
+  const retried = await send("s3", params, signal);
+  const other = await send("s4", { ...params, deliveryId: "d2" }, signal);
 
   assert.deepEqual(sent, ["chat", "chat"]);
   assert.deepEqual(first, { delivered: true, remoteMessageId: "m1" });
@@ -389,11 +389,12 @@ test("delivery dispatcher dedupes successful delivery ids and retries failed one
   assert.deepEqual(other, { delivered: true, remoteMessageId: "m2" });
 
   const flaky = { target: "chat", deliveryId: "d3", message: { kind: "text", text: "flaky" } };
-  assert.deepEqual(await send("s5", flaky), { delivered: false, errorCode: "AdapterDeliveryFailed" });
-  assert.deepEqual(await send("s6", flaky), { delivered: true, remoteMessageId: "m4" });
+  assert.deepEqual(await send("s5", flaky, signal), { delivered: false, errorCode: "AdapterDeliveryFailed" });
+  assert.deepEqual(await send("s6", flaky, signal), { delivered: true, remoteMessageId: "m4" });
 });
 
 test("dispatchers preserve exception fallback shapes", async () => {
+  const signal = new AbortController().signal;
   const fake = new FakeRuntimeClient();
   new ApprovalDispatcher({
     client: asWire(fake),
@@ -427,25 +428,25 @@ test("dispatchers preserve exception fallback shapes", async () => {
     onError: () => {},
   }).register();
 
-  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}, signal), {
     decision: "cancel",
   });
-  assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
+  assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}, signal), {
     answers: {},
   });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", { deliveryId: "d1" }), {
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", { deliveryId: "d1" }, signal), {
     delivered: false,
     errorCode: "AdapterDeliveryFailed",
     errorMessage: "Error: send failed",
   });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/toolCall")?.("tool1", {}), {
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/toolCall")?.("tool1", {}, signal), {
     success: false,
     errorCode: "AdapterToolCallFailed",
     errorMessage: "Error: tool failed",
   });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/configOptionAvailability")?.("a1", {
     key: "scopes",
-  }), { available: null });
+  }, signal), { available: null });
 });
 
 test("ModuleConfigLoader reports missing, invalid, and loaded configs", async () => {

@@ -8,7 +8,6 @@ namespace DotCraft.Tools;
 /// <summary>Host-private control flow requested by a successful tool invocation.</summary>
 public enum ToolExecutionDirective
 {
-    /// <summary>Continue the normal model/tool loop.</summary>
     Continue,
     /// <summary>Complete the current Turn after recording this tool result.</summary>
     TerminateTurn
@@ -19,7 +18,6 @@ public sealed record ToolInvocationOrigin
 {
     public const string CodeModeKind = "codeMode";
 
-    /// <summary>Creates an invocation origin.</summary>
     /// <param name="kind">A stable origin kind such as <c>mcpApp</c>.</param>
     /// <param name="sourceItemId">An optional safe Session item correlation identifier.</param>
     public ToolInvocationOrigin(string kind, string? sourceItemId = null)
@@ -30,7 +28,6 @@ public sealed record ToolInvocationOrigin
         SourceItemId = sourceItemId;
     }
 
-    /// <summary>Gets the stable origin kind.</summary>
     public string Kind { get; }
 
     /// <summary>Gets the optional safe Session item correlation identifier.</summary>
@@ -69,7 +66,6 @@ public sealed record ToolExecutionLocation(string Target, string? WorkspacePath,
 /// <summary>A stable source-neutral tool execution error.</summary>
 public sealed class ToolError
 {
-    /// <summary>Creates an error with an English fallback message.</summary>
     public ToolError(
         string code,
         string message,
@@ -84,11 +80,8 @@ public sealed class ToolError
         Parameters = JsonCollections.Clone(parameters);
     }
 
-    /// <summary>Gets the stable machine-readable error code.</summary>
     public string Code { get; }
-    /// <summary>Gets the English fallback error message.</summary>
     public string Message { get; }
-    /// <summary>Gets immutable structured error parameters.</summary>
     public IReadOnlyDictionary<string, JsonElement> Parameters { get; }
 }
 
@@ -123,12 +116,12 @@ public static class ToolErrorCodes
     public const string McpReauthenticationRequired = "mcp_reauthentication_required";
     /// <summary>An MCP server returned an invalid protocol response.</summary>
     public const string McpProtocolError = "mcp_protocol_error";
+    public const string McpElicitationUnavailable = "mcp_elicitation_unavailable";
 }
 
 /// <summary>A source-neutral result with explicit model, client, and host audiences.</summary>
 public sealed class ToolExecutionResult
 {
-    /// <summary>Creates an execution result.</summary>
     public ToolExecutionResult(
         bool success,
         string? content,
@@ -153,7 +146,6 @@ public sealed class ToolExecutionResult
         Directive = directive;
     }
 
-    /// <summary>Gets whether execution succeeded.</summary>
     public bool Success { get; }
     /// <summary>Gets model-visible text content.</summary>
     public string? Content { get; }
@@ -163,7 +155,6 @@ public sealed class ToolExecutionResult
     public JsonElement? Meta { get; }
     /// <summary>Gets an optional raw source result retained for specialized projection.</summary>
     public JsonElement? RawSourceResult { get; }
-    /// <summary>Gets the stable error when execution failed.</summary>
     public ToolError? Error { get; }
     /// <summary>Gets an optional transient provider-native result. It is never persisted or exposed to clients.</summary>
     public object? ProviderResult { get; }
@@ -183,7 +174,6 @@ public sealed class ToolExecutionResult
             SourceContentItems = SourceContentItems
         };
 
-    /// <summary>Creates a successful result.</summary>
     public static ToolExecutionResult Succeeded(
         string? content,
         JsonElement? structuredContent = null,
@@ -194,7 +184,6 @@ public sealed class ToolExecutionResult
         ToolExecutionDirective directive = ToolExecutionDirective.Continue) =>
         new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult, contentItems: contentItems, directive: directive);
 
-    /// <summary>Creates a failed result.</summary>
     public static ToolExecutionResult Failed(
         ToolError error,
         string? content = null,
@@ -206,7 +195,6 @@ public sealed class ToolExecutionResult
             contentItems: contentItems);
 }
 
-/// <summary>The outcome of checking a binding's current live lease.</summary>
 internal static class JsonCollections
 {
     public static IReadOnlyDictionary<string, JsonElement> Clone(

@@ -156,14 +156,16 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
         var root = document.RootElement;
         if (!root.TryGetProperty("id", out var id)) return Results.StatusCode(202);
         var method = root.GetProperty("method").GetString();
-        object result = method switch
+        object? result = method switch
         {
             "initialize" => new { protocolVersion = root.GetProperty("params").GetProperty("protocolVersion").GetString(), capabilities = new { tools = new { } }, serverInfo = new { name = "oauth-smoke", version = "1.0.0" } },
             "tools/list" => new { tools = new[] { new { name = "echo", description = "Echo a smoke-test message.", inputSchema = new { type = "object", properties = new { message = new { type = "string" } }, required = new[] { "message" } } } } },
             "tools/call" => new { content = new[] { new { type = "text", text = root.GetProperty("params").GetProperty("arguments").GetProperty("message").GetString() } }, isError = false },
-            _ => new { }
+            _ => null
         };
-        return Results.Json(new { jsonrpc = "2.0", id = id.Clone(), result });
+        return result is null
+            ? Results.Json(new { jsonrpc = "2.0", id = id.Clone(), error = new { code = -32601, message = "Method not found" } })
+            : Results.Json(new { jsonrpc = "2.0", id = id.Clone(), result });
     }
 
     private static string Challenge(string verifier) => Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)))

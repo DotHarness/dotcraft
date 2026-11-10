@@ -78,7 +78,7 @@ public sealed class AppServerRuntimeDeliveryTests
             await Release.Task.WaitAsync(ct);
             throw new IOException("Transport failed.");
         }
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method, object? parameters, CancellationToken ct = default, TimeSpan? timeout = null) =>
             throw new NotSupportedException();
     }

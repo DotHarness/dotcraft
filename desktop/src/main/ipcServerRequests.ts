@@ -1,17 +1,12 @@
 import type { BrowserWindow } from 'electron'
-import type { AppServerConnectionSource } from '../shared/appServerBoundary'
-
-export interface ServerRequestPayload {
-  bridgeId: string
-  connectionKey?: string
-  connectionId?: string
-  method: string
-  params: unknown
-}
+import type { AppServerConnectionSource, RawServerRequestPayload } from '../shared/appServerBoundary'
 
 interface PendingServerRequest {
   ownerId: number
+  owner: BrowserWindow
   connectionId?: string
+  wireRequestId?: string | number
+  detachCancellation?: () => void
   resolve: (result: unknown) => void
   reject: (error: Error) => void
   onSettled?: () => void
@@ -23,14 +18,26 @@ const pendingServerRequests = new Map<string, PendingServerRequest>()
 export function createServerRequestBridge(
   onSettled: (() => void) | undefined,
   owner: BrowserWindow,
-  source?: AppServerConnectionSource
+  source?: AppServerConnectionSource & { wireRequestId?: string | number },
+  signal?: AbortSignal
 ): {
   bridgeId: string
   promise: Promise<unknown>
 } {
   const bridgeId = String(nextBridgeId++)
+  const ownerId = owner.webContents.id
   const promise = new Promise<unknown>((resolve, reject) => {
-    pendingServerRequests.set(bridgeId, { ownerId: owner.webContents.id, connectionId: source?.connectionId, resolve, reject, onSettled })
+    const pending: PendingServerRequest = {
+      ownerId, owner, connectionId: source?.connectionId,
+      wireRequestId: source?.wireRequestId, resolve, reject, onSettled
+    }
+    pendingServerRequests.set(bridgeId, pending)
+    if (signal) {
+      const cancel = (): void => cancelServerRequestBridge(bridgeId, ownerId)
+      pending.detachCancellation = () => signal.removeEventListener('abort', cancel)
+      signal.addEventListener('abort', cancel, { once: true })
+      if (signal.aborted) cancel()
+    }
   })
   return { bridgeId, promise }
 }
@@ -52,7 +59,13 @@ function takeRequest(bridgeId: string, ownerId: number): PendingServerRequest | 
     throw new Error('Interactive request belongs to a different Desktop window.')
   }
   pendingServerRequests.delete(bridgeId)
+  pending.detachCancellation?.()
   pending.onSettled?.()
+  if (!pending.owner.isDestroyed()) {
+    pending.owner.webContents.send('appserver:server-request-settled', {
+      bridgeId, connectionId: pending.connectionId, wireRequestId: pending.wireRequestId
+    })
+  }
   return pending
 }
 
@@ -68,7 +81,7 @@ export function cancelConnectionServerRequests(connectionId: string): void {
   }
 }
 
-export function broadcastServerRequest(win: BrowserWindow, payload: ServerRequestPayload): void {
+export function broadcastServerRequest(win: BrowserWindow, payload: RawServerRequestPayload): void {
   const pending = pendingServerRequests.get(payload.bridgeId)
   if (!pending) throw new Error('Interactive request is no longer pending.')
   const ownerId = win.webContents.id

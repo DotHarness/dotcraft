@@ -52,7 +52,8 @@ internal sealed class McpToolRuntime(
                 rawToolName,
                 sourceArguments,
                 generation,
-                cancellationToken);
+                cancellationToken,
+                context);
             var raw = JsonSerializer.SerializeToElement(result, SessionWireJsonOptions.Default);
             var structured = result.StructuredContent == null
                 ? (JsonElement?)null
@@ -82,6 +83,16 @@ internal sealed class McpToolRuntime(
                 meta,
                 raw,
                 contentItems: contentItems);
+        }
+        catch (McpElicitationUnavailableException ex)
+        {
+            return ToolExecutionResult.Failed(new ToolError(
+                ToolErrorCodes.McpElicitationUnavailable,
+                ex.Message,
+                new Dictionary<string, JsonElement>
+                {
+                    ["reason"] = JsonSerializer.SerializeToElement(ex.Reason)
+                }));
         }
         catch (InvalidOperationException ex) when (
             ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||

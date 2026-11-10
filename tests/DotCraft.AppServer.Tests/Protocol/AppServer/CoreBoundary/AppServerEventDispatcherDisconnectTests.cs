@@ -539,12 +539,12 @@ public sealed class AppServerEventDispatcherDisconnectTests
             return Task.CompletedTask;
         }
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
             TimeSpan? timeout = null) =>
-            Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { }));
+            Task.FromResult(new AppServerPendingClientRequest(1, Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { }))));
     }
 
     private sealed class FailingTransport(int? failOnWriteAttempt = null) : IAppServerTransport
@@ -565,12 +565,12 @@ public sealed class AppServerEventDispatcherDisconnectTests
             return Task.CompletedTask;
         }
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
             TimeSpan? timeout = null) =>
-            Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { decision = "accept" }));
+            Task.FromResult(new AppServerPendingClientRequest(1, Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { decision = "accept" }))));
     }
 
     private sealed class BlockingClientRequestTransport : IAppServerTransport
@@ -593,7 +593,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public async Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
@@ -602,7 +602,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
             RequestCancellationToken = ct;
             LastTimeout = timeout;
             RequestObserved.TrySetResult();
-            return await _response.Task.WaitAsync(ct);
+            return Task.FromResult(new AppServerPendingClientRequest(1, _response.Task.WaitAsync(ct)));
         }
 
         public void Complete(AppServerIncomingMessage response) =>

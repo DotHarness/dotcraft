@@ -45,9 +45,10 @@ export interface McpElicitationResponse {
 interface Props {
   request: McpElicitationRequest
   onRespond: (response: McpElicitationResponse) => void
+  submitting: boolean
 }
 
-export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element {
+export function McpElicitationDialog({ request, onRespond, submitting }: Props): JSX.Element {
   const locale = useLocale()
   const cancelRef = useRef<HTMLButtonElement>(null)
   const fields = useMemo(() => parseSchema(request.requestedSchema), [request.requestedSchema])
@@ -57,11 +58,11 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
   useEffect(() => {
     cancelRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onRespond({ action: 'cancel' })
+      if (event.key === 'Escape' && !submitting) onRespond({ action: 'cancel' })
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onRespond])
+  }, [onRespond, submitting])
 
   const valid = request.mode === 'url'
     ? safeUrl != null
@@ -83,15 +84,15 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
       error={unsupported && translate(locale, 'mcp.elicitation.unsupported')}
       footer={(
         <ModalFooter>
-          <Button ref={cancelRef} variant="ghost" onClick={() => onRespond({ action: 'cancel' })}>
+          <Button ref={cancelRef} variant="ghost" disabled={submitting} onClick={() => onRespond({ action: 'cancel' })}>
             {translate(locale, 'mcp.elicitation.cancel')}
           </Button>
-          <Button variant="secondary" onClick={() => onRespond({ action: 'decline' })}>
+          <Button variant="secondary" disabled={submitting} onClick={() => onRespond({ action: 'decline' })}>
             {translate(locale, 'mcp.elicitation.decline')}
           </Button>
           <Button
             variant="primary"
-            disabled={!valid}
+            disabled={!valid || submitting}
             onClick={() => onRespond({
               action: 'accept',
               ...(request.mode === 'form' && fields != null ? { content: acceptedContent(fields, values) } : {})

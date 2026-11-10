@@ -27,7 +27,8 @@ public sealed partial class SessionService
                 inheritedMcpServers,
                 bindingMcpServers);
             var threadMcpManager = threadRuntimeState.McpManager
-                ?? new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>());
+                ?? new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>(),
+                    toolContext.McpClientManager?.ElicitationHandler);
             await threadMcpManager.ConnectAsync(effectiveMcpServers, ct);
             await threadMcpManager.WaitForStartupCompletionAsync(ct);
             threadRuntimeState.McpManager = threadMcpManager;

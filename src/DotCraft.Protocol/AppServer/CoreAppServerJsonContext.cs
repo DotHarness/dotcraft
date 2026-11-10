@@ -161,6 +161,7 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.McpServerConfig))]
 [JsonSerializable(typeof(AppServer.McpServerElicitationRequestParams))]
 [JsonSerializable(typeof(AppServer.McpServerElicitationResponse))]
+[JsonSerializable(typeof(AppServer.ServerRequestResolvedNotification))]
 [JsonSerializable(typeof(AppServer.McpServerOAuthLoginCompletedNotification))]
 [JsonSerializable(typeof(AppServer.McpServerOAuthLoginParams))]
 [JsonSerializable(typeof(AppServer.McpServerOAuthLoginResult))]

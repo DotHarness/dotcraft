@@ -40,7 +40,7 @@ export interface DesktopAppServerClientOptions {
 }
 
 export type NotificationCallback = (method: string, params: unknown) => void
-export type ServerRequestHandler = (method: string, params: unknown) => Promise<unknown>
+export type ServerRequestHandler = (method: string, params: unknown, requestId: string | number, signal: AbortSignal) => Promise<unknown>
 
 class DesktopStreamTransport implements Transport {
   private readonly reader: ReturnType<typeof createInterface>
@@ -141,14 +141,8 @@ export class DesktopAppServerClient extends EventEmitter {
       }
       this.emit('notification', method, params)
     })
-    const bridge = async (_id: string | number, params: Record<string, unknown>, method: string) => {
-      if (!this.serverRequestHandler) return undefined
-      return await this.serverRequestHandler(method, params)
-    }
-    for (const method of ['item/approval/request', 'item/tool/requestUserInput'] as const) {
-      this.wire.registerServerRequestHandlerRaw(method, (id, params) => bridge(id, params, method))
-    }
-    this.wire.registerServerRequestFallbackRaw((method, id, params) => bridge(id, params, method))
+    this.wire.registerServerRequestFallbackRaw((method, id, params, signal) =>
+      this.serverRequestHandler?.(method, params, id, signal))
     this.wire.onStateChanged((state, error) => {
       if (state === 'disconnected') {
         const connectionId = this.connectionLifetimeId

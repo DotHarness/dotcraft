@@ -129,7 +129,7 @@ export async function connectViaWebSocket(
     }
   })
 
-  client.onServerRequest(async (method, params) => {
+  client.onServerRequest(async (method, params, requestId, signal) => {
     if (!isCurrentConnectAttempt()) throw new Error('Workspace connection is no longer available.')
     const routingState = {
       appQuitting: ctx.runtimeIsStopping(),
@@ -144,7 +144,9 @@ export async function connectViaWebSocket(
       params,
       entry,
       shouldBridgeWorkspaceServerRequest(routingState),
-      canBridgeRendererInteractiveServerRequest(routingState)
+      canBridgeRendererInteractiveServerRequest(routingState),
+      requestId,
+      signal
     )
   })
   let connectedOnce = false

@@ -1,11 +1,10 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using System.Text;
-using System.Text.Json;
-using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using DotCraft.Workspaces;
+using DotCraft.Tools;
 
 namespace DotCraft.Mcp;
 
@@ -72,7 +71,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private long _nextGeneration;
     private string? _effectiveConfigFingerprint;
     private bool _disposed;
-    private Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? _elicitationHandler;
+    internal IMcpElicitationHandler? ElicitationHandler { get; }
 
     public IReadOnlyList<AITool> Tools => Volatile.Read(ref _toolsSnapshot);
 
@@ -140,28 +139,17 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             OnStatusChanged(snapshot);
     }
 
-    /// <summary>Applies to sessions created afterwards.</summary>
-    public void ConfigureElicitationHandler(
-        Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? handler) =>
-        _elicitationHandler = handler;
-
-    internal ValueTask<ElicitResult> RequestElicitationAsync(
-        string serverName,
-        ElicitRequestParams? request,
-        CancellationToken cancellationToken = default) =>
-        _elicitationHandler == null
-            ? ValueTask.FromResult(new ElicitResult { Action = "decline" })
-            : _elicitationHandler(serverName, request, cancellationToken);
-
     /// <summary>The caller remains responsible for thread authority, approval, lifecycle recording, and model-result normalization.</summary>
     public async Task<CallToolResult> CallToolAsync(
         string serverName,
         string toolName,
         IReadOnlyDictionary<string, object?>? arguments = null,
         long? expectedGeneration = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ToolInvocationContext? context = null)
     {
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
+        using var invocation = new McpInvocationScope(context, session.Client.Completion);
         return await session.Client.CallToolAsync(
             toolName,
             arguments,
@@ -212,14 +200,15 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    public McpClientManager(ILogger<McpClientManager>? logger = null)
+    public McpClientManager(ILogger<McpClientManager>? logger = null, IMcpElicitationHandler? elicitationHandler = null)
     {
         _connectServer = ConnectClientAndListToolsAsync;
         _logger = logger;
+        ElicitationHandler = elicitationHandler;
     }
 
-    public McpClientManager(DotCraftPaths? paths, ILogger<McpClientManager>? logger = null)
-        : this(logger)
+    public McpClientManager(DotCraftPaths? paths, ILogger<McpClientManager>? logger = null, IMcpElicitationHandler? elicitationHandler = null)
+        : this(logger, elicitationHandler)
     {
         _userDataPath = paths?.UserData.RootPath;
     }
@@ -890,7 +879,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ResourceCount = 0,
             ResourceTemplateCount = 0,
             LastError = null,
-            AuthStatus = config.Enabled && HasConfiguredBearerToken(config)
+            AuthStatus = config.Enabled && McpProtocolClientFactory.HasConfiguredBearerToken(config)
                 ? McpAuthenticationStatuses.BearerToken
                 : McpAuthenticationStatuses.Unsupported,
             FailureReason = null,
@@ -1254,13 +1243,11 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         for (var attempt = 0; ; attempt++)
         {
             var tokenStore = McpOAuthTokenStore.Create(server, _userDataPath);
-            var hadOAuthTokens = IsOAuthCandidate(server)
+            var hadOAuthTokens = McpProtocolClientFactory.IsOAuthCandidate(server)
                                  && await tokenStore.HasTokensAsync(cancellationToken);
-            var client = await CreateClientAsync(
+            var client = await McpProtocolClientFactory.CreateAsync(
                 server,
-                _elicitationHandler == null
-                    ? null
-                    : (request, ct) => RequestElicitationAsync(server.Name, request, ct),
+                ElicitationHandler,
                 oauthOptions: null,
                 userDataPath: _userDataPath,
                 cancellationToken: cancellationToken);
@@ -1274,7 +1261,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                     hasSessionId,
                     recoveredFromStaleSession,
                     client,
-                    AuthStatus: HasConfiguredBearerToken(server)
+                    AuthStatus: McpProtocolClientFactory.HasConfiguredBearerToken(server)
                         ? McpAuthenticationStatuses.BearerToken
                         : hadOAuthTokens
                             ? McpAuthenticationStatuses.OAuth
@@ -1358,113 +1345,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    internal static async Task<McpClient> CreateClientAsync(
-        McpServerConfig server,
-        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler,
-        ClientOAuthOptions? oauthOptions,
-        string? userDataPath,
-        CancellationToken cancellationToken)
-    {
-        IClientTransport transport;
-
-        if (server.NormalizedTransport == "streamableHttp")
-        {
-            if (string.IsNullOrWhiteSpace(server.Url))
-                throw new InvalidOperationException($"MCP server '{server.Name}' has transport 'streamableHttp' but no Url configured.");
-
-            var options = new HttpClientTransportOptions
-            {
-                Endpoint = new Uri(server.Url),
-                Name = server.Name,
-                TransportMode = HttpTransportMode.AutoDetect,
-            };
-
-            if (oauthOptions == null)
-            {
-                var tokenStore = McpOAuthTokenStore.Create(server, userDataPath);
-                if (IsOAuthCandidate(server))
-                {
-                    var hadTokens = await tokenStore.HasTokensAsync(cancellationToken);
-                    oauthOptions = McpOAuthOptionsFactory.Create(server, userDataPath);
-                    oauthOptions.AuthorizationCallbackHandler = (_, _) =>
-                        throw new McpAuthenticationRequiredException(hadTokens);
-                }
-            }
-
-            options.OAuth = oauthOptions;
-
-            var headers = new Dictionary<string, string>(server.Headers, StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(server.BearerTokenEnvVar))
-            {
-                var token = Environment.GetEnvironmentVariable(server.BearerTokenEnvVar);
-                if (string.IsNullOrWhiteSpace(token))
-                    throw new InvalidOperationException($"MCP server '{server.Name}' requires env var '{server.BearerTokenEnvVar}'.");
-                headers["Authorization"] = $"Bearer {token}";
-            }
-
-            foreach (var (headerName, envVarName) in server.EnvHttpHeaders)
-            {
-                var value = Environment.GetEnvironmentVariable(envVarName);
-                if (string.IsNullOrWhiteSpace(value))
-                    throw new InvalidOperationException($"MCP server '{server.Name}' requires env var '{envVarName}' for header '{headerName}'.");
-                headers[headerName] = value;
-            }
-
-            if (headers.Count > 0)
-                options.AdditionalHeaders = headers;
-
-            if (server.Origin.IsBinding)
-            {
-                // A binding endpoint is an authority boundary. Following a redirect could move the
-                // one-time bearer to a different origin without a fresh activation decision.
-                var handler = new HttpClientHandler { AllowAutoRedirect = false };
-                transport = new HttpClientTransport(options, new HttpClient(handler), loggerFactory: null, ownsHttpClient: true);
-            }
-            else
-            {
-                transport = new HttpClientTransport(options);
-            }
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(server.Command))
-                throw new InvalidOperationException($"MCP server '{server.Name}' has transport 'stdio' but no Command configured.");
-
-            var environmentVariables = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (key, value) in server.EnvironmentVariables)
-                environmentVariables[key] = value;
-
-            foreach (var envVar in server.EnvVars.Where(v => !string.IsNullOrWhiteSpace(v)))
-                environmentVariables[envVar] = Environment.GetEnvironmentVariable(envVar);
-
-            var options = new StdioClientTransportOptions
-            {
-                Command = server.Command,
-                Name = server.Name,
-                Arguments = server.Arguments is { Count: > 0 } ? server.Arguments : null,
-                EnvironmentVariables = environmentVariables.Count > 0 ? environmentVariables : null,
-                InheritEnvironmentVariables = true,
-                WorkingDirectory = string.IsNullOrWhiteSpace(server.Cwd) ? null : server.Cwd
-            };
-
-            transport = new StdioClientTransport(options);
-        }
-
-        var clientOptions = CreateClientOptions(elicitationHandler);
-        return await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
-    }
-
-    private static bool HasConfiguredBearerToken(McpServerConfig server) =>
-        !string.IsNullOrWhiteSpace(server.BearerTokenEnvVar)
-        || server.Headers.Keys.Any(static name =>
-            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase))
-        || server.EnvHttpHeaders.Keys.Any(static name =>
-            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase));
-
-    private static bool IsOAuthCandidate(McpServerConfig server) =>
-        string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.Ordinal)
-        && !HasConfiguredBearerToken(server);
-
     private static McpAuthenticationRequiredException? FindAuthenticationRequired(Exception exception)
     {
         for (Exception? current = exception; current != null; current = current.InnerException)
@@ -1481,30 +1361,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
         }
         return null;
-    }
-
-    internal static McpClientOptions CreateClientOptions(
-        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler)
-    {
-        var options = new McpClientOptions
-        {
-            ProtocolVersion = "2025-06-18",
-            Capabilities = new ClientCapabilities
-            {
-#pragma warning disable MCPEXP001 // Stable MCP extensions use the SDK's extension transport hook.
-                Extensions = new Dictionary<string, object>(StringComparer.Ordinal)
-                {
-                    [McpAppMetadataParser.ExtensionIdentifier] = JsonSerializer.SerializeToElement(new
-                    {
-                        mimeTypes = new[] { McpAppMetadataParser.HtmlMimeType }
-                    })
-                }
-#pragma warning restore MCPEXP001
-            }
-        };
-        if (elicitationHandler is not null)
-            options.Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler };
-        return options;
     }
 
     public async ValueTask DisposeAsync()
