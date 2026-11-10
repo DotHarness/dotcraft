@@ -1030,12 +1030,12 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
 
         public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(string method, object? @params, CancellationToken ct = default, TimeSpan? timeout = null)
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(string method, object? @params, CancellationToken ct = default, TimeSpan? timeout = null)
         {
             LastMethod = method;
             LastParams = @params;
             if (exception != null)
-                return Task.FromException<AppServerIncomingMessage>(exception);
+                return Task.FromException<AppServerPendingClientRequest>(exception);
             var payload = result ?? new ChannelDeliveryResult { Delivered = true };
             var json = JsonSerializer.Serialize(new { jsonrpc = "2.0", id = 1, result = payload }, SessionWireJsonOptions.Default);
             var msg = JsonSerializer.Deserialize<AppServerIncomingMessage>(json, new JsonSerializerOptions
@@ -1043,7 +1043,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             })!;
-            return Task.FromResult(msg);
+            return Task.FromResult(new AppServerPendingClientRequest(1, Task.FromResult(msg)));
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

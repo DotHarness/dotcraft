@@ -404,6 +404,12 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 `approvalType` 表示资源类型：`shell`、`file`、`computerUse`、`channelMessage`，或由工具贡献的其他类型。`channelMessage` 请求是要把消息发到 thread 自身会话之外的聊天。它的 `operation` 为 `send`，`target` 是聊天地址 `<channelName>:<target>`，`acceptForSession` 会覆盖之后发往同一地址的消息。
 
+## MCP 补充输入
+
+声明 `capabilities.mcpElicitation: true` 的 client 会收到已接入 thread 的 `mcpServer/elicitation/request`。请求包含 `threadId`、可空的 `turnId`、`serverName`、`mode`，以及表单 schema 或确认 URL。按原 JSON-RPC `id` 回复 `{ action: "accept" | "decline" | "cancel", content? }`，只有接受表单时才附带填写内容。URL 只能在用户明确操作后打开。
+
+首个有效回答会完成输入。输入结束时，`serverRequest/resolved { threadId, requestId }` 用当前连接上的原数值 JSON-RPC `id` 标识请求，client 应关闭对应表单，不再作答。输入随所属调用或连接结束，不在重连后恢复。等待用户时继续读取消息，让完成通知和其他请求能够到达。SDK 为这一生命周期提供请求级取消。
+
 ## 命令
 
 `command/list` 返回 server 的命令，包含 `name`、`aliases`、`description` 和 `requiresAdmin`。`command/execute` 在某个 thread 上执行一条命令：

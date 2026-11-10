@@ -107,6 +107,12 @@ Console.WriteLine(result.StructuredContent.Value ?? result.Content.Value);
 
 这个控制调用会立刻执行，不经过模型。若要让 agent 自己在 run 中挑选并调用 MCP tool，为 thread 配置好 MCP server，正常启动 run 即可。
 
+## 回答补充输入
+
+MCP tool 执行期间可以要求用户填写表单或确认 URL。声明 `capabilities.mcpElicitation: true`，接入对应 thread，并处理 `mcpServer/elicitation/request`。每个请求包含来源 `threadId` 和可空的 `turnId`，返回 `accept`、`decline` 或 `cancel`，只有接受表单时才附带填写内容。
+
+TypeScript wire handler 的第三个参数是 `AbortSignal`，.NET wire handler 接收请求级 `CancellationToken`。signal 或 token 取消时关闭对应表单，这可能是其他 client 已作答、调用已结束或连接已断开。这些输入不会在重连后重投。直接实现协议的 client 按原 JSON-RPC request ID 处理 [`serverRequest/resolved`](../protocols/appserver#mcp-补充输入)。
+
 ## 认证与重新加载
 
 只有 `authStatus` 为 `notLoggedIn` 的 server 才接受登录，其他状态下登录请求会被拒绝。用运行时名称发起登录，在用户浏览器中打开返回的授权 URL，然后等待 `mcpServer/oauthLogin/completed` 通知报告成功或失败。

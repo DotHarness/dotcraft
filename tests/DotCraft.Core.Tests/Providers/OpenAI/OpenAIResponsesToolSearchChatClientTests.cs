@@ -2203,7 +2203,7 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,

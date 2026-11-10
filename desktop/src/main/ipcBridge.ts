@@ -53,7 +53,6 @@ export {
   createServerRequestBridge,
   resolveServerRequestBridge
 } from './ipcServerRequests'
-export type { ServerRequestPayload } from './ipcServerRequests'
 
 interface WindowRegistration {
   ipc: WindowIpcMain

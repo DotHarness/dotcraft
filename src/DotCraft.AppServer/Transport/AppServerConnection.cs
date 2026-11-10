@@ -28,7 +28,13 @@ public sealed class AppServerConnection
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ThreadObservation?>> _openingObservations = new(StringComparer.Ordinal);
     private Lazy<OrderedAppServerNotificationQueue>? _threadNotifications;
 
-    internal Task SendThreadNotificationAsync(IAppServerTransport transport, string method, object parameters, CancellationToken ct = default)
+    internal Task SendThreadNotificationAsync(IAppServerTransport transport, string method, object parameters, CancellationToken ct = default) =>
+        GetThreadNotifications(transport).EnqueueAsync(method, parameters, ct);
+
+    internal void QueueThreadNotification(IAppServerTransport transport, string method, object parameters) =>
+        GetThreadNotifications(transport).Enqueue(method, parameters);
+
+    private OrderedAppServerNotificationQueue GetThreadNotifications(IAppServerTransport transport)
     {
         var notifications = Volatile.Read(ref _threadNotifications);
         if (notifications is null)
@@ -38,7 +44,7 @@ public sealed class AppServerConnection
         }
         var queue = notifications.Value;
         if (_isClosed) queue.Complete();
-        return queue.EnqueueAsync(method, parameters, ct);
+        return queue;
     }
 
     internal Task CompleteThreadNotificationsAsync()

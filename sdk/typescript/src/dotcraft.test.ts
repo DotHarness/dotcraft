@@ -214,7 +214,7 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
       namespace: "local",
       tool: "Echo",
       arguments: { text: "hi" },
-    }),
+    }, new AbortController().signal),
     toolResult,
   );
   assert.deepEqual(
@@ -225,7 +225,7 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
       namespace: "local",
       tool: "Missing",
       arguments: {},
-    }),
+    }, new AbortController().signal),
     {
       success: false,
       errorCode: "UnsupportedTool",
@@ -275,10 +275,10 @@ test("DotCraft registers approval and user-input handlers only when callbacks ar
     async () => ({ answers: { value: "42" } }),
   );
 
-  assert.deepEqual(await wire.requestHandlers.get("item/approval/request")?.("approval", {}), {
+  assert.deepEqual(await wire.requestHandlers.get("item/approval/request")?.("approval", {}, new AbortController().signal), {
     decision: "decline",
   });
-  assert.deepEqual(await wire.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
+  assert.deepEqual(await wire.requestHandlers.get("item/tool/requestUserInput")?.("input", {}, new AbortController().signal), {
     answers: { value: "42" },
   });
 });

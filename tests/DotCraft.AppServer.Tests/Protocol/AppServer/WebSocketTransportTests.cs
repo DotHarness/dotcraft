@@ -43,19 +43,21 @@ public sealed class WebSocketTransportTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task SendClientRequestAsync_ClientResponds_ReturnsResponse()
+    public async Task StartClientRequestAsync_ClientResponds_ReturnsResponse()
     {
         await using var transport = new WebSocketTransport(_serverWs);
         transport.Start();
 
-        var serverRequestTask = transport.SendClientRequestAsync(
+        var pending = await transport.StartClientRequestAsync(
             "item/approval/request",
             new { requestId = "req_001", approvalType = "shell" },
             ct: TimeoutCt(10));
 
         var serverRequest = await ReadSingleTextFrameAsync(_clientWs, TimeoutCt(5));
-        var reqDoc = JsonDocument.Parse(serverRequest);
+        using var reqDoc = JsonDocument.Parse(serverRequest);
         var requestId = reqDoc.RootElement.GetProperty("id").GetInt32();
+        Assert.Equal(pending.Id, requestId);
+        Assert.False(pending.Response.IsCompleted);
 
         var response = JsonSerializer.Serialize(new
         {
@@ -65,7 +67,7 @@ public sealed class WebSocketTransportTests : IAsyncDisposable
         });
         await SendTextFrameAsync(_clientWs, response);
 
-        var result = await serverRequestTask;
+        var result = await pending.Response;
         Assert.NotNull(result.Result);
         Assert.Equal("accept", result.Result!.Value.GetProperty("decision").GetString());
     }

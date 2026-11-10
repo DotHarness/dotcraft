@@ -404,6 +404,12 @@ If a client declares `approvalSupport: false` during `initialize`, the server ne
 
 `approvalType` names the resource kind: `shell`, `file`, `computerUse`, `channelMessage`, or a kind contributed by a tool. A `channelMessage` request asks to send a message to a chat other than the thread's own. Its `operation` is `send`, its `target` is the chat address `<channelName>:<target>`, and `acceptForSession` covers later sends to the same address.
 
+## MCP supplementary input
+
+Clients declaring `capabilities.mcpElicitation: true` receive `mcpServer/elicitation/request` for threads they have attached to. The request carries `threadId`, nullable `turnId`, `serverName`, `mode`, and the form schema or confirmation URL. Reply to its JSON-RPC `id` with `{ action: "accept" | "decline" | "cancel", content? }`; only an accepted form carries content. Open a supplied URL only after explicit user action.
+
+The first valid answer completes the input. When it ends, `serverRequest/resolved { threadId, requestId }` identifies the original numeric JSON-RPC `id` on that connection. Dismiss that prompt without sending another answer. Inputs end with their invocation or connection and are not restored on reconnect. Keep reading messages while waiting for the user so completion notifications and other requests can arrive. The SDKs provide request-scoped cancellation for this lifecycle.
+
 ## Commands
 
 `command/list` returns the server's commands with their `name`, `aliases`, `description`, and `requiresAdmin`. `command/execute` runs one on a thread:

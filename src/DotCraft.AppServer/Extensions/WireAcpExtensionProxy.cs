@@ -213,8 +213,9 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
             return null;
 
         var mergedParams = MergeThreadIdIntoParams(threadId, @params);
-        var response = await binding.Transport.SendClientRequestAsync(wireMethod, mergedParams, ct,
+        var pending = await binding.Transport.StartClientRequestAsync(wireMethod, mergedParams, ct,
             timeout ?? TimeSpan.FromSeconds(30));
+        var response = await pending.Response;
         if (!response.Result.HasValue)
             return null;
         return response.Result.Value;

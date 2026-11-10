@@ -1170,20 +1170,12 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 Contract.AppServerRpc.ExtChannelHeartbeat,
                 new DotCraft.Protocol.RpcEmpty(),
                 timeout: HeartbeatTimeout);
-
-            // Heartbeat succeeded — connection is healthy
         }
         catch (OperationCanceledException) when (!_stopped && _runCts is { IsCancellationRequested: false })
         {
-            // SendClientRequestAsync uses CancellationTokenSource.CancelAfter() for timeouts,
-            // which throws TaskCanceledException (a subclass of OperationCanceledException).
-            // If neither _stopped nor _runCts is canceled, this is a heartbeat timeout.
             _logger.LogError("External channel heartbeat timed out; reconnecting");
 
-            // Dispose the transport to trigger reconnect.
-            // This causes ReadMessageAsync to return null, exiting RunMessageLoopAsync normally.
-            // The StartAsync while-loop then retries the cycle.
-            // NOTE: Do NOT cancel _runCts here — that would exit the while-loop permanently.
+            // Dispose only the transport so the host lifetime can reconnect.
             if (_transport is IAsyncDisposable disposable)
                 await disposable.DisposeAsync();
         }

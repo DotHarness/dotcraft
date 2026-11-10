@@ -18,6 +18,14 @@ public sealed class AppServerThreadSubscribers
             TaskScheduler.Default);
     }
 
+    internal IReadOnlyList<(AppServerConnection Connection, IAppServerTransport Transport)> GetElicitationRecipients(string threadId) =>
+        _connections
+            .Where(pair => pair.Key.IsClientReady && !pair.Key.IsClosed
+                           && pair.Key.HasSubscription(threadId)
+                           && pair.Key.ClientCapabilities?.McpElicitation == true)
+            .Select(pair => (pair.Key, pair.Value))
+            .ToArray();
+
     public void NotifyOthers<TParams>(
         RpcNotification<TParams> notification,
         string threadId,

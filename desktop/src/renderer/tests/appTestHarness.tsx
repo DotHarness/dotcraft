@@ -270,7 +270,7 @@ function installApi(
   const appServerSendRequest = vi.fn(async (
     method: string,
     params?: Record<string, unknown>,
-    _timeout?: number,
+    _timeout?: number | null,
     options?: { onResponse?(result: unknown): void }
   ) => {
     const result = await request(method, params)
@@ -344,6 +344,8 @@ function installApi(
       },
       appServer: {
         sendRequest: appServerSendRequest,
+        sendConnectionRequest: vi.fn((_key, method, params, timeout, options) =>
+          appServerSendRequest(method, params, timeout, options)),
         getConnectionStatus: vi.fn(() => pending),
         onConnectionStatus: vi.fn(() => vi.fn()),
         onNotification,

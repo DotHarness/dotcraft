@@ -125,6 +125,32 @@ describe('DesktopAppServerClient', () => {
     })
   })
 
+  it('passes the original request ID and cancellation to concurrent handlers', async () => {
+    const pending = new Map<string | number, { signal: AbortSignal; resolve(value: unknown): void }>()
+    let requestsStarted!: () => void
+    const started = new Promise<void>(resolve => { requestsStarted = resolve })
+    client.onServerRequest((_method, _params, id, signal) => new Promise(resolve => {
+      pending.set(id, { signal, resolve })
+      if (pending.size === 2) requestsStarted()
+    }))
+    push({ jsonrpc: '2.0', id: 101, method: 'mcpServer/elicitation/request', params: { threadId: 'A' } })
+    push({ jsonrpc: '2.0', id: 102, method: 'mcpServer/elicitation/request', params: { threadId: 'B' } })
+    await started
+    const notified = once(client, 'notification')
+    push({ jsonrpc: '2.0', method: 'serverRequest/resolved', params: { threadId: 'A', requestId: 101 } })
+    await notified
+    expect(pending.get(101)?.signal.aborted).toBe(true)
+    expect(pending.get(102)?.signal.aborted).toBe(false)
+    pending.get(101)!.resolve({ action: 'accept', content: { stale: true } })
+    pending.get(102)!.resolve({ action: 'accept', content: { project: 'B' } })
+    expect(await readRequest()).toEqual({ jsonrpc: '2.0', id: 102, result: { action: 'accept', content: { project: 'B' } } })
+    const marker = client.sendRequest('fixture/marker')
+    const request = await readRequest()
+    expect(request.method).toBe('fixture/marker')
+    push({ jsonrpc: '2.0', id: request.id, result: {} })
+    await marker
+  })
+
   it('holds the wire subscription through UI unsubscribe and releases it at browser turn end', async () => {
     const retain = client.retainBrowserTurn('thread', 'turn')
     expect(client.hasRetainedThreadAttachments).toBe(true)

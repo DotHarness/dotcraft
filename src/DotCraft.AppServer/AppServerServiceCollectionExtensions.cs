@@ -31,6 +31,7 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<AppBindingCoordinator>();
         services.TryAddSingleton<AppServerPluginManagementState>();
         services.TryAddSingleton<AppServerThreadSubscribers>();
+        services.TryAddSingleton<IMcpElicitationHandler, AppServerMcpElicitationHandler>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddSingleton<WireAcpExtensionProxy>();
         services.TryAddSingleton<IAcpExtensionProxy>(provider => provider.GetRequiredService<WireAcpExtensionProxy>());

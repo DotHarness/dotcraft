@@ -107,6 +107,12 @@ Console.WriteLine(result.StructuredContent.Value ?? result.Content.Value);
 
 This control call executes immediately and never reaches the model. To let an agent choose and invoke an MCP tool during a run, configure the MCP server for the thread and start the run normally.
 
+## Answer supplementary input
+
+An MCP tool can ask the user for a form or URL confirmation while it runs. Declare `capabilities.mcpElicitation: true`, attach to the thread, and handle `mcpServer/elicitation/request`. Each request includes its originating `threadId` and a nullable `turnId`; return `accept`, `decline`, or `cancel`, with form content only on acceptance.
+
+The TypeScript wire handler receives an `AbortSignal` as its third argument. The .NET wire handler receives a request-scoped `CancellationToken`. Dismiss the prompt when that signal or token is cancelled: another client may have answered, the invocation may have ended, or the connection may have closed. These inputs are not replayed after reconnect. A client implementing the raw protocol handles [`serverRequest/resolved`](../protocols/appserver#mcp-supplementary-input) using the original JSON-RPC request ID.
+
 ## Authenticate and reload
 
 Login is accepted only while a server reports `authStatus: "notLoggedIn"`, and any other state rejects the request. Start login for that runtime name, open the returned authorization URL in the user's browser, then wait for the `mcpServer/oauthLogin/completed` notification to report success or failure.

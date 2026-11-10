@@ -819,7 +819,7 @@ public sealed class AcpBridgePipeIntegrationTests
             var responses = new List<AppServerIncomingMessage>();
             for (var i = 0; i < 5; i++)
             {
-                responses.Add(await transport.SendClientRequestAsync(
+                var pending = await transport.StartClientRequestAsync(
                     DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall,
                     new
                     {
@@ -831,7 +831,8 @@ public sealed class AcpBridgePipeIntegrationTests
                         arguments = new { query = "Main Camera" }
                     },
                     ct,
-                    TimeSpan.FromSeconds(10)));
+                    TimeSpan.FromSeconds(10));
+                responses.Add(await pending.Response);
             }
 
             capturedRuntimeResults.TrySetResult(responses);

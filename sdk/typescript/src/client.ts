@@ -1,7 +1,3 @@
-/**
- * DotCraftWireClient: JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol.
- */
-
 import { JsonRpcMessage } from "./models.js";
 import { ReconnectQueueFullError, RequestTimeoutError, toJsonRpcError } from "./errors.js";
 import { type Transport, TransportClosed } from "./transportCore.js";
@@ -19,6 +15,7 @@ export type NotificationHandler = (params: Record<string, unknown>) => void | Pr
 export type ServerRequestHandler = (
   requestId: string | number,
   params: Record<string, unknown>,
+  signal: AbortSignal,
 ) => unknown | Promise<unknown>;
 export type Unsubscribe = () => void;
 /** Invoked synchronously in wire order before the request promise settles. */
@@ -60,13 +57,14 @@ export class DotCraftWireClient {
     (method: string, params: Record<string, unknown>) => void | Promise<void>
   >();
   private readonly requestHandlers = new Map<string, ServerRequestHandler>();
+  private readonly serverRequests = new Map<string | number, AbortController>();
   private rawServerRequestFallback: ((
     method: string,
     requestId: string | number,
     params: Record<string, unknown>,
+    signal: AbortSignal,
   ) => unknown | Promise<unknown>) | null = null;
   private readerPromise: Promise<void> | null = null;
-  private initialized = false;
   private initializeResultValue: InitializeResult | null = null;
   private initializeOptions: Parameters<DotCraftWireClient["initialize"]>[0] | null = null;
   private reconnecting = false;
@@ -127,6 +125,7 @@ export class DotCraftWireClient {
   async stop(): Promise<void> {
     this.explicitlyClosed = true;
     this.reconnecting = false;
+    this.endServerRequests();
     await this.transport.close();
     this.rejectAllPending(new TransportClosed("Wire client closed"));
     this.rejectQueuedWrites(new TransportClosed("Wire client closed"));
@@ -185,7 +184,6 @@ export class DotCraftWireClient {
       capabilities,
     }, this.options.initializeTimeoutMs, true);
     await this.notifyRaw("initialized", {}, true);
-    this.initialized = true;
     this.setState("ready");
     this.initializeResultValue = result;
     return this.initializeResultValue;
@@ -228,6 +226,7 @@ export class DotCraftWireClient {
     fn: (
       requestId: string | number,
       params: ServerRequestMethods[M]["params"],
+      signal: AbortSignal,
     ) => ServerRequestMethods[M]["result"] | Promise<ServerRequestMethods[M]["result"]>,
   ): void {
     this.requestHandlers.set(method, fn as ServerRequestHandler);
@@ -235,7 +234,7 @@ export class DotCraftWireClient {
 
   registerServerRequestHandlerRaw<P extends Record<string, unknown>, R>(
     method: string,
-    fn: (requestId: string | number, params: P) => R | Promise<R>,
+    fn: (requestId: string | number, params: P, signal: AbortSignal) => R | Promise<R>,
   ): void {
     this.requestHandlers.set(method, fn as ServerRequestHandler);
   }
@@ -249,6 +248,7 @@ export class DotCraftWireClient {
       method: string,
       requestId: string | number,
       params: Record<string, unknown>,
+      signal: AbortSignal,
     ) => unknown | Promise<unknown>,
   ): Unsubscribe {
     this.rawServerRequestFallback = fn;
@@ -409,6 +409,7 @@ export class DotCraftWireClient {
           const closed = e instanceof TransportClosed
             ? e
             : new TransportClosed(`Transport read failed: ${e instanceof Error ? e.message : String(e)}`);
+          this.endServerRequests();
           this.setState("disconnected", closed);
           this.rejectAllPending(closed, this.options.autoReconnect);
           if (await this.tryReconnect()) continue;
@@ -420,7 +421,8 @@ export class DotCraftWireClient {
         await this.dispatch(msg);
       }
     } catch {
-      // Reader ended
+    } finally {
+      this.endServerRequests();
     }
   }
 
@@ -452,6 +454,7 @@ export class DotCraftWireClient {
         this.setState("ready");
         return true;
       } catch (error) {
+        this.endServerRequests();
         this.reconnectAttempt += 1;
         this.setState("reconnectError", error);
       }
@@ -511,9 +514,7 @@ export class DotCraftWireClient {
       return;
     }
     if (msg.isRequest) {
-      // Fire-and-forget: server requests (approval, heartbeat, deliver) must not block the
-      // reader loop — otherwise long-running approval waits prevent reading heartbeat frames
-      // and the server times out the connection (see ExternalChannelHost.SendHeartbeatAsync).
+      // User input handlers must not block reading subsequent requests or cancellation.
       void this.dispatchServerRequest(msg).catch((e) =>
         console.error("Error in server request handler:", e),
       );
@@ -523,16 +524,17 @@ export class DotCraftWireClient {
   private async dispatchNotification(msg: JsonRpcMessage): Promise<void> {
     const method = msg.method ?? "";
     const params = (msg.params as Record<string, unknown>) ?? {};
+    if (method === "serverRequest/resolved" && typeof params.requestId === "number") {
+      const pending = this.serverRequests.get(params.requestId);
+      this.serverRequests.delete(params.requestId);
+      pending?.abort();
+    }
     const list = this.handlers.get(method) ?? [];
     for (const h of [...list]) {
-      void Promise.resolve(h(params)).catch(() => {
-        /* logged in adapter */
-      });
+      void Promise.resolve(h(params)).catch(() => {});
     }
     for (const handler of [...this.rawNotificationHandlers]) {
-      void Promise.resolve(handler(method, params)).catch(() => {
-        /* host listener failures are isolated from the read loop */
-      });
+      void Promise.resolve(handler(method, params)).catch(() => {});
     }
   }
 
@@ -541,27 +543,29 @@ export class DotCraftWireClient {
     const params = (msg.params as Record<string, unknown>) ?? {};
     const requestId = msg.id as string | number;
 
-    const handler = this.requestHandlers.get(method);
-    if (!handler) {
-      if (this.rawServerRequestFallback) {
-        try {
-          await this.sendResponse(
-            requestId,
-            (await this.rawServerRequestFallback(method, requestId, params)) ?? {},
-          );
-        } catch {
-          await this.sendErrorResponse(requestId, -32603, "Internal error");
-        }
+    const controller = new AbortController();
+    this.serverRequests.set(requestId, controller);
+    const active = () => !controller.signal.aborted && !this.explicitlyClosed;
+    try {
+      const handler = this.requestHandlers.get(method);
+      if (!handler && !this.rawServerRequestFallback) {
+        if (active()) await this.sendErrorResponse(requestId, -32601, `Method not handled: ${method}`);
         return;
       }
-      await this.sendErrorResponse(requestId, -32601, `Method not handled: ${method}`);
-      return;
+      const result = handler
+        ? await handler(requestId, params, controller.signal)
+        : await this.rawServerRequestFallback!(method, requestId, params, controller.signal);
+      if (active()) await this.sendResponse(requestId, result ?? {});
+    } catch (error) {
+      if (active()) await this.sendErrorResponse(requestId, -32603, String(error));
+    } finally {
+      if (this.serverRequests.get(requestId) === controller) this.serverRequests.delete(requestId);
     }
-    try {
-      const result = await handler(requestId, params);
-      await this.sendResponse(requestId, result ?? {});
-    } catch (e) {
-      await this.sendErrorResponse(requestId, -32603, String(e));
-    }
+  }
+
+  private endServerRequests(): void {
+    const pending = [...this.serverRequests.values()];
+    this.serverRequests.clear();
+    for (const controller of pending) controller.abort();
   }
 }

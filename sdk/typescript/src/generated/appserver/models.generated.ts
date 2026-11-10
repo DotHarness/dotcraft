@@ -2356,7 +2356,7 @@ export interface McpServerElicitationRequestParams {
   mode?: string;
   requestedSchema?: JsonValue;
   serverName?: string;
-  threadId?: string | null;
+  threadId: string;
   turnId?: string | null;
   url?: string | null;
   [key: string]: unknown;
@@ -3505,6 +3505,12 @@ export interface ServerInfo {
   name: string;
   protocolVersion: string;
   version: string;
+  [key: string]: unknown;
+}
+
+export interface ServerRequestResolvedNotification {
+  requestId: number;
+  threadId: string;
   [key: string]: unknown;
 }
 

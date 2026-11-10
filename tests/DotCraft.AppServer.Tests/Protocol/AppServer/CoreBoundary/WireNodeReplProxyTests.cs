@@ -29,11 +29,14 @@ public sealed class WireNodeReplProxyTests
 
         public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
 
-        public async Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
-            TimeSpan? timeout = null)
+            TimeSpan? timeout = null) =>
+            Task.FromResult(new AppServerPendingClientRequest(1, RespondAsync(method, @params, ct)));
+
+        private async Task<AppServerIncomingMessage> RespondAsync(string method, object? @params, CancellationToken ct)
         {
             LastMethod = method;
             LastParams = JsonSerializer.SerializeToElement(@params, SessionWireJsonOptions.Default);

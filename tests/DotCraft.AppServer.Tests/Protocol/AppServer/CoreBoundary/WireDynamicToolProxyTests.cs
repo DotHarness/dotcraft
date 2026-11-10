@@ -443,7 +443,7 @@ public sealed class WireDynamicToolProxyTests
         public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
@@ -451,7 +451,7 @@ public sealed class WireDynamicToolProxyTests
         {
             Timeout = timeout;
             Requested.TrySetResult();
-            return Response.Task;
+            return Task.FromResult(new AppServerPendingClientRequest(1, Response.Task.WaitAsync(ct)));
         }
     }
 
@@ -468,7 +468,7 @@ public sealed class WireDynamicToolProxyTests
         public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
             object? @params,
             CancellationToken ct = default,
@@ -476,11 +476,11 @@ public sealed class WireDynamicToolProxyTests
         {
             Method = method;
             Params = @params;
-            return Task.FromResult(new AppServerIncomingMessage
+            return Task.FromResult(new AppServerPendingClientRequest(1, Task.FromResult(new AppServerIncomingMessage
             {
-                Id = JsonSerializer.SerializeToElement("request-1"),
+                Id = JsonSerializer.SerializeToElement(1),
                 Result = JsonSerializer.SerializeToElement(result, SessionWireJsonOptions.Default)
-            });
+            })));
         }
     }
 }

@@ -2001,8 +2001,7 @@ public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
     public Optional<string> ServerName { get; init; }
 
     [JsonPropertyName("threadId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ThreadId { get; init; }
+    public required string ThreadId { get; init; }
 
     [JsonPropertyName("turnId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2012,6 +2011,15 @@ public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Url { get; init; }
 
+}
+
+public sealed class ServerRequestResolvedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("requestId")]
+    public required int RequestId { get; init; }
 }
 
 public sealed class McpServerElicitationResponse : ExtensibleJsonObject

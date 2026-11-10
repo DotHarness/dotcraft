@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import type { RawNotificationPayload } from '../../shared/appServerBoundary'
+import type { RawNotificationPayload, RawServerRequestPayload, ServerRequestSettledPayload } from '../../shared/appServerBoundary'
 
 const electronMock = vi.hoisted(() => ({
   ipcHandlers: new Map<string, (event: unknown, ...args: unknown[]) => void>(),
@@ -29,6 +29,9 @@ interface ExposedApi {
   appServer: {
     onNotification(callback: (payload: RawNotificationPayload) => void): () => void
     onNotificationRaw(callback: (payload: RawNotificationPayload) => void): () => void
+    onServerRequest(callback: (payload: RawServerRequestPayload) => void): () => void
+    onServerRequestRaw(callback: (payload: RawServerRequestPayload) => void): () => void
+    onServerRequestSettled(callback: (payload: ServerRequestSettledPayload) => void): () => void
   }
   window: { onMaximizedChange(callback: (maximized: boolean) => void): () => void }
 }
@@ -69,6 +72,26 @@ describe('preload bridge', () => {
     expect(raw).toHaveBeenCalledTimes(2)
     expect(typed).toHaveBeenCalledTimes(2)
     stopTyped()
+  })
+
+  it('preserves wire request identity and routes settled bridges independently', () => {
+    const known = vi.fn()
+    const raw = vi.fn()
+    const settled = vi.fn()
+    const stopKnown = api.appServer.onServerRequest(known)
+    const stopRaw = api.appServer.onServerRequestRaw(raw)
+    const stopSettled = api.appServer.onServerRequestSettled(settled)
+    const request = { bridgeId: 'bridge-A', wireRequestId: 42, connectionId: 'original',
+      method: 'mcpServer/elicitation/request', params: { threadId: 'A' } }
+    emit('appserver:server-request', request)
+    expect(known).toHaveBeenCalledWith(request)
+    expect(raw).not.toHaveBeenCalled()
+    const completion = { bridgeId: 'bridge-A', wireRequestId: 42, connectionId: 'original' }
+    emit('appserver:server-request-settled', completion)
+    expect(settled).toHaveBeenCalledWith(completion)
+    stopSettled()
+    stopKnown()
+    stopRaw()
   })
 
   it('updates window maximize subscribers independently', () => {

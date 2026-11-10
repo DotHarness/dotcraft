@@ -156,7 +156,7 @@ export type DynamicToolBinding = DynamicToolFunctionBinding | DynamicToolNamespa
 export type McpServerOriginKind = "workspace" | "plugin" | "thread" | "binding" | (string & {});
 
 export interface McpServerElicitationRequest {
-  threadId?: string | null;
+  threadId: string;
   turnId?: string | null;
   serverName: string;
   mode: "form" | "url";

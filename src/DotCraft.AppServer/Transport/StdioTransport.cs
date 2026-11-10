@@ -8,12 +8,6 @@ using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// stdio JSONL transport for the AppServer protocol.
-/// Reads newline-delimited JSON-RPC messages from <see cref="Console.OpenStandardInput"/>
-/// and writes to <see cref="Console.OpenStandardOutput"/>.
-/// All diagnostic and log output must go to stderr before this transport is started.
-/// </summary>
 public sealed class StdioTransport : IAppServerTransport
 {
     private readonly StreamReader _reader;
@@ -21,7 +15,6 @@ public sealed class StdioTransport : IAppServerTransport
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private int _nextOutgoingId;
 
-    // Pending server-initiated requests awaiting a client response (keyed by request id)
     private readonly ConcurrentDictionary<int, TaskCompletionSource<AppServerIncomingMessage>> _pendingClientRequests = new();
 
     private const int IncomingCapacity = 128;
@@ -50,34 +43,19 @@ public sealed class StdioTransport : IAppServerTransport
         };
     }
 
-    /// <summary>
-    /// Creates a transport using the process's stdin and stdout streams.
-    /// Stdout must already have been redirected to stderr or reserved for JSON-RPC before this call.
-    /// </summary>
+    /// <summary>Keep stdout reserved for JSON-RPC and send diagnostics to stderr.</summary>
     public static StdioTransport CreateStdio(ILogger? logger = null, Guid connectionId = default) =>
         new(Console.OpenStandardInput(), Console.OpenStandardOutput(), logger, connectionId);
 
-    /// <summary>
-    /// Creates a transport over arbitrary streams (e.g. subprocess stdin/stdout pipes,
-    /// in-memory streams for testing).
-    /// </summary>
     public static StdioTransport Create(
         Stream input, Stream output, ILogger? logger = null, Guid connectionId = default) =>
         new(input, output, logger, connectionId);
 
-    /// <summary>
-    /// Starts the background reader loop. Must be called before any read/write operations.
-    /// </summary>
     public void Start()
     {
         _readerLoop = Task.Run(ReaderLoopAsync);
     }
 
-    // -------------------------------------------------------------------------
-    // IAppServerTransport
-    // -------------------------------------------------------------------------
-
-    /// <inheritdoc />
     public async Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
@@ -91,7 +69,6 @@ public sealed class StdioTransport : IAppServerTransport
         return null;
     }
 
-    /// <inheritdoc />
     public async Task WriteMessageAsync(object message, CancellationToken ct = default)
     {
         var json = JsonSerializer.Serialize(message, SessionWireJsonOptions.Default);
@@ -106,42 +83,52 @@ public sealed class StdioTransport : IAppServerTransport
         }
     }
 
-    /// <inheritdoc />
-    public async Task<AppServerIncomingMessage> SendClientRequestAsync(
+    public async Task<AppServerPendingClientRequest> StartClientRequestAsync(
         string method,
         object? @params,
         CancellationToken ct = default,
         TimeSpan? timeout = null)
     {
+        using var writeCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+        writeCancellation.Token.ThrowIfCancellationRequested();
         var id = Interlocked.Increment(ref _nextOutgoingId);
         var tcs = new TaskCompletionSource<AppServerIncomingMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingClientRequests[id] = tcs;
+        var response = AwaitClientResponseAsync(id, tcs, ct, timeout);
 
         try
         {
-            var request = new
-            {
-                jsonrpc = "2.0",
-                id,
-                method,
-                @params
-            };
-            await WriteMessageAsync(request, ct);
+            await WriteMessageAsync(new { jsonrpc = "2.0", id, method, @params }, writeCancellation.Token);
+        }
+        catch (Exception ex)
+        {
+            tcs.TrySetException(ex);
+        }
+        return new AppServerPendingClientRequest(id, response);
+    }
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(120));
-            await using var reg = cts.Token.Register(() => tcs.TrySetCanceled(cts.Token));
-            return await tcs.Task;
+    private async Task<AppServerIncomingMessage> AwaitClientResponseAsync(
+        int id,
+        TaskCompletionSource<AppServerIncomingMessage> completion,
+        CancellationToken ct,
+        TimeSpan? timeout)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+        cancellation.CancelAfter(timeout ?? TimeSpan.FromSeconds(120));
+        using var registration = cancellation.Token.Register(() =>
+        {
+            if (_pendingClientRequests.TryRemove(id, out var pending))
+                pending.TrySetCanceled(cancellation.Token);
+        });
+        try
+        {
+            return await completion.Task;
         }
         finally
         {
             _pendingClientRequests.TryRemove(id, out _);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Reader loop
-    // -------------------------------------------------------------------------
 
     private async Task ReaderLoopAsync()
     {
@@ -152,7 +139,7 @@ public sealed class StdioTransport : IAppServerTransport
             {
                 var line = await _reader.ReadLineAsync(ct);
                 if (line == null)
-                    break; // EOF
+                    break;
 
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
@@ -165,8 +152,6 @@ public sealed class StdioTransport : IAppServerTransport
                 }
                 catch (JsonException)
                 {
-                    // Fix 3: Per JSON-RPC 2.0 Section 5, a parse error must return an error response
-                    // with id: null and code -32700.
                     var parseErrorResponse = new
                     {
                         jsonrpc = "2.0",
@@ -181,15 +166,15 @@ public sealed class StdioTransport : IAppServerTransport
                     continue;
                 }
 
-                // Route responses to server-initiated requests (approval flow)
-                if (msg.IsResponse && msg.Id.HasValue && msg.Id.Value.ValueKind == JsonValueKind.Number)
+                if (msg.IsResponse)
                 {
-                    var responseId = msg.Id.Value.GetInt32();
-                    if (_pendingClientRequests.TryRemove(responseId, out var tcs))
+                    if (msg.Id is { ValueKind: JsonValueKind.Number } responseId
+                        && responseId.TryGetInt32(out var id)
+                        && _pendingClientRequests.TryRemove(id, out var pending))
                     {
-                        tcs.TrySetResult(msg);
-                        continue;
+                        pending.TrySetResult(msg);
                     }
+                    continue;
                 }
 
                 if (!msg.IsRequest)
@@ -206,23 +191,14 @@ public sealed class StdioTransport : IAppServerTransport
                 }
             }
         }
-        catch (OperationCanceledException) { /* Expected on dispose */ }
+        catch (OperationCanceledException) { }
         finally
         {
-            // Unblock ReadMessageAsync so the host loop exits cleanly
-            try { await _disposeCts.CancelAsync(); } catch { /* Already disposed */ }
-
-            // Cancel all pending server requests
-            foreach (var tcs in _pendingClientRequests.Values)
-                tcs.TrySetCanceled();
+            try { await _disposeCts.CancelAsync(); } catch { }
 
             _incoming.Writer.TryComplete();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // IAsyncDisposable
-    // -------------------------------------------------------------------------
 
     public async ValueTask DisposeAsync()
     {
@@ -239,7 +215,7 @@ public sealed class StdioTransport : IAppServerTransport
         if (_readerLoop != null)
         {
             try { await _readerLoop; }
-            catch { /* Expected */ }
+            catch { }
         }
 
         _disposeCts.Dispose();

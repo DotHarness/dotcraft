@@ -24,7 +24,6 @@ internal sealed class McpRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        mcpClientManager?.ConfigureElicitationHandler(HandleElicitationAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpList, HandleMcpListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpGet, HandleMcpGetAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpUpsert, HandleMcpUpsertAsync);
@@ -140,82 +139,6 @@ internal sealed class McpRequestHandler(
             ErrorMessage = status.LastError,
             ToolCount = string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase) ? status.ToolCount : null
         };
-    }
-
-    private async ValueTask<ElicitResult> HandleElicitationAsync(
-        string serverName,
-        ElicitRequestParams? request,
-        CancellationToken ct)
-    {
-        if (request == null || !IsSupportedElicitation(request, out var requestedSchema))
-            return new ElicitResult { Action = "decline" };
-
-        try
-        {
-            var requestParams = new Contract.McpServerElicitationRequestParams
-            {
-                ServerName = serverName,
-                Mode = string.IsNullOrWhiteSpace(request.Mode) ? "form" : request.Mode,
-                ElicitationId = request.ElicitationId,
-                Message = request.Message,
-                Url = request.Url,
-                RequestedSchema = ToElement(requestedSchema)
-            };
-            var response = await transport.RequestAsync(
-                Contract.AppServerRpc.McpServerElicitationRequest,
-                requestParams,
-                ct,
-                Timeout.InfiniteTimeSpan);
-
-            if (response.Result is null)
-                return new ElicitResult { Action = "cancel" };
-
-            var actionValue = ValueOrDefault(response.Result.Action) ?? "cancel";
-            var content = ValueOrDefault(response.Result.Content);
-            var action = actionValue switch
-            {
-                "accept" when requestedSchema == null
-                              || McpElicitationSchemaValidator.TryValidateContent(
-                                  requestedSchema,
-                                  content?.ToDictionary(static pair => pair.Key, static pair => pair.Value)) => "accept",
-                "accept" => "decline",
-                "decline" => "decline",
-                _ => "cancel"
-            };
-            return new ElicitResult
-            {
-                Action = action,
-                Content = action == "accept"
-                    ? content?.ToDictionary(static pair => pair.Key, static pair => pair.Value)
-                    : null
-            };
-        }
-        catch (OperationCanceledException)
-        {
-            return new ElicitResult { Action = "cancel" };
-        }
-        catch
-        {
-            return new ElicitResult { Action = "decline" };
-        }
-    }
-
-    private static bool IsSupportedElicitation(ElicitRequestParams request, out JsonObject? requestedSchema)
-    {
-        requestedSchema = null;
-        var mode = string.IsNullOrWhiteSpace(request.Mode) ? "form" : request.Mode;
-        if (string.Equals(mode, "form", StringComparison.Ordinal))
-        {
-            if (!McpElicitationSchemaValidator.TryValidateSchema(request.RequestedSchema, out var schema))
-                return false;
-            requestedSchema = schema;
-            return true;
-        }
-        if (!string.Equals(mode, "url", StringComparison.Ordinal) ||
-            !Uri.TryCreate(request.Url, UriKind.Absolute, out var uri))
-            return false;
-        return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
-               (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && uri.IsLoopback);
     }
 
     private async Task<object?> HandleMcpServerStatusListAsync(AppServerTypedRequest<Contract.McpServerStatusListParams> request, CancellationToken ct)

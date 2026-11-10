@@ -29,7 +29,7 @@ public sealed class TransportBackpressureTests
         Assert.Equal("ServerOverloaded", error.GetProperty("data").GetProperty("code").GetString());
         Assert.Equal("errors.serverOverloaded", error.GetProperty("data").GetProperty("messageKey").GetString());
 
-        var approval = peer.Transport.SendClientRequestAsync("item/approval/request", new { }, ct);
+        var approval = await peer.Transport.StartClientRequestAsync("item/approval/request", new { }, ct);
         using var serverRequest = await peer.ReceiveAsync(ct);
         await peer.SendAsync(new
         {
@@ -37,7 +37,8 @@ public sealed class TransportBackpressureTests
             id = serverRequest.RootElement.GetProperty("id").GetInt32(),
             result = new { decision = "accept" }
         }, ct);
-        var response = await approval;
+        Assert.Equal(approval.Id, serverRequest.RootElement.GetProperty("id").GetInt32());
+        var response = await approval.Response;
         Assert.Equal("accept", response.Result!.Value.GetProperty("decision").GetString());
 
         await peer.SendAsync(new { jsonrpc = "2.0", method = "initialized" }, ct);
@@ -52,6 +53,61 @@ public sealed class TransportBackpressureTests
         Assert.NotNull(notification);
         Assert.True(notification.IsNotification);
         Assert.Equal("initialized", notification.Method);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task EndedClientRequest_DropsLateResponsesWithoutBlockingLaterMessages(bool webSocket, bool timeout)
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cancelled = new CancellationTokenSource();
+        await using var peer = new TransportPeer(webSocket);
+        var pending = await peer.Transport.StartClientRequestAsync(
+            "item/approval/request", new { }, cancelled.Token,
+            timeout ? TimeSpan.Zero : Timeout.InfiniteTimeSpan);
+        using var request = await peer.ReceiveAsync(lifetime.Token);
+        Assert.Equal(pending.Id, request.RootElement.GetProperty("id").GetInt32());
+        if (timeout)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.Response.WaitAsync(lifetime.Token));
+        else
+            cancelled.Cancel();
+
+        await peer.SendAsync(new { jsonrpc = "2.0", id = pending.Id, result = new { decision = "accept" } }, lifetime.Token);
+        await peer.SendAsync(new { jsonrpc = "2.0", method = "initialized" }, lifetime.Token);
+        var notification = await peer.Transport.ReadMessageAsync(lifetime.Token);
+        Assert.NotNull(notification);
+        Assert.True(notification.IsNotification);
+        Assert.Equal("initialized", notification.Method);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.Response.WaitAsync(lifetime.Token));
+
+        var next = await peer.Transport.StartClientRequestAsync("item/approval/request", new { }, lifetime.Token);
+        using var nextRequest = await peer.ReceiveAsync(lifetime.Token);
+        Assert.NotEqual(pending.Id, next.Id);
+        Assert.Equal(next.Id, nextRequest.RootElement.GetProperty("id").GetInt32());
+        await peer.SendAsync(new { jsonrpc = "2.0", id = next.Id, result = new { decision = "decline" } }, lifetime.Token);
+        var response = await next.Response.WaitAsync(lifetime.Token);
+        Assert.Equal("decline", response.Result!.Value.GetProperty("decision").GetString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClientConnectionCloses_CancelsOutstandingResponseWait(bool webSocket)
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var peer = new TransportPeer(webSocket);
+        var pending = await peer.Transport.StartClientRequestAsync(
+            "item/approval/request", new { }, timeout: Timeout.InfiniteTimeSpan);
+        using var request = await peer.ReceiveAsync(lifetime.Token);
+        Assert.False(pending.Response.IsCompleted);
+
+        await peer.CloseClientAsync(lifetime.Token);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.Response.WaitAsync(lifetime.Token));
+        Assert.Null(await peer.Transport.ReadMessageAsync(lifetime.Token));
     }
 
     private sealed class TransportPeer : IAsyncDisposable
@@ -107,6 +163,14 @@ public sealed class TransportBackpressureTests
                 length += result.Count;
             } while (!result.EndOfMessage);
             return JsonDocument.Parse(buffer.AsMemory(0, length));
+        }
+
+        public async Task CloseClientAsync(CancellationToken ct)
+        {
+            if (_client != null)
+                await _client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Client closed", ct);
+            else
+                await _writer!.DisposeAsync();
         }
 
         public async ValueTask DisposeAsync()

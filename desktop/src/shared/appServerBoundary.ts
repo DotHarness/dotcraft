@@ -65,6 +65,7 @@ export interface RawNotificationPayload {
 export type KnownServerRequestPayload = {
   [M in keyof ServerRequestMethods]: {
     bridgeId: string
+    wireRequestId?: string | number
     connectionKey?: string
     connectionId?: string
     method: M
@@ -72,8 +73,15 @@ export type KnownServerRequestPayload = {
   }
 }[keyof ServerRequestMethods]
 
+export interface ServerRequestSettledPayload {
+  bridgeId: string
+  connectionId?: string
+  wireRequestId?: string | number
+}
+
 export interface RawServerRequestPayload {
   bridgeId: string
+  wireRequestId?: string | number
   connectionKey?: string
   connectionId?: string
   method: string

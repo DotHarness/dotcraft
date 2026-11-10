@@ -1887,7 +1887,16 @@ Notification `{ name, threadId, success, error? }`.
 
 - Form mode adds a standard MCP `requestedSchema`; the server validates accepted content against it. Unsupported schema shapes are safely declined.
 - URL mode adds an HTTPS-or-loopback `url` and `elicitationId`; the client opens it only after explicit user action and does not copy page data into `content`.
-- A disconnected or incapable client yields a stable client-unavailable failure, never approval. Elicitation may interrupt a tool call but creates no tool item.
+- Elicitation belongs to the originating invocation: `threadId` is required, `turnId` may be null for Host calls outside a Turn. It creates no additional tool Item. Its identity is the AppServer JSON-RPC request ID, not the MCP input key, URL `elicitationId`, or a client's local UI bridge ID.
+- At dispatch, the server captures the ready connections subscribed to that thread with `mcpElicitation`. The first valid response resolves the invocation's input and cancels the other waits. An invalid response or one disconnected recipient does not answer for remaining recipients. No eligible recipient, or losing all recipients, produces `mcp_elicitation_unavailable`, with structured reason `no_client` or `disconnected`, never user approval or decline.
+- Inputs without a reliable originating invocation, including unassociated legacy MCP reverse requests, fail with `mcp_elicitation_unavailable` and reason `unattributed`; the server never infers ownership from the active thread. Ordinary legacy tool calls remain supported by SDK negotiation.
+- Inputs are transient, not persisted or replayed on resume/reconnect. New connections do not take over an outstanding input. Switching foreground threads does not cancel it. Invocation cancellation or MCP connection termination ends its waits. A late response is ignored and cannot affect a later invocation.
+
+#### 22.8.9 `serverRequest/resolved`
+
+Server → client notification `{ threadId, requestId }`, where `requestId` is the original numeric server-issued JSON-RPC ID on that connection. Sent to the original connected elicitation recipients when an input is answered or otherwise ends; clients dismiss that exact request and cancel its handler without sending another response. It is not an opt-out notification. The server removes pending waits before queueing the notification on the original connection's ordered outbound queue, after the request write attempt has ended. Invocation completion does not wait for notification I/O; delivery failure closes that connection without changing the input outcome. A disconnected connection's pending handlers end with that connection and never send replies after reconnect.
+
+This notification does not change the persisted approval/user-input lifecycle in Section 7.6.
 
 ### 22.9 `mcp/test`
 

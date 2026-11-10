@@ -4,10 +4,8 @@ using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
-/// <summary>Descriptor-bound transport operations for stable AppServer contract messages.</summary>
 public static class AppServerTypedTransport
 {
-    /// <summary>Sends a bundled notification through its typed descriptor.</summary>
     public static Task NotifyContractAsync<TParams>(
         this IAppServerTransport transport,
         RpcNotification<TParams> descriptor,
@@ -26,10 +24,7 @@ public static class AppServerTypedTransport
         }, cancellationToken);
     }
 
-    /// <summary>
-    /// Sends a notification through the executable catalog when the method is known, while
-    /// retaining the raw extension path for methods owned by external modules.
-    /// </summary>
+    /// <summary>Unknown methods are sent as raw extension notifications.</summary>
     public static Task NotifyContractAsync(
         this IAppServerTransport transport,
         string method,
@@ -72,7 +67,6 @@ public static class AppServerTypedTransport
         }, cancellationToken);
     }
 
-    /// <summary>Sends a server notification bound to its typed descriptor.</summary>
     public static Task NotifyAsync<TParams>(
         this IAppServerTransport transport,
         RpcNotification<TParams> descriptor,
@@ -90,7 +84,6 @@ public static class AppServerTypedTransport
         }, cancellationToken);
     }
 
-    /// <summary>Sends a server request bound to its typed descriptor and validates the result DTO.</summary>
     public static async Task<AppServerTypedClientResponse<TResult>> RequestAsync<TParams, TResult>(
         this IAppServerTransport transport,
         RpcRequest<TParams, TResult> descriptor,
@@ -102,11 +95,12 @@ public static class AppServerTypedTransport
         if (descriptor.Direction != RpcDirection.ServerToClient)
             throw new InvalidOperationException($"Request descriptor '{descriptor.Name}' has the wrong direction for client dispatch.");
 
-        var response = await transport.SendClientRequestAsync(
+        var pending = await transport.StartClientRequestAsync(
             descriptor.Name,
             parameters,
             cancellationToken,
             timeout).ConfigureAwait(false);
+        var response = await pending.Response.ConfigureAwait(false);
         if (response.Error.HasValue)
             return new AppServerTypedClientResponse<TResult>(null, response.Error, null);
         if (!response.Result.HasValue)
@@ -126,7 +120,6 @@ public static class AppServerTypedTransport
     }
 }
 
-/// <summary>Typed client response with protocol and result-validation failures kept distinct.</summary>
 public sealed record AppServerTypedClientResponse<TResult>(
     TResult? Result,
     JsonElement? Error,
