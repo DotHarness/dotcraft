@@ -4,7 +4,7 @@ import { openWorkspaceThread } from './openWorkspaceThread'
 describe('openWorkspaceThread', () => {
   it('defers selection until a different Workspace becomes foreground', async () => {
     const switchWorkspace = vi.fn().mockResolvedValue(undefined)
-    const setPending = vi.fn()
+    const setPending = vi.fn().mockReturnValue({ requestId: 1 })
     const activateThread = vi.fn()
 
     await openWorkspaceThread({

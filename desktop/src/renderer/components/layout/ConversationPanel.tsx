@@ -42,6 +42,7 @@ interface ConversationPanelProps {
   identityWorkspacePath?: string
   projectKey?: string
   remoteWorkspace?: boolean
+  workspaceReady?: boolean
   onInteractionResponseAccepted?: () => void
   minimalComposer?: boolean
   mascotName?: string
@@ -58,6 +59,7 @@ export function ConversationPanel({
   identityWorkspacePath,
   projectKey,
   remoteWorkspace = false,
+  workspaceReady = true,
   onInteractionResponseAccepted,
   minimalComposer = false,
   mascotName,
@@ -209,7 +211,8 @@ export function ConversationPanel({
     </div>
   )
 
-  // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
+  if (!workspaceReady) return loadingIndicator
+
   if (!creating && !openingThread && (activeThreadId || openingProjectThread) && !activeThread) {
     return loadingIndicator
   }

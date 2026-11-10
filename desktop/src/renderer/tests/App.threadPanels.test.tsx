@@ -46,11 +46,12 @@ it('restores project A panels through B without interpreting the outgoing select
       return {}
     })
   })
+  const sendRequest = vi.mocked(window.api.appServer.sendRequest)
   const read = vi.spyOn(window.api.workspace.viewer.panelState, 'read')
   const closeBrowser = vi.mocked(window.api.workspace.viewer.browser.destroy)
   const closeTerminal = vi.mocked(window.api.workspace.viewer.terminal.dispose)
   useConnectionStore.getState().setStatus({
-    status: 'connected'
+    status: 'connected', connectionKey: a, connectionId: 'connection-a'
   })
   renderApp()
   await waitFor(() => expect(useThreadStore.getState().threadList).toHaveLength(1))
@@ -88,6 +89,12 @@ it('restores project A panels through B without interpreting the outgoing select
     projectsChanged?.(projectsPayloadFor(b))
   })
   await waitFor(() => expect(useDetailPanelStore.getState().currentProjectKey).toBe('c:/sample/workspace-b'))
+  expect(sendRequest.mock.calls.some(([method, params]) =>
+    method === 'thread/list' && (params as { identity?: { workspacePath?: string } })?.identity?.workspacePath === b
+  )).toBe(false)
+  act(() => {
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: b, connectionId: 'connection-b' })
+  })
   expect(read).not.toHaveBeenCalledWith({
     projectKey: 'c:/sample/workspace-b',
     threadId: 'thread-a'
@@ -98,11 +105,16 @@ it('restores project A panels through B without interpreting the outgoing select
   await waitFor(() => expect(useThreadStore.getState().threadListProjectKey).toBe('c:/sample/workspace-b'))
   act(() => useThreadStore.getState().setActiveThreadId('thread-b'))
   await waitFor(() => expect(useDetailPanelStore.getState().getCurrentScope()?.threadId).toBe('thread-b'))
+  const listRequestsBeforeReturn = sendRequest.mock.calls.filter(([method]) => method === 'thread/list').length
   act(() => {
     useDetailPanelStore.getState().setActiveDetailTab('board')
     current = a
     statusChanged?.(readyWorkspaceStatus)
     projectsChanged?.(projectsPayloadFor(a))
+  })
+  expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/list')).toHaveLength(listRequestsBeforeReturn)
+  act(() => {
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: a, connectionId: 'connection-a' })
   })
   await waitFor(() => expect(useThreadStore.getState().threadListProjectKey).toBe('c:/sample/workspace'))
   act(() => useThreadStore.getState().setActiveThreadId('thread-a'))

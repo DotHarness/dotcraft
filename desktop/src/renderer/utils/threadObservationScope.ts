@@ -1,4 +1,5 @@
 import type { AppServerConnectionSource } from '../../shared/appServerBoundary'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ServerCapabilities } from '../stores/connectionStore'
 
 export interface ThreadObservationTarget extends AppServerConnectionSource {
@@ -20,10 +21,15 @@ export interface ActiveThreadObservationState {
 
 export function resolveThreadObservationTarget(
   state: ActiveThreadObservationState,
-  threadId: string
+  threadId: string,
+  retained?: ThreadObservationTarget
 ): ThreadObservationTarget | null {
   if (!state.connected || !state.connectionKey || !state.connectionId) return null
-  if (!state.workspaceKey) return null
+  if (!state.workspaceKey || normalizeWorkspaceProjectKey(state.connectionKey) !== state.workspaceKey) return null
+  if (retained?.threadId === threadId && retained.workspaceKey === state.workspaceKey
+    && retained.connectionKey === state.connectionKey && retained.connectionId === state.connectionId) {
+    return { ...retained, capabilities: state.capabilities }
+  }
   if (state.threadListWorkspaceKey !== state.workspaceKey) return null
   if (!state.threadIds.includes(threadId)) return null
 

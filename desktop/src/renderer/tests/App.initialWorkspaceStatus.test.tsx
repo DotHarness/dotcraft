@@ -93,7 +93,9 @@ describe('App initial workspace status bootstrap', () => {
       onProjectsChange,
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-a'
+    })
 
     renderApp()
 
@@ -115,6 +117,14 @@ describe('App initial workspace status bootstrap', () => {
     await waitFor(() => {
       expect(useThreadStore.getState().threadList).toEqual([])
       expect(useThreadStore.getState().threadListProjectKey).toBeNull()
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/list', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: workspaceBStatus.workspacePath })
+    }))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: workspaceBStatus.workspacePath, connectionId: 'connection-b'
+      })
     })
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.some((call) => {
@@ -164,7 +174,9 @@ describe('App initial workspace status bootstrap', () => {
       onWorkspaceStatusChange,
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-a'
+    })
 
     renderApp()
 
@@ -174,6 +186,14 @@ describe('App initial workspace status bootstrap', () => {
 
     act(() => {
       emitStatus?.(workspaceBStatus)
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/list', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: workspaceBStatus.workspacePath })
+    }))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: workspaceBStatus.workspacePath, connectionId: 'connection-b'
+      })
     })
 
     await waitFor(() => {
@@ -222,7 +242,9 @@ describe('App initial workspace status bootstrap', () => {
       onProjectsChange,
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-a'
+    })
 
     renderApp()
     await waitFor(() => {
@@ -240,6 +262,14 @@ describe('App initial workspace status bootstrap', () => {
     act(() => {
       emitStatus?.(workspaceBStatus)
       emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/list', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: workspaceBStatus.workspacePath })
+    }))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: workspaceBStatus.workspacePath, connectionId: 'connection-b'
+      })
     })
 
     await waitFor(() => {
@@ -299,7 +329,9 @@ describe('App initial workspace status bootstrap', () => {
       }),
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-a'
+    })
 
     renderApp()
     await waitFor(() => {
@@ -314,6 +346,14 @@ describe('App initial workspace status bootstrap', () => {
       })
       emitStatus?.(workspaceBStatus)
       emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/list', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: workspaceBStatus.workspacePath })
+    }))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: workspaceBStatus.workspacePath, connectionId: 'connection-b'
+      })
     })
 
     await waitFor(() => {
@@ -357,7 +397,9 @@ describe('App initial workspace status bootstrap', () => {
       }),
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
     })
-    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useConnectionStore.getState().setStatus({
+      status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-a'
+    })
 
     renderApp()
     await waitFor(() => {
@@ -372,6 +414,14 @@ describe('App initial workspace status bootstrap', () => {
       })
       emitStatus?.(workspaceBStatus)
       emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/list', expect.objectContaining({
+      identity: expect.objectContaining({ workspacePath: workspaceBStatus.workspacePath })
+    }))
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: workspaceBStatus.workspacePath, connectionId: 'connection-b'
+      })
     })
 
     await waitFor(() => {
