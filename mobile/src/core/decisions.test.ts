@@ -118,19 +118,18 @@ describe('plan confirmation', () => {
     expect(next.details[key].currentPlanTurnId).toBe(original)
     const turnId = 'revised-plan'
     const createdAt = '2026-11-07T00:00:00Z'
-    next = computerReducer(next, { type: 'currentPlan', key, content: 'Revised plan' })
+    const plan = '# Revised plan\n\nShip it.'
+    next = computerReducer(next, { type: 'currentPlan', key, content: 'Ship it.' })
     next = computerReducer(next, { type: 'history', key, event: { kind: 'turn', turn: {
       id: turnId, threadId: next.chats[key].threadId, status: 'completed', startedAt: createdAt,
       items: [
         { id: 'revised-call', turnId, type: 'toolCall', status: 'completed', createdAt,
-          payload: { toolName: 'CreatePlan', callId: 'revised', arguments: { plan: 'Revised plan' } } },
+          payload: { toolName: 'CreatePlan', callId: 'revised', arguments: { plan } } },
         { id: 'revised-result', turnId, type: 'toolResult', status: 'completed', createdAt,
           payload: { callId: 'revised', success: true } },
       ],
     } } })
     expect(implementationTurn(next.details[key], next.chats[key].runtime)).toBe(turnId)
-    next = computerReducer(next, { type: 'currentPlan', key, content: 'An unrelated plan' })
-    expect(implementationTurn(next.details[key], next.chats[key].runtime)).toBeNull()
   })
 
   it('sends nothing and reports the failure when the switch to agent fails', async () => {

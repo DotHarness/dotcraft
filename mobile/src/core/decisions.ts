@@ -11,8 +11,7 @@ export function implementationTurn(detail: ChatDetail | undefined, runtime: Thre
   if (detail.currentPlanTurnId && detail.currentPlanTurnId !== turn.id) return null
   const items = detail.history.items.filter((item) => item.turnId === turn.id)
   const call = items.findLast((item) => item.type === 'toolCall' && item.payload.toolName === 'CreatePlan')
-  const args = call?.payload.arguments as { plan?: string } | undefined
-  if (!call || args?.plan !== detail.currentPlan) return null
+  if (!call) return null
   return items.some((item) => item.type === 'toolResult' && item.payload.callId === call.payload.callId && item.payload.success === true)
     ? turn.id : null
 }
