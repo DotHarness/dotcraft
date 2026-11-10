@@ -698,6 +698,7 @@
           "method": "mcpServer/elicitation/request",
           "params": {
             "serverName": "fixture-server",
+            "threadId": "thread_fixture",
             "mode": "form",
             "message": "Provide a fixture value.",
             "requestedSchema": {
