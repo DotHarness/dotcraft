@@ -54,6 +54,26 @@ describe('Desktop thread navigation', () => {
     expect(useThreadStore.getState().threadList).toHaveLength(0)
   })
 
+  it('ignores an archived read after a foreground workspace round trip on retained connections', async () => {
+    const read = deferred<{ thread: { id: string; status: string } }>()
+    installDesktopApiMock({ appServer: { sendRequest: vi.fn().mockReturnValue(read.promise) } })
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: '/a', connectionId: 'connection-a' })
+    const opening = openThread('archived', undefined, { includeArchived: true })
+    for (const path of ['/b', '/a']) {
+      useWorkspaceProjectsStore.getState().setPayload({
+        foregroundWorkspacePath: path, foregroundProjectId: path, secondaryLimit: 8, projects: []
+      })
+      useConnectionStore.getState().setStatus({
+        status: 'connected', connectionKey: path, connectionId: path === '/a' ? 'connection-a' : 'connection-b'
+      })
+      useThreadStore.getState().resetForeground()
+    }
+    read.resolve({ thread: { id: 'archived', status: 'archived' } })
+    await opening
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(useThreadStore.getState().threadList).toHaveLength(0)
+  })
+
   it('selects a foreground thread without waiting for the projects payload', async () => {
     useWorkspaceProjectsStore.getState().reset()
     await openThread('thread-b')

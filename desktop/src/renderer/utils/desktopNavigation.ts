@@ -31,6 +31,7 @@ export async function openThread(threadId: string, workspacePath?: string, optio
         const result = await window.api.appServer.sendRequest('thread/read', { threadId: targetThreadId }) as unknown as { thread: ThreadSummary }
         const currentConnection = useConnectionStore.getState()
         if (!isThreadNavigationCurrent(requestId)
+          || currentConnection.connectionEpoch !== connection.connectionEpoch
           || currentConnection.connectionKey !== connection.connectionKey
           || currentConnection.connectionId !== connection.connectionId
           || currentConnection.status !== connection.status
