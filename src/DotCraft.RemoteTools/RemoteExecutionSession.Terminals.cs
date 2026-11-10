@@ -65,21 +65,21 @@ public sealed partial class RemoteExecutionSession
             return _threadReleases.GetValueOrDefault(threadId);
     }
 
-    private void ReportStartedTerminals(JsonNode? node, ToolInvocationContext context, int releases)
+    private void ReportStartedTerminals(JsonNode? node, string threadId, string? turnId, string callId, int releases)
     {
         var notices = new List<BackgroundTerminalEvent>();
         lock (_stateGate)
         {
-            var released = _threadReleases.GetValueOrDefault(context.ThreadId) != releases;
+            var released = _threadReleases.GetValueOrDefault(threadId) != releases;
             foreach (var started in node?.Deserialize<BackgroundTerminalSnapshot[]>(RemoteToolHostProtocol.JsonOptions) ?? [])
             {
                 _earlyTerminalEvents.Remove(started.SessionId, out var early);
                 if (!started.CompletionNoticeArmed) continue;
                 var terminal = new RemoteTerminal(started with
                 {
-                    ThreadId = context.ThreadId,
-                    TurnId = context.TurnId,
-                    CallId = context.CallId
+                    ThreadId = threadId,
+                    TurnId = turnId,
+                    CallId = callId
                 });
                 foreach (var held in early ?? [])
                     Apply(terminal, held, notices);

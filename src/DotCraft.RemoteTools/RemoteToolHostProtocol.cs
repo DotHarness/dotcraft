@@ -125,7 +125,10 @@ internal sealed record WorkspaceCatalogEntry(
     string Path,
     bool Busy,
     string? BusyOwner = null,
-    DateTimeOffset? LeaseExpiresAt = null);
+    DateTimeOffset? LeaseExpiresAt = null)
+{
+    public IReadOnlyList<RemoteHostPluginInfo> Plugins { get; init; } = [];
+}
 internal sealed record RemoteCatalogScope(string LeaseId, string WorkspaceId, string ThreadId);
 internal sealed record WorkspaceAcquireRequest(
     string ProfileVersion,

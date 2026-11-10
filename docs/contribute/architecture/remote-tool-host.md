@@ -98,6 +98,36 @@ The Agent uses `Transfer` to copy scripts, directories, or CLI files needed remo
 
 Connect negotiates tools and file transfer support before publishing the route. If connection setup fails, the previous route remains. Upgrade Satellites that lack file transfer support before connecting.
 
+## Embed Host-installed tools
+
+To expose installed .NET plugins from an embedded, paired Host, set `HostPluginsDirectory` before running it. Unset hosts do not load local plugins.
+
+```csharp
+await using var host = RemoteToolHostRuntime.Create(new()
+{
+    HostPluginsDirectory = pluginsDirectory
+});
+await host.RunAsync(stoppingToken);
+```
+
+Subscribe to `host.Diagnostic` for plugin loading failures. Restart the Host to reload changed plugin content.
+
+On the client, open a session with your application's authenticated `RemoteToolHostConnection`, then list and invoke its exported definitions:
+
+```csharp
+await using var execution = new RemoteExecutionClient();
+await using var session = await execution.OpenSessionAsync(
+    executionSessionId, hostId, workspaceId, connection, cancellationToken);
+var tools = await session.ListExportedToolsAsync(threadId, cancellationToken);
+var tool = tools.Single(item => item.Name == requestedToolName);
+var result = await session.InvokeAsync(tool, threadId, arguments,
+    cancellationToken: cancellationToken);
+```
+
+`session.HostPlugins` provides loaded plugin IDs, versions, and installation roots. Use an exported `ReadFile` to read their skills under the existing Host file permissions.
+
+This embedding API does not register tools with DotCraft's Agent.
+
 ## End a pairing
 
 ```powershell

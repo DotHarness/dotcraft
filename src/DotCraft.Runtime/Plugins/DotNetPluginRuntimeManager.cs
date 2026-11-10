@@ -47,7 +47,8 @@ internal sealed partial class DotNetPluginRuntimeManager :
         ILogger<DotNetPluginRuntimeManager>? logger = null,
         IPluginDotnetTrustStore? trustStore = null,
         PluginConfigStore? pluginConfigStore = null,
-        bool executionOnly = false)
+        bool executionOnly = false,
+        bool installedExecution = false)
     {
         _discovery = discovery;
         _config = config;
@@ -64,7 +65,7 @@ internal sealed partial class DotNetPluginRuntimeManager :
             "runtime",
             "plugins",
             $"{Environment.ProcessId}-{Guid.NewGuid():N}"),
-            executionOnly ? Path.Combine(paths.Data.RootPath, "plugins") : null);
+            executionOnly && !installedExecution ? Path.Combine(paths.Data.RootPath, "plugins") : null);
         _reclaim = new PluginReclaimPoller(_options, ReclaimAsync, _bundleStore.DeleteGeneration, logger);
         CallGates = new PluginCallGateRegistry();
         ToolSource = new DotNetPluginToolSource(contributions, CallGates, ExportAsync);

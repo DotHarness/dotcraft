@@ -98,6 +98,36 @@ Agent 按需使用 `Transfer` 复制远端需要的脚本、目录或 CLI 文件
 
 Connect 协商工具和文件传输能力后才发布路由，连接建立失败时保留之前的路由。不支持文件传输的卫星需要先升级再连接。
 
+## 嵌入 Host 本机插件工具
+
+嵌入应用在运行已配对的 Host 前，设置 `HostPluginsDirectory` 即可提供其中的 .NET 插件工具。未设置时不加载本机插件。
+
+```csharp
+await using var host = RemoteToolHostRuntime.Create(new()
+{
+    HostPluginsDirectory = pluginsDirectory
+});
+await host.RunAsync(stoppingToken);
+```
+
+订阅 `host.Diagnostic` 获取插件加载失败的原因。插件内容变化后，重启 Host 重新加载。
+
+客户端使用应用已认证的 `RemoteToolHostConnection` 打开会话，即可列举并调用其导出的定义：
+
+```csharp
+await using var execution = new RemoteExecutionClient();
+await using var session = await execution.OpenSessionAsync(
+    executionSessionId, hostId, workspaceId, connection, cancellationToken);
+var tools = await session.ListExportedToolsAsync(threadId, cancellationToken);
+var tool = tools.Single(item => item.Name == requestedToolName);
+var result = await session.InvokeAsync(tool, threadId, arguments,
+    cancellationToken: cancellationToken);
+```
+
+`session.HostPlugins` 返回已加载插件的 ID、版本和安装根目录。使用导出的 `ReadFile` 读取其 skill，沿用 Host 现有文件权限。
+
+此嵌入 API 不会向 DotCraft Agent 注册工具。
+
 ## 解除配对
 
 ```powershell

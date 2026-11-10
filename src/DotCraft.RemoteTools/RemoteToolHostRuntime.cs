@@ -17,6 +17,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     private readonly string _displayName;
     private IRemoteToolApprovalPresenter? _approvalPresenter;
     private readonly TimeSpan? _heartbeatInterval;
+    private string? _hostPluginsDirectory;
     private readonly Func<IScreenCaptureSource> _screenCapture;
     private readonly object _gate = new();
     private RemoteToolHostOutboundHost? _host;
@@ -51,7 +52,11 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         var displayName = string.IsNullOrWhiteSpace(options?.DisplayName)
             ? Environment.MachineName
             : options.DisplayName.Trim();
-        return new RemoteToolHostRuntime(storage, displayName) { _approvalPresenter = options?.ApprovalPresenter };
+        return new RemoteToolHostRuntime(storage, displayName)
+        {
+            _approvalPresenter = options?.ApprovalPresenter,
+            _hostPluginsDirectory = options?.HostPluginsDirectory is { } directory ? Path.GetFullPath(directory) : null
+        };
     }
 
     /// <summary>Current lifecycle state.</summary>
@@ -97,7 +102,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
     /// <summary>Raised whenever <see cref="Turns"/> changes; read it for the current list.</summary>
     public event EventHandler? TurnsChanged;
 
-    internal event Action<RemoteToolHostDiagnostic>? Diagnostic;
+    public event Action<RemoteToolHostDiagnostic>? Diagnostic;
 
     /// <summary>
     /// Takes the machine-wide serve lock and connects every pairing, raising setup and pairing
@@ -115,7 +120,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
                 _heartbeatInterval,
                 _approvalPresenter,
                 _screenCapture,
-                ReportDiagnostic);
+                ReportDiagnostic,
+                _hostPluginsDirectory);
             host.Prepare();
             host.Changed += Refresh;
             _host = host;

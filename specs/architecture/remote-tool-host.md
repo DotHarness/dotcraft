@@ -67,6 +67,10 @@ authorization apply even when a connection or tool catalog is reused.
 The common execution layer is explicitly enabled and does not start local-Hub discovery. DotCraft's
 Hub integration and the connection-management tools in §6 belong to its product adapter.
 
+`RemoteExecutionSession` lets embedding applications list and invoke Host-exported definitions
+without local registrations. This API does not publish tools to the DotCraft Agent or expand
+`IRemoteToolHostClient`'s mirrored tool surface.
+
 ## 3. RPC eligibility
 
 `ToolRpcAttribute` is a parameterless method marker used alongside `ToolAttribute` or
@@ -106,9 +110,10 @@ The hash excludes runtime-binding identity, presentation metadata, workspace pat
 instance provenance, and connection state. Object properties are ordinally sorted recursively and
 numbers use their canonical JSON representation before SHA-256 is calculated.
 
-The Host exports RPC-eligible Core Native registrations and prepared .NET extension registrations.
-A `PluginNative` label alone does not qualify a source: the Agent runtime must own its accepted
-bundle and live generation. Every exported MCP tool carries this metadata:
+The Host exports RPC-eligible Core Native registrations, explicitly enabled Host-installed .NET
+extension registrations (§13.1), and prepared .NET extension registrations. A `PluginNative` label
+alone does not qualify a source: plugin registrations must retain an accepted executable source and
+live generation. Every exported MCP tool carries this metadata:
 
 ```json
 {
@@ -130,8 +135,12 @@ result additionally carries the Host build version, a catalog digest over the so
 `definitionId:contractHash` pairs, and a per-tool contract summary, so the Agent can explain a
 mismatch before any call is made.
 
-The Agent compares the remote descriptor with its existing local registration. Host-only tools are
-ignored. A missing or mismatched remote descriptor makes that local tool unavailable while the
+The embedded execution API returns tool names, descriptions, schemas, definition IDs, contract hashes,
+and prepared binding/snapshot metadata. A returned definition is callable only in its captured
+execution session and thread. The default Agent integration matches local registrations and ignores
+Host-only tools.
+
+For the default Agent integration, a missing or mismatched remote descriptor makes that local tool unavailable while the
 thread is remotely routed; it does not cause local execution. Other matching RPC-eligible tools
 remain usable. The connect result names each unavailable tool with a stable reason code
 (`RemoteToolUnavailable` when the Host does not export it, `ToolContractMismatch` when the hash
@@ -474,6 +483,10 @@ The Host also sends the notification `dotcraft/remoteToolHost/terminals/event` (
 
 The list result includes `hostId`, `hostInstanceId`, `catalogRevision`, `buildVersion`,
 `catalogDigest`, per-tool contract summaries, and safe workspace descriptors with lease state.
+Each authorized workspace also reports its Active Host-installed plugins by id, version, and original
+installation root. Discovery awaits that workspace's plugin initialization without acquiring an
+execution lease. Plugin roots remain subject to existing file policies; listing a root grants no
+additional read or write authority.
 Acquire accepts `workspaceId` and returns `leaseId`, expiry, and environment summary. Release
 accepts the connection's `leaseId`. Heartbeat renews that lease using its process owner identity.
 Execution Thread release cancels and drains the named Thread before releasing its resources; clearing
@@ -760,6 +773,23 @@ another owner acquires the workspace. Thread release invokes thread-scoped clean
 closure cleans all of its prepared Threads without invalidating sibling sessions' references to the
 shared generation. Final lease release disposes the complete execution runtime. Verified package
 files may remain on disk.
+
+### 13.1 Host-installed .NET extensions
+
+`RemoteToolHostRuntimeOptions.HostPluginsDirectory` is unset by default. When configured, the
+execution-only loader admits fingerprint-qualified content from that directory only, using ordinary
+preflight and dependency planning without mutating global trust. Failed plugins and their dependants
+are excluded with public diagnostics; independent plugins remain available.
+
+Host-installed and prepared sources use separate workspace-owned runtimes and accepted storage.
+Installed registrations are projected per session-scoped thread and follow the execution resource
+lifecycle in §5.2. Final workspace drain or Host shutdown disposes the runtime. Initialization and
+drain share workspace ownership; installed content remains fixed until the next initialization.
+
+The catalog combines RPC-eligible native, Host-installed, and current-thread prepared registrations,
+quarantining canonical-name conflicts under ordinary snapshot rules. Prepared calls retain exact
+binding/snapshot/generation checks; unbound calls resolve only native or Host-installed tools. Both
+use the invocation policy in §7, never silently switching sources.
 
 ## 14. Generated image artifacts
 

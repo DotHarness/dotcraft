@@ -77,20 +77,26 @@ public sealed class RemoteToolHostRuntimeOptions
 
     /// <summary>Name shown to paired machines; defaults to the machine name.</summary>
     public string? DisplayName { get; set; }
+
+    /// <summary>Explicit local plugin root; unset hosts do not load installed plugins.</summary>
+    public string? HostPluginsDirectory { get; set; }
 }
 
-internal enum RemoteToolHostDiagnosticLevel
+public sealed record RemoteHostPluginInfo(string Id, string Version, string RootPath);
+
+public enum RemoteToolHostDiagnosticLevel
 {
     Information,
     Warning,
     Error
 }
 
-internal sealed record RemoteToolHostDiagnostic(
+public sealed record RemoteToolHostDiagnostic(
     RemoteToolHostDiagnosticLevel Level,
     string EventName,
     string Message,
-    Exception? Exception = null);
+    Exception? Exception = null,
+    string? PluginId = null);
 
 internal sealed class RemoteToolHostActivityMonitor
 {

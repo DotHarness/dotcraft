@@ -26,14 +26,16 @@ internal sealed class RemoteToolHostOutboundHost : IAsyncDisposable
         TimeSpan? heartbeatInterval = null,
         IRemoteToolApprovalPresenter? approvalPresenter = null,
         Func<IScreenCaptureSource>? screenCapture = null,
-        Action<RemoteToolHostDiagnostic>? diagnostic = null)
+        Action<RemoteToolHostDiagnostic>? diagnostic = null,
+        string? hostPluginsDirectory = null)
     {
         _storage = storage;
         _heartbeatInterval = heartbeatInterval;
         _screenCapture = screenCapture is not null && HasCaptureBackend(screenCapture) ? screenCapture : null;
         _diagnostic = diagnostic;
         Leases = new WorkspaceLeaseManager(onChanged: () => Changed?.Invoke());
-        _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused, diagnostic);
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, activity, approvalPresenter, () => _paused, diagnostic,
+            hostPluginsDirectory);
     }
 
     public event Action? Changed;

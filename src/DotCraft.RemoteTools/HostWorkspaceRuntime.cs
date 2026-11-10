@@ -16,6 +16,8 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
     private readonly ExecutionSessionTerminalService _terminals;
     private readonly LspServerManager? _lsp;
     private readonly Lazy<PluginExecutionWorkspace> _plugins;
+    private readonly HostInstalledPluginWorkspace? _installed;
+    private readonly string _workspaceData;
     private readonly object _lifetimeGate = new();
     private Task? _disposal;
 
@@ -24,13 +26,17 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         IReadOnlyList<ToolRegistration> registrations,
         ExecutionSessionTerminalService terminals,
         LspServerManager? lsp,
-        Func<PluginExecutionWorkspace> plugins)
+        Func<PluginExecutionWorkspace> plugins,
+        HostInstalledPluginWorkspace? installed,
+        string workspaceData)
     {
         WorkspacePath = workspacePath;
         Registrations = registrations;
         _terminals = terminals;
         _lsp = lsp;
         _plugins = new(plugins);
+        _installed = installed;
+        _workspaceData = workspaceData;
     }
 
     public string WorkspacePath { get; }
@@ -47,10 +53,21 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             }
         }
     }
-    internal IReadOnlyList<ToolRegistration> PluginRegistrations(string? threadId) =>
+    internal IReadOnlyList<RemoteHostToolExport> PluginRegistrations(string threadId) =>
         _plugins.IsValueCreated ? _plugins.Value.List(threadId) : [];
-    internal Task ReleasePluginThreadAsync(string threadId, CancellationToken ct) =>
-        _plugins.IsValueCreated ? _plugins.Value.ReleaseThreadAsync(threadId, ct) : Task.CompletedTask;
+    internal async Task ReleasePluginThreadAsync(string threadId, CancellationToken ct)
+    {
+        if (_plugins.IsValueCreated) await _plugins.Value.ReleaseThreadAsync(threadId, ct).ConfigureAwait(false);
+        if (_installed is not null) await _installed.ReleaseThreadAsync(threadId, ct).ConfigureAwait(false);
+    }
+
+    internal async ValueTask<IReadOnlyList<ToolRegistration>> LocalRegistrationsAsync(string threadId, CancellationToken ct)
+    {
+        if (_installed is null) return Registrations;
+        var context = CreatePlanningContext("host-installed", WorkspacePath, _workspaceData, 0, threadId);
+        var plugins = await _installed.GetRegistrationsAsync(context, ct).ConfigureAwait(false);
+        return [.. Registrations, .. plugins.Where(RemoteToolMetadata.IsRpcEligible)];
+    }
 
     public Task InitializeLspAsync(CancellationToken ct) => _lsp?.InitializeAsync(ct) ?? Task.CompletedTask;
 
@@ -68,7 +85,8 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         string executionSessionId,
         Func<PluginExecutionWorkspace> plugins,
         ILogger<BackgroundTerminalService> logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HostInstalledPluginWorkspace? installed = null)
     {
         var config = AppConfig.Load(globalConfigPath);
         var workspaceData = Path.Combine(hostDataPath, "workspaces", workspaceId, "sessions", executionSessionId);
@@ -93,7 +111,9 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
                 [.. registrations.Where(item => RemoteToolMetadata.IsRpcEligible(item.Definition))],
                 terminals,
                 lsp,
-                plugins);
+                plugins,
+                installed,
+                workspaceData);
         }
         catch
         {
@@ -233,8 +253,9 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         string workspaceId,
         string workspacePath,
         string workspaceData,
-        long catalogRevision) => new(
-            $"remote-host:{workspaceId}",
+        long catalogRevision,
+        string? threadId = null) => new(
+            threadId ?? $"remote-host:{workspaceId}",
             turnId: null,
             workspacePath,
             workspaceData,
