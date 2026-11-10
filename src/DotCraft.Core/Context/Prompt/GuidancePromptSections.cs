@@ -45,7 +45,7 @@ internal static class GuidancePromptSections
             rules.Add("- If `RequestUserInput` returns no answers, continue with your best judgment instead of asking again or waiting for a reply.");
         }
         if (hasAsyncMessage)
-            rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings, and replies during ongoing work on the app surface. Use commentary for routine progress.");
+            rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings, and replies during ongoing work on the app surface.");
         if (hasAsyncMessage)
             rules.Add("- After an asynchronous question, continue every authorized task that does not depend on the answer.");
         rules.Add("- Do not repeat the same question, authorization request, or status in both an asynchronous message and the final answer.");

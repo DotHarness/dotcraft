@@ -66,9 +66,9 @@ app and terminal surfaces.
 
 Working style owns progress messages and turn closure. User coordination describes app-surface
 questions and waiting, while channel reply routing stays in `channel-replies`. Response style owns expression,
-information selection, formatting, and self-contained final answers. Change-reporting guidance applies
-when reporting technical changes, rather than imposing a delivery checklist on every answer. Local file
-links follow the file-references section.
+information selection, formatting, and self-contained final answers. Outcome reporting states failures,
+skipped steps, and unverified claims first rather than imposing a delivery checklist on every answer.
+Local file links follow the file-references section.
 
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 A tool counts as available when the model can call it in the Turn: directly, through Code Mode, or
