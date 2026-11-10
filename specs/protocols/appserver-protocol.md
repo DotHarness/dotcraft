@@ -1894,7 +1894,7 @@ Notification `{ name, threadId, success, error? }`.
 
 #### 22.8.9 `serverRequest/resolved`
 
-Server → client notification `{ threadId, requestId }`, where `requestId` is the original numeric server-issued JSON-RPC ID on that connection. Sent to the original connected elicitation recipients when an input is answered or otherwise ends; clients dismiss that exact request and cancel its handler without sending another response. It is not an opt-out notification. The server removes pending waits even if notification delivery fails. A disconnected connection's pending handlers end with that connection and never send replies after reconnect.
+Server → client notification `{ threadId, requestId }`, where `requestId` is the original numeric server-issued JSON-RPC ID on that connection. Sent to the original connected elicitation recipients when an input is answered or otherwise ends; clients dismiss that exact request and cancel its handler without sending another response. It is not an opt-out notification. The server removes pending waits before queueing the notification on the original connection's ordered outbound queue, after the request write attempt has ended. Invocation completion does not wait for notification I/O; delivery failure closes that connection without changing the input outcome. A disconnected connection's pending handlers end with that connection and never send replies after reconnect.
 
 This notification does not change the persisted approval/user-input lifecycle in Section 7.6.
 

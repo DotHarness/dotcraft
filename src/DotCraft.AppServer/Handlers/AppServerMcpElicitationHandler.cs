@@ -107,16 +107,12 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
                 catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
                 if (!connection.IsClosed)
                 {
-                    try
-                    {
-                        await transport.NotifyContractAsync(Contract.AppServerRpc.ServerRequestResolved,
-                            new Contract.ServerRequestResolvedNotification
-                            {
-                                ThreadId = parameters.ThreadId,
-                                RequestId = pending.Id
-                            });
-                    }
-                    catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
+                    connection.QueueThreadNotification(transport, Contract.AppServerRpc.ServerRequestResolved.Name,
+                        new Contract.ServerRequestResolvedNotification
+                        {
+                            ThreadId = parameters.ThreadId,
+                            RequestId = pending.Id
+                        });
                 }
             }
         }
