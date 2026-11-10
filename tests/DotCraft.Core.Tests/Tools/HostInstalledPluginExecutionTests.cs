@@ -236,6 +236,39 @@ public sealed class HostInstalledPluginExecutionTests
         Assert.Contains(reloaded!.Plugins, plugin => plugin.Id == "probe");
     }
 
+    [Fact]
+    public async Task WorkspaceDrain_DoesNotDisposeReplacementOwner_AfterOldLeaseFinishes()
+    {
+        using var plugins = new PluginRuntimeHarness();
+        RemotePluginFixture.Write(plugins);
+        using var home = new TemporaryDirectory();
+        using var workspace = new TemporaryDirectory();
+        Action? reopen = null;
+        using var leases = new WorkspaceLeaseManager(onChanged: () => reopen?.Invoke());
+        await using var host = new RemoteToolHostExecutionHost(Setup(home.Path, workspace.Path), leases,
+            hostPluginsDirectory: Path.GetDirectoryName(plugins.PluginRoot("probe")));
+        await host.InstalledPluginsAsync("workspace", workspace.Path, default);
+        leases.Acquire("old", "workspace", workspace.Path, host.InstanceId, 1);
+        Task<HostInstalledPluginWorkspace?>? replacement = null;
+        reopen = () =>
+        {
+            if (leases.GetStatus("workspace") is not null) return;
+            reopen = null;
+            replacement = host.InstalledPluginsAsync("workspace", workspace.Path, default);
+            leases.Acquire("next", "workspace", workspace.Path, host.InstanceId, 1);
+        };
+
+        await host.DrainWorkspaceAsync("workspace").WaitAsync(TimeSpan.FromSeconds(15));
+
+        var current = await replacement!;
+        var registrations = await current!.GetRegistrationsAsync(PluginRuntimeHarness.PlanningContext(1, "thread"), default);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(registrations, 1);
+        var result = await new ToolDispatcher().DispatchAsync(snapshot, new("Probe", "Run"),
+            new JsonObject { ["operation"] = "read" },
+            new("thread", "turn", "call", ToolInvocationAudience.Host));
+        Assert.True(result.Success, result.Error?.Message);
+    }
+
     private static RemoteToolHostStorage Setup(string home, string workspace)
     {
         var storage = new RemoteToolHostStorage(home);
