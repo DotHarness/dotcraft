@@ -48,8 +48,6 @@ public sealed class PluginDiscoveryService(
     string? craftHome = null,
     ILogger? logger = null)
 {
-    private const string RemovedBrowserUsePluginId = "browser-use";
-
     public PluginDiscoveryService(
         DotCraft.Workspaces.DotCraftPaths paths,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
@@ -83,58 +81,9 @@ public sealed class PluginDiscoveryService(
         RefreshManagedBuiltInPlugins(config, diagnostics);
         LogStage("plugin-managed-built-in-refresh");
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
-        var discovered = new List<DiscoveredPlugin>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var candidate in candidates)
-        {
-            var parse = PluginManifestParser.Load(candidate.PluginRoot);
-            diagnostics.AddRange(parse.Diagnostics);
-            var manifest = parse.Manifest;
-            if (manifest == null)
-                continue;
-
-            if (IsRemovedPluginId(manifest.Id))
-            {
-                diagnostics.Add(PluginDiagnostic.Info(
-                    "RemovedPluginIgnored",
-                    "Removed Browser plugin id is ignored; install the built-in 'browser' plugin instead.",
-                    manifest.Id,
-                    path: manifest.ManifestPath));
-                continue;
-            }
-
-            if (!seen.Add(manifest.Id))
-            {
-                diagnostics.Add(PluginDiagnostic.Warning(
-                    "DuplicatePluginId",
-                    $"Plugin '{manifest.Id}' was skipped because a higher-priority root already provided it.",
-                    manifest.Id,
-                    path: manifest.ManifestPath));
-                continue;
-            }
-
-            var enabled = config.Plugins.IsPluginEnabled(manifest.Id);
-            if (!enabled)
-            {
-                diagnostics.Add(PluginDiagnostic.Info(
-                    "PluginDisabled",
-                    $"Plugin '{manifest.Id}' is disabled by configuration.",
-                    manifest.Id,
-                    path: manifest.ManifestPath));
-            }
-
-            var removable = candidate.SourceKind is PluginDiscoverySourceKind.Workspace or PluginDiscoverySourceKind.UserGlobal
-                            && IsStrictPathWithinDirectory(manifest.RootPath, candidate.SourceRoot);
-            discovered.Add(new DiscoveredPlugin(
-                manifest,
-                candidate.SourceKind,
-                candidate.SourceRoot,
-                enabled,
-                Installed: true,
-                Installable: false,
-                Removable: removable));
-        }
+        var discovered = DiscoverCandidates(config, candidates, diagnostics);
+        var seen = discovered.Select(static plugin => plugin.Manifest.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         LogStage("plugin-local-manifests");
         var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins, craftHome).Discover();
@@ -174,6 +123,72 @@ public sealed class PluginDiscoveryService(
         }
     }
 
+    public PluginDiscoveryResult DiscoverDirectory(string directory, AppConfig config)
+    {
+        var diagnostics = new List<PluginDiagnostic>();
+        var root = Path.GetFullPath(directory);
+        if (!Directory.Exists(root))
+        {
+            diagnostics.Add(PluginDiagnostic.Info("PluginRootMissing",
+                $"Plugin root '{root}' does not exist.", path: root));
+            return new PluginDiscoveryResult([], diagnostics);
+        }
+
+        var candidates = ExpandRoot(root)
+            .Select(pluginRoot => new PluginCandidate(pluginRoot, PluginDiscoverySourceKind.Explicit, root));
+        return new PluginDiscoveryResult(
+            PluginDependencyCatalogProjection.Attach(DiscoverCandidates(config, candidates, diagnostics)),
+            PluginDiagnostic.Deduplicate(diagnostics));
+    }
+
+    private static List<DiscoveredPlugin> DiscoverCandidates(
+        AppConfig config, IEnumerable<PluginCandidate> candidates, List<PluginDiagnostic> diagnostics)
+    {
+        var discovered = new List<DiscoveredPlugin>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in candidates)
+        {
+            var parse = PluginManifestParser.Load(candidate.PluginRoot);
+            diagnostics.AddRange(parse.Diagnostics);
+            var manifest = parse.Manifest;
+            if (manifest == null)
+                continue;
+
+            if (!seen.Add(manifest.Id))
+            {
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "DuplicatePluginId",
+                    $"Plugin '{manifest.Id}' was skipped because a higher-priority root already provided it.",
+                    manifest.Id,
+                    path: manifest.ManifestPath));
+                continue;
+            }
+
+            var enabled = config.Plugins.IsPluginEnabled(manifest.Id);
+            if (!enabled)
+            {
+                diagnostics.Add(PluginDiagnostic.Info(
+                    "PluginDisabled",
+                    $"Plugin '{manifest.Id}' is disabled by configuration.",
+                    manifest.Id,
+                    path: manifest.ManifestPath));
+            }
+
+            var removable = candidate.SourceKind is PluginDiscoverySourceKind.Workspace or PluginDiscoverySourceKind.UserGlobal
+                            && IsStrictPathWithinDirectory(manifest.RootPath, candidate.SourceRoot);
+            discovered.Add(new DiscoveredPlugin(
+                manifest,
+                candidate.SourceKind,
+                candidate.SourceRoot,
+                enabled,
+                Installed: true,
+                Installable: false,
+                Removable: removable));
+        }
+
+        return discovered;
+    }
+
     private void RefreshManagedBuiltInPlugins(
         AppConfig config,
         List<PluginDiagnostic> diagnostics)
@@ -190,8 +205,6 @@ public sealed class PluginDiscoveryService(
             var parse = PluginManifestParser.Load(pluginRoot);
             diagnostics.AddRange(parse.Diagnostics);
             if (parse.Manifest == null)
-                continue;
-            if (IsRemovedPluginId(parse.Manifest.Id))
                 continue;
             // .NET bundle bytes may change only through the coordinated update transaction.
             if (parse.Manifest.Dotnet != null)
@@ -275,9 +288,6 @@ public sealed class PluginDiscoveryService(
                 yield return child;
         }
     }
-
-    private static bool IsRemovedPluginId(string pluginId) =>
-        string.Equals(pluginId, RemovedBrowserUsePluginId, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsStrictPathWithinDirectory(string path, string root)
     {

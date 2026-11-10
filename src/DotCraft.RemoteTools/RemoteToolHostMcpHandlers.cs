@@ -89,13 +89,12 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         var state = RequireState();
         RequirePeer(state, peerId, scope.WorkspaceId);
         var threadId = ScopedThread(scope.ThreadId);
+        using var threadCall = EnterThread(threadId, cancellationToken);
+        cancellationToken = threadCall.Token;
         var runtime = await GetRuntimeAsync(scope.LeaseId, scope.WorkspaceId, workspacePath, state, cancellationToken)
             .ConfigureAwait(false);
-        return new ListToolsResult
-        {
-            Tools = runtime.Registrations.Concat(runtime.PluginRegistrations(threadId))
-                .Select(registration => ToMcpTool(registration, state)).ToList()
-        };
+        var exports = await ExportToolsAsync(runtime, threadId, state, cancellationToken).ConfigureAwait(false);
+        return new ListToolsResult { Tools = exports.Select(export => ToMcpTool(export, state)).ToList() };
     }
 
     public async ValueTask<CallToolResult> CallToolAsync(
@@ -136,8 +135,10 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             using var terminalScope = ExecutionSessionTerminals.Enter(runtime.Terminals, invocation.ThreadId, startedTerminals);
             var registration = invocation.PreparedBinding is not null
                 ? runtime.Plugins.Resolve(invocation)
-                : runtime.Registrations.FirstOrDefault(item =>
-                    string.Equals(item.Definition.Name.ToString(), request.Params.Name, StringComparison.Ordinal));
+                : (await ExportToolsAsync(runtime, invocation.ThreadId, state, cancellationToken).ConfigureAwait(false))
+                    .Where(item => item.PreparedBinding is null)
+                    .Select(item => item.Registration)
+                    .FirstOrDefault(item => string.Equals(item.Definition.Name.ToString(), request.Params.Name, StringComparison.Ordinal));
             if (registration is null)
                 throw new RemoteToolHostException(
                     RemoteToolErrorCodes.RemoteToolUnavailable,
@@ -258,6 +259,13 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         var state = RequireState();
         var peer = RequirePeer(state, peerId);
         var contracts = await GetContractsAsync().ConfigureAwait(false);
+        var workspaces = new List<WorkspaceCatalogEntry>();
+        foreach (var (id, path) in state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId)
+                     .OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            var installed = await _host.InstalledPluginsAsync(id, path, cancellationToken).ConfigureAwait(false);
+            workspaces.Add(ToCatalogEntry(id, path, parameters.ClientInstanceId) with { Plugins = installed?.Plugins ?? [] });
+        }
         var response = new WorkspaceListResponse(
             state.ProfileVersion,
             peerId,
@@ -270,9 +278,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             RemoteToolHostProtocol.BuildVersion,
             RemoteToolHostProtocol.ComputeCatalogDigest(contracts),
             contracts,
-            state.Workspaces.Where(pair => pair.Key == peer.WorkspaceId).OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => ToCatalogEntry(pair.Key, pair.Value, parameters.ClientInstanceId))
-                .ToArray(), ["files-v1", RemotePluginProtocol.Capability, RemoteToolHostProtocol.ExecutionSessionsCapability,
+            workspaces, ["files-v1", RemotePluginProtocol.Capability, RemoteToolHostProtocol.ExecutionSessionsCapability,
                     RemoteToolHostProtocol.ExecutionTurnsCapability]);
         return JsonSerializer.SerializeToNode(response, RemoteToolHostProtocol.JsonOptions);
     }
@@ -335,6 +341,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             if (_runtime is not null) return _runtime;
         }
 
+        var installed = await _host.InstalledPluginsAsync(workspaceId, workspacePath, cancellationToken).ConfigureAwait(false);
         var runtime = await HostWorkspaceRuntime.CreateAsync(
             workspaceId,
             workspacePath,
@@ -344,7 +351,8 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             SessionId,
             () => _host.Plugins(workspaceId, workspacePath),
             _host.Logger,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            installed).ConfigureAwait(false);
         HostWorkspaceRuntime? retired = null;
         try
         {
@@ -439,28 +447,6 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 RemoteToolErrorCodes.RemotePolicyDenied,
                 "WriteStdin accepts only background terminals created by an approved Exec in this lease.",
                 invocation.InvocationId);
-    }
-
-    private static Tool ToMcpTool(ToolRegistration registration, RemoteToolHostState state)
-    {
-        var definition = registration.Definition;
-        return new Tool
-        {
-            Name = definition.Name.ToString(),
-            Description = definition.Description,
-            InputSchema = definition.InputSchema,
-            OutputSchema = definition.OutputSchema,
-            Meta = new JsonObject
-            {
-                ["dotcraft/remoteTool"] = new JsonObject
-                {
-                    ["profileVersion"] = RemoteToolHostProtocol.ProfileVersion,
-                    ["definitionId"] = definition.Id.ToString(),
-                    ["contractHash"] = RemoteToolContractHasher.Compute(definition),
-                    ["catalogRevision"] = state.CatalogRevision.ToString()
-                }
-            }
-        };
     }
 
     private static CallToolResult ToMcpResult(

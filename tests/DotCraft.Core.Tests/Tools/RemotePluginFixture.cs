@@ -63,9 +63,15 @@ internal static class RemotePluginFixture
                 });
             }
             public string SourceId => "probe";
-            public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(ToolPlanningContext context,
+            public async ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(ToolPlanningContext context,
                 CancellationToken cancellationToken = default)
             {
+                if (File.Exists(Path.Combine(_activation.WorkspaceRoot, "block-plugin-planning")))
+                {
+                    File.AppendAllText(Log, "planning-entered\n");
+                    try { await Task.Delay(Timeout.Infinite, cancellationToken); }
+                    finally { File.AppendAllText(Log, "planning-cancelled\n"); }
+                }
                 var id = new ToolDefinitionId(ToolSourceKind.PluginNative, "probe", new SourceToolId("run"));
                 var definition = new ToolDefinition(id, new ToolName("Probe", "Run"), "Run a stateful probe.",
                     JsonDocument.Parse("{\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"string\"}},\"required\":[\"operation\"],\"additionalProperties\":false}").RootElement.Clone(),
@@ -75,8 +81,8 @@ internal static class RemotePluginFixture
                     new Runtime(this, context.Mode), ToolBindingLeases.AlwaysAvailable, "probe", context.Revision,
                     File.Exists(Path.Combine(_activation.WorkspaceRoot, "executor-unavailable"))
                         ? ToolBindingAvailability.Unavailable : ToolBindingAvailability.Available);
-                return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([new ToolRegistration(definition, binding,
-                    ToolProjectionShape.StandardPair, EXPOSURE, deferred: new DeferredToolDescriptor("Probe", "probe"))]);
+                return [new ToolRegistration(definition, binding,
+                    ToolProjectionShape.StandardPair, EXPOSURE, deferred: new DeferredToolDescriptor("Probe", "probe"))];
             }
             private sealed class Runtime(Source source, string mode) : IToolRuntime
             {

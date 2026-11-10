@@ -85,11 +85,13 @@ internal sealed class PluginExecutionWorkspace : IAsyncDisposable
         finally { _preparing.Release(); }
     }
 
-    internal IReadOnlyList<ToolRegistration> List(string? threadId)
+    internal IReadOnlyList<RemoteHostToolExport> List(string threadId)
     {
         lock (_gate)
-            return threadId is not null && _catalogs.TryGetValue(threadId, out var catalog)
-                ? catalog.Tools.Values.Where(IsCurrent).Select(tool => tool.Registration).ToArray() : [];
+            return _catalogs.TryGetValue(threadId, out var catalog)
+                ? catalog.Tools.Values.Where(IsCurrent)
+                    .Select(tool => new RemoteHostToolExport(tool.Registration, tool.Binding.BindingId, catalog.Revision)).ToArray()
+                : [];
     }
 
     internal ToolRegistration Resolve(RemoteInvocationMeta invocation)

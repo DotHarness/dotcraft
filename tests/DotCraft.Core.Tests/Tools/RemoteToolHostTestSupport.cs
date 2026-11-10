@@ -103,7 +103,8 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
         string? reportedPeerId = null,
         IRemoteToolApprovalPresenter? ownerApprovals = null,
         Action<RemoteToolHostDiagnostic>? diagnostic = null,
-        Func<string, JsonNode?, JsonNode?>? rewriteResponse = null)
+        Func<string, JsonNode?, JsonNode?>? rewriteResponse = null,
+        string? hostPluginsDirectory = null)
     {
         _storage = storage;
         _rewriteResponse = rewriteResponse;
@@ -118,7 +119,8 @@ internal sealed class RemoteToolHostTestServer : IAsyncDisposable
                 AuthorizationRevision = 1
             }] });
         Leases = new WorkspaceLeaseManager();
-        _handlers = new RemoteToolHostExecutionHost(storage, Leases, Activity, ownerApprovals, diagnostic: diagnostic);
+        _handlers = new RemoteToolHostExecutionHost(storage, Leases, Activity, ownerApprovals, diagnostic: diagnostic,
+            hostPluginsDirectory: hostPluginsDirectory);
         Directory = new TestDirectory(this);
     }
 

@@ -36,6 +36,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
     public string Id { get; }
     public RemoteToolRoute Route => _lease.Route;
     public string HostDisplayName { get; private set; } = string.Empty;
+    public IReadOnlyList<RemoteHostPluginInfo> HostPlugins { get; private set; } = [];
     public RemoteToolEnvironment EnvironmentInfo => new(_lease.HostName, _lease.OperatingSystem,
         _lease.UserName, _lease.WorkspacePath);
     public bool IsAvailable => !_operations.Closed && !_lease.Lost;
@@ -64,6 +65,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
                 SupportsTurns = info.Capabilities.Contains(RemoteToolHostProtocol.ExecutionTurnsCapability)
             };
             session.HostDisplayName = info.DisplayName;
+            session.HostPlugins = info.Workspaces.Single(workspace => workspace.WorkspaceId == workspaceId).Plugins;
             session._lease.StartHeartbeat();
             _ = session.ObserveConnectionAsync();
             return session;
@@ -108,136 +110,6 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
             EndTerminals(BackgroundTerminalStatus.Killed, threadId, running);
             ForgetThreadTerminals(threadId);
         }
-    }
-
-    public async ValueTask<ToolExecutionResult> InvokeAsync(
-        RemoteToolRoute route,
-        ToolDefinition definition,
-        string contractHash,
-        ToolInvocationContext context,
-        JsonObject arguments,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = _operations.TryEnter(cancellationToken);
-        if (operation is null || !IsAvailable || route != Route)
-            return Failure(RemoteToolErrorCodes.LeaseLost, "The remote execution session was lost.");
-        cancellationToken = operation.Token;
-        var lease = _lease;
-
-        var invocationId = "rti_" + Guid.NewGuid().ToString("N");
-        var releases = ThreadReleases(context.ThreadId);
-        string? preparedBinding = null;
-        long? snapshotRevision = null;
-        if (definition.Id.Kind == ToolSourceKind.PluginNative)
-        {
-            ToolRegistration registration;
-            lock (_stateGate)
-            {
-                if (_preparationFailures.TryGetValue(context.ThreadId, out var failure)
-                    && failure.Revision == context.SnapshotRevision)
-                    return Failure(failure.Code, failure.Message);
-                if (!_preparedSnapshots.TryGetValue(context.ThreadId, out var prepared)
-                    || prepared.Snapshot.Revision != context.SnapshotRevision
-                    || !prepared.Snapshot.Registrations.Any(item => item.Binding.Id == context.RuntimeBindingId)
-                    || !prepared.Bindings.TryGetValue(definition.Id.ToString(), out var binding)
-                    || binding.ContractHash != contractHash)
-                    return Failure(RemoteToolErrorCodes.RemoteToolUnavailable, "This plugin snapshot has not been prepared on the remote Host.");
-                preparedBinding = binding.BindingId;
-                snapshotRevision = prepared.Snapshot.Revision;
-                registration = prepared.Snapshot.Registrations.Single(item => item.Binding.Id == context.RuntimeBindingId);
-            }
-            var authority = await registration.Binding.Lease.CheckAsync(context, cancellationToken).ConfigureAwait(false);
-            if (!authority.IsAvailable)
-                return Failure(RemoteToolErrorCodes.RemoteToolUnavailable, authority.Error?.Message ?? "The plugin source is no longer active.");
-        }
-        var meta = new RemoteInvocationMeta(
-            route.LeaseId,
-            route.WorkspaceId,
-            invocationId,
-            definition.Id.ToString(),
-            contractHash,
-            context.ThreadId,
-            context.TurnId,
-            ResolveRemoteResultLimit(definition),
-            Math.Clamp(_spillPreviewLines, 1, 500), preparedBinding, snapshotRevision,
-            context.Origin?.Kind == ToolInvocationOrigin.CodeModeKind ? ToolInvocationOrigin.CodeModeKind : null);
-        var request = new CallToolRequestParams
-        {
-            Name = definition.Name.ToString(),
-            Arguments = arguments.ToDictionary(
-                pair => pair.Key,
-                pair => pair.Value is null
-                    ? JsonSerializer.SerializeToElement<object?>(null)
-                    : JsonSerializer.SerializeToElement(pair.Value, RemoteToolHostProtocol.JsonOptions),
-                StringComparer.Ordinal),
-            Meta = new JsonObject
-            {
-                ["dotcraft"] = JsonSerializer.SerializeToNode(meta, RemoteToolHostProtocol.JsonOptions)
-            }
-        };
-
-        var started = DateTimeOffset.UtcNow;
-        CallToolResult result;
-        try
-        {
-            result = await CallToolAsync(
-                lease.Session.Client,
-                request,
-                invocationId,
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !_lease.Lost)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            OnLeaseLost();
-            return Failure(
-                RemoteToolErrorCodes.RemoteOutcomeUnknown,
-                $"The remote transport ended before the execution outcome was known. Invocation: {invocationId}. {ex.Message}",
-                invocationId);
-        }
-
-        var dotcraft = result.Meta?["dotcraft"] as JsonObject;
-        ReportStartedTerminals(dotcraft?["terminals"], context, releases);
-        var code = dotcraft?["code"]?.GetValue<string>();
-        RemoteToolArtifactMeta? artifact;
-        try
-        {
-            artifact = ParseRemoteArtifact(dotcraft?["remoteArtifact"]);
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
-        {
-            return Failure(
-                RemoteToolErrorCodes.ProtocolMismatch,
-                "Remote Tool Host returned invalid artifact metadata.",
-                invocationId);
-        }
-        var content = NormalizeText(result);
-        var remoteError = result.IsError == true
-            ? Failure(code ?? ToolErrorCodes.ExecutionFailed,
-                dotcraft?["diagnostic"]?.GetValue<string>() ?? content, invocationId).Error
-            : null;
-
-        var latency = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
-        var provenance = new RemoteToolInvocationProvenance(
-            "remote",
-            route.HostId,
-            route.WorkspaceId,
-            route.HostInstanceId,
-            invocationId,
-            latency,
-            artifact?.Path,
-            artifact?.CharacterCount);
-        return new ToolExecutionResult(
-            result.IsError != true,
-            content,
-            result.StructuredContent,
-            meta: provenance.ToJson(),
-            rawSourceResult: JsonSerializer.SerializeToElement(result, RemoteToolHostProtocol.JsonOptions),
-            error: remoteError,
-            contentItems: NormalizeContentItems(result));
     }
 
     public ValueTask DisposeAsync()
@@ -285,17 +157,7 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         lock (_stateGate)
             definitions = _snapshots.TryGetValue(threadId, out var snapshot)
                 ? snapshot.Registrations.Select(RemoteToolMetadata.NativeDefinition).ToArray() : [];
-        var catalog = await lease.Session.Client.ListToolsAsync(
-            new ListToolsRequestParams
-            {
-                Meta = new JsonObject
-                {
-                    ["dotcraft"] = JsonSerializer.SerializeToNode(
-                        new RemoteCatalogScope(route.LeaseId, route.WorkspaceId, threadId),
-                        RemoteToolHostProtocol.JsonOptions)
-                }
-            },
-            cancellationToken).ConfigureAwait(false);
+        var catalog = await ReadCatalogAsync(threadId, route, cancellationToken).ConfigureAwait(false);
         var remote = catalog.Tools
             .Select(ParseRemoteContract)
             .Where(item => item is not null)
@@ -367,9 +229,9 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         return node?.Deserialize<RemoteContract>(RemoteToolHostProtocol.JsonOptions);
     }
 
-    private int ResolveRemoteResultLimit(ToolDefinition definition)
+    private int ResolveRemoteResultLimit(ToolDefinition? definition)
     {
-        var configured = definition.Annotations.TryGetValue("dotcraft/maxResultChars", out var value)
+        var configured = definition is not null && definition.Annotations.TryGetValue("dotcraft/maxResultChars", out var value)
                          && value.TryGetInt32(out var perTool)
             ? perTool
             : _defaultMaxResultChars;
@@ -455,5 +317,6 @@ public sealed partial class RemoteExecutionSession : IAsyncDisposable
         return items.Count == 0 ? null : items;
     }
 
-    private sealed record RemoteContract(string ProfileVersion, string DefinitionId, string ContractHash, string CatalogRevision);
+    private sealed record RemoteContract(string ProfileVersion, string DefinitionId, string ContractHash,
+        string CatalogRevision, string? PreparedBinding = null, long? SnapshotRevision = null);
 }
