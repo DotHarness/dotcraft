@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   kind: { paddingTop: 1 },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
   title: { fontWeight: '600' },
-  time: { flexShrink: 0, fontVariant: ['tabular-nums'] },
+  time: { flexShrink: 0, fontVariant: ['tabular-nums'], fontWeight: 'normal' },
   meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8 },
   stop: { width: 36, height: 36, marginTop: -6, marginRight: -6, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   chevron: { paddingTop: 2 },

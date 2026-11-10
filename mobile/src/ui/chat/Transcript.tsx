@@ -661,7 +661,7 @@ export const TranscriptLine = memo(function TranscriptLine({
 const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   fixed: { flexShrink: 0 },
-  tabular: { fontVariant: ['tabular-nums'] },
+  tabular: { fontVariant: ['tabular-nums'], fontWeight: 'normal' },
   line: { lineHeight: 22 },
   user: { alignItems: 'flex-end', gap: 4 },
   assistant: { gap: 12 },

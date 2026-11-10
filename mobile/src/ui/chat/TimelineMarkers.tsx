@@ -267,5 +267,5 @@ const styles = StyleSheet.create({
   retry: { height: 32, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8, justifyContent: 'center', overflow: 'hidden' },
   retryFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   disabled: { opacity: 0.5 },
-  tabular: { fontVariant: ['tabular-nums'] },
+  tabular: { fontVariant: ['tabular-nums'], fontWeight: 'normal' },
 })
