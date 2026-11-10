@@ -20,9 +20,11 @@ import { installDesktopApiMock } from './desktopApiMock'
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
 const generate = vi.mocked(generatePromptSuggestion)
+const NOW = Date.parse('2026-11-10T12:01:00Z')
 const completedTurn: ConversationTurn = {
-  id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-09-27T00:00:00Z',
-  items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-09-27T00:00:01Z' }]
+  id: 'turn-1', threadId: 'thread-1', status: 'completed', startedAt: '2026-11-10T12:00:00Z',
+  completedAt: '2026-11-10T12:00:01Z',
+  items: [{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Done.', createdAt: '2026-11-10T12:00:01Z' }]
 }
 let stopSuggestions: () => void
 
@@ -41,6 +43,7 @@ function useActiveSuggestion({ canSuggest = true, visible = true } = {}) {
 }
 
 beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW)
   finishThreadRestoration()
   generate.mockReset().mockResolvedValue('Add a regression test')
   installDesktopApiMock({ appServer: {
@@ -67,9 +70,33 @@ afterEach(() => {
   activateThreadConversation(null)
   releaseThreadConversation('thread-1')
   releaseThreadConversation('thread-2')
+  vi.restoreAllMocks()
 })
 
 describe('conversation prompt suggestion lifecycle', () => {
+  it.each([
+    ['recent', 60_000, true],
+    ['old', 24 * 60 * 60_000, false]
+  ] as const)('only generates for %s history after restoration finishes', async (_label, elapsed, shouldGenerate) => {
+    const gate = beginThreadRestoration('thread-1')
+    const hook = renderHook(() => useActiveSuggestion())
+    act(() => completeThread('thread-1', {
+      ...completedTurn,
+      startedAt: new Date(NOW - elapsed - 60_000).toISOString(),
+      completedAt: new Date(NOW - elapsed).toISOString()
+    }))
+    expect(generate).not.toHaveBeenCalled()
+
+    act(() => finishThreadRestoration(gate))
+    if (shouldGenerate) {
+      await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
+      expect(generate).toHaveBeenCalledOnce()
+    } else {
+      expect(generate).not.toHaveBeenCalled()
+      expect(hook.result.current.suggestion).toBeNull()
+    }
+  })
+
   it('generates once, hides while typing, and remembers acceptance after remounting', async () => {
     const hook = renderHook(({ visible }) => useActiveSuggestion({ visible }), { initialProps: { visible: true } })
     act(() => completeThread())
@@ -133,7 +160,10 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(generate).toHaveBeenCalledTimes(2)
   })
 
-  it('does not generate on background completion and catches up when that thread becomes editable', async () => {
+  it.each([
+    ['within', 60_000, true],
+    ['outside', 5 * 60_000, false]
+  ] as const)('only catches up a background completion %s the generation window', async (_label, delay, shouldGenerate) => {
     const hook = renderHook(({ canSuggest }) => useActiveSuggestion({ canSuggest }), {
       initialProps: { canSuggest: true }
     })
@@ -141,12 +171,18 @@ describe('conversation prompt suggestion lifecycle', () => {
     act(() => completeThread())
     expect(generate).not.toHaveBeenCalled()
 
+    vi.mocked(Date.now).mockReturnValue(NOW + delay)
     hook.rerender({ canSuggest: false })
     act(() => selectThread('thread-1'))
     expect(generate).not.toHaveBeenCalled()
     hook.rerender({ canSuggest: true })
-    await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
-    expect(generate).toHaveBeenCalledOnce()
+    if (shouldGenerate) {
+      await waitFor(() => expect(hook.result.current.suggestion).toBe('Add a regression test'))
+      expect(generate).toHaveBeenCalledOnce()
+    } else {
+      expect(generate).not.toHaveBeenCalled()
+      expect(hook.result.current.suggestion).toBeNull()
+    }
   })
 
   it('reuses a pending prediction across navigation and ignores its late result after a newer turn', async () => {
@@ -164,7 +200,9 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(oldSignal.aborted).toBe(false)
     expect(generate).toHaveBeenCalledOnce()
 
-    const nextTurn = { ...completedTurn, id: 'turn-next', startedAt: '2026-09-27T00:00:02Z' }
+    const nextTurn = {
+      ...completedTurn, id: 'turn-next', startedAt: '2026-11-10T12:00:02Z', completedAt: '2026-11-10T12:00:03Z'
+    }
     act(() => getThreadConversation('thread-1')!.setState({
       turnStatus: 'running', turns: [completedTurn, { ...nextTurn, status: 'running', items: [] }]
     }))
@@ -176,7 +214,7 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(generate).toHaveBeenCalledTimes(2)
   })
 
-  it.each(['cached', 'pending'] as const)('preserves a %s prediction across a preview and authoritative snapshot restore', async (state) => {
+  it.each(['cached', 'pending'] as const)('preserves a %s prediction across restoration after the generation window', async (state) => {
     let resolvePrediction!: (value: string | null) => void
     if (state === 'pending') generate.mockImplementationOnce(() => new Promise((resolve) => { resolvePrediction = resolve }))
     completeThread()
@@ -186,6 +224,7 @@ describe('conversation prompt suggestion lifecycle', () => {
     hook.unmount()
     selectThread('thread-2')
     releaseThreadConversation('thread-1')
+    vi.mocked(Date.now).mockReturnValue(NOW + 60 * 60_000)
     const gate = beginThreadRestoration('thread-1')
     const conversation = createThreadConversation('thread-1')
     selectThread('thread-1')
@@ -217,8 +256,9 @@ describe('conversation prompt suggestion lifecycle', () => {
 
   it('does not request another suggestion when a trailing notification completes without output', () => {
     const notification: ConversationTurn = {
-      id: 'turn-notice', threadId: 'thread-1', status: 'running', startedAt: '2026-09-27T00:00:02Z',
-      items: [{ id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed', text: 'Background command finished', createdAt: '2026-09-27T00:00:02Z' }]
+      id: 'turn-notice', threadId: 'thread-1', status: 'running', startedAt: '2026-11-10T12:00:02Z',
+      completedAt: '2026-11-10T12:00:03Z',
+      items: [{ id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerStatus: 'completed', text: 'Background command finished', createdAt: '2026-11-10T12:00:02Z' }]
     }
     getThreadConversation('thread-1')!.setState({ turns: [completedTurn, notification] })
     const hook = renderHook(() => useActiveSuggestion())

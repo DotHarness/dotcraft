@@ -3,6 +3,8 @@ import { readConfigValue, useConfigStore } from './configStore'
 import type { ConversationTurn } from '../types/conversation'
 import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDiagnostic } from '../utils/promptSuggestion'
 
+const SUGGESTION_GENERATION_WINDOW_MS = 5 * 60_000
+
 type SuggestionTurn = Pick<ConversationTurn, 'id'>
 
 interface PromptSuggestionEntry {
@@ -13,7 +15,7 @@ interface PromptSuggestionEntry {
 
 interface PromptSuggestionStore {
   entries: Map<string, PromptSuggestionEntry>
-  request(threadId: string, turn: SuggestionTurn): void
+  request(threadId: string, turn: Pick<ConversationTurn, 'id' | 'completedAt'>): void
   dismiss(threadId: string, turn: SuggestionTurn): void
   invalidate(threadId: string, turn?: SuggestionTurn): void
   forget(threadId: string): void
@@ -27,6 +29,8 @@ export const usePromptSuggestionStore = create<PromptSuggestionStore>((set, get)
     const turnId = turn.id
     const previous = get().entries.get(threadId)
     if (previous?.turnId === turnId) return
+    const elapsed = Date.now() - Date.parse(turn.completedAt ?? '')
+    if (!(elapsed >= 0 && elapsed < SUGGESTION_GENERATION_WINDOW_MS)) return
     previous?.controller?.abort()
     const controller = new AbortController()
     const entry: PromptSuggestionEntry = { turnId, suggestion: null, controller }

@@ -6,11 +6,13 @@ import { generatePromptSuggestion } from '../utils/promptSuggestion'
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
 const generate = vi.mocked(generatePromptSuggestion)
+const NOW = Date.parse('2026-11-10T12:01:00Z')
 type Notification = { method: string; params: Record<string, unknown>; foreground?: boolean }
 let notify: (notification: Notification) => void
 let stopSuggestions: () => void
 
 beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW)
   generate.mockReset().mockImplementation(() => new Promise(() => {}))
   vi.stubGlobal('window', { api: { appServer: { onNotification: (callback: typeof notify) => {
     notify = callback
@@ -24,13 +26,30 @@ beforeEach(() => {
 afterEach(() => {
   stopSuggestions()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('prompt prediction lifecycle outside the composer', () => {
+  it('requests a prediction just before the generation deadline', () => {
+    usePromptSuggestionStore.getState().request('thread', {
+      id: 'turn', completedAt: new Date(NOW - 5 * 60_000 + 1).toISOString()
+    })
+
+    expect(generate).toHaveBeenCalledOnce()
+    expect(generate).toHaveBeenCalledWith('thread', 'turn', expect.any(AbortSignal), expect.any(Function))
+  })
+
+  it.each([undefined, new Date(NOW - 5 * 60_000).toISOString()])('does not request or cache a prediction for completion time %s', (completedAt) => {
+    usePromptSuggestionStore.getState().request('thread', { id: 'turn', completedAt })
+
+    expect(generate).not.toHaveBeenCalled()
+    expect(usePromptSuggestionStore.getState().entries.has('thread')).toBe(false)
+  })
+
   it('cancels only the affected pending prediction on a later turn or queued input', () => {
     const store = usePromptSuggestionStore.getState()
-    const firstTurn = { id: 'first-turn', startedAt: '2026-09-27T00:00:00Z' }
-    const nextTurn = { id: 'next-turn', startedAt: '2026-09-26T00:00:00Z' }
+    const firstTurn = { id: 'first-turn', completedAt: new Date(NOW).toISOString() }
+    const nextTurn = { ...firstTurn, id: 'next-turn' }
     store.request('first', firstTurn)
     const secondTurn = { ...firstTurn, id: 'second-turn' }
     store.request('second', secondTurn)
