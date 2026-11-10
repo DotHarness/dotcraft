@@ -13,6 +13,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type Ref,
   type SetStateAction
 } from 'react'
 import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
@@ -89,7 +90,6 @@ import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { WelcomeBackdrop } from './welcomeBackdrop/WelcomeBackdrop'
 import {
   ComposerStatusContent,
   ComposerToolbarLeadingSlots,
@@ -105,6 +105,7 @@ import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
 import { useComposerProvider } from './useComposerProvider'
 
 interface ConversationWelcomeProps {
+  welcomeContentRef?: Ref<HTMLDivElement>
   workspacePath: string
   identityWorkspacePath?: string
   projectKey?: string
@@ -171,6 +172,7 @@ export function ConversationWelcome({
 
 /** Keeping the stateful runtime below the public surface makes replace("composer") unmount effects too. */
 function ConversationWelcomeCore({
+  welcomeContentRef,
   workspacePath,
   identityWorkspacePath,
   projectKey,
@@ -234,7 +236,6 @@ function ConversationWelcomeCore({
     handleReasoningChange, handleSpeedChange
   } = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef, workspaceReady })
   const richRef = useRef<RichInputAreaHandle>(null)
-  const welcomeContentRef = useRef<HTMLDivElement>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
   const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
@@ -1137,7 +1138,6 @@ function ConversationWelcomeCore({
         overflow: 'hidden'
       }}
     >
-      <WelcomeBackdrop calmRef={welcomeContentRef} />
       <div style={welcomeHeaderActionsSlot}>
         <DetailPanelToggleButton />
       </div>

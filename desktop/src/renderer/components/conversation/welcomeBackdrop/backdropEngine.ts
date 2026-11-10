@@ -30,6 +30,7 @@ const INTERACTIVE = [
 const CHARACTER_SETS = ['abcdefghijklmnopqrstuvwxyz0123456789', 'aeiourstnlcdmhpgbfy0123456789']
 
 export interface WelcomeBackdropHandle {
+  setActive: (active: boolean) => void
   destroy: () => void
 }
 
@@ -147,6 +148,7 @@ function createTexture(gl: WebGL2RenderingContext, unit: number): WebGLTexture {
 export function startWelcomeBackdrop(
   host: HTMLElement,
   options: {
+    active: boolean
     still: boolean
     canvasClassName: string
     calm: () => HTMLElement | null
@@ -244,6 +246,7 @@ export function startWelcomeBackdrop(
   let atlasCellWidth = 0
   let pane = { width: 0, height: 0 }
   let destroyed = false
+  let enabled = false
   let shown = false
   const hand = createBackdropHand()
   const startedAt = win.performance.now()
@@ -328,7 +331,7 @@ export function startWelcomeBackdrop(
   }
 
   const draw = (energy: number): void => {
-    if (!grid || gl.isContextLost()) return
+    if (!enabled || destroyed || !grid || gl.isContextLost()) return
     const clock = now()
     const touch = options.still ? null : hand.frame(clock)
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
@@ -358,7 +361,7 @@ export function startWelcomeBackdrop(
 
   const energyAt = (): number =>
     (1 - smooth01((active - lastActivity - BUDGET_S) / SETTLE_S)) * smooth01((active - resumedAt) / RESUME_S)
-  const canRun = (): boolean => !destroyed && !options.still && grid !== null && !doc.hidden && doc.hasFocus()
+  const canRun = (): boolean => enabled && !destroyed && !options.still && grid !== null && !doc.hidden && doc.hasFocus()
 
   const stop = (): void => {
     win.clearTimeout(timer)
@@ -369,6 +372,7 @@ export function startWelcomeBackdrop(
 
   const tick = (): void => {
     frame = undefined
+    if (!canRun()) return
     const clock = now()
     const dt = Math.min(Math.max(clock - lastTick, 0), 0.25)
     lastTick = clock
@@ -383,7 +387,7 @@ export function startWelcomeBackdrop(
     if (!canRun() || timer !== undefined || frame !== undefined) return
     timer = win.setTimeout(() => {
       timer = undefined
-      frame = win.requestAnimationFrame(tick)
+      if (canRun()) frame = win.requestAnimationFrame(tick)
     }, hand.rippling(now()) ? RIPPLE_FRAME_MS : FRAME_MS)
   }
 
@@ -423,6 +427,7 @@ export function startWelcomeBackdrop(
   const onKeyDown = (): void => wake()
 
   const observer = new win.ResizeObserver((entries) => {
+    if (!enabled || destroyed) return
     const entry = entries[0]
     if (!entry) return
     const device = entry.devicePixelContentBoxSize?.[0]
@@ -443,6 +448,7 @@ export function startWelcomeBackdrop(
   }
 
   const recolor = (): void => {
+    if (!enabled || destroyed) return
     applyColors()
     draw(energyAt())
   }
@@ -454,13 +460,37 @@ export function startWelcomeBackdrop(
   doc.addEventListener('visibilitychange', resume)
   win.addEventListener('focus', resume)
   win.addEventListener('blur', resume)
-  if (!options.still) {
-    parent?.addEventListener('pointermove', onPointerMove, { passive: true })
-    parent?.addEventListener('pointerdown', onPointerDown, { passive: true })
-    parent?.addEventListener('pointerleave', hand.leave, { passive: true })
-    parent?.addEventListener('keydown', onKeyDown, { capture: true, passive: true })
+  const setInteracting = (listening: boolean): void => {
+    if (options.still) return
+    if (listening) {
+      parent?.addEventListener('pointermove', onPointerMove, { passive: true })
+      parent?.addEventListener('pointerdown', onPointerDown, { passive: true })
+      parent?.addEventListener('pointerleave', hand.leave, { passive: true })
+      parent?.addEventListener('keydown', onKeyDown, { capture: true, passive: true })
+    } else {
+      parent?.removeEventListener('pointermove', onPointerMove)
+      parent?.removeEventListener('pointerdown', onPointerDown)
+      parent?.removeEventListener('pointerleave', hand.leave)
+      parent?.removeEventListener('keydown', onKeyDown, { capture: true })
+    }
   }
-  applyColors()
+
+  const setActive = (next: boolean): void => {
+    if (destroyed || enabled === next) return
+    enabled = next
+    setInteracting(enabled)
+    if (!enabled) {
+      stop()
+      hand.leave()
+      return
+    }
+    applyColors()
+    const { width, height } = host.getBoundingClientRect()
+    if (resize(Math.round(width * win.devicePixelRatio), Math.round(height * win.devicePixelRatio), width, height)) {
+      draw(energyAt())
+      resume()
+    }
+  }
 
   const destroy = (): void => {
     if (destroyed) return
@@ -473,10 +503,7 @@ export function startWelcomeBackdrop(
     doc.removeEventListener('visibilitychange', resume)
     win.removeEventListener('focus', resume)
     win.removeEventListener('blur', resume)
-    parent?.removeEventListener('pointermove', onPointerMove)
-    parent?.removeEventListener('pointerdown', onPointerDown)
-    parent?.removeEventListener('pointerleave', hand.leave)
-    parent?.removeEventListener('keydown', onKeyDown, { capture: true })
+    setInteracting(false)
     canvas.removeEventListener('webglcontextlost', destroy)
     gl.deleteProgram(fieldProgram)
     gl.deleteProgram(glyphProgram)
@@ -489,5 +516,6 @@ export function startWelcomeBackdrop(
     canvas.remove()
   }
   canvas.addEventListener('webglcontextlost', destroy)
-  return { destroy }
+  setActive(options.active)
+  return { setActive, destroy }
 }

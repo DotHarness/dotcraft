@@ -1,3 +1,22 @@
+.surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
 .layer {
   position: absolute;
   inset: 0;
@@ -13,6 +32,12 @@
 
 .layer[data-shown="true"] {
   opacity: 1;
+}
+
+.layer[data-active="false"] {
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
 }
 
 .canvas {

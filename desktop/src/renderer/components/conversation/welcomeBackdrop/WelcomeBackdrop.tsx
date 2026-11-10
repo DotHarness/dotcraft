@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type JSX, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
 import { prefersReducedMotion } from '../../../utils/appearance'
-import { startWelcomeBackdrop } from './backdropEngine'
+import { startWelcomeBackdrop, type WelcomeBackdropHandle } from './backdropEngine'
 import styles from './WelcomeBackdrop.module.css'
 
 interface BackdropPreference {
@@ -42,26 +42,46 @@ function useBackdropPreference(): BackdropPreference {
   return preference
 }
 
-export function WelcomeBackdrop({ calmRef }: { calmRef: RefObject<HTMLElement | null> }): JSX.Element | null {
+interface WelcomeBackdropProps {
+  active: boolean
+  calmRef: RefObject<HTMLElement | null>
+}
+
+function WelcomeBackdrop({ active, calmRef }: WelcomeBackdropProps): JSX.Element | null {
   const { on, still } = useBackdropPreference()
   const hostRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<WelcomeBackdropHandle | null>(null)
   const [shown, setShown] = useState(false)
 
   useEffect(() => {
     const host = hostRef.current
-    if (!host || !on) return
-    const backdrop = startWelcomeBackdrop(host, {
+    if (!host || !on || !active || backdropRef.current) return
+    backdropRef.current = startWelcomeBackdrop(host, {
+      active,
       still,
       canvasClassName: styles.canvas ?? '',
       calm: () => calmRef.current,
       onShown: () => setShown(true)
     })
-    return () => {
-      backdrop?.destroy()
-      setShown(false)
-    }
+  }, [active, calmRef, on, still])
+
+  useEffect(() => () => {
+    backdropRef.current?.destroy()
+    backdropRef.current = null
+    setShown(false)
   }, [calmRef, on, still])
 
+  useLayoutEffect(() => {
+    backdropRef.current?.setActive(active)
+  }, [active])
+
   if (!on) return null
-  return <div ref={hostRef} aria-hidden className={styles.layer} data-shown={shown ? 'true' : 'false'} />
+  return <div ref={hostRef} aria-hidden className={styles.layer} data-active={active} data-shown={shown} />
+}
+
+export function ConversationBackdrop({ children, ...props }: WelcomeBackdropProps & { children: ReactNode }): JSX.Element {
+  return <div className={styles.surface}>
+    <WelcomeBackdrop {...props} />
+    <div className={styles.content}>{children}</div>
+  </div>
 }
