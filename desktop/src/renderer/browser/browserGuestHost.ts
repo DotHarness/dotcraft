@@ -6,6 +6,9 @@ interface MountedGuest {
   container: HTMLDivElement
   page: Electron.WebviewTag
   cursor: BrowserCursorOverlay
+  agentControlled: boolean
+  userEngaged: boolean
+  deflected: boolean
 }
 
 export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement = document.body): () => void {
@@ -15,6 +18,28 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
   const guests = new Map<string, MountedGuest>()
   const changed = new Set<string>()
   let stopped = false
+  let returnFocus: HTMLElement | null = null
+  const rememberFocus = (event: FocusEvent): void => {
+    if (event.target instanceof HTMLElement && event.target.tagName !== 'WEBVIEW') returnFocus = event.target
+  }
+  document.addEventListener('focusin', rememberFocus, true)
+
+  // Agent clicks and DOM focus inside the guest move window focus to the webview; give it back unless the user clicked the page.
+  function guardFocus(guest: MountedGuest): void {
+    guest.page.addEventListener('focus', () => {
+      if (!guest.agentControlled || guest.userEngaged) return
+      guest.deflected = true
+      if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
+      else guest.page.blur()
+    })
+    guest.page.addEventListener('blur', () => { guest.userEngaged = false })
+  }
+
+  function userPointerDown(guest: MountedGuest): void {
+    guest.userEngaged = true
+    if (guest.deflected && document.activeElement !== guest.page) guest.page.focus()
+    guest.deflected = false
+  }
 
   function update(host: BrowserHostDescriptor): void {
     if (stopped) return
@@ -31,11 +56,16 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
         page,
         cursor: createBrowserCursorOverlay(container, moveSequence => {
           void api.cursorArrived({ tabId: host.tabId, moveSequence }).catch(() => {})
-        })
+        }),
+        agentControlled: false,
+        userEngaged: false,
+        deflected: false
       }
+      guardFocus(guest)
       guests.set(host.tabId, guest)
       root.append(container)
     }
+    guest.agentControlled = host.automation
     const { box, page: explicit, captureScale } = layoutBrowserGuest(host, { width: window.innerWidth, height: window.innerHeight })
     const { style, dataset } = guest.container
     const presented = host.visible && !host.captureSurfaceSize
@@ -63,7 +93,11 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
   }
 
   const unsubscribe = api.onEvent(event => {
-    if (event.type === 'pointer-down') return
+    if (event.type === 'pointer-down') {
+      const guest = guests.get(event.tabId)
+      if (guest && event.source === 'user') userPointerDown(guest)
+      return
+    }
     const id = event.type === 'update' ? event.host.tabId : event.tabId
     changed.add(id)
     if (event.type === 'update') update(event.host)
@@ -80,6 +114,7 @@ export function startBrowserGuestHost(api: BrowserHostApi, parent: HTMLElement =
   return () => {
     stopped = true
     unsubscribe()
+    document.removeEventListener('focusin', rememberFocus, true)
     for (const guest of guests.values()) guest.cursor.destroy()
     root.remove()
     guests.clear()

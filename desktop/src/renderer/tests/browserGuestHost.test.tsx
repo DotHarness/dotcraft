@@ -33,6 +33,59 @@ it('retains guest nodes and navigation while switching visibility and ignores st
   stop()
 })
 
+function mountAgentGuest() {
+  let listener!: (event: BrowserHostEvent) => void
+  const api: BrowserHostApi = {
+    list: () => new Promise(() => {}),
+    cursorArrived: vi.fn().mockResolvedValue(undefined),
+    onEvent: callback => { listener = callback; return vi.fn() }
+  }
+  const composer = document.createElement('textarea')
+  document.body.append(composer)
+  const stop = startBrowserGuestHost(api)
+  const host: BrowserHostDescriptor = { tabId: 'tab', bootstrapToken: 'bootstrap', partition: 'persist:example', automation: true,
+    visible: true, bounds: { x: 0, y: 0, width: 800, height: 600 } }
+  listener({ type: 'update', host })
+  const page = document.querySelector('webview') as HTMLElement
+  page.tabIndex = 0
+  composer.focus()
+  return {
+    composer, page,
+    pointerDown: (source: 'user' | 'automation') => listener({ type: 'pointer-down', tabId: 'tab', source }),
+    setAgentControlled: (automation: boolean) => listener({ type: 'update', host: { ...host, automation } }),
+    stop: () => { stop(); composer.remove() }
+  }
+}
+
+it('returns focus to the composer when the agent focuses the page', () => {
+  const { composer, page, pointerDown, stop } = mountAgentGuest()
+  pointerDown('automation')
+  page.focus()
+  expect(document.activeElement).toBe(composer)
+  stop()
+})
+
+it('lets the user focus the page while the agent controls it, whichever event arrives first', () => {
+  const { composer, page, pointerDown, stop } = mountAgentGuest()
+  pointerDown('user')
+  page.focus()
+  expect(document.activeElement).toBe(page)
+  composer.focus()
+  page.focus()
+  expect(document.activeElement).toBe(composer)
+  pointerDown('user')
+  expect(document.activeElement).toBe(page)
+  stop()
+})
+
+it('leaves page focus alone when the agent is not in control', () => {
+  const { page, setAgentControlled, stop } = mountAgentGuest()
+  setAgentControlled(false)
+  page.focus()
+  expect(document.activeElement).toBe(page)
+  stop()
+})
+
 function mountWithCursor(reduceMotion: 'on' | 'off') {
   document.documentElement.dataset.reduceMotion = reduceMotion
   let listener!: (event: BrowserHostEvent) => void

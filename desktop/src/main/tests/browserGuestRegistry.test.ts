@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ fromId: vi.fn(), partition: {} }))
 vi.mock('electron', () => ({ webContents: { fromId: mocks.fromId }, session: { fromPartition: () => mocks.partition } }))
 import { BrowserGuestRegistry } from '../browserGuestRegistry'
+import { withAutomationInput } from '../browserAutomationInput'
 
 function fixture() {
   const owner = Object.assign(new EventEmitter(), {
@@ -37,7 +38,13 @@ it('registers one guest, keeps it through presentation changes and forwards page
   registry.update(win, 'tab', { visible: true })
   registry.update(win, 'tab', { visible: false })
   page.emit('before-mouse-event', {}, { type: 'mouseDown' })
-  expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', { type: 'pointer-down', tabId: 'tab' })
+  expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', { type: 'pointer-down', tabId: 'tab', source: 'user' })
+  await withAutomationInput(page as unknown as Electron.WebContents, async () => {
+    page.emit('before-mouse-event', {}, { type: 'mouseDown' })
+  })
+  expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', { type: 'pointer-down', tabId: 'tab', source: 'automation' })
+  page.emit('before-mouse-event', {}, { type: 'mouseDown' })
+  expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', { type: 'pointer-down', tabId: 'tab', source: 'user' })
   expect(page.close).not.toHaveBeenCalled()
   registry.clear(win)
   expect(page.close).toHaveBeenCalledOnce()

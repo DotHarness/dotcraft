@@ -23,7 +23,7 @@ export interface BrowserHostDescriptor {
 export type BrowserHostEvent =
   | { type: 'update'; host: BrowserHostDescriptor }
   | { type: 'remove'; tabId: string }
-  | { type: 'pointer-down'; tabId: string }
+  | { type: 'pointer-down'; tabId: string; source: 'user' | 'automation' }
 
 export interface BrowserHostApi {
   list(): Promise<BrowserHostDescriptor[]>

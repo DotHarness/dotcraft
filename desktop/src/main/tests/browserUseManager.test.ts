@@ -18,6 +18,7 @@ import {
 } from '../browserUseManager'
 import { resolveBrowserUseNavigationDecision } from '../browserUsePolicy'
 import { bindBrowserPageSession } from '../browserSessionPolicy'
+import { isAutomationInput } from '../browserAutomationInput'
 
 const activeManagers = new Set<BrowserUseManager>()
 
@@ -956,6 +957,13 @@ describe('BrowserUseManager IAB backend', () => {
     const wc = createFakeWebContents()
     const { call, createTab } = await openSession(new BrowserUseManager(createFakeHost(wc)), createFakeOwner(), 'thread-input')
     const created = await createTab()
+    const send = wc.debugger.sendCommand as ReturnType<typeof vi.fn>
+    const fallback = send.getMockImplementation()!
+    const markedAsAgentInput: Array<[string, boolean]> = []
+    send.mockImplementation(async (method: string, ...rest: unknown[]) => {
+      markedAsAgentInput.push([method, isAutomationInput(wc)])
+      return await fallback(method, ...rest)
+    })
     const execute = (method: string, commandParams: Record<string, unknown>) =>
       call('executeCdp', { target: { tabId: created.id }, method, commandParams })
 
@@ -976,6 +984,15 @@ describe('BrowserUseManager IAB backend', () => {
       ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'a' }],
       ['Emulation.setFocusEmulationEnabled', { enabled: true }],
       ['Input.insertText', { text: 'a' }]
+    ])
+    expect(markedAsAgentInput).toEqual([
+      ['Target.setAutoAttach', false],
+      ['Emulation.setFocusEmulationEnabled', false],
+      ['Input.dispatchMouseEvent', true],
+      ['Emulation.setFocusEmulationEnabled', false],
+      ['Input.dispatchKeyEvent', true],
+      ['Emulation.setFocusEmulationEnabled', false],
+      ['Input.insertText', true]
     ])
   })
 

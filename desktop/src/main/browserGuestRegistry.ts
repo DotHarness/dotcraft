@@ -4,6 +4,7 @@ import { BROWSER_GUEST_BOOTSTRAP_PREFIX } from '../shared/viewer/browserHost'
 import type { BrowserHostDescriptor, BrowserHostEvent } from '../shared/viewer/browserHost'
 import { applyEmbeddedBrowserSecurity } from './browserSecurity'
 import { BrowserAutomationCursors } from './browserAutomationCursor'
+import { isAutomationInput } from './browserAutomationInput'
 
 interface GuestEntry {
   descriptor: BrowserHostDescriptor
@@ -86,7 +87,9 @@ export class BrowserGuestRegistry {
     this.syncActivity(entry)
     clearTimeout(entry.timer)
     page.on('before-mouse-event', (_event, mouse) => {
-      if (mouse.type === 'mouseDown') this.emit(win, { type: 'pointer-down', tabId })
+      if (mouse.type === 'mouseDown') {
+        this.emit(win, { type: 'pointer-down', tabId, source: isAutomationInput(page) ? 'automation' : 'user' })
+      }
     })
     page.once('destroyed', () => {
       if (this.windows.get(win.id)?.get(tabId) === entry) this.remove(win, tabId, 'Browser page closed.')

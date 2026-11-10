@@ -21,6 +21,7 @@ import {
   type BrowserFrameTarget
 } from './browserUseFrames'
 import { browserObservationSource } from './browserUseObservation'
+import { withAutomationInput } from './browserAutomationInput'
 import { BrowserUseViewports, normalizeViewportSize, type ViewportSize } from './browserUseViewport'
 import type { AppSettings } from './settings'
 import {
@@ -1844,7 +1845,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (!sessionId && (method === 'Page.startScreencast' || method === 'Page.stopScreencast')) {
       return await this.screenshots.rawScreencast(this.screenshotContext(tab, signal), method, send)
     }
-    return await send()
+    return method.startsWith('Input.') ? await withAutomationInput(wc, send) : await send()
   }
 
   private operationUrl(tab: BrowserUseTabRuntime): string {
