@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import type { WorkspaceProjectsPayload, WorkspaceProjectSummary } from '../../shared/workspaceProjects'
+import type { ThreadSummary } from '../types/thread'
+import { filterPendingThreadArchives } from './pendingThreadArchives'
 
 interface WorkspaceProjectsState {
   foregroundWorkspacePath: string
   foregroundProjectId: string
   secondaryLimit: number
   projects: WorkspaceProjectSummary[]
-  /** Default Chat workspace, rendered as the dedicated `Chats` group (never a Project). */
   chat: WorkspaceProjectSummary | null
   setPayload(payload: WorkspaceProjectsPayload): void
   reset(): void
@@ -26,6 +27,16 @@ export function localProjectsByLastOpened(projects: WorkspaceProjectSummary[]): 
     .sort((left, right) => (Date.parse(right.lastOpenedAt ?? '') || 0) - (Date.parse(left.lastOpenedAt ?? '') || 0))
 }
 
+export function filterPendingProjectArchives(project: WorkspaceProjectSummary): WorkspaceProjectSummary {
+  const threads = project.threads as ThreadSummary[]
+  const visible = filterPendingThreadArchives(project.projectId ?? project.path, threads)
+  return visible === threads ? project : {
+    ...project,
+    threads: visible,
+    threadCount: Math.max(0, project.threadCount - (threads.length - visible.length))
+  }
+}
+
 export const useWorkspaceProjectsStore = create<WorkspaceProjectsState>((set) => ({
   ...initialState,
 
@@ -34,8 +45,8 @@ export const useWorkspaceProjectsStore = create<WorkspaceProjectsState>((set) =>
       foregroundWorkspacePath: payload.foregroundWorkspacePath ?? '',
       foregroundProjectId: payload.foregroundProjectId ?? payload.foregroundWorkspacePath ?? '',
       secondaryLimit: payload.secondaryLimit ?? 8,
-      projects: Array.isArray(payload.projects) ? payload.projects : [],
-      chat: payload.chat ?? null
+      projects: Array.isArray(payload.projects) ? payload.projects.map(filterPendingProjectArchives) : [],
+      chat: payload.chat ? filterPendingProjectArchives(payload.chat) : null
     })
   },
 

@@ -5,7 +5,8 @@ import { useUIStore } from './uiStore'
 import { beginThreadNavigation } from './projectThreadNavigation'
 import { useComposerDraftStore } from './composerDraftStore'
 import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
-import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
+import { collectThreadTreeIds, getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
+import { filterPendingThreadArchives, isPendingThreadArchive } from './pendingThreadArchives'
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
@@ -169,23 +170,6 @@ function mergeThreadSummary(existing: ThreadSummary, incoming: ThreadSummary): T
   return { ...existing, ...normalizeIncomingWorkspaceState(incoming, existing) }
 }
 
-export function collectThreadTreeIds(threads: ThreadSummary[], rootThreadId: string): Set<string> {
-  const ids = new Set<string>([rootThreadId])
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const thread of threads) {
-      if (ids.has(thread.id)) continue
-      const parentId = isSubAgentThread(thread) ? getSubAgentParentThreadId(thread) : null
-      if (parentId && ids.has(parentId)) {
-        ids.add(thread.id)
-        changed = true
-      }
-    }
-  }
-  return ids
-}
-
 function normalizePinnedThreadIds(threadIds: Iterable<string>): string[] {
   const seen = new Set<string>()
   const normalized: string[] = []
@@ -234,7 +218,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   setThreadList(threads, projectKey = null) {
     const nextProjectKey = normalizeWorkspaceProjectKey(projectKey)
     set((state) => {
-      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
+      const visibleThreads = filterPendingThreadArchives(nextProjectKey, threads)
+        .filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
       const threadListProjectKey = nextProjectKey
       const retained = new Set(retainedThreadIds())
       const childrenByParent = useSubAgentStore.getState().childrenByParent
@@ -328,7 +313,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     thread = normalizeThreadSummaryRuntime(thread)
     set((state) => {
       const hiddenThreadIds = trackHiddenThreads(state.hiddenThreadIds, [thread])
-      if (isHiddenThread(thread) || state.threadList.some((t) => t.id === thread.id)) {
+      if (filterPendingThreadArchives(state.threadListProjectKey, [thread]).length === 0
+        || isHiddenThread(thread) || state.threadList.some((t) => t.id === thread.id)) {
         return hiddenThreadIds === state.hiddenThreadIds ? state : { hiddenThreadIds }
       }
       const goalSnapshots = new Map(state.goalSnapshots)
@@ -348,12 +334,13 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     const internalThreadIds = new Set(threads.filter((thread) => isHiddenThread(thread)).map((thread) => thread.id))
     if (threads.length === 0) return
     set((state) => {
-      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map((thread) => {
-        const current = state.runtimeSnapshots.get(thread.id)
-        return normalizeThreadSummaryRuntime(runtimeBaseline && current !== runtimeBaseline.get(thread.id)
-          ? { ...thread, runtime: current }
-          : thread)
-      })
+      const visibleThreads = filterPendingThreadArchives(state.threadListProjectKey, threads)
+        .filter((thread) => !isHiddenThread(thread)).map((thread) => {
+          const current = state.runtimeSnapshots.get(thread.id)
+          return normalizeThreadSummaryRuntime(runtimeBaseline && current !== runtimeBaseline.get(thread.id)
+            ? { ...thread, runtime: current }
+            : thread)
+        })
       const incoming = new Map(visibleThreads.map((thread) => [thread.id, thread]))
       const seen = new Set<string>()
       const existingThreadList = internalThreadIds.size > 0
@@ -541,8 +528,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   setActiveThread(thread) {
-    // Do not sync activeThreadId here — selection is user-driven; stale thread/read
-    // responses must not redirect which thread is selected.
+    // Thread reads must not change the user's selection.
     set((state) => {
       if (!thread) return { activeThread: thread }
       const incomingTurns = Array.isArray(thread.turns) ? thread.turns : []
@@ -641,7 +627,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     let nextPinnedThreadIds: string[] | null = null
     set((state) => {
       const pinnableThreadIds = getPinnableThreadIds(state.threadList)
-      const pinnedThreadIds = state.pinnedThreadIds.filter((id) => pinnableThreadIds.has(id))
+      const pinnedThreadIds = state.pinnedThreadIds.filter((id) =>
+        pinnableThreadIds.has(id) || isPendingThreadArchive(state.threadListProjectKey, id))
       if (pinnedThreadIds.length === state.pinnedThreadIds.length) return state
       workspacePath = state.pinnedThreadWorkspacePath
       nextPinnedThreadIds = pinnedThreadIds

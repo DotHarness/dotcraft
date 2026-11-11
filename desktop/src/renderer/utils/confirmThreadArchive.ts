@@ -1,6 +1,6 @@
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
 import type { ThreadSummary } from '../types/thread'
-import { collectThreadTreeIds } from '../stores/threadStore'
+import { collectThreadTreeIds } from './subAgentThreads'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 const pending = new Set<string>()

@@ -1,8 +1,15 @@
-import { collectThreadTreeIds, useThreadStore } from '../stores/threadStore'
+import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
-import { addToast, showToast } from '../stores/toastStore'
+import { addToast, removeToast, showToast } from '../stores/toastStore'
+import { useConnectionStore } from '../stores/connectionStore'
+import { filterPendingProjectArchives, useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { beginPendingThreadArchive, endPendingThreadArchive } from '../stores/pendingThreadArchives'
+import { beginThreadNavigation, isThreadNavigationCurrent } from '../stores/projectThreadNavigation'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ThreadSummary } from '../types/thread'
+import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
 import { confirmThreadArchive, needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
+import { collectThreadTreeIds } from './subAgentThreads'
 import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -12,79 +19,129 @@ export interface ArchiveThreadOptions {
   t: Translate
 }
 
-export async function archiveThreadWithUndo({ threadId, t }: ArchiveThreadOptions): Promise<boolean> {
+export function archiveThreadWithUndo({ threadId, t }: ArchiveThreadOptions): Promise<boolean> {
   const state = useThreadStore.getState()
+  const connection = useConnectionStore.getState()
+  const projectKey = normalizeWorkspaceProjectKey(state.threadListProjectKey ?? connection.connectionKey)
+  const send: typeof window.api.appServer.sendRequest = (method, params) => connection.connectionKey
+    ? window.api.appServer.sendConnectionRequest(connection.connectionKey, method, params, undefined, {
+        connectionId: connection.connectionId ?? undefined
+      })
+    : window.api.appServer.sendRequest(method, params)
   const running = needsThreadTreeArchiveConfirmation(threadId, state.threadList, state.runningTurnThreadIds)
-  return confirmThreadArchive(`foreground:${threadId}`, running, t, () => performArchive(threadId, t))
+  return confirmThreadArchive(JSON.stringify([projectKey, threadId]), running, t, () => performThreadArchive({
+    projectKey, threadId, threads: state.threadList, t,
+    archive: () => stopBeforeArchive(send, threadId),
+    unarchive: () => send('thread/unarchive', { threadId })
+  }))
 }
 
-async function performArchive(threadId: string, t: Translate): Promise<boolean> {
+export async function performThreadArchive({ projectKey, threadId, threads, archive, unarchive, t }: {
+  projectKey: string
+  threadId: string
+  threads: ThreadSummary[]
+  archive: () => Promise<unknown>
+  unarchive: () => Promise<unknown>
+  t: Translate
+}): Promise<boolean> {
+  projectKey = normalizeWorkspaceProjectKey(projectKey)
+  const key = JSON.stringify([projectKey, threadId])
   const before = useThreadStore.getState()
-  const treeIds = collectThreadTreeIds(before.threadList, threadId)
-  const captured = before.threadList.filter((thread) => treeIds.has(thread.id))
-  const wasActive = before.activeThreadId === threadId
+  const ownsForeground = () => normalizeWorkspaceProjectKey(useThreadStore.getState().threadListProjectKey) === projectKey
+  const original = ownsForeground() ? before.threadList : threads
+  const ids = collectThreadTreeIds(original, threadId)
+  const captured = original.filter(thread => ids.has(thread.id))
+  const wasActive = ownsForeground() && before.activeThreadId != null && ids.has(before.activeThreadId)
+  const projects = useWorkspaceProjectsStore.getState()
+  const project = [...projects.projects, ...(projects.chat ? [projects.chat] : [])]
+    .find(entry => normalizeWorkspaceProjectKey(entry.projectId ?? entry.path) === projectKey)
+  const projectRows = (project?.threads ?? []) as ThreadSummary[]
+  const projectCaptured = projectRows.filter(thread => ids.has(thread.id))
 
-  try {
-    await stopBeforeArchive((method, params) => window.api.appServer.sendRequest(method, params), threadId)
-  } catch (err) {
-    addToast(t('threadArchive.toast.archiveFailed', { error: errorText(err) }), 'error')
-    return false
+  beginPendingThreadArchive(projectKey, threadId, ids)
+  if (ownsForeground()) {
+    useThreadStore.setState({ threadList: before.threadList.filter(thread => !ids.has(thread.id)) })
+    if (wasActive) {
+      before.setActiveThreadId(null)
+      before.setActiveThread(null)
+    }
+  }
+  const navigation = wasActive ? beginThreadNavigation() : null
+  useWorkspaceProjectsStore.setState(state => ({
+    projects: state.projects.map(filterPendingProjectArchives),
+    chat: state.chat ? filterPendingProjectArchives(state.chat) : null
+  }))
+
+  const restore = (stopped: boolean): void => {
+    const rows = (entries: ThreadSummary[]) => entries.map(thread => {
+      const runtime = ownsForeground() ? useThreadStore.getState().runtimeSnapshots.get(thread.id) ?? thread.runtime : thread.runtime
+      return {
+        ...thread,
+        runtime: stopped && runtime ? {
+          ...runtime, running: false, busy: false, activeTurnId: null, activeTurnStartedAt: null,
+          waitingOnApproval: false, waitingOnInput: false, waitingOnPlanConfirmation: false, maintenanceKind: null
+        } : runtime
+      }
+    })
+    if (ownsForeground()) {
+      const store = useThreadStore.getState()
+      store.upsertThreads(rows(captured))
+      if (navigation != null && isThreadNavigationCurrent(navigation)) {
+        store.setActiveThreadId(before.activeThreadId)
+        if (!stopped) store.setActiveThread(before.activeThread)
+        useUIStore.getState().setActiveMainView('conversation')
+      }
+    }
+    const restoreProject = (entry: WorkspaceProjectSummary): WorkspaceProjectSummary => {
+      if (normalizeWorkspaceProjectKey(entry.projectId ?? entry.path) !== projectKey) return entry
+      const current = entry.threads as ThreadSummary[]
+      const existing = new Set(current.map(thread => thread.id))
+      const missing = rows(projectCaptured).filter(thread => !existing.has(thread.id))
+      return filterPendingProjectArchives({
+        ...entry, threads: [...current, ...missing],
+        threadCount: entry.threadCount + missing.length
+      })
+    }
+    useWorkspaceProjectsStore.setState(state => ({
+      projects: state.projects.map(restoreProject),
+      chat: state.chat ? restoreProject(state.chat) : null
+    }))
   }
 
-  const store = useThreadStore.getState()
-  if (wasActive) store.setActiveThreadId(null)
-  store.removeThreadTree(threadId)
-
-  showToast({
+  let toastId: string
+  const archived = Promise.resolve().then(archive).then(() => {
+    endPendingThreadArchive(projectKey, threadId)
+    if (ownsForeground()) {
+      for (const id of ids) useThreadStore.getState().removeThread(id)
+    }
+    return true
+  }, error => {
+    endPendingThreadArchive(projectKey, threadId)
+    removeToast(toastId)
+    restore(false)
+    addToast(t('threadArchive.toast.archiveFailed', { error: errorText(error) }), 'error')
+    return false
+  })
+  toastId = showToast({
     message: t('threadArchive.toast.archived'),
-    key: `thread-archive:${threadId}`,
+    key: `thread-archive:${key}`,
     action: {
       label: t('common.undo'),
       icon: 'undo',
       onClick: () => {
-        void restoreThread({ threadId, captured, reactivate: wasActive, t })
+        void archived.then(async (succeeded) => {
+          if (!succeeded) return
+          try {
+            await unarchive()
+            restore(true)
+          } catch (error) {
+            addToast(t('threadArchive.toast.restoreFailed', { error: errorText(error) }), 'error')
+          }
+        })
       }
     }
   })
-  return true
-}
-
-async function restoreThread({
-  threadId,
-  captured,
-  reactivate,
-  t
-}: {
-  threadId: string
-  captured: ThreadSummary[]
-  reactivate: boolean
-  t: Translate
-}): Promise<void> {
-  try {
-    await window.api.appServer.sendRequest('thread/unarchive', { threadId })
-  } catch (err) {
-    addToast(t('threadArchive.toast.restoreFailed', { error: errorText(err) }), 'error')
-    return
-  }
-  // thread/unarchived only updates rows that are still listed, so put the tree back ourselves.
-  const store = useThreadStore.getState()
-  store.upsertThreads(captured.map(thread => ({
-    ...thread,
-    runtime: thread.runtime ? {
-      ...thread.runtime,
-      running: false,
-      busy: false,
-      activeTurnId: null,
-      activeTurnStartedAt: null,
-      waitingOnApproval: false,
-      waitingOnInput: false,
-      waitingOnPlanConfirmation: false
-    } : undefined
-  })))
-  if (reactivate) {
-    store.setActiveThreadId(threadId)
-    useUIStore.getState().setActiveMainView('conversation')
-  }
+  return archived
 }
 
 function errorText(err: unknown): string {

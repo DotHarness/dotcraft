@@ -1,5 +1,5 @@
 import { confirmThreadArchive, needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
-import { addToast } from '../stores/toastStore'
+import { performThreadArchive } from './threadArchive'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ThreadSummary } from '../types/thread'
@@ -22,13 +22,17 @@ export function archiveWorkspaceThread(
 ): Promise<boolean> {
   const threads = getWorkspaceArchiveThreads(workspacePath, [thread])
   const running = needsThreadTreeArchiveConfirmation(thread.id, threads)
-  return confirmThreadArchive(JSON.stringify([workspacePath, thread.id]), running, t, async () => {
-    try {
-      await window.api.workspace.archiveThread(workspacePath, thread.id)
-      return true
-    } catch (error) {
-      addToast(t('threadArchive.toast.archiveFailed', { error: error instanceof Error ? error.message : String(error) }), 'error')
-      return false
-    }
-  })
+  const projectKey = normalizeWorkspaceProjectKey(workspacePath)
+  const { projects, chat } = useWorkspaceProjectsStore.getState()
+  const project = [...projects, ...(chat ? [chat] : [])].find(entry =>
+    normalizeWorkspaceProjectKey(entry.projectId ?? entry.path) === projectKey)
+  const connectionKey = project?.connectionKey ?? workspacePath
+  const connectionId = project?.connectionId
+  return confirmThreadArchive(JSON.stringify([projectKey, thread.id]), running, t, () => performThreadArchive({
+    projectKey, threadId: thread.id, threads, t,
+    archive: () => window.api.workspace.archiveThread(workspacePath, thread.id),
+    unarchive: () => window.api.appServer.sendConnectionRequest(connectionKey, 'thread/unarchive', {
+      threadId: thread.id
+    }, undefined, { connectionId })
+  }))
 }

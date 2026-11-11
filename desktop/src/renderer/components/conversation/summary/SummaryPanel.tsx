@@ -1,6 +1,7 @@
 import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
+import { useSkillIconUrl } from '../../../utils/skillIcon'
 import { RobotAvatar } from '../../agents/RobotAvatar'
 import { BackgroundTasksSection } from './BackgroundTasksSection'
 import { ContextSection } from './ContextSection'
@@ -100,6 +101,14 @@ function SourceThumbnail({ services, path }: { services: SummaryServices; path: 
   return src ? <img className="conversation-summary-thumbnail" src={src} alt="" draggable={false} /> : <FileText {...GLYPH} />
 }
 
+function SourceIcon({ services, source }: { services: SummaryServices; source: Source }): JSX.Element {
+  const skillIconUrl = useSkillIconUrl(source.kind === 'skill' ? source.id : null)
+  if (skillIconUrl) return <img className="conversation-summary-skill-icon" src={skillIconUrl} alt="" draggable={false} />
+  if (source.image && source.target) return <SourceThumbnail services={services} path={source.target} />
+  const Glyph = SOURCE_GLYPHS[source.kind]
+  return <Glyph {...GLYPH} />
+}
+
 function SourceRows({ services, sources, webSearch }: {
   services: SummaryServices
   sources: readonly Source[]
@@ -121,13 +130,10 @@ function SourceRows({ services, sources, webSearch }: {
     <>
       {visible.map((source) => {
         if (!source) return <Row key="web-search" leading={<Globe {...GLYPH} />} label={t('summary.webSearch')} />
-        const Glyph = SOURCE_GLYPHS[source.kind]
         return (
           <Row
             key={`${source.kind}:${source.id}`}
-            leading={source.image && source.target
-              ? <SourceThumbnail services={services} path={source.target} />
-              : <Glyph {...GLYPH} />}
+            leading={<SourceIcon services={services} source={source} />}
             label={source.title}
             title={source.kind === 'skill' || source.kind === 'mcp' ? source.title : source.id}
             onClick={open(source)}

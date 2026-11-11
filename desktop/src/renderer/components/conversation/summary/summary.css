@@ -184,6 +184,12 @@
   color: var(--text-secondary);
 }
 
+.conversation-summary-skill-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
 .conversation-summary-thumbnail {
   width: 16px;
   height: 16px;

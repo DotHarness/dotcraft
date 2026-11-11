@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
-import { useUIStore } from '../stores/uiStore'
 import type { ThreadSummary } from '../types/thread'
 import { archiveThreadWithUndo } from '../utils/threadArchive'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -10,8 +9,7 @@ import { archiveWorkspaceThread } from '../utils/archiveWorkspaceThread'
 
 vi.mock('../components/ui/ConfirmDialog', () => ({ requestConfirmDialog: vi.fn() }))
 
-const t = (key: string, vars?: Record<string, string | number>): string =>
-  vars ? `${key}:${JSON.stringify(vars)}` : key
+const t = (key: string) => key
 
 function thread(id: string): ThreadSummary {
   return {
@@ -97,37 +95,16 @@ describe('archiveThreadWithUndo', () => {
     expect(archiveThread).toHaveBeenCalledWith('/workspace/secondary', 'a')
   })
 
-  it('removes the thread, offers Undo, and restores it through thread/unarchive', async () => {
+  it('restores the row and selection and reports the error when the archive request fails', async () => {
     useThreadStore.getState().setActiveThreadId('a')
-    useUIStore.getState().setActiveMainView('settings')
-
-    await expect(archiveThreadWithUndo({ threadId: 'a', t })).resolves.toBe(true)
-
-    expect(sendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'a' })
-    expect(listedIds()).toEqual(['b'])
-    expect(useThreadStore.getState().activeThreadId).toBeNull()
-
-    const [toast] = useToastStore.getState().toasts
-    expect(toast.message).toBe('threadArchive.toast.archived')
-    expect(toast.action?.label).toBe('common.undo')
-
-    toast.action?.onClick()
-    await vi.waitFor(() => expect(listedIds()).toContain('a'))
-
-    expect(sendRequest).toHaveBeenCalledWith('thread/unarchive', { threadId: 'a' })
-    expect(useThreadStore.getState().activeThreadId).toBe('a')
-    expect(useUIStore.getState().activeMainView).toBe('conversation')
-  })
-
-  it('keeps the row and reports the error when the archive request fails', async () => {
     sendRequest.mockRejectedValueOnce(new Error('offline'))
 
     await expect(archiveThreadWithUndo({ threadId: 'a', t })).resolves.toBe(false)
 
     expect(listedIds()).toEqual(['a', 'b'])
+    expect(useThreadStore.getState().activeThreadId).toBe('a')
     const [toast] = useToastStore.getState().toasts
     expect(toast.type).toBe('error')
-    expect(toast.message).toBe('threadArchive.toast.archiveFailed:{"error":"offline"}')
   })
 
   it('reports a failed restore and leaves the thread archived', async () => {

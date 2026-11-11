@@ -17,14 +17,26 @@ export function getSubAgentParentThreadId(thread: ThreadSummary): string | null 
   return null
 }
 
-/**
- * Origin thread id for a thread spawned by another (non-subagent) thread, e.g. via
- * the Desktop CreateThread tool. Stored in thread metadata so it survives restart.
- * Returns null for normal threads and for subagent children (those use the dock).
- */
 export function getSpawnedFromThreadId(thread: Pick<ThreadSummary, 'metadata'>): string | null {
   const raw = thread.metadata?.spawnedFromThreadId
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+}
+
+export function collectThreadTreeIds(threads: readonly ThreadSummary[], rootThreadId: string): Set<string> {
+  const ids = new Set<string>([rootThreadId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const thread of threads) {
+      if (ids.has(thread.id)) continue
+      const parentId = isSubAgentThread(thread) ? getSubAgentParentThreadId(thread) : null
+      if (parentId && ids.has(parentId)) {
+        ids.add(thread.id)
+        changed = true
+      }
+    }
+  }
+  return ids
 }
 
 export function getSubAgentDepth(thread: ThreadSummary): number {
