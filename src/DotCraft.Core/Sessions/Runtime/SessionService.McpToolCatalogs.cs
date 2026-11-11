@@ -10,6 +10,32 @@ public sealed partial class SessionService
 {
     public Action<string, McpServerStatusSnapshot>? ThreadMcpStatusChangedForBroadcast { get; set; }
 
+    public async Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var runtime in _runtimeRegistry.Values)
+        {
+            try
+            {
+                await runtime.Commands.InvokeAsync(async commandCt =>
+                {
+                    using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, commandCt).ConfigureAwait(false))
+                    {
+                        var thread = runtime.Thread;
+                        if (!_runtimeRegistry.IsCurrent(thread.Id, runtime)
+                            || thread.Status != ThreadStatus.Active
+                            || IsPendingPermanentDeletion(thread.Id))
+                            return;
+
+                        SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, commandCt).ConfigureAwait(false));
+                    }
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException) when (runtime.Commands.IsClosed)
+            {
+            }
+        }
+    }
+
     public async Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
         CancellationToken cancellationToken = default)

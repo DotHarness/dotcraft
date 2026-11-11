@@ -72,6 +72,7 @@ internal sealed partial class PluginRequestHandler
     {
         var discovery = RefreshPluginRuntime();
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
+        await runtimeConfig.RefreshMcpRuntimesAsync(ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
         RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(

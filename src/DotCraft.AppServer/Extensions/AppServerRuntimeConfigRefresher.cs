@@ -77,6 +77,11 @@ internal sealed class AppServerRuntimeConfigRefresher(
         appConfigMonitor.Current.Hooks = new AppConfig.HooksConfig();
     }
 
+    public Task RefreshMcpRuntimesAsync(CancellationToken ct) =>
+        sessionService is IThreadMcpRuntimeService mcpRuntime
+            ? mcpRuntime.RefreshMcpRuntimesAsync(ct)
+            : Task.CompletedTask;
+
     public void InvalidateThreadAgents()
     {
         if (sessionService is IThreadAgentRefreshService refreshService)

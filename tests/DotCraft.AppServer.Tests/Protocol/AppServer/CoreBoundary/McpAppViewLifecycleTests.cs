@@ -410,6 +410,8 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 
     private sealed class McpRuntimeService(McpClientManager manager) : IThreadMcpRuntimeService
     {
+        public Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
             string threadId,
             CancellationToken cancellationToken = default) =>

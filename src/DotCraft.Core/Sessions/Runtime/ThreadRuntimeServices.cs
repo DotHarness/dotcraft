@@ -113,6 +113,9 @@ public interface IThreadSystemNoticeService
 /// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {
+    /// <summary>Reconciles MCP connections and tool snapshots of loaded active threads without loading other threads.</summary>
+    Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Returns the runtime composed from thread-selected user configuration and additive binding sessions.</summary>
     Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
