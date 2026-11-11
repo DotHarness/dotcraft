@@ -1,7 +1,7 @@
 import { textPart, type InputPart } from "@dotcraft/sdk";
 
-export const QUOTED_TEXT_MAX_CHARS = 1000;
-export const MAX_UNADDRESSED_MESSAGES = 50;
+const QUOTED_TEXT_MAX_CHARS = 1000;
+const MAX_UNADDRESSED_MESSAGES = 50;
 
 export type ChatContextMessage = {
   messageId?: string;
@@ -11,20 +11,18 @@ export type ChatContextMessage = {
   sentAt?: number;
 };
 
-export function truncateChatText(text: string, maxChars = QUOTED_TEXT_MAX_CHARS): string {
+function truncateChatText(text: string, maxChars = QUOTED_TEXT_MAX_CHARS): string {
   const chars = Array.from(text.trim());
   return chars.length <= maxChars ? chars.join("") : `${chars.slice(0, maxChars).join("")}…`;
 }
 
-/** Text part placed before a message that replies to or quotes another message. */
 export function quotedMessagePart(senderName: string, text: string): InputPart {
   return textPart(
     `[Quoted message from ${senderName || "unknown"}]\n${quoteLines(truncateChatText(text))}`,
   );
 }
 
-/** Text part carrying recent group messages that did not address the bot. */
-export function unaddressedMessagesPart(messages: readonly ChatContextMessage[]): InputPart {
+function unaddressedMessagesPart(messages: readonly ChatContextMessage[]): InputPart {
   const lines = messages.map((message) => {
     const time = message.sentAt === undefined ? "" : `[${new Date(message.sentAt).toISOString()}] `;
     return `${time}${message.senderName}: ${message.text.replace(/\n/g, "\n  ")}`;
@@ -46,9 +44,6 @@ export type UnaddressedSnapshot = {
   consume: () => void;
 };
 
-/**
- * Keeps recent group messages that did not address the bot, per chat scope, in memory only.
- */
 export class UnaddressedMessageBuffer {
   private readonly scopes = new Map<string, BufferedMessage[]>();
   private seq = 0;

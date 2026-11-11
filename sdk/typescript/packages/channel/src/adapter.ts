@@ -1,7 +1,3 @@
-/**
- * ChannelAdapter: high-level base class for external channel adapters.
- */
-
 import { ChannelAppServerClient } from "./channelAppServerClient.js";
 import {
   ERR_THREAD_NOT_ACTIVE,
@@ -81,7 +77,6 @@ export abstract class ChannelAdapter {
   private readonly lifecycle = new ModuleLifecycleState();
   private running = false;
 
-  /** Default workspace path; override per instance or in handleMessage. */
   protected defaultWorkspacePath = "";
 
   constructor(
@@ -187,7 +182,7 @@ export abstract class ChannelAdapter {
     };
   }
 
-  /** Reads earlier messages of a chat; override when the delivery capabilities declare `history`. */
+  /** Override when the delivery capabilities declare `history`. */
   protected async onReadHistory(_request: ChannelHistoryReadRequest): Promise<ChannelHistoryPage> {
     return historyFailure("UnsupportedTarget", "This adapter cannot read chat history.");
   }
@@ -228,7 +223,6 @@ export abstract class ChannelAdapter {
     await this.onDeliver(target, lines.join("\n"), {});
   }
 
-  /** Returns compact application context bound to Threads owned by this adapter. */
   protected getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined {
     return undefined;
   }

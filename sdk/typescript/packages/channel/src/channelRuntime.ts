@@ -1,7 +1,3 @@
-/**
- * Reusable runtime components for external channel adapters.
- */
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 

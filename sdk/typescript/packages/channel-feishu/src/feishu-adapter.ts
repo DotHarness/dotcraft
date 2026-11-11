@@ -215,6 +215,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.history = new FeishuHistory(
       {
         client: () => this.getFeishuClient(),
+        botAppId: () => config.feishu.appId,
         botOpenId: () => this.botOpenId,
       },
       config.feishu.groupContextMessages ?? 0,
@@ -535,7 +536,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
   }
 
-  /** Buffers a group message that did not address the bot, for the next message that does. */
   rememberUnaddressed(event: FeishuMessageEvent, threadCapable: boolean, botOpenId: string): void {
     if (!this.history || event.message.chat_type !== "group") return;
     const text = renderMessageContent(event.message.message_type, event.message.content, event.message.mentions ?? [], botOpenId);
@@ -556,9 +556,10 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   async handleInboundMessage(message: ParsedInboundMessage): Promise<void> {
-    this.history?.rememberDirectChat(message.userId, message.chatId);
+    if (message.chatType === "p2p") this.history?.rememberDirectChat(message.userId, message.chatId);
     const context = message.chatType === "group" ? this.history?.snapshot(message.channelContext) : undefined;
-    const quoted = await this.history?.quotedPart(message.parentId, message.chatId);
+    const quotesTopicRoot = Boolean(message.threadKey) && message.parentId === message.rootId;
+    const quoted = quotesTopicRoot ? undefined : await this.history?.quotedPart(message.parentId);
     const contextParts = [context?.part, quoted].filter((part): part is InputPart => part !== undefined);
     logInfo("inbound.handle.start", {
       messageId: shortId(message.messageId),

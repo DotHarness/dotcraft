@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
-/// <summary>Executable wire contract for AcpFsReadTextFileParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpFsReadTextFileParams : ExtensibleJsonObject
 {
@@ -29,7 +28,6 @@ public sealed class AcpFsReadTextFileParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpFsReadTextFileResult.</summary>
 [ContractModule("acp")]
 public sealed class AcpFsReadTextFileResult : ExtensibleJsonObject
 {
@@ -39,7 +37,6 @@ public sealed class AcpFsReadTextFileResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpFsWriteTextFileParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpFsWriteTextFileParams : ExtensibleJsonObject
 {
@@ -57,7 +54,6 @@ public sealed class AcpFsWriteTextFileParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpFsWriteTextFileResult.</summary>
 [ContractModule("acp")]
 public sealed class AcpFsWriteTextFileResult : ExtensibleJsonObject
 {
@@ -67,7 +63,6 @@ public sealed class AcpFsWriteTextFileResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalCreateParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalCreateParams : ExtensibleJsonObject
 {
@@ -89,7 +84,6 @@ public sealed class AcpTerminalCreateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalCreateResult.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalCreateResult : ExtensibleJsonObject
 {
@@ -99,7 +93,6 @@ public sealed class AcpTerminalCreateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalGetOutputParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalGetOutputParams : ExtensibleJsonObject
 {
@@ -113,7 +106,6 @@ public sealed class AcpTerminalGetOutputParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalKillParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalKillParams : ExtensibleJsonObject
 {
@@ -127,7 +119,6 @@ public sealed class AcpTerminalKillParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalOutputResult.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalOutputResult : ExtensibleJsonObject
 {
@@ -141,7 +132,6 @@ public sealed class AcpTerminalOutputResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalReleaseParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalReleaseParams : ExtensibleJsonObject
 {
@@ -155,7 +145,6 @@ public sealed class AcpTerminalReleaseParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AcpTerminalWaitForExitParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpTerminalWaitForExitParams : ExtensibleJsonObject
 {
@@ -173,7 +162,6 @@ public sealed class AcpTerminalWaitForExitParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingActivateParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingActivateParams : ExtensibleJsonObject
 {
@@ -195,7 +183,6 @@ public sealed class AppBindingActivateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingCapabilityChange.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingCapabilityChange : ExtensibleJsonObject
 {
@@ -213,7 +200,6 @@ public sealed class AppBindingCapabilityChange : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRebindParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingRebindParams : ExtensibleJsonObject
 {
@@ -240,7 +226,6 @@ public sealed class AppBindingRebindParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRequestGetParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingRequestGetParams : ExtensibleJsonObject
 {
@@ -254,7 +239,6 @@ public sealed class AppBindingRequestGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRequestGetResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
 {
@@ -332,7 +316,6 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRequest.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingRequest : ExtensibleJsonObject
 {
@@ -362,7 +345,6 @@ public sealed class AppBindingRequest : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRequestedNotification.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingRequestedNotification : ExtensibleJsonObject
 {
@@ -403,7 +385,6 @@ public sealed class AppBindingRequestedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingToolCapability.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingToolCapability : ExtensibleJsonObject
 {
@@ -441,7 +422,6 @@ public sealed class AppBindingToolCapability : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingUiCapability.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingUiCapability : ExtensibleJsonObject
 {
@@ -467,7 +447,6 @@ public sealed class AppBindingUiCapability : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBinding.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBinding : ExtensibleJsonObject
 {
@@ -524,7 +503,6 @@ public sealed class AppBinding : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingsListResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppBindingsListResult : ExtensibleJsonObject
 {
@@ -534,7 +512,6 @@ public sealed class AppBindingsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionAuthenticateParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionAuthenticateParams : ExtensibleJsonObject
 {
@@ -548,7 +525,6 @@ public sealed class AppConnectionAuthenticateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionAuthenticateResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionAuthenticateResult : ExtensibleJsonObject
 {
@@ -558,7 +534,6 @@ public sealed class AppConnectionAuthenticateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionChangedNotification.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionChangedNotification : ExtensibleJsonObject
 {
@@ -572,7 +547,6 @@ public sealed class AppConnectionChangedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionConnectParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionConnectParams : ExtensibleJsonObject
 {
@@ -590,7 +564,6 @@ public sealed class AppConnectionConnectParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionConnectResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionConnectResult : ExtensibleJsonObject
 {
@@ -604,7 +577,6 @@ public sealed class AppConnectionConnectResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionRefreshResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionRefreshResult : ExtensibleJsonObject
 {
@@ -618,7 +590,6 @@ public sealed class AppConnectionRefreshResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionRequestGetParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionRequestGetParams : ExtensibleJsonObject
 {
@@ -632,7 +603,6 @@ public sealed class AppConnectionRequestGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionRequestGetResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionRequestGetResult : ExtensibleJsonObject
 {
@@ -668,7 +638,6 @@ public sealed class AppConnectionRequestGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionRevokeParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionRevokeParams : ExtensibleJsonObject
 {
@@ -682,7 +651,6 @@ public sealed class AppConnectionRevokeParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionRevokeResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionRevokeResult : ExtensibleJsonObject
 {
@@ -692,7 +660,6 @@ public sealed class AppConnectionRevokeResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionStartParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionStartParams : ExtensibleJsonObject
 {
@@ -702,7 +669,6 @@ public sealed class AppConnectionStartParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionStartResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionStartResult : ExtensibleJsonObject
 {
@@ -724,7 +690,6 @@ public sealed class AppConnectionStartResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionStatusParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionStatusParams : ExtensibleJsonObject
 {
@@ -734,7 +699,6 @@ public sealed class AppConnectionStatusParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppConnectionStatusResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppConnectionStatusResult : ExtensibleJsonObject
 {
@@ -752,7 +716,6 @@ public sealed class AppConnectionStatusResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppDynamicToolCatalogDescriptor.</summary>
 [ContractModule("app-binding")]
 public sealed class AppDynamicToolCatalogDescriptor : ExtensibleJsonObject
 {
@@ -766,7 +729,6 @@ public sealed class AppDynamicToolCatalogDescriptor : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppHandoffModeDescriptor.</summary>
 [ContractModule("app-binding")]
 public sealed class AppHandoffModeDescriptor : ExtensibleJsonObject
 {
@@ -784,7 +746,6 @@ public sealed class AppHandoffModeDescriptor : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppHandoff.</summary>
 [ContractModule("app-binding")]
 public sealed class AppHandoff : ExtensibleJsonObject
 {
@@ -806,7 +767,6 @@ public sealed class AppHandoff : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppInfo.</summary>
 [ContractModule("app-binding")]
 public sealed class AppInfo : ExtensibleJsonObject
 {
@@ -892,7 +852,6 @@ public sealed class AppInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppListParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppListParams : ExtensibleJsonObject
 {
@@ -918,7 +877,6 @@ public sealed class AppListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppListResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppListResult : ExtensibleJsonObject
 {
@@ -928,7 +886,6 @@ public sealed class AppListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppListUpdatedNotification.</summary>
 [ContractModule("app-binding")]
 public sealed class AppListUpdatedNotification : ExtensibleJsonObject
 {
@@ -946,7 +903,6 @@ public sealed class AppListUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppNativeApplication.</summary>
 [ContractModule("app-binding")]
 public sealed class AppNativeApplication : ExtensibleJsonObject
 {
@@ -968,7 +924,6 @@ public sealed class AppNativeApplication : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppPrincipal.</summary>
 [ContractModule("app-binding")]
 public sealed class AppPrincipal : ExtensibleJsonObject
 {
@@ -990,7 +945,6 @@ public sealed class AppPrincipal : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppScopeDescriptor.</summary>
 [ContractModule("app-binding")]
 public sealed class AppScopeDescriptor : ExtensibleJsonObject
 {
@@ -1016,7 +970,6 @@ public sealed class AppScopeDescriptor : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppChannelBindingResolveParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppChannelBindingResolveParams : ExtensibleJsonObject
 {
@@ -1038,7 +991,6 @@ public sealed class AppChannelBindingResolveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppChannelBindingResolveResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppChannelBindingResolveResult : ExtensibleJsonObject
 {
@@ -1048,7 +1000,6 @@ public sealed class AppChannelBindingResolveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSurfacePublishParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppSurfacePublishParams : ExtensibleJsonObject
 {
@@ -1066,7 +1017,6 @@ public sealed class AppSurfacePublishParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSurfaceResolveParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppSurfaceResolveParams : ExtensibleJsonObject
 {
@@ -1080,7 +1030,6 @@ public sealed class AppSurfaceResolveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSurface.</summary>
 [ContractModule("app-binding")]
 public sealed class AppSurface : ExtensibleJsonObject
 {
@@ -1106,7 +1055,6 @@ public sealed class AppSurface : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppThreadInputEnqueueParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppThreadInputEnqueueParams : ExtensibleJsonObject
 {
@@ -1140,7 +1088,6 @@ public sealed class AppThreadInputEnqueueParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppThreadInputEnqueueResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppThreadInputEnqueueResult : ExtensibleJsonObject
 {
@@ -1154,7 +1101,6 @@ public sealed class AppThreadInputEnqueueResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppToolCatalogEntry.</summary>
 [ContractModule("app-binding")]
 public sealed class AppToolCatalogEntry : ExtensibleJsonObject
 {
@@ -1180,7 +1126,6 @@ public sealed class AppToolCatalogEntry : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppViewParams.</summary>
 [ContractModule("app-binding")]
 public sealed class AppViewParams : ExtensibleJsonObject
 {
@@ -1194,7 +1139,6 @@ public sealed class AppViewParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppViewResult.</summary>
 [ContractModule("app-binding")]
 public sealed class AppViewResult : ExtensibleJsonObject
 {
@@ -1204,7 +1148,6 @@ public sealed class AppViewResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelMediaSource.</summary>
 [ContractModule("external-channel")]
 public sealed class ChannelMediaSource : ExtensibleJsonObject
 {
@@ -1230,7 +1173,6 @@ public sealed class ChannelMediaSource : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelOutboundMessage.</summary>
 [ContractModule("external-channel")]
 public sealed class ChannelOutboundMessage : ExtensibleJsonObject
 {
@@ -1260,7 +1202,6 @@ public sealed class ChannelOutboundMessage : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelSendParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelSendParams : ExtensibleJsonObject
 {
@@ -1282,7 +1223,6 @@ public sealed class ExtChannelSendParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelSendResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelSendResult : ExtensibleJsonObject
 {
@@ -1308,7 +1248,6 @@ public sealed class ExtChannelSendResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelHistoryParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelHistoryParams : ExtensibleJsonObject
 {
@@ -1326,7 +1265,6 @@ public sealed class ExtChannelHistoryParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelHistoryResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelHistoryResult : ExtensibleJsonObject
 {
@@ -1348,7 +1286,6 @@ public sealed class ExtChannelHistoryResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelHistoryMessage.</summary>
 [ContractModule("external-channel")]
 public sealed class ChannelHistoryMessage : ExtensibleJsonObject
 {
@@ -1378,7 +1315,6 @@ public sealed class ChannelHistoryMessage : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelToolCallContext.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelToolCallContext : ExtensibleJsonObject
 {
@@ -1400,7 +1336,6 @@ public sealed class ExtChannelToolCallContext : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelToolCallParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelToolCallParams : ExtensibleJsonObject
 {
@@ -1430,7 +1365,6 @@ public sealed class ExtChannelToolCallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelToolCallResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelToolCallResult : ExtensibleJsonObject
 {
@@ -1456,7 +1390,6 @@ public sealed class ExtChannelToolCallResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelToolContentItem.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelToolContentItem : ExtensibleJsonObject
 {
@@ -1482,7 +1415,6 @@ public sealed class ExtChannelToolContentItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelConfig.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelConfig : ExtensibleJsonObject
 {
@@ -1520,7 +1452,6 @@ public sealed class ExternalChannelConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelGetParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelGetParams : ExtensibleJsonObject
 {
@@ -1530,7 +1461,6 @@ public sealed class ExternalChannelGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelGetResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelGetResult : ExtensibleJsonObject
 {
@@ -1540,7 +1470,6 @@ public sealed class ExternalChannelGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelListResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelListResult : ExtensibleJsonObject
 {
@@ -1550,7 +1479,6 @@ public sealed class ExternalChannelListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExtChannelConfigOptionAvailabilityParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelConfigOptionAvailabilityParams : ExtensibleJsonObject
 {
@@ -1560,7 +1488,6 @@ public sealed class ExtChannelConfigOptionAvailabilityParams : ExtensibleJsonObj
 
 }
 
-/// <summary>Executable wire contract for ExtChannelConfigOptionAvailabilityResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelConfigOptionAvailabilityResult : ExtensibleJsonObject
 {
@@ -1571,7 +1498,6 @@ public sealed class ExtChannelConfigOptionAvailabilityResult : ExtensibleJsonObj
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelConfigOptionAvailabilityParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelConfigOptionAvailabilityParams : ExtensibleJsonObject
 {
@@ -1585,7 +1511,6 @@ public sealed class ExternalChannelConfigOptionAvailabilityParams : ExtensibleJs
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelConfigOptionAvailabilityResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelConfigOptionAvailabilityResult : ExtensibleJsonObject
 {
@@ -1600,7 +1525,6 @@ public sealed class ExternalChannelConfigOptionAvailabilityResult : ExtensibleJs
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelLogsParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelLogsParams : ExtensibleJsonObject
 {
@@ -1614,7 +1538,6 @@ public sealed class ExternalChannelLogsParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelLogsResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelLogsResult : ExtensibleJsonObject
 {
@@ -1628,7 +1551,6 @@ public sealed class ExternalChannelLogsResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelRemoveParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelRemoveParams : ExtensibleJsonObject
 {
@@ -1638,7 +1560,6 @@ public sealed class ExternalChannelRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelRemoveResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelRemoveResult : ExtensibleJsonObject
 {
@@ -1648,7 +1569,6 @@ public sealed class ExternalChannelRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelUpsertParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelUpsertParams : ExtensibleJsonObject
 {
@@ -1658,7 +1578,6 @@ public sealed class ExternalChannelUpsertParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelUpsertResult.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelUpsertResult : ExtensibleJsonObject
 {
@@ -1668,7 +1587,6 @@ public sealed class ExternalChannelUpsertResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplBrowserSessionParams.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplBrowserSessionParams : ExtensibleJsonObject
 {
@@ -1699,7 +1617,6 @@ public sealed class NodeReplBrowserSessionParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplCancelParams.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplCancelParams : ExtensibleJsonObject
 {
@@ -1713,7 +1630,6 @@ public sealed class NodeReplCancelParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplEvaluateParams.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplEvaluateParams : ExtensibleJsonObject
 {
@@ -1749,7 +1665,6 @@ public sealed class NodeReplEvaluateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplEvaluateResult.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplEvaluateResult : ExtensibleJsonObject
 {
@@ -1779,7 +1694,6 @@ public sealed class NodeReplEvaluateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplRequestApprovalParams.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplRequestApprovalParams : ExtensibleJsonObject
 {
@@ -1815,7 +1729,6 @@ public sealed class NodeReplRequestApprovalParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplRequestApprovalResult.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplRequestApprovalResult : ExtensibleJsonObject
 {
@@ -1824,7 +1737,6 @@ public sealed class NodeReplRequestApprovalResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for NodeReplImageResult.</summary>
 [ContractModule("node-repl")]
 public sealed class NodeReplImageResult : ExtensibleJsonObject
 {
@@ -1838,7 +1750,6 @@ public sealed class NodeReplImageResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelBindingAcceptParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelBindingAcceptParams : ExtensibleJsonObject
 {
@@ -1852,7 +1763,6 @@ public sealed class ChannelBindingAcceptParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelBindingIntent.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelBindingIntent : ExtensibleJsonObject
 {
@@ -1870,7 +1780,6 @@ public sealed class ChannelBindingIntent : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelBindingRebindParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelBindingRebindParams : ExtensibleJsonObject
 {
@@ -1889,7 +1798,6 @@ public sealed class ChannelBindingRebindParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelBindingRequestGetParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelBindingRequestGetParams : ExtensibleJsonObject
 {
@@ -1899,7 +1807,6 @@ public sealed class ChannelBindingRequestGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelBoundBy.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelBoundBy : ExtensibleJsonObject
 {
@@ -1913,7 +1820,6 @@ public sealed class ChannelBoundBy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelTarget.</summary>
 [ContractModule("app-binding")]
 public sealed class ChannelTarget : ExtensibleJsonObject
 {
@@ -1947,7 +1853,6 @@ public sealed class ChannelTarget : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingConfirmCapabilitiesParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingConfirmCapabilitiesParams : ExtensibleJsonObject
 {
@@ -1970,7 +1875,6 @@ public sealed class ThreadAppBindingConfirmCapabilitiesParams : ExtensibleJsonOb
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingEnableParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingEnableParams : ExtensibleJsonObject
 {
@@ -1984,7 +1888,6 @@ public sealed class ThreadAppBindingEnableParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingEnableResult.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingEnableResult : ExtensibleJsonObject
 {
@@ -2010,7 +1913,6 @@ public sealed class ThreadAppBindingEnableResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingRevokeParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingRevokeParams : ExtensibleJsonObject
 {
@@ -2028,7 +1930,6 @@ public sealed class ThreadAppBindingRevokeParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingSummary.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingSummary : ExtensibleJsonObject
 {
@@ -2101,7 +2002,6 @@ public sealed class ThreadAppBindingSummary : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingsChangedNotification.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingsChangedNotification : ExtensibleJsonObject
 {
@@ -2140,7 +2040,6 @@ public sealed class ThreadAppBindingsChangedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingsListParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingsListParams : ExtensibleJsonObject
 {
@@ -2154,7 +2053,6 @@ public sealed class ThreadAppBindingsListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingsListResult.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadAppBindingsListResult : ExtensibleJsonObject
 {
@@ -2164,7 +2062,6 @@ public sealed class ThreadAppBindingsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadChannelBindingRequestCreateParams.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadChannelBindingRequestCreateParams : ExtensibleJsonObject
 {
@@ -2178,7 +2075,6 @@ public sealed class ThreadChannelBindingRequestCreateParams : ExtensibleJsonObje
 
 }
 
-/// <summary>Executable wire contract for ThreadChannelBindingRequestCreateResult.</summary>
 [ContractModule("app-binding")]
 public sealed class ThreadChannelBindingRequestCreateResult : ExtensibleJsonObject
 {

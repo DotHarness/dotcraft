@@ -168,8 +168,8 @@ test("Feishu client lists chat messages with normalized metadata and validates a
     },
   }), async (client, calls) => {
     const result = await client.listChatMessages("oc_chat_123", {
-      startTime: "1710000000000",
-      endTime: "1710003600000",
+      startTime: "1710000000",
+      endTime: "1710003600",
       pageSize: 50,
       pageToken: "current-page",
     });
@@ -183,8 +183,10 @@ test("Feishu client lists chat messages with normalized metadata and validates a
       createTime: "1710000000000",
       parentId: "om_parent_1",
       rootId: "om_root_1",
+      threadId: undefined,
       sender: {
         openId: "ou_user_1",
+        appId: undefined,
         userId: "user_1",
         unionId: "union_1",
         senderType: "user",
@@ -201,14 +203,13 @@ test("Feishu client lists chat messages with normalized metadata and validates a
     const query = new URL(calls[0]!.url).searchParams;
     assert.equal(query.get("container_id_type"), "chat");
     assert.equal(query.get("container_id"), "oc_chat_123");
-    assert.equal(query.get("start_time"), "1710000000000");
-    assert.equal(query.get("end_time"), "1710003600000");
+    assert.equal(query.get("start_time"), "1710000000");
+    assert.equal(query.get("end_time"), "1710003600");
     assert.equal(query.get("page_size"), "50");
     assert.equal(query.get("page_token"), "current-page");
 
-    await assert.rejects(client.listChatMessages("", { startTime: "1710000000000" }), /chatId/);
-    await assert.rejects(client.listChatMessages("oc_chat_123", { startTime: "   " }), /startTime/);
-    await assert.rejects(client.listChatMessages("oc_chat_123", { startTime: "1710000000000", pageSize: 0 }), /pageSize/);
+    await assert.rejects(client.listChatMessages(""), /chatId/);
+    await assert.rejects(client.listChatMessages("oc_chat_123", { pageSize: 0 }), /pageSize/);
     assert.equal(calls.length, 1);
   });
 });

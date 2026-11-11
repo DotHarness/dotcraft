@@ -3,14 +3,8 @@ using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Channels;
 
-/// <summary>
-/// Unified runtime contract for built-in and external channels.
-/// </summary>
 public interface IChannelRuntime
 {
-    /// <summary>
-    /// Gets the unique runtime name of this channel.
-    /// </summary>
     string Name { get; }
 
     string DisplayName => Name;
@@ -19,26 +13,11 @@ public interface IChannelRuntime
 
     ChannelChatDescriptor? GetThreadChat(string threadId) => null;
 
-    /// <summary>
-    /// Returns the platform-native tools exposed by this channel.
-    /// </summary>
     IReadOnlyList<ChannelToolSpec> GetChannelTools() => [];
 
-    /// <summary>
-    /// Whether this runtime has completed the handshake required to expose its tools and
-    /// accept turn execution. Native in-proc channels are always ready once registered;
-    /// external channels return <c>true</c> only after their host handshake finishes.
-    /// </summary>
-    /// <remarks>
-    /// Consumers (e.g. the automations orchestrator) use this signal to defer triggering
-    /// bound turns on a thread whose channel is not yet ready — otherwise the agent would
-    /// build its turn without channel-specific tools.
-    /// </remarks>
+    /// <summary>False until an external channel finishes its handshake; bound Turns wait for it so they get the channel's tools.</summary>
     bool IsReady => true;
 
-    /// <summary>
-    /// Resolves the execution context for a channel tool call against the current thread/turn.
-    /// </summary>
     ChannelToolInvocationContext ResolveExecutionContext(SessionThread thread, SessionTurn turn)
         => new()
         {
@@ -48,9 +27,6 @@ public interface IChannelRuntime
             GroupId = turn.Initiator?.GroupId
         };
 
-    /// <summary>
-    /// Delivers a structured outbound message to a specific target.
-    /// </summary>
     Task<ChannelDeliveryResult> DeliverAsync(
         string target,
         ChannelDeliveryMessage message,
@@ -58,9 +34,6 @@ public interface IChannelRuntime
         string? deliveryId = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Reads earlier messages of a chat; only channels that declare history capability support it.
-    /// </summary>
     Task<ChannelHistoryResult> ReadHistoryAsync(
         ChannelHistoryRequest request,
         CancellationToken cancellationToken = default)
@@ -68,9 +41,6 @@ public interface IChannelRuntime
             "HistoryUnavailable",
             $"Channel '{Name}' cannot read chat history."));
 
-    /// <summary>
-    /// Executes a channel-native tool call.
-    /// </summary>
     Task<ChannelToolInvocationResult> ExecuteToolAsync(
         ChannelToolInvocationRequest request,
         CancellationToken cancellationToken = default)

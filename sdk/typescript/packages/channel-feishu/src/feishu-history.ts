@@ -9,23 +9,24 @@ import {
   type InputPart,
 } from "@dotcraft/channel";
 
-import { conversationTargetBase, conversationTargetThreadKey, parseConversationTarget } from "./conversation-target.js";
+import { parseConversationTarget } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuChatMessageItem } from "./feishu-types.js";
-import { errorMessage, logWarn } from "./logging.js";
+import { errorMessage, logWarn, shortId } from "./logging.js";
 import { renderMessageContent } from "./message-parser.js";
 
 export const FEISHU_HISTORY_MAX_MESSAGES = 50;
 
-const MAX_PAGES_PER_READ = 4;
-
 export interface FeishuHistorySettings {
-  client: () => FeishuClient;
+  client: () => Pick<FeishuClient, "getMessage" | "listChatMessages">;
+  botAppId: () => string;
   botOpenId: () => string;
 }
 
 export class FeishuHistory {
   private readonly unaddressed: UnaddressedMessageBuffer;
+  private readonly directChats = new Map<string, string>();
+  private readonly topicThreads = new Map<string, string>();
 
   constructor(
     private readonly settings: FeishuHistorySettings,
@@ -34,8 +35,7 @@ export class FeishuHistory {
     this.unaddressed = new UnaddressedMessageBuffer(groupContextMessages);
   }
 
-  private readonly directChats = new Map<string, string>();
-
+  /** Call only for direct messages, so a group never answers a direct chat's history read. */
   rememberDirectChat(openId: string, chatId: string): void {
     if (openId && chatId) this.directChats.set(openId, chatId);
   }
@@ -52,21 +52,14 @@ export class FeishuHistory {
     this.unaddressed.reset(channelContext);
   }
 
-  /** Builds the quoted-message part for a reply, reading the parent message with the bot's identity. */
-  async quotedPart(parentId: string | undefined, chatId: string): Promise<InputPart | undefined> {
-    if (!parentId || !chatId) return undefined;
+  async quotedPart(parentId: string | undefined): Promise<InputPart | undefined> {
+    if (!parentId) return undefined;
     try {
-      const page = await this.settings.client().listChatMessages(chatId, {
-        startTime: "0",
-        pageSize: 1,
-        sortType: "ByCreateTimeAsc",
-        messageId: parentId,
-      });
-      const item = page.items[0];
+      const item = await this.settings.client().getMessage(parentId);
       const text = item ? renderHistoryItem(item, this.settings.botOpenId()) : "";
-      return text ? quotedMessagePart(item!.sender.openId ?? item!.sender.userId ?? "", text) : undefined;
+      return item && text ? quotedMessagePart(senderLabel(item), text) : undefined;
     } catch (error) {
-      logWarn("history.quoted_lookup_failed", { messageId: parentId, message: errorMessage(error) });
+      logWarn("history.quoted_lookup_failed", { messageId: shortId(parentId), message: errorMessage(error) });
       return undefined;
     }
   }
@@ -75,69 +68,67 @@ export class FeishuHistory {
     const target = parseConversationTarget(request.target);
     if (!target) return historyFailure("UnsupportedTarget", `'${request.target}' is not a Feishu chat.`);
 
-    const chatId = target.kind === "dm" ? this.directChats.get(target.id) : conversationTargetBase(request.target);
-    if (!chatId) {
-      return historyFailure("UnsupportedTarget", "This direct chat has no history yet; send a message in it first.");
-    }
-
-    if (request.before !== undefined && !/^\d+$/.test(request.before)) {
-      return historyFailure("InvalidCursor", "The history cursor is not a Feishu timestamp.");
-    }
-
-    const limit = Math.min(request.limit, FEISHU_HISTORY_MAX_MESSAGES);
-    const threadKey = target.kind === "group" ? conversationTargetThreadKey(request.target) : "";
-    const botOpenId = this.settings.botOpenId();
-    const messages: ChannelHistoryMessage[] = [];
-    const seen = new Set<string>();
-    let endTime = request.before;
-
     try {
-      for (let page = 0; page < MAX_PAGES_PER_READ && messages.length < limit; page++) {
-        const result = await this.settings.client().listChatMessages(chatId, {
-          startTime: "0",
-          pageSize: limit,
-          sortType: "ByCreateTimeDesc",
-          ...(endTime ? { endTime } : {}),
-        });
-        const items = result.items;
-        if (items.length === 0) break;
-        for (const item of items) {
-          if (seen.has(item.messageId)) continue;
-          seen.add(item.messageId);
-          if (endTime && Number(item.createTime ?? 0) >= Number(endTime)) continue;
-          if (threadKey && item.rootId !== threadKey) continue;
-          const text = renderHistoryItem(item, botOpenId);
-          if (!text) continue;
-          messages.push({
-            messageId: item.messageId,
-            text,
-            ...(item.sender.openId ? { senderId: item.sender.openId } : item.sender.userId ? { senderId: item.sender.userId } : {}),
-            ...(item.createTime ? { sentAt: new Date(Number(item.createTime)).toISOString() } : {}),
-            ...(botOpenId && (item.sender.openId === botOpenId || item.sender.senderType === "app") ? { fromBot: true } : {}),
-          });
-        }
-        const oldest = items.reduce((min, item) => Math.min(min, Number(item.createTime ?? 0)), Number.MAX_SAFE_INTEGER);
-        if (!Number.isFinite(oldest) || oldest === Number.MAX_SAFE_INTEGER) break;
-        endTime = String(oldest);
-        if (!result.nextPageToken && items.length < limit) break;
+      const container = await this.resolveContainer(target);
+      if (!container) {
+        return historyFailure("UnsupportedTarget", "This chat has no readable history yet.");
       }
+
+      const page = await this.settings.client().listChatMessages(container.id, {
+        containerType: container.type,
+        sortType: "ByCreateTimeDesc",
+        pageSize: Math.min(request.limit, FEISHU_HISTORY_MAX_MESSAGES),
+        ...(request.before ? { pageToken: request.before } : {}),
+      });
+      const messages = page.items
+        .map((item) => this.toHistoryMessage(item))
+        .filter((message): message is ChannelHistoryMessage => message !== undefined)
+        .reverse();
+      return {
+        messages,
+        ...(page.hasMore && page.nextPageToken ? { before: page.nextPageToken } : {}),
+      };
     } catch (error) {
       return historyFailure("HistoryUnavailable", errorMessage(error));
     }
+  }
 
-    messages.sort((a, b) => Number(a.sentAt ? Date.parse(a.sentAt) : 0) - Number(b.sentAt ? Date.parse(b.sentAt) : 0));
-    const pageMessages = messages.slice(Math.max(0, messages.length - limit));
-    if (messages.length <= limit) return { messages: pageMessages };
+  private async resolveContainer(
+    target: NonNullable<ReturnType<typeof parseConversationTarget>>,
+  ): Promise<{ type: "chat" | "thread"; id: string } | undefined> {
+    if (target.kind === "dm") {
+      const chatId = this.directChats.get(target.id);
+      return chatId ? { type: "chat", id: chatId } : undefined;
+    }
+    if (!target.threadKey) return { type: "chat", id: target.id };
 
-    const oldestTime = pageMessages[0]?.sentAt;
+    let threadId = this.topicThreads.get(target.threadKey);
+    if (!threadId) {
+      threadId = (await this.settings.client().getMessage(target.threadKey))?.threadId;
+      if (threadId) this.topicThreads.set(target.threadKey, threadId);
+    }
+    return threadId ? { type: "thread", id: threadId } : undefined;
+  }
+
+  private toHistoryMessage(item: FeishuChatMessageItem): ChannelHistoryMessage | undefined {
+    const text = renderHistoryItem(item, this.settings.botOpenId());
+    if (!text) return undefined;
+    const senderId = item.sender.openId ?? item.sender.appId ?? item.sender.userId;
+    const appId = this.settings.botAppId();
     return {
-      messages: pageMessages,
-      ...(oldestTime ? { before: String(Date.parse(oldestTime)) } : {}),
+      messageId: item.messageId,
+      text,
+      ...(senderId ? { senderId } : {}),
+      ...(item.createTime ? { sentAt: new Date(Number(item.createTime)).toISOString() } : {}),
+      ...(appId && item.sender.appId === appId ? { fromBot: true } : {}),
     };
   }
 }
 
-/** Plain-text rendering of a stored message; non-text content becomes a short placeholder. */
+function senderLabel(item: FeishuChatMessageItem): string {
+  return item.sender.openId ?? item.sender.appId ?? item.sender.userId ?? "";
+}
+
 export function renderHistoryItem(item: FeishuChatMessageItem, botOpenId: string): string {
   return renderMessageContent(item.messageType, item.rawContent, item.mentions, botOpenId).replace(/\s+$/u, "");
 }

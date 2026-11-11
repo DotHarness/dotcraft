@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { OneBotAction, OneBotActionResponse } from "./onebot.js";
-import { describeSegments, getReplyMessageId, readQQHistory, resolveQuotedPart } from "./qq-history.js";
+import { readQQHistory, resolveQuotedPart } from "./qq-history.js";
 
 function fakeServer(responses: Record<string, OneBotActionResponse>) {
   const actions: OneBotAction[] = [];
@@ -14,20 +14,6 @@ function fakeServer(responses: Record<string, OneBotActionResponse>) {
     },
   };
 }
-
-test("describeSegments renders non-text content as placeholders and drops reply segments", () => {
-  assert.equal(
-    describeSegments([
-      { type: "reply", data: { id: "9001" } },
-      { type: "text", data: { text: "look " } },
-      { type: "image", data: { file: "a.png" } },
-      { type: "at", data: { qq: "42", name: "Bob" } },
-    ]),
-    "look [image]@Bob",
-  );
-  assert.equal(getReplyMessageId([{ type: "reply", data: { id: "9001" } }]), "9001");
-  assert.equal(getReplyMessageId([{ type: "text", data: { text: "hi" } }]), undefined);
-});
 
 test("quoted replies are fetched with get_msg and attached as reference text", async () => {
   const server = fakeServer({
@@ -68,20 +54,26 @@ test("QQ history pages backwards from the cursor and marks the bot's own message
     },
   });
 
-  const page = await readQQHistory(server, { target: "group:123", limit: 10 }, "42");
+  const page = await readQQHistory(server, { target: "group:123", limit: 3 }, "42");
   assert.deepEqual(server.actions[0], {
     action: "get_group_msg_history",
-    params: { group_id: 123, count: 10 },
+    params: { group_id: 123, count: 3 },
   });
   assert.deepEqual(page.messages.map((message) => message.text), ["first", "second", "third"]);
   assert.equal(page.messages[0].fromBot, true);
   assert.equal(page.messages[1].fromBot, undefined);
   assert.equal(page.before, "10");
 
-  const older = await readQQHistory(server, { target: "group:123", limit: 10, before: "10" }, "42");
-  assert.deepEqual(server.actions[1]?.params, { group_id: 123, count: 11, message_seq: 10 });
+  const older = await readQQHistory(server, { target: "group:123", limit: 3, before: "10" }, "42");
+  assert.deepEqual(server.actions[1]?.params, {
+    group_id: 123,
+    count: 4,
+    message_seq: 10,
+    reverse_order: true,
+    reverseOrder: true,
+  });
   assert.equal(older.messages.length, 2);
-  assert.equal(older.before, "20");
+  assert.equal(older.before, undefined);
 });
 
 test("QQ history reports an unsupported or malformed request as an error page", async () => {

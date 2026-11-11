@@ -110,7 +110,6 @@ export async function parseInboundMessage(
   return null;
 }
 
-/** Plain-text rendering without downloading media, for history reads and quoted messages. */
 export function renderMessageContent(
   messageType: string,
   rawContent: string,

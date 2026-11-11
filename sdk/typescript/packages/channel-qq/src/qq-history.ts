@@ -36,7 +36,6 @@ const PLACEHOLDERS: Record<string, string> = {
   xml: "[card]",
 };
 
-/** Renders OneBot segments as plain text with short placeholders for non-text content. */
 export function describeSegments(message: OneBotMessageSegment[] | string): string {
   return normalizeMessageSegments(message)
     .map((segment) => {
@@ -49,13 +48,12 @@ export function describeSegments(message: OneBotMessageSegment[] | string): stri
     .trim();
 }
 
-export function getReplyMessageId(message: OneBotMessageSegment[] | string): string | undefined {
+function getReplyMessageId(message: OneBotMessageSegment[] | string): string | undefined {
   const reply = normalizeMessageSegments(message).find((segment) => segment.type === "reply");
   const id = reply?.data?.id;
   return id === undefined || id === null || String(id) === "" ? undefined : String(id);
 }
 
-/** Fetches the message a reply segment points to; returns undefined when the OneBot side cannot provide it. */
 export async function resolveQuotedPart(server: ActionSender, message: OneBotMessageSegment[] | string): Promise<InputPart | undefined> {
   const replyId = getReplyMessageId(message);
   if (!replyId) return undefined;
@@ -72,7 +70,6 @@ export async function resolveQuotedPart(server: ActionSender, message: OneBotMes
   }
 }
 
-/** Reads a chat's history with go-cqhttp/NapCat history actions; `before` is the oldest message's seq. */
 export async function readQQHistory(
   server: ActionSender,
   request: ChannelHistoryReadRequest,
@@ -88,9 +85,13 @@ export async function readQQHistory(
   const params: Record<string, unknown> = target.kind === "group"
     ? { group_id: Number(target.id) }
     : { user_id: Number(target.id) };
-  // The cursor message itself may be returned again, so ask for one extra.
+  // A cursor read walks toward older messages and includes the cursor message, so ask for one extra.
   params.count = request.before === undefined ? limit : limit + 1;
-  if (request.before !== undefined) params.message_seq = Number(request.before);
+  if (request.before !== undefined) {
+    params.message_seq = Number(request.before);
+    params.reverse_order = true;
+    params.reverseOrder = true;
+  }
 
   let response: OneBotActionResponse;
   try {
@@ -109,17 +110,18 @@ export async function readQQHistory(
   }
 
   const data = response.data as { messages?: HistoryEvent[] } | undefined;
-  const events = (Array.isArray(data?.messages) ? data.messages : [])
+  const returned = Array.isArray(data?.messages) ? data.messages : [];
+  const events = returned
     .filter((event) => request.before === undefined || String(messageSeq(event)) !== request.before)
     .sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
   const page = events.slice(Math.max(0, events.length - limit));
   const messages = page.map((event) => toHistoryMessage(event, selfId));
-  // OneBot's history action does not say whether older messages exist, so the oldest seq is
-  // always the cursor; reading from it again returns no new messages once the chat's start is reached.
+  // A short page means the chat's start was reached; reading past it fails on some OneBot servers.
   const oldest = page[0];
+  const hasMore = returned.length >= Number(params.count);
   return {
     messages,
-    ...(oldest && messageSeq(oldest) ? { before: messageSeq(oldest) } : {}),
+    ...(hasMore && oldest && messageSeq(oldest) ? { before: messageSeq(oldest) } : {}),
   };
 }
 

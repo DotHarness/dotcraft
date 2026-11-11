@@ -94,13 +94,6 @@ export type {
 export type { ChannelTurn, ChannelTurnOutcome, TurnItemActivity } from "./turnStream.js";
 export { historyFailure } from "./chatHistory.js";
 export type { ChannelHistoryMessage, ChannelHistoryPage, ChannelHistoryReadRequest } from "./chatHistory.js";
-export {
-  MAX_UNADDRESSED_MESSAGES,
-  QUOTED_TEXT_MAX_CHARS,
-  UnaddressedMessageBuffer,
-  quotedMessagePart,
-  truncateChatText,
-  unaddressedMessagesPart,
-} from "./chatContext.js";
+export { UnaddressedMessageBuffer, quotedMessagePart } from "./chatContext.js";
 export type { ChatContextMessage, UnaddressedSnapshot } from "./chatContext.js";
 export type { CommandChoiceContext } from "./commandRouter.js";
