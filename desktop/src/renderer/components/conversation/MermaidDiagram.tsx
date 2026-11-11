@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Maximize2 } from 'lucide-react'
 import type { MermaidConfig, RenderResult } from 'mermaid'
 import type { ThemeMode } from '../../../shared/theme'
 import { useDocumentThemeMode } from '../../utils/theme'
 import { useT } from '../../contexts/LocaleContext'
 import { CopyButton } from '../ui/CopyButton'
+import { IconButton } from '../ui/IconButton'
+import { ImageLightbox } from './ImageLightbox'
+import type { GalleryImage } from './imagePreview/galleryImages'
+import { mermaidSvgToImageSrc } from './mermaidImage'
 import { sanitizeMermaidSvg } from './mermaidSanitize'
 
 interface MermaidDiagramProps {
@@ -81,6 +86,7 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
   const themeMode = useDocumentThemeMode()
   const idRef = useRef<string>(`dc-mermaid-${nextMermaidId++}`)
   const [renderState, setRenderState] = useState<MermaidRenderState>({ status: 'loading' })
+  const [fullscreen, setFullscreen] = useState<GalleryImage | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,36 +118,60 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
     }
   }, [source, themeMode])
 
-  return (
-    <div style={diagramFrameStyle}>
-      <div style={toolbarStyle}>
-          <CopyButton
-            getText={() => source}
-            label={t('markdown.mermaid.copySource')}
-            copiedLabel={t('markdown.mermaid.copiedSource')}
-          />
-      </div>
+  const fullscreenLabel = t('markdown.mermaid.openFullscreen')
+  const openFullscreen = (svg: string): void => {
+    const background = cssColorVar(
+      document.documentElement,
+      '--bg-primary',
+      MERMAID_THEME_COLOR_FALLBACKS[themeMode].bgPrimary,
+      'backgroundColor'
+    )
+    const src = mermaidSvgToImageSrc(svg, background)
+    if (src) setFullscreen({ key: idRef.current, src, title: t('markdown.mermaid.diagramAria') })
+  }
 
+  return (
+    <div className="dc-mermaid">
       {renderState.status === 'loading' ? (
-        <div role="status" style={messageStyle}>
+        <div role="status" className="dc-mermaid__message">
           {t('markdown.mermaid.loading')}
         </div>
       ) : renderState.status === 'ready' ? (
-        <div
-          className="dc-mermaid-diagram"
-          data-testid="mermaid-diagram"
-          role="img"
-          aria-label={t('markdown.mermaid.diagramAria')}
-          style={diagramViewportStyle}
-          dangerouslySetInnerHTML={{ __html: renderState.svg }}
-        />
+        <>
+          <div className="dc-mermaid__actions">
+            <CopyButton
+              getText={() => source}
+              label={t('markdown.mermaid.copySource')}
+              copiedLabel={t('markdown.mermaid.copiedSource')}
+            />
+            <IconButton
+              size={24}
+              radius={6}
+              icon={<Maximize2 size={14} aria-hidden />}
+              label={fullscreenLabel}
+              tooltipLabel={fullscreenLabel}
+              tooltipPlacement="top"
+              onClick={() => openFullscreen(renderState.svg)}
+            />
+          </div>
+          <div
+            className="dc-mermaid-diagram"
+            data-testid="mermaid-diagram"
+            role="img"
+            aria-label={t('markdown.mermaid.diagramAria')}
+            dangerouslySetInnerHTML={{ __html: renderState.svg }}
+          />
+        </>
       ) : (
         <>
-          <div role="status" title={renderState.error} style={errorMessageStyle}>
+          <div role="status" title={renderState.error} className="dc-mermaid__error">
             {t('markdown.mermaid.renderFailed')}
           </div>
           {fallback}
         </>
+      )}
+      {fullscreen && (
+        <ImageLightbox images={[fullscreen]} initialIndex={0} onClose={() => setFullscreen(null)} />
       )}
     </div>
   )
@@ -438,40 +468,4 @@ function parseAlphaChannel(value: string): number {
 
 function roundAlpha(value: number): number {
   return Math.round(value * 1000) / 1000
-}
-
-
-const diagramFrameStyle: CSSProperties = {
-  position: 'relative',
-  margin: '8px 0 10px',
-  border: '1px solid var(--border-default)',
-  borderRadius: '8px',
-  background: 'var(--bg-secondary)',
-  overflow: 'hidden'
-}
-
-const toolbarStyle: CSSProperties = {
-  position: 'absolute',
-  top: '6px',
-  right: '8px',
-  zIndex: 1
-}
-
-const diagramViewportStyle: CSSProperties = {
-  overflow: 'auto',
-  padding: '36px 16px 16px',
-  minHeight: '72px'
-}
-
-const messageStyle: CSSProperties = {
-  minHeight: '72px',
-  padding: '36px 16px 16px',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--conversation-secondary-size)'
-}
-
-const errorMessageStyle: CSSProperties = {
-  padding: '36px 16px 0',
-  color: 'var(--warning)',
-  fontSize: 'var(--conversation-secondary-size)'
 }

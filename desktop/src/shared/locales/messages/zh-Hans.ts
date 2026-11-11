@@ -2205,6 +2205,7 @@ export const MESSAGES_ZH_HANS = {
   'markdown.mermaid.copySource': '复制 Mermaid 源码',
   'markdown.mermaid.copiedSource': 'Mermaid 源码已复制',
   'markdown.mermaid.diagramAria': 'Mermaid 图表',
+  'markdown.mermaid.openFullscreen': '全屏打开',
   'conversation.deepLink.rejectUnsupported': '不支持的链接目标',
   'conversation.deepLink.rejectUnreadable': '无法打开该文件',
   'conversation.deepLink.rejectMalformed': '链接目标格式无效',

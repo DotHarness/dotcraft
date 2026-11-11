@@ -1,0 +1,58 @@
+.dc-mermaid {
+  position: relative;
+  margin: 8px 0 10px;
+}
+
+.dc-mermaid__actions {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.dc-mermaid:hover .dc-mermaid__actions,
+.dc-mermaid:focus-within .dc-mermaid__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .dc-mermaid__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.dc-mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.markdown-body .dc-mermaid-diagram svg {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+}
+
+.dc-mermaid__message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  color: var(--text-secondary);
+  font-size: var(--conversation-secondary-size);
+}
+
+.dc-mermaid__error {
+  padding-bottom: 6px;
+  color: var(--warning);
+  font-size: var(--conversation-secondary-size);
+}

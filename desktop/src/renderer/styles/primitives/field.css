@@ -121,9 +121,3 @@ input.dc-plain-number {
   min-width: 0;
   max-width: 100%;
 }
-
-.markdown-body .dc-mermaid-diagram svg {
-  display: block;
-  max-width: none;
-  height: auto;
-}
