@@ -50,6 +50,7 @@ export async function teardownRuntime(
   reason: string,
   options?: { clearWorkspace?: boolean; cleanupIpcHandlers?: boolean }
 ): Promise<void> {
+  ctx.startupProjectRestore = undefined
   const win = ctx.mainWindow
   if (win) viewerBrowserManager.destroyAllTabs(win)
   if (win) ctx.getThreadTasks().abandonOffersForOwner(win.webContents.id)

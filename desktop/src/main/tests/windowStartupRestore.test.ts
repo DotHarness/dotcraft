@@ -1,48 +1,57 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
-import { connectWorkspaceForLoadedWindow } from '../windows/windowStatus'
+import { emitConnectionStatus } from '../windows/windowStatus'
+import { buildCallbacks } from '../windows/windowWorkspaceActions'
 
 vi.mock('electron', () => ({}))
-vi.mock('../ipcBridge', () => ({}))
-vi.mock('../voice/voiceIpc', () => ({}))
+vi.mock('../ipcBridge', () => ({
+  broadcastConnectionStatus: vi.fn(), sanitizeHttpOrHttpsUrl: (value: unknown) => value
+}))
+vi.mock('../voice/voiceIpc', () => ({ refreshVoiceChatGptAvailability: vi.fn() }))
+vi.mock('../viewerBrowser', () => ({ viewerBrowserManager: {} }))
+vi.mock('../windowFileAccess', () => ({}))
+vi.mock('../defaultChatWorkspace', () => ({}))
+vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: {} }))
+vi.mock('../ripgrepRuntime', () => ({}))
+vi.mock('../settings', () => ({}))
+vi.mock('../workspaceSetup', () => ({ runWorkspaceSetup: vi.fn(async () => {}) }))
 
-function fixture(connected = false) {
-  const entry = { kind: 'local', role: 'foreground', connected, client: new EventEmitter() }
-  const restore = vi.fn(async () => {})
+function fixture() {
+  const restore = vi.fn(async () => { ctx.startupProjectRestore = undefined })
   const ctx = {
-    app: { restoreRecentProjects: restore },
-    connectToAppServer: vi.fn(async () => true),
-    getWorkspaceConnection: vi.fn(() => entry),
-    runtimeIsStopping: () => false
+    app: { restoreRecentProjects: restore, refreshAppMenu: vi.fn() },
+    mainWindow: { webContents: { id: 101 } },
+    currentWorkspacePath: '/project', settings: {},
+    startupProjectRestore: 'pending',
+    emitCurrentWorkspaceStatus: vi.fn()
   } as unknown as DesktopWindowRuntime
-  const win = { isDestroyed: () => false } as Electron.BrowserWindow
-  return { ctx, win, entry, restore }
+  return { ctx, restore }
 }
 
-describe('initial window project restore readiness', () => {
-  it('waits for initialize readiness rather than merely starting the foreground transport', async () => {
-    const { ctx, win, entry, restore } = fixture()
-    await connectWorkspaceForLoadedWindow(ctx, win, '/project')
+describe('initial foreground readiness', () => {
+  it('restores recent projects after setup completes and the foreground connection becomes ready', async () => {
+    const { ctx, restore } = fixture()
+    const client = new EventEmitter()
+    ctx.connectToAppServer = vi.fn(async () => {
+      emitConnectionStatus(ctx, ctx.mainWindow!, { status: 'connecting' })
+      client.once('ready', () => emitConnectionStatus(ctx, ctx.mainWindow!, { status: 'connected' }))
+      return true
+    })
+
+    await buildCallbacks(ctx).onRunWorkspaceSetup({ providerMode: 'skip', model: '', preference: {} })
     expect(restore).not.toHaveBeenCalled()
-    entry.connected = true
-    entry.client.emit('ready')
+    client.emit('ready')
     expect(restore).toHaveBeenCalledExactlyOnceWith(ctx)
-    entry.client.emit('ready')
+    expect(ctx.currentWorkspacePath).toBe('/project')
+    emitConnectionStatus(ctx, ctx.mainWindow!, { status: 'connected' })
     expect(restore).toHaveBeenCalledTimes(1)
   })
 
-  it('restores immediately when startup reused an initialized foreground connection', async () => {
-    const { ctx, win, restore } = fixture(true)
-    await connectWorkspaceForLoadedWindow(ctx, win, '/project')
-    expect(restore).toHaveBeenCalledExactlyOnceWith(ctx)
-  })
-
-  it('does not restore projects when the startup connection was replaced before readiness', async () => {
-    const { ctx, win, entry, restore } = fixture()
-    await connectWorkspaceForLoadedWindow(ctx, win, '/project')
-    ctx.getWorkspaceConnection = () => undefined
-    entry.client.emit('ready')
+  it('does not turn later foreground readiness into startup restore when launch was ineligible', () => {
+    const { ctx, restore } = fixture()
+    ctx.startupProjectRestore = undefined
+    emitConnectionStatus(ctx, ctx.mainWindow!, { status: 'connected' })
     expect(restore).not.toHaveBeenCalled()
   })
 })

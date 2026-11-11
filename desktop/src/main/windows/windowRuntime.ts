@@ -52,6 +52,7 @@ export interface DesktopWindowState {
   hubEventAbortController: AbortController | null
   secondaryRefreshTimer: ReturnType<typeof setTimeout> | null
   startupProjectStates: Map<string, ProjectRestoreState>
+  startupProjectRestore?: 'pending' | 'running'
   pendingChromeSettingsDeepLink: boolean
   pendingPairingLink: string | null
   pendingWorkspaceOpenThreadId: string | null

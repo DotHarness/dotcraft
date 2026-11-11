@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { readAppServerChatGptAuth } from '../voice/VoiceChatGptTranscriber'
 import { registerVoiceIpc } from '../voice/voiceIpc'
 import { createWindowIpcMain } from '../windowIpc'
-import { hasRemoteEndpointArg, resolveStartupWorkspacePath } from '../workspaceArgs'
+import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
 
 export function startDesktopWindow(
@@ -39,6 +39,10 @@ export function startDesktopWindow(
   const win = ctx.createWindow(workspace, status)
   ctx.mainWindow = win
   ctx.currentWorkspacePath = workspace ?? ''
+  if (workspace && ctx.resolveConnectionMode(ctx.settings) === 'local' &&
+    !hasRemoteEndpointArg(argv) && !argv.includes(NO_WORKSPACE_ARG)) {
+    ctx.startupProjectRestore = 'pending'
+  }
   viewerBrowserManager.registerPersistenceOwner(win)
   viewerBrowserManager.setRestoreValidator(async (owner, url, scope) => {
     if (!/^(file|dotcraft-viewer):/i.test(url)) return

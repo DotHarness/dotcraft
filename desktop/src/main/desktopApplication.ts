@@ -79,7 +79,6 @@ export class DesktopApplication implements DesktopApplicationServices {
   private updateTimer: ReturnType<typeof setTimeout> | null = null
   private pairedComputersManager: PairedComputersManager | null = null
   private disposing: Promise<void> | null = null
-  private startupProjectRestoreStarted = false
 
   constructor() {
     browserUseManager.setPolicyHost({
@@ -112,12 +111,13 @@ export class DesktopApplication implements DesktopApplicationServices {
   }
 
   async restoreRecentProjects(window: DesktopWindowRuntime): Promise<void> {
-    if (window !== this.manager.initialWindow || this.startupProjectRestoreStarted) return
-    this.startupProjectRestoreStarted = true
-    const isActive = (): boolean => !window.runtimeIsStopping() &&
+    if (window !== this.manager.initialWindow || window.startupProjectRestore !== 'pending' ||
+      window.lastConnectionStatus.status !== 'connected') return
+    window.startupProjectRestore = 'running'
+    const isActive = (): boolean => window.startupProjectRestore === 'running' &&
+      !window.runtimeIsStopping() && Boolean(window.currentWorkspacePath) &&
       !hasRemoteEndpointArg(window.argv) && !window.argv.includes(NO_WORKSPACE_ARG) &&
-      !window.activeRemoteWorkspace && window.resolveConnectionMode(window.settings) === 'local' &&
-      window.lastConnectionStatus.status === 'connected'
+      !window.activeRemoteWorkspace && window.resolveConnectionMode(window.settings) === 'local'
     try {
       await restoreRecentProjects({
         foregroundPath: window.currentWorkspacePath,
@@ -135,6 +135,8 @@ export class DesktopApplication implements DesktopApplicationServices {
       })
     } catch (error) {
       console.warn('[desktop] recent project startup restore failed', error)
+    } finally {
+      window.startupProjectRestore = undefined
     }
   }
 
