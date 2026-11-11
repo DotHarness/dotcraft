@@ -55,6 +55,29 @@
 
 所有路径都以 `./` 开头、不包含 `..`，并保持在插件根目录内。不支持 `tools`、`functions` 和 `processes`。可复用的外部工具请使用 MCP。
 
+## MCP 启动路径
+
+在插件的 `.mcp.json` 中，用 `${PLUGIN_ROOT}` 引用插件内文件，用 `${PLUGIN_DATA}` 存放插件的可写状态：
+
+```json
+{
+  "mcpServers": {
+    "review": {
+      "command": "node",
+      "arguments": ["${PLUGIN_ROOT}/server.js"],
+      "environmentVariables": {
+        "CACHE_DIR": "${PLUGIN_DATA}/cache"
+      },
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}
+```
+
+对于 stdio servers，DotCraft 会在 `command`、`arguments`、`environmentVariables` 的值和 `cwd` 中展开这些变量，并向进程环境注入 `PLUGIN_ROOT` 和 `PLUGIN_DATA`。同一插件的 Hooks、MCP servers 和 LSP 进程共享数据目录。相对 `cwd` 以插件根目录为基准解析。
+
+展开区分大小写且只执行一遍。未知占位符保持原样，HTTP URL 和 headers 不做展开。
+
 ## Interface 字段
 
 缺少其中大部分字段时 DotCraft 仍能加载插件，但 `dotcraft plugin verify` 会要求填写，这样插件在目录中才显得完整。

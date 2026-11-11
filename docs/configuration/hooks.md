@@ -149,4 +149,4 @@ Desktop manages per-user hook state in `~/.craft/config.json`:
 
 ## Plugin hooks
 
-Plugin hook files use the same `hooks.json` structure. In plugin hook commands, DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` and injects the same names as environment variables.
+Plugin hook files use the same `hooks.json` structure. In plugin hook commands, DotCraft expands `${PLUGIN_ROOT}` to the plugin directory and `${PLUGIN_DATA}` to its writable data directory, and injects the same names as environment variables. Hooks, MCP servers, and LSP processes from the same plugin share that data directory.

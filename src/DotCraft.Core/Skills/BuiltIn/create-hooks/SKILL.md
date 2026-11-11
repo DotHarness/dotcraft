@@ -79,7 +79,7 @@ DotCraft stores per-hook user state in global `~/.craft/config.json` under `Hook
 - Config and plugin hooks must be trusted before they run. Modified hooks need trust again.
 - Do not write trust state into workspace `.craft/config.json`; it is personal user state.
 
-For plugin hooks, commands may use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}`. DotCraft expands these variables in the command and also injects them as environment variables.
+For plugin hooks, commands may use `${PLUGIN_ROOT}` and `${PLUGIN_DATA}`. DotCraft expands these variables in the command and also injects them as environment variables. `PLUGIN_DATA` is the writable data directory shared by the plugin's hooks, MCP servers, and LSP processes.
 
 ## Lifecycle Events
 

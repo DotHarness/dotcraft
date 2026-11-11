@@ -93,7 +93,7 @@ Hook files use this shape:
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${DOTCRAFT_PLUGIN_ROOT}/hooks/check.js\"",
+            "command": "node \"${PLUGIN_ROOT}/hooks/check.js\"",
             "timeout": 30,
             "if": "Bash(git commit:*)",
             "statusMessage": "Running security review",
@@ -240,11 +240,13 @@ Plugin hook commands may use:
 
 | Variable | Description |
 |----------|-------------|
-| `${DOTCRAFT_PLUGIN_ROOT}` | Absolute plugin root. |
-| `${DOTCRAFT_PLUGIN_DATA}` | Canonical host-side plugin data directory. |
+| `${PLUGIN_ROOT}` | Absolute plugin root. |
+| `${PLUGIN_DATA}` | Canonical host-side plugin data directory. |
 
-DotCraft injects the same names as environment variables, plus aliases for
-imported plugin ecosystems. The data directory is resolved as defined in
+Expansion is case-sensitive and single-pass; inserted paths are not expanded again and unknown
+placeholders remain literal. DotCraft injects `PLUGIN_ROOT` and `PLUGIN_DATA` as environment
+variables. Host-provided plugin paths take precedence over declared
+environment values, including case variants on Windows. The data directory is resolved as defined in
 [Plugin Architecture](../architecture/plugin-architecture.md) and is never
 committed into workspace config.
 

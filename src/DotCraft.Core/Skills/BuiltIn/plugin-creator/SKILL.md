@@ -46,7 +46,7 @@ Copy `assets/template-plugin.json` to `.craft-plugin/plugin.json`, add the manif
 
 Manifest fields are documented at `https://www.dotcraft.net/extend/plugin-manifest`. Replace every `[TODO: ...]` with real content. The `.builtin` file in this skill's directory holds the running DotCraft version, which is the value for host-pinned fields.
 
-Reference plugin files with plugin-relative paths or `${DOTCRAFT_PLUGIN_ROOT}`, never absolute paths. Keep secrets out of plugin files: reference environment variables and name them in the setup instructions.
+Reference plugin files with plugin-relative paths or `${PLUGIN_ROOT}`, never absolute paths. Use `${PLUGIN_DATA}` for writable state shared by the plugin's hooks, MCP servers, and LSP processes. Plugin stdio MCP declarations expand these variables in `command`, `arguments`, `environmentVariables` values, and `cwd`, not HTTP URLs or headers. Keep secrets out of plugin files: reference environment variables and name them in the setup instructions.
 
 Read `references/presentation.md` before writing the name, descriptions, default prompt, or icons. Every plugin needs them, including a .NET-only plugin.
 

@@ -83,8 +83,8 @@ Runtime fields such as `workspaceFolder` may point outside it when explicitly co
 - Relative `workspaceFolder` values resolve against the workspace root.
 - Relative paths inside `environmentVariables` are not rewritten.
 - Plugin-origin `command` values starting with `./` or `.\` resolve relative to the plugin root and must stay inside it. On Windows, DotCraft may probe `.exe`, `.cmd`, and `.bat` suffixes.
-- Plugin-origin servers receive `DOTCRAFT_PLUGIN_ROOT` (absolute plugin root) and `DOTCRAFT_PLUGIN_DATA` (the plugin data directory defined in [Plugin Architecture](plugin-architecture.md)).
-- `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` are substituted in `command`, `arguments`, and `environmentVariables`.
+- Plugin-origin servers receive `PLUGIN_ROOT` (absolute plugin root) and `PLUGIN_DATA` (the plugin data directory defined in [Plugin Architecture](plugin-architecture.md)). Host-provided values take precedence over declared environment values, including case variants on Windows.
+- `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` are substituted in `command`, `arguments`, and `environmentVariables` values. Expansion is case-sensitive and single-pass, leaving unknown placeholders and inserted paths untouched. Argument and environment values otherwise remain opaque; only command paths are normalized.
 
 Workspace `LspServers` do not gain plugin-relative command resolution or these substitutions.
 

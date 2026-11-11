@@ -255,11 +255,22 @@ public sealed class HooksLoader
                     var enabled = hooksGloballyEnabled && stateEnabled;
                     var trustStatus = ResolveTrustStatus(isManaged, currentHash, state?.TrustedHash);
                     var command = ExpandPluginVariables(hook.Command, pluginRoot, pluginDataPath);
-                    var environment = BuildHookEnvironment(pluginRoot, pluginDataPath);
+                    var environment = new Dictionary<string, string>(StringComparer.Ordinal);
                     foreach (var (envKey, value) in hook.EnvironmentVariables)
                     {
                         if (!string.IsNullOrWhiteSpace(envKey) && value != null)
                             environment[envKey] = ExpandPluginVariables(value, pluginRoot, pluginDataPath);
+                    }
+                    foreach (var (envKey, value) in BuildHookEnvironment(pluginRoot, pluginDataPath))
+                    {
+                        if (OperatingSystem.IsWindows())
+                        {
+                            foreach (var existingKey in environment.Keys
+                                         .Where(existingKey => existingKey.Equals(envKey, StringComparison.OrdinalIgnoreCase))
+                                         .ToList())
+                                environment.Remove(existingKey);
+                        }
+                        environment[envKey] = value;
                     }
 
                     var entry = new HookEntry
@@ -372,37 +383,16 @@ public sealed class HooksLoader
         if (string.IsNullOrWhiteSpace(pluginRoot) && string.IsNullOrWhiteSpace(pluginDataPath))
             return command;
 
-        var separator = Path.DirectorySeparatorChar.ToString();
-        return command
-            .Replace("${DOTCRAFT_PLUGIN_ROOT}/", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace(@"${DOTCRAFT_PLUGIN_ROOT}\", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_DATA}/", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace(@"${DOTCRAFT_PLUGIN_DATA}\", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace("${CLAUDE_PLUGIN_ROOT}/", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace(@"${CLAUDE_PLUGIN_ROOT}\", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace("${CLAUDE_PLUGIN_DATA}/", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace(@"${CLAUDE_PLUGIN_DATA}\", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_ROOT}", pluginRoot ?? string.Empty, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_DATA}", pluginDataPath ?? string.Empty, StringComparison.Ordinal)
-            .Replace("${CLAUDE_PLUGIN_ROOT}", pluginRoot ?? string.Empty, StringComparison.Ordinal)
-            .Replace("${CLAUDE_PLUGIN_DATA}", pluginDataPath ?? string.Empty, StringComparison.Ordinal);
+        return PluginVariables.Expand(command, pluginRoot, pluginDataPath);
     }
 
     private static Dictionary<string, string> BuildHookEnvironment(string? pluginRoot, string? pluginDataPath)
     {
         var env = new Dictionary<string, string>(StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(pluginRoot))
-        {
-            env["DOTCRAFT_PLUGIN_ROOT"] = pluginRoot;
-            env["CLAUDE_PLUGIN_ROOT"] = pluginRoot;
-        }
+            env["PLUGIN_ROOT"] = pluginRoot;
         if (!string.IsNullOrWhiteSpace(pluginDataPath))
-        {
-            env["DOTCRAFT_PLUGIN_DATA"] = pluginDataPath;
-            env["CLAUDE_PLUGIN_DATA"] = pluginDataPath;
-            env["CLAUDE_CONFIG_DIR"] = Path.Combine(pluginDataPath, "claude-compat");
-            env["SECURITY_WARNINGS_STATE_DIR"] = Path.Combine(pluginDataPath, "security");
-        }
+            env["PLUGIN_DATA"] = pluginDataPath;
         return env;
     }
 

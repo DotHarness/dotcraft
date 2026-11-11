@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${DOTCRAFT_PLUGIN_ROOT}/hooks/[TODO: script].js\"",
+            "command": "node \"${PLUGIN_ROOT}/hooks/[TODO: script].js\"",
             "timeout": 30
           }
         ]

@@ -146,4 +146,5 @@ Matcher 示例：
 
 ## 插件 Hooks
 
+插件 hook 文件使用相同的 `hooks.json` 结构。在插件 hook 命令中，DotCraft 将 `${PLUGIN_ROOT}` 展开为插件目录，将 `${PLUGIN_DATA}` 展开为插件的可写数据目录，并注入同名环境变量。同一插件的 Hooks、MCP servers 和 LSP 进程共享该数据目录。
 
