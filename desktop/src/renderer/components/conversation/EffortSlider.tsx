@@ -13,14 +13,19 @@ function reducedMotion(): boolean {
   return configured === 'on' || (configured !== 'off' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true)
 }
 
-function Charge({ host, fast, charged }: { host: React.RefObject<HTMLDivElement | null>; fast: boolean; charged: boolean }): JSX.Element {
+function Charge({ host, active, fast, charged }: {
+  host: React.RefObject<HTMLDivElement | null>
+  active: boolean
+  fast: boolean
+  charged: boolean
+}): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null)
   const handle = useRef<ChargeHandle | null>(null)
   const [drawn, setDrawn] = useState(false)
   useEffect(() => {
     const element = canvas.current
     const slider = host.current
-    if (!element || !slider) return undefined
+    if (!active || !element || !slider) return undefined
     const mounted = mountCharge(element, {
       accent: readColor(slider, '--accent', [0.27, 0.4, 0.8]),
       hue: readColor(slider, '--model-picker-hue', [0.6, 0.45, 0.9])
@@ -32,20 +37,22 @@ function Charge({ host, fast, charged }: { host: React.RefObject<HTMLDivElement 
       handle.current = null
       setDrawn(false)
     }
-  }, [host])
+  }, [active, host])
   useEffect(() => {
     handle.current?.set({ fast, charged })
-  }, [charged, fast])
+  }, [active, charged, fast])
   return <canvas className="model-picker-slider__gl" ref={canvas} data-drawn={drawn || undefined} aria-hidden />
 }
 
 export function EffortSlider<T extends string>({
+  active,
   stops,
   value,
   ariaLabel,
   fast = false,
   onChange
 }: {
+  active: boolean
   stops: Array<EffortStop<T>>
   value: T
   ariaLabel: string
@@ -73,7 +80,7 @@ export function EffortSlider<T extends string>({
     >
       <span className="model-picker-slider__track" aria-hidden>
         <span className="model-picker-slider__fill">
-          <Charge host={root} fast={fast} charged={top} />
+          <Charge host={root} active={active} fast={fast} charged={top} />
         </span>
       </span>
       <span className="model-picker-slider__dots" aria-hidden>

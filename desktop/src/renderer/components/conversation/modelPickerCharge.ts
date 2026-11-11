@@ -88,6 +88,10 @@ function compile(gl: WebGLRenderingContext, type: number, source: string): WebGL
   if (!shader) return null
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    gl.deleteShader(shader)
+    return null
+  }
   return shader
 }
 
@@ -136,14 +140,28 @@ export function mountCharge(
   const vs = compile(gl, gl.VERTEX_SHADER, vertex)
   const fs = compile(gl, gl.FRAGMENT_SHADER, fragment)
   const program = gl.createProgram()
-  if (!vs || !fs || !program) return null
+  if (!vs || !fs || !program) {
+    gl.deleteShader(vs)
+    gl.deleteShader(fs)
+    gl.deleteProgram(program)
+    return null
+  }
   gl.attachShader(program, vs)
   gl.attachShader(program, fs)
   gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null
-  gl.useProgram(program)
+  gl.deleteShader(vs)
+  gl.deleteShader(fs)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    gl.deleteProgram(program)
+    return null
+  }
 
   const buffer = gl.createBuffer()
+  if (!buffer) {
+    gl.deleteProgram(program)
+    return null
+  }
+  gl.useProgram(program)
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
   const position = gl.getAttribLocation(program, 'a_pos')
@@ -231,8 +249,8 @@ export function mountCharge(
     dispose(): void {
       cancelAnimationFrame(frame)
       observer.disconnect()
-      // A remounted canvas keeps its context, so only one that has left the document gives it back.
-      if (!canvas.isConnected) gl.getExtension('WEBGL_lose_context')?.loseContext()
+      gl.deleteBuffer(buffer)
+      gl.deleteProgram(program)
     }
   }
 }

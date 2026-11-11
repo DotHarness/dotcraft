@@ -662,7 +662,7 @@ export function ModelPicker({
             </div>
           )}
 
-          {view === 'panel' ? (
+          <div hidden={view !== 'panel'} inert={view !== 'panel'}>
             <div className="model-picker-panel">
               <div className="model-picker-head">
                 {speedVisible ? (
@@ -705,6 +705,7 @@ export function ModelPicker({
               </div>
               {capability && (
                 <EffortSlider
+                  active={view === 'panel'}
                   stops={effortStops}
                   value={effectiveReasoning}
                   ariaLabel={t('composer.reasoning.heading')}
@@ -713,7 +714,8 @@ export function ModelPicker({
                 />
               )}
             </div>
-          ) : (
+          </div>
+          {view === 'menu' && (
             <div role="menu" aria-label={t('composer.modelHeading')}>
               <button
                 type="button"
