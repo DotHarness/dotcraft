@@ -77,6 +77,7 @@ export async function connectViaWebSocket(
     reconnectAttempt: options.existingEntry?.reconnectAttempt ?? 0
   }
   ctx.workspaceConnections.set(connectionKey, entry)
+  ctx.startupProjectStates.delete(connectionKey)
   if (role === 'foreground') ctx.wireClient = client
   const deviceGeneration = entry.device?.generation
   const isCurrentConnectAttempt = (): boolean =>

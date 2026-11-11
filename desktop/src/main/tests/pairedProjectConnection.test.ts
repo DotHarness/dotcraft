@@ -80,7 +80,7 @@ function fixture() {
       source: 'device', name: project.displayName, identityWorkspacePath: project.path, displayPath: project.path,
       localWorkspacePath, status: {}, remote: { source: 'device', hostId: owner.computerId, remoteProjectId: project.projectId }
     }),
-    deviceOpenGeneration: 0, workspaceConnections: new Map(),
+    deviceOpenGeneration: 0, workspaceConnections: new Map(), startupProjectStates: new Map(),
     pendingDeviceOpenTimer: null, pendingDeviceOpenAttempt: 0,
     reregisterIpcForWorkspace: vi.fn(), flushPendingWorkspaceOpenThread: () => {},
     formatRemoteConnectionError: (message: string) => message,

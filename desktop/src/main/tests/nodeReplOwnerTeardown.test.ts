@@ -22,7 +22,7 @@ const runtime = (win: Electron.BrowserWindow) => ({
   mainWindow: win,
   getThreadTasks: () => ({ abandonOffersForOwner: vi.fn() }),
   clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(),
-  deviceOpenGeneration: 0, workspaceConnections: new Map(),
+  deviceOpenGeneration: 0, workspaceConnections: new Map(), startupProjectStates: new Map(),
   userInputAutoResolution: { clear: vi.fn() }, setActiveRemoteProject: vi.fn()
 }) as unknown as DesktopWindowRuntime
 

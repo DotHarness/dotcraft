@@ -30,7 +30,7 @@ describe('paired project summaries', () => {
     const { ctx, connections } = fixture()
     const threads = [{ id: 'background-thread', unreadCount: 1 }]
     const key = 'remote:device:one:project'
-    connections.set(key, { key, connected: true, threads } as WorkspaceConnectionEntry)
+    connections.set(key, { key, client: { connectionId: null }, connected: true, threads } as WorkspaceConnectionEntry)
 
     const { projects } = getWorkspaceProjectsPayload(ctx)
     expect(projects[0]).toMatchObject({ projectId: key, state: 'secondary', loaded: true, threadCount: 1, threads })

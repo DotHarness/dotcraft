@@ -22,6 +22,7 @@ export interface DesktopApplicationServices {
   createHubClient(settings: AppSettings): DesktopHubClient
   updateSharedSettings(partial: Partial<AppSettings>, owner?: DesktopWindowRuntime): Promise<void>
   persistWindowSettings(settings: AppSettings): void
+  restoreRecentProjects(window: DesktopWindowRuntime): Promise<void>
   refreshAppMenu(): void
   openNewWindow(): void
   openDesktopWindow(workspacePath?: string | null, threadId?: string | null): Promise<void>

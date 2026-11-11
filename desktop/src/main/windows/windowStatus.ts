@@ -11,7 +11,16 @@ export function connectWorkspaceForLoadedWindow(
   workspacePath: string
 ): Promise<void> {
   return ctx.connectToAppServer(workspacePath).then(
-    () => undefined,
+    () => {
+      const entry = ctx.getWorkspaceConnection(workspacePath)
+      if (!entry || entry.kind === 'remote') return
+      const restore = (): void => {
+        if (!ctx.runtimeIsStopping() && ctx.getWorkspaceConnection(workspacePath) === entry &&
+          entry.role === 'foreground') void ctx.app.restoreRecentProjects(ctx)
+      }
+      if (entry.connected) restore()
+      else entry.client.once('ready', restore)
+    },
     (error) => {
       const message = error instanceof Error ? error.message : String(error)
       console.warn('[desktop] failed to connect restored workspace', message)

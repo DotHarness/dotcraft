@@ -7,6 +7,7 @@ import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { type DesktopHubClient } from '../desktopHub'
 import { resolveServerRequestBridge } from '../ipcBridge'
 import { type AppSettings } from '../settings'
+import type { ProjectRestoreState } from '../recentProjectRestore'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { UserInputAutoResolutionCoordinator } from '../userInputAutoResolution'
 import * as windowConnections from './windowConnections'
@@ -50,6 +51,7 @@ export interface DesktopWindowState {
   pendingDeviceOpenAttempt: number
   hubEventAbortController: AbortController | null
   secondaryRefreshTimer: ReturnType<typeof setTimeout> | null
+  startupProjectStates: Map<string, ProjectRestoreState>
   pendingChromeSettingsDeepLink: boolean
   pendingPairingLink: string | null
   pendingWorkspaceOpenThreadId: string | null
@@ -131,6 +133,7 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     pendingDeviceOpenAttempt: 0,
     hubEventAbortController: null,
     secondaryRefreshTimer: null,
+    startupProjectStates: new Map(),
     pendingChromeSettingsDeepLink: false,
     pendingPairingLink: null,
     pendingWorkspaceOpenThreadId: findWorkspaceOpenDeepLink(argv)?.threadId ?? null,

@@ -64,6 +64,7 @@ export async function teardownRuntime(
   ctx.hubEventAbortController = null
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
+  ctx.startupProjectStates.clear()
   ctx.clearPendingDeviceOpenRetry()
   ctx.deviceOpenGeneration += 1
   ctx.resetThreadToolState()

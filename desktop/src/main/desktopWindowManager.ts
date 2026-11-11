@@ -7,6 +7,7 @@ import { findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../shared/desk
 
 export class DesktopWindowManager {
   readonly windows = new Map<number, DesktopWindowRuntime>()
+  initialWindow: DesktopWindowRuntime | undefined
   private disposing: Promise<void> | null = null
 
   constructor(private readonly services: DesktopApplicationServices) {}
@@ -21,6 +22,7 @@ export class DesktopWindowManager {
   open(argv: string[]): DesktopWindowRuntime | undefined {
     if (this.services.lifecycle.isStopping) return undefined
     const window = startDesktopWindow(this.services, argv)
+    this.initialWindow ??= window
     if (window.mainWindow) this.windows.set(window.mainWindow.webContents.id, window)
     return window
   }
