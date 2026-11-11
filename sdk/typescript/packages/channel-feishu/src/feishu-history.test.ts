@@ -99,3 +99,13 @@ test("Feishu quotes are read by message id", async () => {
   assert.match(String(part?.text), /> the build is red/);
   assert.equal(await reader.quotedPart("om_missing"), undefined);
 });
+
+test("Feishu media messages are described as video", async () => {
+  const client = fakeClient({
+    first: { items: [item("om_1", "", { openId: "ou_bob" }, { messageType: "media", rawContent: JSON.stringify({ file_key: "file_clip" }) })] },
+  });
+
+  const page = await history(client).read({ target: "group:oc_group", limit: 5 });
+
+  assert.equal(page.messages[0]?.text, "[video]");
+});

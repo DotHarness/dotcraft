@@ -70,7 +70,6 @@ test("QQ history pages backwards from the cursor and marks the bot's own message
     count: 4,
     message_seq: 10,
     reverse_order: true,
-    reverseOrder: true,
   });
   assert.equal(older.messages.length, 2);
   assert.equal(older.before, undefined);

@@ -129,9 +129,9 @@ export function renderMessageContent(
     case "image":
     case "sticker":
       return "[image]";
-    case "media":
     case "audio":
       return "[audio]";
+    case "media":
     case "video":
       return "[video]";
     case "file":

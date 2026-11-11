@@ -90,7 +90,6 @@ export async function readQQHistory(
   if (request.before !== undefined) {
     params.message_seq = Number(request.before);
     params.reverse_order = true;
-    params.reverseOrder = true;
   }
 
   let response: OneBotActionResponse;
