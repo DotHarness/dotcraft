@@ -1,4 +1,5 @@
 using DotCraft.Mcp;
+using DotCraft.Persistence;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;
@@ -87,7 +88,9 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     public async Task SnapshotChange_ActivelyRevokesView_NotifiesClient_AndClearsContext()
     {
         Directory.CreateDirectory(_tempDir);
-        var sessions = new TestableSessionService(new ThreadStore(_tempDir));
+        using var database = new WorkspaceStateDatabase(_tempDir);
+        await using var store = new ThreadStore(_tempDir, database);
+        var sessions = new TestableSessionService(store);
         var connection = CreateMcpAppConnection();
         await using var transport = new InMemoryTransport();
         var snapshots = new SnapshotSource();
@@ -123,7 +126,9 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     public async Task ConnectionClose_DisposesViews_ClearsContext_AndUnsubscribesSnapshotListener()
     {
         Directory.CreateDirectory(_tempDir);
-        var sessions = new TestableSessionService(new ThreadStore(_tempDir));
+        using var database = new WorkspaceStateDatabase(_tempDir);
+        await using var store = new ThreadStore(_tempDir, database);
+        var sessions = new TestableSessionService(store);
         var connection = CreateMcpAppConnection();
         await using var transport = new InMemoryTransport();
         var snapshots = new SnapshotSource();
@@ -157,7 +162,9 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     public async Task ViewProtocol_EnforcesServerVisibility_AndCapturesMessageContextOnce(bool bindingOwned)
     {
         Directory.CreateDirectory(_tempDir);
-        var sessions = new TestableSessionService(new ThreadStore(_tempDir));
+        using var database = new WorkspaceStateDatabase(_tempDir);
+        await using var store = new ThreadStore(_tempDir, database);
+        var sessions = new TestableSessionService(store);
         await sessions.CreateThreadAsync(
             new SessionIdentity { ChannelName = "test", UserId = "user", WorkspacePath = _tempDir },
             threadId: "thread-1");
@@ -384,15 +391,8 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempDir))
-                Directory.Delete(_tempDir, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup for Windows handles released after test disposal.
-        }
+        if (Directory.Exists(_tempDir))
+            Directory.Delete(_tempDir, recursive: true);
     }
 
     private sealed class SnapshotSource(EffectiveToolSnapshot? snapshot = null) : IThreadToolSnapshotService, IThreadToolSnapshotChangeSource
@@ -410,6 +410,8 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 
     private sealed class McpRuntimeService(McpClientManager manager) : IThreadMcpRuntimeService
     {
+        public Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
             string threadId,
             CancellationToken cancellationToken = default) =>

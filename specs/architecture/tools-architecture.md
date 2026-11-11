@@ -431,6 +431,8 @@ MCP registrations are governed by the thread's MCP policy (server selection and 
 
 Each thread that uses MCP owns its connections, including inherited workspace/plugin servers. Child threads and forks inherit configuration, not live clients. Connections span Turns and agent rebuilds; their lifecycle follows [Session Core §12.4](session-core.md#124-mcp-lifecycle). Profile-only tasks do not start servers they cannot use.
 
+After a successful plugin contribution change, AppServer marks loaded active threads' MCP runtimes for background refresh and continues plugin finalization. Each thread coalesces refresh requests and reconciles its MCP connections independently of model Agent construction. MCP use waits for requested refresh work; subsequent Agent construction publishes the updated tool snapshot. Refresh startup does not occupy the thread command dispatcher, and thread release cancels and awaits its refresh work.
+
 Reconciliation retains available connections with matching transport, effective environment/working directory, endpoint, and authentication inputs. Call policy and timeout changes do not replace ready connections. Removed, disabled, changed, or closed connections are released or replaced.
 
 Successful OAuth login invalidates loaded threads' next snapshots. Failed authentication is retried during preparation when that server's saved credentials change; ready clients retain SDK-managed authentication across token renewal.

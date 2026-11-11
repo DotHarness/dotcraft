@@ -4,7 +4,7 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    internal static readonly TimeSpan ThreadIdleUnloadDelay = TimeSpan.FromMinutes(30);
+    internal static readonly TimeSpan ThreadIdleUnloadDelay = TimeSpan.FromSeconds(60);
 
     public IAsyncDisposable StartIdleThreadUnloading() => new IdleThreadUnloader(this);
 

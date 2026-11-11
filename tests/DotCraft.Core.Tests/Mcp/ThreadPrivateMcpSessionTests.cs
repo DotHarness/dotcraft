@@ -23,7 +23,7 @@ namespace DotCraft.Tests.Mcp;
 public sealed class ThreadMcpEnvironmentCollection;
 
 [Collection("Thread MCP environment")]
-public sealed class ThreadPrivateMcpSessionTests
+public sealed partial class ThreadPrivateMcpSessionTests
 {
     [Theory]
     [InlineData(false)]
@@ -79,7 +79,7 @@ public sealed class ThreadPrivateMcpSessionTests
         await harness.Sessions.SetBindingMcpServersAsync(archived.Id, "removed-binding", []);
         Assert.Null(await harness.Sessions.GetEffectiveMcpRuntimeAsync(archived.Id));
         Assert.False(processC.HasExited);
-        await harness.Sessions.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow.AddHours(1), TimeSpan.FromMinutes(30));
+        await harness.Sessions.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow.AddHours(1), SessionService.ThreadIdleUnloadDelay);
         await processB.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
         var restored = await harness.CallAsync(idle.Id);
         Assert.NotEqual(b.GetProperty("session").GetString(), restored.GetProperty("session").GetString());
@@ -87,6 +87,47 @@ public sealed class ThreadPrivateMcpSessionTests
         var stillLive = await harness.CallAsync(survivor.Id);
         Assert.Equal(c.GetProperty("session").GetString(), stillLive.GetProperty("session").GetString());
         Assert.Equal(8, stillLive.GetProperty("value").GetInt32());
+    }
+
+    [Fact]
+    public async Task Refresh_RemovesPluginConnectionsFromLoadedThreadsAndRetainsUnchangedSessions()
+    {
+        await using var harness = await Harness.CreateAsync(plugin: true);
+        var unloaded = await harness.StartAsync();
+        Assert.Equal(1, await harness.Sessions.UnloadIdleThreadsAsync(
+            DateTimeOffset.UtcNow.AddHours(1), SessionService.ThreadIdleUnloadDelay));
+        Assert.Null(harness.Sessions.TryGetLoadedThread(unloaded.Id));
+
+        var plugin = Assert.Single(await harness.Workspace.ListConfigsAsync());
+        var unchanged = plugin.Clone();
+        unchanged.Name = "unchanged";
+        unchanged.Origin = McpServerOrigin.Workspace();
+        await harness.Workspace.ConnectAsync([plugin, unchanged]);
+        await harness.Workspace.WaitForStartupCompletionAsync();
+        var first = await harness.StartAsync();
+        var second = await harness.StartAsync();
+        var firstPluginState = await harness.CallAsync(first.Id, serverName: plugin.Name);
+        var secondPluginState = await harness.CallAsync(second.Id, serverName: plugin.Name);
+        var firstUnchangedState = await harness.CallAsync(first.Id, 7, unchanged.Name);
+        var secondUnchangedState = await harness.CallAsync(second.Id, 9, unchanged.Name);
+        using var firstProcess = Process.GetProcessById(firstPluginState.GetProperty("pid").GetInt32());
+        using var secondProcess = Process.GetProcessById(secondPluginState.GetProperty("pid").GetInt32());
+
+        await harness.Workspace.ConnectAsync([unchanged]);
+        await ((IThreadMcpRuntimeService)harness.Sessions).RefreshMcpRuntimesAsync();
+
+        await firstProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        await secondProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        foreach (var (thread, expected) in new[] { (first, firstUnchangedState), (second, secondUnchangedState) })
+        {
+            var snapshot = await harness.Sessions.GetEffectiveToolSnapshotAsync(thread.Id);
+            var tool = Assert.Single(snapshot.Registrations.Values, item => item.Definition.Id.Kind == ToolSourceKind.Mcp);
+            Assert.Equal(unchanged.Name, tool.Definition.Id.SourceId);
+            var actual = await harness.CallAsync(thread.Id, serverName: unchanged.Name);
+            Assert.Equal(expected.GetProperty("session").GetString(), actual.GetProperty("session").GetString());
+            Assert.Equal(expected.GetProperty("value").GetInt32(), actual.GetProperty("value").GetInt32());
+        }
+        Assert.Null(harness.Sessions.TryGetLoadedThread(unloaded.Id));
     }
 
     [Fact]
@@ -165,7 +206,8 @@ public sealed class ThreadPrivateMcpSessionTests
             _factory = factory; Sessions = sessions; ServerName = serverName;
         }
 
-        public static async Task<Harness> CreateAsync(bool plugin = false, IToolSnapshotFinalizer? finalizer = null)
+        public static async Task<Harness> CreateAsync(
+            bool plugin = false, IToolSnapshotFinalizer? finalizer = null, IChatClient? chatClient = null)
         {
             var root = Path.Combine(Path.GetTempPath(), $"thread-mcp-{Guid.NewGuid():N}");
             Directory.CreateDirectory(root);
@@ -186,7 +228,7 @@ public sealed class ThreadPrivateMcpSessionTests
             var skills = new SkillsLoader(root);
             var approval = new AutoApproveApprovalService();
             var registry = TestModelProviderRegistry.Create();
-            var client = new ReplyClient();
+            var client = chatClient ?? new ReplyClient();
             var modelRuntime = registry.ResolveMainRuntime(config);
             var factory = new AgentFactory(root, root, config, memory, skills, approval, null,
                 runtimeContext: new AgentRuntimeContext
@@ -214,11 +256,12 @@ public sealed class ThreadPrivateMcpSessionTests
                 UseToolProfileOnly = profileOnly, ToolProfile = profileOnly ? "local" : null
             }, ephemeral: ephemeral);
 
-        public async Task<JsonElement> CallAsync(string threadId, int? value = null)
+        public async Task<JsonElement> CallAsync(string threadId, int? value = null, string? serverName = null)
         {
             var snapshot = await Sessions.GetEffectiveToolSnapshotAsync(threadId);
             var tool = Assert.Single(snapshot.Registrations.Values, registration =>
-                registration.Definition.Id.Kind == ToolSourceKind.Mcp);
+                registration.Definition.Id.Kind == ToolSourceKind.Mcp
+                && registration.Definition.Id.SourceId == (serverName ?? ServerName));
             var arguments = value is null ? new JsonObject() : new JsonObject { ["value"] = value.Value };
             var result = await Sessions.DispatchThreadToolAsync(threadId, tool.Definition.Name, arguments,
                 Guid.NewGuid().ToString("N"), ToolInvocationAudience.Host);

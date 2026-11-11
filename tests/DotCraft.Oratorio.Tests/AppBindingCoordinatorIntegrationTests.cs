@@ -171,6 +171,8 @@ public sealed class AppBindingCoordinatorIntegrationTests : IDisposable
     {
         private McpClientManager? _manager;
 
+        public Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         public Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
             string threadId,
             CancellationToken cancellationToken = default) => Task.FromResult(_manager);

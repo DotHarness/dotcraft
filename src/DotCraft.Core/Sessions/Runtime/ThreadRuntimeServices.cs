@@ -7,28 +7,15 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Sessions;
 
-/// <summary>
-/// Optional Session Core extension for hosts that bind thread-scoped client capabilities
-/// after the base thread lifecycle call has completed.
-/// </summary>
 public interface IThreadAgentRefreshService
 {
-    /// <summary>
-    /// Rebuilds the cached agent for a thread so dynamic, thread-bound tools are reflected
-    /// in the next turn.
-    /// </summary>
     Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>
-    /// Invalidates cached thread agents so they are rebuilt before their next turn.
-    /// </summary>
+    /// <summary>Invalidates cached thread agents so they are rebuilt before their next turn.</summary>
     void InvalidateThreadAgents();
 }
 
-/// <summary>
-/// Session Core extension that makes every thread read the skills catalog again before its next
-/// sampling request (Skills §4.1).
-/// </summary>
+/// <summary>Reloads every thread's skills catalog before its next sampling request.</summary>
 public interface ISkillReloadService
 {
     void ReloadSkills();
@@ -40,7 +27,6 @@ public interface ISkillReloadService
 /// </summary>
 public interface IThreadToolDispatchService
 {
-    /// <summary>Dispatches one canonical tool call in the authority context of a thread.</summary>
     Task<ToolExecutionResult> DispatchThreadToolAsync(
         string threadId,
         ToolName toolName,
@@ -51,9 +37,6 @@ public interface IThreadToolDispatchService
         ToolInvocationOrigin? origin = null);
 }
 
-/// <summary>
-/// Session Core extension for resolving the frozen effective tool snapshot used by trusted hosts.
-/// </summary>
 public interface IThreadToolSnapshotService
 {
     /// <summary>
@@ -65,17 +48,11 @@ public interface IThreadToolSnapshotService
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Optional Session Core extension that announces publication of a new effective tool snapshot.
-/// Consumers use this signal to revoke capabilities derived from an older snapshot without polling.
-/// </summary>
 public interface IThreadToolSnapshotChangeSource
 {
-    /// <summary>Raised after a new immutable snapshot becomes effective for a thread.</summary>
     event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
 }
 
-/// <summary>Identifies the thread and revision of a newly published effective tool snapshot.</summary>
 public sealed class EffectiveToolSnapshotChangedEventArgs(string threadId, long revision) : EventArgs
 {
     public string ThreadId { get; } = threadId;
@@ -83,14 +60,12 @@ public sealed class EffectiveToolSnapshotChangedEventArgs(string threadId, long 
     public long Revision { get; } = revision;
 }
 
-/// <summary>Internal Session Core capability for snapshotting live tool bindings onto a forked thread.</summary>
 internal interface IThreadForkToolBindingService
 {
     /// <summary>Copies all currently available inheritable bindings and reports whether any were copied.</summary>
     bool TryForkThreadToolBindings(string parentThreadId, string childThreadId);
 }
 
-/// <summary>Internal Session Core capability for materializing a native SubAgent fork.</summary>
 internal interface INativeSubAgentForkMaterializationService
 {
     Task<bool> MaterializeNativeSubAgentForkAsync(
@@ -100,7 +75,6 @@ internal interface INativeSubAgentForkMaterializationService
         CancellationToken ct);
 }
 
-/// <summary>Session Core extension for recording persistent system notices in a thread's timeline.</summary>
 public interface IThreadSystemNoticeService
 {
     /// <summary>
@@ -110,9 +84,11 @@ public interface IThreadSystemNoticeService
     void AppendSystemNotice(string threadId, SystemNoticePayload payload);
 }
 
-/// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {
+    /// <summary>Requests background MCP refresh for loaded active threads.</summary>
+    Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Returns the runtime composed from thread-selected user configuration and additive binding sessions.</summary>
     Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
@@ -130,10 +106,7 @@ public interface IThreadMcpRuntimeService
         throw new NotSupportedException("Binding MCP sessions are not supported by this session service.");
 }
 
-/// <summary>
-/// Internal Session Core extension used by profile-backed SubAgents whose runtime
-/// is not the native agent loop but still needs persisted turn/item history.
-/// </summary>
+/// <summary>Records persisted Turn history for profile-backed SubAgents outside the native agent loop.</summary>
 public interface ISubAgentSyntheticTurnService
 {
     Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
@@ -158,11 +131,6 @@ public interface ISubAgentSyntheticTurnService
         CancellationToken ct = default);
 }
 
-/// <summary>
-/// Internal Session Core extension used by SubAgent controls that need to apply
-/// child-thread lifecycle changes while preserving the public rule that child
-/// threads cannot be archived directly by clients.
-/// </summary>
 public interface ISubAgentThreadLifecycleService
 {
     /// <summary>

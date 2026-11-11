@@ -4,9 +4,6 @@ using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Refreshes process-local runtime config caches after AppServer config mutations.
-/// </summary>
 internal sealed class AppServerRuntimeConfigRefresher(
     ISessionService sessionService,
     IAppConfigMonitor? appConfigMonitor,
@@ -76,6 +73,11 @@ internal sealed class AppServerRuntimeConfigRefresher(
 
         appConfigMonitor.Current.Hooks = new AppConfig.HooksConfig();
     }
+
+    public Task RefreshMcpRuntimesAsync(CancellationToken ct) =>
+        sessionService is IThreadMcpRuntimeService mcpRuntime
+            ? mcpRuntime.RefreshMcpRuntimesAsync(ct)
+            : Task.CompletedTask;
 
     public void InvalidateThreadAgents()
     {

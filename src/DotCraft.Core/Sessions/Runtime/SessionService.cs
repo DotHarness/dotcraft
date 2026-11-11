@@ -1033,6 +1033,7 @@ public sealed partial class SessionService(
         if (thread.Status != ThreadStatus.Active)
             throw new InvalidOperationException($"Thread '{threadId}' is not active.");
         var runtime = _runtimeRegistry.SetThread(thread);
+        await runtime.McpRefresh.WaitAsync(cancellationToken).ConfigureAwait(false);
         var activeTurn = thread.Turns.LastOrDefault(static turn =>
             turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
         if (activeTurn != null

@@ -57,9 +57,7 @@ internal sealed partial class PluginRequestHandler
             .ConfigureAwait(false);
     }
 
-    // Once a serialized mutation starts changing persistent or live state it must converge even
-    // when the initiating client disconnects. Request cancellation still applies while queueing,
-    // validating, and reading the pre-mutation snapshot.
+    // A committed mutation must finish even if the initiating client disconnects.
     private static CancellationToken EnterMutationCommit(CancellationToken requestCancellationToken)
     {
         requestCancellationToken.ThrowIfCancellationRequested();
@@ -72,6 +70,7 @@ internal sealed partial class PluginRequestHandler
     {
         var discovery = RefreshPluginRuntime();
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
+        await runtimeConfig.RefreshMcpRuntimesAsync(ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
         RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
@@ -123,7 +122,6 @@ internal sealed partial class PluginRequestHandler
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // The stable quiesce diagnostic remains authoritative; recovery is best effort.
         }
         return failure;
     }
@@ -167,8 +165,6 @@ internal sealed partial class PluginRequestHandler
             }
             catch when (responseFailure != null)
             {
-                // Preserve the response failure after a best-effort direct notification. A host
-                // broadcast does not use the failed initiating transport and will have completed.
             }
         }
 
