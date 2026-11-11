@@ -72,6 +72,7 @@
 @import "./shared/pointer.css";
 @import "../components/sidebar/styles/appearance.css";
 @import "../components/sidebar/styles/thread-row.css";
+@import "../components/sidebar/styles/sections.css";
 @import "../components/sidebar/styles/thread-pull-request.css";
 @import "../components/desktopPlugins/styles/overlay-seat.css";
 

@@ -1,0 +1,17 @@
+.dc-sidebar-section-drop-target {
+  position: relative;
+  margin-bottom: 6px;
+  border-radius: var(--sidebar-row-radius);
+}
+
+.dc-sidebar-section-drop-target[data-drop-active] {
+  background: var(--sidebar-control-hover);
+}
+
+.dc-sidebar-section-drop-target[data-drop-active] > * {
+  pointer-events: none;
+}
+
+.dc-sidebar-section-source[data-section-dragging] {
+  opacity: 0.4;
+}

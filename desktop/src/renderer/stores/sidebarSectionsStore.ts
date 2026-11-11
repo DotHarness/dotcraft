@@ -19,8 +19,8 @@ interface SidebarSectionsState {
 }
 
 function persist(sections: SidebarSection[]): void {
-  void window.api?.settings
-    ?.set({ sidebarSections: sections })
+  void window.api.settings
+    .set({ sidebarSections: sections })
     .catch((err: unknown) => console.error('settings:set sidebarSections failed:', err))
 }
 
@@ -36,10 +36,6 @@ function withoutItems(sections: SidebarSection[], items: SidebarSectionItem[]): 
   }))
 }
 
-function newSectionId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `section-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-}
-
 export const useSidebarSectionsStore = create<SidebarSectionsState>((set, get) => {
   const commit = (sections: SidebarSection[]): void => {
     set({ sections })
@@ -53,7 +49,7 @@ export const useSidebarSectionsStore = create<SidebarSectionsState>((set, get) =
     },
 
     createSection(name, options) {
-      const id = newSectionId()
+      const id = crypto.randomUUID()
       const items = options?.items ?? []
       const section: SidebarSection = { id, name: sectionName(name), items }
       const sections = withoutItems(get().sections, items)
@@ -82,9 +78,11 @@ export const useSidebarSectionsStore = create<SidebarSectionsState>((set, get) =
 
     moveItems(sectionId, items) {
       if (!get().sections.some((section) => section.id === sectionId)) return
-      commit(withoutItems(get().sections, items).map((section) =>
-        section.id === sectionId ? { ...section, items: [...section.items, ...items] } : section
-      ))
+      commit(withoutItems(get().sections, items).map((section) => {
+        if (section.id !== sectionId) return section
+        const { collapsed: _collapsed, ...expanded } = section
+        return { ...expanded, items: [...section.items, ...items] }
+      }))
     },
 
     removeItems(items) {

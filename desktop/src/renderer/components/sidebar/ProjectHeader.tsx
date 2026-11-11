@@ -38,6 +38,7 @@ import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { machineStatusView } from '../settings/panels/ssh/sshMachinePresentation'
 import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
 import { useMoveToSectionMenuEntry } from './sections/moveToSectionMenu'
+import { useSidebarSectionDrag } from './sections/sidebarSectionDrag'
 
 export function getProjectActivity(threads: ThreadSummary[]): ProjectActivity {
   if (threads.some(isThreadRunning)) return 'running'
@@ -59,7 +60,6 @@ export function ProjectHeader({
   onToggle
 }: {
   project: WorkspaceProjectSummary
-  /** This is the foreground (currently open) workspace. */
   active: boolean
   collapsed: boolean
   activity: ProjectActivity
@@ -202,10 +202,10 @@ export function ProjectHeader({
 
   const remote = isRemoteProject(project)
   const projectKey = projectIdentity(project)
-  const moveToSection = useMoveToSectionMenuEntry(
-    projectKey ? { kind: 'project', projectKey } : null,
-    project.pinned ? toggleProjectPinned : undefined
-  )
+  const sectionItem = projectKey ? { kind: 'project' as const, projectKey } : null
+  const beforeSectionMove = project.pinned ? toggleProjectPinned : undefined
+  const moveToSection = useMoveToSectionMenuEntry(sectionItem, beforeSectionMove)
+  const sectionDrag = useSidebarSectionDrag(sectionItem, beforeSectionMove)
   const menuItems: ContextMenuEntry[] = [
     ...(!active && (!remote || savedRemote)
       ? [{
@@ -287,12 +287,14 @@ export function ProjectHeader({
       label={label}
       width={320}
       interactive
-      disabled={menuOpen}
+      disabled={menuOpen || sectionDrag.dragging}
       content={projectDetailsContent}
       wrapperStyle={{ width: '100%' }}
     >
     <div
-      className="dotcraft-sidebar-row-radius dc-project-row"
+      className="dotcraft-sidebar-row-radius dc-project-row dc-sidebar-section-source"
+      {...sectionDrag.sourceProps}
+      data-section-dragging={sectionDrag.dragging || undefined}
       data-menu-open={menuOpen || undefined}
       role="button"
       tabIndex={0}
@@ -313,8 +315,6 @@ export function ProjectHeader({
         alignItems: 'center',
         gap: 'var(--sidebar-leading-gap)',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
-        // 4px side inset matches the sidebar nav rows and thread rows so all
-        // sidebar buttons share the same width and right-edge alignment.
         margin: '2px 4px',
         padding: '2px 6px 2px 12px',
         borderRadius: 'var(--sidebar-row-radius)',
@@ -422,9 +422,6 @@ function ProjectErrorIndicator({ label }: { label: string }): JSX.Element {
   )
 }
 
-// Non-hover status indicators (spinner / waiting dot / error icon) sit in the
-// same 24px box as the action buttons they replace, so they stay centered under
-// the rightmost action button and line up with the thread rows' status slot.
 const projectStatusIndicatorSlotStyle: CSSProperties = {
   width: '24px',
   height: '24px',

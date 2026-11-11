@@ -296,14 +296,12 @@ export const MESSAGES_EN = {
   'settings.followUpBehavior.instantInterrupt.label': 'Steer right away',
   'settings.followUpBehavior.instantInterrupt.description': 'Interrupt the current reply, even while DotCraft is thinking, and continue with your message.',
   'settings.followUpBehavior.instantInterrupt.saveFailed': 'Failed to save Steer right away: {{error}}',
-  // App / window
   'app.titleWithWorkspace': 'DotCraft — {{name}}',
   'app.brandSubtitle': 'DotCraft',
   'navigation.back': 'Back',
   'navigation.forward': 'Forward',
   'debug.cdpEnabledTooltip': 'CDP debugging is enabled.',
 
-  // Main menu (custom labels only)
   'menu.file': 'File',
   'menu.all': 'Menu',
   'menu.edit': 'Edit',
@@ -333,7 +331,6 @@ export const MESSAGES_EN = {
   'tray.satellitesOnline.one': '{{count}} satellite online',
   'tray.satellitesOnline.other': '{{count}} satellites online',
 
-  // What's New
   'whatsNew.title': "What's New in DotCraft",
   'whatsNew.subtitle': 'Highlights from v{{version}}',
   'whatsNew.close': "Let's Start",
@@ -348,7 +345,6 @@ export const MESSAGES_EN = {
   'whatsNew.showOlder': 'Older (v{{version}})',
   'whatsNew.showNewer': 'Newer (v{{version}})',
 
-  // App update
   'update.availableTooltip': 'Update available',
   'update.downloadingTooltip': 'Downloading update',
   'update.downloadedTooltip': 'Restart to update',
@@ -376,7 +372,6 @@ export const MESSAGES_EN = {
   'update.upToDate': 'DotCraft is up to date.',
   'update.checkFailed': 'Unable to check for DotCraft updates.',
 
-  // Settings
   'settings.title': 'Settings',
   'settings.learnMore': 'Learn more',
   'settings.learnMoreAbout': 'Learn more about {{topic}}',
@@ -1917,7 +1912,6 @@ export const MESSAGES_EN = {
   'archivedThreads.deleteAllConfirmMessage':
     'Delete all {{count}} archived chats? This action cannot be undone.',
   'archivedThreads.bulkDeleteSummary': 'Deleted {{success}}, failed {{failed}}',
-  // Channels view
   'channels.title': 'Channels',
   'channels.heroTitle': 'Collaborate with DotCraft across social channels',
   'channels.searchPlaceholder': 'Search channels',
@@ -2048,7 +2042,6 @@ export const MESSAGES_EN = {
     'This channel uses external WebSocket adapter mode and requires AppServer WebSocket to be enabled.',
   'channels.feishu.title': 'Feishu',
 
-  // Welcome
   'welcome.tagline': 'Select a workspace folder to get started.',
   'welcome.language': 'Language',
   'welcome.openWorkspace': 'Open Workspace',
@@ -2064,7 +2057,6 @@ export const MESSAGES_EN = {
   'welcome.sendTitle': 'Send (Enter)',
   'welcome.sendAria': 'Send message',
 
-  // Workspace setup
   'setupInterstitial.title': "DotCraft isn't set up yet",
   'setupInterstitial.description': 'DotCraft needs a short wizard to configure the model provider and basic preferences.',
   'setupInterstitial.start': 'Start setup',
@@ -2112,7 +2104,6 @@ export const MESSAGES_EN = {
   'setupWizard.action.continue': 'Continue',
   'setupWizard.action.signIn': 'Sign in',
   'setupWizard.error.title': 'Couldn’t save your setup',
-  // Error screen
   'error.title.binary': 'DotCraft Binary Not Found',
   'error.title.timeout': 'AppServer Not Responding',
   'error.title.generic': 'Connection Error',
@@ -2130,7 +2121,6 @@ export const MESSAGES_EN = {
   'error.copyAria': 'Copy error',
   'error.copiedAria': 'Error copied',
 
-  // Sidebar
   'sidebar.automations': 'Automations',
   'sidebar.dashboard': 'Dashboard',
   'sidebar.dashboardDisabledConnect': 'Connect to the AppServer to open Dashboard',
@@ -2158,7 +2148,6 @@ export const MESSAGES_EN = {
   'app.triggeredBy.detail': 'App: {{label}}',
   'app.triggeredBy.generic': 'App-triggered input',
 
-  // Common / toasts (App)
   'toast.threadNotFound': 'Chat not found — removed from list',
   'toast.regionLabel': 'Notifications',
   'threadArchive.toast.archived': 'Chat archived',
@@ -2277,14 +2266,12 @@ export const MESSAGES_EN = {
   'conversation.reference.skillPathUnavailable': 'Skill path is not available',
   'conversation.reference.openFailed': 'Unable to open item',
 
-  // Main process (connection)
   'main.error.workspaceLocked':
     'This workspace is already open in another DotCraft window (PID {{pid}}).',
   'main.error.streamsUnavailable': 'AppServer process streams unavailable',
   'main.error.handshakeTimeout': 'AppServer is not responding. Restart?',
   'main.status.reconnecting': 'Connection lost. Reconnecting...',
 
-  // Conversation / input (high-traffic)
   'composer.placeholder.approval': 'Waiting for approval decision...',
   'composer.placeholder.userInput': 'Waiting for your answer...',
   'composer.placeholder.ask': 'Do anything',
@@ -2377,7 +2364,6 @@ export const MESSAGES_EN = {
   'composer.removeImageAria': 'Remove image',
   'composer.removeFileAria': 'Remove file',
 
-  // Thread header
   'threadHeader.openWorkspaceTitle': 'Open workspace in explorer',
   'threadHeader.commitTitle': 'Commit file changes to git',
   'threadHeader.noCommitTitle': 'No changes to commit',
@@ -2405,7 +2391,6 @@ export const MESSAGES_EN = {
   'openTargets.loadFailed': 'Unable to load apps. Reopen menu to retry',
   'openTargets.noneFound': 'No apps found',
 
-  // Plugins
   'plugins.pageTitle': 'Plugins',
   'plugins.tab.plugins': 'Plugins',
   'plugins.tab.skills': 'Skills',
@@ -2625,7 +2610,6 @@ export const MESSAGES_EN = {
   'appBinding.connection.error': 'Error',
   'appBinding.connection.notConnected': 'Not authorized',
 
-  // Skills
   'skills.pageTitle': 'Skills',
   'skills.heroTitle': 'Give DotCraft the ability you need',
   'skills.intro':
@@ -2697,7 +2681,6 @@ export const MESSAGES_EN = {
   'skillMarket.installSuccess': 'Installed {{name}}',
   'skillMarket.installFailed': 'Failed to install skill: {{error}}',
 
-  // Thread list / search / connection (Phase 1)
   'relativeTime.justNow': 'just now',
   'relativeTime.minutes': '{{count}}m',
   'relativeTime.hours': '{{count}}h',
@@ -2734,17 +2717,18 @@ export const MESSAGES_EN = {
   'sidebarSections.defaultName': 'New section',
   'sidebarSections.createTitle': 'New section',
   'sidebarSections.editTitle': 'Edit section',
-  'sidebarSections.dialogDescription': 'Group projects and chats however you like.',
+  'sidebarSections.dialogDescription': 'Organize projects and chats.',
   'sidebarSections.namePlaceholder': 'Section name',
   'sidebarSections.create': 'Create section',
   'sidebarSections.save': 'Save',
   'sidebarSections.newSection': 'New section',
   'sidebarSections.newSectionEllipsis': 'New section…',
-  'sidebarSections.moveTo': 'Move to section',
+  'sidebarSections.moveTo': 'Section',
   'sidebarSections.edit': 'Edit',
   'sidebarSections.remove': 'Remove section',
   'sidebarSections.options': '{{section}} options',
-  'sidebarSections.empty': 'Use Move to section on a project or chat to add it here',  'threadGroup.yesterday': 'Yesterday',
+  'sidebarSections.empty': 'Drop projects or chats here',
+  'threadGroup.yesterday': 'Yesterday',
   'threadGroup.prev7Days': 'Previous 7 Days',
   'threadGroup.prev30Days': 'Previous 30 Days',
   'threadGroup.older': 'Older',
@@ -2935,7 +2919,6 @@ export const MESSAGES_EN = {
   'skillView.tool.skillFallback': 'skill',
   'skillView.tool.loadedSkill': 'Loaded skill {{name}}',
   'skillView.tool.loadingSkill': 'Loading skill {{name}}...',
-  // Running / streaming labels for built-in tools
   'toolCall.streaming.readingFile': 'Reading {{filename}}...',
   'toolCall.streaming.readingGeneric': 'Reading file...',
   'toolCall.streaming.searchingGrep': 'Searching "{{pattern}}"...',
@@ -3692,7 +3675,6 @@ export const MESSAGES_EN = {
   'toolCall.remoteToolHost.transfer.retained': '{{size}} kept at the destination',
   'toolCall.remoteToolHost.unknownHost': 'the remote machine',
 
-  // Detail / git (Phase 2)
   'commit.title': 'Commit Changes',
   'commit.filesHeader': 'Files to commit ({{written}} of {{all}}{{reverted}}):',
   'commit.revertedSuffix': ' — {{count}} reverted',
@@ -3821,7 +3803,6 @@ export const MESSAGES_EN = {
   'diffViewer.splitMode': 'Show split diff',
   'diffViewer.unchangedLines': '{{count}} unchanged lines',
 
-  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
   'find.title': 'Find',
   'find.placeholder': 'Find',
   'find.previous': 'Previous match',
@@ -3849,7 +3830,6 @@ export const MESSAGES_EN = {
   'detailPanel.addTabNewBrowser': 'New Browser Tab',
   'detailPanel.addTabNewTerminal': 'New Terminal',
   'detailPanel.addTabNewBrowserLater': 'Available in the next update',
-  // Empty-state launcher cards (shown when no detail tab is open)
   'detailPanel.launcherFilesTitle': 'Files',
   'detailPanel.launcherFilesDesc': 'Browse project files',
   'detailPanel.launcherBrowserTitle': 'Browser',
@@ -3866,18 +3846,15 @@ export const MESSAGES_EN = {
   'detailPanel.launcherSideChatDesc': 'Ask a quick question',
   'detailPanel.launcherTerminalTitle': 'Terminal',
   'detailPanel.launcherTerminalDesc': 'Start an interactive shell',
-  // Viewer header open button (opens the current file, not the workspace)
   'detailPanel.openFileTitle': 'Open {{path}}',
   'detailPanel.openFileMenuAria': 'Choose how to open',
 
-  // Quick-Open file finder dialog
   'quickOpen.title': 'Open File',
   'quickOpen.placeholder': 'Search files by name…',
   'quickOpen.loading': 'Loading…',
   'quickOpen.noMatch': 'No matching files',
   'quickOpen.retry': 'Failed to load files.',
 
-  // Viewer tab / sub-viewers
   'viewer.close': 'Close tab',
   'viewer.unavailable.typeTitle': "{{type}} files can't be previewed",
   'viewer.unavailable.typeTitleGeneric': "This file can't be previewed",
@@ -3939,7 +3916,6 @@ export const MESSAGES_EN = {
   'viewer.missingFile': 'File not found',
   'viewer.openFileHint': 'Select a file from the workspace tree',
   'viewer.readFailed': 'Failed to read file',
-  // Viewer header / actions / built-in explorer
   'viewer.moreActions': 'More actions',
   'viewer.copyPath': 'Copy path',
   'viewer.copyContents': 'Copy file contents',
@@ -3997,7 +3973,6 @@ export const MESSAGES_EN = {
   'viewer.browser.startTitle': 'Start browsing',
   'viewer.browser.defaultLabel': 'New Tab',
 
-  // Automations
   'auto.viewTitle': 'Let DotCraft keep work moving',
   'auto.tabTasks': 'Tasks',
   'auto.tabTasksUnavailable': 'Automations module is not enabled on the server.',
@@ -4165,7 +4140,6 @@ export const MESSAGES_EN = {
   'automation.triggeredBy.badge': 'Sent via automation',
   'automation.triggeredBy.task': 'Automation · {{label}}',
   'automation.triggeredBy.generic': 'Automation',
-  // Skills / a11y (Phase 4)
   'skills.callout.workspaceLine':
     ' — Includes built-ins deployed here and project-only skills.',
   'skills.callout.userLine':
@@ -4195,7 +4169,6 @@ export const MESSAGES_EN = {
   'skillCard.toggleEnable': 'Enable skill',
   'skillCard.toggleDisable': 'Disable skill',
 
-  // Main IPC (Phase 5)
   'ipc.appServerNotConnected': 'AppServer is not connected',
   'ipc.pathOutsideWorkspace': 'Access denied: path is outside workspace: {{path}}',
   'ipc.noWorkspaceOpen': 'No workspace open',
@@ -4206,7 +4179,6 @@ export const MESSAGES_EN = {
   'ipc.imageTooLarge': 'Image too large ({{bytes}} bytes). Maximum {{max}} bytes.',
   'ipc.clipboardNotImage': 'Clipboard data is not an image',
 
-  // Confirm / generic
   'common.cancel': 'Cancel',
   'common.backToApp': 'Back to app',
   'common.close': 'Close',
@@ -4221,7 +4193,6 @@ export const MESSAGES_EN = {
     'Click "+ New Task" to create one, or wait for GitHub tasks to be discovered.',
   'auto.newTaskButtonLabel': 'New Task',
 
-  // Settings groups
   'settings.group.general': 'General',
   'settings.group.application': 'Application',
   'settings.group.composer': 'Composer',
@@ -4245,7 +4216,6 @@ export const MESSAGES_EN = {
   'settings.group.conversations': 'Chats',
   'settings.group.archived': 'Archived chats',
 
-  // SSH machines
   'settings.ssh.title': 'SSH connections from this PC',
   'settings.ssh.empty': 'Work on another machine over SSH. DotCraft installs and runs itself there for you.',
   'settings.ssh.add.button': 'Add',
@@ -4354,7 +4324,6 @@ export const MESSAGES_EN = {
   'settings.ssh.workspaceBanner.title': 'Connected via SSH',
   'settings.ssh.workspaceBanner.manage': 'Manage',
 
-  // MCP
   'settings.mcp.title': 'MCP Servers',
   'settings.mcp.description':
     'Connect custom MCP servers stored in workspace.',
@@ -4432,7 +4401,6 @@ export const MESSAGES_EN = {
   'settings.mcp.viewPlugin': 'View plugin',
   'settings.mcp.fromPlugins': 'From plugins',
 
-  // Subagents
   'settings.subAgents.title': 'Subagents',
   'settings.subAgents.description':
     'Pick which assistants DotCraft can delegate tasks to, or bring your own CLI.',
@@ -4454,7 +4422,6 @@ export const MESSAGES_EN = {
   'settings.subAgents.settings.resumeTitle': 'Resume external CLI sessions',
   'settings.subAgents.settings.resumeDescription': 'Let external CLIs pick up where they left off in this workspace.',
 
-  // List surface
   'settings.subAgents.list.presetSection': 'Built-in agents',
   'settings.subAgents.list.customSection': 'Custom agents',
   'settings.subAgents.list.customEmpty': 'No custom agents yet.',
@@ -4471,7 +4438,6 @@ export const MESSAGES_EN = {
   'settings.subAgents.card.binaryMissing': 'Binary not found on PATH',
   'settings.subAgents.card.disabled': 'Disabled',
 
-  // Preset detail surface
   'settings.subAgents.preset.codex.title': 'Codex CLI',
   'settings.subAgents.preset.codex.description':
     'DotCraft launches codex exec for each delegated task and applies per-mode sandbox flags automatically.',
@@ -4527,7 +4493,6 @@ export const MESSAGES_EN = {
     'Maximum wait before the delegated task is cancelled.',
 
 
-  // Agent Builder chat
   'agentBuilder.chat.createTitle': "Describe the agent you want",
   'agentBuilder.chat.createReview': "Code reviewer",
   'agentBuilder.chat.createReviewPrompt': "Create a read-only code reviewer focused on correctness, risks, and missing tests.",
@@ -4697,7 +4662,6 @@ export const MESSAGES_EN = {
   'agentBuilder.export.failed': "Couldn't export this agent. {{error}}",
   'agentBuilder.toolbar.create': 'Create',
 
-  // Validation
   'settings.subAgents.validation.integerRequired': 'Numeric fields must be whole numbers.',
   'mcp.elicitation.title': 'MCP server request',
   'mcp.elicitation.message': '{{server}} needs additional information.',

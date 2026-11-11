@@ -1869,7 +1869,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.pickBinaryFailed': '选择 DotCraft 可执行文件失败：{{error}}',
   'settings.optionThemeDark': '深色',
   'settings.optionThemeLight': '浅色',
-  // Channels view
   'channels.title': '渠道',
   'channels.heroTitle': '让 DotCraft 在社交渠道中协作',
   'channels.searchPlaceholder': '搜索渠道',
@@ -2671,17 +2670,18 @@ export const MESSAGES_ZH_HANS = {
   'sidebarSections.defaultName': '新分组',
   'sidebarSections.createTitle': '新建分组',
   'sidebarSections.editTitle': '编辑分组',
-  'sidebarSections.dialogDescription': '按你的方式归类项目和对话。',
+  'sidebarSections.dialogDescription': '归类项目和对话。',
   'sidebarSections.namePlaceholder': '分组名称',
   'sidebarSections.create': '创建分组',
   'sidebarSections.save': '保存',
   'sidebarSections.newSection': '新建分组',
   'sidebarSections.newSectionEllipsis': '新建分组…',
-  'sidebarSections.moveTo': '移到分组',
+  'sidebarSections.moveTo': '分组',
   'sidebarSections.edit': '编辑',
   'sidebarSections.remove': '移除分组',
   'sidebarSections.options': '{{section}}选项',
-  'sidebarSections.empty': '在项目或对话的菜单中选择“移到分组”即可添加到这里',  'threadGroup.yesterday': '昨天',
+  'sidebarSections.empty': '拖入项目或对话',
+  'threadGroup.yesterday': '昨天',
   'threadGroup.prev7Days': '过去 7 天',
   'threadGroup.prev30Days': '过去 30 天',
   'threadGroup.older': '更早',
@@ -3675,7 +3675,6 @@ export const MESSAGES_ZH_HANS = {
   'diffViewer.splitMode': '显示拆分差异',
   'diffViewer.unchangedLines': '{{count}} 行未更改',
 
-  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
   'find.title': '查找',
   'find.placeholder': '查找',
   'find.previous': '上一个匹配',
@@ -3703,7 +3702,6 @@ export const MESSAGES_ZH_HANS = {
   'detailPanel.addTabNewBrowser': '新建浏览器标签',
   'detailPanel.addTabNewTerminal': '新建终端',
   'detailPanel.addTabNewBrowserLater': '下个版本可用',
-  // 空状态启动器卡片（没有打开任何详情标签时显示）
   'detailPanel.launcherFilesTitle': '文件',
   'detailPanel.launcherFilesDesc': '浏览项目文件',
   'detailPanel.launcherBrowserTitle': '浏览器',
@@ -3720,7 +3718,6 @@ export const MESSAGES_ZH_HANS = {
   'detailPanel.launcherSideChatDesc': '快速提问',
   'detailPanel.launcherTerminalTitle': '终端',
   'detailPanel.launcherTerminalDesc': '启动交互式终端',
-  // 查看器头部的打开按钮（打开当前文件，而非工作区）
   'detailPanel.openFileTitle': '打开：{{path}}',
   'detailPanel.openFileMenuAria': '选择打开方式',
 
@@ -3791,7 +3788,6 @@ export const MESSAGES_ZH_HANS = {
   'viewer.missingFile': '文件未找到',
   'viewer.openFileHint': '请从工作区树中选择文件',
   'viewer.readFailed': '读取文件失败',
-  // 查看器头部 / 操作 / 内置资源浏览器
   'viewer.moreActions': '更多操作',
   'viewer.copyPath': '复制路径',
   'viewer.copyContents': '复制文件内容',
@@ -4059,7 +4055,6 @@ export const MESSAGES_ZH_HANS = {
   'auto.emptyTasksHint': '点击「+ 新建任务」创建，或等待发现 GitHub 任务。',
   'auto.newTaskButtonLabel': '新建任务',
 
-  // Archived threads（补齐）
   'archivedThreads.title': '归档对话',
   'archivedThreads.description': '浏览所有项目中已归档的对话，随时恢复。',
   'archivedThreads.loading': '正在加载归档对话…',
@@ -4104,7 +4099,6 @@ export const MESSAGES_ZH_HANS = {
   'archivedThreads.deleteAllConfirmMessage': '将删除全部 {{count}} 个归档对话？该操作不可撤销。',
   'archivedThreads.bulkDeleteSummary': '删除成功 {{success}}，失败 {{failed}}',
 
-  // Settings 分组标题
   'settings.group.general': '常规',
   'settings.group.application': '应用',
   'settings.group.composer': '输入框',
@@ -4128,7 +4122,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.group.conversations': '对话',
   'settings.group.archived': '归档对话',
 
-  // 远程服务器
   'settings.ssh.title': '从这台电脑发起的 SSH 连接',
   'settings.ssh.empty': '通过 SSH 在另一台机器上工作，DotCraft 会自动在那里安装并运行。',
   'settings.ssh.add.button': '添加',
@@ -4237,7 +4230,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.ssh.workspaceBanner.title': '通过 SSH 连接',
   'settings.ssh.workspaceBanner.manage': '管理',
 
-  // MCP
   'settings.mcp.title': 'MCP Servers',
   'settings.mcp.description':
     '连接存储在工作区中的自定义 MCP 服务器。',
@@ -4315,7 +4307,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.mcp.viewPlugin': '查看插件',
   'settings.mcp.fromPlugins': '来自插件',
 
-  // Sub Agents
   'settings.subAgents.title': '子智能体',
   'settings.subAgents.description': '选择可供 DotCraft 委派任务的智能体，或接入你自己的 CLI。',
   'settings.subAgents.unsupported': '当前 AppServer 不支持子智能体管理。',
@@ -4336,7 +4327,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.settings.resumeTitle': '复用外部 CLI 会话',
   'settings.subAgents.settings.resumeDescription': '让外部 CLI 在这个工作区接着上次的会话继续。',
 
-  // List surface
   'settings.subAgents.list.presetSection': '内置智能体',
   'settings.subAgents.list.customSection': '自定义智能体',
   'settings.subAgents.list.customEmpty': '还没有自定义智能体。',
@@ -4353,7 +4343,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.card.binaryMissing': '未在 PATH 中找到可执行文件',
   'settings.subAgents.card.disabled': '已禁用',
 
-  // Preset detail surface
   'settings.subAgents.preset.codex.title': 'Codex CLI',
   'settings.subAgents.preset.codex.description':
     'DotCraft 会在每次委派任务时启动 codex exec，并按当前审批模式自动附加沙箱参数。',
@@ -4403,7 +4392,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.subAgents.preset.overrideTimeoutHint': '达到该时间仍未完成则取消任务。',
 
 
-  // Validation
   'settings.subAgents.validation.integerRequired': '数字字段必须是整数。',
   'turnChanges.reapply': '重新应用',
   'turnChanges.review': '查看',

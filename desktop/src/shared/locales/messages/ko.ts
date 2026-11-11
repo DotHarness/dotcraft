@@ -1486,7 +1486,6 @@ export const MESSAGES_KO = {
   'threadHeader.worktreeBadge': '작업 트리: {{branch}}',
   'common.cancel': '취소',
 
-  // Settings coverage
   'settings.remoteUrl': '원격 WebSocket URL',
   'settings.remoteToken': '원격 토큰',
   'settings.remoteTokenPlaceholder': '선택 과목. 토큰이 누락된 경우 URL에 추가됩니다.',
@@ -2236,7 +2235,6 @@ export const MESSAGES_KO = {
   'settings.subAgents.preset.overrideTimeoutHint': '위임된 작업이 취소되기 전까지 최대 대기 시간입니다.',
   'settings.subAgents.validation.integerRequired': '숫자 필드는 정수여야 합니다.',
 
-  // Main shell coverage
   'sidebar.automations': '자동화',
   'sidebar.channels': '채널',
   'sidebar.team': '팀',
@@ -2312,17 +2310,18 @@ export const MESSAGES_KO = {
   'sidebarSections.defaultName': '새 섹션',
   'sidebarSections.createTitle': '새 섹션',
   'sidebarSections.editTitle': '섹션 편집',
-  'sidebarSections.dialogDescription': '프로젝트와 채팅을 원하는 대로 묶으세요.',
+  'sidebarSections.dialogDescription': '프로젝트와 채팅을 정리하세요.',
   'sidebarSections.namePlaceholder': '섹션 이름',
   'sidebarSections.create': '섹션 만들기',
   'sidebarSections.save': '저장',
   'sidebarSections.newSection': '새 섹션',
   'sidebarSections.newSectionEllipsis': '새 섹션…',
-  'sidebarSections.moveTo': '섹션으로 이동',
+  'sidebarSections.moveTo': '섹션',
   'sidebarSections.edit': '편집',
   'sidebarSections.remove': '섹션 제거',
   'sidebarSections.options': '{{section}} 옵션',
-  'sidebarSections.empty': '프로젝트나 채팅 메뉴에서 섹션으로 이동을 선택해 여기에 추가하세요',  'threadGroup.yesterday': '어제',
+  'sidebarSections.empty': '프로젝트나 채팅을 여기에 놓으세요',
+  'threadGroup.yesterday': '어제',
   'threadGroup.prev7Days': '지난 7일',
   'threadGroup.prev30Days': '이전 30일',
   'threadGroup.older': '이전',
@@ -2615,7 +2614,6 @@ export const MESSAGES_KO = {
   'common.undo': '실행 취소',
   'common.copied': '복사됨',
 
-  // Welcome composer coverage
   'interactiveTool.loading': '앱 뷰를 불러오는 중…',
   'interactiveTool.error': '앱 뷰를 불러오지 못했습니다.',
   'interactiveTool.unavailable': '앱 뷰를 사용할 수 없습니다',
@@ -2700,7 +2698,6 @@ export const MESSAGES_KO = {
   'welcomeComposer.imageTooLarge': '이미지가 너무 큽니다. 최대 {{mb}} MB입니다.',
   'welcomeComposer.maxImages': '메시지당 최대 {{max}}개의 이미지까지 가능합니다.',
   'welcomeComposer.saveImageFailed': '이미지를 저장할 수 없습니다: {{error}}',
-  // Channel, plugin, automation, and team coverage
   'appBinding.connectionRevoked': '앱 인증이 삭제됨',
   'appBinding.disconnect': '연결 끊기',
   'appBinding.disconnectConfirm.title': '이 앱의 연결을 해제할까요?',
@@ -3104,7 +3101,6 @@ export const MESSAGES_KO = {
   'status.pending': '보류 중',
   'status.running': '실행 중',
 
-  // English/Chinese catalog coverage
   'settings.wsHost': '웹소켓 호스트',
   'settings.wsPort': '웹소켓 포트',
   'settings.wsHint': '모드가 WebSocket 또는 Stdio + WebSocket일 때 사용됩니다.',
@@ -4216,7 +4212,6 @@ export const MESSAGES_KO = {
   'diffViewer.splitMode': '분할 차이점 표시',
   'diffViewer.unchangedLines': '{{count}} 변경되지 않은 줄',
 
-  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
   'find.title': '찾기',
   'find.placeholder': '찾기',
   'find.previous': '이전 일치',

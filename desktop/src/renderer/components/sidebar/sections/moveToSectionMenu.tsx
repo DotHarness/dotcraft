@@ -1,4 +1,4 @@
-import { FolderInput, Plus } from 'lucide-react'
+import { Layers, Plus } from 'lucide-react'
 import type { SidebarSectionItem } from '../../../../shared/sidebarSections'
 import { useT } from '../../../contexts/LocaleContext'
 import { useSidebarSectionsStore } from '../../../stores/sidebarSectionsStore'
@@ -37,7 +37,7 @@ export function useMoveToSectionMenuEntry(
   ]
   return {
     label: t('sidebarSections.moveTo'),
-    icon: <FolderInput size={14} aria-hidden />,
+    icon: <Layers size={14} aria-hidden />,
     onClick: () => {},
     submenu
   }

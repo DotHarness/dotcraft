@@ -6,6 +6,7 @@ import { useSidebarSectionsStore } from '../../../stores/sidebarSectionsStore'
 import type { ContextMenuEntry } from '../../ui/ContextMenu'
 import { CollapsibleThreads, ProjectHint, SectionOptionsMenu, SidebarSectionHeader } from '../SidebarSectionParts'
 import { openSectionDialog } from './SectionDialog'
+import { SidebarSectionDropTarget } from './SidebarSectionDropTarget'
 
 export function CustomSidebarSection({
   section,
@@ -34,7 +35,7 @@ export function CustomSidebarSection({
   ]
 
   return (
-    <div style={{ marginBottom: '6px' }} data-sidebar-section-id={section.id}>
+    <SidebarSectionDropTarget sectionId={section.id}>
       <SidebarSectionHeader
         label={section.name}
         toggleLabel={t('projectsRail.toggleSection', { section: section.name })}
@@ -52,6 +53,6 @@ export function CustomSidebarSection({
       <CollapsibleThreads collapsed={collapsed} marginTop={0}>
         {empty ? <ProjectHint label={t('sidebarSections.empty')} alignment="section" /> : children}
       </CollapsibleThreads>
-    </div>
+    </SidebarSectionDropTarget>
   )
 }

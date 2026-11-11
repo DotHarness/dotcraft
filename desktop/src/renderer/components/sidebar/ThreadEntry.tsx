@@ -35,6 +35,7 @@ import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelect
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 import { useMoveToSectionMenuEntry } from './sections/moveToSectionMenu'
+import { useSidebarSectionDrag } from './sections/sidebarSectionDrag'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -52,7 +53,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     runningTurnThreadIds,
     pendingApprovalThreadIds,
     pendingUserInputThreadIds,
-    pendingPlanConfirmationThreadIds
+    pendingPlanConfirmationThreadIds,
+    threadListProjectKey
   } = useThreadStore()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
@@ -69,9 +71,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(thread.displayName ?? '')
   const [dropActive, setDropActive] = useState(false)
-  // `anim` drives the two transient post-drop animations. `success` plays
-  // `dropSuccessPulse` on the row + `slideInBadge` on the inline bound icon;
-  // `fail` plays `shake` on the row. Clears itself after the animation window.
   const [anim, setAnim] = useState<'success' | 'fail' | null>(null)
   const [onScreen, setOnScreen] = useState(false)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -122,6 +121,12 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const rowPull = threadDetails.rowPull
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
+  const sectionDrag = useSidebarSectionDrag(
+    canPin && !renaming && threadListProjectKey
+      ? { kind: 'thread', projectKey: threadListProjectKey, threadId: thread.id }
+      : null,
+    isPinned ? () => togglePinnedThread(thread.id) : undefined
+  )
   const waitingStatus = useThreadWaitingStatus(thread.id, {
     waitingOnApproval: pendingApprovalThreadIds.has(thread.id),
     waitingOnInput: pendingUserInputThreadIds.has(thread.id),
@@ -191,7 +196,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   function isAutomationDrag(e: React.DragEvent): boolean {
     const types = e.dataTransfer?.types
     if (!types) return false
-    // DataTransferItemList doesn't implement Array.includes
     for (let i = 0; i < types.length; i++) {
       if (types[i] === AUTOMATION_TASK_DRAG_MIME) return true
     }
@@ -200,8 +204,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   function handleDragOver(e: React.DragEvent): void {
     if (!isAutomationDrag(e)) return
-    // Reject drops onto the already-bound thread and onto threads that can't host a
-    // bound automation run, so the drop ring never lights up on a dead target.
     if (alreadyBound || dimmedTarget) {
       e.dataTransfer.dropEffect = 'none'
       if (dropActive) setDropActive(false)
@@ -214,7 +216,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   function handleDragLeave(e: React.DragEvent): void {
     if (!isAutomationDrag(e)) return
-    // Only clear when leaving the row, not when crossing child boundaries.
     const related = e.relatedTarget as Node | null
     if (related && (e.currentTarget as Node).contains(related)) return
     setDropActive(false)
@@ -224,8 +225,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     if (!isAutomationDrag(e)) return
     e.preventDefault()
     setDropActive(false)
-    // Safety net: onDragEnd on the source fires slightly after drop in some
-    // browsers. Clear the session eagerly so other rows stop dimming.
+    // Clear before async work; native dragend arrives after drop.
     useDragDropStore.getState().end()
 
     if (alreadyBound || dimmedTarget) return
@@ -265,7 +265,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         content={threadDetails.content}
         onOpen={threadDetails.onOpen}
         interactive
-        disabled={renaming || Boolean(dragKind)}
+        disabled={renaming || Boolean(dragKind) || sectionDrag.dragging}
         wrapperStyle={{ width: '100%' }}
       >
       <ThreadRowLayout
@@ -297,15 +297,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
             : selected
               ? 'var(--sidebar-control-active)'
               : undefined,
-          // dropActive = hovered valid target; alreadyBound = inset outline marking
-          // the existing binding; otherwise the success pulse keyframe owns this.
           boxShadow: dropActive
             ? '0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)'
             : alreadyBound
               ? 'inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)'
               : 'none',
           transform: dropActive ? 'scale(1.01)' : 'none',
-          opacity: dimmedTarget ? 0.42 : 1,
+          opacity: sectionDrag.dragging ? 0.4 : dimmedTarget ? 0.42 : 1,
           filter: dimmedTarget ? 'saturate(0.7)' : 'none',
           pointerEvents: dimmedTarget ? 'none' : 'auto',
           transition:
@@ -327,7 +325,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onDragStart: (e) => {
             e.dataTransfer.setData(THREAD_DRAG_MIME, thread.id)
             e.dataTransfer.effectAllowed = 'link'
+            sectionDrag.sourceProps.onDragStart?.(e)
           },
+          onDragEnd: sectionDrag.sourceProps.onDragEnd,
           onDragOver: handleDragOver,
           onDragLeave: handleDragLeave,
           onDrop: (e) => void handleDrop(e)
@@ -608,7 +608,6 @@ function ThreadEntryContextMenu({
       if (activeThreadId === threadId) setActiveThreadId(null)
       removeThreadTree(threadId)
     } catch {
-      // Keep local state unchanged when the backend delete fails.
     }
   }
 

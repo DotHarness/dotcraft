@@ -1486,7 +1486,6 @@ export const MESSAGES_JA = {
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
   'common.cancel': 'キャンセル',
 
-  // Settings coverage
   'settings.remoteUrl': 'リモート WebSocket URL',
   'settings.remoteToken': 'リモートトークン',
   'settings.remoteTokenPlaceholder': 'オプション。トークンが欠落している場合は URL に追加されます。',
@@ -2234,7 +2233,6 @@ export const MESSAGES_JA = {
   'settings.subAgents.preset.overrideTimeoutHint': '委任されたタスクがキャンセルされるまでの最大待機時間。',
   'settings.subAgents.validation.integerRequired': '数値フィールドは整数である必要があります。',
 
-  // Main shell coverage
   'sidebar.automations': '自動化',
   'sidebar.channels': 'チャンネル',
   'sidebar.team': 'チーム',
@@ -2310,17 +2308,18 @@ export const MESSAGES_JA = {
   'sidebarSections.defaultName': '新しいセクション',
   'sidebarSections.createTitle': '新しいセクション',
   'sidebarSections.editTitle': 'セクションを編集',
-  'sidebarSections.dialogDescription': 'プロジェクトとチャットを自由にまとめられます。',
+  'sidebarSections.dialogDescription': 'プロジェクトとチャットを整理します。',
   'sidebarSections.namePlaceholder': 'セクション名',
   'sidebarSections.create': 'セクションを作成',
   'sidebarSections.save': '保存',
   'sidebarSections.newSection': '新しいセクション',
   'sidebarSections.newSectionEllipsis': '新しいセクション…',
-  'sidebarSections.moveTo': 'セクションに移動',
+  'sidebarSections.moveTo': 'セクション',
   'sidebarSections.edit': '編集',
   'sidebarSections.remove': 'セクションを削除',
   'sidebarSections.options': '{{section}} のオプション',
-  'sidebarSections.empty': 'プロジェクトやチャットのメニューで「セクションに移動」を選ぶとここに追加されます',  'threadGroup.yesterday': '昨日',
+  'sidebarSections.empty': 'プロジェクトやチャットをここにドロップ',
+  'threadGroup.yesterday': '昨日',
   'threadGroup.prev7Days': '過去 7 日間',
   'threadGroup.prev30Days': '過去 30 日間',
   'threadGroup.older': '古い',
@@ -2613,7 +2612,6 @@ export const MESSAGES_JA = {
   'common.undo': '元に戻す',
   'common.copied': 'コピーしました',
 
-  // Welcome composer coverage
   'interactiveTool.loading': 'アプリビューを読み込み中…',
   'interactiveTool.error': 'アプリビューを読み込めませんでした。',
   'interactiveTool.unavailable': 'アプリビューを利用できません',
@@ -2698,7 +2696,6 @@ export const MESSAGES_JA = {
   'welcomeComposer.imageTooLarge': '画像が大きすぎます。最大 {{mb}} MB です。',
   'welcomeComposer.maxImages': '1 メッセージにつき最大 {{max}} 枚の画像までです。',
   'welcomeComposer.saveImageFailed': '画像を保存できませんでした: {{error}}',
-  // Channel, plugin, automation, and team coverage
   'appBinding.connectionRevoked': 'アプリの認証が削除されました',
   'appBinding.disconnect': '切断',
   'appBinding.disconnectConfirm.title': 'このアプリを切断しますか？',
@@ -3102,7 +3099,6 @@ export const MESSAGES_JA = {
   'status.pending': '保留中',
   'status.running': '実行中',
 
-  // English/Chinese catalog coverage
   'settings.wsHost': 'WebSocketホスト',
   'settings.wsPort': 'WebSocketポート',
   'settings.wsHint': 'モードが WebSocket または Stdio + WebSocket の場合に使用されます。',
@@ -4216,7 +4212,6 @@ export const MESSAGES_JA = {
   'diffViewer.splitMode': '分割差分を表示',
   'diffViewer.unchangedLines': '{{count}} 変更されていない行',
 
-  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
   'find.title': '検索',
   'find.placeholder': '検索',
   'find.previous': '前の一致',

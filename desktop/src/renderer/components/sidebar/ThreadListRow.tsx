@@ -2,6 +2,7 @@ import { useMemo, type HTMLAttributes, type ReactNode } from 'react'
 import { create } from 'zustand'
 import type { ThreadDropPlacement } from './threadOrdering'
 import { ThreadRowPlacementContext } from './threadRowSelection'
+import { useSidebarSectionDragStore } from './sections/sidebarSectionDrag'
 
 const THREAD_REORDER_MIME = 'application/x-dotcraft-thread-reorder'
 
@@ -12,7 +13,7 @@ interface ThreadReorderState {
 
 const useThreadReorderStore = create<ThreadReorderState>(() => ({ source: null, target: null }))
 
-function clearReorder(): void {
+export function clearThreadReorder(): void {
   useThreadReorderStore.setState({ source: null, target: null })
 }
 
@@ -29,6 +30,7 @@ export function useReorderItem(
   reorderable: boolean,
   onMove: (movedId: string, targetId: string, placement: ThreadDropPlacement) => void
 ): ReorderItem {
+  const sectionDragging = useSidebarSectionDragStore((s) => s.source != null)
   const dragging = useThreadReorderStore((s) => s.source?.listId === listId && s.source.threadId === itemId)
   const dropPlacement = useThreadReorderStore((s) =>
     s.target?.listId === listId && s.target.threadId === itemId ? s.target.placement : null
@@ -41,7 +43,7 @@ export function useReorderItem(
   }
 
   return {
-    dragging,
+    dragging: dragging && !sectionDragging,
     dropPlacement,
     sourceProps: {
       draggable: reorderable || undefined,
@@ -49,10 +51,11 @@ export function useReorderItem(
         if (!reorderable) return
         event.dataTransfer.setData(THREAD_REORDER_MIME, itemId)
         // Foreground rows also offer a `link` drag for composer thread references.
-        event.dataTransfer.effectAllowed = event.dataTransfer.effectAllowed === 'link' ? 'linkMove' : 'move'
+        const effect = event.dataTransfer.effectAllowed
+        event.dataTransfer.effectAllowed = effect === 'link' || effect === 'linkMove' ? 'linkMove' : 'move'
         useThreadReorderStore.setState({ source: { listId, threadId: itemId }, target: null })
       },
-      onDragEnd: clearReorder
+      onDragEnd: clearThreadReorder
     },
     targetProps: {
       onDragOver: (event) => {
@@ -77,7 +80,7 @@ export function useReorderItem(
         if (!acceptsDrop()) return
         event.preventDefault()
         const { source, target } = useThreadReorderStore.getState()
-        clearReorder()
+        clearThreadReorder()
         if (source && target?.threadId === itemId) onMove(source.threadId, itemId, target.placement)
       }
     }

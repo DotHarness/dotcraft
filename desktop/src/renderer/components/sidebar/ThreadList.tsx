@@ -22,6 +22,7 @@ import { useSidebarSectionsStore } from '../../stores/sidebarSectionsStore'
 import { buildSectionPlacement } from './sections/sectionPlacement'
 import { CustomSidebarSection } from './sections/CustomSidebarSection'
 import { SectionDialogHost } from './sections/SectionDialog'
+import { SidebarSectionDropTarget } from './sections/SidebarSectionDropTarget'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import type { SidebarSection } from '../../../shared/sidebarSections'
 import { RecentsSection, type RecentsRow } from './RecentsSection'
@@ -105,9 +106,7 @@ export function ThreadList({
   } = useSidebarThreadOrderStore()
   const sections = useSidebarSectionsStore((s) => s.sections)
   const [expandedThreadLists, setExpandedThreadLists] = useState<Set<string>>(() => new Set())
-  // useShallow prevents infinite re-renders: selectFilteredThreads returns a new
-  // array on every call (via .filter), so without shallow equality Zustand's
-  // useSyncExternalStore sees a changed snapshot every render and loops.
+  // The selector allocates an array, so Zustand needs shallow equality for a stable snapshot.
   const filteredThreads = useThreadStore(useShallow(selectFilteredThreads))
   const dragActive = useDragDropStore((s) => s.active)
   const dragHintTitle =
@@ -191,15 +190,11 @@ export function ThreadList({
     const foregroundProject = projects.find((project) =>
       isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     )
-    // When the default Chat workspace is foreground, the `Recents` group represents it,
-    // so the foreground must not be synthesized as a Project row below.
     const chatIsForeground =
       chat != null &&
       isProjectForeground(chat, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     const chatForegroundListMatches =
       chatIsForeground && isForegroundThreadListForProject(threadListProjectKey, projectIdentity(chat!))
-    // Keep the project order stable (store order); the active project is marked
-    // with a badge on its folder icon rather than being hoisted to the top.
     const projectsForRender = foregroundProject || chatIsForeground
       ? projects
       : [
@@ -413,7 +408,6 @@ export function ThreadList({
       const showProjectThreadSkeleton =
         openingProject &&
         (foregroundOpening || project.state === 'connecting' || (projectThreads.length === 0 && !project.loaded))
-      // Only a project that shows its loading skeleton is forced open; a quick reload keeps its collapse.
       const collapsed = cold || (!showProjectThreadSkeleton && collapsedProjectKeys.has(orderKey))
       return (
         <ProjectListItem
@@ -560,26 +554,26 @@ export function ThreadList({
           )
         })}
         {showProjects && (
-          <ProjectsSectionHeader
-            collapsed={projectsSectionCollapsed}
-            onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
-            sortMode={projectsSort}
-            onSortChange={projectsSortable ? changeProjectsSort : undefined}
-            projectSortMode={projectSort}
-            onProjectSortChange={orderedProjects.length > 1 ? changeProjectSort : undefined}
-            allProjectsCollapsed={allProjectsCollapsed}
-            onAllProjectsCollapsedChange={collapsibleProjectKeys.length > 0
-              ? (collapsed) => setProjectsCollapsed(collapsibleProjectKeys, collapsed)
-              : undefined}
-          />
-        )}
-        {showProjects && (
-          <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
-            {projectsForRender.length === 0 && (
-              <ProjectHint label={t('projectsRail.noProjects')} alignment="section" />
-            )}
-            {ordinaryProjects.map((project) => renderProjectBlock(project))}
-          </CollapsibleThreads>
+          <SidebarSectionDropTarget kind="project">
+            <ProjectsSectionHeader
+              collapsed={projectsSectionCollapsed}
+              onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
+              sortMode={projectsSort}
+              onSortChange={projectsSortable ? changeProjectsSort : undefined}
+              projectSortMode={projectSort}
+              onProjectSortChange={orderedProjects.length > 1 ? changeProjectSort : undefined}
+              allProjectsCollapsed={allProjectsCollapsed}
+              onAllProjectsCollapsedChange={collapsibleProjectKeys.length > 0
+                ? (collapsed) => setProjectsCollapsed(collapsibleProjectKeys, collapsed)
+                : undefined}
+            />
+            <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
+              {projectsForRender.length === 0 && (
+                <ProjectHint label={t('projectsRail.noProjects')} alignment="section" />
+              )}
+              {ordinaryProjects.map((project) => renderProjectBlock(project))}
+            </CollapsibleThreads>
+          </SidebarSectionDropTarget>
         )}
         {showChats && chat && (
           <RecentsSection

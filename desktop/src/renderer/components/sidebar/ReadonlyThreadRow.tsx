@@ -26,28 +26,20 @@ import { useThreadWaitingStatus } from './threadWaitingStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { openProjectThread } from './projectConnectionActions'
 import { useMoveToSectionMenuEntry } from './sections/moveToSectionMenu'
+import { useSidebarSectionDrag } from './sections/sidebarSectionDrag'
 
-/**
- * Pin is a Desktop-local setting keyed by workspace path, so the whole
- * `pinnedThreadIdsByWorkspace[key]` list is persisted directly. The main process
- * re-pushes the workspace projects payload afterwards, which moves the row.
- */
 function toggleWorkspacePin(
   workspacePath: string,
   threadId: string,
   currentPinnedIds: string[]
-): void {
+): Promise<void> {
   const workspaceKey = normalizeWorkspaceProjectKey(workspacePath)
   const id = threadId.trim()
-  if (!workspaceKey || !id) return
+  if (!workspaceKey || !id) return Promise.resolve()
   const next = currentPinnedIds.includes(id)
     ? currentPinnedIds.filter((existing) => existing !== id)
     : [id, ...currentPinnedIds]
-  void window.api?.settings
-    ?.set({ pinnedThreadIdsByWorkspace: { [workspaceKey]: next } })
-    .catch((err: unknown) =>
-      console.error('settings:set pinnedThreadIdsByWorkspace failed:', err)
-    )
+  return window.api.settings.set({ pinnedThreadIdsByWorkspace: { [workspaceKey]: next } })
 }
 
 export function ReadonlyThreadRow({
@@ -83,16 +75,15 @@ export function ReadonlyThreadRow({
   const rowProjectKey = projectIdentity(project)
   const subAgentDepth = getSubAgentDepth(thread)
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
-  // Pin/archive route to the target workspace connection by path, so they only
-  // apply to local secondary / Chats rows. Remote rows keep the static marker.
   const supportsLocalActions = !subAgent && !isRemoteProject(project)
   const isPinned = pinned
-  const moveToSection = useMoveToSectionMenuEntry(
-    subAgent || !rowProjectKey ? null : { kind: 'thread', projectKey: rowProjectKey, threadId: thread.id },
-    isPinned && supportsLocalActions
-      ? () => toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
-      : undefined
-  )
+  const sectionItem = subAgent || !rowProjectKey ? null
+    : { kind: 'thread' as const, projectKey: rowProjectKey, threadId: thread.id }
+  const beforeSectionMove = isPinned && supportsLocalActions
+    ? () => toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
+    : undefined
+  const moveToSection = useMoveToSectionMenuEntry(sectionItem, beforeSectionMove)
+  const sectionDrag = useSidebarSectionDrag(sectionItem, beforeSectionMove)
   const statusColumn = running
     ? '24px'
     : waiting
@@ -101,8 +92,6 @@ export function ReadonlyThreadRow({
   const statusSlotWidth = running ? '24px' : 'max-content'
   const statusSlotMinWidth = '24px'
   const statusSlotJustifySelf = running ? 'center' : 'end'
-  // Center the time/badge within its (>=24px) slot so secondary-project rows line
-  // up with the foreground ThreadEntry's centered status slot.
   const statusContentJustify = 'center'
 
   async function copySessionId(): Promise<void> {
@@ -168,6 +157,7 @@ export function ReadonlyThreadRow({
       width={240}
       content={threadDetails.content}
       onOpen={threadDetails.onOpen}
+      disabled={sectionDrag.dragging}
       interactive
       wrapperStyle={{ width: '100%' }}
     >
@@ -199,7 +189,9 @@ export function ReadonlyThreadRow({
                   data-testid={`project-thread-pin-${rowProjectKey}-${thread.id}`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
+                    void toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? []).catch((error: unknown) =>
+                      addToast(error instanceof Error ? error.message : String(error), 'error')
+                    )
                   }}
                   style={{ transition: 'opacity 120ms ease, color 120ms ease' }}
                 />
@@ -256,8 +248,9 @@ export function ReadonlyThreadRow({
         }
         active={selected}
         hoverable
-        containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
+        containerStyle={{ cursor: 'pointer', textAlign: 'left', opacity: sectionDrag.dragging ? 0.4 : undefined }}
         containerProps={{
+          ...sectionDrag.sourceProps,
           'aria-current': selected ? 'true' : undefined,
           tabIndex: 0,
           'aria-label': displayName,

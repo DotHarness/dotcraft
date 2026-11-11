@@ -13,6 +13,7 @@ import { ThreadListRow } from './ThreadListRow'
 import type { ThreadDropPlacement } from './threadOrdering'
 import { projectIdentity } from './projectThreads'
 import { newSectionMenuItem } from './sections/moveToSectionMenu'
+import { SidebarSectionDropTarget } from './sections/SidebarSectionDropTarget'
 import {
   CollapsibleThreads,
   ProjectHint,
@@ -30,7 +31,6 @@ export interface RecentsRow {
   pinned: boolean
 }
 
-/** The `Recents` group deliberately has no folder icon, project path, or project actions. */
 export function RecentsSection({
   chat,
   foreground,
@@ -84,8 +84,6 @@ export function RecentsSection({
   ]
 
   async function newChat(): Promise<void> {
-    // Creating a chat targets the Chat workspace, so promote it to foreground first
-    // (mirrors a project's New chat). The switch never adds it to recent Projects.
     if (!foreground) {
       await window.api.workspace.switch(chat.path)
     }
@@ -94,7 +92,7 @@ export function RecentsSection({
   }
 
   return (
-    <div style={{ marginBottom: '6px' }}>
+    <SidebarSectionDropTarget kind="thread">
       <SidebarSectionHeader
         label={t('recentsRail.title')}
         toggleLabel={t('projectsRail.toggleSection', { section: t('recentsRail.title') })}
@@ -151,6 +149,6 @@ export function RecentsSection({
           </div>
         )}
       </CollapsibleThreads>
-    </div>
+    </SidebarSectionDropTarget>
   )
 }

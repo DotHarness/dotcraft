@@ -1486,7 +1486,6 @@ export const MESSAGES_FR = {
   'threadHeader.worktreeBadge': 'Worktree : {{branch}}',
   'common.cancel': 'Annuler',
 
-  // Settings coverage
   'settings.remoteUrl': 'Télécommande WebSocket URL',
   'settings.remoteToken': 'Jeton distant',
   'settings.remoteTokenPlaceholder': 'Facultatif. Ajouté à URL si le jeton est manquant.',
@@ -2234,7 +2233,6 @@ export const MESSAGES_FR = {
   'settings.subAgents.preset.overrideTimeoutHint': 'Attente maximale avant l\'annulation de la tâche déléguée.',
   'settings.subAgents.validation.integerRequired': 'Les champs numériques doivent être des nombres entiers.',
 
-  // Main shell coverage
   'sidebar.automations': 'Automatisations',
   'sidebar.channels': 'Canaux',
   'sidebar.team': 'Équipe',
@@ -2310,17 +2308,18 @@ export const MESSAGES_FR = {
   'sidebarSections.defaultName': 'Nouvelle section',
   'sidebarSections.createTitle': 'Nouvelle section',
   'sidebarSections.editTitle': 'Modifier la section',
-  'sidebarSections.dialogDescription': 'Regroupez projets et chats comme vous le souhaitez.',
+  'sidebarSections.dialogDescription': 'Organisez vos projets et chats.',
   'sidebarSections.namePlaceholder': 'Nom de la section',
   'sidebarSections.create': 'Créer la section',
   'sidebarSections.save': 'Enregistrer',
   'sidebarSections.newSection': 'Nouvelle section',
   'sidebarSections.newSectionEllipsis': 'Nouvelle section…',
-  'sidebarSections.moveTo': 'Déplacer vers une section',
+  'sidebarSections.moveTo': 'Section',
   'sidebarSections.edit': 'Modifier',
   'sidebarSections.remove': 'Supprimer la section',
   'sidebarSections.options': 'Options de {{section}}',
-  'sidebarSections.empty': 'Utilisez Déplacer vers une section sur un projet ou un chat pour l’ajouter ici',  'threadGroup.yesterday': 'Hier',
+  'sidebarSections.empty': 'Déposez des projets ou des chats ici',
+  'threadGroup.yesterday': 'Hier',
   'threadGroup.prev7Days': '7 jours précédents',
   'threadGroup.prev30Days': '30 jours précédents',
   'threadGroup.older': 'Plus anciennes',
@@ -2613,7 +2612,6 @@ export const MESSAGES_FR = {
   'common.undo': 'Annuler',
   'common.copied': 'Copié',
 
-  // Welcome composer coverage
   'interactiveTool.loading': "Chargement de la vue de l'app…",
   'interactiveTool.error': "Impossible de charger la vue de l'app.",
   'interactiveTool.unavailable': "Vue de l'app indisponible",
@@ -2698,7 +2696,6 @@ export const MESSAGES_FR = {
   'welcomeComposer.imageTooLarge': 'Image trop volumineuse. Maximum {{mb}} Mo.',
   'welcomeComposer.maxImages': 'Maximum {{max}} images par message.',
   'welcomeComposer.saveImageFailed': 'Impossible d\'enregistrer l\'image : {{error}}',
-  // Channel, plugin, automation, and team coverage
   'appBinding.connectionRevoked': 'Autorisation de l\'application supprimée',
   'appBinding.disconnect': 'Déconnecter',
   'appBinding.disconnectConfirm.title': 'Déconnecter cette application ?',
@@ -3102,7 +3099,6 @@ export const MESSAGES_FR = {
   'status.pending': 'En attente',
   'status.running': 'En cours d\'exécution',
 
-  // English/Chinese catalog coverage
   'settings.wsHost': 'Hôte WebSocket',
   'settings.wsPort': 'Port WebSocket',
   'settings.wsHint': 'Utilisé lorsque le mode est WebSocket ou Stdio + WebSocket.',
@@ -4217,7 +4213,6 @@ export const MESSAGES_FR = {
   'diffViewer.splitMode': 'Afficher la différence divisée',
   'diffViewer.unchangedLines': '{{count}} lignes inchangées',
 
-  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
   'find.title': 'Rechercher',
   'find.placeholder': 'Rechercher',
   'find.previous': 'Occurrence précédente',
