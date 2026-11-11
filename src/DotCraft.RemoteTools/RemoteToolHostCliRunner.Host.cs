@@ -10,15 +10,16 @@ internal static partial class RemoteToolHostCliRunner
     internal static async Task<int> SetupAsync(string? displayName, TextWriter output)
     {
         var storage = new RemoteToolHostStorage();
-        if (storage.LoadHostState() is not null)
-            throw new InvalidOperationException("Remote Tool Host is already set up.");
-
-        var state = new RemoteToolHostState
+        var state = storage.UpdateHostState(current =>
         {
-            HostId = "rth_" + Guid.NewGuid().ToString("N"),
-            DisplayName = string.IsNullOrWhiteSpace(displayName) ? Environment.MachineName : displayName.Trim()
-        };
-        storage.SaveHostState(state);
+            if (current is not null)
+                throw new InvalidOperationException("Remote Tool Host is already set up.");
+            return new RemoteToolHostState
+            {
+                HostId = "rth_" + Guid.NewGuid().ToString("N"),
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? Environment.MachineName : displayName.Trim()
+            };
+        });
         await output.WriteLineAsync($"Remote Tool Host created: {state.DisplayName}").ConfigureAwait(false);
         await output.WriteLineAsync(
             "Ask for an invitation link, then run 'dotcraft tool-host join <invite-url> --workspace <folder>'.")
@@ -36,16 +37,18 @@ internal static partial class RemoteToolHostCliRunner
         if (!Path.IsPathFullyQualified(path) || !Directory.Exists(path))
             throw new ArgumentException("The workspace path must be an existing absolute directory.");
         var storage = new RemoteToolHostStorage();
-        var state = RequireState(storage);
         var canonical = CanonicalizeDirectory(path);
-        var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
+        storage.UpdateHostState(current =>
         {
-            [workspaceId] = canonical
-        };
-        storage.SaveHostState(state with
-        {
-            Workspaces = workspaces,
-            CatalogRevision = state.CatalogRevision + 1
+            var state = RequireState(current);
+            return state with
+            {
+                Workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
+                {
+                    [workspaceId] = canonical
+                },
+                CatalogRevision = state.CatalogRevision + 1
+            };
         });
         await output.WriteLineAsync($"{workspaceId} -> {canonical}").ConfigureAwait(false);
         return 0;
@@ -74,14 +77,17 @@ internal static partial class RemoteToolHostCliRunner
     internal static async Task<int> RemoveWorkspaceAsync(string workspaceId, TextWriter output)
     {
         var storage = new RemoteToolHostStorage();
-        var state = RequireState(storage);
-        var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal);
-        if (!workspaces.Remove(workspaceId))
-            throw new InvalidOperationException($"Workspace '{workspaceId}' is not registered.");
-        storage.SaveHostState(state with
+        storage.UpdateHostState(current =>
         {
-            Workspaces = workspaces,
-            CatalogRevision = state.CatalogRevision + 1
+            var state = RequireState(current);
+            var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal);
+            if (!workspaces.Remove(workspaceId))
+                throw new InvalidOperationException($"Workspace '{workspaceId}' is not registered.");
+            return state with
+            {
+                Workspaces = workspaces,
+                CatalogRevision = state.CatalogRevision + 1
+            };
         });
         await output.WriteLineAsync($"Removed workspace '{workspaceId}'.").ConfigureAwait(false);
         return 0;
@@ -109,13 +115,18 @@ internal static partial class RemoteToolHostCliRunner
     internal static async Task<int> SetPolicyAsync(string toolName, string policy, TextWriter output)
     {
         var storage = new RemoteToolHostStorage();
-        var state = RequireState(storage);
         var value = policy == "needs-approval" ? "needsApproval" : policy;
-        var policies = new Dictionary<string, string>(state.ToolPolicies, StringComparer.Ordinal)
+        storage.UpdateHostState(current =>
         {
-            [toolName] = value
-        };
-        storage.SaveHostState(state with { ToolPolicies = policies });
+            var state = RequireState(current);
+            return state with
+            {
+                ToolPolicies = new Dictionary<string, string>(state.ToolPolicies, StringComparer.Ordinal)
+                {
+                    [toolName] = value
+                }
+            };
+        });
         await output.WriteLineAsync($"{toolName} -> {policy}").ConfigureAwait(false);
         return 0;
     }
@@ -222,8 +233,10 @@ internal static partial class RemoteToolHostCliRunner
     }
 
     private static RemoteToolHostState RequireState(RemoteToolHostStorage storage) =>
-        storage.LoadHostState()
-        ?? throw new InvalidOperationException("Remote Tool Host is not set up.");
+        RequireState(storage.LoadHostState());
+
+    private static RemoteToolHostState RequireState(RemoteToolHostState? state) =>
+        state ?? throw new InvalidOperationException("Remote Tool Host is not set up.");
 
     private static string CanonicalizeDirectory(string path)
     {

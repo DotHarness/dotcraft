@@ -124,7 +124,7 @@ internal static class GeneratedPluginToolFixture
                     meta: hidden,
                     rawSourceResult: hidden,
                     providerResult: input,
-                    contentItems: [new TextContent("private-copy-boundary-probe")],
+                    contentItems: [new TextContent("model content")],
                     directive: ToolExecutionDirective.TerminateTurn));
             }
 

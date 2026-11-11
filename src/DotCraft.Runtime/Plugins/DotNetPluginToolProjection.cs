@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.Contributions;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Runtime;
 
@@ -61,13 +62,24 @@ internal static class DotNetPluginToolProjection
         {
             return ToolExecutionResult.Failed(
                 new ToolError(error.Code, error.Message, error.Parameters),
-                result.Content);
+                result.Content,
+                CopyContentItems(result.ContentItems));
         }
 
         return result.Success
-            ? ToolExecutionResult.Succeeded(result.Content, result.StructuredContent)
+            ? ToolExecutionResult.Succeeded(
+                result.Content, result.StructuredContent, contentItems: CopyContentItems(result.ContentItems))
             : Invalid("Plugin Tool reported failure without a stable error.");
     }
+
+    private static IReadOnlyList<AIContent>? CopyContentItems(IReadOnlyList<AIContent>? items) =>
+        items?.Select(item => item switch
+        {
+            TextContent text => (AIContent)new TextContent(text.Text),
+            DataContent data => new DataContent(data.Data.ToArray(), data.MediaType) { Name = data.Name },
+            UriContent uri => new UriContent(uri.Uri.OriginalString, uri.MediaType),
+            _ => null
+        }).OfType<AIContent>().ToArray();
 
     public static ToolExecutionResult Unavailable(string pluginId, string generationId, string toolId) =>
         ToolExecutionResult.Failed(
