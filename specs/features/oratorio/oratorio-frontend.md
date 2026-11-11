@@ -79,6 +79,13 @@ actions stay in the board header and follow the active DotCraft theme.
   reconnect also reloads the board snapshot so events missed while
   disconnected cannot leave stale cards. These reloads never trigger a source
   sync.
+- Board sync follows jobs for providers with configured projects. It reports
+  success after all jobs succeed and the board reloads, or identifies failed
+  providers and their reasons. With no configured projects, it asks the user to
+  connect a source.
+- The board and connect flow poll every 1.5 seconds for up to 45 seconds, then
+  report any work still in progress alongside failures. Leaving the surface
+  stops local polling.
 - A remote connection failure never falls back to local mode. The error state
   offers retry and points to Server settings.
 

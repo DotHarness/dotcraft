@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DesktopPluginOratorioBoardEvent, DesktopPluginViewProps } from '@dotcraft/plugin'
 import { OratorioBoard, type BoardTaskAction, type OratorioBoardState } from './OratorioBoard'
 import { oratorioClient } from './oratorio-client'
+import { syncConfiguredSources, type SourceSyncResult } from './oratorio-source-sync'
 import { mapItemDetail, mapItemSummary } from './oratorio-mappers'
 import type { OratorioTask } from './oratorio-model'
 import { OratorioTaskDetail } from './OratorioTaskDetail'
@@ -27,7 +28,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
   const restoreStarted = useRef(false)
   const selectedTaskId = useRef<string | null>(null)
 
-  const loadBoard = useCallback(async (options?: { initial?: boolean }): Promise<void> => {
+  const loadBoard = useCallback(async (options?: { initial?: boolean }): Promise<boolean> => {
     if (options?.initial) setLoading(true)
     try {
       const response = await oratorioClient.listTasks('includeArchived=true&limit=50')
@@ -36,7 +37,8 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       setNextCursor(response.nextCursor)
       setServiceError(false)
       if (mapped.length === 0) setSourcesConfigured(await loadOratorioSourcePresence().catch(() => null))
-    } catch { setServiceError(true) } finally {
+      return true
+    } catch { setServiceError(true); return false } finally {
       setLoading(false)
     }
   }, [])
@@ -140,6 +142,10 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
     return updated
   }
 
+  async function syncSources(signal: AbortSignal): Promise<SourceSyncResult> {
+    return syncConfiguredSources(() => loadBoard(), signal)
+  }
+
   async function retry(): Promise<void> {
     await host.oratorio.retry().catch(() => undefined)
     await loadBoard()
@@ -160,7 +166,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       onConnectSource={(provider) => { requestOratorioNavigation({ kind: 'settings', section: 'connect', provider }); host.navigation.openSettingsPage('oratorio') }}
       onOpenThread={openThread}
       onRetry={retry}
-      onSync={async () => { const results = await Promise.allSettled(['github', 'gitlab'].map((provider) => oratorioClient.sync(provider))); if (results.every((result) => result.status === 'rejected')) throw new Error('oratorio.sync_failed'); await loadBoard() }}
+      onSync={syncSources}
       onCreateTask={async (draft) => mapItemSummary((await oratorioClient.createLocalTask(draft)).item)}
       hasMore={Boolean(nextCursor)}
       onLoadMore={loadMore}

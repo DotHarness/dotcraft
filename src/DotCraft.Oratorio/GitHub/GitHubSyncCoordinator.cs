@@ -53,15 +53,6 @@ public sealed class GitHubSyncCoordinator(
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var active = await LoadJobQuery(db)
-            .Where(x => ActiveStatuses.Contains(x.Status))
-            .OrderBy(x => x.CreatedAt)
-            .FirstOrDefaultAsync(ct);
-        if (active is not null)
-        {
-            return ToDto(active);
-        }
-
         var now = clock.UtcNow;
         var repositories = ResolveRepositories(repositoryFullNames).ToArray();
         var job = new OratorioGitHubSyncJob
@@ -70,7 +61,6 @@ public sealed class GitHubSyncCoordinator(
             Mode = mode,
             Status = repositories.Length == 0 ? GitHubSyncStatus.Succeeded : GitHubSyncStatus.Queued,
             RepositoriesTotal = repositories.Length,
-            RepositoriesCompleted = repositories.Length == 0 ? 0 : 0,
             CreatedAt = now,
             UpdatedAt = now,
             CompletedAt = repositories.Length == 0 ? now : null
@@ -113,28 +103,33 @@ public sealed class GitHubSyncCoordinator(
 
     public async Task<GitHubSyncJobDto?> ProcessNextQueuedJobAsync(CancellationToken ct)
     {
-        OratorioGitHubSyncJob? job;
-        using (var scope = scopeFactory.CreateScope())
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var job = await LoadJobQuery(db)
+            .Where(x => x.Status == GitHubSyncStatus.Queued)
+            .OrderBy(x => x.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        if (job is null)
         {
-            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-            job = await LoadJobQuery(db)
-                .Where(x => x.Status == GitHubSyncStatus.Queued)
-                .OrderBy(x => x.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-            if (job is null)
-            {
-                return null;
-            }
+            return null;
+        }
 
+        try
+        {
             var now = clock.UtcNow;
             job.Status = GitHubSyncStatus.Running;
             job.StartedAt = now;
             job.UpdatedAt = now;
             await db.SaveChangesAsync(ct);
             PublishJob(ToDto(job));
+            await ProcessJobAsync(job.JobId, job.Mode, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(ex, "GitHub sync job {JobId} failed.", job.JobId);
+            await FailJobAsync(job.JobId, ex.Message, ct);
         }
 
-        await ProcessJobAsync(job.JobId, job.Mode, ct);
         return await GetJobAsync(job.JobId, ct);
     }
 
@@ -156,23 +151,21 @@ public sealed class GitHubSyncCoordinator(
         {
             foreach (var run in job.RepositoryRuns.Where(x => !TerminalRepositoryStatuses.Contains(x.Status)))
             {
-                run.Status = GitHubSyncRepositoryStatus.Failed;
-                run.Phase = GitHubSyncRepositoryPhase.Failed;
-                run.ErrorCode = "syncInterrupted";
-                run.ErrorMessage = "GitHub sync was interrupted before this repository completed.";
-                run.UpdatedAt = now;
-                run.CompletedAt = now;
+                FailRun(run, "syncInterrupted", "GitHub sync was interrupted before this repository completed.", now);
             }
 
             ApplyAggregate(job, now);
+        }
+
+        await db.SaveChangesAsync(ct);
+        foreach (var job in jobs)
+        {
             PublishJob(ToDto(job));
             foreach (var run in job.RepositoryRuns)
             {
                 PublishRepositoryRun(ToDto(run));
             }
         }
-
-        await db.SaveChangesAsync(ct);
     }
 
     public static GitHubSyncResponse ToSyncResponse(GitHubSyncJobDto job) =>
@@ -294,12 +287,7 @@ public sealed class GitHubSyncCoordinator(
                 await CompleteRepositoryRunAsync(repositoryRunId, result, ct);
             }
         }
-        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "GitHub sync was canceled for repository run {RepositoryRunId}.", repositoryRunId);
-            await FailRepositoryRunAsync(repositoryRunId, "githubSyncFailed", ex.Message, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "GitHub sync failed for repository run {RepositoryRunId}.", repositoryRunId);
             var code = ex is GitHubAppAuthenticationRequiredException authRequired
@@ -365,12 +353,7 @@ public sealed class GitHubSyncCoordinator(
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
         var run = await db.GitHubSyncRepositoryRuns.FirstAsync(x => x.RepositoryRunId == repositoryRunId, ct);
         var now = clock.UtcNow;
-        run.Status = GitHubSyncRepositoryStatus.Failed;
-        run.Phase = GitHubSyncRepositoryPhase.Failed;
-        run.ErrorCode = code;
-        run.ErrorMessage = message;
-        run.UpdatedAt = now;
-        run.CompletedAt = now;
+        FailRun(run, code, message, now);
         await db.SaveChangesAsync(ct);
         PublishRepositoryRun(ToDto(run));
     }
@@ -413,6 +396,37 @@ public sealed class GitHubSyncCoordinator(
         ApplyAggregate(job, clock.UtcNow);
         await db.SaveChangesAsync(ct);
         PublishJob(ToDto(job));
+    }
+
+    private async Task FailJobAsync(string jobId, string message, CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var job = await LoadJobQuery(db).FirstAsync(x => x.JobId == jobId, ct);
+        var now = clock.UtcNow;
+        var unfinished = job.RepositoryRuns.Where(x => !TerminalRepositoryStatuses.Contains(x.Status)).ToArray();
+        foreach (var run in unfinished)
+        {
+            FailRun(run, "githubSyncFailed", message, now);
+        }
+
+        ApplyAggregate(job, now);
+        await db.SaveChangesAsync(ct);
+        PublishJob(ToDto(job));
+        foreach (var run in unfinished)
+        {
+            PublishRepositoryRun(ToDto(run));
+        }
+    }
+
+    private static void FailRun(OratorioGitHubSyncRepositoryRun run, string code, string message, DateTimeOffset now)
+    {
+        run.Status = GitHubSyncRepositoryStatus.Failed;
+        run.Phase = GitHubSyncRepositoryPhase.Failed;
+        run.ErrorCode = code;
+        run.ErrorMessage = message;
+        run.UpdatedAt = now;
+        run.CompletedAt = now;
     }
 
     private static void ApplyAggregate(OratorioGitHubSyncJob job, DateTimeOffset now)

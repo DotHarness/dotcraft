@@ -290,13 +290,19 @@ different providers or instances stay distinct. GitHub repositories may also be
 configured as a plain owner and name. Display labels never replace canonical
 keys.
 
-Sync jobs are scoped to a provider and its projects. They report their trigger
-(manual, webhook or scheduled), mode, status, per-project progress and counts
-of imported issues, review targets, comments and skipped items. A failed
-project does not block the others. Scheduled sync is off by default, first runs
-one interval after it is enabled and does incremental work only; an active job
-covers a due cycle, and missed intervals collapse into one catch-up. Full
-repair is manual.
+Each accepted sync request creates a job scoped to its provider, requested
+projects and mode. Jobs report their trigger (manual, webhook or scheduled),
+status, per-project progress and imported counts. Each provider executes jobs
+serially, with at most two projects running concurrently within a job.
+
+A job-level failure marks unfinished projects failed and preserves completed
+results. The executor persists the aggregate outcome before publishing it;
+startup recovery handles work interrupted by shutdown.
+
+Scheduled sync is off by default and does incremental work only. The first
+cycle runs one interval after enabling; each due cycle creates a job from the
+current configuration and schedules the next cycle one interval from now.
+Full repair is manual.
 
 Source writes record their intent separately from the provider payload:
 comments, review summaries and discussions, external status, local commit,
@@ -427,9 +433,7 @@ repository by talking to the agent instead of opening Settings:
   sync of that project and waits briefly for the result; otherwise it reports
   which credential is missing.
 - **Sync project** runs an incremental sync of one connected project and waits
-  briefly for the result. When a sync that leaves the project out is already
-  running, it reports that the project did not sync rather than that job's
-  result; connect reports the same as a warning.
+  briefly for the result.
 - **Request credential** shows an MCP App card in which the user enters the
   GitLab project token or the GitHub App private key. The model learns only
   which credential is needed and whether one is already saved.

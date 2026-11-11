@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, CircleAlert, Pencil } from 'lucide-react'
 import { Button, IconButton, SettingsBreadcrumb, SettingsGroup, SettingsPanelShell, SettingsRow } from '../ui'
 import { describeOratorioError, oratorioClient } from '../oratorio-client'
+import { pollSyncJob } from '../oratorio-source-sync'
 import { oratorioHost, showOratorioToast } from '../runtime'
 import { useOratorioConnectT } from './oratorio-connect-i18n'
 import {
@@ -37,15 +38,11 @@ type ConnectResult =
   | { kind: 'saveFailed'; message: string }
   | { kind: 'syncFailed'; message: string }
 
-/** What a successful save already committed, so a retry resumes after it instead of saving the connection twice. */
 interface SavedConnection {
   draft: ConnectDraft
   project: OratorioProjectConfig
   scheduleSaved: boolean
 }
-
-const POLL_INTERVAL_MS = 1500
-const POLL_WINDOW_MS = 45_000
 
 function useLocalProjects(): { projects: readonly { path: string; name: string; active: boolean }[]; state: WorkspaceListState } {
   const [projects, setProjects] = useState<readonly { path: string; name: string; active: boolean }[]>([])
@@ -80,6 +77,8 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
   const [result, setResult] = useState<ConnectResult | null>(null)
   const [saved, setSaved] = useState<SavedConnection | null>(null)
   const savedRef = useRef<SavedConnection | null>(null)
+  const syncWait = useRef<AbortController | null>(null)
+  useEffect(() => () => syncWait.current?.abort(), [])
 
   useEffect(() => {
     if (draft.workspacePath || workspaces.state !== 'ready') return
@@ -110,6 +109,8 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
   }
 
   async function connect(): Promise<void> {
+    const waitController = new AbortController()
+    syncWait.current = waitController
     setPhase('pending')
     setResult(null)
     let connection = savedRef.current && sameDraft(savedRef.current.draft, draft) ? savedRef.current : null
@@ -118,10 +119,12 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
       try {
         saveResult = await saveDraft()
       } catch (error) {
+        if (waitController.signal.aborted) return
         setResult({ kind: 'saveFailed', message: describeOratorioError(error) })
         setPhase('error')
         return
       }
+      if (waitController.signal.aborted) return
       const { loaded, built } = saveResult
       connection = { draft, project: built.project, scheduleSaved: false }
       remember(connection)
@@ -137,25 +140,27 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
     try {
       if (!connection.scheduleSaved) {
         await controller.saveSchedule(draft.provider, scheduleSeconds(draft))
+        waitController.signal.throwIfAborted()
         connection = { ...connection, scheduleSaved: true }
         remember(connection)
       }
+      waitController.signal.throwIfAborted()
       const job = await oratorioClient.sync(draft.provider, 'incremental', [connection.project.projectKey])
-      const settled = await pollSyncJob(draft.provider, job.jobId, job.status)
+      const settled = await pollSyncJob(draft.provider, job, waitController.signal)
       if (!settled) {
         setResult({ kind: 'running' })
         setPhase('success')
         return
       }
-      const status = settled.status.toLowerCase()
-      if (status === 'succeeded' && !(settled.projectsFailed ?? 0)) {
-        setResult({ kind: 'synced', issues: settled.issuesImported ?? 0, requests: settled.reviewTargetsImported ?? 0 })
+      if (settled.status === 'succeeded') {
+        setResult({ kind: 'synced', issues: settled.issuesImported, requests: settled.reviewTargetsImported })
         setPhase('success')
       } else {
-        setResult({ kind: 'syncFailed', message: settled.errorMessage ?? settled.errorCode ?? status })
+        setResult({ kind: 'syncFailed', message: settled.errorMessage ?? settled.errorCode ?? settled.status })
         setPhase('error')
       }
     } catch (error) {
+      if (waitController.signal.aborted) return
       setResult({ kind: 'syncFailed', message: describeOratorioError(error) })
       setPhase('error')
     }
@@ -204,18 +209,6 @@ export function OratorioConnectSource({ controller, provider, readOnly, onExit, 
       </form>
     </SettingsPanelShell>
   )
-}
-
-async function pollSyncJob(provider: SourceProvider, jobId: string, initialStatus: string): Promise<Awaited<ReturnType<typeof oratorioClient.syncJob>> | null> {
-  const terminal = (status: string): boolean => !['queued', 'running'].includes(status.toLowerCase())
-  if (terminal(initialStatus)) return oratorioClient.syncJob(provider, jobId)
-  const deadline = Date.now() + POLL_WINDOW_MS
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS))
-    const job = await oratorioClient.syncJob(provider, jobId)
-    if (terminal(job.status)) return job
-  }
-  return null
 }
 
 function ConnectSummary({ draft, phase, result, onChange, onOpenBoard, onExit, onConnectAnother }: {
