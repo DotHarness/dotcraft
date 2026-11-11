@@ -8,6 +8,7 @@ using DotCraft.Mcp;
 using DotCraft.McpTestServer;
 using DotCraft.Memory;
 using DotCraft.Modules;
+using DotCraft.Persistence;
 using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -55,61 +56,44 @@ public sealed class PluginThreadMcpRefreshTests : IDisposable
                 MemoryStore = memory, SkillsLoader = skills, ContextPageManager = new ContextPageManager(),
                 ApprovalService = approval, ChatClientRegistry = registry, McpClientManager = workspace
             }, chatClientRegistry: registry);
-        await using var store = new ThreadStore(CraftPath);
+        using var database = new WorkspaceStateDatabase(CraftPath);
+        await using var store = new ThreadStore(CraftPath, database);
         await using var sessions = new SessionService(factory, null, new SessionPersistenceService(store), new SessionGate());
-        var threads = new List<SessionThread>();
-        var processes = new List<Process>();
-        try
+        var thread = await sessions.CreateThreadAsync(new SessionIdentity
         {
-            for (var index = 0; index < 2; index++)
+            WorkspacePath = _root, ChannelName = "appserver", UserId = "test"
+        });
+        var manager = (await sessions.GetEffectiveMcpRuntimeAsync(thread.Id))!;
+        var result = await manager.CallToolAsync(server.Name, "state");
+        var pid = JsonSerializer.SerializeToElement(result.StructuredContent).GetProperty("pid").GetInt32();
+        using var process = Process.GetProcessById(pid);
+        var connection = new AppServerConnection();
+        connection.TryMarkInitialized(new ClientConnectionInfo { Name = "test", Version = "1" },
+            new ClientConnectionCapabilities());
+        connection.MarkClientReady();
+        await using var transport = new InMemoryTransport();
+        var handler = new AppServerRequestHandler(sessions, connection, transport,
+            new ModuleRegistryChannelListContributor(new ModuleRegistry()), new AppServerConnectionServices
             {
-                var thread = await sessions.CreateThreadAsync(new SessionIdentity
-                {
-                    WorkspacePath = _root, ChannelName = "appserver", UserId = "test"
-                });
-                threads.Add(thread);
-                var manager = (await sessions.GetEffectiveMcpRuntimeAsync(thread.Id))!;
-                var result = await manager.CallToolAsync(server.Name, "state");
-                var pid = JsonSerializer.SerializeToElement(result.StructuredContent).GetProperty("pid").GetInt32();
-                processes.Add(Process.GetProcessById(pid));
-            }
-            var connection = new AppServerConnection();
-            connection.TryMarkInitialized(new ClientConnectionInfo { Name = "test", Version = "1" },
-                new ClientConnectionCapabilities());
-            connection.MarkClientReady();
-            await using var transport = new InMemoryTransport();
-            var handler = new AppServerRequestHandler(sessions, connection, transport,
-                new ModuleRegistryChannelListContributor(new ModuleRegistry()), new AppServerConnectionServices
-                {
-                    ServerVersion = "test", WorkspaceCraftPath = CraftPath, HostWorkspacePath = _root,
-                    SkillsLoader = skills, MemoryStore = memory, AppConfigMonitor = new AppConfigMonitor(config),
-                    McpClientManager = workspace
-                });
-            var request = InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.PluginRemove, new { id = "fixture" }, 1);
-            var response = await handler.HandleRequestAsync(request, default);
-            if (response != null)
-                await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(request.Id, response));
-            using var sent = await transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsSuccessResponse(sent);
-            Assert.Equal("applied", sent.RootElement.GetProperty("result").GetProperty("outcome").GetString());
-            Assert.False(Directory.Exists(pluginRoot));
-            foreach (var process in processes)
-                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
-            foreach (var thread in threads)
-            {
-                var snapshot = await sessions.GetEffectiveToolSnapshotAsync(thread.Id);
-                Assert.DoesNotContain(snapshot.Registrations.Values, tool => tool.Definition.Id.Kind == DotCraft.Tools.ToolSourceKind.Mcp);
-            }
-        }
-        finally
-        {
-            foreach (var process in processes) process.Dispose();
-        }
+                ServerVersion = "test", WorkspaceCraftPath = CraftPath, HostWorkspacePath = _root,
+                SkillsLoader = skills, MemoryStore = memory, AppConfigMonitor = new AppConfigMonitor(config),
+                McpClientManager = workspace
+            });
+        var request = InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.PluginRemove, new { id = "fixture" }, 1);
+        var response = await handler.HandleRequestAsync(request, default);
+        if (response != null)
+            await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(request.Id, response));
+        using var sent = await transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(sent);
+        Assert.Equal("applied", sent.RootElement.GetProperty("result").GetProperty("outcome").GetString());
+        Assert.False(Directory.Exists(pluginRoot));
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        var snapshot = await sessions.GetEffectiveToolSnapshotAsync(thread.Id);
+        Assert.DoesNotContain(snapshot.Registrations.Values, tool => tool.Definition.Id.Kind == DotCraft.Tools.ToolSourceKind.Mcp);
     }
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 }

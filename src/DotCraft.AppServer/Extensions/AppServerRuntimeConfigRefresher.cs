@@ -4,9 +4,6 @@ using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Refreshes process-local runtime config caches after AppServer config mutations.
-/// </summary>
 internal sealed class AppServerRuntimeConfigRefresher(
     ISessionService sessionService,
     IAppConfigMonitor? appConfigMonitor,
