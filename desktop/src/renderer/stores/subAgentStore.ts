@@ -156,7 +156,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     const token = lifetime(parentThreadId)
     const pending = requests.get(parentThreadId)
     if (pending?.lifetime === token) return pending.promise
-    if (previous === token && get().discoveryByParent.has(parentThreadId)) return Promise.resolve()
+    if (previous === token && get().discoveryByParent.has(parentThreadId)) {
+      return syncSubAgentTaskActivity(parentThreadId, get().childrenByParent.get(parentThreadId) ?? [])
+    }
     return get().fetchChildren(parentThreadId)
   },
 
@@ -350,10 +352,4 @@ export function isSubAgentChildWorking(child: SubAgentChild): boolean {
   return isSubAgentChildRunning(child)
     || useSubAgentTaskActivity.getState().activeThreadIds.has(child.childThreadId)
     || (useSubAgentStore.getState().childrenByParent.get(child.childThreadId) ?? []).some(isSubAgentChildWorking)
-}
-
-export function isSubAgentChildFinished(child: SubAgentChild): boolean {
-  return isSubAgentChildClosed(child) || (!isSubAgentChildWorking(child)
-    && !useSubAgentTaskActivity.getState().pendingThreadIds.has(child.childThreadId)
-    && (subAgentChildRuntime(child)?.running === false || (child.isPlaceholder === true && isTerminalSubAgentStatus(child.status))))
 }

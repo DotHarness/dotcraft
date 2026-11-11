@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  isSubAgentChildFinished, isSubAgentChildRunning, isSubAgentChildWorking, subAgentChildRuntime,
+  isSubAgentChildRunning, isSubAgentChildWorking, subAgentChildRuntime,
   useSubAgentStore, type SubAgentChild
 } from '../stores/subAgentStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -48,7 +48,7 @@ describe('subagent metadata and shared runtime', () => {
 
     threads().applyRuntimeSnapshot(childId, runtime(false), { isDesktopOrigin: false })
     store().updateProgress(parent, [progress('Core B')])
-    expect(isSubAgentChildFinished(child())).toBe(true)
+    expect(isSubAgentChildWorking(child())).toBe(false)
     expect(child().currentTool).toBeNull()
 
     threads().applyRuntimeSnapshot(childId, runtime(true, 'turn-2'), { isDesktopOrigin: false })
@@ -69,7 +69,7 @@ describe('subagent metadata and shared runtime', () => {
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('working')
     expect(threads().runtimeSnapshots.get(childId)).toMatchObject({ running: false, busy: false })
     store().setChildren(childId, [makeSubAgent({ childThreadId: 'grandchild', parentThreadId: childId, status: 'closed' })])
-    expect(isSubAgentChildFinished(child())).toBe(true)
+    expect(isSubAgentChildWorking(child())).toBe(false)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')
   })
 
@@ -89,11 +89,22 @@ describe('subagent metadata and shared runtime', () => {
     expect(threads().runtimeSnapshots.get(childId)?.activeTurnId).toBe('turn-1')
   })
 
-  it('does not turn missing runtime into completed activity or infer it from an open edge', () => {
+  it('does not invent activity or waiting when runtime is missing', () => {
     store().setChildren(parent, [makeSubAgent()])
     expect(isSubAgentChildRunning(child())).toBe(false)
-    expect(isSubAgentChildFinished(child())).toBe(false)
-    expect(listDesktopPluginSubAgents(parent)[0].state).toBe('waiting')
+    expect(isSubAgentChildWorking(child())).toBe(false)
+    expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')
+  })
+
+  it('keeps real approval and input waits active without inventing waits for idle children', () => {
+    store().setChildren(parent, [makeSubAgent()])
+    for (const waiting of ['waitingOnApproval', 'waitingOnInput'] as const) {
+      threads().applyRuntimeSnapshot(childId, { ...runtime(true, 'turn-waiting'), [waiting]: true }, { isDesktopOrigin: false })
+      expect(isSubAgentChildWorking(child())).toBe(true)
+      expect(listDesktopPluginSubAgents(parent)[0].state).toBe('waiting')
+    }
+    threads().applyRuntimeSnapshot(childId, runtime(false), { isDesktopOrigin: false })
+    expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')
   })
 
   it('treats an open historical edge with an idle runtime as finished', async () => {
@@ -104,7 +115,7 @@ describe('subagent metadata and shared runtime', () => {
     await store().fetchChildren(parent)
     expect(child().status).toBe('open')
     expect(isSubAgentChildRunning(child())).toBe(false)
-    expect(isSubAgentChildFinished(child())).toBe(true)
+    expect(isSubAgentChildWorking(child())).toBe(false)
   })
 
   it('preserves only live placeholders through an empty discovery result', async () => {

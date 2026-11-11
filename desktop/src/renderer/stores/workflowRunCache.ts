@@ -113,26 +113,29 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     const existing = loads.get(key)
     if (existing) return existing
     const started = epoch
+    const pending = Promise.withResolvers<void>()
+    loads.set(key, pending.promise)
     const work = async (): Promise<void> => {
-      do {
-        dirty.delete(key)
-        const generation = version(key)
-        update(key, { loading: true, error: null })
-        try {
-          const result = await client.request('workflow/run/read', { threadId, runId })
-          if (!current(started)) return
-          if (versions.get(key) === generation) applyRun(key, result.run)
-        } catch (error) {
-          if (!current(started)) return
-          if (versions.get(key) === generation) update(key, { loading: false, error: normalizeReadError(error) })
-        }
-      } while (current(started) && dirty.has(key))
+      try {
+        do {
+          dirty.delete(key)
+          const generation = version(key)
+          update(key, { loading: true, error: null })
+          try {
+            const result = await client.request('workflow/run/read', { threadId, runId })
+            if (!current(started)) return
+            if (versions.get(key) === generation) applyRun(key, result.run)
+          } catch (error) {
+            if (!current(started)) return
+            if (versions.get(key) === generation) update(key, { loading: false, error: normalizeReadError(error) })
+          }
+        } while (current(started) && dirty.has(key))
+      } finally {
+        if (loads.get(key) === pending.promise) loads.delete(key)
+      }
     }
-    const pending = work().finally(() => {
-      if (loads.get(key) === pending) loads.delete(key)
-    })
-    loads.set(key, pending)
-    return pending
+    void work().then(pending.resolve, pending.reject)
+    return pending.promise
   }
 
   function list(threadId: string): Promise<boolean> {
@@ -141,46 +144,61 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     if (existing) return existing
     const started = epoch
     const before = revision
+    const pending = Promise.withResolvers<boolean>()
+    lists.set(threadId, pending.promise)
     const work = async (): Promise<boolean> => {
-      let cursor: string | undefined
-      do {
-        let page: ClientRequestMethods['workflow/run/list']['result']
-        try {
-          page = await client.request('workflow/run/list', { threadId, limit: 50, ...(cursor ? { cursor } : {}) })
-        } catch {
-          return false
-        }
-        if (!current(started)) return false
-        for (const summary of [...(page.runs ?? [])].reverse()) {
-          if (summary.threadId !== threadId) continue
-          const key = keyOf(threadId, summary.runId)
-          const entry = store.getState().entries.get(key)
-          if ((versions.get(key) ?? 0) > before) continue
-          version(key)
-          update(key, {
-            summary,
-            run: entry?.run ? { ...entry.run, ...summary } : null,
-            loading: false
-          })
-          if (loads.has(key)) dirty.add(key)
-          else if (entry?.run && entry.run.status !== summary.status) void load(threadId, summary.runId)
-        }
-        cursor = page.nextCursor
-      } while (cursor)
-      return current(started)
+      try {
+        let cursor: string | undefined
+        do {
+          let page: ClientRequestMethods['workflow/run/list']['result']
+          try {
+            page = await client.request('workflow/run/list', { threadId, limit: 50, ...(cursor ? { cursor } : {}) })
+          } catch {
+            return false
+          }
+          if (!current(started)) return false
+          for (const summary of [...(page.runs ?? [])].reverse()) {
+            if (summary.threadId !== threadId) continue
+            const key = keyOf(threadId, summary.runId)
+            const entry = store.getState().entries.get(key)
+            if ((versions.get(key) ?? 0) > before) continue
+            version(key)
+            update(key, {
+              summary,
+              run: entry?.run ? { ...entry.run, ...summary } : null,
+              loading: false
+            })
+            if (loads.has(key)) dirty.add(key)
+            else if (entry?.run && entry.run.status !== summary.status) void load(threadId, summary.runId)
+          }
+          cursor = page.nextCursor
+        } while (cursor)
+        return current(started)
+      } finally {
+        if (lists.get(threadId) === pending.promise) lists.delete(threadId)
+      }
     }
-    const pending = work().finally(() => {
-      if (lists.get(threadId) === pending) lists.delete(threadId)
-    })
-    lists.set(threadId, pending)
-    return pending
+    void work().then(pending.resolve, pending.reject)
+    return pending.promise
   }
 
   async function refresh(threadId: string): Promise<void> {
     ensureConnection()
-    const known = [...store.getState().entries.values()]
-      .filter((entry) => entry.summary?.threadId === threadId && (active(entry.summary.status) || entry.error))
-    await Promise.all([list(threadId), ...known.map((entry) => load(threadId, entry.summary!.runId))])
+    const started = epoch
+    const existing = lists.get(threadId)
+    if (existing) {
+      await existing
+      if (!current(started)) return
+    }
+    await list(threadId)
+    if (!current(started)) return
+    const prefix = `${threadId}\u0000`
+    const known = [...store.getState().entries]
+      .filter(([key, entry]) => key.startsWith(prefix) && (active(entry.summary?.status ?? '') || entry.error || loads.has(key)))
+    await Promise.all(known.map(([key]) => {
+      if (loads.has(key)) dirty.add(key)
+      return load(threadId, key.slice(prefix.length))
+    }))
   }
 
   async function stop(threadId: string, runId: string): Promise<void> {

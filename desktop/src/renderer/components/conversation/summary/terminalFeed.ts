@@ -95,6 +95,7 @@ export function createTerminalFeed(
           success = false
         }
       } while (queued && current() && requestGeneration === generation)
+      if (requestGeneration === generation) inFlight = null
       return success && current() && requestGeneration === generation
     }
     const pending = work().finally(() => { if (inFlight === pending) inFlight = null })

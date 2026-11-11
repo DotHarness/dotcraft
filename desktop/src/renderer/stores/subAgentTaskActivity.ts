@@ -9,8 +9,7 @@ import type { SubAgentChild } from './subAgentChildren'
 
 export const useSubAgentTaskActivity = create<{
   activeThreadIds: ReadonlySet<string>
-  pendingThreadIds: ReadonlySet<string>
-}>(() => ({ activeThreadIds: new Set(), pendingThreadIds: new Set() }))
+}>(() => ({ activeThreadIds: new Set() }))
 
 interface TaskObservation {
   connectionKey: string
@@ -33,16 +32,6 @@ function setActive(threadId: string, active: boolean): void {
     if (active) activeThreadIds.add(threadId)
     else activeThreadIds.delete(threadId)
     return { activeThreadIds }
-  })
-}
-
-function setPending(threadId: string, pending: boolean): void {
-  useSubAgentTaskActivity.setState(state => {
-    if (state.pendingThreadIds.has(threadId) === pending) return state
-    const pendingThreadIds = new Set(state.pendingThreadIds)
-    if (pending) pendingThreadIds.add(threadId)
-    else pendingThreadIds.delete(threadId)
-    return { pendingThreadIds }
   })
 }
 
@@ -127,13 +116,12 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
   for (const id of ids) {
     const existing = observation.children.get(id)
     if (existing) {
-      if (useSubAgentTaskActivity.getState().pendingThreadIds.has(id)) discoveries.push(existing.refresh())
+      discoveries.push(existing.refresh())
       continue
     }
     let disposed = false
     let terminalActive = false
     let workflowActive = false
-    setPending(id, true)
     const publish = (): void => { if (!disposed) setActive(id, terminalActive || workflowActive) }
     const terminals = createTerminalFeed({ appServer: observation.client }, id, values => {
       terminalActive = values.length > 0
@@ -146,9 +134,15 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
     })
     const client = observation.client
     const refresh = async (): Promise<void> => {
-      const results = await Promise.all([terminals.refresh(), workflows.getState().list(id)])
-      if (!disposed && client.connectionKey() && results.every(Boolean)) setPending(id, false)
+      if (disposed || !client.connectionKey()) return
+      await Promise.all([terminals.refresh(), workflows.getState().refresh(id)])
     }
+    const stopRuntime = client.onNotification('thread/status/changed', params => {
+      if (params.threadId === id && params.runtime?.running === false) void refresh()
+    })
+    const stopItems = client.onNotification('item/completed', params => {
+      if (params.threadId === id) terminals.observeCommandExecution(params.item, params.turnId)
+    })
     const stopConnection = client.onConnectionChange(connected => {
       if (connected) {
         void refresh()
@@ -156,7 +150,6 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
       }
       terminalActive = false
       workflowActive = false
-      setPending(id, true)
       publish()
     })
     observation.children.set(id, {
@@ -166,8 +159,9 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
         terminals.dispose()
         stopWorkflows()
         stopConnection()
+        stopRuntime()
+        stopItems()
         setActive(id, false)
-        setPending(id, false)
       }
     })
     discoveries.push(refresh())
@@ -183,5 +177,5 @@ export function clearSubAgentTaskActivity(parentThreadId: string): void {
 export function resetSubAgentTaskActivity(): void {
   for (const observation of observations.values()) observation.dispose()
   observations.clear()
-  useSubAgentTaskActivity.setState({ activeThreadIds: new Set(), pendingThreadIds: new Set() })
+  useSubAgentTaskActivity.setState({ activeThreadIds: new Set() })
 }

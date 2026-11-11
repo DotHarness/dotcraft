@@ -3,7 +3,6 @@ import type { DesktopPluginSubAgent, DesktopPluginSubAgentState } from '@dotcraf
 import {
   isSubAgentChildClosed,
   isSubAgentChildWorking,
-  isSubAgentChildFinished,
   subAgentChildRuntime,
   useSubAgentStore,
   type SubAgentChild
@@ -17,7 +16,6 @@ const snapshots = new WeakMap<SubAgentChild[], {
   graph: ReadonlyMap<string, SubAgentChild[]>
   runtimes: ReadonlyMap<string, ThreadRuntimeSnapshot>
   tasks: ReadonlySet<string>
-  pendingTasks: ReadonlySet<string>
   agents: readonly DesktopPluginSubAgent[]
 }>()
 
@@ -32,7 +30,7 @@ export function desktopPluginSubAgentState(child: SubAgentChild): DesktopPluginS
   const status = child.status.trim().toLowerCase()
   if (status === 'failed') return 'failed'
   if (status === 'cancelled' || status === 'canceled') return 'cancelled'
-  return isSubAgentChildFinished(child) ? 'done' : 'waiting'
+  return 'done'
 }
 
 function toDesktopPluginSubAgent(parentThreadId: string, child: SubAgentChild): DesktopPluginSubAgent {
@@ -50,10 +48,10 @@ export function listDesktopPluginSubAgents(parentThreadId: string): readonly Des
   const children = graph.get(parentThreadId)
   if (!children || children.length === 0) return NO_SUBAGENTS
   const runtimes = useThreadStore.getState().runtimeSnapshots
-  const { activeThreadIds: tasks, pendingThreadIds: pendingTasks } = useSubAgentTaskActivity.getState()
+  const tasks = useSubAgentTaskActivity.getState().activeThreadIds
   let snapshot = snapshots.get(children)
-  if (!snapshot || snapshot.graph !== graph || snapshot.runtimes !== runtimes || snapshot.tasks !== tasks || snapshot.pendingTasks !== pendingTasks) {
-    snapshot = { graph, runtimes, tasks, pendingTasks, agents: children.map((child) => toDesktopPluginSubAgent(parentThreadId, child)) }
+  if (!snapshot || snapshot.graph !== graph || snapshot.runtimes !== runtimes || snapshot.tasks !== tasks) {
+    snapshot = { graph, runtimes, tasks, agents: children.map((child) => toDesktopPluginSubAgent(parentThreadId, child)) }
     snapshots.set(children, snapshot)
   }
   return snapshot.agents

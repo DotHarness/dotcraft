@@ -5,10 +5,10 @@ import { registerThreadConnection, releaseThreadConnection } from '../stores/thr
 import { useThreadStore } from '../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import {
-  isSubAgentChildFinished, isSubAgentChildRunning, isSubAgentChildWorking, useSubAgentStore
+  isSubAgentChildRunning, isSubAgentChildWorking, useSubAgentStore
 } from '../stores/subAgentStore'
-import { syncSubAgentTaskActivity, useSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
-import { listDesktopPluginSubAgents } from '../plugins/desktopPluginSubAgents'
+import { syncSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
+import { listDesktopPluginSubAgents, onDesktopPluginSubAgentsChange } from '../plugins/desktopPluginSubAgents'
 import { deferred, makeSubAgent } from './subAgentFixtures'
 
 const parent = 'parent-B'
@@ -18,9 +18,11 @@ const request = vi.fn()
 const source = { threadId: parent, connectionKey: 'A', connectionId: 'A1', workspaceKey: 'a', capabilities: { subAgentSessions: true } }
 const state = useSubAgentStore.getState
 const metadata = () => state().childrenByParent.get(parent)![0]
-const terminal = (status: string) => ({ sessionId: 'term-owned', threadId: child, command: 'work', status })
-let workflowStatus = 'succeeded'
-let initialTerminals: Promise<{ terminals: ReturnType<typeof terminal>[] }> | null = null
+const terminal = (status: string) => ({ sessionId: 'term-owned', threadId: child, turnId: 'turn-1', callId: 'call-1', command: 'work', status })
+const workflow = (status: string) => ({ runId: 'run-owned', threadId: child, name: 'work', status })
+let terminals: ReturnType<typeof terminal>[]
+let workflowRuns: ReturnType<typeof workflow>[]
+let workflowStatus: string
 
 function projectConnection(connectionId: string, loaded = true): void {
   useWorkspaceProjectsStore.getState().setPayload({
@@ -34,16 +36,29 @@ function notify(method: string, params: unknown, connectionId = 'A1', connection
   for (const listener of listeners) listener({ method, params, connectionId, connectionKey })
 }
 
-async function requestsSettled() {
-  await Promise.all(request.mock.results.map(result => result.value))
+function activity(working: boolean): void {
+  expect(isSubAgentChildWorking(metadata())).toBe(working)
+  expect(listDesktopPluginSubAgents(parent)[0].state).toBe(working ? 'working' : 'done')
+}
+
+function nextActivity(working: boolean): Promise<void> {
+  return new Promise(resolve => {
+    const stop = onDesktopPluginSubAgentsChange(parent, agents => {
+      if (agents[0]?.state === (working ? 'working' : 'done')) {
+        stop()
+        resolve()
+      }
+    })
+  })
 }
 
 beforeEach(() => {
+  state().reset()
   listeners.clear()
   request.mockReset()
+  terminals = [terminal('running')]
+  workflowRuns = []
   workflowStatus = 'succeeded'
-  initialTerminals = null
-  state().reset()
   useThreadStore.getState().reset()
   useConnectionStore.setState({ status: 'connected', connectionKey: 'B', connectionId: 'B1', capabilities: { subAgentSessions: true } })
   projectConnection('A1')
@@ -56,15 +71,13 @@ beforeEach(() => {
     }
   } } })
   request.mockImplementation(async (_connection, method) => {
-    if (method === 'subagent/children/list') return { data: [{
-      edge: { parentThreadId: parent, childThreadId: child, status: 'open' },
-      thread: { id: child, runtime: { running: false } }
-    }] }
-    if (method === 'terminal/list') return initialTerminals ?? { terminals: [terminal('running')] }
-    if (method === 'workflow/run/list') return { runs: [] }
-    if (method === 'workflow/run/read') return { run: { runId: 'run-owned', threadId: child, name: 'work', status: workflowStatus } }
+    if (method === 'terminal/list') return { terminals }
+    if (method === 'workflow/run/list') return { runs: workflowRuns }
+    if (method === 'workflow/run/read') return { run: workflow(workflowStatus) }
     return {}
   })
+  state().setChildren(parent, [makeSubAgent()])
+  useThreadStore.getState().applyRuntimeSnapshot(child, { running: false }, { isDesktopOrigin: false })
 })
 
 afterEach(() => {
@@ -75,105 +88,159 @@ afterEach(() => {
 })
 
 describe('subagent owned background activity', () => {
-  it('keeps idle children working for their shell and workflow tasks without changing turn runtime', async () => {
+  it('does not manufacture activity during initial loading or failure and accepts a later successful read', async () => {
     const discovery = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
-    initialTerminals = discovery.promise
-    await state().fetchChildren(parent)
-    expect(isSubAgentChildFinished(metadata())).toBe(false)
-    const ready = new Promise<void>(resolve => {
-      const stop = useSubAgentTaskActivity.subscribe(snapshot => {
-        if (!snapshot.pendingThreadIds.has(child)) { stop(); resolve() }
-      })
-    })
-    discovery.resolve({ terminals: [terminal('running')] })
-    await ready
-    expect(isSubAgentChildWorking(metadata())).toBe(true)
+    request.mockImplementation(async (_connection, method) => method === 'terminal/list' ? discovery.promise : { runs: [] })
+    const syncing = syncSubAgentTaskActivity(parent, [metadata()])
+    activity(false)
+
+    discovery.reject(new Error('list unavailable'))
+    await syncing
+    activity(false)
+
+    request.mockResolvedValue({ terminals: [terminal('running')], runs: [] })
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(true)
     expect(isSubAgentChildRunning(metadata())).toBe(false)
     expect(useThreadStore.getState().runtimeSnapshots.get(child)).toMatchObject({ running: false, busy: false })
-    expect(listDesktopPluginSubAgents(parent)[0].state).toBe('working')
     for (const method of ['terminal/list', 'workflow/run/list']) {
       expect(request).toHaveBeenCalledWith('A', method, expect.objectContaining({ threadId: child }), undefined, { connectionId: 'A1' })
     }
+  })
 
+  it('settles shell and workflow tasks from their scoped live notifications', async () => {
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(true)
     notify('terminal/completed', { terminal: terminal('completed') }, 'B1', 'B')
-    expect(isSubAgentChildWorking(metadata())).toBe(true)
+    activity(true)
     notify('terminal/completed', { terminal: terminal('completed') })
-    expect(isSubAgentChildFinished(metadata())).toBe(true)
+    activity(false)
 
     workflowStatus = 'running'
+    const started = nextActivity(true)
     notify('workflow/run/updated', { threadId: child, runId: 'run-owned', reason: 'created' })
-    await requestsSettled()
-    expect(isSubAgentChildWorking(metadata())).toBe(true)
-    expect(listDesktopPluginSubAgents(parent)[0].state).toBe('working')
+    await started
+    activity(true)
     workflowStatus = 'succeeded'
+    const ended = nextActivity(false)
     notify('workflow/run/updated', { threadId: child, runId: 'run-owned', reason: 'terminal' })
-    await requestsSettled()
-    expect(isSubAgentChildFinished(metadata())).toBe(true)
-
-    useThreadStore.getState().applyRuntimeSnapshot(child, {
-      running: true, activeTurnId: 'turn-woken', waitingOnApproval: false, waitingOnPlanConfirmation: false
-    }, { isDesktopOrigin: false })
-    expect(isSubAgentChildRunning(metadata())).toBe(true)
-    expect(isSubAgentChildWorking(metadata())).toBe(true)
-    state().setChildren(parent, [{ ...metadata(), status: 'closed' }])
-    syncSubAgentTaskActivity(parent, [metadata()])
-    expect(isSubAgentChildWorking(metadata())).toBe(false)
+    await ended
+    activity(false)
   })
 
-  it('keeps failed task discovery unknown until refresh or reconnect succeeds', async () => {
-    state().setChildren(parent, [makeSubAgent()])
-    useThreadStore.getState().applyRuntimeSnapshot(child, { running: false }, { isDesktopOrigin: false })
-    let failure = 'terminal/list'
+  it('reconciles again when idle arrives during the initial terminal read', async () => {
+    const old = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
+    let reads = 0
     request.mockImplementation(async (_connection, method) => {
-      if (method === failure) throw new Error('list unavailable')
-      return method === 'terminal/list' ? { terminals: [] } : { runs: [] }
+      if (method === 'terminal/list') return ++reads === 1 ? old.promise : { terminals: [] }
+      return { runs: [] }
     })
-
-    await syncSubAgentTaskActivity(parent, [metadata()])
-    expect(isSubAgentChildFinished(metadata())).toBe(false)
-    expect(useSubAgentTaskActivity.getState().pendingThreadIds.has(child)).toBe(true)
-    failure = 'workflow/run/list'
-    await syncSubAgentTaskActivity(parent, [metadata()])
-    expect(isSubAgentChildFinished(metadata())).toBe(false)
-    expect(useSubAgentTaskActivity.getState().pendingThreadIds.has(child)).toBe(true)
-    failure = ''
-    await syncSubAgentTaskActivity(parent, [metadata()])
-    expect(isSubAgentChildFinished(metadata())).toBe(true)
-
-    projectConnection('A1', false)
-    expect(isSubAgentChildFinished(metadata())).toBe(false)
-    const ready = new Promise<void>(resolve => {
-      const stop = useSubAgentTaskActivity.subscribe(snapshot => {
-        if (!snapshot.pendingThreadIds.has(child)) { stop(); resolve() }
-      })
-    })
-    projectConnection('A1')
-    await ready
-    expect(isSubAgentChildFinished(metadata())).toBe(true)
+    const first = syncSubAgentTaskActivity(parent, [metadata()])
+    notify('thread/status/changed', { threadId: child, runtime: { running: false } })
+    old.resolve({ terminals: [terminal('running')] })
+    await first
+    activity(false)
+    expect(reads).toBe(2)
   })
 
-  it('releases old connection observers and ignores a delayed old task snapshot', async () => {
+  it('settles a terminal from its correlated command execution completion item', async () => {
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    const item = { type: 'commandExecution', payload: { sessionId: 'term-owned', callId: 'call-1', status: 'completed' } }
+    notify('item/completed', { threadId: 'another-child', turnId: 'turn-1', item })
+    activity(true)
+    notify('item/completed', { threadId: child, turnId: 'another-turn', item })
+    activity(true)
+    notify('item/completed', { threadId: child, turnId: 'turn-1', item })
+    activity(false)
+    expect(request.mock.calls.filter(([, method]) => method === 'terminal/list')).toHaveLength(1)
+  })
+
+  it('keeps real background work active after idle reconciliation', async () => {
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    const queried = deferred<void>()
+    request.mockImplementation(async (_connection, method) => {
+      if (method === 'terminal/list') {
+        queried.resolve()
+        return { terminals }
+      }
+      return { runs: [] }
+    })
+    notify('thread/status/changed', { threadId: child, runtime: { running: false } })
+    activity(true)
+    await queried.promise
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(true)
+    expect(isSubAgentChildRunning(metadata())).toBe(false)
+  })
+
+  it('rereads known workflows when their completion notification was missed', async () => {
+    terminals = []
+    workflowRuns = [workflow('running')]
+    workflowStatus = 'running'
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(true)
+    workflowStatus = 'succeeded'
+    const ended = nextActivity(false)
+    notify('thread/status/changed', { threadId: child, runtime: { running: false } })
+    await ended
+    activity(false)
+  })
+
+  it('retains known work through failed reads and recovers on a later successful sync', async () => {
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    request.mockRejectedValue(new Error('list unavailable'))
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(true)
+    request.mockResolvedValue({ terminals: [], runs: [] })
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    activity(false)
+  })
+
+  it('rediscovers task activity when the same connection recovers', async () => {
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    projectConnection('A1', false)
+    activity(false)
+    const recovered = nextActivity(true)
+    projectConnection('A1')
+    await recovered
+    activity(true)
+  })
+
+  it('releases old observers and ignores delayed snapshots from a replaced connection', async () => {
     const old = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
     request.mockImplementation(async (_connection, method, _params, _timeout, options) => {
       if (method === 'terminal/list') return options.connectionId === 'A1' ? old.promise : { terminals: [] }
-      if (method === 'workflow/run/list') return { runs: [] }
-      return {}
+      return { runs: [] }
     })
-    state().setChildren(parent, [makeSubAgent()])
-    syncSubAgentTaskActivity(parent, [metadata()])
+    const first = syncSubAgentTaskActivity(parent, [metadata()])
     projectConnection('A2')
     registerThreadConnection(parent, { ...source, connectionId: 'A2' })
-    syncSubAgentTaskActivity(parent, [metadata()])
+    await syncSubAgentTaskActivity(parent, [metadata()])
     old.resolve({ terminals: [terminal('running')] })
-    await requestsSettled()
-    expect(isSubAgentChildWorking(metadata())).toBe(false)
+    await first
+    activity(false)
+    notify('terminal/started', { terminal: terminal('running') }, 'A1')
+    activity(false)
     notify('terminal/started', { terminal: terminal('running') }, 'A2')
-    expect(isSubAgentChildWorking(metadata())).toBe(true)
+    activity(true)
     projectConnection('A2', false)
-    expect(isSubAgentChildWorking(metadata())).toBe(false)
+    activity(false)
     notify('terminal/started', { terminal: { ...terminal('running'), sessionId: 'term-after-disconnect' } }, 'A2')
-    expect(isSubAgentChildWorking(metadata())).toBe(false)
+    activity(false)
     state().clearParent(parent)
     expect(listeners.size).toBe(0)
+  })
+
+  it('does not publish an in-flight snapshot after its child closes', async () => {
+    const old = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
+    request.mockImplementation(async (_connection, method) => method === 'terminal/list' ? old.promise : { runs: [] })
+    const first = syncSubAgentTaskActivity(parent, [metadata()])
+    state().setChildren(parent, [{ ...metadata(), status: 'closed' }])
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    old.resolve({ terminals: [terminal('running')] })
+    await first
+    activity(false)
+    notify('terminal/started', { terminal: terminal('running') })
+    activity(false)
   })
 })

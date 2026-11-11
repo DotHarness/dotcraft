@@ -5,7 +5,6 @@ import {
   isSubAgentChildClosed,
   isSubAgentChildRunning,
   isSubAgentChildWorking,
-  isSubAgentChildFinished,
   subAgentChildRuntime,
   useSubAgentStore,
   type SubAgentChild
@@ -80,8 +79,8 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
     const closedChildren: SubAgentChild[] = []
     for (const child of children) {
       if (isSubAgentChildClosed(child)) closedChildren.push(child)
-      else if (isSubAgentChildFinished(child)) finished.push(child)
-      else running.push(child)
+      else if (isSubAgentChildWorking(child)) running.push(child)
+      else finished.push(child)
     }
     return { active: running, done: finished, closed: closedChildren }
   }, [children, graph, runtimes, taskActivity])

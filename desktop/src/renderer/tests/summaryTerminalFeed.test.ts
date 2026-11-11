@@ -153,6 +153,20 @@ describe('Summary terminal state reconciliation', () => {
     expect(h.ids()).toEqual([])
   })
 
+  it('does not swallow a refresh requested as the previous snapshot is published', async () => {
+    let reads = 0
+    const published = deferred<void>()
+    const h = host({ 'terminal/list': () => ++reads === 1 ? { terminals: [terminal('a')] } : { terminals: [] } })
+    h.changed.mockImplementationOnce(() => published.resolve())
+    const first = h.feed.refresh()
+    await published.promise
+    const next = h.feed.refresh()
+    await Promise.all([first, next])
+
+    expect(reads).toBe(2)
+    expect(h.changed.mock.calls.at(-1)?.[0]).toEqual([])
+  })
+
   it('ignores pending list and stop results after disposal and unsubscribes from further updates', async () => {
     const list = deferred<unknown>()
     const stop = deferred<unknown>()

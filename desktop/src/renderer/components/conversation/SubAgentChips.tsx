@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { isSubAgentChildClosed, isSubAgentChildWorking, isSubAgentChildFinished, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
+import { isSubAgentChildClosed, isSubAgentChildWorking, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { findSubAgentChild } from '../../utils/subAgentIdentity'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
@@ -230,7 +230,7 @@ function agentState(
     if (isSubAgentChildClosed(child)) return 'done'
     if (isSubAgentChildWorking(child)) return 'running'
     if (isFailureStatus(child.status)) return 'failed'
-    return isSubAgentChildFinished(child) ? 'done' : 'unknown'
+    return 'done'
   }
   if (isFailureStatus(display.resultStatus)) return 'failed'
   if (isTerminalSubAgentStatus(display.resultStatus)) return 'done'
@@ -252,7 +252,6 @@ function statusMessageKey(
   return state.allDone ? `subAgentChips.finished.${form}` : null
 }
 
-/** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
 function joinNames(
   locale: string,
   displays: ChipEntry[],
