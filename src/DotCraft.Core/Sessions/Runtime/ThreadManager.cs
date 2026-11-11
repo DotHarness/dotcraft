@@ -170,9 +170,17 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public McpClientManager? McpManager { get; set; }
 
+    public ThreadMcpRefresh McpRefresh { get; set; } = new();
+
     public EventHandler<McpServerStatusChangedEventArgs>? McpStatusHandler { get; set; }
 
     public async ValueTask ReleaseMcpAsync()
+    {
+        await McpRefresh.DisposeAsync().ConfigureAwait(false);
+        await ReleaseMcpConnectionsAsync().ConfigureAwait(false);
+    }
+
+    public async ValueTask ReleaseMcpConnectionsAsync()
     {
         var manager = McpManager;
         McpManager = null;

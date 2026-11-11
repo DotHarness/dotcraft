@@ -210,6 +210,8 @@ public sealed partial class SessionService
             var previousStatus = thread.Status;
             thread.Status = ThreadStatus.Active;
             thread.LastActiveAt = DateTimeOffset.UtcNow;
+            if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                runtime.McpRefresh = new ThreadMcpRefresh();
             try
             {
                 await owner.Worktrees.RestoreCheckoutAsync(thread, ct);

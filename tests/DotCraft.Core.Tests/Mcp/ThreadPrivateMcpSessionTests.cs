@@ -23,7 +23,7 @@ namespace DotCraft.Tests.Mcp;
 public sealed class ThreadMcpEnvironmentCollection;
 
 [Collection("Thread MCP environment")]
-public sealed class ThreadPrivateMcpSessionTests
+public sealed partial class ThreadPrivateMcpSessionTests
 {
     [Theory]
     [InlineData(false)]
@@ -206,7 +206,8 @@ public sealed class ThreadPrivateMcpSessionTests
             _factory = factory; Sessions = sessions; ServerName = serverName;
         }
 
-        public static async Task<Harness> CreateAsync(bool plugin = false, IToolSnapshotFinalizer? finalizer = null)
+        public static async Task<Harness> CreateAsync(
+            bool plugin = false, IToolSnapshotFinalizer? finalizer = null, IChatClient? chatClient = null)
         {
             var root = Path.Combine(Path.GetTempPath(), $"thread-mcp-{Guid.NewGuid():N}");
             Directory.CreateDirectory(root);
@@ -227,7 +228,7 @@ public sealed class ThreadPrivateMcpSessionTests
             var skills = new SkillsLoader(root);
             var approval = new AutoApproveApprovalService();
             var registry = TestModelProviderRegistry.Create();
-            var client = new ReplyClient();
+            var client = chatClient ?? new ReplyClient();
             var modelRuntime = registry.ResolveMainRuntime(config);
             var factory = new AgentFactory(root, root, config, memory, skills, approval, null,
                 runtimeContext: new AgentRuntimeContext

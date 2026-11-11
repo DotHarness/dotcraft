@@ -86,7 +86,7 @@ public interface IThreadSystemNoticeService
 
 public interface IThreadMcpRuntimeService
 {
-    /// <summary>Reconciles MCP connections and tool snapshots for loaded active threads.</summary>
+    /// <summary>Requests background MCP refresh for loaded active threads.</summary>
     Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Returns the runtime composed from thread-selected user configuration and additive binding sessions.</summary>

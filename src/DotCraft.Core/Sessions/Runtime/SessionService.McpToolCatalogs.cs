@@ -10,32 +10,6 @@ public sealed partial class SessionService
 {
     public Action<string, McpServerStatusSnapshot>? ThreadMcpStatusChangedForBroadcast { get; set; }
 
-    public async Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default)
-    {
-        foreach (var runtime in _runtimeRegistry.Values)
-        {
-            try
-            {
-                await runtime.Commands.InvokeAsync(async commandCt =>
-                {
-                    using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, commandCt).ConfigureAwait(false))
-                    {
-                        var thread = runtime.Thread;
-                        if (!_runtimeRegistry.IsCurrent(thread.Id, runtime)
-                            || thread.Status != ThreadStatus.Active
-                            || IsPendingPermanentDeletion(thread.Id))
-                            return;
-
-                        SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, commandCt).ConfigureAwait(false));
-                    }
-                }, cancellationToken).ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException) when (runtime.Commands.IsClosed)
-            {
-            }
-        }
-    }
-
     public async Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
         CancellationToken cancellationToken = default)
@@ -45,13 +19,17 @@ public sealed partial class SessionService
         if (thread.Status != ThreadStatus.Active)
             return null;
         var runtime = _runtimeRegistry.SetThread(thread);
+        await runtime.McpRefresh.WaitAsync(cancellationToken).ConfigureAwait(false);
+        McpClientManager? manager;
         using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
         {
             EnsureMcpRuntimeOwner(thread, runtime);
-            if (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty)
-                SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, cancellationToken).ConfigureAwait(false));
+            manager = await ReconcileMcpRuntimeAsync(
+                thread, runtime, thread.Configuration ?? new ThreadConfiguration(), cancellationToken).ConfigureAwait(false);
         }
-        return runtime.McpManager;
+        if (manager is not null)
+            await manager.WaitForStartupCompletionAsync(cancellationToken).ConfigureAwait(false);
+        return manager;
     }
 
     public async Task SetBindingMcpServersAsync(
@@ -90,11 +68,10 @@ public sealed partial class SessionService
             throw new InvalidOperationException($"Thread '{thread.Id}' has no active runtime.");
     }
 
-    private async Task<AgentRuntimeContext> PrepareMcpToolContextAsync(
+    private async Task<McpClientManager?> ReconcileMcpRuntimeAsync(
         SessionThread thread,
         ThreadRuntime threadRuntimeState,
         ThreadConfiguration config,
-        AgentRuntimeContext toolContext,
         CancellationToken ct)
     {
         var workspaceManager = agentFactory.RuntimeContext.McpClientManager;
@@ -113,7 +90,10 @@ public sealed partial class SessionService
             if (threadRuntimeState.McpManager is null)
             {
                 var threadManager = new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>(),
-                    workspaceManager?.ElicitationHandler);
+                    workspaceManager?.ElicitationHandler)
+                {
+                    WaitForRuntimeRefresh = ct => threadRuntimeState.McpRefresh.WaitAsync(ct)
+                };
                 threadRuntimeState.McpManager = threadManager;
                 threadRuntimeState.McpStatusHandler = (sender, args) =>
                 {
@@ -123,13 +103,25 @@ public sealed partial class SessionService
                 threadManager.StatusChanged += threadRuntimeState.McpStatusHandler;
             }
             await threadRuntimeState.McpManager.ConnectAsync(effectiveMcpServers, ct);
-            await threadRuntimeState.McpManager.WaitForStartupCompletionAsync(ct);
         }
         else
         {
-            await threadRuntimeState.ReleaseMcpAsync();
+            await threadRuntimeState.ReleaseMcpConnectionsAsync();
         }
-        toolContext = CloneContextWithMcpManager(toolContext, threadRuntimeState.McpManager);
+        return threadRuntimeState.McpManager;
+    }
+
+    private async Task<AgentRuntimeContext> PrepareMcpToolContextAsync(
+        SessionThread thread,
+        ThreadRuntime threadRuntimeState,
+        ThreadConfiguration config,
+        AgentRuntimeContext toolContext,
+        CancellationToken ct)
+    {
+        var mcpManager = await ReconcileMcpRuntimeAsync(thread, threadRuntimeState, config, ct);
+        if (mcpManager is not null)
+            await mcpManager.WaitForStartupCompletionAsync(ct);
+        toolContext = CloneContextWithMcpManager(toolContext, mcpManager);
 
         if (config.McpPolicy?.Servers is { Length: > 0 } selectors && toolContext.McpClientManager is { } manager)
         {

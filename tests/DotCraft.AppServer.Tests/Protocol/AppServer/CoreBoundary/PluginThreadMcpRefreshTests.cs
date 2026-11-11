@@ -23,8 +23,10 @@ public sealed class PluginThreadMcpRefreshTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"plugin-thread-mcp-{Guid.NewGuid():N}");
     private string CraftPath => Path.Combine(_root, ".craft");
 
-    [Fact]
-    public async Task Remove_RefreshesLoadedThreadToolsAndReleasesPluginProcesses()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PluginChange_ReleasesMcpConnectionsAndNotifiesClients(bool deletedProvider)
     {
         var pluginRoot = Path.Combine(CraftPath, "plugins", "fixture");
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
@@ -67,6 +69,29 @@ public sealed class PluginThreadMcpRefreshTests : IDisposable
         var result = await manager.CallToolAsync(server.Name, "state");
         var pid = JsonSerializer.SerializeToElement(result.StructuredContent).GetProperty("pid").GetInt32();
         using var process = Process.GetProcessById(pid);
+        SessionThread? healthyThread = null;
+        Process? healthyProcess = null;
+        if (deletedProvider)
+        {
+            var originalProvider = config.ProviderId;
+            config.Providers["healthy"] = config.Providers[originalProvider];
+            config.ProviderPreferences["healthy"] = new ModelPreference
+            {
+                Model = config.ProviderPreferences[originalProvider].Model
+            };
+            config.ProviderId = "healthy";
+            healthyThread = await sessions.CreateThreadAsync(new SessionIdentity
+            {
+                WorkspacePath = _root, ChannelName = "appserver", UserId = "test"
+            });
+            var healthyManager = (await sessions.GetEffectiveMcpRuntimeAsync(healthyThread.Id))!;
+            var healthyState = await healthyManager.CallToolAsync(server.Name, "state");
+            healthyProcess = Process.GetProcessById(
+                JsonSerializer.SerializeToElement(healthyState.StructuredContent).GetProperty("pid").GetInt32());
+            config.Providers.Remove(originalProvider);
+            sessions.InvalidateThreadAgents();
+        }
+        using var healthyProcessHandle = healthyProcess;
         var connection = new AppServerConnection();
         connection.TryMarkInitialized(new ClientConnectionInfo { Name = "test", Version = "1" },
             new ClientConnectionCapabilities());
@@ -79,16 +104,28 @@ public sealed class PluginThreadMcpRefreshTests : IDisposable
                 SkillsLoader = skills, MemoryStore = memory, AppConfigMonitor = new AppConfigMonitor(config),
                 McpClientManager = workspace
             });
-        var request = InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.PluginRemove, new { id = "fixture" }, 1);
+        var request = deletedProvider
+            ? InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.PluginSetEnabled, new { id = "fixture", enabled = false }, 1)
+            : InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.PluginRemove, new { id = "fixture" }, 1);
         var response = await handler.HandleRequestAsync(request, default);
         if (response != null)
             await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(request.Id, response));
         using var sent = await transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(sent);
         Assert.Equal("applied", sent.RootElement.GetProperty("result").GetProperty("outcome").GetString());
-        Assert.False(Directory.Exists(pluginRoot));
+        using var notification = await transport.ReadNextSentAsync();
+        Assert.Equal(Contract.AppServerMethodNames.PluginSnapshotUpdated,
+            notification.RootElement.GetProperty("method").GetString());
+        Assert.Equal(deletedProvider, Directory.Exists(pluginRoot));
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
-        var snapshot = await sessions.GetEffectiveToolSnapshotAsync(thread.Id);
+        Assert.Empty((await sessions.GetEffectiveMcpRuntimeAsync(thread.Id))!.Tools);
+        var snapshotThreadId = thread.Id;
+        if (healthyThread is not null)
+        {
+            await healthyProcessHandle!.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            snapshotThreadId = healthyThread.Id;
+        }
+        var snapshot = await sessions.GetEffectiveToolSnapshotAsync(snapshotThreadId);
         Assert.DoesNotContain(snapshot.Registrations.Values, tool => tool.Definition.Id.Kind == DotCraft.Tools.ToolSourceKind.Mcp);
     }
 

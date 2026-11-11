@@ -72,6 +72,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
     private long _nextGeneration;
     private bool _disposed;
     internal IMcpElicitationHandler? ElicitationHandler { get; }
+    internal Func<CancellationToken, Task>? WaitForRuntimeRefresh { get; init; }
 
     public IReadOnlyList<AITool> Tools => Volatile.Read(ref _toolsSnapshot);
 
@@ -189,6 +190,8 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         string serverName,
         CancellationToken cancellationToken = default)
     {
+        if (WaitForRuntimeRefresh is { } prepare)
+            await prepare(cancellationToken).ConfigureAwait(false);
         await _mutex.WaitAsync(cancellationToken);
         try
         {
@@ -346,6 +349,8 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         string toolName,
         CancellationToken cancellationToken = default)
     {
+        if (WaitForRuntimeRefresh is { } prepare)
+            await prepare(cancellationToken).ConfigureAwait(false);
         await _mutex.WaitAsync(cancellationToken);
         try
         {
@@ -368,6 +373,8 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         if (string.IsNullOrWhiteSpace(serverName))
             throw new ArgumentException("An MCP server name is required.", nameof(serverName));
 
+        if (WaitForRuntimeRefresh is { } prepare)
+            await prepare(cancellationToken).ConfigureAwait(false);
         await _mutex.WaitAsync(cancellationToken);
         try
         {

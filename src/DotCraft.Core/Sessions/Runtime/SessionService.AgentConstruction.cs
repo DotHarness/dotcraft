@@ -100,6 +100,8 @@ public sealed partial class SessionService
     private async Task EnsurePerThreadAgentIfMissingAsync(
         string threadId, SessionThread thread, CancellationToken ct)
     {
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var mcpRuntime))
+            await mcpRuntime.McpRefresh.WaitAsync(ct).ConfigureAwait(false);
         var cacheThreadAgent = _forcePerThreadAgents || RequiresPerThreadAgent(thread);
         if (!cacheThreadAgent
             && _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)
