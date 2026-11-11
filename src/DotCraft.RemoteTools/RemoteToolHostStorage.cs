@@ -20,7 +20,7 @@ internal sealed class RemoteToolHostStorage
         CraftHomePath = Path.GetFullPath(home);
         _root = Path.Combine(CraftHomePath, "remote-tool-host");
         var identity = OperatingSystem.IsWindows() ? HostStatePath.ToUpperInvariant() : HostStatePath;
-        _stateMutexName = "DotCraft.RemoteToolHost.State."
+        _stateMutexName = @"Global\DotCraft.RemoteToolHost.State."
             + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
     }
 
