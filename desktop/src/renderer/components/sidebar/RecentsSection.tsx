@@ -12,6 +12,7 @@ import { ThreadEntry } from './ThreadEntry'
 import { ThreadListRow } from './ThreadListRow'
 import type { ThreadDropPlacement } from './threadOrdering'
 import { projectIdentity } from './projectThreads'
+import { newSectionMenuItem } from './sections/moveToSectionMenu'
 import {
   CollapsibleThreads,
   ProjectHint,
@@ -77,7 +78,9 @@ export function RecentsSection({
             onClick: () => onShowProjectsChange(!showProjects)
           } as const
         ]
-      : [])
+      : []),
+    ...(onSortChange || onShowProjectsChange ? [{ type: 'separator' } as const] : []),
+    newSectionMenuItem(t)
   ]
 
   async function newChat(): Promise<void> {

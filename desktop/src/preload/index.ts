@@ -94,6 +94,7 @@ import {
 import type { TopLevelMenuId } from '../shared/locales/types'
 import type { PetSettings } from '../shared/pet'
 import type { SidebarThreadSortMode } from '../shared/sidebarThreadOrder'
+import type { SidebarSection } from '../shared/sidebarSections'
 import type {
   BrowserUseApprovalResponseAction,
   BrowserUseApprovalRequestPayload,
@@ -1646,6 +1647,7 @@ const api = {
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
+      sidebarSections?: SidebarSection[]
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
       /** Keyed `<workspace>::<threadId>`; an empty list removes the key when persisted. */
@@ -1739,6 +1741,7 @@ const api = {
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
+      sidebarSections?: SidebarSection[]
       /** Keyed `<workspace>::<threadId>`; pruned by age and count when persisted. */
       satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
       /** Keyed `<workspace>::<threadId>`; an empty list removes the key when persisted. */

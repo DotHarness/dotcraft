@@ -34,6 +34,7 @@ import { useThreadWaitingStatus } from './threadWaitingStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
+import { useMoveToSectionMenuEntry } from './sections/moveToSectionMenu'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -579,10 +580,17 @@ function ThreadEntryContextMenu({
     activeThreadId,
     setActiveThreadId,
     pinnedThreadIds,
-    togglePinnedThread
+    togglePinnedThread,
+    threadListProjectKey
   } = useThreadStore()
   const threadId = thread.id
   const pinned = pinnedThreadIds.includes(threadId)
+  const moveToSection = useMoveToSectionMenuEntry(
+    allowLifecycleActions && threadListProjectKey && !isSubAgentThread(thread)
+      ? { kind: 'thread', projectKey: threadListProjectKey, threadId }
+      : null,
+    pinned ? () => togglePinnedThread(threadId) : undefined
+  )
   const readState = thread.readState
   const unread = isThreadUnread(thread)
 
@@ -647,6 +655,7 @@ function ThreadEntryContextMenu({
               }
             ]
           : []),
+        ...(moveToSection ? [moveToSection] : []),
         {
           label: t('threadEntry.rename'),
           icon: <Pencil size={14} aria-hidden />,

@@ -32,6 +32,7 @@ import {
   type SidebarThreadOrderSettings
 } from '../shared/sidebarThreadOrder'
 import { normalizeSidebarDestinationPins, type SidebarDestinationPins } from '../shared/sidebarDestinations'
+import { forgetProjectInSidebarSections, normalizeSidebarSections, type SidebarSection } from '../shared/sidebarSections'
 import type { NewTaskPromptMode } from '../shared/threadTasks'
 import type {
   BinarySource,
@@ -169,6 +170,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
   /** Desktop-local pinned project identities (normalized local paths or remote ids). */
   pinnedProjectIds?: string[]
+  sidebarSections?: SidebarSection[]
   remoteHosts?: SshMachine[]
   /** Last explicit satellite route per thread, keyed `<workspace>::<threadId>`. */
   satelliteRouteByThread?: Record<string, SatelliteThreadRoute>
@@ -666,6 +668,7 @@ export function loadSettings(): AppSettings {
       raw.voice = normalizeVoiceSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
       raw.pinnedProjectIds = normalizePinnedProjectIds(raw)
+      raw.sidebarSections = normalizeSidebarSections(raw.sidebarSections)
       raw.localProjectDetails = normalizeLocalProjectDetails(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
       raw.satelliteRouteByThread = normalizeSatelliteRouteByThread(raw)
@@ -735,6 +738,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.voice = normalizeVoiceSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
     settings.pinnedProjectIds = normalizePinnedProjectIds(settings)
+    settings.sidebarSections = normalizeSidebarSections(settings.sidebarSections)
     settings.localProjectDetails = normalizeLocalProjectDetails(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     settings.satelliteRouteByThread = normalizeSatelliteRouteByThread(settings)
@@ -783,4 +787,5 @@ export function forgetLocalProject(settings: AppSettings, path: string): void {
   delete allDetails[normalizeWorkspaceProjectKey(path)]
   settings.localProjectDetails = Object.keys(allDetails).length > 0 ? allDetails : undefined
   settings.pinnedProjectIds = settings.pinnedProjectIds?.filter((projectId) => !sameWorkspaceProjectKey(projectId, path))
+  settings.sidebarSections = forgetProjectInSidebarSections(settings.sidebarSections, path)
 }

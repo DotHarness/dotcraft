@@ -17,6 +17,7 @@ import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
 import { useLinkPreferencesStore } from './stores/linkPreferencesStore'
 import { useSidebarThreadOrderStore } from './stores/sidebarThreadOrderStore'
+import { useSidebarSectionsStore } from './stores/sidebarSectionsStore'
 import { useSidebarDestinationsStore } from './stores/sidebarDestinationsStore'
 import { hydrateSummaryPinned } from './components/conversation/summary/view'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
@@ -880,6 +881,7 @@ export function App(): JSX.Element {
         useLinkPreferencesStore.getState().hydrate(s)
         usePetStore.getState().hydrate(s)
         useSidebarThreadOrderStore.getState().hydrate(s)
+        useSidebarSectionsStore.getState().hydrate(s)
         useSidebarDestinationsStore.getState().hydrate(s)
         hydrateSummaryPinned(s.summaryHidden !== true)
         useUIStore.setState({

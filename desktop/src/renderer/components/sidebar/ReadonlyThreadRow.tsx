@@ -25,6 +25,7 @@ import { ThreadWaitingBadge } from './ThreadWaitingBadge'
 import { useThreadWaitingStatus } from './threadWaitingStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { openProjectThread } from './projectConnectionActions'
+import { useMoveToSectionMenuEntry } from './sections/moveToSectionMenu'
 
 /**
  * Pin is a Desktop-local setting keyed by workspace path, so the whole
@@ -86,6 +87,12 @@ export function ReadonlyThreadRow({
   // apply to local secondary / Chats rows. Remote rows keep the static marker.
   const supportsLocalActions = !subAgent && !isRemoteProject(project)
   const isPinned = pinned
+  const moveToSection = useMoveToSectionMenuEntry(
+    subAgent || !rowProjectKey ? null : { kind: 'thread', projectKey: rowProjectKey, threadId: thread.id },
+    isPinned && supportsLocalActions
+      ? () => toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
+      : undefined
+  )
   const statusColumn = running
     ? '24px'
     : waiting
@@ -267,6 +274,7 @@ export function ReadonlyThreadRow({
         position={contextMenu}
         onClose={() => setContextMenu(null)}
         items={[
+          ...(moveToSection ? [moveToSection, { type: 'separator' as const }] : []),
           {
             label: t('threadEntry.copySessionId'),
             icon: <Copy size={14} aria-hidden />,

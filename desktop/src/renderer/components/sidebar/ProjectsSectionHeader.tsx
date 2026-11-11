@@ -7,6 +7,7 @@ import type { ContextMenuEntry } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { SectionOptionsMenu, SidebarSectionHeader, sortModeMenuItems } from './SidebarSectionParts'
+import { newSectionMenuItem } from './sections/moveToSectionMenu'
 
 export function ProjectsSectionHeader({
   collapsed,
@@ -64,6 +65,8 @@ export function ProjectsSectionHeader({
         }]
       : [])
   ]
+  if (menuItems.length > 0) menuItems.push({ type: 'separator' })
+  menuItems.push(newSectionMenuItem(t))
 
   return (
     <>
