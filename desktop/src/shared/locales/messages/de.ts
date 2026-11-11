@@ -1,6 +1,7 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_DE = {
+  'workspace.config.loadFailed': "Die Arbeitsbereichseinstellungen konnten nicht geladen werden.",
   "settings.import.setup.user": "Werkzeuge und Einrichtung",
   "settings.import.setup.userHint": "In allen Ihren Projekten verfügbar",
   "settings.import.setup.workspace": "Konfiguration des aktuellen Projekts",

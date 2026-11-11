@@ -34,9 +34,7 @@ import { useAddProjectFlow } from './components/projects/AddProject'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
 import type { AutomationDefinition, AutomationRun } from './stores/automationsStore'
-import { useModelCatalogStore } from './stores/modelCatalogStore'
-import { useConfigStore } from './stores/configStore'
-import { useProvidersStore } from './stores/providersStore'
+import { applyWorkspaceResourceConfigChange } from './stores/providerConnectionScope'
 import { applyMcpNotification } from './stores/mcpNotifications'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
@@ -105,7 +103,6 @@ import {
   useDesktopPluginRegistry
 } from './plugins/desktopPluginRegistry'
 import {
-  hasConfigKeyPathChange,
   resolveConfigChangedPayload,
   type ConfigChangedPayload
 } from './utils/configChanged'
@@ -1266,7 +1263,7 @@ export function App(): JSX.Element {
             )
             if (!event) break
 
-            useConfigStore.getState().handleConfigChanged(event.regions)
+            if (!applyWorkspaceResourceConfigChange(event.regions, payload)) break
             if (event.regions.includes('skills')) {
               void useSkillsStore.getState().fetchSkills()
             }
@@ -1275,14 +1272,6 @@ export function App(): JSX.Element {
             }
             if (event.regions.includes('hooks')) {
               void useHooksStore.getState().fetchHooks()
-            }
-            if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {
-              useModelCatalogStore.getState().handleConfigChanged(event.regions)
-            }
-            if (event.regions.includes('providers') || hasConfigKeyPathChange(event.regions, 'ProviderId')) {
-              if (useConnectionStore.getState().capabilities?.providerManagement === true) {
-                void useProvidersStore.getState().reload()
-              }
             }
 
             setWorkspaceConfigChange(event)
@@ -1827,6 +1816,7 @@ export function App(): JSX.Element {
                   return (
                     <CoreMainViewBoundary fallback={<SettingsViewSkeleton />}>
                       <CoreSettingsView
+                        key={activeProjectKey || protocolWorkspacePath || workspacePath}
                         workspacePath={workspacePath}
                         identityWorkspacePath={protocolWorkspacePath || workspacePath}
                         onThreadListRefreshRequested={() => {

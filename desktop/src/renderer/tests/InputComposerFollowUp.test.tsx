@@ -8,9 +8,6 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useConfigStore } from '../stores/configStore'
-import { useModelCatalogStore } from '../stores/modelCatalogStore'
-import { useProvidersStore } from '../stores/providersStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
@@ -20,6 +17,7 @@ import { useGitStore } from '../stores/gitStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
@@ -68,16 +66,14 @@ describe('InputComposer follow-up routing', () => {
     onOptimisticEcho.mockReset()
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }), set: async () => undefined },
-      appServer: { sendRequest, onNotification: undefined },
+      appServer: { sendRequest, onNotification: () => () => {} },
       git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
       workspace: { getPathForFile: () => 'X:\\fixtures\\workspace\\notes.md' },
       voice: undefined
     })
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()
-    useConfigStore.getState().reset()
-    useModelCatalogStore.getState().reset()
-    useProvidersStore.getState().reset()
+    activateTestWorkspace()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()

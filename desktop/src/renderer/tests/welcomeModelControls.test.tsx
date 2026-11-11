@@ -10,6 +10,8 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import type { WelcomeDraft } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace, testWorkspaceScope } from './workspaceResourceFixtures'
+import { activateWorkspaceResources, refreshWorkspaceResources } from '../stores/providerConnectionScope'
 
 const listModels = vi.fn()
 const sendRequest = vi.fn()
@@ -47,8 +49,6 @@ function writes() {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  useConfigStore.getState().reset()
-  useModelCatalogStore.getState().reset()
   serverConfig = { ProviderId: 'anthropicapi', ProviderPreferences: { anthropicapi: preference } }
   useConnectionStore.setState({ status: 'connected', capabilities: {
     modelCatalogManagement: true, workspaceConfigManagement: true
@@ -69,6 +69,7 @@ beforeEach(() => {
     return {}
   })
   installDesktopApiMock({ appServer: { listModels, sendRequest }, settings: { get: async () => null } })
+  activateTestWorkspace()
 })
 
 describe('Welcome provider-scoped model controls', () => {
@@ -171,6 +172,69 @@ describe('Welcome provider-scoped model controls', () => {
       deepseek: { model: 'deepseek-v4-pro' }
     })
     expect(writes()).toHaveLength(1)
+  })
+
+  it('does not seed missing preferences from an unconfirmed restored configuration', async () => {
+    serverConfig = { ProviderId: 'anthropicapi', ProviderPreferences: {} }
+    await useConfigStore.getState().ensureLoaded()
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'anthropicapi')
+    const pending = deferred<unknown>()
+    const originalRequest = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation((method: string, ...args: unknown[]) =>
+      method === 'config/read' ? pending.promise : originalRequest(method, ...args))
+    activateWorkspaceResources(null)
+    activateWorkspaceResources(testWorkspaceScope)
+    let refresh!: Promise<void>
+    await act(async () => { refresh = refreshWorkspaceResources() })
+    const hook = mountControls()
+    expect(hook.result.current.modelOptions).toEqual([preference.model])
+    expect(useConfigStore.getState().confirmed).toBe(false)
+    expect(writes()).toEqual([])
+
+    serverConfig = { ProviderId: 'anthropicapi', ProviderPreferences: { anthropicapi: preference } }
+    await act(async () => { pending.resolve({ config: serverConfig }); await refresh })
+    expect(hook.result.current.modelName).toBe(preference.model)
+    expect(useConfigStore.getState().confirmed).toBe(true)
+    expect(writes()).toEqual([])
+  })
+
+  it('does not restore the previous provider during catalog renders for an unconfirmed cache with missing preferences', async () => {
+    const otherScope = { projectKey: '/other', connectionKey: '/other', connectionId: 'other-1' }
+    const originalConfig = serverConfig
+    serverConfig = { ProviderId: 'deepseek', ProviderPreferences: {} }
+    useConnectionStore.setState({ connectionKey: otherScope.connectionKey, connectionId: otherScope.connectionId })
+    activateWorkspaceResources(otherScope)
+    await useConfigStore.getState().ensureLoaded()
+
+    serverConfig = originalConfig
+    useConnectionStore.setState({
+      connectionKey: testWorkspaceScope.connectionKey, connectionId: testWorkspaceScope.connectionId
+    })
+    activateWorkspaceResources(testWorkspaceScope)
+    const pendingCatalog = deferred<unknown>()
+    listModels.mockImplementation((providerId: string) => providerId === 'deepseek'
+      ? pendingCatalog.promise : Promise.resolve(catalog(providerId, preference.model)))
+    const hook = mountControls()
+    await waitFor(() => expect(hook.result.current.modelOptions).toEqual([preference.model]))
+
+    await act(async () => {
+      useConnectionStore.setState({ connectionKey: otherScope.connectionKey, connectionId: otherScope.connectionId })
+      activateWorkspaceResources(otherScope)
+    })
+    expect(useConfigStore.getState().confirmed).toBe(false)
+    expect(listModels).toHaveBeenCalledWith('deepseek')
+    expect(hook.result.current.providerId).toBe('deepseek')
+    expect(hook.result.current.modelName).toBe('Default')
+    expect(hook.result.current.modelLoading).toBe(true)
+    hook.rerender()
+    expect(hook.result.current.providerId).toBe('deepseek')
+
+    await act(async () => { pendingCatalog.resolve(catalog('deepseek', 'deepseek-v4-pro')) })
+    expect(hook.result.current.providerId).toBe('deepseek')
+    expect(hook.result.current.modelName).toBe('Default')
+    expect(hook.result.current.modelOptions).toEqual(['deepseek-v4-pro'])
+    expect(useConfigStore.getState().confirmed).toBe(false)
+    expect(writes()).toEqual([])
   })
 
   it('seeds missing preferences from the requested provider snapshot only', async () => {

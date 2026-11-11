@@ -20,12 +20,14 @@ import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 import {
   clearDesktopPluginRegistry,
 } from '../plugins/desktopPluginRegistry'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
+const readConfig = vi.fn()
 let serverConfig: Record<string, unknown> = {}
 const saveImageToTemp = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
@@ -221,13 +223,14 @@ describe('ConversationWelcome composer', () => {
       return {}
     })
 
+    readConfig.mockImplementation(async () => ({ config: structuredClone(serverConfig), origins: {} }))
     installDesktopApiMock({
         settings: {
           get: settingsGet
         },
         appServer: {
           sendRequest: (method: string, ...rest: unknown[]) => method === 'config/read'
-            ? Promise.resolve({ config: structuredClone(serverConfig), origins: {} })
+            ? readConfig()
             : appServerSendRequest(method, ...rest),
           sendRequestRaw: appServerSendRequest,
           onNotification: undefined,
@@ -257,6 +260,7 @@ describe('ConversationWelcome composer', () => {
         },
         voice: undefined
       })
+    activateTestWorkspace()
   })
 
   afterEach(() => {
@@ -283,6 +287,51 @@ describe('ConversationWelcome composer', () => {
         text: 'Use the configured workspace default'
       })
     })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
+  })
+
+  it('retries a failed configuration read from the welcome model control', async () => {
+    readConfig.mockRejectedValueOnce(new Error('configuration timeout'))
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Keep this draft while configuration recovers'
+    fireEvent.input(textbox)
+    await waitFor(() => expect(useConfigStore.getState().status).toBe('error'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(useConfigStore.getState().status).toBe('ready'))
+    expect(readConfig).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn?.text)
+      .toBe('Keep this draft while configuration recovers'))
+  })
+
+  it('reuses configuration and model data when Welcome remounts in the same workspace', async () => {
+    serverConfig = {
+      ProviderId: 'codex',
+      ProviderPreferences: { codex: { model: 'test-model', reasoning: { enabled: true, effort: 'high' }, speed: 'standard' } },
+      Permissions: { DefaultApprovalPolicy: 'autoApprove' }
+    }
+    const request = appServerSendRequest.getMockImplementation()!
+    appServerSendRequest.mockImplementation((method: string, ...args: unknown[]) => method === 'model/list'
+      ? Promise.resolve({ success: true, providerId: 'codex', models: [{ id: 'test-model' }] })
+      : request(method, ...args))
+    const first = renderWelcome()
+    await waitFor(() => expect(useModelCatalogStore.getState().getCatalog('codex').status).toBe('ready'))
+    first.unmount()
+
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Use inherited defaults after remount'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    expect(readConfig).toHaveBeenCalledTimes(1)
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'model/list')).toHaveLength(1)
     const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
   })

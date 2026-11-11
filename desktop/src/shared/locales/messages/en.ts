@@ -1,4 +1,5 @@
 export const MESSAGES_EN = {
+  'workspace.config.loadFailed': "Couldn’t load workspace settings.",
   "settings.import.setup.user": "Tools & setup",
   "settings.import.setup.userHint": "Available in all your projects",
   "settings.import.setup.workspace": "Current project configuration",

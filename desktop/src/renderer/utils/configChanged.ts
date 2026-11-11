@@ -32,11 +32,13 @@ export function normalizeConfigChangedPayload(
 
 export function filterConfigChangedRegions(
   event: ConfigChangedPayload,
-  dedupeBySourceRegion: Map<string, number>
+  dedupeBySourceRegion: Map<string, number>,
+  connectionScope?: string
 ): ConfigChangedPayload | null {
   const changedAtMs = Date.parse(event.changedAt)
   const regions = event.regions.filter((region) => {
-    const dedupeKey = `${event.source}:${region}`
+    const dedupeKey = connectionScope
+      ? JSON.stringify([connectionScope, event.source, region]) : `${event.source}:${region}`
     const previous = dedupeBySourceRegion.get(dedupeKey)
 
     if (
@@ -59,11 +61,13 @@ export function filterConfigChangedRegions(
 }
 
 export function resolveConfigChangedPayload(
-  payload: { method: string; params: unknown },
+  payload: { method: string; params: unknown; connectionKey?: string; connectionId?: string },
   dedupeBySourceRegion: Map<string, number>,
   getNow?: () => string
 ): ConfigChangedPayload | null {
   const event = normalizeConfigChangedPayload(payload, getNow)
   if (!event) return null
-  return filterConfigChangedRegions(event, dedupeBySourceRegion)
+  const scope = payload.connectionKey || payload.connectionId
+    ? JSON.stringify([payload.connectionKey, payload.connectionId]) : undefined
+  return filterConfigChangedRegions(event, dedupeBySourceRegion, scope)
 }

@@ -231,6 +231,7 @@ export function ConversationPanel({
   if (!thread) {
     return withBackdrop(
       <ConversationWelcome
+        key={projectKey || protocolWorkspacePath}
         welcomeContentRef={setWelcomeContent}
         workspacePath={workspacePath}
         identityWorkspacePath={protocolWorkspacePath}

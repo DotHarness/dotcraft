@@ -28,6 +28,7 @@ interface ApprovalPolicyPickerProps {
   value?: VisibleApprovalPolicy
   onChange?: (next: VisibleApprovalPolicy) => void
   disabled?: boolean
+  placeholder?: string
   workspaceDefault?: WorkspaceDefaultApprovalPolicy
 }
 
@@ -51,6 +52,7 @@ export function ApprovalPolicyPicker({
   value: controlledValue,
   onChange,
   disabled = false,
+  placeholder,
   workspaceDefault: workspaceDefaultOverride
 }: ApprovalPolicyPickerProps): JSX.Element {
   const t = useT()
@@ -189,8 +191,8 @@ export function ApprovalPolicyPicker({
     [activeThread, confirm, disabled, onChange, saving, setActiveThread, t, threadId, value]
   )
 
-  const triggerColor = value === 'autoApprove' ? ORANGE : 'var(--composer-footer-text)'
-  const label = getPolicyLabel(t, value)
+  const triggerColor = !placeholder && value === 'autoApprove' ? ORANGE : 'var(--composer-footer-text)'
+  const label = placeholder ?? getPolicyLabel(t, value)
   const tooltipLabel = t('composer.approval.selectTitle')
 
   return (

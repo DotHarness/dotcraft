@@ -10,9 +10,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useComposerContextStore } from '../stores/composerContextStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
-import { useConfigStore } from '../stores/configStore'
 import { useGitStore } from '../stores/gitStore'
-import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useComposerFileReferenceStore } from '../stores/composerFileReferenceStore'
@@ -23,6 +21,7 @@ import { useVoiceStore } from '../voice/voiceStore'
 import { welcomeScopeKey } from '../utils/detailPanelScope'
 import { savePlainComposerDraft } from '../utils/plainComposerDraft'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 
 const workspacePath = 'C:\\workspace'
 const filePath = workspacePath + '\\src\\file with spaces.ts'
@@ -71,10 +70,7 @@ describe('file references in real composer draft lifecycles', () => {
     useConnectionStore.getState().reset()
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })
-    useConfigStore.getState().reset()
-    useConfigStore.setState({ config: {} })
     useGitStore.getState().reset()
-    useModelCatalogStore.getState().reset()
     useThreadStore.getState().reset()
     useThreadStore.setState({
       threadList: ['thread-1', 'thread-2'].map((id) => ({
@@ -110,13 +106,14 @@ describe('file references in real composer draft lifecycles', () => {
     })
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }) },
-      appServer: { sendRequest: appServerSendRequest, onNotification: undefined },
+      appServer: { sendRequest: appServerSendRequest, onNotification: () => () => {} },
       git: {
         listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] })
       },
       workspace: { saveImageToTemp: vi.fn(), getPathForFile: vi.fn() },
       voice: undefined
     })
+    activateTestWorkspace()
   })
 
   it('restores a saved thread draft before inserting queued references on remount', async () => {

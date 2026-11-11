@@ -3,13 +3,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useModelCatalogStore } from '../stores/modelCatalogStore'
-import { useProvidersStore } from '../stores/providersStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useComposerModelControls } from '../components/conversation/useComposerModelControls'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 import type { Thread, ThreadConfigurationWire } from '../types/thread'
 
 const sendRequest = vi.fn()
@@ -48,9 +46,6 @@ describe('composer reasoning persistence', () => {
     configurations.clear()
     configurations.set('thread-1', structuredClone(initialConfig))
     configurations.set('thread-2', structuredClone(initialConfig))
-    useModelCatalogStore.getState().reset()
-    useProvidersStore.getState().reset()
-    useConfigStore.getState().reset()
     selectThread('thread-1')
     useConnectionStore.setState({
       status: 'connected',
@@ -79,6 +74,7 @@ describe('composer reasoning persistence', () => {
       },
       settings: { get: async () => null, set: async () => undefined }
     })
+    activateTestWorkspace()
   })
 
   it('persists Max across navigation and remounts', async () => {

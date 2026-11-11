@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { JsonValue } from '@dotcraft/sdk/contracts'
 import { useConnectionStore } from './connectionStore'
 import { addToast } from './toastStore'
+import { requestWorkspaceResource, workspaceResourceKey, type WorkspaceResourceScope } from './workspaceResourceScope'
 
 export type ConfigObject = Record<string, unknown>
 
@@ -11,9 +12,19 @@ export interface ConfigEdit {
   value: unknown
 }
 
-interface ConfigStore {
+interface ConfigSnapshot {
   config: ConfigObject | null
   pendingKeyPaths: string[]
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  error: string | null
+  confirmed: boolean
+}
+
+interface ConfigStore extends ConfigSnapshot {
+  scopeKey: string | null
+  revision: number
+  activate(scope: WorkspaceResourceScope | null): void
+  prune(liveKeys: ReadonlySet<string>): void
   ensureLoaded(): Promise<void>
   refresh(): Promise<void>
   write(edits: ConfigEdit[]): Promise<void>
@@ -21,9 +32,23 @@ interface ConfigStore {
   reset(): void
 }
 
-let scope = 0
-let writeSeq = 0
-let inFlight: Promise<void> | null = null
+interface ConfigEntry extends ConfigSnapshot {
+  scope: WorkspaceResourceScope
+  baseConfig: ConfigObject | null
+  writes: Map<number, ConfigEdit[]>
+  committedPaths: Map<string, number>
+  writeSeq: number
+  readSeq: number
+  activation: number
+  inFlight: Promise<void> | null
+  inFlightActivation: number
+  refreshAgain: boolean
+}
+
+const emptySnapshot: ConfigSnapshot = {
+  config: null, pendingKeyPaths: [], status: 'idle', error: null, confirmed: false
+}
+const entries = new Map<string, ConfigEntry>()
 
 function isRecord(value: unknown): value is ConfigObject {
   return value != null && typeof value === 'object' && !Array.isArray(value)
@@ -89,86 +114,179 @@ function applyEdits(config: ConfigObject, edits: ConfigEdit[]): ConfigObject {
   return edits.reduce((next, edit) => withConfigValue(next, splitConfigKeyPath(edit.keyPath), edit.value), config)
 }
 
-function removePending(pending: string[], keyPaths: string[]): string[] {
-  const next = [...pending]
-  for (const keyPath of keyPaths) {
-    const index = next.indexOf(keyPath)
-    if (index >= 0) next.splice(index, 1)
+function currentEntry(): ConfigEntry | undefined {
+  const key = useConfigStore.getState().scopeKey
+  return key == null ? undefined : entries.get(key)
+}
+
+function live(entry: ConfigEntry): boolean {
+  return entries.get(workspaceResourceKey(entry.scope)) === entry
+}
+
+function pathKey(path: string): string {
+  return JSON.stringify(splitConfigKeyPath(path).map((segment) => segment.toLowerCase()))
+}
+
+function hasNewerCommit(entry: ConfigEntry, edit: ConfigEdit, sequence: number): boolean {
+  const segments = splitConfigKeyPath(edit.keyPath).map((segment) => segment.toLowerCase())
+  return [...entry.committedPaths].some(([key, committed]) => {
+    if (committed <= sequence) return false
+    const other = JSON.parse(key) as string[]
+    return segments.slice(0, Math.min(segments.length, other.length)).every((segment, index) => segment === other[index])
+  })
+}
+
+function publish(entry: ConfigEntry): void {
+  if (!live(entry)) return
+  let config = entry.baseConfig
+  if (config != null) {
+    for (const [sequence, edits] of entry.writes) {
+      config = applyEdits(config, edits.filter((edit) => !hasNewerCommit(entry, edit, sequence)))
+    }
   }
-  return next
+  entry.config = config
+  entry.pendingKeyPaths = [...entry.writes.values()].flatMap((edits) => edits.map((edit) => edit.keyPath))
+  if (useConfigStore.getState().scopeKey !== workspaceResourceKey(entry.scope)) return
+  const { status, error, confirmed, pendingKeyPaths } = entry
+  useConfigStore.setState({ config, status, error, confirmed, pendingKeyPaths })
+}
+
+function refreshEntry(entry: ConfigEntry): Promise<void> {
+  if (!live(entry)) return Promise.resolve()
+  if (entry.inFlight) {
+    if (entry.inFlightActivation !== entry.activation) entry.refreshAgain = true
+    return entry.inFlight
+  }
+  if (entry.writes.size > 0) {
+    entry.refreshAgain = true
+    return Promise.resolve()
+  }
+  const requestReadSeq = ++entry.readSeq
+  const requestWriteSeq = entry.writeSeq
+  const requestActivation = entry.activation
+  entry.inFlightActivation = requestActivation
+  entry.refreshAgain = false
+  entry.status = entry.config == null ? 'loading' : 'ready'
+  entry.error = null
+  publish(entry)
+  const request = requestWorkspaceResource(entry.scope, 'config/read', {})
+    .then((result) => {
+      if (!live(entry) || requestReadSeq !== entry.readSeq || requestWriteSeq !== entry.writeSeq) return
+      const config = (result as { config?: unknown } | null)?.config
+      entry.baseConfig = isRecord(config) ? config : {}
+      entry.committedPaths.clear()
+      entry.status = 'ready'
+      entry.confirmed = requestActivation === entry.activation
+    }, (error: unknown) => {
+      if (!live(entry) || requestReadSeq !== entry.readSeq || requestWriteSeq !== entry.writeSeq) return
+      entry.status = entry.config == null ? 'error' : 'ready'
+      entry.error = error instanceof Error ? error.message : String(error)
+    })
+    .finally(async () => {
+      if (!live(entry) || entry.inFlight !== request) return
+      entry.inFlight = null
+      publish(entry)
+      if (entry.refreshAgain && entry.writes.size === 0) await refreshEntry(entry)
+    })
+  entry.inFlight = request
+  return request
 }
 
 export const useConfigStore = create<ConfigStore>((set, get) => ({
-  config: null,
-  pendingKeyPaths: [],
+  ...emptySnapshot,
+  scopeKey: null,
+  revision: 0,
+
+  activate(scope) {
+    const key = scope == null ? null : workspaceResourceKey(scope)
+    if (key === get().scopeKey) return
+    if (scope != null && key != null) {
+      for (const [oldKey, old] of entries) {
+        if (old.scope.connectionKey === scope.connectionKey && old.scope.connectionId !== scope.connectionId) entries.delete(oldKey)
+      }
+      let entry = entries.get(key)
+      if (!entry) {
+        entry = {
+          ...emptySnapshot, scope, baseConfig: null, writes: new Map(), committedPaths: new Map(),
+          writeSeq: 0, readSeq: 0, activation: 0, inFlight: null, inFlightActivation: 0, refreshAgain: false
+        }
+        entries.set(key, entry)
+      }
+      entry.activation += 1
+      entry.confirmed = false
+      const { config, pendingKeyPaths, status, error, confirmed } = entry
+      set({ scopeKey: key, revision: get().revision + 1, config, pendingKeyPaths, status, error, confirmed })
+    } else {
+      set({ ...emptySnapshot, scopeKey: null, revision: get().revision + 1 })
+    }
+  },
+
+  prune(liveKeys) {
+    for (const key of entries.keys()) {
+      if (key !== get().scopeKey && !liveKeys.has(key)) entries.delete(key)
+    }
+  },
 
   ensureLoaded() {
-    if (get().config != null) return Promise.resolve()
-    return inFlight ?? get().refresh()
+    const entry = currentEntry()
+    if (!entry || entry.config != null) return Promise.resolve()
+    return refreshEntry(entry)
   },
 
   refresh() {
-    const requestScope = scope
-    const requestWriteSeq = writeSeq
-    const request = window.api.appServer.sendRequest('config/read', {})
-      .then((result) => {
-        if (requestScope !== scope || requestWriteSeq !== writeSeq) return
-        const config = (result as { config?: unknown } | null)?.config
-        set({ config: isRecord(config) ? config : {} })
-      }, () => undefined)
-      .finally(() => {
-        if (inFlight === request) inFlight = null
-      })
-    inFlight = request
-    return request
+    const entry = currentEntry()
+    return entry ? refreshEntry(entry) : Promise.resolve()
   },
 
   async write(edits) {
-    const keyPaths = edits.map((edit) => edit.keyPath)
-    const writeScope = scope
-    const previous = get().config ?? {}
-    const restore = edits.map((edit) => ({ keyPath: edit.keyPath, value: readConfigValue(previous, edit.keyPath) }))
-    writeSeq += 1
-    set((state) => ({
-      config: state.config == null ? null : applyEdits(state.config, edits),
-      pendingKeyPaths: [...state.pendingKeyPaths, ...keyPaths]
-    }))
+    const entry = currentEntry()
+    if (!entry) throw new Error('Workspace configuration is not available.')
+    if (edits.length === 0) return
+    const sequence = ++entry.writeSeq
+    entry.confirmed = false
+    entry.writes.set(sequence, edits)
+    entry.inFlight = null
+    publish(entry)
     const wireEdits = edits.map((edit) => ({
-      keyPath: edit.keyPath,
-      value: edit.value as JsonValue,
-      mergeStrategy: 'replace'
+      keyPath: edit.keyPath, value: edit.value as JsonValue, mergeStrategy: 'replace' as const
     }))
     try {
       if (wireEdits.length === 1) {
-        await window.api.appServer.sendRequest('config/value/write', wireEdits[0], 20_000)
+        await requestWorkspaceResource(entry.scope, 'config/value/write', wireEdits[0], 20_000)
       } else {
-        await window.api.appServer.sendRequest('config/batchWrite', { edits: wireEdits }, 20_000)
+        await requestWorkspaceResource(entry.scope, 'config/batchWrite', { edits: wireEdits }, 20_000)
       }
-    } catch (error) {
-      if (writeScope === scope) {
-        set((state) => ({ config: state.config == null ? null : applyEdits(state.config, restore) }))
+      if (live(entry)) {
+        const applicable = edits.filter((edit) => !hasNewerCommit(entry, edit, sequence))
+        if (entry.baseConfig != null) entry.baseConfig = applyEdits(entry.baseConfig, applicable)
+        for (const edit of applicable) entry.committedPaths.set(pathKey(edit.keyPath), sequence)
       }
-      throw error
     } finally {
-      if (writeScope === scope) {
-        set((state) => ({ pendingKeyPaths: removePending(state.pendingKeyPaths, keyPaths) }))
-        await get().refresh()
+      if (live(entry)) {
+        entry.writes.delete(sequence)
+        publish(entry)
+        if (entry.writes.size === 0) await refreshEntry(entry)
       }
     }
   },
 
   handleConfigChanged(regions) {
-    const config = get().config
-    if (config == null) return
-    if (regions.some((region) => findKey(config, region.split('.')[0]) !== undefined)) {
-      void get().refresh()
-    }
+    const entry = currentEntry()
+    const nonConfigRegions = new Set(['providers', 'skills', 'plugins', 'hooks', 'memory'])
+    if (!entry || !regions.some((region) => {
+      const root = splitConfigKeyPath(region)[0]
+      return (entry.config != null && findKey(entry.config, root) !== undefined) || !nonConfigRegions.has(root.toLowerCase())
+    })) return
+    entry.confirmed = false
+    entry.readSeq += 1
+    entry.refreshAgain = true
+    publish(entry)
+    void refreshEntry(entry)
   },
 
   reset() {
-    scope += 1
-    inFlight = null
-    set({ config: null, pendingKeyPaths: [] })
+    entries.clear()
+    set({ ...emptySnapshot, scopeKey: null, revision: get().revision + 1 })
   }
 }))
 
@@ -186,13 +304,17 @@ export async function writeConfig(
 }
 
 export function useConfig(): ConfigObject | null {
+  const scopeKey = useConfigStore((state) => state.scopeKey)
+  const scope = scopeKey == null ? undefined : entries.get(scopeKey)?.scope
   const available = useConnectionStore((state) =>
-    state.status === 'connected' && state.capabilities?.workspaceConfigManagement === true)
+    state.status === 'connected' && state.capabilities?.workspaceConfigManagement === true &&
+    scope != null && state.connectionKey === scope.connectionKey && state.connectionId === scope.connectionId)
   const config = useConfigStore((state) => state.config)
-  const loaded = config != null
+  const status = useConfigStore((state) => state.status)
+  const revision = useConfigStore((state) => state.revision)
   useEffect(() => {
-    if (available && !loaded) void useConfigStore.getState().ensureLoaded()
-  }, [available, loaded])
+    if (available && status === 'idle') void useConfigStore.getState().ensureLoaded()
+  }, [available, revision, status])
   return available ? config : null
 }
 

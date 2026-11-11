@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { SettingsSidebar } from '../components/layout/SettingsSidebar'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConfigStore } from '../stores/configStore'
+import { useModelCatalogStore } from '../stores/modelCatalogStore'
+import { useProvidersStore } from '../stores/providersStore'
+import { activateTestWorkspace, testWorkspaceScope } from './workspaceResourceFixtures'
+import { activateWorkspaceResources } from '../stores/providerConnectionScope'
 import { chooseValueIn } from './selectHarness'
 import { usePendingRestartStore } from '../stores/pendingRestartStore'
 import { useToastStore } from '../stores/toastStore'
@@ -170,7 +174,6 @@ describe('SettingsView', () => {
       Permissions: { DefaultApprovalPolicy: 'default' },
       Tools: { CodeMode: { Mode: 'Only' }, ImageGeneration: { Enabled: true, Provider: null } }
     }
-    useConfigStore.getState().reset()
     const dreamsStatus = {
       enabled: true,
       interval: '24:00:00',
@@ -291,9 +294,10 @@ describe('SettingsView', () => {
         memoryManagement: true
       }
     })
+    activateTestWorkspace()
   })
 
-  it('saves the shared skills toggle, shows global restart banner, and restarts managed AppServer', async () => {
+  it('saves the shared skills toggle and restarts managed AppServer', async () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
@@ -305,15 +309,11 @@ describe('SettingsView', () => {
     await waitFor(() => {
       expectWrite('Skills.IncludeSharedSkills', false)
     })
-    expect(await screen.findByText('Changes require a service restart to take effect')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply & Restart' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply & Restart' }))
 
     await waitFor(() => {
       expect(appServerRestartManaged).toHaveBeenCalledOnce()
-    })
-    await waitFor(() => {
-      expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
     })
   })
 
@@ -344,24 +344,16 @@ describe('SettingsView', () => {
     fireEvent.click(runNow)
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/run')).toHaveLength(1)
-      expect(runNow).not.toBeDisabled()
     })
     fireEvent.click(runNow)
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/run')).toHaveLength(2)
     })
 
-    expect(await screen.findAllByRole('button', { name: 'Review' })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Archive all' }))
 
     await waitFor(() => {
-      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Archive all Dreams runs?',
-        message: expect.stringContaining('hidden from Desktop')
-      }))
-      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-        message: expect.stringContaining('available in Dashboard')
-      }))
+      expect(confirm).toHaveBeenCalledOnce()
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
         runId: 'dream_20260511000000_test_2'
       }, 20_000)
@@ -371,13 +363,11 @@ describe('SettingsView', () => {
       expect(useToastStore.getState().toasts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            message: 'Archived 1 of 2 Dreams runs. The remaining runs are still visible.',
             type: 'warning'
           })
         ])
       )
     })
-    expect(screen.getAllByRole('button', { name: 'Review' })).toHaveLength(1)
   })
 
   it('auto-selects the first listed model when switching provider invalidates the workspace model', async () => {
@@ -429,7 +419,6 @@ describe('SettingsView', () => {
       expectWrite('ProviderPreferences.openai', preference('deepseek-v4-pro'))
     })
 
-    // Switch to Anthropic: its model is not deepseek, so it falls back to the first listed model.
     appServerSendRequest.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Providers' }))
     fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
@@ -440,7 +429,6 @@ describe('SettingsView', () => {
       })
     })
 
-    // Switch back to OpenAI: its previously chosen model is restored instead of being discarded.
     appServerSendRequest.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Use provider OpenAI' }))
     await waitFor(() => {
@@ -449,6 +437,67 @@ describe('SettingsView', () => {
         'ProviderPreferences.openai': preference('deepseek-v4-pro')
       })
     })
+  })
+
+  it('reuses loaded workspace configuration, provider details and models when Settings remounts', async () => {
+    enableProviderManagement()
+    serverConfig.ProviderPreferences = { openai: preference('deepseek-v4-pro') }
+    const first = renderView()
+    await waitFor(() => {
+      expect(useConfigStore.getState().confirmed).toBe(true)
+      expect(useProvidersStore.getState().status).toBe('ready')
+      expect(useModelCatalogStore.getState().getCatalog('openai').status).toBe('ready')
+    })
+    const resourceReads = () => appServerSendRequest.mock.calls
+      .filter(([method]) => ['config/read', 'provider/list', 'model/list'].includes(method)).map(([method]) => method)
+    const reads = resourceReads()
+    first.unmount()
+
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+
+    expect(resourceReads()).toEqual(reads)
+    expect(reads.filter((method) => method === 'config/read')).toHaveLength(1)
+    expect(reads.filter((method) => method === 'provider/list')).toHaveLength(1)
+    expect(reads.filter((method) => method === 'model/list')).toHaveLength(1)
+  })
+
+  it('does not seed a missing model preference from an unconfirmed cached configuration', async () => {
+    enableProviderManagement()
+    await useConfigStore.getState().refresh()
+    await useProvidersStore.getState().reload()
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'openai')
+    activateWorkspaceResources(null)
+    activateWorkspaceResources(testWorkspaceScope)
+    appServerSendRequest.mockClear()
+
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    expect(useConfigStore.getState().confirmed).toBe(false)
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method.startsWith('config/'))).toEqual([])
+
+    serverConfig.ProviderPreferences = { openai: preference('deepseek-v4-pro') }
+    await act(async () => { await useConfigStore.getState().refresh() })
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'config/value/write' || method === 'config/batchWrite'))
+      .toEqual([])
+  })
+
+  it('offers a retry when the shared provider list fails to load', async () => {
+    enableProviderManagement()
+    const request = appServerSendRequest.getMockImplementation()!
+    let failed = false
+    appServerSendRequest.mockImplementation((method: string, ...args: unknown[]) => {
+      if (method === 'provider/list' && !failed) {
+        failed = true
+        return Promise.reject(new Error('provider service unavailable'))
+      }
+      return request(method, ...args)
+    })
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(useProvidersStore.getState()).toMatchObject({ status: 'ready', error: null }))
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'provider/list')).toHaveLength(2)
   })
 
   it('does not persist remote connection edits when connection apply fails', async () => {

@@ -65,7 +65,6 @@ export function useComposerModelControls({
   const workspaceConfig = useConfig()
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
   const providerOptions = useProvidersStore((s) => s.providers)
-  const reloadProviders = useProvidersStore((s) => s.reload)
   const [providerId, setProviderId] = useState<string>('')
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
@@ -176,11 +175,6 @@ export function useComposerModelControls({
     readReasoningObject(threadConfiguration?.reasoning ?? threadConfiguration?.Reasoning),
     threadConfiguration?.speed ?? threadConfiguration?.Speed ?? null,
   ]), [threadConfiguration])
-
-  useEffect(() => {
-    if (!modelApiAvailable) return
-    void reloadProviders()
-  }, [modelApiAvailable, reloadProviders])
 
   useEffect(() => {
     const workspaceCfg = workspaceConfig ?? {}

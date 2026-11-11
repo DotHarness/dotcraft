@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { hasConfigKeyPathChange } from '../utils/configChanged'
+import { requestWorkspaceResource, workspaceResourceKey, type WorkspaceResourceScope } from './workspaceResourceScope'
 
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
@@ -63,6 +64,9 @@ export interface ModelCatalogState {
 }
 
 interface ModelCatalogActions {
+  activate(scope: WorkspaceResourceScope | null): void
+  prune(liveKeys: ReadonlySet<string>): void
+  revalidate(providerId?: string | null): Promise<ModelCatalogState | null>
   loadIfNeeded(force?: boolean, providerId?: string | null): Promise<ModelCatalogState | null>
   getCatalog(providerId?: string | null): ModelCatalogState
   handleConfigChanged(regions: string[]): void
@@ -72,9 +76,18 @@ interface ModelCatalogActions {
 interface ModelCatalogStore extends ModelCatalogActions {
   catalogs: ReadonlyMap<string | null, ModelCatalogState>
   revision: number
+  scopeKey: string | null
+  scope: WorkspaceResourceScope | null
 }
 
-const inFlightLoads = new Map<string | null, Promise<ModelCatalogState | null>>()
+interface WorkspaceCatalogs {
+  scope: WorkspaceResourceScope
+  catalogs: Map<string | null, ModelCatalogState>
+  inFlight: Map<string | null, Promise<ModelCatalogState | null>>
+}
+
+const workspaces = new Map<string, WorkspaceCatalogs>()
+let activeWorkspace: WorkspaceCatalogs | null = null
 
 function catalogKey(providerId?: string | null): string | null {
   return providerId?.trim().toLowerCase() || null
@@ -230,11 +243,12 @@ function parseModelListError(payload: unknown): { code: string | null; message: 
   }
 }
 
-async function fetchCatalog(providerId: string | null, refresh = false): Promise<ModelCatalogState> {
+async function fetchCatalog(scope: WorkspaceResourceScope, providerId: string | null, refresh: boolean): Promise<ModelCatalogState> {
   const state = { ...initialState, providerId }
   try {
-    const result = refresh ? await window.api.appServer.listModels(providerId, true) : await window.api.appServer.listModels(providerId)
-    if (result == null) return state
+    const result = await requestWorkspaceResource(scope, 'model/list', {
+      ...(providerId ? { providerId } : {}), ...(refresh ? { refresh: true } : {})
+    }, 20_000)
     state.providerId = parseEffectiveProviderId(result, providerId)
     const metadata = result as { source?: string; refreshedAt?: string; refreshNotice?: string }
     state.source = metadata.source
@@ -252,58 +266,111 @@ async function fetchCatalog(providerId: string | null, refresh = false): Promise
   }
 }
 
-export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => ({
-  catalogs: new Map(),
-  revision: 0,
-
-  getCatalog(providerId = null) {
-    return selectModelCatalog(get(), providerId)
-  },
-
-  loadIfNeeded(force = false, providerId = null) {
-    const key = catalogKey(providerId)
-    const pending = inFlightLoads.get(key)
-    if (pending) return pending
-    const cached = get().catalogs.get(key)
-    if (!force && cached?.status === 'ready') return Promise.resolve(cached)
-
-    const publish = (snapshot: ModelCatalogState): void => {
-      set((state) => ({ catalogs: new Map(state.catalogs).set(key, snapshot) }))
-    }
-    publish({ ...initialState, status: 'loading', providerId: key })
-    const load = fetchCatalog(key, force).then((result) => {
-      if (inFlightLoads.get(key) !== load) return null
-      publish(result)
-      const effectiveKey = catalogKey(result.providerId)
-      if (key === null && effectiveKey && result.status === 'ready' && !get().catalogs.has(effectiveKey)) {
-        set((state) => ({ catalogs: new Map(state.catalogs).set(effectiveKey, result) }))
-      }
-      return result.status === 'idle' ? null : result
-    }).finally(() => {
-      if (inFlightLoads.get(key) === load) inFlightLoads.delete(key)
-    })
-    inFlightLoads.set(key, load)
-    return load
-  },
-
-  handleConfigChanged(regions) {
-    if (regions.includes('providers')) {
-      get().reset()
-    } else if (hasConfigKeyPathChange(regions, 'ProviderId')) {
-      inFlightLoads.delete(null)
-      set((state) => {
-        const catalogs = new Map(state.catalogs)
-        catalogs.delete(null)
-        return { catalogs, revision: state.revision + 1 }
-      })
-    }
-  },
-
-  reset() {
-    inFlightLoads.clear()
-    set((state) => ({ catalogs: new Map(), revision: state.revision + 1 }))
+export const useModelCatalogStore = create<ModelCatalogStore>((set, get) => {
+  const publish = (entry: WorkspaceCatalogs): void => {
+    if (entry === activeWorkspace) set({ catalogs: entry.catalogs })
   }
-}))
+  const loadCatalog = (providerId: string | null, revalidate: boolean, force: boolean): Promise<ModelCatalogState | null> => {
+    const entry = activeWorkspace
+    if (!entry) return Promise.resolve(null)
+    const key = catalogKey(providerId)
+    const pending = entry.inFlight.get(key)
+    if (pending) return pending
+    const cached = entry.catalogs.get(key)
+    if (!revalidate && !force && cached?.status === 'ready') return Promise.resolve(cached)
+    if (cached?.status !== 'ready') {
+      entry.catalogs = new Map(entry.catalogs).set(key, { ...initialState, status: 'loading', providerId: key })
+      publish(entry)
+    }
+    const load = fetchCatalog(entry.scope, key, force).then((result) => {
+      if (workspaces.get(workspaceResourceKey(entry.scope)) !== entry || entry.inFlight.get(key) !== load) return null
+      const snapshot = result.status !== 'ready' && cached?.status === 'ready'
+        ? { ...cached, errorCode: result.errorCode, errorMessage: result.errorMessage }
+        : result
+      entry.catalogs = new Map(entry.catalogs).set(key, snapshot)
+      const effectiveKey = catalogKey(snapshot.providerId)
+      for (const [aliasKey, alias] of entry.catalogs) {
+        if (cached && alias === cached && catalogKey(alias.providerId) === effectiveKey && !entry.inFlight.has(aliasKey)) {
+          entry.catalogs.set(aliasKey, snapshot)
+        }
+      }
+      if (key === null && effectiveKey && snapshot.status === 'ready' && !entry.catalogs.has(effectiveKey)) {
+        entry.catalogs.set(effectiveKey, snapshot)
+      }
+      publish(entry)
+      return snapshot
+    }).finally(() => {
+      if (entry.inFlight.get(key) === load) entry.inFlight.delete(key)
+    })
+    entry.inFlight.set(key, load)
+    return load
+  }
+  return {
+    catalogs: new Map(),
+    revision: 0,
+    scopeKey: null,
+    scope: null,
+
+    activate(scope) {
+      const scopeKey = scope ? workspaceResourceKey(scope) : null
+      if (scopeKey === get().scopeKey) return
+      if (scope) {
+        for (const [key, entry] of workspaces) {
+          if (entry.scope.connectionKey === scope.connectionKey && entry.scope.connectionId !== scope.connectionId) workspaces.delete(key)
+        }
+        let entry = workspaces.get(scopeKey!)
+        if (!entry) {
+          entry = { scope, catalogs: new Map(), inFlight: new Map() }
+          workspaces.set(scopeKey!, entry)
+        }
+        activeWorkspace = entry
+      } else {
+        activeWorkspace = null
+      }
+      set((state) => ({ scopeKey, scope, catalogs: activeWorkspace?.catalogs ?? new Map(), revision: state.revision + 1 }))
+    },
+
+    prune(liveKeys) {
+      for (const [key, entry] of workspaces) {
+        if (entry !== activeWorkspace && !liveKeys.has(key)) workspaces.delete(key)
+      }
+    },
+
+    getCatalog(providerId = null) {
+      return selectModelCatalog(get(), providerId)
+    },
+
+    loadIfNeeded(force = false, providerId = null) {
+      return loadCatalog(providerId, false, force)
+    },
+
+    revalidate(providerId = null) {
+      return loadCatalog(providerId, true, false)
+    },
+
+    handleConfigChanged(regions) {
+      const entry = activeWorkspace
+      if (!entry) return
+      if (regions.includes('providers')) {
+        entry.inFlight.clear()
+        const keys = [...entry.catalogs.keys()]
+        set((state) => ({ revision: state.revision + 1 }))
+        for (const key of keys) void loadCatalog(key, true, false)
+      } else if (hasConfigKeyPathChange(regions, 'ProviderId')) {
+        entry.inFlight.delete(null)
+        entry.catalogs = new Map(entry.catalogs)
+        entry.catalogs.delete(null)
+        set((state) => ({ catalogs: entry.catalogs, revision: state.revision + 1 }))
+      }
+    },
+
+    reset() {
+      workspaces.clear()
+      activeWorkspace = null
+      set((state) => ({ scopeKey: null, scope: null, catalogs: new Map(), revision: state.revision + 1 }))
+    }
+  }
+})
 
 export function selectModelCatalog(
   state: Pick<ModelCatalogStore, 'catalogs'>,

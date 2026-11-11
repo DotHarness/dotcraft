@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { resetProviderConnectionScope } from './providerConnectionScope'
 import type { BinarySource } from '../../preload/api.d'
 import type {
   ConnectionErrorType,
@@ -86,12 +85,11 @@ const initialState: ConnectionState = {
   connectionId: null
 }
 
-export const useConnectionStore = create<ConnectionStore>((set, get) => ({
+export const useConnectionStore = create<ConnectionStore>((set) => ({
   ...initialState,
 
   setStatus(payload: ConnectionStatusPayload) {
     const connected = payload.status === 'connected'
-    if (connected && get().status !== 'connected') resetProviderConnectionScope()
     set((state) => ({
       status: payload.status,
       serverInfo: payload.serverInfo ?? null,

@@ -6,8 +6,8 @@ import { useAutomationsStore } from '../stores/automationsStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useMcpStore } from '../stores/mcpStore'
 import { usePluginStore } from '../stores/pluginStore'
-import { useProvidersStore } from '../stores/providersStore'
-import { resetProviderConnectionScope } from '../stores/providerConnectionScope'
+import { activateWorkspaceResources, pruneWorkspaceResources, refreshWorkspaceResources } from '../stores/providerConnectionScope'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore, type PendingProjectThreadOpen } from '../stores/uiStore'
@@ -25,7 +25,6 @@ interface Props {
 function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   prepareDesktopPluginWorkspaceChange(preserveLocalPlugins)
   useThreadStore.getState().resetForeground()
-  resetProviderConnectionScope()
   useMcpStore.getState().reset()
   usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
@@ -65,6 +64,20 @@ export function useForegroundThreadNavigation(props: Props) {
     && workspaceKey !== '' && normalizeWorkspaceProjectKey(connectionKey) === workspaceKey
     && canReloadForegroundThreadList(projectKey, protocolWorkspacePath)
   const readyScope = foregroundReady ? `${identityKey}\u0000${connectionKey}\u0000${connectionId}` : null
+  const projects = useWorkspaceProjectsStore((state) => state.projects)
+  const chat = useWorkspaceProjectsStore((state) => state.chat)
+
+  useLayoutEffect(() => {
+    activateWorkspaceResources(foregroundReady ? {
+      projectKey: workspaceKey, connectionKey: connectionKey!, connectionId: connectionId!
+    } : null)
+  }, [foregroundReady, workspaceKey, connectionKey, connectionId])
+
+  useEffect(() => {
+    if (readyScope) void refreshWorkspaceResources()
+  }, [readyScope])
+
+  useEffect(() => { pruneWorkspaceResources() }, [projects, chat, readyScope])
 
   useLayoutEffect(() => {
     const before = previous.current
@@ -139,11 +152,6 @@ export function useForegroundThreadNavigation(props: Props) {
     lastPluginLoad.current = loadKey
     void usePluginStore.getState().fetchPlugins()
   }, [readyScope, capabilities?.pluginManagement, connectionEpoch])
-
-  useEffect(() => {
-    if (!readyScope || capabilities?.providerManagement !== true) return
-    void useProvidersStore.getState().reload()
-  }, [readyScope, capabilities?.providerManagement, connectionEpoch])
 
   return { ...list, ...restoration, foregroundReady }
 }

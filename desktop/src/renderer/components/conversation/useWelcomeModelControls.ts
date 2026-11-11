@@ -40,6 +40,8 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, work
   const status = useConnectionStore((state) => state.status)
   const capabilities = useConnectionStore((state) => state.capabilities)
   const revision = useModelCatalogStore((state) => state.revision)
+  const configConfirmed = useConfigStore((state) => state.confirmed)
+  const resolvedRevision = useRef<number | null>(null)
   const loadModels = useModelCatalogStore((state) => state.loadIfNeeded)
   const [selection, setSelection] = useState(() => draftSelection(initialDraftRef.current))
   const [modelApplying, setModelApplying] = useState(false)
@@ -52,12 +54,12 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, work
   const configuredPreference = findProviderPreference(
     readProviderPreferences(readConfigValue(workspaceConfig, 'ProviderPreferences')), configuredProvider
   )
-  const pendingConfiguration = configKey !== lastConfigurationKey.current
+  const pendingConfiguration = revision !== resolvedRevision.current || configKey !== lastConfigurationKey.current
   const current = pendingConfiguration && configuredProvider
     ? { providerId: configuredProvider, preference: configuredPreference ?? createManualModelPreference('') }
     : selection
   const { providerId, preference } = current
-  const catalog = useModelCatalog(providerId, modelApiAvailable && Boolean(providerId))
+  const catalog = useModelCatalog(providerId, modelApiAvailable && workspaceConfig != null && Boolean(providerId))
 
   const isCurrentScope = useCallback((requestRevision: number): boolean =>
     useConnectionStore.getState().status === 'connected' &&
@@ -67,6 +69,7 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, work
     if (!modelApiAvailable || workspaceConfig == null) return
     const workspacePreferenceChanged = lastConfigurationKey.current != null && lastConfigurationKey.current !== configKey
     lastConfigurationKey.current = configKey
+    resolvedRevision.current = revision
     const nextProviderId = resolveWorkspaceProviderFromConfig(workspaceConfig)
     if (initialDraftRef.current && !workspacePreferenceChanged && !nextProviderId) return
     let disposed = false
@@ -88,6 +91,7 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, work
     const unresolved = { providerId: nextProviderId, preference: createManualModelPreference('') }
     resolvedWorkspace.current = unresolved
     setSelection(unresolved)
+    if (!configConfirmed) return
     const seed = async (): Promise<void> => {
       const result = await loadModels(false, nextProviderId)
       if (!result || !active()) return
@@ -107,7 +111,7 @@ export function useWelcomeModelControls({ workspaceConfig, initialDraftRef, work
     }
     void seed()
     return () => { disposed = true }
-  }, [configKey, initialDraftRef, isCurrentScope, loadModels, modelApiAvailable, revision, workspaceConfig])
+  }, [configConfirmed, configKey, initialDraftRef, isCurrentScope, loadModels, modelApiAvailable, revision, workspaceConfig])
 
   const hydrateDraft = useCallback((draft: WelcomeDraft): void => {
     setSelection(resolvedWorkspace.current ?? draftSelection(draft))

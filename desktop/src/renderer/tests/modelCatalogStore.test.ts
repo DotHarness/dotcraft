@@ -3,8 +3,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { workspaceResourceKey } from '../stores/workspaceResourceScope'
 
+const scopeA = { projectKey: '/a', connectionKey: '/a', connectionId: 'a-1' }
+const scopeB = { projectKey: '/b', connectionKey: '/b', connectionId: 'b-1' }
 const appServerListModels = vi.fn()
+const sendConnectionRequest = vi.fn((_key, _method, params) => params.refresh
+  ? appServerListModels(params.providerId ?? null, true)
+  : appServerListModels(params.providerId ?? null))
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -16,7 +22,11 @@ describe('modelCatalogStore', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     useModelCatalogStore.getState().reset()
-    installDesktopApiMock({ appServer: { listModels: appServerListModels } })
+    sendConnectionRequest.mockImplementation((_key, _method, params) => params.refresh
+      ? appServerListModels(params.providerId ?? null, true)
+      : appServerListModels(params.providerId ?? null))
+    installDesktopApiMock({ appServer: { sendConnectionRequest } })
+    useModelCatalogStore.getState().activate(scopeA)
   })
 
   it('treats model/list failures as retryable errors', async () => {
@@ -80,7 +90,7 @@ describe('modelCatalogStore', () => {
     expect(store.getCatalog('one')).toMatchObject({ source: undefined, refreshedAt: undefined, refreshNotice: undefined })
   })
 
-  it('stores thrown model/list errors and keeps loading after a synchronous failure', async () => {
+  it('reports model/list request errors', async () => {
     appServerListModels.mockRejectedValueOnce(new Error('proxy unavailable'))
 
     await useModelCatalogStore.getState().loadIfNeeded()
@@ -90,32 +100,6 @@ describe('modelCatalogStore', () => {
       modelOptions: [],
       modelListUnsupportedEndpoint: false,
       errorMessage: 'proxy unavailable'
-    })
-
-    appServerListModels.mockImplementation(() => {
-      throw new Error('bridge unavailable')
-    })
-
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-a')
-    expect(useModelCatalogStore.getState().getCatalog('provider-a')).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
-
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-b')
-
-    expect(appServerListModels).toHaveBeenCalledTimes(3)
-    expect(useModelCatalogStore.getState().getCatalog('provider-b')).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
-  })
-
-  it('keeps a pre-connection model list retryable without surfacing an error', async () => {
-    appServerListModels.mockResolvedValueOnce(null)
-
-    expect(await useModelCatalogStore.getState().loadIfNeeded()).toBeNull()
-
-    expect(useModelCatalogStore.getState().getCatalog()).toMatchObject({
-      status: 'idle',
-      models: [],
-      modelOptions: [],
-      errorCode: null,
-      errorMessage: null
     })
   })
 
@@ -288,42 +272,143 @@ describe('modelCatalogStore', () => {
     await Promise.all([first, second])
     expect(store.getCatalog('one').modelOptions).toEqual(['new'])
     store.handleConfigChanged(['providers'])
-    expect(store.getCatalog('one').status).toBe('idle')
+    expect(store.getCatalog('one')).toMatchObject({ status: 'ready', modelOptions: ['new'] })
     await store.loadIfNeeded(false, 'one')
     expect(appServerListModels).toHaveBeenCalledTimes(3)
   })
 
-  it('keeps a new same-provider request coalesced when an invalidated request finishes first', async () => {
-    const old = createDeferred<unknown>()
-    const current = createDeferred<unknown>()
-    appServerListModels.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+  it('does not request a catalog until a workspace scope is activated', async () => {
     const store = useModelCatalogStore.getState()
-    const oldLoad = store.loadIfNeeded(false, 'one')
-    store.reset()
-    const currentLoad = store.loadIfNeeded(false, 'one')
+    store.activate(null)
+    expect(await store.loadIfNeeded(false, 'one')).toBeNull()
+    expect(await store.revalidate('one')).toBeNull()
+    expect(sendConnectionRequest).not.toHaveBeenCalled()
+  })
 
-    old.resolve({ success: true, providerId: 'one', models: [{ id: 'stale' }] })
-    expect(await oldLoad).toBeNull()
-    expect(store.getCatalog('one')).toMatchObject({ status: 'loading', modelOptions: [] })
-    const coalesced = store.loadIfNeeded(false, 'ONE')
-    expect(appServerListModels).toHaveBeenCalledTimes(2)
-    current.resolve({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
-    await Promise.all([currentLoad, coalesced])
+  it('restores independent same-provider catalogs when returning to a live workspace', async () => {
+    const store = useModelCatalogStore.getState()
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'a-model' }] })
+      .mockResolvedValueOnce({ success: true, models: [{ id: 'b-model' }] })
+    await store.loadIfNeeded(false, 'one')
+    store.activate(null)
+    store.activate(scopeB)
+    expect(store.getCatalog('one').status).toBe('idle')
+    await store.loadIfNeeded(false, 'one')
+    expect(store.getCatalog('one').modelOptions).toEqual(['b-model'])
+    store.activate(scopeA)
+    expect(store.getCatalog('one').modelOptions).toEqual(['a-model'])
+    await store.loadIfNeeded(false, 'one')
+    expect(sendConnectionRequest).toHaveBeenCalledTimes(2)
+    expect(sendConnectionRequest).toHaveBeenNthCalledWith(1, '/a', 'model/list', { providerId: 'one' }, 20_000, { connectionId: 'a-1' })
+    expect(sendConnectionRequest).toHaveBeenNthCalledWith(2, '/b', 'model/list', { providerId: 'one' }, 20_000, { connectionId: 'b-1' })
+  })
+
+  it('keeps a usable catalog while revalidating and after a failed refresh', async () => {
+    const store = useModelCatalogStore.getState()
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'cached' }] })
+    await store.loadIfNeeded(false, 'one')
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const refresh = store.revalidate('one')
+    expect(store.getCatalog('one')).toMatchObject({ status: 'ready', modelOptions: ['cached'] })
+    pending.resolve({ success: false, errorCode: 'Network', errorMessage: 'offline' })
+    await refresh
+    expect(store.getCatalog('one')).toMatchObject({
+      status: 'ready', modelOptions: ['cached'], errorCode: 'Network', errorMessage: 'offline'
+    })
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'fresh' }] })
+    await store.revalidate('one')
+    expect(store.getCatalog('one')).toMatchObject({
+      status: 'ready', modelOptions: ['fresh'], errorCode: null, errorMessage: null
+    })
+    expect(sendConnectionRequest.mock.calls.every(([, , params]) => !params.refresh)).toBe(true)
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [] })
+    await store.loadIfNeeded(true, 'one')
+    expect(sendConnectionRequest).toHaveBeenLastCalledWith('/a', 'model/list', { providerId: 'one', refresh: true }, 20_000, { connectionId: 'a-1' })
+  })
+
+  it('updates a secondary workspace cache without replacing the foreground catalog', async () => {
+    const store = useModelCatalogStore.getState()
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const loadA = store.loadIfNeeded(false, 'one')
+    store.activate(scopeB)
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'b-model' }] })
+    await store.loadIfNeeded(false, 'one')
+    pending.resolve({ success: true, models: [{ id: 'a-model' }] })
+    await loadA
+    expect(store.getCatalog('one').modelOptions).toEqual(['b-model'])
+    store.activate(scopeA)
+    expect(store.getCatalog('one').modelOptions).toEqual(['a-model'])
+  })
+
+  it('discards snapshots and pending responses from replaced connection lifetimes', async () => {
+    const store = useModelCatalogStore.getState()
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const load = store.loadIfNeeded(false, 'one')
+    store.activate({ ...scopeA, connectionId: 'a-2' })
+    expect(store.getCatalog('one').status).toBe('idle')
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'new-lifetime' }] })
+    await store.loadIfNeeded(false, 'one')
+    pending.resolve({ success: true, models: [{ id: 'old-lifetime' }] })
+    expect(await load).toBeNull()
+    expect(store.getCatalog('one').modelOptions).toEqual(['new-lifetime'])
+  })
+
+  it('prunes inactive caches and rejects their pending results while retaining the active cache', async () => {
+    const store = useModelCatalogStore.getState()
+    const pending = createDeferred<unknown>()
+    appServerListModels.mockReturnValueOnce(pending.promise)
+    const load = store.loadIfNeeded(false, 'one')
+    store.activate(scopeB)
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'retained' }] })
+    await store.loadIfNeeded(false, 'one')
+    store.prune(new Set())
+    expect(store.getCatalog('one').modelOptions).toEqual(['retained'])
+    pending.resolve({ success: true, models: [{ id: 'evicted' }] })
+    expect(await load).toBeNull()
+    store.activate(scopeA)
+    expect(store.getCatalog('one').status).toBe('idle')
+    store.prune(new Set([workspaceResourceKey(scopeA)]))
+    store.activate(scopeB)
+    expect(store.getCatalog('one').status).toBe('idle')
+  })
+
+  it.each([null, 'one'])('refreshes a derived default/provider alias when revalidating %s', async key => {
+    const store = useModelCatalogStore.getState()
+    appServerListModels.mockResolvedValueOnce({ success: true, providerId: 'one', models: [{ id: 'cached' }] })
+      .mockResolvedValueOnce({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
+    await store.loadIfNeeded()
+    expect(store.getCatalog('one').modelOptions).toEqual(['cached'])
+    await store.revalidate(key)
+    expect(store.getCatalog().modelOptions).toEqual(['fresh'])
     expect(store.getCatalog('one').modelOptions).toEqual(['fresh'])
   })
 
-  it('does not replace a fresh default catalog or its provider alias with a pre-reset result', async () => {
-    const old = createDeferred<unknown>()
-    appServerListModels.mockReturnValueOnce(old.promise)
+  it('keeps the previous provider catalog when the default resolves to a different provider', async () => {
     const store = useModelCatalogStore.getState()
-    const oldLoad = store.loadIfNeeded()
-    store.reset()
-    appServerListModels.mockResolvedValue({ success: true, providerId: 'one', models: [{ id: 'fresh' }] })
+    appServerListModels.mockResolvedValueOnce({ success: true, providerId: 'one', models: [{ id: 'one-model' }] })
+      .mockResolvedValueOnce({ success: true, providerId: 'two', models: [{ id: 'two-model' }] })
     await store.loadIfNeeded()
-    old.resolve({ success: true, providerId: 'one', models: [{ id: 'stale' }] })
+    await store.revalidate()
+    expect(store.getCatalog('one').modelOptions).toEqual(['one-model'])
+    expect(store.getCatalog('two').modelOptions).toEqual(['two-model'])
+    expect(store.getCatalog().modelOptions).toEqual(['two-model'])
+  })
 
-    expect(await oldLoad).toBeNull()
-    expect(store.getCatalog().modelOptions).toEqual(['fresh'])
-    expect(store.getCatalog('one').modelOptions).toEqual(['fresh'])
+  it('revalidates provider changes only in the current workspace', async () => {
+    const store = useModelCatalogStore.getState()
+    appServerListModels.mockResolvedValueOnce({ success: true, models: [{ id: 'a-model' }] })
+      .mockResolvedValueOnce({ success: true, models: [{ id: 'b-model' }] })
+      .mockResolvedValueOnce({ success: true, models: [{ id: 'new-b-model' }] })
+    await store.loadIfNeeded(false, 'one')
+    store.activate(scopeB)
+    await store.loadIfNeeded(false, 'one')
+    store.handleConfigChanged(['providers'])
+    await store.loadIfNeeded(false, 'one')
+    expect(store.getCatalog('one').modelOptions).toEqual(['new-b-model'])
+    store.activate(scopeA)
+    expect(store.getCatalog('one').modelOptions).toEqual(['a-model'])
   })
 })

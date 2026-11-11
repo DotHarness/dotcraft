@@ -17,18 +17,7 @@ import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { installDesktopApiMock } from './desktopApiMock'
-
-class ResizeObserverMock {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
-Object.defineProperty(globalThis, 'ResizeObserver', {
-  configurable: true,
-  writable: true,
-  value: ResizeObserverMock
-})
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -49,7 +38,7 @@ function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>
   )
 }
 
-describe('InputComposer layout', () => {
+describe('InputComposer interactions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
@@ -63,7 +52,7 @@ describe('InputComposer layout', () => {
 
     installDesktopApiMock({
         settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest, onNotification: undefined },
+        appServer: { sendRequest: appServerSendRequest, onNotification: () => () => {} },
         git: { listBranches: gitListBranches },
         workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl, getPathForFile: () => 'C:\\sample\\workspace\\.dockerignore' },
         voice: undefined
@@ -71,8 +60,7 @@ describe('InputComposer layout', () => {
 
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()
-    useModelCatalogStore.getState().reset()
-    useProvidersStore.getState().reset()
+    activateTestWorkspace()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
     useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
@@ -142,10 +130,8 @@ describe('InputComposer layout', () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'provider/list') return { providers }
       if (method === 'provider/auth/usage') return { available: true }
+      if (method === 'model/list') return { success: true, providerId: 'deepseek', models: [{ id: 'deepseek-v4-pro' }] }
       return {}
-    })
-    window.api.appServer.listModels = vi.fn().mockResolvedValue({
-      success: true, providerId: 'deepseek', models: [{ id: 'deepseek-v4-pro' }]
     })
     renderComposer({ providerId: 'anthropicapi', modelName: 'claude-opus-5-5' })
     await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
@@ -280,9 +266,7 @@ describe('InputComposer layout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop turn' }))
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Stop turn' })).toBeEnabled()
-    })
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1))
     expect(useConversationStore.getState().interruptingTurnId).toBeNull()
     expect(useToastStore.getState().toasts).toEqual(expect.arrayContaining([
       expect.objectContaining({

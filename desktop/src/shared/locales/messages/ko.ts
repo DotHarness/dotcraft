@@ -1,6 +1,7 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_KO = {
+  'workspace.config.loadFailed': "워크스페이스 설정을 불러오지 못했습니다.",
   "settings.import.setup.user": "도구 및 설정",
   "settings.import.setup.userHint": "모든 프로젝트에서 사용 가능",
   "settings.import.setup.workspace": "현재 프로젝트 설정",

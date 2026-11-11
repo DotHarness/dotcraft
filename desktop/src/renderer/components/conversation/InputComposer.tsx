@@ -68,7 +68,7 @@ import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
-import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
+import { useProviderSummary } from '../../stores/providersStore'
 import { ProviderUsageBadge } from './ProviderUsageBadge'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
@@ -290,11 +290,6 @@ function InputComposerCore({
     threadId
   ))
 
-  const reloadProviders = useProvidersStore((s) => s.reload)
-  useEffect(() => {
-    if (capabilities?.providerManagement !== true) return
-    void reloadProviders()
-  }, [capabilities?.providerManagement, reloadProviders])
   const activeUsageProvider = useProviderSummary(desktopPluginSurfaceContext.provider?.id)
 
   const {

@@ -278,9 +278,10 @@ describe('foreground warm navigation', () => {
     const providers = deferred<{}>()
     sendRequest.mockClear().mockImplementation(method => {
       if (method === 'plugin/list') return plugins.promise
-      if (method === 'provider/list') return providers.promise
       return Promise.resolve(method === 'thread/list' ? { data: [b] } : {})
     })
+    sendConnectionRequest.mockClear().mockImplementation((_key, method) =>
+      method === 'provider/list' ? providers.promise : Promise.resolve({}))
     act(() => {
       pending()
       useConnectionStore.getState().setStatus({
@@ -291,7 +292,7 @@ describe('foreground warm navigation', () => {
     expect(sendRequest.mock.calls.some(([method]) => method === 'plugin/list' || method === 'provider/list')).toBe(false)
     act(() => { view.rerender(<View path="/b" />) })
     expect(sendRequest.mock.calls.filter(([method]) => method === 'plugin/list')).toHaveLength(1)
-    expect(sendRequest.mock.calls.filter(([method]) => method === 'provider/list')).toHaveLength(1)
+    expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'provider/list')).toHaveLength(1)
     await act(async () => {
       plugins.resolve({ plugins: [], marketplaces: [], diagnostics: [], snapshotRevision: 1 })
       providers.resolve({ providers: [{ id: 'provider-b', displayName: 'B', protocol: 'openai' }] })

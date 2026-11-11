@@ -72,6 +72,19 @@ describe('configChanged utils', () => {
     expect(second).toBeNull()
   })
 
+  it('does not deduplicate changes from different workspaces or connection lifetimes', () => {
+    const dedupe = new Map<string, number>()
+    const event = {
+      method: 'config/changed',
+      params: { source: 'config/batchWrite', regions: ['Permissions.DefaultApprovalPolicy'],
+        changedAt: '2026-04-19T10:15:03.000Z' }
+    }
+    expect(resolveConfigChangedPayload({ ...event, connectionKey: '/a', connectionId: 'a-1' }, dedupe)).not.toBeNull()
+    expect(resolveConfigChangedPayload({ ...event, connectionKey: '/b', connectionId: 'b-1' }, dedupe)).not.toBeNull()
+    expect(resolveConfigChangedPayload({ ...event, connectionKey: '/a', connectionId: 'a-2' }, dedupe)).not.toBeNull()
+    expect(resolveConfigChangedPayload({ ...event, connectionKey: '/a', connectionId: 'a-2' }, dedupe)).toBeNull()
+  })
+
   it('keeps non-duplicated regions when only part of the event is deduped', () => {
     const dedupe = new Map<string, number>([['config/batchWrite:skills', Date.parse('2026-04-19T10:15:03.000Z')]])
 

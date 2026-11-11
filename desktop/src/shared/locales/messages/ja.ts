@@ -1,6 +1,7 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_JA = {
+  'workspace.config.loadFailed': "ワークスペースの設定を読み込めませんでした。",
   "settings.import.setup.user": "ツールと設定",
   "settings.import.setup.userHint": "すべてのプロジェクトで利用可能",
   "settings.import.setup.workspace": "現在のプロジェクトの設定",

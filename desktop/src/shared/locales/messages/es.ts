@@ -1,6 +1,7 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ES = {
+  'workspace.config.loadFailed': "No se pudo cargar la configuración del espacio de trabajo.",
   "settings.import.setup.user": "Herramientas y configuración",
   "settings.import.setup.userHint": "Disponible en todos tus proyectos",
   "settings.import.setup.workspace": "Configuración del proyecto actual",

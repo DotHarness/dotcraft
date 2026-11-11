@@ -1,4 +1,6 @@
-import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
+import type { ProviderInfoWire } from './providerInfo'
+import { useSettingsProviderResources, useSettingsResourceScope, isSettingsResourceScopeCurrent } from './useSettingsProviderResources'
+import { useSettingsModelResources } from './useSettingsModelResources'
 import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserLinkSettings } from './BrowserLinkSettings'
@@ -68,6 +70,7 @@ import {
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { PersonalizationPanelShell } from './PersonalizationPanelShell'
 import { SettingsPanelShell } from './SettingsPanelShell'
+import { WorkspaceResourceNotice } from './WorkspaceResourceNotice'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
@@ -131,12 +134,7 @@ import {
   readProviderPreferences,
   type ModelPreference
 } from '../../../shared/modelPreference'
-import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
-import {
-  parseModelCatalogItems,
-  useModelCatalogStore,
-  type ModelCatalogItem
-} from '../../stores/modelCatalogStore'
+import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import {
   createCatalogDefaultPreference,
   normalizePreferenceForModel,
@@ -279,10 +277,6 @@ export function SettingsView({
     remoteUrl: string
     remoteToken: string
   } | null>(null)
-  const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
-  const [providers, setProviders] = useState<ProviderInfoWire[]>([])
-  const [providersLoading, setProvidersLoading] = useState(false)
-  const [providerBackends, setProviderBackends] = useState<ProviderBackendInfo[] | null>(null)
   const [providerDraft, setProviderDraft] = useState<ProviderDraft>(() => createProviderDraft())
   const [providerEditorId, setProviderEditorId] = useState<ProviderEditorId>(null)
   const providerEditorIdRef = useRef(providerEditorId)
@@ -297,10 +291,6 @@ export function SettingsView({
   const [testingProvider, setTestingProvider] = useState(false)
   const [savingProvider, setSavingProvider] = useState(false)
   const [deletingProvider, setDeletingProvider] = useState(false)
-  const [providerModelCatalog, setProviderModelCatalog] = useState<ModelCatalogItem[]>([])
-  const [providerModelLoading, setProviderModelLoading] = useState(false)
-  const [providerModelError, setProviderModelError] = useState('')
-  const providerModelRequestSeqRef = useRef(0)
   const [workspaceManualModelDraft, setWorkspaceManualModelDraft] = useState('')
   const [applyingWorkspaceProvider, setApplyingWorkspaceProvider] = useState(false)
   const [applyingWorkspaceModel, setApplyingWorkspaceModel] = useState(false)
@@ -309,6 +299,7 @@ export function SettingsView({
   const inputRef = useRef<HTMLInputElement>(null)
   const settingsCloseRequestSeqRef = useRef(settingsCloseRequestSeq)
   const workspaceConfig = useConfig()
+  const configConfirmed = useConfigStore((state) => state.confirmed)
   const configProviderPreferences = useMemo(
     () => readProviderPreferences(readConfigValue(workspaceConfig, 'ProviderPreferences')),
     [workspaceConfig]
@@ -359,6 +350,9 @@ export function SettingsView({
   const dreamsCapabilityEnabled = capabilities?.dreams === true
   const sessionImportEnabled = isSessionImportAvailable(capabilities)
   const configManagementEnabled = capabilities?.workspaceConfigManagement === true
+  const resourceScope = useSettingsResourceScope(configManagementEnabled)
+  const { providers, providersManagedRemotely, providersLoading, providersReady, providerError, providerBackends, reloadProviders } =
+    useSettingsProviderResources(providerManagementEnabled)
   const personalizationAvailable = configManagementEnabled || memoryManagementEnabled || dreamsCapabilityEnabled
   const dreams = useDreamsSettings({
     available: dreamsCapabilityEnabled,
@@ -377,12 +371,13 @@ export function SettingsView({
   const providerEditingEnabled = providerManagementEnabled && configManagementEnabled && !providersManagedRemotely
   const selectedProviderMissing =
     selectedProviderId.trim() !== '' &&
-    !providersLoading &&
-    providers.length > 0 &&
+    providerManagementEnabled && providersReady &&
     selectedProvider == null
-  const workspaceProviderMissingMessage = selectedProviderMissing
-    ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
-    : ''
+  const { providerModelCatalog, providerModelLoading, providerModelError,
+    fetchWorkspaceProviderModelOptions, reloadProviderPreferences } = useSettingsModelResources(
+    selectedProviderId, modelCatalogManagementEnabled && workspaceConfig != null &&
+      (!providerManagementEnabled || providersReady), selectedProviderMissing
+  )
   const sshManagedConnection = connectionMode === 'remote' && sshManagedSession
   const manualRemoteConnection = connectionMode === 'remote' && !sshManagedConnection
   const localConnectionSettingsEnabled = connectionMode !== 'remote'
@@ -413,128 +408,15 @@ export function SettingsView({
     setWorkspaceManualModelDraft(resolvedPreference.model)
   }, [configLlm])
 
-  async function reloadProviders(): Promise<boolean> {
-    if (!providerManagementEnabled) {
-      setProviders([])
-      return false
-    }
-    setProvidersLoading(true)
-    try {
-      const [result, backendResult] = await Promise.all([
-        window.api.appServer.sendRequest('provider/list', {}, 20_000),
-        window.api.appServer.sendRequest('provider/backend/list', {}, 20_000).catch(() => null)
-      ])
-      setProvidersManagedRemotely((result as { managedBy?: string }).managedBy === 'modelService')
-      setProviders(normalizeProviderList(result))
-      const backends = (backendResult as { backends?: unknown } | null)?.backends
-      setProviderBackends(Array.isArray(backends) ? backends as ProviderBackendInfo[] : null)
-      return true
-    } catch (err) {
-      addToast(t('settings.llm.toast.loadProvidersFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-      return false
-    } finally {
-      setProvidersLoading(false)
-    }
-  }
-
-  async function reloadProviderPreferences(providerId: string): Promise<void> {
-    const requestSeq = ++providerModelRequestSeqRef.current
-    if (!modelCatalogManagementEnabled) {
-      setProviderModelCatalog([])
-      setProviderModelLoading(false)
-      return
-    }
-    const normalizedProviderId = providerId.trim()
-    if (
-      providerManagementEnabled &&
-      !providersLoading &&
-      providers.length > 0 &&
-      normalizedProviderId &&
-      !providers.some((provider) => provider.id === normalizedProviderId)
-    ) {
-      setProviderModelCatalog([])
-      setProviderModelError(t('settings.llm.workspaceProviderMissing', { providerId: normalizedProviderId }))
-      return
-    }
-    setProviderModelLoading(true)
-    setProviderModelError('')
-    try {
-      const result = await window.api.appServer.sendRequest(
-        'model/list',
-        normalizedProviderId ? { providerId: normalizedProviderId } : {},
-        20_000
-      ) as {
-        success?: boolean
-        models?: Array<{ id?: string; Id?: string }>
-        errorMessage?: string
-        ErrorMessage?: string
-      }
-      if (requestSeq !== providerModelRequestSeqRef.current) return
-      if (result.success === false) {
-        setProviderModelCatalog([])
-        setProviderModelError(
-          result.errorMessage ??
-          result.ErrorMessage ??
-          t('settings.llm.modelListUnavailable')
-        )
-        return
-      }
-      const models = parseModelCatalogItems(result)
-      setProviderModelCatalog(models)
-    } catch (err) {
-      if (requestSeq !== providerModelRequestSeqRef.current) return
-      setProviderModelCatalog([])
-      setProviderModelError(err instanceof Error ? err.message : String(err))
-    } finally {
-      if (requestSeq === providerModelRequestSeqRef.current) {
-        setProviderModelLoading(false)
-      }
-    }
-  }
-
-  async function fetchWorkspaceProviderModelOptions(providerId: string): Promise<ModelCatalogItem[] | null> {
-    if (!modelCatalogManagementEnabled) return null
-
-    try {
-      const result = await window.api.appServer.sendRequest(
-        'model/list',
-        providerId.trim() ? { providerId: providerId.trim() } : {},
-        20_000
-      ) as {
-        success?: boolean
-        models?: Array<{ id?: string; Id?: string }>
-      }
-      if (result.success === false) return null
-      return parseModelCatalogItems(result)
-    } catch {
-      return null
-    }
-  }
-
-  useEffect(() => {
-    if (!providerManagementEnabled) return
-    void reloadProviders()
-  }, [providerManagementEnabled])
-
-  useEffect(() => {
-    if (!providerManagementEnabled || workspaceConfigChangeSeq === 0) return
-    if (workspaceConfigChange?.regions.includes('providers')) {
-      void reloadProviders()
-    }
-  }, [providerManagementEnabled, workspaceConfigChange, workspaceConfigChangeSeq])
-
-  useEffect(() => {
-    if (!selectedProviderId) return
-    void reloadProviderPreferences(selectedProviderId)
-  }, [modelCatalogManagementEnabled, selectedProviderId])
-
   useEffect(() => {
     if (
-      providerModelLoading
+      !configConfirmed
+      || resourceScope == null
+      || providerModelLoading
       || applyingWorkspaceModel
       || !selectedProviderId.trim()
+      || selectedProviderId !== configProviderId
+      || findProviderPreference(configProviderPreferences, selectedProviderId)?.model.trim()
       || workspacePreference.model.trim()
       || providerModelCatalog.length === 0
     ) {
@@ -551,18 +433,16 @@ export function SettingsView({
     void persistWorkspacePreference(nextPreference, previousPreference)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    configConfirmed,
+    configProviderId,
+    configProviderPreferences,
+    resourceScope,
     applyingWorkspaceModel,
     providerModelCatalog,
     providerModelLoading,
     selectedProviderId,
     workspacePreference.model
   ])
-
-  useEffect(() => {
-    if (!selectedProviderMissing) return
-    setProviderModelCatalog([])
-    setProviderModelError(workspaceProviderMissingMessage)
-  }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
   function startCreateProvider(): void {
     providerEditorIdRef.current = '__new__'
@@ -586,15 +466,15 @@ export function SettingsView({
 
   async function handleWorkspaceProviderChange(providerId: string): Promise<void> {
     const normalized = providerId.trim()
-    if (!normalized || normalized === selectedProviderId || applyingWorkspaceProvider) return
+    if (!resourceScope || !isSettingsResourceScopeCurrent(resourceScope) ||
+        !normalized || normalized === selectedProviderId || applyingWorkspaceProvider) return
 
     const previousProviderId = selectedProviderId
     const previousPreference = cloneModelPreference(workspacePreference)
     setApplyingWorkspaceProvider(true)
-    setProviderModelCatalog([])
-    setProviderModelError('')
     try {
       const listedModels = await fetchWorkspaceProviderModelOptions(normalized)
+      if (!isSettingsResourceScopeCurrent(resourceScope)) return
       const rememberedPreference = findProviderPreference(configProviderPreferences, normalized)
       const listedRemembered = rememberedPreference == null
         ? undefined
@@ -612,15 +492,13 @@ export function SettingsView({
         { keyPath: 'ProviderId', value: normalized },
         ...(nextPreference.model ? [providerPreferenceEdit(normalized, nextPreference)] : [])
       ])
+      if (!isSettingsResourceScopeCurrent(resourceScope)) return
       selectedProviderIdRef.current = normalized
       setSelectedProviderId(normalized)
-      if (listedModels != null) {
-        setProviderModelCatalog(listedModels)
-        setProviderModelError('')
-      }
       setWorkspacePreference(nextPreference)
       setWorkspaceManualModelDraft(nextPreference.model)
     } catch (err) {
+      if (!isSettingsResourceScopeCurrent(resourceScope)) return
       selectedProviderIdRef.current = previousProviderId
       setSelectedProviderId(previousProviderId)
       setWorkspacePreference(previousPreference)
@@ -629,7 +507,7 @@ export function SettingsView({
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
     } finally {
-      setApplyingWorkspaceProvider(false)
+      if (isSettingsResourceScopeCurrent(resourceScope)) setApplyingWorkspaceProvider(false)
     }
   }
 
@@ -637,6 +515,7 @@ export function SettingsView({
     nextPreference: ModelPreference,
     previousPreference: ModelPreference
   ): Promise<void> {
+    if (!resourceScope || !isSettingsResourceScopeCurrent(resourceScope)) return
     setApplyingWorkspaceModel(true)
     try {
       const activeProviderId = selectedProviderId.trim()
@@ -644,16 +523,18 @@ export function SettingsView({
       const normalized = cloneModelPreference(nextPreference)
       normalized.model = normalized.model.trim()
       await useConfigStore.getState().write([providerPreferenceEdit(activeProviderId, normalized)])
+      if (!isSettingsResourceScopeCurrent(resourceScope)) return
       setWorkspacePreference(normalized)
       setWorkspaceManualModelDraft(normalized.model)
     } catch (err) {
+      if (!isSettingsResourceScopeCurrent(resourceScope)) return
       setWorkspacePreference(previousPreference)
       setWorkspaceManualModelDraft(previousPreference.model)
       addToast(t('settings.llm.toast.saveModelFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
     } finally {
-      setApplyingWorkspaceModel(false)
+      if (isSettingsResourceScopeCurrent(resourceScope)) setApplyingWorkspaceModel(false)
     }
   }
 
@@ -786,7 +667,9 @@ export function SettingsView({
   }
 
   async function refreshAfterProviderSignIn(providerId: string): Promise<void> {
-    await reloadProviders()
+    if (!resourceScope || !isSettingsResourceScopeCurrent(resourceScope)) return
+    const refreshed = await reloadProviders()
+    if (!refreshed || !isSettingsResourceScopeCurrent(resourceScope)) return
     useModelCatalogStore.getState().handleConfigChanged(['providers'])
     if (selectedProviderIdRef.current === providerId) void reloadProviderPreferences(providerId)
   }
@@ -1516,6 +1399,7 @@ export function SettingsView({
     >
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
+          <WorkspaceResourceNotice providerError={providerError} onRetryProviders={() => { void reloadProviders() }} />
           <Suspense fallback={<SettingsPanelSkeleton />}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>
@@ -1670,7 +1554,7 @@ export function SettingsView({
                               id="settings-workspace-provider"
                               value={selectedProviderId}
                               providers={providers}
-                              disabled={applyingWorkspaceProvider || providersLoading}
+                              disabled={!resourceScope || workspaceConfig == null || applyingWorkspaceProvider || providersLoading}
                               ariaLabel={t('settings.llm.workspaceProvider')}
                               style={{ width: 200, flexShrink: 0 }}
                               onValueChange={(providerId) => {
@@ -1682,7 +1566,7 @@ export function SettingsView({
                                 preference={workspacePreference}
                                 models={providerModelCatalog}
                                 loading={providerModelLoading}
-                                disabled={applyingWorkspaceModel || applyingWorkspaceProvider}
+                                disabled={!resourceScope || workspaceConfig == null || applyingWorkspaceModel || applyingWorkspaceProvider}
                                 errorMessage={providerModelError || null}
                                 manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
                                 onRetry={() => void reloadProviderPreferences(selectedProviderId)}

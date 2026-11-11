@@ -16,6 +16,7 @@ import { beginThreadRestoration, finishThreadRestoration } from '../stores/threa
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
@@ -59,7 +60,8 @@ beforeEach(() => {
   createThreadConversation('thread-2')
   selectThread('thread-1')
   useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
-  useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
+  activateTestWorkspace()
+  useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } }, status: 'ready', confirmed: true })
   stopSuggestions = initPromptSuggestionStore()
 })
 

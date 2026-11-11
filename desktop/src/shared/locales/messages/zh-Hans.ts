@@ -1,6 +1,7 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ZH_HANS = {
+  'workspace.config.loadFailed': "无法加载工作区设置。",
   "settings.import.setup.user": "工具与设置",
   "settings.import.setup.userHint": "在你的所有项目中可用",
   "settings.import.setup.workspace": "当前项目的配置",

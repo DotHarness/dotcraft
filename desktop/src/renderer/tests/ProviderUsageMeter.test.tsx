@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { ProviderUsageMeter } from '../components/settings/providers/ProviderUsageMeter'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useProvidersStore } from '../stores/providersStore'
+import { activateTestWorkspace } from './workspaceResourceFixtures'
 
 afterEach(() => {
   cleanup()
@@ -10,6 +11,7 @@ afterEach(() => {
 })
 
 it('dismisses usage with Escape while the trigger keeps focus without forwarding keys to the provider row', () => {
+  activateTestWorkspace()
   useProvidersStore.getState().applyUsage('provider', {
     available: true,
     planType: null,

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { requestWorkspaceResource, workspaceResourceKey, type WorkspaceResourceScope } from './workspaceResourceScope'
 
 export interface ProviderSummary {
   id: string
@@ -46,28 +47,54 @@ export interface ProviderUsageSnapshot {
 
 interface ProvidersState {
   providers: ProviderSummary[]
+  listResult: unknown | null
   status: 'idle' | 'loading' | 'ready' | 'error'
+  error: string | null
   usage: Record<string, ProviderUsageSnapshot>
 }
 
 interface ProvidersStore extends ProvidersState {
+  activate(scope: WorkspaceResourceScope | null): void
+  prune(liveKeys: ReadonlySet<string>): void
   reload(): Promise<void>
   reset(): void
-  upsert(provider: ProviderSummary): void
   applyUsage(providerId: string, snapshot: ProviderUsageSnapshot | null): void
   refreshUsage(providerId: string): Promise<void>
 }
 
 const initialState: ProvidersState = {
   providers: [],
+  listResult: null,
   status: 'idle',
+  error: null,
   usage: {}
 }
 
-let scope = 0
-let inFlight: Promise<void> | null = null
+interface ProviderListEntry {
+  scope: WorkspaceResourceScope
+  providers: ProviderSummary[]
+  listResult: unknown | null
+  status: ProvidersState['status']
+  error: string | null
+  inFlight: Promise<void> | null
+}
+
+const entries = new Map<string, ProviderListEntry>()
+let activeEntry: ProviderListEntry | null = null
+let usageGeneration = 0
 const inFlightUsage = new Map<string, Promise<void>>()
 let usageNotificationUnsubscribe: (() => void) | null = null
+
+function detachUsage(): void {
+  usageGeneration += 1
+  inFlightUsage.clear()
+  usageNotificationUnsubscribe?.()
+  usageNotificationUnsubscribe = null
+}
+
+function isLive(entry: ProviderListEntry): boolean {
+  return entries.get(workspaceResourceKey(entry.scope)) === entry
+}
 
 function usageKey(providerId: string): string {
   return providerId.trim().toLowerCase()
@@ -135,108 +162,130 @@ function parseBalances(value: unknown): ProviderUsageBalance[] | null {
   })
 }
 
-export const useProvidersStore = create<ProvidersStore>((set, get) => ({
-  ...initialState,
-  reset() {
-    scope += 1
-    inFlight = null
-    inFlightUsage.clear()
-    usageNotificationUnsubscribe?.()
-    usageNotificationUnsubscribe = null
-    set(initialState)
-  },
-  async reload() {
-    if (inFlight) {
-      await inFlight
-      return
-    }
-    if (typeof window === 'undefined' || !window.api?.appServer?.sendRequest) {
-      set({ status: 'error' })
-      return
-    }
-    const requestScope = scope
-    const next = (async () => {
-      set({ status: 'loading' })
-      try {
-        const result = await window.api.appServer.sendRequest('provider/list', {}, 15_000) as
-          | { providers?: Array<Record<string, unknown>> }
-          | null
-        if (requestScope !== scope) return
-        const list = (result?.providers ?? [])
-          .map((raw): ProviderSummary | null => {
-            if (!raw || typeof raw !== 'object') return null
-            const id = typeof raw.id === 'string' ? raw.id : ''
-            if (!id) return null
-            const authMethodRaw = typeof raw.authMethod === 'string' ? raw.authMethod.toLowerCase() : ''
-            return {
-              id,
-              displayName: typeof raw.displayName === 'string' ? raw.displayName : id,
-              protocol: typeof raw.protocol === 'string' ? raw.protocol : '',
-              authMethod: authMethodRaw === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
-              backendId: typeof raw.backendId === 'string' && raw.backendId ? raw.backendId : undefined,
-              endPoint: typeof raw.endPoint === 'string' ? raw.endPoint : undefined,
-              webSearchBackend: typeof raw.webSearchBackend === 'string' ? raw.webSearchBackend : undefined
-            }
-          })
-          .filter((p): p is ProviderSummary => p !== null)
-        set({ providers: list, status: 'ready' })
-      } catch {
-        if (requestScope === scope) set({ status: 'error' })
-      }
-    })()
-    inFlight = next
-    try {
-      await next
-    } finally {
-      if (inFlight === next) inFlight = null
-    }
-  },
-  upsert(provider: ProviderSummary) {
-    const current = get().providers
-    const filtered = current.filter((p) => p.id.toLowerCase() !== provider.id.toLowerCase())
-    set({ providers: [...filtered, provider] })
-  },
-  applyUsage(providerId: string, snapshot: ProviderUsageSnapshot | null) {
-    const key = usageKey(providerId)
-    const usage = { ...get().usage }
-    if (snapshot) usage[key] = snapshot
-    else delete usage[key]
-    set({ usage })
-  },
-  async refreshUsage(providerId: string) {
-    const key = usageKey(providerId)
-    if (!key) return
-    const pending = inFlightUsage.get(key)
-    if (pending) {
-      await pending
-      return
-    }
-    if (typeof window === 'undefined' || !window.api?.appServer?.sendRequest) return
-    ensureUsageSubscription()
-    const requestScope = scope
-    const next = (async () => {
-      try {
-        const result = await window.api.appServer.sendRequest('provider/auth/usage', { providerId }, 30_000)
-        if (requestScope === scope) get().applyUsage(providerId, parseUsage(result))
-      } catch {
+export const useProvidersStore = create<ProvidersStore>((set, get) => {
+  const publish = (entry: ProviderListEntry): void => {
+    if (activeEntry !== entry) return
+    set({ providers: entry.providers, listResult: entry.listResult, status: entry.status, error: entry.error })
+  }
+  return {
+    ...initialState,
+    activate(scope) {
+      const key = scope ? workspaceResourceKey(scope) : null
+      if (activeEntry && key === workspaceResourceKey(activeEntry.scope)) return
+      if (!activeEntry && !scope) return
+      detachUsage()
+      if (!scope || !key) {
+        activeEntry = null
+        set(initialState)
         return
       }
-    })()
-    inFlightUsage.set(key, next)
-    try {
-      await next
-    } finally {
-      if (inFlightUsage.get(key) === next) inFlightUsage.delete(key)
+      for (const [oldKey, old] of entries) {
+        if (old.scope.connectionKey === scope.connectionKey && old.scope.connectionId !== scope.connectionId) entries.delete(oldKey)
+      }
+      let entry = entries.get(key)
+      if (!entry) {
+        entry = { scope, providers: [], listResult: null, status: 'idle', error: null, inFlight: null }
+        entries.set(key, entry)
+      }
+      activeEntry = entry
+      set({ providers: entry.providers, listResult: entry.listResult, status: entry.status, error: entry.error, usage: {} })
+    },
+    prune(liveKeys) {
+      for (const [key, entry] of entries) {
+        if (entry !== activeEntry && !liveKeys.has(key)) entries.delete(key)
+      }
+    },
+    reset() {
+      detachUsage()
+      entries.clear()
+      activeEntry = null
+      set(initialState)
+    },
+    reload() {
+      const entry = activeEntry
+      if (!entry) return Promise.resolve()
+      if (entry.inFlight) return entry.inFlight
+      entry.error = null
+      if (entry.status !== 'ready') entry.status = 'loading'
+      publish(entry)
+      const next = (async () => {
+        try {
+          const result = await requestWorkspaceResource(entry.scope, 'provider/list', {}, 15_000) as
+            | { providers?: Array<Record<string, unknown>> }
+            | null
+          if (!isLive(entry)) return
+          entry.listResult = result
+          entry.providers = (result?.providers ?? [])
+            .map((raw): ProviderSummary | null => {
+              if (!raw || typeof raw !== 'object') return null
+              const id = typeof raw.id === 'string' ? raw.id : ''
+              if (!id) return null
+              const authMethodRaw = typeof raw.authMethod === 'string' ? raw.authMethod.toLowerCase() : ''
+              return {
+                id,
+                displayName: typeof raw.displayName === 'string' ? raw.displayName : id,
+                protocol: typeof raw.protocol === 'string' ? raw.protocol : '',
+                authMethod: authMethodRaw === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
+                backendId: typeof raw.backendId === 'string' && raw.backendId ? raw.backendId : undefined,
+                endPoint: typeof raw.endPoint === 'string' ? raw.endPoint : undefined,
+                webSearchBackend: typeof raw.webSearchBackend === 'string' ? raw.webSearchBackend : undefined
+              }
+            })
+            .filter((provider): provider is ProviderSummary => provider !== null)
+          entry.status = 'ready'
+        } catch (error) {
+          if (!isLive(entry)) return
+          entry.error = error instanceof Error ? error.message : String(error)
+          if (entry.status !== 'ready') entry.status = 'error'
+        } finally {
+          if (isLive(entry)) publish(entry)
+        }
+      })()
+      entry.inFlight = next
+      void next.finally(() => { if (entry.inFlight === next) entry.inFlight = null })
+      return next
+    },
+    applyUsage(providerId, snapshot) {
+      if (!activeEntry) return
+      const key = usageKey(providerId)
+      const usage = { ...get().usage }
+      if (snapshot) usage[key] = snapshot
+      else delete usage[key]
+      set({ usage })
+    },
+    async refreshUsage(providerId) {
+      const entry = activeEntry
+      const key = usageKey(providerId)
+      if (!entry || !key) return
+      const pending = inFlightUsage.get(key)
+      if (pending) return pending
+      ensureUsageSubscription(entry)
+      const generation = usageGeneration
+      const next = (async () => {
+        try {
+          const result = await requestWorkspaceResource(entry.scope, 'provider/auth/usage', { providerId: providerId.trim() }, 30_000)
+          if (activeEntry === entry && generation === usageGeneration) get().applyUsage(providerId, parseUsage(result))
+        } catch {
+          return
+        }
+      })()
+      inFlightUsage.set(key, next)
+      try {
+        await next
+      } finally {
+        if (inFlightUsage.get(key) === next) inFlightUsage.delete(key)
+      }
     }
   }
-}))
+})
 
-function ensureUsageSubscription(): void {
+function ensureUsageSubscription(entry: ProviderListEntry): void {
   if (usageNotificationUnsubscribe) return
-  if (typeof window === 'undefined' || !window.api?.appServer?.onNotification) return
-  const subscriptionScope = scope
+  const generation = usageGeneration
   usageNotificationUnsubscribe = window.api.appServer.onNotification((payload) => {
-    if (subscriptionScope !== scope || payload.foreground === false) return
+    if (generation !== usageGeneration || activeEntry !== entry || payload.foreground === false) return
+    if (payload.connectionKey && payload.connectionKey !== entry.scope.connectionKey) return
+    if (payload.connectionId && payload.connectionId !== entry.scope.connectionId) return
     if (payload?.method === 'turn/completed') {
       refreshMeteredUsage()
       return

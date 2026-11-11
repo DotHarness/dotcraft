@@ -62,7 +62,22 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
     titleBarOverlayHeight: 0,
     ...overrides,
-    appServer: { ...APP_SERVER_DEFAULT, ...overrides.appServer },
+    appServer: {
+      ...APP_SERVER_DEFAULT,
+      sendConnectionRequest: (_key: string, method: string, params: Record<string, unknown>, timeout?: number) => {
+        if (method === 'model/list' && overrides.appServer?.listModels) {
+          return params.refresh === true
+            ? overrides.appServer.listModels(params.providerId as string | null, true)
+            : overrides.appServer.listModels(params.providerId as string | null)
+        }
+        const send = overrides.appServer?.sendRequest
+        if (!send) throw new Error(`Unimplemented desktop API call: ${method}`)
+        return timeout === undefined
+          ? send(method as never, params as never)
+          : send(method as never, params as never, timeout)
+      },
+      ...overrides.appServer
+    },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },

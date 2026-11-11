@@ -3,13 +3,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
-import { useProvidersStore } from '../stores/providersStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useComposerModelControls, type ComposerModelControls } from '../components/conversation/useComposerModelControls'
 import { installDesktopApiMock } from './desktopApiMock'
+import { activateTestWorkspace, testWorkspaceScope } from './workspaceResourceFixtures'
 import type { Thread, ThreadConfigurationWire } from '../types/thread'
 import { useToastStore } from '../stores/toastStore'
 
@@ -70,9 +69,6 @@ async function deliverThreadSnapshot(configuration: ThreadConfigurationWire): Pr
 describe('useComposerModelControls catalog loading', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    useModelCatalogStore.getState().reset()
-    useProvidersStore.getState().reset()
-    useConfigStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     useThreadStore.setState({
       activeThreadId: 'thread-1',
@@ -99,6 +95,7 @@ describe('useComposerModelControls catalog loading', () => {
       appServer: { listModels, sendRequest, onNotification: () => () => undefined },
       settings: { get: async () => null, set: async () => undefined }
     })
+    activateTestWorkspace()
   })
 
   it('does not reload the catalog for an unchanged thread snapshot', async () => {
@@ -163,6 +160,7 @@ describe('useComposerModelControls catalog loading', () => {
 
       await act(async () => {
         useModelCatalogStore.getState().reset()
+        useModelCatalogStore.getState().activate(testWorkspaceScope)
       })
       await act(async () => pending.resolve({ thread: { configuration: { providerId: 'openai', model: 'gpt-5.4' } } }))
 
@@ -184,7 +182,10 @@ describe('useComposerModelControls catalog loading', () => {
     await waitFor(() => expect(controls?.providerId).toBe('openai'))
     await act(async () => controls!.onProviderChange('anthropic'))
     await waitFor(() => expect(listModels).toHaveBeenCalledWith('anthropic'))
-    await act(async () => useModelCatalogStore.getState().reset())
+    await act(async () => {
+      useModelCatalogStore.getState().reset()
+      useModelCatalogStore.getState().activate(testWorkspaceScope)
+    })
     await act(async () => pendingCatalog.resolve({ success: true, providerId: 'anthropic', models: [{ id: 'wrong-model' }] }))
 
     expect(sendRequest.mock.calls.some(([method]) => method === 'thread/read' || method === 'thread/config/update')).toBe(false)
@@ -244,6 +245,7 @@ describe('useComposerModelControls catalog loading', () => {
     await waitFor(() => expect(sendRequest.mock.calls.some(([method]) => method === 'thread/read')).toBe(true))
     await act(async () => {
       useModelCatalogStore.getState().reset()
+      useModelCatalogStore.getState().activate(testWorkspaceScope)
       navigateToOtherThread()
     })
     const catalogCalls = listModels.mock.calls.length

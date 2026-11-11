@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCatalog } from '../hooks/useModelCatalog'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -6,6 +7,8 @@ import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const listModels = vi.fn()
+const scopeA = { projectKey: '/a', connectionKey: '/a', connectionId: 'a-1' }
+const scopeB = { projectKey: '/b', connectionKey: '/b', connectionId: 'b-1' }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -33,9 +36,46 @@ describe('provider-scoped model catalogs', () => {
     useModelCatalogStore.getState().reset()
     useConnectionStore.setState({
       status: 'connected',
+      connectionKey: scopeA.connectionKey,
+      connectionId: scopeA.connectionId,
       capabilities: { modelCatalogManagement: true },
     })
-    installDesktopApiMock({ appServer: { listModels } })
+    installDesktopApiMock({ appServer: {
+      sendConnectionRequest: vi.fn((_key, _method, params) => listModels((params as { providerId?: string }).providerId ?? null))
+    } })
+    useModelCatalogStore.getState().activate(scopeA)
+  })
+
+  it.each([
+    { connectionKey: '/b', connectionId: 'b-1' },
+    { connectionKey: '/a', connectionId: 'a-2' }
+  ])('waits for the activated scope to match connection $connectionKey/$connectionId', async connection => {
+    useConnectionStore.setState(connection)
+    listModels.mockResolvedValue(response('one', 'matched', 'high'))
+    const hook = renderHook(() => useModelCatalog('one'))
+    expect(window.api.appServer.sendConnectionRequest).not.toHaveBeenCalled()
+    act(() => useModelCatalogStore.getState().activate({
+      projectKey: connection.connectionKey, ...connection
+    }))
+    await waitFor(() => expect(hook.result.current.modelOptions).toEqual(['matched']))
+    expect(window.api.appServer.sendConnectionRequest).toHaveBeenCalledExactlyOnceWith(
+      connection.connectionKey, 'model/list', { providerId: 'one' }, 20_000, { connectionId: connection.connectionId }
+    )
+  })
+
+  it('does not run an old scope effect after activation changes before passive effects', async () => {
+    listModels.mockResolvedValue(response('one', 'b-model', 'high'))
+    const hook = renderHook(() => {
+      const catalog = useModelCatalog('one')
+      useLayoutEffect(() => { useModelCatalogStore.getState().activate(scopeB) }, [])
+      return catalog
+    })
+    expect(window.api.appServer.sendConnectionRequest).not.toHaveBeenCalled()
+    act(() => useConnectionStore.setState({ connectionKey: scopeB.connectionKey, connectionId: scopeB.connectionId }))
+    await waitFor(() => expect(hook.result.current.modelOptions).toEqual(['b-model']))
+    expect(window.api.appServer.sendConnectionRequest).toHaveBeenCalledExactlyOnceWith(
+      '/b', 'model/list', { providerId: 'one' }, 20_000, { connectionId: 'b-1' }
+    )
   })
 
   it('keeps simultaneous provider consumers independent when responses arrive out of order', async () => {
@@ -96,4 +136,5 @@ describe('provider-scoped model catalogs', () => {
       models: [{ reasoning: { defaultEffort: 'max' } }],
     })
   })
+
 })

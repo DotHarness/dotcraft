@@ -1,5 +1,6 @@
 import { DEFAULT_REASONING_CONFIG } from './modelReasoning'
 import { useWelcomeModelControls } from './useWelcomeModelControls'
+import { useWelcomeApprovalPolicy } from './useWelcomeApprovalPolicy'
 import type { WelcomeDraft } from '../../stores/uiStore'
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import type { ComposerContextRecord } from '../../../shared/composerContext'
@@ -21,7 +22,7 @@ import { Bot, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
+import { useProviderSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -68,15 +69,13 @@ import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
-import { ModelPicker } from './ModelPicker'
+import { WelcomeApprovalPolicyPicker, WelcomeModelPicker } from './WelcomeResourceControls'
 import { ProviderUsageBadge } from './ProviderUsageBadge'
-import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
   ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
   ComposerSendButton,
-  ComposerShell,
-  composerModelPillStyle
+  ComposerShell
 } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerSubmitGlyphs } from './ComposerSubmitButton'
@@ -97,10 +96,7 @@ import {
 } from './ComposerSurfaceSlots'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
-import {
-  resolveConcreteApprovalPolicyFromWorkspaceDefault,
-  resolveWorkspaceProviderFromConfig
-} from '../../utils/workspaceCoreConfig'
+import { resolveWorkspaceProviderFromConfig } from '../../utils/workspaceCoreConfig'
 import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
 import { useComposerProvider } from './useComposerProvider'
 
@@ -127,12 +123,6 @@ const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const WELCOME_DRAFT_DEBOUNCE_MS = 250
-
-function normalizeWelcomeApprovalPolicy(value: unknown): VisibleApprovalPolicy | null {
-  if (value === 'autoApprove') return 'autoApprove'
-  if (value === 'prompt') return 'prompt'
-  return null
-}
 
 export function ConversationWelcome({
   ...props
@@ -210,10 +200,11 @@ function ConversationWelcomeCore({
     welcomeWorktreeBranchName, setWelcomeWorktreeBranchName,
     welcomeChangelist, setWelcomeChangelist
   } = useWelcomeWorkspace(identityPath)
-  const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
-  const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
+  const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceConfig = useConfig()
   const configuredApprovalDefault = readConfigValue(workspaceConfig, 'Permissions.DefaultApprovalPolicy')
+  const { welcomeApprovalPolicy, welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyFromUser, hydrateApprovalPolicy } =
+    useWelcomeApprovalPolicy(initialWelcomeDraftRef, configuredApprovalDefault)
   const [skillCatalogReady, setSkillCatalogReady] = useState(false)
   const sendInFlightRef = useRef(false)
   const skipDraftPersistRef = useRef(false)
@@ -224,17 +215,10 @@ function ConversationWelcomeCore({
   const latestDraftTextRef = useRef('')
   const latestDraftSegmentsRef = useRef<ComposerDraftSegment[]>([])
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const welcomeApprovalPolicyDirtyRef = useRef(false)
-  const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const welcomeDraftStageSeq = useUIStore((s) => s.welcomeDraftStageSeq)
   const hydratedStageSeqRef = useRef(welcomeDraftStageSeq)
-  const {
-    providerId, modelName, reasoningConfig, speedValue, modelApplying,
-    modelApiAvailable, modelLoading, modelCatalog, modelOptions, modelCatalogStatus,
-    modelListUnsupportedEndpoint, modelCatalogErrorCode, modelCatalogErrorMessage,
-    loadModels, hydrateDraft, handleModelChange, handleProviderChange,
-    handleReasoningChange, handleSpeedChange
-  } = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef, workspaceReady })
+  const modelControls = useWelcomeModelControls({ workspaceConfig, initialDraftRef: initialWelcomeDraftRef, workspaceReady })
+  const { providerId, modelName, reasoningConfig, speedValue, modelLoading, modelCatalog, hydrateDraft } = modelControls
   const richRef = useRef<RichInputAreaHandle>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
@@ -249,17 +233,10 @@ function ConversationWelcomeCore({
     state.finalizing?.threadId,
     voiceThreadId
   ))
-  const setWelcomeApprovalPolicyFromUser = useCallback((nextPolicy: VisibleApprovalPolicy): void => {
-    welcomeApprovalPolicyDirtyRef.current = true
-    setWelcomeApprovalPolicyDirty(true)
-    setWelcomeApprovalPolicy(nextPolicy)
-  }, [])
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const locale = useLocale()
   const activeUsageProvider = useProviderSummary(providerId)
-  const reloadProviders = useProvidersStore((s) => s.reload)
-  const providerOptions = useProvidersStore((s) => s.providers)
   const { addThread, setActiveThreadId } = useThreadStore()
   const setWelcomeDraft = useUIStore((s) => s.setWelcomeDraft)
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
@@ -267,7 +244,8 @@ function ConversationWelcomeCore({
   const appBindingApps = useAppBindingStore((s) => s.apps)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
 
-  const isConnected = connectionStatus === 'connected' && workspaceReady
+  const isConnected = connectionStatus === 'connected' && workspaceReady &&
+    (capabilities?.workspaceConfigManagement !== true || workspaceConfig != null)
   const openingWorkspace = useDelayedFlag(connectionStatus === 'connecting' || !workspaceReady, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
   const busy = !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
@@ -354,11 +332,6 @@ function ConversationWelcomeCore({
     void fetchAppBindings(null, false, 'welcome')
   }, [canUseAppBinding, fetchAppBindings, isConnected])
 
-  useEffect(() => {
-    if (!isConnected || capabilities?.providerManagement !== true) return
-    void reloadProviders()
-  }, [capabilities?.providerManagement, isConnected, reloadProviders])
-
   const welcomeAppIds = useMemo(
     () => appBindingApps
       .filter((app) => app.installed
@@ -369,26 +342,6 @@ function ConversationWelcomeCore({
       .map((app) => app.appId),
     [appBindingApps]
   )
-
-  useEffect(() => {
-    const applyResolvedDefault = (nextDefault: VisibleApprovalPolicy): void => {
-      const explicitDraftPolicy = normalizeWelcomeApprovalPolicy(initialWelcomeDraftRef.current?.approvalPolicy)
-      if (explicitDraftPolicy) {
-        if (!welcomeApprovalPolicyDirtyRef.current) {
-          welcomeApprovalPolicyDirtyRef.current = true
-          setWelcomeApprovalPolicyDirty(true)
-          setWelcomeApprovalPolicy(explicitDraftPolicy)
-        }
-        return
-      }
-
-      if (!welcomeApprovalPolicyDirtyRef.current) {
-        setWelcomeApprovalPolicy(nextDefault)
-      }
-    }
-
-    applyResolvedDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(configuredApprovalDefault))
-  }, [configuredApprovalDefault])
 
   const handleAtQuery = useCallback((q: string | null): void => {
     if (remoteWorkspace) {
@@ -498,12 +451,7 @@ function ConversationWelcomeCore({
     setImages(welcomeDraft.images)
     setFiles([...(welcomeDraft.files ?? [])])
     setWelcomeMode(welcomeDraft.mode)
-    const explicitDraftApprovalPolicy = normalizeWelcomeApprovalPolicy(welcomeDraft.approvalPolicy)
-    if (explicitDraftApprovalPolicy && !welcomeApprovalPolicyDirtyRef.current) {
-      welcomeApprovalPolicyDirtyRef.current = true
-      setWelcomeApprovalPolicyDirty(true)
-      setWelcomeApprovalPolicy(explicitDraftApprovalPolicy)
-    }
+    hydrateApprovalPolicy(welcomeDraft)
     hydrateDraft(welcomeDraft)
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
@@ -570,7 +518,6 @@ function ConversationWelcomeCore({
     setFiles([])
   }, [clearWelcomeDraft, contextKey, draftProjectKey])
 
-  /** The welcome composer remounts on failure and rehydrates from the draft written here. */
   const restoreWelcomeComposer = useCallback((
     snapshot: Omit<WelcomeDraft, 'updatedAt'> | null,
     contexts: ComposerContextRecord[]
@@ -592,12 +539,14 @@ function ConversationWelcomeCore({
     }
   }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
+  const latestFlushWelcomeDraft = useRef(flushWelcomeDraft)
+  latestFlushWelcomeDraft.current = flushWelcomeDraft
   useEffect(() => {
     return () => {
       if (!draftHydratedRef.current || skipDraftPersistRef.current) return
-      flushWelcomeDraft()
+      latestFlushWelcomeDraft.current()
     }
-  }, [flushWelcomeDraft])
+  }, [])
 
   const switchWelcomeWorkspace = useCallback(async (nextWorkspacePath: string): Promise<void> => {
     if (nextWorkspacePath === workspacePath) return
@@ -1322,9 +1271,10 @@ function ConversationWelcomeCore({
                   )}
                   voiceStatus={<VoiceInputStatus threadId={voiceThreadId} />}
                   permissions={!compactVoiceFooter ? (
-                    <ApprovalPolicyPicker
+                    <WelcomeApprovalPolicyPicker
                       value={welcomeApprovalPolicy}
                       onChange={setWelcomeApprovalPolicyFromUser}
+                      ready={isConnected}
                     />
                   ) : null}
                   mode={!compactVoiceFooter ? (
@@ -1364,50 +1314,7 @@ function ConversationWelcomeCore({
                 <ComposerToolbarTrailingSlots
                   context={desktopPluginSurfaceContext}
                   model={!compactVoiceFooter ? (
-                    <ModelPicker
-                      providerId={providerId}
-                      providerOptions={providerOptions}
-                      modelName={modelName}
-                      modelOptions={modelApiAvailable ? modelOptions : []}
-                      modelCatalog={modelCatalog}
-                      reasoningValue={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
-                      speedValue={speedValue}
-                      loading={modelLoading}
-                      unsupported={modelListUnsupportedEndpoint}
-                      modelListReady={modelApiAvailable && modelCatalogStatus === 'ready' && modelOptions.length > 0}
-                      errorMessage={
-                        modelCatalogStatus === 'error'
-                          ? (
-                              modelCatalogErrorCode
-                                ? `${modelCatalogErrorCode}: ${modelCatalogErrorMessage ?? ''}`.trim()
-                                : (modelCatalogErrorMessage || t('composer.modelListError'))
-                            )
-                          : null
-                      }
-                       disabled={modelApplying || !modelApiAvailable || workspaceConfig == null}
-                      onChange={(nextModel) => {
-                        void handleModelChange(nextModel)
-                      }}
-                      onProviderChange={(nextProviderId) => {
-                        void handleProviderChange(nextProviderId)
-                      }}
-                      onReasoningChange={(nextReasoning) => {
-                        void handleReasoningChange(nextReasoning)
-                      }}
-                      onSpeedChange={(nextSpeed) => {
-                        void handleSpeedChange(nextSpeed)
-                      }}
-                      onRetry={() => {
-                        void loadModels(true, providerId)
-                      }}
-                      shortcut={ACTION_SHORTCUTS.selectModel}
-                      triggerStyle={composerModelPillStyle(
-                        modelApplying || modelLoading
-                          ? 'var(--composer-footer-muted)'
-                          : 'var(--composer-footer-highlight)',
-                        modelApplying || modelLoading
-                      )}
-                    />
+                    <WelcomeModelPicker controls={modelControls} />
                   ) : null}
                   voice={<VoiceInputControl threadId={voiceThreadId} />}
                   submit={(
