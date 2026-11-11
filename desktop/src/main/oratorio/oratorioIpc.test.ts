@@ -49,6 +49,8 @@ describe('Oratorio IPC validation', () => {
     })
     expect(() => validateRequest({ method: 'PATCH', path: '/api/v1/review-drafts/draft-1', body: { summaryBody: 'Updated' } })).toThrow('oratorio.invalid_path')
     expect(validateRequest({ method: 'POST', path: '/api/v1/review-drafts/draft-1/comments/comment-1/resolve', body: { resolutionKind: 'fixed' } })).toBeTruthy()
+    expect(validateRequest({ method: 'GET', path: '/api/v1/sources' })).toBeTruthy()
+    expect(validateRequest({ method: 'POST', path: '/api/v1/sources/sync-jobs', body: { provider: 'github', mode: 'full', projects: ['example-owner/project'] } })).toBeTruthy()
     expect(validateRequest({ method: 'GET', path: '/api/v1/sources/sync-schedules' })).toBeTruthy()
     expect(validateRequest({ method: 'GET', path: '/api/v1/sources/sync-jobs/job-1?provider=gitlab' })).toBeTruthy()
     expect(validateRequest({ method: 'PUT', path: '/api/v1/sources/github/sync-schedule', body: { enabled: true, intervalSeconds: 900 } })).toBeTruthy()

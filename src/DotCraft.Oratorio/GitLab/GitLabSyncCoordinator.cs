@@ -53,15 +53,6 @@ public sealed class GitLabSyncCoordinator(
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var active = await LoadJobQuery(db)
-            .Where(x => ActiveStatuses.Contains(x.Status))
-            .OrderBy(x => x.CreatedAt)
-            .FirstOrDefaultAsync(ct);
-        if (active is not null)
-        {
-            return ToDto(active, options.CurrentValue.Endpoint);
-        }
-
         var now = clock.UtcNow;
         var projects = ResolveProjects(projectPaths).ToArray();
         var job = new OratorioGitLabSyncJob
@@ -97,44 +88,34 @@ public sealed class GitLabSyncCoordinator(
 
     public async Task<SourceSyncJobDto?> ProcessNextQueuedJobAsync(CancellationToken ct)
     {
-        OratorioGitLabSyncJob? job;
-        using (var scope = scopeFactory.CreateScope())
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var job = await LoadJobQuery(db)
+            .Where(x => x.Status == SourceSyncStatus.Queued)
+            .OrderBy(x => x.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        if (job is null)
         {
-            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-            job = await LoadJobQuery(db)
-                .Where(x => x.Status == SourceSyncStatus.Queued)
-                .OrderBy(x => x.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-            if (job is null)
-            {
-                return null;
-            }
+            return null;
+        }
 
+        try
+        {
             var now = clock.UtcNow;
             job.Status = SourceSyncStatus.Running;
             job.StartedAt = now;
             job.UpdatedAt = now;
             await db.SaveChangesAsync(ct);
             PublishJob(ToDto(job, options.CurrentValue.Endpoint));
+            await ProcessJobAsync(job.JobId, job.Mode, ct);
         }
-
-        await ProcessJobAsync(job.JobId, job.Mode, ct);
-        return await GetJobAsync(job.JobId, ct);
-    }
-
-    public async Task<SourceSyncJobDto> WaitForCompletionAsync(string jobId, CancellationToken ct)
-    {
-        while (true)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            var job = await GetJobAsync(jobId, ct)
-                ?? throw new InvalidOperationException($"GitLab sync job {jobId} was not found.");
-            if (!ActiveStatuses.Contains(job.Status))
-            {
-                return job;
-            }
-
-            await Task.Delay(200, ct);
+            logger.LogError(ex, "GitLab sync job {JobId} failed.", job.JobId);
+            await FailJobAsync(job.JobId, ex.Message, ct);
         }
+
+        return await GetJobAsync(job.JobId, ct);
     }
 
     public async Task RecoverInterruptedJobsAsync(CancellationToken ct)
@@ -155,23 +136,21 @@ public sealed class GitLabSyncCoordinator(
         {
             foreach (var run in job.ProjectRuns.Where(x => !TerminalProjectStatuses.Contains(x.Status)))
             {
-                run.Status = SourceSyncProjectStatus.Failed;
-                run.Phase = SourceSyncProjectPhase.Failed;
-                run.ErrorCode = "syncInterrupted";
-                run.ErrorMessage = "GitLab sync was interrupted before this project completed.";
-                run.UpdatedAt = now;
-                run.CompletedAt = now;
+                FailRun(run, "syncInterrupted", "GitLab sync was interrupted before this project completed.", now);
             }
 
             ApplyAggregate(job, now);
+        }
+
+        await db.SaveChangesAsync(ct);
+        foreach (var job in jobs)
+        {
             PublishJob(ToDto(job, options.CurrentValue.Endpoint));
             foreach (var run in job.ProjectRuns)
             {
                 PublishProjectRun(ToDto(run, options.CurrentValue.Endpoint));
             }
         }
-
-        await db.SaveChangesAsync(ct);
     }
 
     public static SourceSyncJobDto ToDto(OratorioGitLabSyncJob job, string? endpoint) =>
@@ -287,20 +266,11 @@ public sealed class GitLabSyncCoordinator(
                 await CompleteProjectRunAsync(projectRunId, result, ct);
             }
         }
-        catch (GitLabCredentialException ex)
-        {
-            logger.LogWarning(ex, "GitLab sync credentials failed for project run {ProjectRunId}.", projectRunId);
-            await FailProjectRunAsync(projectRunId, ex.Code, ex.Message, ct);
-        }
-        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "GitLab sync was canceled for project run {ProjectRunId}.", projectRunId);
-            await FailProjectRunAsync(projectRunId, "gitLabSyncFailed", ex.Message, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "GitLab sync failed for project run {ProjectRunId}.", projectRunId);
-            await FailProjectRunAsync(projectRunId, "gitLabSyncFailed", ex.Message, ct);
+            var code = ex is GitLabCredentialException credential ? credential.Code : "gitLabSyncFailed";
+            await FailProjectRunAsync(projectRunId, code, ex.Message, ct);
         }
         finally
         {
@@ -360,12 +330,7 @@ public sealed class GitLabSyncCoordinator(
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
         var run = await db.GitLabSyncProjectRuns.FirstAsync(x => x.ProjectRunId == projectRunId, ct);
         var now = clock.UtcNow;
-        run.Status = SourceSyncProjectStatus.Failed;
-        run.Phase = SourceSyncProjectPhase.Failed;
-        run.ErrorCode = code;
-        run.ErrorMessage = message;
-        run.UpdatedAt = now;
-        run.CompletedAt = now;
+        FailRun(run, code, message, now);
         await db.SaveChangesAsync(ct);
         PublishProjectRun(ToDto(run, options.CurrentValue.Endpoint));
     }
@@ -408,6 +373,37 @@ public sealed class GitLabSyncCoordinator(
         ApplyAggregate(job, clock.UtcNow);
         await db.SaveChangesAsync(ct);
         PublishJob(ToDto(job, options.CurrentValue.Endpoint));
+    }
+
+    private async Task FailJobAsync(string jobId, string message, CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var job = await LoadJobQuery(db).FirstAsync(x => x.JobId == jobId, ct);
+        var now = clock.UtcNow;
+        var unfinished = job.ProjectRuns.Where(x => !TerminalProjectStatuses.Contains(x.Status)).ToArray();
+        foreach (var run in unfinished)
+        {
+            FailRun(run, "gitLabSyncFailed", message, now);
+        }
+
+        ApplyAggregate(job, now);
+        await db.SaveChangesAsync(ct);
+        PublishJob(ToDto(job, options.CurrentValue.Endpoint));
+        foreach (var run in unfinished)
+        {
+            PublishProjectRun(ToDto(run, options.CurrentValue.Endpoint));
+        }
+    }
+
+    private static void FailRun(OratorioGitLabSyncProjectRun run, string code, string message, DateTimeOffset now)
+    {
+        run.Status = SourceSyncProjectStatus.Failed;
+        run.Phase = SourceSyncProjectPhase.Failed;
+        run.ErrorCode = code;
+        run.ErrorMessage = message;
+        run.UpdatedAt = now;
+        run.CompletedAt = now;
     }
 
     private static void ApplyAggregate(OratorioGitLabSyncJob job, DateTimeOffset now)

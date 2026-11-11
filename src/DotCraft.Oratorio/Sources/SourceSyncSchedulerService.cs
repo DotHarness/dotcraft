@@ -12,9 +12,6 @@ using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.Sources;
 
-/// <summary>
-/// Persists provider-level source sync schedules and enqueues due incremental sync work.
-/// </summary>
 public sealed class SourceSyncSchedulerService(
     OratorioDbContext db,
     SourceProviderService sourceProviders,
@@ -35,9 +32,6 @@ public sealed class SourceSyncSchedulerService(
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
-    /// <summary>
-    /// Gets all provider schedules, creating default disabled rows when necessary.
-    /// </summary>
     public async Task<SourceSyncSchedulesResponse> GetSchedulesAsync(CancellationToken ct)
     {
         await EnsureDefaultSchedulesAsync(ct);
@@ -54,40 +48,32 @@ public sealed class SourceSyncSchedulerService(
         return new SourceSyncSchedulesResponse(clock.UtcNow, dtos);
     }
 
-    /// <summary>
-    /// Gets a single provider schedule, creating its default disabled row when necessary.
-    /// </summary>
     public async Task<SourceSyncScheduleDto> GetScheduleAsync(string provider, CancellationToken ct)
     {
-        var normalized = NormalizeProvider(provider);
-        var schedule = await GetOrCreateScheduleAsync(normalized, ct);
+        var schedule = await GetOrCreateScheduleAsync(provider, ct);
         return await ToDtoAsync(schedule, ct);
     }
 
-    /// <summary>
-    /// Updates a provider schedule. Enabled schedules first run at now plus the configured interval.
-    /// </summary>
     public async Task<SourceSyncScheduleDto> UpdateScheduleAsync(
         string provider,
         SourceSyncScheduleUpdateRequest request,
         CancellationToken ct)
     {
-        var normalized = NormalizeProvider(provider);
-        var schedule = await GetOrCreateScheduleAsync(normalized, ct);
+        var schedule = await GetOrCreateScheduleAsync(provider, ct);
         var interval = request.IntervalSeconds ?? schedule.IntervalSeconds;
         ValidateInterval(interval);
 
         var now = clock.UtcNow;
         if (request.Enabled)
         {
-            var status = await sourceProviders.GetStatusAsync(normalized, ct);
+            var status = await sourceProviders.GetStatusAsync(schedule.Provider, ct);
             if (!status.ReadCapability.Available)
             {
                 throw new OratorioApiException(
                     StatusCodes.Status400BadRequest,
                     "sourceSyncScheduleUnavailable",
                     status.ReadCapability.Reason ?? $"{status.DisplayName} read sync must be configured before scheduled sync can be enabled.",
-                    new Dictionary<string, object?> { ["provider"] = normalized });
+                    new Dictionary<string, object?> { ["provider"] = schedule.Provider });
             }
 
             var reschedule = !schedule.Enabled ||
@@ -117,9 +103,6 @@ public sealed class SourceSyncSchedulerService(
         return dto;
     }
 
-    /// <summary>
-    /// Processes all due enabled schedules once, coalescing active sync work and missed intervals.
-    /// </summary>
     public async Task<int> ProcessDueSchedulesAsync(CancellationToken ct)
     {
         var now = clock.UtcNow;
@@ -163,15 +146,6 @@ public sealed class SourceSyncSchedulerService(
                 "sourceSyncScheduleUnavailable",
                 status.ReadCapability.Reason ?? $"{status.DisplayName} read sync is not available.",
                 ct);
-            return;
-        }
-
-        var active = await sourceProviders.GetActiveSyncJobAsync(schedule.Provider, ct);
-        if (active is not null)
-        {
-            MarkScheduled(schedule, now, active.JobId);
-            await db.SaveChangesAsync(ct);
-            PublishSchedule(await ToDtoAsync(schedule, ct), now);
             return;
         }
 
@@ -228,8 +202,6 @@ public sealed class SourceSyncSchedulerService(
         {
             await GetOrCreateScheduleAsync(provider, ct);
         }
-
-        await db.SaveChangesAsync(ct);
     }
 
     private async Task<OratorioSourceSyncSchedule> GetOrCreateScheduleAsync(string provider, CancellationToken ct)

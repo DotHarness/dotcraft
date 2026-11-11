@@ -100,4 +100,11 @@ export interface ItemDetailResponse {
   discussionTurns?: DiscussionTurnDto[]; sourceSnapshot?: SourceSnapshotDto | null
 }
 
-export interface SourceSyncJobDto { jobId: string; provider: string; status: string; mode: string; createdAt: string; updatedAt: string; projectsFailed?: number; issuesImported?: number; reviewTargetsImported?: number; errorCode?: string | null; errorMessage?: string | null; projects?: unknown[] }
+export interface SourceProviderStatusDto { provider: 'github' | 'gitlab'; displayName: string; configuredProjectCount: number }
+export interface SourcesResponse { providers: SourceProviderStatusDto[] }
+
+export interface SourceSyncJobDto {
+  jobId: string; provider: string; status: 'queued' | 'running' | 'succeeded' | 'partialFailed' | 'failed'
+  mode: string; createdAt: string; updatedAt: string; issuesImported: number
+  reviewTargetsImported: number; errorCode: string | null; errorMessage: string | null
+}

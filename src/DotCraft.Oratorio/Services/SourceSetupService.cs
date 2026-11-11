@@ -89,7 +89,7 @@ public sealed class SourceSetupService(
         SourceSetupSyncDto? sync = null;
         if (gap == SourceCredentialGap.None)
         {
-            sync = await RunSyncAsync(request.Provider, request.Project, warnings, ct);
+            sync = await RunSyncAsync(request.Provider, request.Project, ct);
         }
         else if (!scheduled)
         {
@@ -121,9 +121,7 @@ public sealed class SourceSetupService(
             throw new OratorioApiException(StatusCodes.Status409Conflict, "sourceCredentialsMissing", warning.Message);
         }
 
-        List<SourceSetupWarningDto> warnings = [];
-        return await RunSyncAsync(provider, connected.Project, warnings, ct)
-            ?? throw new OratorioApiException(StatusCodes.Status409Conflict, warnings[0].Code, warnings[0].Message);
+        return await RunSyncAsync(provider, connected.Project, ct);
     }
 
     public SourceCredentialRequestDto RequestCredential(string provider, string project)
@@ -201,7 +199,6 @@ public sealed class SourceSetupService(
             new ServerConfigurationApplyRequest(revision, next, ConfirmImpact: true, detectGitHubInstallations, AuditActor, RemoteAddress: null),
             ct);
 
-    /// <summary>A schedule that has never run counts as unset, so a connection saved before its credentials still gets the default.</summary>
     private async Task<int> CurrentIntervalAsync(string provider, CancellationToken ct)
     {
         var schedule = await schedules.GetScheduleAsync(provider, ct);
@@ -241,10 +238,9 @@ public sealed class SourceSetupService(
             clock.UtcNow));
     }
 
-    private async Task<SourceSetupSyncDto?> RunSyncAsync(
+    private async Task<SourceSetupSyncDto> RunSyncAsync(
         string provider,
         string project,
-        List<SourceSetupWarningDto> warnings,
         CancellationToken ct)
     {
         var job = await sources.EnqueueSyncJobAsync(
@@ -266,14 +262,7 @@ public sealed class SourceSetupService(
             }
         }
 
-        var run = job.Projects.FirstOrDefault(x => string.Equals(x.ProjectPath, project, StringComparison.OrdinalIgnoreCase));
-        if (run is null)
-        {
-            warnings.Add(new SourceSetupWarningDto(
-                "sourceSyncNotStarted",
-                $"Another sync is running without {project}, so {project} has not synced. Call SyncProject again once it finishes."));
-            return null;
-        }
+        var run = job.Projects.Single(x => string.Equals(x.ProjectPath, project, StringComparison.OrdinalIgnoreCase));
 
         return new SourceSetupSyncDto(
             job.JobId,

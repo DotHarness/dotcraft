@@ -32,6 +32,7 @@ public sealed class GitHubSyncJobConcurrencyTests
 
         var job = await PostAsync<GitHubSyncJobDto>(client, "/api/v1/sources/github/sync-jobs", new { });
 
+        GitHubSyncJobDto queued;
         try
         {
             GitHubSyncJobDto? active = null;
@@ -42,6 +43,11 @@ public sealed class GitHubSyncJobConcurrencyTests
             });
             Assert.NotEqual(GitHubSyncRepositoryStatus.Succeeded,
                 Assert.Single(active!.Repositories, x => x.Repository == "example-owner/oratorio").Status);
+            queued = await PostAsync<GitHubSyncJobDto>(client, "/api/v1/sources/github/sync-jobs",
+                new GitHubSyncJobRequest(GitHubSyncMode.Full, ["example-owner/second-repo"]));
+            Assert.NotEqual(job.JobId, queued.JobId);
+            Assert.Equal(GitHubSyncStatus.Queued,
+                (await client.GetFromJsonAsync<GitHubSyncJobDto>($"/api/v1/sources/github/sync-jobs/{queued.JobId}", JsonOptions))!.Status);
         }
         finally
         {
@@ -51,5 +57,6 @@ public sealed class GitHubSyncJobConcurrencyTests
         var completed = await WaitForGitHubSyncJobAsync(client, job.JobId);
         Assert.Equal(GitHubSyncStatus.Succeeded, completed.Status);
         Assert.Equal(["example-owner/oratorio", "example-owner/second-repo"], completed.Repositories.Select(x => x.Repository).ToArray());
+        Assert.Equal(GitHubSyncStatus.Succeeded, (await WaitForGitHubSyncJobAsync(client, queued.JobId)).Status);
     }
 }

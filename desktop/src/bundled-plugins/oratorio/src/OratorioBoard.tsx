@@ -34,6 +34,8 @@ import { useOratorioI18n, type OratorioMessageKey, type OratorioTranslate } from
 import { KindIcon, ProviderIcon, sourceLabel, taskStateKey, taskStateTone, type TaskTone } from './OratorioTaskParts'
 import type { SourceProvider } from './settings/oratorio-settings-model'
 import type { LatestResult } from './oratorio-contracts'
+import { describeOratorioError } from './oratorio-client'
+import type { SourceSyncResult } from './oratorio-source-sync'
 
 type BoardPresentation = 'ready' | 'loading' | 'empty' | 'unconfigured' | 'error'
 
@@ -84,7 +86,7 @@ export function OratorioBoard({
   presentation?: BoardPresentation
   initialMode?: BoardMode
   tasks?: OratorioTask[]
-  onSync?: () => Promise<void>
+  onSync?: (signal: AbortSignal) => Promise<SourceSyncResult>
   onRetry?: () => Promise<void>
   onCreateTask?: (task: NewLocalTaskDraft) => Promise<OratorioTask>
   onLoadMore?: () => Promise<void>
@@ -107,6 +109,8 @@ export function OratorioBoard({
   const [selected, setSelected] = useState<OratorioTask | null>(() => serverTasks.find((task) => task.id === initialState?.selectedTaskId) ?? null)
   const pendingSelection = useRef(selected ? null : initialState?.selectedTaskId ?? null)
   const [syncing, setSyncing] = useState(false)
+  const syncWait = useRef<AbortController | null>(null)
+  useEffect(() => () => syncWait.current?.abort(), [])
   const [taskItems, setTaskItems] = useState(serverTasks)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
@@ -178,10 +182,32 @@ export function OratorioBoard({
   const assignees = ['all', 'unassigned', ...Array.from(new Set(taskItems.map((task) => task.assignee).filter((value): value is string => Boolean(value))))]
 
   function sync(): void {
+    if (!onSync || syncWait.current) return
+    const controller = new AbortController()
+    syncWait.current = controller
     setSyncing(true)
-    void (onSync?.() ?? Promise.resolve()).then(() => {
-      showOratorioToast({ message: t('sourcesUpdated'), tone: 'success' })
-    }).catch(() => showOratorioToast({ message: t('sourceSyncFailed'), tone: 'error' })).finally(() => setSyncing(false))
+    void onSync(controller.signal).then((result) => {
+      if (controller.signal.aborted) return
+      if (result.kind === 'unconfigured') {
+        showOratorioToast({ message: t('sourceConnectRequired'), tone: 'neutral' })
+        return
+      }
+      const running = result.providers.filter((provider) => provider.kind === 'running').map((provider) => provider.name).join(', ')
+      const details = result.providers.filter((provider) => provider.kind === 'failed').map((provider) => `${provider.name}: ${provider.message}`)
+      if (!result.boardLoaded) details.push(t('boardRefreshFailed'))
+      if (running) details.push(t('sourceSyncRunning', { providers: running }))
+      const message = result.kind === 'succeeded' ? t('sourcesUpdated')
+        : result.kind === 'running' ? details.join(' · ')
+          : [t(result.kind === 'partialFailed' ? 'sourceSyncPartialFailed' : 'sourceSyncFailed'), ...details].join(' · ')
+      showOratorioToast({ message, tone: result.kind === 'succeeded' ? 'success' : result.kind === 'running' ? 'neutral' : 'error' })
+    }).catch((error) => {
+      if (!controller.signal.aborted) showOratorioToast({ message: `${t('sourceSyncFailed')}: ${describeOratorioError(error)}`, tone: 'error' })
+    }).finally(() => {
+      if (!controller.signal.aborted) {
+        syncWait.current = null
+        setSyncing(false)
+      }
+    })
   }
 
   function drop(column: TaskColumn): void {

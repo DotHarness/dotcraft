@@ -1,12 +1,11 @@
 import type {
-  ItemDetailResponse, ItemSummaryDto, ReviewFindingResolutionKind, SourceSyncJobDto,
+  ItemDetailResponse, ItemSummaryDto, ReviewFindingResolutionKind, SourcesResponse, SourceSyncJobDto,
   TaskListResponse
 } from './oratorio-contracts'
 import { oratorioHost } from './runtime'
 
 type Body = Record<string, unknown>
 
-/** Drops Electron's IPC wrapper so the server's own message is what the user reads. */
 export function describeOratorioError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
   return message.replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, '')
@@ -48,10 +47,11 @@ export const oratorioClient = {
   updateFollowUp(draftId: string, body: Body): Promise<ItemDetailResponse> { return request('PATCH', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}`, body) },
   discardFollowUp(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}/discard`) },
   createTaskFromFollowUp(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/follow-up-drafts/${encodeURIComponent(draftId)}/create-local-task`) },
+  sources(): Promise<SourcesResponse> { return request('GET', '/api/v1/sources') },
   syncJob(provider: string, jobId: string): Promise<SourceSyncJobDto> {
     return request('GET', `/api/v1/sources/sync-jobs/${encodeURIComponent(jobId)}?provider=${encodeURIComponent(provider)}`)
   },
   sync(provider: string, mode: 'incremental' | 'full' = 'incremental', projects?: string[]): Promise<SourceSyncJobDto> {
-    return request('POST', `/api/v1/sources/${encodeURIComponent(provider)}/sync-jobs`, { mode, projects })
+    return request('POST', '/api/v1/sources/sync-jobs', { provider, mode, projects })
   }
 }

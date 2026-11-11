@@ -9,6 +9,7 @@ import { OratorioProvider, type RemoteOratorioService } from './OratorioProvider
 const GET_PATHS = [
   /^\/api\/v1\/tasks(?:\?.*)?$/,
   /^\/api\/v1\/tasks\/[^/?]+$/,
+  /^\/api\/v1\/sources$/,
   /^\/api\/v1\/sources\/sync-schedules$/,
   /^\/api\/v1\/sources\/sync-jobs\/(?!active(?:\?|$))[^/?]+\?provider=(?:github|gitlab)$/,
   /^\/api\/v1\/settings\/server-configuration$/
@@ -18,7 +19,7 @@ const POST_PATHS = [
   /^\/api\/v1\/tasks\/reorder$/,
   /^\/api\/v1\/items\/id\/[^/?]+\/comments$/,
   /^\/api\/v1\/items\/id\/[^/?]+\/(?:discussion-turns|source-details\/sync)$/,
-  /^\/api\/v1\/sources\/(?:github|gitlab)\/sync-jobs$/,
+  /^\/api\/v1\/sources\/sync-jobs$/,
   /^\/api\/v1\/items\/id\/[^/?]+\/(?:dispatch|cancel-run|rereview|approve|request-changes|reject|reopen|archive)$/,
   /^\/api\/v1\/source-writes\/[^/?]+\/retry$/,
   /^\/api\/v1\/review-drafts\/[^/?]+\/(?:publish|discard)$/,
@@ -110,7 +111,7 @@ export function validateRequest(value: unknown): OratorioRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('oratorio.invalid_request')
   const request = value as Record<string, unknown>
   if (request.method !== 'GET' && request.method !== 'POST' && request.method !== 'PUT' && request.method !== 'PATCH') throw new Error('oratorio.invalid_method')
-  if (typeof request.path !== 'string' || request.path.includes('://')) throw new Error('oratorio.invalid_path')
+  if (typeof request.path !== 'string') throw new Error('oratorio.invalid_path')
   const allowed = request.method === 'GET' ? GET_PATHS : request.method === 'POST' ? POST_PATHS : request.method === 'PUT' ? PUT_PATHS : PATCH_PATHS
   if (!allowed.some((pattern) => pattern.test(request.path as string))) throw new Error('oratorio.invalid_path')
   if (request.body !== undefined && (!request.body || typeof request.body !== 'object' || Array.isArray(request.body))) {

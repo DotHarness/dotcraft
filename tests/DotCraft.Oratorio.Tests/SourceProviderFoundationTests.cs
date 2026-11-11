@@ -116,32 +116,7 @@ public sealed class SourceProviderFoundationTests
     }
 
     [Fact]
-    public async Task SourceSyncScheduler_EnqueuesScheduledIncrementalJobWhenDue()
-    {
-        var clock = new MutableClock(DateTimeOffset.Parse("2026-05-20T08:00:00Z"));
-        await using var app = CreateScheduleTestApp(clock);
-        using var scope = app.Services.CreateScope();
-        var scheduler = scope.ServiceProvider.GetRequiredService<SourceSyncSchedulerService>();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-
-        await scheduler.UpdateScheduleAsync("github", new SourceSyncScheduleUpdateRequest(true), CancellationToken.None);
-        clock.Advance(TimeSpan.FromMinutes(5));
-
-        var processed = await scheduler.ProcessDueSchedulesAsync(CancellationToken.None);
-
-        Assert.Equal(1, processed);
-        var job = await db.GitHubSyncJobs.AsNoTracking().SingleAsync();
-        Assert.Equal(GitHubSyncTrigger.Scheduled, job.Trigger);
-        Assert.Equal(GitHubSyncMode.Incremental, job.Mode);
-        var schedule = await db.SourceSyncSchedules.AsNoTracking().SingleAsync(x => x.Provider == "github");
-        Assert.Equal(job.JobId, schedule.LastJobId);
-        Assert.Equal(clock.UtcNow, schedule.LastScheduledAt);
-        Assert.Equal(clock.UtcNow.AddMinutes(5), schedule.NextRunAt);
-        Assert.Null(schedule.LastErrorCode);
-    }
-
-    [Fact]
-    public async Task SourceSyncScheduler_CoalescesDueScheduleWithActiveProviderJob()
+    public async Task SourceSyncScheduler_CreatesDueJobDespiteActiveProviderJob()
     {
         var clock = new MutableClock(DateTimeOffset.Parse("2026-05-20T08:00:00Z"));
         await using var app = CreateScheduleTestApp(clock);
@@ -166,9 +141,13 @@ public sealed class SourceProviderFoundationTests
         var processed = await scheduler.ProcessDueSchedulesAsync(CancellationToken.None);
 
         Assert.Equal(1, processed);
-        Assert.Equal(1, await db.GitHubSyncJobs.CountAsync());
+        Assert.Equal(2, await db.GitHubSyncJobs.CountAsync());
+        var scheduled = await db.GitHubSyncJobs.AsNoTracking().SingleAsync(x => x.Trigger == GitHubSyncTrigger.Scheduled);
+        Assert.Equal(GitHubSyncMode.Incremental, scheduled.Mode);
+        Assert.Equal(GitHubSyncStatus.Queued, scheduled.Status);
         var schedule = await db.SourceSyncSchedules.AsNoTracking().SingleAsync(x => x.Provider == "github");
-        Assert.Equal("active-job", schedule.LastJobId);
+        Assert.Equal(scheduled.JobId, schedule.LastJobId);
+        Assert.Equal(clock.UtcNow, schedule.LastScheduledAt);
         Assert.Equal(clock.UtcNow.AddMinutes(5), schedule.NextRunAt);
     }
 
