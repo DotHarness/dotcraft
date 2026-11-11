@@ -52,6 +52,13 @@ class MyChannel extends ChannelAdapter {
 
 这个适配器只发送文本。要投递附件，声明 `media` 条目并覆盖 `onSend`。
 
+## 聊天上下文与历史
+
+有两件事帮 Agent 弄清它后来才加入的会话，都是可选的，也不改变聊天里看到的内容。
+
+- **聊天上下文。** 把引用消息的文本 part 放在消息自身内容之前，例如用 `quotedMessagePart(senderName, text)`。adapter 只在被 @ 时转发群消息时，`new UnaddressedMessageBuffer(limit)` 会保留最近没有 @ 机器人的消息，`snapshot(channelContext)` 返回它们的文本 part 和 `consume` 回调。把这个回调作为消息参数里的 `onAccepted` 传入：只有服务端接受了这条输入它才执行，所以命令或失败的请求不会丢掉上下文。`onCurrentThreadChanged` 报告新 thread 时清空缓冲。
+- **历史。** 只有平台允许机器人读取更早的消息时，才在 `getDeliveryCapabilities` 中声明 `history: { maxMessages }`，并实现 `onReadHistory`。它收到会话目标、条数和可选的 `before` 游标，按从旧到新返回消息，并可选返回更早消息的游标。不要抛异常，改为返回 `historyFailure(code, message)`；`UnsupportedTarget`、`InvalidCursor` 和 `HistoryUnavailable` 会映射成 Agent 看到的错误。Agent 通过 `ReadChannelHistory` 只读当前绑定的会话。
+
 ## 生命周期与恢复
 
 - 接收平台事件前调用 `start()`。它连接 Wire client、注册 Channel handler，然后在 `initialize` 时声明 Channel 能力。关闭时调用 `stop()`。
@@ -83,6 +90,7 @@ adapter 本地命令只用于平台设置，例如 `/bind` 和账号授权。平
 | `onSend` | 覆盖它来投递 `getDeliveryCapabilities` 声明的每种附件类型，无法触达的目标返回 `UnsupportedTarget`。默认实现接受文本，其他类型返回 `UnsupportedDeliveryKind`。基类对重复的投递 id 直接返回首次结果，重试的发送不会重复发出。 |
 | `getChannelTools` + `onToolCall` | 可选。只声明 call hook 已实现的工具。默认 call hook 返回 `UnsupportedTool`。渠道工具用于消息之外的平台操作，发消息已由 `SendChannelMessage` 覆盖。 |
 | `onTurnStarted`、`onActivity`、`onTurnRetrying`、`onTurnEnded` | 可选。为 adapter 开启的 turn 显示聊天活动，比如正在输入提示或状态卡片。`onActivity` 报告文本、推理和工具 item 的开始与完成，不含内容。服务端重试模型流时触发 `onTurnRetrying`。`onTurnEnded` 只触发一次，结果为 `completed`、`failed`、`cancelled` 或 `disconnected`。默认实现在 `failed` 时发送一条通用失败通知，状态卡片已经显示失败时覆盖它。 |
+| `onReadHistory` | 可选。按 `history` 声明读取绑定会话更早的消息，默认返回 `UnsupportedTarget`。 |
 | `onCurrentThreadChanged` | 可选。`/new`、`/resume` 等命令把会话切换到另一个 thread 时调用。 |
 | `renderCommandChoices` | 可选。呈现命令结果中的选项。默认实现通过 `onDeliver` 渲染编号列表。 |
 

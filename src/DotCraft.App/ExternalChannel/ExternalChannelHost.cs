@@ -18,14 +18,7 @@ using DotCraft.Agents;
 namespace DotCraft.ExternalChannel;
 
 /// <summary>
-/// Bridge component that wraps a Wire Protocol connection to an external adapter process,
-/// exposing it as an <see cref="IChannelService"/> to AppServer's channel runner.
-/// <para>
-/// For subprocess mode, manages the adapter process lifecycle (spawn, monitor, restart with backoff).
-/// For WebSocket mode, waits for the adapter to connect and attach its transport via
-/// <see cref="AttachTransport"/>. For managed WebSocket mode, manages the adapter process
-/// lifecycle while the adapter connects back over the AppServer WebSocket endpoint.
-/// </para>
+/// Exposes one external adapter connection as a channel; subprocess modes also own the adapter process and its restarts.
 /// </summary>
 public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRuntime
 {
@@ -52,32 +45,26 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     private readonly IContextPageManager? _contextPageManager;
     private readonly ILogger<ExternalChannelHost> _logger;
 
-    // Current transport/connection/handler — replaced on restart or reconnect
     private IAppServerTransport? _transport;
     private AppServerConnection? _connection;
     private AdapterToolBinding? _toolBinding;
     private AppServerConnection? _lastToolConnection;
 
-    // Subprocess management
     private ManagedChildProcess? _adapterProcess;
     private CancellationTokenSource? _runCts;
 
-    // WebSocket mode: signaled when an adapter attaches via AppServerHost
     private TaskCompletionSource<(IAppServerTransport Transport, AppServerConnection Connection)>?
         _wsAttachTcs;
 
-    // Restart backoff
     private int _consecutiveFailures;
     private readonly TimeSpan _initialBackoff;
     private readonly TimeSpan _maxBackoff;
     private readonly int _maxConsecutiveFailures;
 
-    // Heartbeat
     private Timer? _heartbeatTimer;
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(5);
 
-    // State
     private volatile bool _stopped;
     private volatile bool _permanentlyFailed;
     private readonly Queue<string> _recentLogLines = new();
@@ -247,34 +234,16 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             : throw new ArgumentOutOfRangeException(nameof(maxConsecutiveFailures));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // IChannelService implementation
-    // ─────────────────────────────────────────────────────────────────────────
-
     public string Name => _config.Name;
 
-    /// <summary>
-    /// Configured transport mode (subprocess vs WebSocket). Used to reject WebSocket adapter
-    /// handover when the channel is subprocess-only.
-    /// </summary>
     public ExternalChannelTransport Transport => _config.Transport;
 
-    /// <summary>
-    /// Whether this host may receive a WebSocket <c>/ws</c> adapter connection via
-    /// <see cref="AttachTransport"/>. Plain subprocess channels use stdio only.
-    /// </summary>
     public bool AcceptsWebSocketAdapterAttach =>
         _config.Transport is ExternalChannelTransport.Websocket or ExternalChannelTransport.ManagedWebsocket;
 
-    /// <summary>
-    /// Returns <c>true</c> when an adapter transport is attached and has completed the
-    /// wire handshake (<c>initialized</c> notification received). Used by
-    /// <see cref="IChannelStatusProvider"/> to determine the <c>running</c> flag.
-    /// </summary>
     public bool IsAdapterConnected => !_stopped && !_permanentlyFailed
         && _connection is { IsClientReady: true };
 
-    /// <summary>Current server-observed adapter lifecycle state.</summary>
     public string RuntimeState => _permanentlyFailed
         ? ChannelRuntimeStates.Failed
         : _stopped
@@ -283,14 +252,10 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 ? ChannelRuntimeStates.Running
                 : ChannelRuntimeStates.Starting;
 
-    /// <summary>Stable failure classification when <see cref="RuntimeState"/> is failed.</summary>
     public string? FailureCode => _permanentlyFailed
         ? ChannelFailureCodes.ExternalChannelStartFailed
         : null;
 
-    /// <summary>
-    /// Current adapter connection snapshot, when attached.
-    /// </summary>
     public AppServerConnection? AdapterConnection => _connection;
 
     AppServerConnection? IAdapterChannelToolRuntime.ChannelToolConnection =>
@@ -300,10 +265,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         Volatile.Read(ref _lastToolConnection);
 
 
-    /// <summary>
-    /// External channels handle approval end-to-end via Wire Protocol.
-    /// No server-side approval service is needed.
-    /// </summary>
+    /// <summary>Adapters present approvals themselves.</summary>
     public IApprovalService? ApprovalService => null;
 
     public string DisplayName => _connection?.ChannelDisplayName is { Length: > 0 } displayName ? displayName : Name;
@@ -319,12 +281,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             ? connection.RegisteredChannelTools
             : [];
 
-    /// <summary>
-    /// External channels are "ready" only after the adapter has connected and completed
-    /// the <c>initialize</c> / <c>initialized</c> handshake (so <see cref="AppServerConnection.IsClientReady"/>
-    /// is true and declared tools are settled). Before that, turn execution against this
-    /// channel would miss channel-native tools.
-    /// </summary>
+    /// <summary>Ready only after the adapter's handshake, so a Turn never starts without its channel tools.</summary>
     public bool IsReady => IsAdapterConnected;
 
     public IReadOnlyList<string> GetRecentLogs(int? tail = null)
@@ -338,12 +295,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         }
     }
 
-    /// <summary>
-    /// Starts the external channel adapter.
-    /// For subprocess mode, spawns the process and enters the message loop.
-    /// For WebSocket mode, waits for the adapter to connect and then enters the message loop.
-    /// Blocks until stopped or canceled.
-    /// </summary>
+    /// <summary>Runs connection cycles until stopped or cancelled.</summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _stopped = false;
@@ -423,16 +375,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _permanentlyFailed = false;
         StopHeartbeatTimer();
 
-        // Cancel the run loop
         if (_runCts is { } cts)
         {
             await cts.CancelAsync();
         }
 
-        // Kill subprocess if running
         await TerminateSubprocessAsync();
 
-        // Cancel WebSocket attach waiters
         _wsAttachTcs?.TrySetCanceled();
 
         var connection = _connection;
@@ -440,7 +389,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ClearCurrentSession(connection);
         connection?.CancelAllSubscriptions();
 
-        // Dispose transport
         if (transport is IAsyncDisposable disposable)
             await disposable.DisposeAsync();
     }
@@ -483,6 +431,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
         return result;
     }
+
+    public Task<ChannelHistoryResult> ReadHistoryAsync(
+        ChannelHistoryRequest request,
+        CancellationToken cancellationToken = default)
+        => _stopped || _permanentlyFailed || _transport is not { } transport || _connection is not { IsClientReady: true }
+            ? Task.FromResult(ChannelHistoryResult.Fail("AdapterDisconnected", "Adapter is not connected."))
+            : ExternalChannelHistoryReader.ReadAsync(transport, request, cancellationToken);
 
     public async Task<ChannelToolInvocationResult> ExecuteToolAsync(
         ChannelToolInvocationRequest request,
@@ -573,35 +528,18 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ErrorMessage = "Adapter is not connected."
     };
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // WebSocket mode: transport attachment
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Called by <see cref="AppServer.AppServerHost"/> when a WebSocket client completes the
-    /// <c>initialize</c> handshake with a matching <c>channelAdapter.channelName</c>.
-    /// The transport and connection are handed over to this host, which takes over
-    /// the message loop.
-    /// </summary>
+    /// <summary>Hands over a WebSocket adapter that already completed <c>initialize</c>.</summary>
     public void AttachTransport(IAppServerTransport transport, AppServerConnection connection)
     {
         _wsAttachTcs?.TrySetResult((transport, connection));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Subprocess cycle
-    // ─────────────────────────────────────────────────────────────────────────
-
     private async Task RunSubprocessCycleAsync(CancellationToken ct)
     {
-        // Spawn the adapter process
         var adapterProcess = SpawnAdapterProcess();
         _adapterProcess = adapterProcess;
         var process = adapterProcess.Process;
 
-        // Create transport from process streams
-        // Note: StdioTransport reads from the process's stdout (our input),
-        //       and writes to the process's stdin (our output).
         await using var transport = StdioTransport.Create(
             process.StandardOutput.BaseStream,
             process.StandardInput.BaseStream);
@@ -611,24 +549,18 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         var connection = new AppServerConnection();
         _connection = connection;
 
-        // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
 
         _logger.LogInformation("External channel adapter spawned with process {ProcessId}", process.Id);
 
-        // Run the message loop
         var handler = _requestHandlerFactory.Create(connection, transport);
         await RunMessageLoopAsync(transport, connection, handler, ct);
 
-        // A cycle is not a successful start until the adapter completes its handshake.
-        // On Linux, stdout can reach EOF just before Process.HasExited becomes observable,
-        // so classify the attempt from protocol readiness rather than that timing window.
+        // Classify the start by handshake, not exit: on Linux stdout can reach EOF before HasExited is observable.
         var initialized = connection.IsClientReady;
         var exitCodeBeforeTerminate = await TryObserveExitCodeAsync(process, ct);
 
-        // Terminate the subprocess after the message loop exits.
-        // When the loop exits due to heartbeat-timeout (transport disposed), the process
-        // may still be running. Exit observation is bounded, then disposal kills it.
+        // After a heartbeat timeout the process may still be running; disposal kills it.
         await TerminateSubprocessAsync();
 
         if (!ct.IsCancellationRequested && !initialized)
@@ -640,7 +572,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 $"External channel adapter stopped before completing initialization{exitDetail}.");
         }
 
-        // Process exited before termination — check if it was expected.
         if (exitCodeBeforeTerminate is { } exitCode)
         {
             _logger.LogWarning("External channel adapter exited with code {ExitCode}", exitCode);
@@ -650,7 +581,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                     $"Adapter process exited with code {exitCode}");
         }
 
-        // Reset on success
         _consecutiveFailures = 0;
     }
 
@@ -857,13 +787,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         catch { /* best-effort */ }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // WebSocket cycle
-    // ─────────────────────────────────────────────────────────────────────────
-
     private async Task RunWebSocketCycleAsync(CancellationToken ct)
     {
-        // Wait for an adapter to connect and attach its transport
         _wsAttachTcs = new TaskCompletionSource<(IAppServerTransport, AppServerConnection)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -879,14 +804,11 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             "External channel WebSocket adapter connected as client {ClientName}",
             connection.ClientInfo?.Name ?? "unknown");
 
-        // The initialize handshake was already completed by AppServerHost before routing here,
-        // and the 'initialized' notification has also been consumed. Start heartbeat probing
-        // explicitly since it won't be triggered via HandleNotification in WebSocket mode.
+        // AppServerHost already consumed 'initialized', so heartbeats must start here.
         StartHeartbeatTimer();
         var handler = _requestHandlerFactory.Create(connection, transport);
         await RunMessageLoopAsync(transport, connection, handler, ct);
 
-        // Connection closed — reset for next connection
         _consecutiveFailures = 0;
     }
 
@@ -962,10 +884,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Message loop (shared between subprocess and WebSocket modes)
-    // ─────────────────────────────────────────────────────────────────────────
-
     private static readonly SemaphoreSlim RequestGate = new(32, 32);
 
     private async Task RunMessageLoopAsync(
@@ -1000,7 +918,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 if (!msg.IsRequest)
                     continue;
 
-                // Reject if at capacity
                 if (!await RequestGate.WaitAsync(0, ct))
                 {
                     var overloadErr = AppServerErrors.ServerOverloaded().ToError();
@@ -1077,7 +994,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
                 return;
             }
 
-            // null result means the handler already sent the response inline (turn/start)
+            // A null result means the handler already responded inline.
             if (result != null)
             {
                 await transport.WriteMessageAsync(
@@ -1101,7 +1018,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         if (handler.HandleNotification(msg) && msg.Method == DotCraft.Protocol.AppServer.AppServerRpc.Initialized.Name)
         {
             PublishToolBinding(transport, connection);
-            // Start heartbeat probing after adapter is ready
             StartHeartbeatTimer();
         }
     }
@@ -1138,10 +1054,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             _transport = null;
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Heartbeat
-    // ─────────────────────────────────────────────────────────────────────────
 
     private void StartHeartbeatTimer()
     {
@@ -1184,10 +1096,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             _logger.LogWarning(ex, "External channel heartbeat failed");
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Backoff
-    // ─────────────────────────────────────────────────────────────────────────
 
     private TimeSpan CalculateBackoff(int failures)
     {
@@ -1240,10 +1148,6 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
         return parsed;
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // IAsyncDisposable
-    // ─────────────────────────────────────────────────────────────────────────
 
     public async ValueTask DisposeAsync()
     {

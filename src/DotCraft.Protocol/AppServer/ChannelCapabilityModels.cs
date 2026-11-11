@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
 
-/// <summary>A channel-scoped tool declared by an adapter during initialization.</summary>
 public sealed class ChannelToolDescriptor : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -60,6 +59,16 @@ public sealed class ChannelDeliveryCapabilities : ExtensibleJsonObject
     [JsonPropertyName("media")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelMediaCapabilitySet? Media { get; init; }
+
+    [JsonPropertyName("history")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelHistoryCapability? History { get; init; }
+}
+
+public sealed class ChannelHistoryCapability : ExtensibleJsonObject
+{
+    [JsonPropertyName("maxMessages")]
+    public required int MaxMessages { get; init; }
 }
 
 public sealed class ChannelTextCapability : ExtensibleJsonObject
@@ -90,7 +99,6 @@ public sealed class ChannelChat : ExtensibleJsonObject
     public required string Membership { get; init; }
 }
 
-/// <summary>Per-media-kind delivery constraints.</summary>
 public sealed class ChannelMediaCapabilitySet : ExtensibleJsonObject
 {
     [JsonPropertyName("file")]
@@ -110,7 +118,6 @@ public sealed class ChannelMediaCapabilitySet : ExtensibleJsonObject
     public ChannelMediaConstraints? Video { get; init; }
 }
 
-/// <summary>Delivery limits and supported source forms for one media kind.</summary>
 public sealed class ChannelMediaConstraints : ExtensibleJsonObject
 {
     [JsonPropertyName("maxBytes")]

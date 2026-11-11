@@ -3,28 +3,15 @@ using System.Text.Json.Nodes;
 
 namespace DotCraft.Channels;
 
-
-/// <summary>
-/// Declares that this client is an external channel adapter.
-/// Sent inside <see cref="ClientConnectionCapabilities"/> during the initialize handshake.
-/// See external-channel-adapter.md §5.1.
-/// </summary>
 public sealed class ChannelAdapterRuntimeCapability
 {
-    /// <summary>
-    /// Canonical channel name (e.g. "telegram"). Must match the server-side
-    /// ExternalChannels configuration key.
-    /// </summary>
+    /// <summary>Must match the channel's <c>ExternalChannels</c> configuration key.</summary>
     public string ChannelName { get; set; } = string.Empty;
 
     public string DisplayName { get; set; } = string.Empty;
 
     public ChannelDeliveryCapabilitySnapshot DeliveryCapabilities { get; set; } = new();
 
-    /// <summary>
-    /// Optional channel-scoped tools declared by the adapter during initialize.
-    /// These tools are only injected into matching-origin threads while the adapter remains connected.
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ChannelToolSpec>? ChannelTools { get; set; }
 }
@@ -35,22 +22,12 @@ public sealed class ChannelToolSpec
 
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>
-    /// JSON Schema describing the input arguments accepted by the tool.
-    /// </summary>
     public JsonObject? InputSchema { get; set; }
 
-    /// <summary>
-    /// Optional JSON Schema describing the structured result returned by the tool.
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? OutputSchema { get; set; }
 
-    /// <summary>
-    /// Optional approval metadata describing which argument should be intercepted by the server
-    /// before dispatching <c>ext/channel/toolCall</c>.
-    /// This describes approval targets only; policy remains server-owned.
-    /// </summary>
+    /// <summary>Describes approval targets only; the server owns approval policy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelToolApprovalSpec? Approval { get; set; }
 
@@ -62,25 +39,13 @@ public sealed class ChannelToolSpec
 
 public sealed class ChannelToolApprovalSpec
 {
-    /// <summary>
-    /// Server approval category, for example <c>file</c> or <c>shell</c>.
-    /// </summary>
     public string Kind { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Name of the tool argument that contains the primary approval target.
-    /// </summary>
     public string TargetArgument { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Optional static operation label forwarded to the approval service.
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Operation { get; set; }
 
-    /// <summary>
-    /// Optional argument name whose runtime value is forwarded as the operation string.
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OperationArgument { get; set; }
 }
@@ -156,6 +121,9 @@ public sealed class ChannelDeliveryCapabilitySnapshot
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelMediaCapabilitySnapshot? Media { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelHistoryCapabilitySnapshot? History { get; set; }
 }
 
 public sealed class ChannelTextCapabilitySnapshot

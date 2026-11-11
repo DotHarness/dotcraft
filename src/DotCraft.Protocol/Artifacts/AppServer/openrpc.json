@@ -2321,6 +2321,39 @@
       ]
     },
     {
+      "name": "ext/channel/history",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/external-channel/ExtChannelHistoryParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/external-channel/ExtChannelHistoryResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "serverToClient",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "external-channel",
+      "x-dotcraft-capability": "channelAdapter",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "ext/channel/send",
       "paramStructure": "by-name",
       "params": [

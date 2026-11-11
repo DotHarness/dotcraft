@@ -12,6 +12,7 @@ export interface QQConfig {
     whitelistedGroups?: Array<number | string>;
     approvalTimeoutMs?: number;
     requireMentionInGroups?: boolean;
+    groupContextMessages?: number;
     ackReactionEmoji?: string;
   };
 }

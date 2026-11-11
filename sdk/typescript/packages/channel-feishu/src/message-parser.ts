@@ -110,6 +110,41 @@ export async function parseInboundMessage(
   return null;
 }
 
+export function renderMessageContent(
+  messageType: string,
+  rawContent: string,
+  mentions: FeishuMention[],
+  botOpenId: string,
+): string {
+  if (messageType === "text") {
+    return stripMentionKeys(String(safeParseJson(rawContent).text ?? ""), mentions).trim();
+  }
+  if (messageType === "post") {
+    return extractPostPieces(rawContent, mentions, botOpenId)
+      .map((piece) => (typeof piece === "string" ? piece : `[${piece.kind}]`))
+      .join("")
+      .trim();
+  }
+  switch (messageType) {
+    case "image":
+    case "sticker":
+      return "[image]";
+    case "audio":
+      return "[audio]";
+    case "media":
+    case "video":
+      return "[video]";
+    case "file":
+      return "[file]";
+    case "merge_forward":
+      return "[forwarded messages]";
+    case "interactive":
+      return "[card]";
+    default:
+      return messageType ? `[${messageType}]` : "";
+  }
+}
+
 interface MediaPiece {
   kind: "image" | "video" | "file";
   key: string;

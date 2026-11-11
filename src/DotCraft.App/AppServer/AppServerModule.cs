@@ -17,22 +17,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// AppServer module: exposes the DotCraft Session Wire Protocol over stdio (JSON-RPC 2.0 JSONL).
-/// Enabled via the <c>app-server</c> subcommand or <c>AppServer.Enabled = true</c> in config.
-/// </summary>
 [DotCraftModule("app-server", Priority = 250, Description = "AppServer: JSON-RPC 2.0 Session Wire Protocol over stdio for multi-language client integration", CanBePrimaryHost = true)]
 public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
 {
-    /// <inheritdoc />
     public IReadOnlyList<IDotCraftModule> GetModules(ModuleRegistry registry, AppConfig config) =>
         registry.GetEnabledModules(config);
 
-    /// <inheritdoc />
     public override bool IsEnabled(AppConfig config) =>
         config.GetSection<AppServerConfig>("AppServer").Mode != AppServerMode.Disabled;
 
-    /// <inheritdoc />
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
         services.AddDotCraftAppServer();
@@ -46,13 +39,13 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
         if (context.Config.GetSection<SessionImportConfig>("AgentImport").Enabled)
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, SessionImportProtocolExtension>());
 
-        // AppServer owns channel routing, external channels, automation delivery, and channel tool discovery.
         services.TryAddSingleton<IChannelRuntimeRegistry, ChannelRuntimeRegistry>();
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
         services.TryAddSingleton<ChatBindingResolver>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, SendChannelMessageToolProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ReadChannelHistoryToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, ChannelChatSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, ClientSurfaceSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
@@ -62,13 +55,9 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
     }
 }
 
-/// <summary>
-/// Host factory for AppServer mode.
-/// </summary>
 [HostFactory("app-server")]
 public sealed class AppServerHostFactory : IHostFactory
 {
-    /// <inheritdoc />
     public IDotCraftHost CreateHost(IServiceProvider serviceProvider, ModuleContext context)
     {
         return ActivatorUtilities.CreateInstance<AppServerHost>(serviceProvider);

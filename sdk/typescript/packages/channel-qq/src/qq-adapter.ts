@@ -1,5 +1,8 @@
 import {
+  UnaddressedMessageBuffer,
   textPart,
+  type ChannelHistoryPage,
+  type ChannelHistoryReadRequest,
   type InputPart,
   type ChannelTarget,
 } from "@dotcraft/channel";
@@ -42,6 +45,7 @@ import { qqDeliveryCapabilities, sendQQMessage } from "./qq-send.js";
 import type { QQConfig } from "./qq-config.js";
 import { QQPermissionService, normalizeIds } from "./permission.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
+import { describeSegments, readQQHistory, resolveQuotedPart } from "./qq-history.js";
 
 const DEFAULT_ACK_REACTION_EMOJI = "128064";
 
@@ -86,6 +90,13 @@ export function validateQQConfig(rawConfig: unknown): asserts rawConfig is QQCon
     ]);
   }
 
+  if (qq.groupContextMessages !== undefined) {
+    const count = Number(qq.groupContextMessages);
+    if (!Number.isInteger(count) || count < 0 || count > 50) {
+      throw new ConfigValidationError("qq.groupContextMessages must be an integer from 0 to 50.", ["qq.groupContextMessages"]);
+    }
+  }
+
   if (fields.length > 0) {
     throw new ConfigValidationError(`Missing required fields: ${fields.join(", ")}`, fields);
   }
@@ -106,6 +117,8 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private requireMentionInGroups = true;
   private approvalTimeoutMs = 60_000;
   private ackReactionEmoji = DEFAULT_ACK_REACTION_EMOJI;
+  private unaddressed = new UnaddressedMessageBuffer(0);
+  private selfId: string | undefined;
 
   constructor() {
     super("qq", "dotcraft-qq", "0.1.0", [
@@ -190,6 +203,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     this.requireMentionInGroups = config.qq.requireMentionInGroups ?? true;
     this.approvalTimeoutMs = config.qq.approvalTimeoutMs ?? 60_000;
     this.ackReactionEmoji = config.qq.ackReactionEmoji?.trim() || DEFAULT_ACK_REACTION_EMOJI;
+    this.unaddressed = new UnaddressedMessageBuffer(config.qq.groupContextMessages ?? 0);
 
     try {
       const server = new OneBotReverseWsServer(
@@ -223,6 +237,14 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     if (channelContext) {
       this.threadContextMap.set(threadId, channelContext);
     }
+  }
+
+  protected override onCurrentThreadChanged(_previousThreadId: string | undefined, _threadId: string, channelContext: string): void {
+    this.unaddressed.reset(channelContext);
+  }
+
+  protected override async onReadHistory(request: ChannelHistoryReadRequest): Promise<ChannelHistoryPage> {
+    return await readQQHistory(this.requireOneBot(), request, this.selfId);
   }
 
   override async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
@@ -398,9 +420,16 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       ...(isGroup ? { groupId: channelContext } : {}),
     };
 
+    if (evt.self_id !== undefined) this.selfId = String(evt.self_id);
     const isBindCode = Boolean(this.parseChannelBindCode(rawText));
     const segments = normalizeMessageSegments(evt.message);
     if (!isBindCode && isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
+      this.unaddressed.remember(channelContext, {
+        ...(evt.message_id !== undefined ? { messageId: String(evt.message_id) } : {}),
+        senderName,
+        text: describeSegments(evt.message),
+        ...(evt.time !== undefined ? { sentAt: evt.time * 1000 } : {}),
+      });
       return;
     }
     if (this.approvalReplies.hasPending(approver) && !(await this.isCommand(rawText))) {
@@ -430,6 +459,12 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     this.lastSenderByContext.set(channelContext, senderId);
     await this.addAckReaction(evt.message_id);
 
+    const isCommand = await this.isCommand(rawText);
+    const quoted = isCommand || !this.oneBot ? undefined : await resolveQuotedPart(this.oneBot, evt.message);
+    const context = isCommand || !isGroup ? undefined : this.unaddressed.snapshot(channelContext);
+    const contextParts = [context?.part, quoted].filter((part): part is InputPart => part !== undefined);
+    if (contextParts.length > 0) inputParts.unshift(...contextParts);
+
     await this.handleMessage({
       userId: threadUserId,
       userName: senderName,
@@ -439,6 +474,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       omitSenderGroupId: !isGroup,
       directTarget,
       inputParts: inputParts.length > 0 ? inputParts : undefined,
+      ...(context ? { onAccepted: context.consume } : {}),
     });
   }
 

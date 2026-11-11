@@ -23,7 +23,10 @@ import {
   type ChannelChatDescriptor,
   type ChannelDeliveryCapabilities,
   type ChannelToolDescriptor,
+  type InputPart,
   type ChannelAdapterMessageOpts,
+  type ChannelHistoryPage,
+  type ChannelHistoryReadRequest,
   type ChannelTurn,
   type ChannelTurnOutcome,
   type TurnItemActivity,
@@ -51,14 +54,18 @@ import { FEISHU_DELIVERY_CAPABILITIES, FeishuChannelSender } from "./channel-sen
 import { FeishuChatInfoCache } from "./chat-info-cache.js";
 import {
   conversationTargetBase,
+  deriveConversationTarget,
   describeConversation,
   formatConversationTarget,
   parseConversationTarget,
 } from "./conversation-target.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
+import { historyFailure } from "@dotcraft/channel";
+import { renderMessageContent } from "./message-parser.js";
 import {
   type FeishuCardActionEvent,
   type FeishuConfig,
+  type FeishuMessageEvent,
   type FeishuSendResult,
   type ParsedInboundMessage,
 } from "./feishu-types.js";
@@ -68,6 +75,7 @@ import {
   FeishuUserIdentityError,
   type FeishuDeviceAuthorization,
 } from "./feishu-user-identity.js";
+import { FeishuHistory } from "./feishu-history.js";
 import { FeishuLoadingIcon } from "./loading-icon.js";
 import { FeishuMediaDelivery } from "./media-delivery.js";
 import { FeishuOutboundRouter } from "./outbound-router.js";
@@ -126,6 +134,8 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
 
 export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private feishu: FeishuClient | undefined;
+  private history: FeishuHistory | undefined;
+  private botOpenId = "";
   private cardTitle = "DotCraft";
   private adminUsers = new Set<string>();
   private cliTool: FeishuCliTool | undefined;
@@ -202,6 +212,14 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.approvals.timeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
     this.adminUsers = new Set((config.feishu.adminUsers ?? []).map((id) => id.trim()));
     this.feishu = new FeishuClient(config.feishu);
+    this.history = new FeishuHistory(
+      {
+        client: () => this.getFeishuClient(),
+        botAppId: () => config.feishu.appId,
+        botOpenId: () => this.botOpenId,
+      },
+      config.feishu.groupContextMessages ?? 0,
+    );
     const stateDir = resolveModuleStatePath(context);
     this.loadingIcon = new FeishuLoadingIcon(this.feishu, { stateDir });
     const userIdentity = new FeishuUserIdentity({
@@ -223,6 +241,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
     try {
       const botInfo = await this.feishu.probeBot();
+      this.botOpenId = botInfo.openId?.trim() ?? "";
       const handlers = createFeishuEventHandlers({
         adapter: this,
         client: this.feishu,
@@ -517,7 +536,31 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
   }
 
+  rememberUnaddressed(event: FeishuMessageEvent, threadCapable: boolean, botOpenId: string): void {
+    if (!this.history || event.message.chat_type !== "group") return;
+    const text = renderMessageContent(event.message.message_type, event.message.content, event.message.mentions ?? [], botOpenId);
+    if (!text) return;
+    const createTime = Number(event.message.create_time ?? 0);
+    this.history.rememberUnaddressed(deriveConversationTarget(event, event.sender.sender_id.open_id ?? "", threadCapable).channelContext, {
+      messageId: event.message.message_id,
+      senderName: event.sender.sender_id.open_id ?? event.message.message_id,
+      text,
+      ...(createTime > 0 ? { sentAt: createTime } : {}),
+    });
+  }
+
+  protected override async onReadHistory(request: ChannelHistoryReadRequest): Promise<ChannelHistoryPage> {
+    return this.history
+      ? await this.history.read(request)
+      : historyFailure("HistoryUnavailable", "Feishu is not connected.");
+  }
+
   async handleInboundMessage(message: ParsedInboundMessage): Promise<void> {
+    if (message.chatType === "p2p") this.history?.rememberDirectChat(message.userId, message.chatId);
+    const context = message.chatType === "group" ? this.history?.snapshot(message.channelContext) : undefined;
+    const quotesTopicRoot = Boolean(message.threadKey) && message.parentId === message.rootId;
+    const quoted = quotesTopicRoot ? undefined : await this.history?.quotedPart(message.parentId);
+    const contextParts = [context?.part, quoted].filter((part): part is InputPart => part !== undefined);
     logInfo("inbound.handle.start", {
       messageId: shortId(message.messageId),
       kind: message.kind,
@@ -540,7 +583,8 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       ),
       text: message.text,
       workspacePath: this.defaultWorkspacePath,
-      inputParts: message.parts.length ? message.parts : undefined,
+      inputParts: contextParts.length || message.parts.length ? [...contextParts, ...message.parts] : undefined,
+      ...(context ? { onAccepted: context.consume } : {}),
     });
   }
 
@@ -843,6 +887,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   ): void {
     if (previousThreadId) this.threadContextMap.delete(previousThreadId);
     this.router.forget(channelContext);
+    this.history?.reset(channelContext);
   }
 }
 

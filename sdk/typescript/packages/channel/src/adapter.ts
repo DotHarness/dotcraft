@@ -1,7 +1,3 @@
-/**
- * ChannelAdapter: high-level base class for external channel adapters.
- */
-
 import { ChannelAppServerClient } from "./channelAppServerClient.js";
 import {
   ERR_THREAD_NOT_ACTIVE,
@@ -41,6 +37,7 @@ import {
 } from "./channelRuntime.js";
 import { CommandRouter, type CommandChoiceContext, type CommandRunRequest } from "./commandRouter.js";
 import { DeliveryDispatcher } from "./deliveryDispatcher.js";
+import { HistoryDispatcher, historyFailure, type ChannelHistoryPage, type ChannelHistoryReadRequest } from "./chatHistory.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
 import {
   consumeTurnStream,
@@ -76,10 +73,10 @@ export abstract class ChannelAdapter {
   private readonly userInputDispatcher: UserInputDispatcher;
   private readonly deliveryDispatcher: DeliveryDispatcher;
   private readonly channelToolDispatcher: ChannelToolDispatcher;
+  private readonly historyDispatcher: HistoryDispatcher;
   private readonly lifecycle = new ModuleLifecycleState();
   private running = false;
 
-  /** Default workspace path; override per instance or in handleMessage. */
   protected defaultWorkspacePath = "";
 
   constructor(
@@ -131,6 +128,7 @@ export abstract class ChannelAdapter {
       onToolCall: (params) => this.onToolCall(params),
       onConfigOptionAvailability: (key) => this.onConfigOptionAvailability(key),
     });
+    this.historyDispatcher = new HistoryDispatcher(() => this.client, (request) => this.onReadHistory(request));
   }
 
   abstract onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean>;
@@ -184,6 +182,11 @@ export abstract class ChannelAdapter {
     };
   }
 
+  /** Override when the delivery capabilities declare `history`. */
+  protected async onReadHistory(_request: ChannelHistoryReadRequest): Promise<ChannelHistoryPage> {
+    return historyFailure("UnsupportedTarget", "This adapter cannot read chat history.");
+  }
+
   protected async onConfigOptionAvailability(_key: string): Promise<string[] | null> {
     return null;
   }
@@ -220,7 +223,6 @@ export abstract class ChannelAdapter {
     await this.onDeliver(target, lines.join("\n"), {});
   }
 
-  /** Returns compact application context bound to Threads owned by this adapter. */
   protected getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined {
     return undefined;
   }
@@ -258,6 +260,7 @@ export abstract class ChannelAdapter {
     this.userInputDispatcher.register();
     this.deliveryDispatcher.register();
     this.channelToolDispatcher.register();
+    this.historyDispatcher.register();
     await this.client.initialize({
       clientName: this.clientName,
       clientVersion: this.clientVersion,
@@ -494,6 +497,7 @@ export abstract class ChannelAdapter {
 
       if (binding) {
         await this.enqueueChannelBoundInput(binding, input, opts, sender);
+        opts.onAccepted?.();
         return;
       }
 
@@ -510,6 +514,7 @@ export abstract class ChannelAdapter {
         return recovered;
       });
       accepted = true;
+      opts.onAccepted?.();
     } catch (error) {
       if (!accepted) await this.sendGenericNotice(
         channelContext,

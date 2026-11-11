@@ -52,6 +52,13 @@ class MyChannel extends ChannelAdapter {
 
 This adapter sends text only. Declare a `media` entry and override `onSend` to deliver attachments.
 
+## Chat context and history
+
+Two adapter concerns keep the agent oriented in a conversation it joined late. Both are optional, and neither changes what the chat sees.
+
+- **Chat context.** Pass text parts for quoted messages before the message's own parts, for example from `quotedMessagePart(senderName, text)`. When the adapter forwards group messages only on a mention, `new UnaddressedMessageBuffer(limit)` keeps the recent messages that did not mention the bot, and `snapshot(channelContext)` returns their text part plus a `consume` callback. Pass the callback as `onAccepted` in the message options: it runs once the server accepted that input, so a command or a failed request does not drop the context. Reset the buffer when `onCurrentThreadChanged` reports a new thread.
+- **History.** Declare `history: { maxMessages }` in `getDeliveryCapabilities` only when the platform lets the bot read earlier messages, and implement `onReadHistory`. It receives the chat target, a limit, and an optional `before` cursor, and returns messages oldest first with an optional cursor for older ones. Return `historyFailure(code, message)` instead of throwing; `UnsupportedTarget`, `InvalidCursor`, and `HistoryUnavailable` map to the error the agent sees. The agent reads only the bound chat through `ReadChannelHistory`.
+
 ## Lifecycle and recovery
 
 - Call `start()` before accepting platform events. It connects the Wire client, registers Channel handlers, and then advertises the Channel capabilities during `initialize`. Call `stop()` during shutdown.
@@ -83,6 +90,7 @@ Approvals answered by text accept `/approve`, `/approve session`, and `/deny`, i
 | `onSend` | Override to deliver every attachment kind `getDeliveryCapabilities` declares, and answer a target the adapter cannot reach with `UnsupportedTarget`. The default accepts text and rejects other kinds with `UnsupportedDeliveryKind`. The base answers a repeated delivery id with the first result, so a retried send does not post twice. |
 | `getChannelTools` + `onToolCall` | Optional. Advertise only tools the call hook implements; the default call hook returns `UnsupportedTool`. Channel tools are for platform operations other than messaging, which `SendChannelMessage` already covers. |
 | `onTurnStarted`, `onActivity`, `onTurnRetrying`, `onTurnEnded` | Optional. Show chat activity, such as a typing indicator or a status card, for a turn the adapter started. `onActivity` reports text, reasoning, and tool items starting and completing, without their content. `onTurnRetrying` fires while the server retries the model stream. `onTurnEnded` fires once with `completed`, `failed`, `cancelled`, or `disconnected`; the default sends one generic failure notice for `failed`. Override it when a status card already shows the failure. |
+| `onReadHistory` | Optional. Read the bound chat's earlier messages as declared by `history`; the default answers `UnsupportedTarget`. |
 | `onCurrentThreadChanged` | Optional. Called when a command such as `/new` or `/resume` switches the conversation to another thread. |
 | `renderCommandChoices` | Optional. Present a command result's choices. The default renders a numbered list through `onDeliver`. |
 

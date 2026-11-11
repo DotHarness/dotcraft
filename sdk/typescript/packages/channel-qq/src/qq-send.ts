@@ -16,6 +16,7 @@ import {
   type OneBotReverseWsServer,
 } from "./onebot.js";
 import { parseQQTarget, type QQTarget } from "./target.js";
+import { QQ_HISTORY_MAX_MESSAGES } from "./qq-history.js";
 
 export type QQDeliveryResult = {
   delivered: boolean;
@@ -50,6 +51,7 @@ export function qqDeliveryCapabilities(): ChannelDeliveryCapabilities {
       audio: { ...mediaSources },
       video: { ...mediaSources },
     },
+    history: { maxMessages: QQ_HISTORY_MAX_MESSAGES },
   };
 }
 

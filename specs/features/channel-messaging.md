@@ -8,9 +8,10 @@
 | **Parent Specs** | [External Channel Adapter](../protocols/external-channel-adapter.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define how an agent speaks in social channels served by external channel adapters: one
-model tool sends text and attachments to a chat, the channel's capabilities and
-the conversation's place in it reach the model as context, and nothing else the agent writes is
-projected into the chat. It also defines the in-chat command set and its semantics.
+model tool sends text and attachments to a chat, another reads the chat's earlier messages, the
+channel's capabilities and the conversation's place in it reach the model as context, and nothing
+else the agent writes is projected into the chat. It also defines the chat context adapters attach
+to inbound messages, the in-chat command set and its semantics.
 
 ## 1. Scope
 
@@ -19,7 +20,9 @@ This specification owns:
 - the chat binding of a thread and the chat address format;
 - the semantics of channel delivery capabilities;
 - the `SendChannelMessage` tool;
+- the `ReadChannelHistory` tool;
 - the channel state the model receives;
+- the chat context an adapter attaches to inbound messages;
 - what an adapter shows in the chat while a Turn runs;
 - how automations and App Binding deliver through the tool;
 - the in-chat command set, its scopes, busy behavior, authority and platform presentation.
@@ -39,14 +42,15 @@ channel-agnostic: nothing in this specification adds channel behavior to
 - Not sending is a valid outcome. The runtime does not detect, recover or replace a Turn that sent
   nothing; it gives the model the facts it needs and reports delivery results back to it.
 - One tool covers every channel. Channel differences are capabilities the adapter declares, not
-  per-platform tools.
+  per-platform tools. This holds for reading a chat as for sending to it.
 - Scheduled and background work uses the same tool, so "notify only when there is something to say"
   needs no silence token or importance score.
 
 ## 3. Non-goals
 
 - Reactions, message edits, recalls, polls, buttons, @-mentions and quoted replies sent by the model.
-- A directory or search tool for chats and contacts.
+- A directory or search tool for chats and contacts, and reading chats other than the bound chat.
+- Keyword search of chat history.
 - Sending from a thread that has no chat binding, such as an unbound Desktop thread.
 - Delivery-recovery Turns, silence tokens, or automatic fallback delivery of the final reply.
 - Platform operations that are not messaging, such as document or calendar access (§11).
@@ -106,6 +110,7 @@ An adapter declares its delivery capabilities during `initialize`
 | `media.<kind>` | Accepted attachment kinds (`image`, `file`, `audio`, `video`) with size, type and caption limits. An absent kind is unsupported. |
 | `targets.group` | Whether the adapter can send to a group other than the bound chat. |
 | `targets.direct` | `any`, `knownOnly` (only to users who have messaged the bot) or `none`: whether it can send to a direct chat other than the bound chat. |
+| `history.maxMessages` | Present when the adapter can return earlier messages of a chat it delivers to (§13); the most messages it returns for one read. An absent `history` means the platform offers the bot no history. |
 
 Capabilities are fixed for the lifetime of an adapter connection.
 
@@ -124,7 +129,9 @@ reachable targets (§5). The section is sent again only when that snapshot chang
   conversation stays in the thread;
 - the membership (§4.2);
 - the text format and accepted attachment kinds;
-- which other chats the adapter can reach (§5 `targets`), omitted when none are reachable.
+- which other chats the adapter can reach (§5 `targets`), omitted when none are reachable;
+- that earlier messages of the bound chat can be read with `ReadChannelHistory`, only when the
+  channel declares `history`.
 
 While the binding exists but its facts are unavailable, the section takes no snapshot and sends
 nothing, so the model keeps what it was last told. This covers a channel that is not connected, a
@@ -243,6 +250,25 @@ same row.
 - Approval and user-input requests keep their platform presentation
   ([External Channel Adapter](../protocols/external-channel-adapter.md#8-approval-flow-in-external-channels)).
 
+### 8.1 Chat context
+
+An adapter attaches chat context the model could not otherwise see to the forwarded message, as text
+parts before the message's own content. Each part opens with a short bracketed label naming what
+follows.
+
+- **Quoted message.** When an inbound message replies to or quotes another message, the adapter
+  attaches the quoted message's sender and text, truncated to 1,000 characters. Non-text content
+  appears as a short placeholder such as `[image]`. When the platform does not deliver the quoted
+  message and the adapter cannot fetch it, the message is forwarded without it.
+- **Unaddressed messages.** An adapter that forwards group messages only when the bot is mentioned
+  may keep the most recent messages it receives in that group without a mention, when configured to
+  (off by default, at most 50 per chat). It keeps them per chat, or per topic where topics are
+  separate conversations, in memory only, and only from chats and senders it permits. The next
+  message it forwards from that chat carries them, oldest first with each sender's name and time,
+  and they are dropped once the server accepts that input. Commands, approval replies and answers to
+  questions neither carry nor drop them. A change of the conversation's current thread, such as
+  `/new`, drops them, and so does an adapter restart.
+
 ## 9. Automations
 
 - An automation created from a channel thread captures its origin with the delivery target, the
@@ -268,8 +294,9 @@ delivered to the bound chat.
 
 ## 11. Adapter channel tools
 
-Adapters declare no `channelTools` for sending text or media to a chat; every message goes through
-`SendChannelMessage`. `channelTools` remain for platform operations that are not messaging.
+Adapters declare no `channelTools` for sending text or media to a chat or for reading its earlier
+messages; every message goes through `SendChannelMessage` and every history read through
+`ReadChannelHistory`. `channelTools` remain for platform operations that are not messaging.
 
 ## 12. Commands
 
@@ -354,3 +381,37 @@ models `/model` lists.
   approvals with them. Otherwise it shows choices as a numbered list with each choice's command, and
   approvals as reply keywords.
 - `/help` and native menus list only the commands the sender may use.
+
+## 13. `ReadChannelHistory`
+
+### 13.1 Availability
+
+The tool is published wherever `SendChannelMessage` is (§7.1), with the same schema on every thread
+and channel. It is a host-implemented tool of the channel runtime that reads the bound chat through
+`ext/channel/history`. Its one-paragraph description names the action and the cursor argument and
+nothing else. It reads only the bound chat, and reading needs no approval because the bound chat's
+members can already see its history. The channel section tells the model when the channel supports
+it (§6.1).
+
+### 13.2 Parameters
+
+- `limit`: how many messages to return, 1 to 50, default 20. The host lowers it to the channel's
+  `history.maxMessages`.
+- `before`: the cursor an earlier result returned, to read the messages before it. When omitted, the
+  read returns the latest messages.
+
+### 13.3 Result
+
+On success the result lists the messages oldest first, each with its sender's name and id when
+known, its time when known, whether the bot sent it, and its text, followed by the cursor for older
+messages when the platform has more. A message the bot already received as input also appears; the history is the chat's,
+not the thread's.
+
+On failure the tool returns an error with one of these codes:
+
+| Code | When |
+|------|------|
+| `invalidArguments` | `limit` out of range or a malformed `before`. |
+| `unsupported` | The bound chat's channel does not declare `history`. |
+| `channelUnavailable` | The channel is not connected, or the App Binding binding is not `active`. |
+| `historyUnavailable` | The platform refused or failed the read, for example for a missing permission. |

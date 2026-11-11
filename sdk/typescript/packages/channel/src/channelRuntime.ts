@@ -1,7 +1,3 @@
-/**
- * Reusable runtime components for external channel adapters.
- */
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -52,6 +48,8 @@ export type ChannelAdapterMessageOptions = {
   inputParts?: InputPart[];
   omitSenderGroupId?: boolean;
   directTarget?: string;
+  /** Called once the server accepted the input, for example to drop chat context it carried. */
+  onAccepted?: () => void;
 };
 
 export function buildChannelSender(

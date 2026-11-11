@@ -80,6 +80,27 @@ public static class ExternalChannelWireMapper
         ErrorMessage = Read(value.ErrorMessage)
     };
 
+    public static Contract.ExtChannelHistoryParams ToContract(ChannelHistoryRequest value) => new()
+    {
+        Target = value.Target,
+        Limit = value.Limit,
+        Before = OmitIfNull(value.Before)
+    };
+
+    public static ChannelHistoryResult FromContract(Contract.ExtChannelHistoryResult value) => new()
+    {
+        Messages = Read(value.Messages)?.Select(static message => new ChannelHistoryEntry(
+            Read(message.Text) ?? string.Empty,
+            Read(message.MessageId),
+            Read(message.SenderId),
+            Read(message.SenderName),
+            Read(message.SentAt),
+            Read(message.FromBot))).ToList() ?? [],
+        Before = Read(value.Before),
+        ErrorCode = Read(value.ErrorCode),
+        ErrorMessage = Read(value.ErrorMessage)
+    };
+
     public static Contract.ExternalChannelConfig ToContract(ExternalChannelEntry config) => new()
     {
         Name = config.Name,

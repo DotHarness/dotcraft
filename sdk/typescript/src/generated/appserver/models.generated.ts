@@ -1010,9 +1010,25 @@ export interface ChannelChat {
 }
 
 export interface ChannelDeliveryCapabilities {
+  history?: ChannelHistoryCapability | null;
   media?: ChannelMediaCapabilitySet | null;
   targets: ChannelTargetCapability;
   text: ChannelTextCapability;
+  [key: string]: unknown;
+}
+
+export interface ChannelHistoryCapability {
+  maxMessages: number;
+  [key: string]: unknown;
+}
+
+export interface ChannelHistoryMessage {
+  fromBot?: boolean | null;
+  messageId?: string | null;
+  senderId?: string | null;
+  senderName?: string | null;
+  sentAt?: string | null;
+  text?: string;
   [key: string]: unknown;
 }
 
@@ -1554,6 +1570,21 @@ export interface ExtChannelConfigOptionAvailabilityParams {
 
 export interface ExtChannelConfigOptionAvailabilityResult {
   available: string[] | null;
+  [key: string]: unknown;
+}
+
+export interface ExtChannelHistoryParams {
+  before?: string | null;
+  limit?: number;
+  target?: string;
+  [key: string]: unknown;
+}
+
+export interface ExtChannelHistoryResult {
+  before?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  messages?: ChannelHistoryMessage[];
   [key: string]: unknown;
 }
 

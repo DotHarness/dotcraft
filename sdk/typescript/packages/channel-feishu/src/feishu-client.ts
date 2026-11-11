@@ -237,17 +237,12 @@ export class FeishuClient {
   }
 
   async listChatMessages(
-    chatId: string,
-    options: FeishuListChatMessagesOptions,
+    containerId: string,
+    options: FeishuListChatMessagesOptions = {},
   ): Promise<FeishuChatMessagePage> {
-    const normalizedChatId = chatId.trim();
-    if (!normalizedChatId) {
+    const normalizedContainerId = containerId.trim();
+    if (!normalizedContainerId) {
       throw new TypeError("Feishu history lookup requires a chatId.");
-    }
-
-    const normalizedStartTime = options.startTime.trim();
-    if (!normalizedStartTime) {
-      throw new TypeError("Feishu history lookup requires a startTime.");
     }
     if (options.pageSize !== undefined && (!Number.isInteger(options.pageSize) || options.pageSize <= 0)) {
       throw new TypeError("Feishu history lookup requires pageSize to be a positive integer.");
@@ -255,10 +250,12 @@ export class FeishuClient {
 
     const token = await this.getTenantAccessToken();
     const params = new URLSearchParams({
-      container_id_type: "chat",
-      container_id: normalizedChatId,
-      start_time: normalizedStartTime,
+      container_id_type: options.containerType ?? "chat",
+      container_id: normalizedContainerId,
     });
+    if (options.startTime?.trim()) {
+      params.set("start_time", options.startTime.trim());
+    }
     if (options.endTime?.trim()) {
       params.set("end_time", options.endTime.trim());
     }
@@ -267,6 +264,9 @@ export class FeishuClient {
     }
     if (options.pageToken?.trim()) {
       params.set("page_token", options.pageToken.trim());
+    }
+    if (options.sortType) {
+      params.set("sort_type", options.sortType);
     }
 
     const payload = await this.callJsonApi(
@@ -287,6 +287,28 @@ export class FeishuClient {
       nextPageToken: data.page_token ? String(data.page_token) : undefined,
       hasMore: data.has_more == null ? undefined : Boolean(data.has_more),
     };
+  }
+
+  async getMessage(messageId: string): Promise<FeishuChatMessageItem | undefined> {
+    const normalizedMessageId = messageId.trim();
+    if (!normalizedMessageId) {
+      throw new TypeError("Feishu message lookup requires a messageId.");
+    }
+
+    const token = await this.getTenantAccessToken();
+    const payload = await this.callJsonApi(
+      () =>
+        fetch(`${this.apiBaseUrl}/open-apis/im/v1/messages/${encodeURIComponent(normalizedMessageId)}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      "Failed to read Feishu message.",
+    );
+    const data = (payload.data as Record<string, unknown> | undefined) ?? {};
+    const items = Array.isArray(data.items) ? data.items.map(mapChatMessageItem) : [];
+    return items.find((item) => item.messageId === normalizedMessageId);
   }
 
   async startEventStream(handlers: FeishuEventHandlers, abortSignal?: AbortSignal): Promise<void> {
@@ -913,11 +935,13 @@ function mapChatMessageItem(input: unknown): FeishuChatMessageItem {
   const senderRecord =
     record.sender && typeof record.sender === "object" ? (record.sender as Record<string, unknown>) : {};
   const senderIdRecord =
-    senderRecord.id && typeof senderRecord.id === "object"
-      ? (senderRecord.id as Record<string, unknown>)
-      : senderRecord.sender_id && typeof senderRecord.sender_id === "object"
-        ? (senderRecord.sender_id as Record<string, unknown>)
-        : {};
+    typeof senderRecord.id === "string"
+      ? { [String(senderRecord.id_type ?? "open_id")]: senderRecord.id }
+      : senderRecord.id && typeof senderRecord.id === "object"
+        ? (senderRecord.id as Record<string, unknown>)
+        : senderRecord.sender_id && typeof senderRecord.sender_id === "object"
+          ? (senderRecord.sender_id as Record<string, unknown>)
+          : {};
   const mentions = Array.isArray(record.mentions)
     ? record.mentions
         .map(mapMention)
@@ -936,8 +960,10 @@ function mapChatMessageItem(input: unknown): FeishuChatMessageItem {
     createTime: record.create_time ? String(record.create_time) : undefined,
     parentId: record.parent_id ? String(record.parent_id) : undefined,
     rootId: record.root_id ? String(record.root_id) : undefined,
+    threadId: record.thread_id ? String(record.thread_id) : undefined,
     sender: {
       openId: senderIdRecord.open_id ? String(senderIdRecord.open_id) : undefined,
+      appId: senderIdRecord.app_id ? String(senderIdRecord.app_id) : undefined,
       userId: senderIdRecord.user_id ? String(senderIdRecord.user_id) : undefined,
       unionId: senderIdRecord.union_id ? String(senderIdRecord.union_id) : undefined,
       senderType: senderRecord.sender_type ? String(senderRecord.sender_type) : undefined,

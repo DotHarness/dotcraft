@@ -62,7 +62,7 @@ The descriptor and delivery-capability shapes are defined by [AppServer initiali
 
 If the `channelName` is not recognized in the server configuration, the server closes the connection after the `initialize` response with a `system/event` notification of kind `"channelRejected"`, so adapters cannot register under arbitrary channel names.
 
-Every adapter serves `ext/channel/send`. `channelTools` is optional; an adapter that omits it never receives `ext/channel/toolCall`.
+Every adapter serves `ext/channel/send`. `channelTools` is optional; an adapter that omits it never receives `ext/channel/toolCall`. An adapter receives `ext/channel/history` only when its delivery capabilities declare `history`.
 
 ## 4. Channel-Specific Server Methods
 
@@ -83,6 +83,10 @@ A server → client request with empty params and result that verifies the adapt
 ### 4.4 `ext/channel/configOptionAvailability`
 
 A server → client request with params `{ key }`, the dotted key of a configuration field that declares `options` ([TypeScript SDK](../sdk/typescript.md) §15.3). The result is `{ available }`: the option values the platform currently allows for this channel, or `null` when the adapter cannot tell. The adapter answers from live platform state and must not modify configuration. The server relays it for `externalChannel/configOptionAvailability` ([AppServer Protocol](appserver-protocol.md) §23.8).
+
+### 4.5 `ext/channel/history`
+
+Adapters that declare `history` read a chat's earlier messages using the [AppServer channel history contract](appserver-protocol.md#1123-extchannelhistory) and serve [`ReadChannelHistory`](../features/channel-messaging.md#13-readchannelhistory). The adapter reads with the bot's own platform identity and returns what the platform gives the bot; it does not cache chats to answer reads.
 
 ## 5. Adapter Host Lifecycle
 
@@ -132,7 +136,7 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** send the `initialized` notification after receiving the `initialize` response before making any other requests.
 - `channelAdapter.channelName` **must** match the channel name declared in server-side configuration.
 - `channelAdapter.displayName` **must** name the platform as people know it.
-- `channelAdapter.deliveryCapabilities` **must** declare `text` and `targets`, and a `media` entry for every attachment kind its `ext/channel/send` delivers. `targets` **must** describe only chats the adapter can actually reach.
+- `channelAdapter.deliveryCapabilities` **must** declare `text` and `targets`, and a `media` entry for every attachment kind its `ext/channel/send` delivers. `targets` **must** describe only chats the adapter can actually reach. `history` **must** be declared only when the platform lets the bot read chat history.
 - A companion executable used by a `channelTool` **must** be resolved, configured, started, cancelled, and drained by the adapter; AppServer acquires no product-specific process knowledge from the declaration.
 - `capabilities.approvalSupport` **must** be `true` if the adapter will handle approval requests. If it is `false`, the server auto-resolves approvals using workspace defaults and the adapter never receives `item/approval/request`.
 - `channelTools[].approval`, when present, is a descriptive declaration of approval targets for server interception, not an adapter-local approval policy source.
@@ -146,6 +150,7 @@ This section defines the protocol-level obligations that any conforming external
 - Inbound input for a thread with an active regular Turn goes to that Turn with `turn/steer`, using the active Turn ID the adapter observed. When the active Turn cannot accept steering, or blocking thread maintenance is active, the adapter queues the input with `turn/enqueue`. Otherwise it starts a Turn with `turn/start`. When `turn/start` is rejected with `TurnInProgress` (`-32012`) because another Turn started first, the adapter steers the input into that Turn instead. The adapter does not retry or delay `turn/start` while a Turn runs.
 - An inbound platform image is downloaded by the adapter, saved with a unique file name under the workspace's `.craft/attachments/images/`, and submitted as a `localImage` part, so the agent can reach the file by path after the Turn. The adapter never deletes it; Session Core owns the file's lifetime like any workspace-managed attachment. Platform image URLs are never forwarded.
 - An inbound video, audio clip, or file that the adapter supports is downloaded the same way, saved under its own unique folder in `.craft/attachments/files/` with the sender's file name, and submitted as a `fileRef` part preceded by a text label naming its kind. The model sees the path, not the content, and reads it with workspace tools.
+- Quoted messages and, when configured, recent unaddressed group messages are attached as chat context before the message's own parts ([Channel Messaging](../features/channel-messaging.md#81-chat-context)). Unaddressed messages are dropped only after the server accepts the input that carries them.
 - Text and attachments that arrive in one platform message are submitted in their original order, so each attachment stays next to the words around it. When an attachment cannot be downloaded, the adapter still submits the text, with a note in that attachment's place naming the resource so the agent can fetch it with the platform's tools.
 - Register local event capture before ensure-resume and `turn/start`. Reduce only the returned Turn id on its typed thread feed (`turn.threadId` for Turn notifications); interleaved threads or another Turn's terminal event cannot complete the run or close the shared feed. Release run-owned observations when that consumer ends, preserving other actual owners and preventing cached background reuse from accumulating permanent feeds.
 - If request startup fails before `turn/start` returns a Turn ID, the adapter **must** send exactly one generic failure notification to the originating channel context, without the server exception or other diagnostic details (those belong only in channel logs). Once a Turn ID has been returned, the normal Turn event stream owns terminal status.
@@ -186,6 +191,7 @@ The adapter **must** handle the following server-initiated requests:
 | `item/approval/request` | Present platform-native approval UI and respond with the decision (§8). |
 | `ext/channel/send` | Deliver the structured `message` to `target`; validate `message.kind` and source forms against the adapter's advertised capabilities; answer an unreachable or malformed `target` with `UnsupportedTarget`; answer a repeated `deliveryId` with the first result. |
 | `ext/channel/toolCall` | Execute a previously declared `channelTools` entry after any server-side gating implied by descriptor metadata; return structured success/failure data without mutating the declared tool set. |
+| `ext/channel/history` | Only when `history` is declared: return the chat's messages before `before`, oldest first, at most `limit`; answer a chat it cannot read with `UnsupportedTarget` and a platform refusal with `HistoryUnavailable` (§4.5). |
 | `ext/channel/heartbeat` | Respond immediately with `{}`. |
 | `ext/channel/configOptionAvailability` | Return `{ available }` for the field `key`, with `null` when the platform state is unknown or the field has no availability (§4.4). |
 

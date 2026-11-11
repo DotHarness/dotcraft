@@ -1,6 +1,3 @@
-/**
- * Capability and tool descriptor types for SDK module contracts.
- */
 import type { JsonValue } from "@dotcraft/sdk/contracts";
 
 export interface CapabilitySummary {
@@ -11,25 +8,11 @@ export interface CapabilitySummary {
 
 export interface ToolApprovalDescriptor {
   [key: string]: unknown;
-  /**
-   * Server approval category, for example "file" or "shell".
-   */
   kind: string;
-  /**
-   * Name of the tool argument that contains the primary approval target.
-   */
   targetArgument: string;
-  /**
-   * Optional static operation label forwarded to the approval service.
-   */
   operation?: string;
-  /**
-   * Optional argument name whose runtime value is forwarded as the operation string.
-   */
   operationArgument?: string;
-  /**
-   * Legacy adapter hint accepted for compatibility; policy remains server-owned.
-   */
+  /** Ignored by the server, which owns approval policy. */
   required?: boolean;
   promptTemplate?: string;
 }
@@ -68,6 +51,8 @@ export type ChannelDeliveryCapabilities = {
     audio?: ChannelMediaConstraints;
     video?: ChannelMediaConstraints;
   };
+  /** Present when the adapter serves `ext/channel/history`; at most 50 messages per read. */
+  history?: { maxMessages: number };
 };
 
 export type ChannelChatKind = "direct" | "group" | "topic";

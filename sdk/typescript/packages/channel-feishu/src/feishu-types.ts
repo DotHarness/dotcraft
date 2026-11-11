@@ -14,6 +14,7 @@ export interface FeishuConfig {
     cardTitle?: string;
     approvalTimeoutMs?: number;
     groupMentionRequired?: boolean;
+    groupContextMessages?: number;
     ackReactionEmoji?: string;
     adminUsers?: string[];
     cli?: {
@@ -113,14 +114,20 @@ export interface FeishuReplyOptions {
 }
 
 export interface FeishuListChatMessagesOptions {
-  startTime: string;
+  /** `thread` lists one topic's messages; time bounds apply only to `chat`. */
+  containerType?: "chat" | "thread";
+  /** Unix seconds. */
+  startTime?: string;
+  /** Unix seconds. */
   endTime?: string;
   pageSize?: number;
   pageToken?: string;
+  sortType?: "ByCreateTimeAsc" | "ByCreateTimeDesc";
 }
 
 export interface FeishuChatMessageSender {
   openId?: string;
+  appId?: string;
   userId?: string;
   unionId?: string;
   senderType?: string;
@@ -135,6 +142,7 @@ export interface FeishuChatMessageItem {
   createTime?: string;
   parentId?: string;
   rootId?: string;
+  threadId?: string;
   sender: FeishuChatMessageSender;
   mentions: FeishuMention[];
   rawContent: string;

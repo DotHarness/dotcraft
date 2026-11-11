@@ -4,6 +4,16 @@
   "title": "ChannelDeliveryCapabilities",
   "type": "object",
   "properties": {
+    "history": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelHistoryCapability.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "media": {
       "anyOf": [
         {

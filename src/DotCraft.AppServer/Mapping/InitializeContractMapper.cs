@@ -4,7 +4,6 @@ using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
-/// <summary>Explicitly maps initialization contracts to connection state and capability snapshots.</summary>
 internal static class InitializeContractMapper
 {
     public static ClientConnectionInfo ToConnectionInfo(Contract.ClientInfo value) => new()
@@ -165,7 +164,10 @@ internal static class InitializeContractMapper
                     Audio = ToMediaConstraints(value.Media.Audio),
                     Image = ToMediaConstraints(value.Media.Image),
                     Video = ToMediaConstraints(value.Media.Video)
-                }
+                },
+            History = value.History is null
+                ? null
+                : new ChannelHistoryCapabilitySnapshot { MaxMessages = Math.Clamp(value.History.MaxMessages, 1, 50) }
         };
 
     private static ChannelMediaConstraintSnapshot? ToMediaConstraints(Contract.ChannelMediaConstraints? value) =>
