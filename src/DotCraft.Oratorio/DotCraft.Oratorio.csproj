@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DotCraft.Oratorio</RootNamespace>
-    <AssemblyVersion>0.10.6</AssemblyVersion>
-    <Version>0.10.6</Version>
+    <AssemblyVersion>0.11.0</AssemblyVersion>
+    <Version>0.11.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
