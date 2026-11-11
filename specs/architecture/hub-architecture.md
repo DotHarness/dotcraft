@@ -353,6 +353,8 @@ If optional modules are disabled or unavailable, Hub reports service status as `
 
 Local clients, never a remote client (§9.1), may pass runtime tool hints — bundled `rg` path, Node binary path, run-as-Node flag, bundled TypeScript modules directory, and built-in plugin roots — in ensure or restart requests. Hub persists them in `~/.craft/hub/runtime.json` and forwards them only as AppServer environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Runtime-tool status never exposes secrets; `serviceStatus.typescriptRuntime` may be `allocated`, `unavailable`, or `restartRequired`.
 
+Hub serializes the complete read, merge, and save of shared runtime tool hints across concurrent workspace ensure and restart requests, preserving updates to distinct fields.
+
 Hub does not rewrite user-configured ports for channels, webhook modules, or other integrations unless a service explicitly participates in Hub-managed runtime overrides.
 
 ## 12. Security Model

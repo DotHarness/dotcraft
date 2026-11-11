@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DotCraft.Hub;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace DotCraft.Tests.Hub;
@@ -18,7 +20,9 @@ public sealed class HubHostTests : IDisposable
     public async Task RunAsync_ServesStatus_GuardsProtectedEndpoints_AndShutsDown()
     {
         var paths = HubPaths.Resolve(_userProfile);
-        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
+        var logs = new ErrorRecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        await using var host = new HubHost(new HubConfig { Port = 0 }, paths, loggerFactory: loggerFactory);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
         var runTask = host.RunAsync(cts.Token);
@@ -61,6 +65,8 @@ public sealed class HubHostTests : IDisposable
             var error = doc.RootElement.GetProperty("error");
             Assert.Equal("hubInternalError", error.GetProperty("code").GetString());
             Assert.Equal("Hub encountered an unexpected internal error.", error.GetProperty("message").GetString());
+            var failure = Assert.IsType<ArgumentException>(Assert.Single(logs.Exceptions));
+            Assert.Equal(failure.GetType().Name, error.GetProperty("details").GetProperty("type").GetString());
         }
 
         await ShutdownAsync(http, info, cts.Token);
@@ -294,6 +300,29 @@ public sealed class HubHostTests : IDisposable
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", info.Token);
         var shutdown = await http.SendAsync(request, ct);
         shutdown.EnsureSuccessStatusCode();
+    }
+
+    private sealed class ErrorRecordingLoggerProvider : ILoggerProvider
+    {
+        public ConcurrentQueue<Exception> Exceptions { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName == typeof(HubHost).FullName);
+
+        public void Dispose() { }
+
+        private sealed class Logger(ErrorRecordingLoggerProvider owner, bool isHubHost) : ILogger
+        {
+            public bool IsEnabled(LogLevel logLevel) => isHubHost && logLevel == LogLevel.Error;
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+                Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel) && exception is not null)
+                    owner.Exceptions.Enqueue(exception);
+            }
+        }
     }
 
     private sealed class WorkspaceFixture : IDisposable

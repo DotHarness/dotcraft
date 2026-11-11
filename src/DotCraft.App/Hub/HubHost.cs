@@ -441,7 +441,7 @@ public sealed class HubHost : IDotCraftHost
                 HubJson.Options,
                 statusCode: StatusCodes.Status401Unauthorized);
 
-    private static IResult Protected(Func<IResult> action)
+    private IResult Protected(Func<IResult> action)
     {
         try
         {
@@ -483,14 +483,17 @@ public sealed class HubHost : IDotCraftHost
             HubJson.Options,
             statusCode: ex.StatusCode);
 
-    private static IResult ToUnexpectedErrorResult(Exception ex)
-        => Results.Json(
+    private IResult ToUnexpectedErrorResult(Exception ex)
+    {
+        _logger.LogError(ex, "Hub request failed unexpectedly");
+        return Results.Json(
             new HubErrorResponse(new HubError(
                 "hubInternalError",
                 "Hub encountered an unexpected internal error.",
                 new { type = ex.GetType().Name })),
             HubJson.Options,
             statusCode: StatusCodes.Status500InternalServerError);
+    }
 
     private static string NormalizeHost(string host)
         => string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();

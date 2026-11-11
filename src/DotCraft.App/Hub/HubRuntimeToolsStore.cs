@@ -4,7 +4,9 @@ namespace DotCraft.Hub;
 
 internal sealed class HubRuntimeToolsStore(string path)
 {
-    public HubRuntimeToolsRequest Load()
+    private readonly Lock _gate = new();
+
+    private HubRuntimeToolsRequest Load()
     {
         try
         {
@@ -25,13 +27,16 @@ internal sealed class HubRuntimeToolsStore(string path)
 
     public HubRuntimeToolsRequest MergeAndSave(HubRuntimeToolsRequest? update)
     {
-        var current = Load();
-        var merged = Merge(current, update);
-        Save(merged);
-        return merged;
+        lock (_gate)
+        {
+            var current = Load();
+            var merged = Merge(current, update);
+            Save(merged);
+            return merged;
+        }
     }
 
-    public void Save(HubRuntimeToolsRequest tools)
+    private void Save(HubRuntimeToolsRequest tools)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var tempPath = path + "." + Environment.ProcessId + ".tmp";
@@ -50,7 +55,6 @@ internal sealed class HubRuntimeToolsStore(string path)
             }
             catch
             {
-                // Best-effort cleanup only.
             }
         }
     }
