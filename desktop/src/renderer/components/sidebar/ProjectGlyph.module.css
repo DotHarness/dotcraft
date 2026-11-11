@@ -31,12 +31,5 @@
   height: 7px;
   border-radius: 999px;
   box-shadow: 0 0 0 1.5px var(--bg-primary);
-}
-
-.statusBadge[data-state='connecting'] {
-  background-color: var(--warning);
-}
-
-.statusBadge[data-state='error'] {
   background-color: var(--error);
 }

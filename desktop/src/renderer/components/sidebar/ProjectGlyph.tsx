@@ -17,15 +17,14 @@ export function ProjectGlyph({
       ? Monitor
       : project.remote?.source === 'servers' || project.remote?.source === 'ssh' ? Server : Cloud)
     : (collapsed ? Folder : FolderOpen)
-  const showStatus = project.state === 'connecting' || project.state === 'error'
 
   return (
     <span className={styles.glyph} data-cold={cold || undefined}>
       <ProjectIcon size={15} strokeWidth={1.7} aria-hidden />
       {cold ? (
         <CircleDashed size={9} strokeWidth={2.35} aria-hidden className={styles.coldBadge} />
-      ) : showStatus ? (
-        <span aria-hidden className={styles.statusBadge} data-state={project.state} />
+      ) : project.state === 'error' ? (
+        <span aria-hidden className={styles.statusBadge} />
       ) : null}
     </span>
   )

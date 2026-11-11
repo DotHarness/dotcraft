@@ -546,11 +546,11 @@ opening a thread in another project never dims and relights the row. A project
 title uses `--text-primary` while its workspace is started and `--text-secondary`
 only while it is stopped. Local and remote project icons use `--text-primary`
 while started, matching the project title, and `--text-tertiary` while stopped.
-Healthy projects show no status badge. Foreground and background project folders
-share the same presentation in expanded rows and the collapsed rail, without a
-selected background, brighter icon, or accent ring.
-Connecting, error, and stopped indicators remain visible; thread activity and
-selection keep their own feedback.
+Connecting and healthy projects show no status badge. Foreground and background
+project folders share the same presentation in expanded rows and the collapsed
+rail, without a selected background, brighter icon, or accent ring. Loading details
+remain available in the expanded sidebar's hover card. Error and stopped indicators
+remain visible; thread activity and selection keep their own feedback.
 
 ### Navigation icon motion
 
