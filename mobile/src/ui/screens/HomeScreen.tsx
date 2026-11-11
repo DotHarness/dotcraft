@@ -133,7 +133,7 @@ export function HomeScreen() {
   const selected = useMobileSelector((state) => state.selected)
   if (!selected) return <Screen>{null}</Screen>
   return (
-    <ComputerProvider key={selected} computerId={selected}>
+    <ComputerProvider computerId={selected}>
       <ComputerHome />
     </ComputerProvider>
   )
@@ -141,6 +141,7 @@ export function HomeScreen() {
 
 function ComputerHome() {
   const state = useComputerSelector(chatListState, shallowEqual)
+  const [computerId, setComputerId] = useState(state.computer.id)
   const router = useRouter()
   const { t } = useI18n()
   const { colors } = useTheme()
@@ -152,11 +153,8 @@ function ComputerHome() {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const insets = useSafeAreaInsets()
   const addComputer = useAddComputer()
-  const refreshControl = useRefreshControl()
   const computer = state.computer
   const status = computerStatus(state)
-  const live = isReachable(status)
-  const recent = useMemo(() => recentChats(state), [state])
   const visible = useMemo(() => runningChats(state), [state])
   const waiting = visible.filter((chat) => needsYou(stateOf(chat))).length
   const collapse = useCallback(() => {
@@ -165,14 +163,15 @@ function ComputerHome() {
   }, [])
   useProjectStart(composing)
 
-  const trimmed = query.trim().toLowerCase()
-  const untitled = t('chat.untitled')
-  const results = trimmed ? visible.filter((chat) => chatTitle(chat, untitled).toLowerCase().includes(trimmed)) : []
-  const nameOf = (projectId: string) => {
-    const project = projectById(state, projectId)
-    return project ? projectTitle(project, t) : ''
+  if (computerId !== computer.id) {
+    setComputerId(computer.id)
+    setQuery('')
+    setSearching(false)
+    setMenuOpen(false)
+    setComposing(null)
+    setDraft(EMPTY_DRAFT)
   }
-  const openChat = (key: string) => router.push(chatHref(computer.id, key))
+
   const menuLabel = t('home.menu')
   const lastProject = projectsByRecentUse(state)[0]
   const canStart = status === 'online' && Boolean(lastProject)
@@ -263,42 +262,7 @@ function ComputerHome() {
         />
       ) : (
         <>
-          <ScrollArea refreshControl={refreshControl}>
-            <RevokedNotice />
-            {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
-            <View style={styles.lists}>
-              {state.identityChanged ? (
-                <IdentityChanged />
-              ) : state.syncing ? (
-                <MascotTransition line={t('home.catchingUp', { computer: computer.name })} />
-              ) : trimmed ? (
-                <Section title={t('home.results')} grow>
-                  {results.length > 0 ? (
-                    results.map((chat) => (
-                      <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
-                    ))
-                  ) : (
-                    <MascotNote moment="curious">{t('home.noResults', { query: query.trim() })}</MascotNote>
-                  )}
-                </Section>
-              ) : (
-                <>
-                  <Section title={t('home.projects')}>
-                    {state.projects.map((project) => (
-                      <ProjectRow key={project.id} project={project} onPress={() => router.push(projectHref(computer.id, project.id))} />
-                    ))}
-                  </Section>
-                  {recent.length > 0 ? (
-                    <Section title={t('home.recent')}>
-                      {recent.map((chat) => (
-                        <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
-                      ))}
-                    </Section>
-                  ) : null}
-                </>
-              )}
-            </View>
-          </ScrollArea>
+          <HomeLists key={computer.id} query={query} />
           <CompactComposer
             draft={draft}
             disabled={!canStart}
@@ -329,6 +293,64 @@ function ComputerHome() {
         />
       </PopoverMenu>
     </Screen>
+  )
+}
+
+function HomeLists({ query }: { query: string }) {
+  const state = useComputerSelector(chatListState, shallowEqual)
+  const router = useRouter()
+  const { t } = useI18n()
+  const refreshControl = useRefreshControl()
+  const computer = state.computer
+  const status = computerStatus(state)
+  const live = isReachable(status)
+  const recent = useMemo(() => recentChats(state), [state])
+  const trimmed = query.trim().toLowerCase()
+  const untitled = t('chat.untitled')
+  const results = trimmed ? runningChats(state).filter((chat) => chatTitle(chat, untitled).toLowerCase().includes(trimmed)) : []
+  const nameOf = (projectId: string) => {
+    const project = projectById(state, projectId)
+    return project ? projectTitle(project, t) : ''
+  }
+  const openChat = (key: string) => router.push(chatHref(computer.id, key))
+
+  return (
+    <ScrollArea refreshControl={refreshControl}>
+      <RevokedNotice />
+      {status === 'access-off' ? <ReadOnlyNotice status={status} computer={computer.name} style={styles.notice} /> : null}
+      <View style={styles.lists}>
+        {state.identityChanged ? (
+          <IdentityChanged />
+        ) : state.syncing ? (
+          <MascotTransition line={t('home.catchingUp', { computer: computer.name })} />
+        ) : trimmed ? (
+          <Section title={t('home.results')} grow>
+            {results.length > 0 ? (
+              results.map((chat) => (
+                <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
+              ))
+            ) : (
+              <MascotNote moment="curious">{t('home.noResults', { query: query.trim() })}</MascotNote>
+            )}
+          </Section>
+        ) : (
+          <>
+            <Section title={t('home.projects')}>
+              {state.projects.map((project) => (
+                <ProjectRow key={project.id} project={project} onPress={() => router.push(projectHref(computer.id, project.id))} />
+              ))}
+            </Section>
+            {recent.length > 0 ? (
+              <Section title={t('home.recent')}>
+                {recent.map((chat) => (
+                  <ChatRow key={chat.key} chat={chat} live={live} projectName={nameOf(chat.projectId)} onPress={() => openChat(chat.key)} />
+                ))}
+              </Section>
+            ) : null}
+          </>
+        )}
+      </View>
+    </ScrollArea>
   )
 }
 
