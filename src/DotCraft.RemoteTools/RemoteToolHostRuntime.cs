@@ -87,6 +87,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
 
     public event EventHandler<RemoteToolHostStatus>? StatusChanged;
 
+    public event EventHandler? PeersChanged;
+
     /// <summary>Raised when a pairing's control connection is established.</summary>
     public event EventHandler<RemoteToolPeer>? PeerConnected;
 
@@ -412,6 +414,8 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
 
         Transitions(peer => peer.ConnectedSince is not null, PeerConnected, PeerDisconnected);
         Transitions(peer => peer.ScreenViewers > 0, ScreenViewStarted, ScreenViewStopped);
+        if (!previousPeers.SequenceEqual(peers))
+            PeersChanged?.Invoke(this, EventArgs.Empty);
         if (previousStatus != status)
             StatusChanged?.Invoke(this, status);
 
@@ -473,24 +477,26 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
 
     private string EnsureHostState(string workspacePath)
     {
-        var state = _storage.LoadHostState() ?? new RemoteToolHostState
+        var state = _storage.UpdateHostState(current =>
         {
-            HostId = "rth_" + Guid.NewGuid().ToString("N"),
-            DisplayName = _displayName
-        };
-        foreach (var workspace in state.Workspaces)
-            if (PathsEqual(workspace.Value, workspacePath)) return workspace.Key;
-        var workspaceId = UniqueWorkspaceId(state, workspacePath);
-        var workspaces = new Dictionary<string, string>(state.Workspaces, StringComparer.Ordinal)
-        {
-            [workspaceId] = workspacePath
-        };
-        _storage.SaveHostState(state with
-        {
-            Workspaces = workspaces,
-            CatalogRevision = state.CatalogRevision + 1
+            var configured = current ?? new RemoteToolHostState
+            {
+                HostId = "rth_" + Guid.NewGuid().ToString("N"),
+                DisplayName = _displayName
+            };
+            if (configured.Workspaces.Any(workspace => PathsEqual(workspace.Value, workspacePath)))
+                return configured;
+            var workspaceId = UniqueWorkspaceId(configured, workspacePath);
+            return configured with
+            {
+                Workspaces = new Dictionary<string, string>(configured.Workspaces, StringComparer.Ordinal)
+                {
+                    [workspaceId] = workspacePath
+                },
+                CatalogRevision = configured.CatalogRevision + 1
+            };
         });
-        return workspaceId;
+        return state.Workspaces.First(workspace => PathsEqual(workspace.Value, workspacePath)).Key;
     }
 
     private static string UniqueWorkspaceId(RemoteToolHostState state, string workspacePath)

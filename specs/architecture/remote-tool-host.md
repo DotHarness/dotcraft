@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.7 |
+| Version | 0.9.8 |
 | Status | Draft |
-| Date | 2026-10-28 |
+| Date | 2026-11-11 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -607,6 +607,12 @@ Host state lives under `~/.craft/remote-tool-host/`: `host.json` (identity, disp
 workspaces, tool policies, peer records, catalog revision), `credentials/`, `serve.lock`,
 `artifacts/`, `workspaces/<workspaceId>/`, and `audit/<date>.jsonl`. Nothing about screen views is
 stored. The broker owns its pairing registry independently of this Host state.
+
+Host-state reads and complete read-modify-write operations MUST be serialized across runtime
+instances and CLI processes sharing the state root. Pairing mutations include their credential
+writes or deletion in the same critical section so concurrent updates do not lose or restore peers.
+The embedded runtime notifies consumers when its peer snapshot changes, including revocation
+that leaves its connection status unchanged.
 
 The v1 deployment profile assumes direct intranet reachability of the Hub's satellite listener from
 the Host machine. Peer credential possession has the permissions of the signed-in Host user and MUST

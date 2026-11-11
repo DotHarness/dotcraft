@@ -9,6 +9,7 @@ namespace DotCraft.RemoteTools;
 internal sealed class RemoteToolHostStorage
 {
     private readonly string _root;
+    private readonly string _stateMutexName;
     private readonly object _auditGate = new();
 
     public RemoteToolHostStorage(string? craftHome = null)
@@ -18,6 +19,9 @@ internal sealed class RemoteToolHostStorage
             ".craft");
         CraftHomePath = Path.GetFullPath(home);
         _root = Path.Combine(CraftHomePath, "remote-tool-host");
+        var identity = OperatingSystem.IsWindows() ? HostStatePath.ToUpperInvariant() : HostStatePath;
+        _stateMutexName = @"Global\DotCraft.RemoteToolHost.State."
+            + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
     }
 
     public string CraftHomePath { get; }
@@ -40,48 +44,79 @@ internal sealed class RemoteToolHostStorage
         }
     }
 
-    public RemoteToolHostState? LoadHostState() => Read<RemoteToolHostState>(HostStatePath);
+    public RemoteToolHostState? LoadHostState() => WithStateLock(() => Read<RemoteToolHostState>(HostStatePath));
 
-    public void SaveHostState(RemoteToolHostState state) => Write(HostStatePath, state);
+    public void SaveHostState(RemoteToolHostState state) => UpdateHostState(_ => state);
+
+    public RemoteToolHostState UpdateHostState(Func<RemoteToolHostState?, RemoteToolHostState> update) =>
+        WithStateLock(() =>
+        {
+            var state = Read<RemoteToolHostState>(HostStatePath);
+            var updated = update(state);
+            if (!ReferenceEquals(state, updated))
+                Write(HostStatePath, updated);
+            return updated;
+        });
 
     public RemoteToolHubPeer AddPeer(RemoteToolHubPeer peer, string rawCredential)
     {
-        var state = LoadHostState()
-            ?? throw new RemoteToolHostException(
+        UpdateHostState(current =>
+        {
+            var state = current ?? throw new RemoteToolHostException(
                 Tools.RemoteToolErrorCodes.HostNotRegistered,
                 "Remote Tool Host is not set up.");
-        Write(CredentialPath(peer.PeerId), rawCredential, OwnerOnlyFile.Create);
-        SaveHostState(state with
-        {
-            Peers =
-            [
-                .. state.Peers.Where(item => !string.Equals(item.PeerId, peer.PeerId, StringComparison.Ordinal)),
-                peer
-            ]
+            Write(CredentialPath(peer.PeerId), rawCredential, OwnerOnlyFile.Create);
+            return state with
+            {
+                Peers =
+                [
+                    .. state.Peers.Where(item => !string.Equals(item.PeerId, peer.PeerId, StringComparison.Ordinal)),
+                    peer
+                ]
+            };
         });
         return peer;
     }
 
-    public bool RemovePeer(string peerId)
+    public bool RemovePeer(string peerId) => WithStateLock(() =>
     {
-        var state = LoadHostState();
+        var state = Read<RemoteToolHostState>(HostStatePath);
         var peer = state?.Peers.FirstOrDefault(
             item => string.Equals(item.PeerId, peerId, StringComparison.Ordinal));
         if (state is null || peer is null)
             return false;
         File.Delete(CredentialPath(peerId));
-        SaveHostState(state with
+        Write(HostStatePath, state with
         {
             Peers = [.. state.Peers.Where(item => !ReferenceEquals(item, peer))]
         });
         return true;
-    }
+    });
 
-    public string GetPeerCredential(RemoteToolHubPeer peer) =>
+    public string GetPeerCredential(RemoteToolHubPeer peer) => WithStateLock(() =>
         Read<string>(CredentialPath(peer.PeerId))
         ?? throw new RemoteToolHostException(
             Tools.RemoteToolErrorCodes.AuthenticationFailed,
-            $"The credential for pairing '{peer.PeerId}' is missing from {CredentialsPath}.");
+            $"The credential for pairing '{peer.PeerId}' is missing from {CredentialsPath}."));
+
+    private T WithStateLock<T>(Func<T> action)
+    {
+        using var mutex = new Mutex(initiallyOwned: false, _stateMutexName);
+        var acquired = false;
+        try
+        {
+            try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(5)); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired)
+                throw new IOException("Remote Tool Host state is busy.");
+            return action();
+        }
+        finally
+        {
+            if (acquired)
+                mutex.ReleaseMutex();
+        }
+    }
 
     private string CredentialPath(string peerId) => Path.Combine(
         CredentialsPath,

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Runtime;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 using Xunit;
 using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
 using static DotCraft.Tests.Runtime.Plugins.GeneratedPluginToolFixture;
@@ -53,7 +54,7 @@ public sealed class GeneratedPluginToolTests : IDisposable
             Assert.Null(result.Meta);
             Assert.Null(result.RawSourceResult);
             Assert.Null(result.ProviderResult);
-            Assert.Null(result.ContentItems);
+            Assert.Equal("model content", Assert.IsType<TextContent>(Assert.Single(result.ContentItems!)).Text);
             Assert.Equal(ToolExecutionDirective.Continue, result.Directive);
 
             var explicitInput = Input();
