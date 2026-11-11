@@ -59,6 +59,16 @@ public interface IChannelRuntime
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads earlier messages of a chat; only channels that declare history capability support it.
+    /// </summary>
+    Task<ChannelHistoryResult> ReadHistoryAsync(
+        ChannelHistoryRequest request,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(ChannelHistoryResult.Fail(
+            "HistoryUnavailable",
+            $"Channel '{Name}' cannot read chat history."));
+
+    /// <summary>
     /// Executes a channel-native tool call.
     /// </summary>
     Task<ChannelToolInvocationResult> ExecuteToolAsync(

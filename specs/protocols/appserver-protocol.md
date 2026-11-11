@@ -160,10 +160,11 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 **`channelAdapter`**:
 
 - `channelName`: canonical external channel name (for example `telegram`, `feishu`); `displayName`: platform product name shown to the model and clients.
-- `deliveryCapabilities`: what the adapter's `ext/channel/send` accepts. Fixed for the connection lifetime.
+- `deliveryCapabilities`: what the adapter's `ext/channel/send` accepts and whether it serves `ext/channel/history`. Fixed for the connection lifetime.
   - `text.format`: `plain` when the platform shows text as written; `markdown` when the sender writes Markdown and the platform renders it (natively or after adapter conversion). The adapter splits text too long for one platform message.
   - `targets.group`: whether the adapter can send to a group other than the bound chat. `targets.direct`: `any` (any user), `knownOnly` (only users who have messaged the bot), or `none`.
   - `media`: optional map keyed by delivery kind (`file`, `audio`, `image`, `video`); an absent kind is unsupported. Entries declare size, MIME, and extension limits and which sources (host path, URL, base64) and captions are supported.
+  - `history`: optional `{ maxMessages }`, present when the adapter serves `ext/channel/history`; `maxMessages` (1–50) is the most messages one read returns.
 - `channelTools`: optional channel tool descriptors (PascalCase names) with `inputSchema`, optional `outputSchema`, `requiresChatContext`, optional `approval`, and optional `deferLoading`.
 
 `deferLoading` requests lazy exposure: with a provider that supports native deferred tool loading the server may omit the tool from the top-level tool list and expose it through the provider's deferred-search flow; otherwise it may use DotCraft's local tool search.
@@ -1166,7 +1167,7 @@ The core protocol (Sections 3-10) covers the `ISessionService` surface. Modules 
 
 External channel adapters are served through **server → client** requests under `ext/channel/*`, following the same request/response pattern as approvals. Capabilities are negotiated through `capabilities.channelAdapter` ([Section 3.2](#32-initialize)):
 
-- Every adapter implements `ext/channel/send`; `deliveryCapabilities` describes what it accepts, including which media kinds and source forms.
+- Every adapter implements `ext/channel/send`; `deliveryCapabilities` describes what it accepts, including which media kinds and source forms. An adapter that declares `history` also implements `ext/channel/history`.
 - `channelTools` are validated and registered once per connection and may be injected into threads whose origin channel matches, for the lifetime of the connection. The declared set is immutable for the connection; registration comes from the handshake, not from static configuration. Thread tool construction only filters visibility by origin channel and reserved names.
 - Each injected binding retains the exact connection that declared it. Disconnect or replacement revokes dispatch immediately, and an invocation from an older Turn snapshot is never routed through a newer connection. While no connection is attached, the last connection's declarations stay visible and fail dispatch as unavailable.
 
@@ -1192,6 +1193,14 @@ Invocation of an adapter-declared channel tool. **Direction**: server → client
 - The server calls only tools the connection declared in `initialize`; an adapter that declares tools must handle their calls.
 - When a descriptor declares `approval`, the server may gate execution before sending the request, resolved from the same server-owned thread and workspace policy as built-in tools. The metadata never defines adapter-local policy.
 - Channel tools project as standard `toolCall` + `toolResult` items with channel provenance.
+
+#### 11.2.3 `ext/channel/history`
+
+Read of a chat's earlier messages for `ReadChannelHistory` ([Channel Messaging](../features/channel-messaging.md#13-readchannelhistory)). **Direction**: server → client (request). Sent only to adapters that declare `history`.
+
+**Params**: `target` (adapter target syntax), `limit` (1 to the declared `maxMessages`), optional `before` (a cursor from an earlier result; omitted for the latest messages).
+
+**Result**: `messages`, oldest first, and optional `before`, the cursor for the page before them, omitted when the adapter knows no older messages exist. Each message has `text` and optional `messageId`, `senderId`, `senderName`, `sentAt` (ISO 8601), and `fromBot`. `text` renders non-text content as short placeholders such as `[image]`. On failure `messages` is empty and `errorCode`/`errorMessage` are set. Standard error codes: `UnsupportedTarget` (a chat the adapter cannot read or a malformed target), `InvalidCursor`, `HistoryUnavailable` (the platform refused or failed the read), `AdapterProtocolViolation`.
 
 ### 11.3 `item/tool/call`
 

@@ -19,6 +19,8 @@ export interface OneBotMessageEvent {
   sub_type?: string;
   message_id?: number;
   self_id?: number;
+  /** Unix seconds. */
+  time?: number;
   user_id: number;
   group_id?: number;
   message: OneBotMessageSegment[] | string;

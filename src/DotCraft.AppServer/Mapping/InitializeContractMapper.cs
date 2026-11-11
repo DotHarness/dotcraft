@@ -165,7 +165,10 @@ internal static class InitializeContractMapper
                     Audio = ToMediaConstraints(value.Media.Audio),
                     Image = ToMediaConstraints(value.Media.Image),
                     Video = ToMediaConstraints(value.Media.Video)
-                }
+                },
+            History = value.History is null
+                ? null
+                : new ChannelHistoryCapabilitySnapshot { MaxMessages = Math.Clamp(value.History.MaxMessages, 1, 50) }
         };
 
     private static ChannelMediaConstraintSnapshot? ToMediaConstraints(Contract.ChannelMediaConstraints? value) =>

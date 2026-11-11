@@ -63,7 +63,8 @@ internal sealed class ChannelChatSection(ChatBindingResolver resolver) : IWorldS
             chat,
             capabilities.Text.Format,
             AttachmentKinds(capabilities.Media),
-            capabilities.Targets));
+            capabilities.Targets,
+            capabilities.History != null));
     }
 
     private static string Render(ChatFacts facts)
@@ -95,6 +96,8 @@ internal sealed class ChannelChatSection(ChatBindingResolver resolver) : IWorldS
         sb.AppendLine($"The chat renders {format} and accepts {attachments}.");
         if (DescribeReach(facts.DisplayName, facts.Targets) is { } reach)
             sb.AppendLine(reach);
+        if (facts.History)
+            sb.AppendLine("Earlier messages in this chat can be read with ReadChannelHistory.");
 
         return sb.ToString().TrimEnd();
     }
@@ -142,7 +145,8 @@ internal sealed class ChannelChatSection(ChatBindingResolver resolver) : IWorldS
         ChannelChatDescriptor Chat,
         string Format,
         IReadOnlyList<string> Attachments,
-        ChannelTargetCapabilitySnapshot Targets)
+        ChannelTargetCapabilitySnapshot Targets,
+        bool History)
     {
         public JsonObject ToSnapshot() => new()
         {
@@ -154,7 +158,8 @@ internal sealed class ChannelChatSection(ChatBindingResolver resolver) : IWorldS
             ["membership"] = Chat.Membership,
             ["format"] = Format,
             ["attachments"] = new JsonArray(Attachments.Select(static kind => (JsonNode)kind).ToArray()),
-            ["targets"] = new JsonObject { ["group"] = Targets.Group, ["direct"] = Targets.Direct }
+            ["targets"] = new JsonObject { ["group"] = Targets.Group, ["direct"] = Targets.Direct },
+            ["history"] = History
         };
     }
 }

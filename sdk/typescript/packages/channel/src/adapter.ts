@@ -41,6 +41,7 @@ import {
 } from "./channelRuntime.js";
 import { CommandRouter, type CommandChoiceContext, type CommandRunRequest } from "./commandRouter.js";
 import { DeliveryDispatcher } from "./deliveryDispatcher.js";
+import { HistoryDispatcher, historyFailure, type ChannelHistoryPage, type ChannelHistoryReadRequest } from "./chatHistory.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
 import {
   consumeTurnStream,
@@ -76,6 +77,7 @@ export abstract class ChannelAdapter {
   private readonly userInputDispatcher: UserInputDispatcher;
   private readonly deliveryDispatcher: DeliveryDispatcher;
   private readonly channelToolDispatcher: ChannelToolDispatcher;
+  private readonly historyDispatcher: HistoryDispatcher;
   private readonly lifecycle = new ModuleLifecycleState();
   private running = false;
 
@@ -131,6 +133,7 @@ export abstract class ChannelAdapter {
       onToolCall: (params) => this.onToolCall(params),
       onConfigOptionAvailability: (key) => this.onConfigOptionAvailability(key),
     });
+    this.historyDispatcher = new HistoryDispatcher(() => this.client, (request) => this.onReadHistory(request));
   }
 
   abstract onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean>;
@@ -182,6 +185,11 @@ export abstract class ChannelAdapter {
       errorCode: "UnsupportedTool",
       errorMessage: "Adapter does not implement channel tool calls.",
     };
+  }
+
+  /** Reads earlier messages of a chat; override when the delivery capabilities declare `history`. */
+  protected async onReadHistory(_request: ChannelHistoryReadRequest): Promise<ChannelHistoryPage> {
+    return historyFailure("UnsupportedTarget", "This adapter cannot read chat history.");
   }
 
   protected async onConfigOptionAvailability(_key: string): Promise<string[] | null> {
@@ -258,6 +266,7 @@ export abstract class ChannelAdapter {
     this.userInputDispatcher.register();
     this.deliveryDispatcher.register();
     this.channelToolDispatcher.register();
+    this.historyDispatcher.register();
     await this.client.initialize({
       clientName: this.clientName,
       clientVersion: this.clientVersion,
@@ -494,6 +503,7 @@ export abstract class ChannelAdapter {
 
       if (binding) {
         await this.enqueueChannelBoundInput(binding, input, opts, sender);
+        opts.onAccepted?.();
         return;
       }
 
@@ -510,6 +520,7 @@ export abstract class ChannelAdapter {
         return recovered;
       });
       accepted = true;
+      opts.onAccepted?.();
     } catch (error) {
       if (!accepted) await this.sendGenericNotice(
         channelContext,

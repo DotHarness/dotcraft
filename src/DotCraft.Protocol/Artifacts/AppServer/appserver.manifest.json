@@ -4960,6 +4960,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "history",
+          "type": "core.ChannelHistoryCapability",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "media",
           "type": "core.ChannelMediaCapabilitySet",
           "required": false,
@@ -4977,6 +4984,77 @@
           "name": "text",
           "type": "core.ChannelTextCapability",
           "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelHistoryCapability",
+      "name": "ChannelHistoryCapability",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelHistoryCapability.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "maxMessages",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ChannelHistoryMessage",
+      "name": "ChannelHistoryMessage",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ChannelHistoryMessage.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "fromBot",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "messageId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "senderId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "senderName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "sentAt",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
           "nullable": false,
           "const": null
         }
@@ -7673,6 +7751,77 @@
           "type": "array<string>",
           "required": true,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ExtChannelHistoryParams",
+      "name": "ExtChannelHistoryParams",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExtChannelHistoryParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "before",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ExtChannelHistoryResult",
+      "name": "ExtChannelHistoryResult",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExtChannelHistoryResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "before",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "errorCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "errorMessage",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "messages",
+          "type": "array<external-channel.ChannelHistoryMessage>",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -30999,6 +31148,26 @@
       "direction": "serverToClient",
       "paramsType": "core.RpcEmpty",
       "resultType": "core.RpcEmpty",
+      "module": "external-channel",
+      "capability": "channelAdapter",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/external-channel-adapter.md",
+      "stability": "stable"
+    },
+    {
+      "name": "ext/channel/history",
+      "descriptorMember": "ExtChannelHistory",
+      "kind": "request",
+      "direction": "serverToClient",
+      "paramsType": "external-channel.ExtChannelHistoryParams",
+      "resultType": "external-channel.ExtChannelHistoryResult",
       "module": "external-channel",
       "capability": "channelAdapter",
       "scope": "connection",

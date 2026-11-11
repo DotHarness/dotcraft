@@ -14,6 +14,7 @@ export interface FeishuConfig {
     cardTitle?: string;
     approvalTimeoutMs?: number;
     groupMentionRequired?: boolean;
+    groupContextMessages?: number;
     ackReactionEmoji?: string;
     adminUsers?: string[];
     cli?: {
@@ -117,6 +118,10 @@ export interface FeishuListChatMessagesOptions {
   endTime?: string;
   pageSize?: number;
   pageToken?: string;
+  /** Defaults to `ByCreateTimeDesc`. */
+  sortType?: "ByCreateTimeAsc" | "ByCreateTimeDesc";
+  /** Returns exactly this message, for example a reply's parent. */
+  messageId?: string;
 }
 
 export interface FeishuChatMessageSender {

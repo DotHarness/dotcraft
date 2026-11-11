@@ -268,6 +268,12 @@ export class FeishuClient {
     if (options.pageToken?.trim()) {
       params.set("page_token", options.pageToken.trim());
     }
+    if (options.sortType) {
+      params.set("sort_type", options.sortType);
+    }
+    if (options.messageId?.trim()) {
+      params.set("message_id", options.messageId.trim());
+    }
 
     const payload = await this.callJsonApi(
       () =>

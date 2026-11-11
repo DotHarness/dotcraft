@@ -60,6 +60,17 @@ public sealed class ChannelDeliveryCapabilities : ExtensibleJsonObject
     [JsonPropertyName("media")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelMediaCapabilitySet? Media { get; init; }
+
+    [JsonPropertyName("history")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelHistoryCapability? History { get; init; }
+}
+
+/// <summary>Present when the adapter serves <c>ext/channel/history</c>.</summary>
+public sealed class ChannelHistoryCapability : ExtensibleJsonObject
+{
+    [JsonPropertyName("maxMessages")]
+    public required int MaxMessages { get; init; }
 }
 
 public sealed class ChannelTextCapability : ExtensibleJsonObject

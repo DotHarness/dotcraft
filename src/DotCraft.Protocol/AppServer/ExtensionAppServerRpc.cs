@@ -77,6 +77,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, global::DotCraft.Protocol.RpcEmpty> ExtChannelHeartbeat = new("ext/channel/heartbeat", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
 
+    public static readonly RpcRequest<ExtChannelHistoryParams, ExtChannelHistoryResult> ExtChannelHistory = new("ext/channel/history", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
+
     public static readonly RpcRequest<ExtChannelSendParams, ExtChannelSendResult> ExtChannelSend = new("ext/channel/send", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
 
     public static readonly RpcRequest<ExtChannelToolCallParams, ExtChannelToolCallResult> ExtChannelToolCall = new("ext/channel/toolCall", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);

@@ -1308,6 +1308,76 @@ public sealed class ExtChannelSendResult : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for ExtChannelHistoryParams.</summary>
+[ContractModule("external-channel")]
+public sealed class ExtChannelHistoryParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("before")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Before { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> Limit { get; init; }
+
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Target { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ExtChannelHistoryResult.</summary>
+[ContractModule("external-channel")]
+public sealed class ExtChannelHistoryResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("before")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Before { get; init; }
+
+    [JsonPropertyName("errorCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ErrorCode { get; init; }
+
+    [JsonPropertyName("errorMessage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ErrorMessage { get; init; }
+
+    [JsonPropertyName("messages")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ChannelHistoryMessage>> Messages { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ChannelHistoryMessage.</summary>
+[ContractModule("external-channel")]
+public sealed class ChannelHistoryMessage : ExtensibleJsonObject
+{
+    [JsonPropertyName("fromBot")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool?> FromBot { get; init; }
+
+    [JsonPropertyName("messageId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> MessageId { get; init; }
+
+    [JsonPropertyName("senderId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> SenderId { get; init; }
+
+    [JsonPropertyName("senderName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> SenderName { get; init; }
+
+    [JsonPropertyName("sentAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> SentAt { get; init; }
+
+    [JsonPropertyName("text")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Text { get; init; }
+
+}
+
 /// <summary>Executable wire contract for ExtChannelToolCallContext.</summary>
 [ContractModule("external-channel")]
 public sealed class ExtChannelToolCallContext : ExtensibleJsonObject

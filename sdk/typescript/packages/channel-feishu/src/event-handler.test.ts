@@ -18,10 +18,12 @@ import type {
 type MockAdapter = {
   handledMessages: ParsedInboundMessage[];
   cardActionCalls: number;
+  unaddressed: Array<{ messageId: string; chatId: string; threadCapable: boolean; botOpenId: string }>;
   handleInboundMessage: (message: ParsedInboundMessage) => Promise<void>;
   handleCardAction: (event: FeishuCardActionEvent) => boolean;
   hasPendingUserInput: (channelContext: string) => boolean;
   tryHandlePendingUserInputMessage: (message: ParsedInboundMessage) => Promise<boolean>;
+  rememberUnaddressed: (event: FeishuMessageEvent, threadCapable: boolean, botOpenId: string) => void;
 };
 
 type MockClient = {
@@ -34,6 +36,10 @@ function createAdapterMock(onHandle?: (message: ParsedInboundMessage) => void): 
   return {
     handledMessages: [],
     cardActionCalls: 0,
+    unaddressed: [],
+    rememberUnaddressed(event: FeishuMessageEvent, threadCapable: boolean, botOpenId: string): void {
+      this.unaddressed.push({ messageId: event.message.message_id, chatId: event.message.chat_id, threadCapable, botOpenId });
+    },
     async handleInboundMessage(message: ParsedInboundMessage): Promise<void> {
       this.handledMessages.push(message);
       onHandle?.(message);
@@ -311,6 +317,7 @@ test("Feishu event handler ignores unmentioned group, unsupported, and empty mes
 
   assert.equal(client.reactedMessages.length, 0);
   assert.equal(adapter.handledMessages.length, 0);
+  assert.deepEqual(adapter.unaddressed.map((entry) => entry.chatId), ["oc_group_1"]);
 });
 
 test("Feishu event handler lets pending user-input replies bypass group mention gate", async () => {

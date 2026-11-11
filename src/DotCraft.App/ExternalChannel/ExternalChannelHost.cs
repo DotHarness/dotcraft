@@ -484,6 +484,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         return result;
     }
 
+    public Task<ChannelHistoryResult> ReadHistoryAsync(
+        ChannelHistoryRequest request,
+        CancellationToken cancellationToken = default)
+        => _stopped || _permanentlyFailed || _transport is not { } transport || _connection is not { IsClientReady: true }
+            ? Task.FromResult(ChannelHistoryResult.Fail("AdapterDisconnected", "Adapter is not connected."))
+            : ExternalChannelHistoryReader.ReadAsync(transport, request, cancellationToken);
+
     public async Task<ChannelToolInvocationResult> ExecuteToolAsync(
         ChannelToolInvocationRequest request,
         CancellationToken cancellationToken = default)

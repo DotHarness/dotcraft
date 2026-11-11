@@ -3827,6 +3827,16 @@
       "title": "ChannelDeliveryCapabilities",
       "type": "object",
       "properties": {
+        "history": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelHistoryCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "media": {
           "anyOf": [
             {
@@ -3849,6 +3859,79 @@
         "targets",
         "text"
       ]
+    },
+    "ChannelHistoryCapability": {
+      "title": "ChannelHistoryCapability",
+      "type": "object",
+      "properties": {
+        "maxMessages": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "maxMessages"
+      ]
+    },
+    "ChannelHistoryMessage": {
+      "title": "ChannelHistoryMessage",
+      "type": "object",
+      "properties": {
+        "fromBot": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "messageId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "senderId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "senderName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sentAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
     },
     "ChannelInfo": {
       "title": "ChannelInfo",
@@ -6233,6 +6316,72 @@
       "required": [
         "available"
       ]
+    },
+    "ExtChannelHistoryParams": {
+      "title": "ExtChannelHistoryParams",
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExtChannelHistoryResult": {
+      "title": "ExtChannelHistoryResult",
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorMessage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChannelHistoryMessage"
+          }
+        }
+      },
+      "additionalProperties": true
     },
     "ExtChannelSendParams": {
       "title": "ExtChannelSendParams",

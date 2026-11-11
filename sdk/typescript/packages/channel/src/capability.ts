@@ -68,6 +68,8 @@ export type ChannelDeliveryCapabilities = {
     audio?: ChannelMediaConstraints;
     video?: ChannelMediaConstraints;
   };
+  /** Present when the adapter serves `ext/channel/history`; at most 50 messages per read. */
+  history?: { maxMessages: number };
 };
 
 export type ChannelChatKind = "direct" | "group" | "topic";

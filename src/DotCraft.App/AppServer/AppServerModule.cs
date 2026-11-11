@@ -53,6 +53,7 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
         services.TryAddSingleton<ChatBindingResolver>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, SendChannelMessageToolProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ReadChannelHistoryToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, ChannelChatSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, ClientSurfaceSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());

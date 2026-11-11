@@ -156,6 +156,9 @@ public sealed class ChannelDeliveryCapabilitySnapshot
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelMediaCapabilitySnapshot? Media { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelHistoryCapabilitySnapshot? History { get; set; }
 }
 
 public sealed class ChannelTextCapabilitySnapshot

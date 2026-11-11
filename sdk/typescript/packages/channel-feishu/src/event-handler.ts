@@ -102,6 +102,9 @@ export function createFeishuEventHandlers(params: {
               "Enable/publish Bot capability, or set groupMentionRequired=false to allow all group messages.",
           });
         }
+        if (mentionDecision.reason === "not_mentioned") {
+          params.adapter.rememberUnaddressed(event, threadCapable, params.bot.openId);
+        }
         return;
       }
 
