@@ -114,6 +114,8 @@ When Desktop starts without an explicit target or a restorable foreground entry,
 
 Desktop remembers which surface was last in the foreground. Later local starts restore Chats after the user has chosen Chats, restore a project workspace while that project still exists, or return to the welcome chooser when Welcome was the last foreground surface. Explicit workspace paths and workspace deep links take precedence over the remembered surface. The explicit `--no-workspace` entry point always opens the welcome chooser, and remote startup never implicitly restores the local default Chat workspace.
 
+After the initial local foreground connection is ready, Desktop restores up to four recent local projects in the background, including the foreground project but excluding Chats, as defined in [Desktop startup restore](../clients/desktop-client.md#recent-project-startup-restore). Restoration does not change the remembered foreground surface or Chats lifetime.
+
 Choosing Chats uses the same workspace readiness and connection flow as any other local workspace. Desktop initializes the default Chat workspace skeleton non-interactively, then routes through Workspace Setup when its effective provider or model configuration is incomplete. Once the workspace is ready, Desktop connects to its AppServer and shows the main conversation UI.
 
 A chat's Files tree, terminal, and open-in actions act on its folder. Chats offer no commit, fork into a worktree, worktree work location, or project actions.

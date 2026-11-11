@@ -226,11 +226,13 @@ export function buildDefaultChatSummary(ctx: DesktopWindowRuntime): WorkspacePro
 export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): WorkspaceProjectsPayload {
   const projects = ctx.app.localProjects.list().map((project): WorkspaceProjectSummary => {
     const entry = ctx.getWorkspaceConnection(project.path)
+    const restoreState = ctx.startupProjectStates.get(ctx.normalizeWorkspaceConnectionKey(project.path))
     let state: WorkspaceProjectState = 'cold'
     if (ctx.isWorkspaceForeground(project.path)) state = 'foreground'
     else if (entry?.connecting) state = 'connecting'
     else if (entry?.errorMessage) state = 'error'
     else if (entry?.connected) state = 'secondary'
+    else if (restoreState) state = restoreState.state
     const projectId = ctx.localProjectId(project.path)
     const details = getLocalProjectDetails(ctx.settings, project.path)
     return {
@@ -242,7 +244,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       name: details?.name || project.displayName || basename(project.path),
       lastOpenedAt: project.lastOpenedAt,
       state,
-      running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
+      running: Boolean(entry?.connected || entry?.connecting || state === 'foreground' || state === 'connecting'),
       loaded: Boolean(entry?.connected),
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
@@ -250,7 +252,8 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       pinnedThreadIds: ctx.getPinnedThreadIdsForWorkspace(project.path),
       pinned: ctx.isProjectPinned(projectId),
       secondaryFolders: details?.secondaryFolders ?? [],
-      ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
+      ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } :
+        state === 'error' && restoreState?.state === 'error' ? { errorMessage: restoreState.errorMessage } : {})
     }
   })
   for (const machine of normalizeSshMachines(ctx.settings.remoteHosts)) {

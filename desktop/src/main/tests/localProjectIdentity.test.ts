@@ -42,9 +42,12 @@ describe('local Project identity', () => {
     const reloaded = loadSettings()
     const context = {
       settings: reloaded,
+      startupProjectStates: new Map(),
+      workspaceConnections: new Map(),
+      normalizeWorkspaceConnectionKey: normalizeWorkspaceProjectKey,
       currentWorkspacePath: anchor,
       app: { localProjects: { list: () => [{ path: anchor }] }, pairedComputers: { savedProjects: () => [] } },
-      getWorkspaceConnection: () => ({ connected: true, threads: [thread] }),
+      getWorkspaceConnection: () => ({ client: { connectionId: null }, connected: true, threads: [thread] }),
       isWorkspaceForeground: () => true,
       localProjectId: normalizeWorkspaceProjectKey,
       getPinnedThreadIdsForWorkspace: () => [],

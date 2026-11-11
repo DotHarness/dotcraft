@@ -45,6 +45,9 @@ export function emitConnectionStatus(
   }
   ctx.app.refreshAppMenu()
   refreshVoiceChatGptAvailability(win.webContents.id)
+  if (payload.status === 'connected' && ctx.startupProjectRestore === 'pending') {
+    void ctx.app.restoreRecentProjects(ctx)
+  }
 }
 
 export function emitWorkspaceStatus(

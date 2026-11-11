@@ -243,6 +243,7 @@ export function createSecondaryWorkspaceConnection(
     threads: []
   }
   ctx.workspaceConnections.set(key, entry)
+  ctx.startupProjectStates.delete(key)
   ctx.emitWorkspaceProjects()
 
   client.onNotification((method, params) => {
@@ -372,9 +373,13 @@ export async function ensureDefaultChatConnection(ctx: DesktopWindowRuntime): Pr
   }
 }
 
-export async function startLocalProjectConnection(ctx: DesktopWindowRuntime, workspacePath: string): Promise<void> {
+export async function startLocalProjectConnection(
+  ctx: DesktopWindowRuntime,
+  workspacePath: string,
+  canContinue: () => boolean = () => true
+): Promise<void> {
   const path = workspacePath.trim()
-  if (!path || ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(path)) return
+  if (!path || ctx.runtimeIsStopping() || !canContinue() || ctx.isWorkspaceForeground(path)) return
   if (!ctx.app.localProjects.has(path)) throw new Error('Only saved local projects can be started.')
   const existing = ctx.getWorkspaceConnection(path)
   if (existing?.connected || existing?.connecting) return
@@ -382,9 +387,12 @@ export async function startLocalProjectConnection(ctx: DesktopWindowRuntime, wor
   const ensured = await ctx.app.createHubClient(ctx.settings).ensureAppServer(path, {
     runtimeTools: resolveDotCraftRuntimeTools()
   })
-  if (ctx.runtimeIsStopping() || ctx.isWorkspaceForeground(path)) return
+  if (ctx.runtimeIsStopping() || !canContinue() || ctx.isWorkspaceForeground(path) ||
+    !ctx.app.localProjects.has(path)) return
   const endpoint = ctx.getManagedAppServerEndpoint(ensured)
-  if (existing) ctx.disposeWorkspaceConnection(existing)
+  const current = ctx.getWorkspaceConnection(path)
+  if (current?.connected || current?.connecting) return
+  if (current) ctx.disposeWorkspaceConnection(current)
   const entry = ctx.createSecondaryWorkspaceConnection(path, endpoint)
   entry.lastUsedAt = Date.now()
 }

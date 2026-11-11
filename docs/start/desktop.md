@@ -34,6 +34,8 @@ A side chat is for questions: it reads and answers, and changes files only when 
 
 Switching workspaces switches projects: configuration, skills, memory, and automations all follow the project and stay out of each other's way. The memory switch, Dreams, and memory deletion live under **Settings → Personalization**, and [Memory and Dreams](../guide/memory) explains what each one covers.
 
+On local startup, Desktop restores your last foreground workspace, then reopens up to four recent local projects in the background, including that foreground project. Chats stays available separately. Other projects remain in the sidebar and open when selected. Opening more than four projects never closes another project or interrupts its work.
+
 ## Chat without a project
 
 Choose **Chats** instead of a project when a question doesn't belong to one. Each new chat gets its own folder under `Documents/DotCraft/Chats`, named after the date and the first words of your first message, such as `2026-10-11/write-a-release-note-for-v2`, or `new-chat` when the message has no English letters or digits. The agent keeps drafts and scratch files in the chat's `work` folder and saves what it makes for you in `outputs`, so one chat's files never mix with another's. The Files panel, the terminal, and **Open in** all work in that folder. Archiving, renaming, or deleting a chat leaves its folder where it is.

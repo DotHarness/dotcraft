@@ -56,7 +56,7 @@ function fixture() {
       projectId: remoteKey, source: 'device', displayPath: '/fixture/remote', identityWorkspacePath: '/fixture/remote',
       name: 'Fixture remote', remote: { source: 'device' }
     },
-    activeRemoteWorkspace: { source: 'device' }, workspaceConnections: new Map(),
+    activeRemoteWorkspace: { source: 'device' }, workspaceConnections: new Map(), startupProjectStates: new Map(),
     wireClient: new Client(), mainWindow: { isDestroyed: () => false },
     app: { createHubClient: () => hub, localProjects: { list: () => [], has: () => false },
       pairedComputers: { savedProjects: () => [] } },

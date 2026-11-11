@@ -22,7 +22,7 @@ const runtime = (win: Electron.BrowserWindow) => ({
   mainWindow: win,
   getThreadTasks: () => ({ abandonOffersForOwner: vi.fn() }),
   clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(),
-  deviceOpenGeneration: 0, workspaceConnections: new Map(),
+  deviceOpenGeneration: 0, workspaceConnections: new Map(), startupProjectStates: new Map(),
   userInputAutoResolution: { clear: vi.fn() }, setActiveRemoteProject: vi.fn()
 }) as unknown as DesktopWindowRuntime
 
@@ -63,12 +63,14 @@ describe('window REPL teardown', () => {
       ctx.disposeWorkspaceConnection = entry => disposeWorkspaceConnection(ctx, entry)
       ctx.emitWorkspaceProjects = vi.fn()
       ctx.runtimeIsStopping = () => true
+      ctx.startupProjectRestore = 'running'
 
       await teardownRuntime(ctx, 'window close', { clearWorkspace: true })
       await vi.advanceTimersByTimeAsync(1000)
 
       expect(ctx.workspaceConnections.size).toBe(0)
       expect(ctx.wireClient).toBeNull()
+      expect(ctx.startupProjectRestore).toBeUndefined()
       for (const bridge of bridges) expect(bridge.close).toHaveBeenCalledOnce()
       for (const entry of entries) expect(entry.client.dispose).toHaveBeenCalledOnce()
       expect(retry).not.toHaveBeenCalled()

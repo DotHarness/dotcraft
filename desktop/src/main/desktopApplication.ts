@@ -13,6 +13,10 @@ import { refreshDesktopMenu, registerDesktopApplicationIpc } from './desktopMenu
 import { DesktopUpdatePreparation } from './desktopUpdatePreparation'
 import { DesktopWindowManager } from './desktopWindowManager'
 import { LocalProjectList } from './localProjects'
+import { isDefaultChatWorkspace } from './defaultChatWorkspace'
+import { isLocalDirectory } from './newThreadDeepLink'
+import { restoreRecentProjects } from './recentProjectRestore'
+import { getWorkspaceStatus } from './workspaceSetup'
 import { disposeMobileHubBridge } from './mobile/mobileHubBridge'
 import { broadcastPairedComputerEvent } from './pairedComputers/pairedComputersIpc'
 import { PairedComputersManager } from './pairedComputers/pairedComputersManager'
@@ -104,6 +108,36 @@ export class DesktopApplication implements DesktopApplicationServices {
     void this.tray.refresh()
     this.updateTimer = setTimeout(() => this.getAppUpdateService().start(), 1_200)
     this.updateTimer.unref()
+  }
+
+  async restoreRecentProjects(window: DesktopWindowRuntime): Promise<void> {
+    if (window !== this.manager.initialWindow || window.startupProjectRestore !== 'pending' ||
+      window.lastConnectionStatus.status !== 'connected') return
+    window.startupProjectRestore = 'running'
+    const isActive = (): boolean => window.startupProjectRestore === 'running' &&
+      !window.runtimeIsStopping() && Boolean(window.currentWorkspacePath) &&
+      !hasRemoteEndpointArg(window.argv) && !window.argv.includes(NO_WORKSPACE_ARG) &&
+      !window.activeRemoteWorkspace && window.resolveConnectionMode(window.settings) === 'local'
+    try {
+      await restoreRecentProjects({
+        foregroundPath: window.currentWorkspacePath,
+        isChatWorkspace: isDefaultChatWorkspace,
+        isActive,
+        projects: this.localProjects,
+        isEligible: (path) => isLocalDirectory(path) && getWorkspaceStatus(path).status === 'ready',
+        startProject: (path) => window.startLocalProjectConnection(path, isActive),
+        setProjectState: (path, state) => {
+          const key = window.normalizeWorkspaceConnectionKey(path)
+          if (state) window.startupProjectStates.set(key, state)
+          else window.startupProjectStates.delete(key)
+          if (!window.runtimeIsStopping()) window.emitWorkspaceProjects()
+        }
+      })
+    } catch (error) {
+      console.warn('[desktop] recent project startup restore failed', error)
+    } finally {
+      window.startupProjectRestore = undefined
+    }
   }
 
   get pairedComputers(): PairedComputersManager {

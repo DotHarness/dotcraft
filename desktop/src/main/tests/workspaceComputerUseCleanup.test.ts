@@ -58,7 +58,7 @@ beforeEach(() => {
   host.manager = manager
   ctx = {
     mainWindow: { id: 1, webContents: { id: 101 }, isDestroyed: () => false },
-    settings: { locale: 'en' }, workspaceConnections: new Map(),
+    settings: { locale: 'en' }, workspaceConnections: new Map(), startupProjectStates: new Map(),
     runtimeIsStopping: () => false, resetThreadToolState: () => {}, emitConnectionStatus: () => {},
     reregisterIpcForWorkspace: () => {}, localProjectId: (path: string) => path,
     clearPendingDeviceOpenRetry: () => {}, flushPendingWorkspaceOpenThread: () => {},
