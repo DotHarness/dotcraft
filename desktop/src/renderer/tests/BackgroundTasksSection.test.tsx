@@ -50,7 +50,7 @@ function show(services: SummaryServices) {
   return render(<LocaleProvider loadSettings={false}><Tasks services={services} /></LocaleProvider>)
 }
 
-const stopButtons = () => screen.queryAllByRole('button', { name: 'Stop all background terminals' })
+const stopButtons = () => screen.queryAllByRole('button', { name: 'Stop background terminal' })
 afterEach(() => { cleanup(); disposeSummaryFeeds() })
 
 describe('Background task stop controls', () => {
@@ -95,30 +95,23 @@ describe('Background task stop controls', () => {
     expect(host.request.mock.calls.filter(([method]) => method === 'terminal/list')).toHaveLength(1)
   })
 
-  it('applies successful stops immediately, waits for all failures, and allows retry', async () => {
+  it('stops only the selected terminal and allows retry after a failed stop', async () => {
     const host = createHost(['a', 'b', 'c'])
     show(host.services)
     await waitFor(() => expect(stopButtons()).toHaveLength(3))
     fireEvent.click(stopButtons()[0])
-    fireEvent.click(stopButtons()[1])
-    await waitFor(() => expect(host.request.mock.calls.filter(([method]) => method === 'terminal/stop')).toHaveLength(3))
-    await act(async () => { host.pending.get('b')!.reject(new Error('Denied')) })
-    expect(host.showError).not.toHaveBeenCalled()
-    expect(stopButtons().every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
-    await act(async () => { host.pending.get('a')!.resolve({ terminal: terminal('a', 'killed') }) })
-    expect(stopButtons()).toHaveLength(2)
-    expect(screen.getByRole('status', { name: 'Running tasks' }).textContent).toBe('2')
-    expect(stopButtons().every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
-    host.setTerminals([terminal('a', 'killed'), terminal('b'), terminal('c', 'killed')])
-    await act(async () => { host.pending.get('c')!.resolve({ terminal: terminal('c', 'killed') }) })
+    await waitFor(() => expect(host.request).toHaveBeenCalledWith('terminal/stop', { sessionId: 'a' }))
+    await act(async () => { host.pending.get('a')!.reject(new Error('Denied')) })
     await waitFor(() => expect(host.showError).toHaveBeenCalledTimes(1))
-    expect(stopButtons()).toHaveLength(1)
+    expect(stopButtons()).toHaveLength(3)
     expect((stopButtons()[0] as HTMLButtonElement).disabled).toBe(false)
-    host.pending.set('b', deferred())
+    host.pending.set('a', deferred())
     fireEvent.click(stopButtons()[0])
-    host.setTerminals([terminal('b', 'killed')])
-    await act(async () => { host.pending.get('b')!.resolve({ terminal: terminal('b', 'killed') }) })
-    await waitFor(() => expect(stopButtons()).toHaveLength(0))
+    await act(async () => { host.pending.get('a')!.resolve({ terminal: terminal('a', 'killed') }) })
+    await waitFor(() => expect(stopButtons()).toHaveLength(2))
+    expect(screen.getByRole('status', { name: 'Running tasks' }).textContent).toBe('2')
+    const stops = host.request.mock.calls.filter(([method]) => method === 'terminal/stop')
+    expect(stops.map(([, params]) => params)).toEqual([{ sessionId: 'a' }, { sessionId: 'a' }])
     expect(host.showError).toHaveBeenCalledTimes(1)
   })
 

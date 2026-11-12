@@ -173,7 +173,7 @@ describe('Summary terminal state reconciliation', () => {
     const h = host({ 'terminal/list': () => list.promise, 'terminal/stop': () => stop.promise })
     h.notify('terminal/started', terminal('a'))
     const refreshing = h.feed.refresh()
-    const stopping = h.feed.stopMany(['a'])
+    const stopping = h.feed.stop('a')
     h.feed.dispose()
     h.changed.mockClear()
 
@@ -197,7 +197,7 @@ describe('Summary terminal state reconciliation', () => {
     })
     h.notify('terminal/started', terminal('a'))
     const refreshing = h.feed.refresh()
-    const stopping = h.feed.stopMany(['a'])
+    const stopping = h.feed.stop('a')
 
     h.connection(false)
     h.connection(true)

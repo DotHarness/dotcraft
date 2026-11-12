@@ -1,20 +1,33 @@
 import { create } from 'zustand'
 import type { ServerNotificationMethods } from '@dotcraft/sdk/contracts'
-import { createTerminalFeed } from '../components/conversation/summary/terminalFeed'
+import { createTerminalFeed, type SummaryTerminal } from '../components/conversation/summary/terminalFeed'
+import type { SummaryWorkflow } from '../components/conversation/summary/feed'
+import { toSummaryItem } from '../components/conversation/summary/sources'
+import { useThreadStore } from './threadStore'
 import { workflowRunsFor, type WorkflowRunClient } from './workflowRunCache'
 import { getThreadConnection, isThreadObservationCurrent } from './threadConnectionStore'
 import { useConnectionStore } from './connectionStore'
 import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
 import type { SubAgentChild } from './subAgentChildren'
 
+export interface SubAgentTasks {
+  terminals: readonly SummaryTerminal[]
+  workflows: readonly SummaryWorkflow[]
+}
+
 export const useSubAgentTaskActivity = create<{
-  activeThreadIds: ReadonlySet<string>
-}>(() => ({ activeThreadIds: new Set() }))
+  tasksByThread: ReadonlyMap<string, SubAgentTasks>
+}>(() => ({ tasksByThread: new Map() }))
 
 interface TaskObservation {
   connectionKey: string
   connectionId: string
-  children: Map<string, { refresh(): Promise<void>; dispose(): void }>
+  children: Map<string, {
+    refresh(): Promise<void>
+    stopTerminal(sessionId: string): Promise<void>
+    stopWorkflow(runId: string): Promise<void>
+    dispose(): void
+  }>
   client: WorkflowRunClient
   dispose(): void
 }
@@ -25,13 +38,14 @@ function sourceFor(parentThreadId: string) {
   return getThreadConnection(parentThreadId) ?? useConnectionStore.getState()
 }
 
-function setActive(threadId: string, active: boolean): void {
+function setTasks(threadId: string, tasks: SubAgentTasks | null): void {
   useSubAgentTaskActivity.setState(state => {
-    if (state.activeThreadIds.has(threadId) === active) return state
-    const activeThreadIds = new Set(state.activeThreadIds)
-    if (active) activeThreadIds.add(threadId)
-    else activeThreadIds.delete(threadId)
-    return { activeThreadIds }
+    const active = tasks && (tasks.terminals.length > 0 || tasks.workflows.length > 0)
+    if (!active && !state.tasksByThread.has(threadId)) return state
+    const tasksByThread = new Map(state.tasksByThread)
+    if (active) tasksByThread.set(threadId, tasks)
+    else tasksByThread.delete(threadId)
+    return { tasksByThread }
   })
 }
 
@@ -86,8 +100,10 @@ function createObservation(parentThreadId: string, connectionKey: string, connec
   }
 }
 
-export async function syncSubAgentTaskActivity(parentThreadId: string, children: readonly SubAgentChild[]): Promise<void> {
-  const source = sourceFor(parentThreadId)
+export async function syncSubAgentTaskActivity(
+  parentThreadId: string, children: readonly SubAgentChild[], connectionThreadId = parentThreadId
+): Promise<void> {
+  const source = sourceFor(connectionThreadId)
   let observation = observations.get(parentThreadId)
   if (observation && (observation.connectionKey !== source.connectionKey || observation.connectionId !== source.connectionId)) {
     observation.dispose()
@@ -104,7 +120,7 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
     connectionKey: source.connectionKey, connectionId: source.connectionId
   })) return
   if (!observation) {
-    observation = createObservation(parentThreadId, source.connectionKey, source.connectionId)
+    observation = createObservation(connectionThreadId, source.connectionKey, source.connectionId)
     observations.set(parentThreadId, observation)
   }
   for (const [id, child] of observation.children) {
@@ -120,40 +136,82 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
       continue
     }
     let disposed = false
-    let terminalActive = false
-    let workflowActive = false
-    const publish = (): void => { if (!disposed) setActive(id, terminalActive || workflowActive) }
+    let taskTerminals: readonly SummaryTerminal[] = []
+    let taskWorkflows: readonly SummaryWorkflow[] = []
+    const publish = (): void => { if (!disposed) setTasks(id, { terminals: taskTerminals, workflows: taskWorkflows }) }
     const terminals = createTerminalFeed({ appServer: observation.client }, id, values => {
-      terminalActive = values.length > 0
+      taskTerminals = values
       publish()
     })
     const workflows = workflowRunsFor(observation.client)
     const stopWorkflows = workflows.getState().observe(id, values => {
-      workflowActive = values.length > 0
+      taskWorkflows = values.map(run => ({
+        runId: run.runId, name: run.name, paused: run.status === 'paused',
+        startedAt: run.startedAt ?? run.createdAt ?? null
+      }))
       publish()
     })
     const client = observation.client
+    let activeTurnId = useThreadStore.getState().runtimeSnapshots.get(id)?.activeTurnId ?? null
+    terminals.setActiveTurn(activeTurnId)
+    let restoredTurnId: string | null = null
+    let restoring: Promise<void> | null = null
+    const restoreReturnedCalls = (): Promise<void> => {
+      if (!activeTurnId || activeTurnId === restoredTurnId) return Promise.resolve()
+      if (restoring) return restoring
+      const turnId = activeTurnId
+      restoring = (async () => {
+        try {
+          let cursor: string | undefined
+          do {
+            const page = await client.request('thread/items/list', { threadId: id, turnId, limit: 100, ...(cursor ? { cursor } : {}) })
+            if (disposed || !client.connectionKey() || turnId !== activeTurnId) return
+            for (const entry of page.data ?? []) {
+              terminals.observeCommandExecution(entry.item, entry.turnId)
+              const item = toSummaryItem(entry.item, entry.turnId)
+              if (item) terminals.addItems([item])
+            }
+            cursor = page.nextCursor ?? undefined
+          } while (cursor)
+          restoredTurnId = turnId
+        } catch {
+          return
+        } finally {
+          restoring = null
+        }
+      })()
+      return restoring
+    }
     const refresh = async (): Promise<void> => {
       if (disposed || !client.connectionKey()) return
-      await Promise.all([terminals.refresh(), workflows.getState().refresh(id)])
+      await Promise.all([terminals.refresh(), workflows.getState().refresh(id), restoreReturnedCalls()])
     }
     const stopRuntime = client.onNotification('thread/status/changed', params => {
-      if (params.threadId === id && params.runtime?.running === false) void refresh()
+      if (params.threadId !== id) return
+      activeTurnId = params.runtime?.activeTurnId ?? null
+      terminals.setActiveTurn(activeTurnId)
+      if (params.runtime?.running === false) void refresh()
     })
     const stopItems = client.onNotification('item/completed', params => {
-      if (params.threadId === id) terminals.observeCommandExecution(params.item, params.turnId)
+      if (params.threadId !== id) return
+      terminals.observeCommandExecution(params.item, params.turnId)
+      const item = toSummaryItem(params.item, params.turnId)
+      if (item) terminals.addItems([item])
     })
     const stopConnection = client.onConnectionChange(connected => {
       if (connected) {
         void refresh()
         return
       }
-      terminalActive = false
-      workflowActive = false
+      restoredTurnId = null
+      taskTerminals = []
+      taskWorkflows = []
       publish()
     })
     observation.children.set(id, {
       refresh,
+      stopTerminal: terminals.stop,
+      stopWorkflow: runId => workflows.getState().stop(id, runId),
       dispose() {
         disposed = true
         terminals.dispose()
@@ -161,12 +219,28 @@ export async function syncSubAgentTaskActivity(parentThreadId: string, children:
         stopConnection()
         stopRuntime()
         stopItems()
-        setActive(id, false)
+        setTasks(id, null)
       }
     })
     discoveries.push(refresh())
   }
   await Promise.all(discoveries)
+}
+
+function taskControls(threadId: string) {
+  for (const observation of observations.values()) {
+    const controls = observation.children.get(threadId)
+    if (controls) return controls
+  }
+  throw new Error('Background task owner is no longer observed.')
+}
+
+export async function stopSubAgentTerminal(threadId: string, sessionId: string): Promise<void> {
+  await taskControls(threadId).stopTerminal(sessionId)
+}
+
+export async function stopSubAgentWorkflow(threadId: string, runId: string): Promise<void> {
+  await taskControls(threadId).stopWorkflow(runId)
 }
 
 export function clearSubAgentTaskActivity(parentThreadId: string): void {
@@ -177,5 +251,5 @@ export function clearSubAgentTaskActivity(parentThreadId: string): void {
 export function resetSubAgentTaskActivity(): void {
   for (const observation of observations.values()) observation.dispose()
   observations.clear()
-  useSubAgentTaskActivity.setState({ activeThreadIds: new Set() })
+  useSubAgentTaskActivity.setState({ tasksByThread: new Map() })
 }

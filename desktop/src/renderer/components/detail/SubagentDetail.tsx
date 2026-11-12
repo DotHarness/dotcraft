@@ -24,6 +24,7 @@ import { TranscriptTurnsContext } from '../conversation/useWebCitationSources'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { IconButton } from '../ui/IconButton'
 import { Skeleton } from '../ui/Skeleton'
+import { SubagentRunningTasks } from './SubagentRunningTasks'
 import styles from './SubagentDetail.module.css'
 
 const NO_ROWS: TurnFileChange[] = []
@@ -39,7 +40,7 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const projectKey = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   useThreadStore((s) => s.runtimeSnapshots.get(childThreadId))
-  useSubAgentTaskActivity((s) => s.activeThreadIds)
+  useSubAgentTaskActivity((s) => s.tasksByThread)
   useSubAgentStore((s) => s.childrenByParent)
   const running = isSubAgentChildRunning(child)
   const working = isSubAgentChildWorking(child)
@@ -151,6 +152,7 @@ function SubagentTranscript({
             </ConversationImagesContext.Provider>
           </div>
         )}
+        <SubagentRunningTasks threadId={childThreadId} />
       </div>
       {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={working} />}
     </div>

@@ -6,6 +6,7 @@ export type TaskStatus = 'running' | 'completed' | 'failed' | 'stopped'
 
 interface TaskBase {
   id: string
+  ownerThreadId: string
   title: string
   status: TaskStatus
   startedAt: string | null
@@ -15,7 +16,7 @@ interface TaskBase {
 
 export type BackgroundTask =
   | (TaskBase & { kind: 'shell'; turnId: string | null; output: string | null })
-  | (TaskBase & { kind: 'agent'; role: string | null; model: string | null; activeTurnId: string | null; tokens: number | null })
+  | (TaskBase & { kind: 'agent'; open: boolean; role: string | null; model: string | null; activeTurnId: string | null; tokens: number | null })
   | (TaskBase & { kind: 'workflow'; agents: number })
 
 export type TaskSources = Partial<Record<TaskSource, BackgroundTask[]>>
@@ -52,11 +53,12 @@ export function isBackgroundTerminal(terminal: BackgroundTerminalSnapshot, activ
 }
 
 export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTask | null {
-  if (!terminal.sessionId) return null
+  if (!terminal.sessionId || !terminal.threadId) return null
   const status = TERMINAL_STATUS[terminal.status ?? ''] ?? 'failed'
   return {
     kind: 'shell',
     id: terminal.sessionId,
+    ownerThreadId: terminal.threadId,
     title: (terminal.command ?? '').split(/\r?\n/, 1)[0],
     status,
     startedAt: terminal.startedAt ?? null,
@@ -69,12 +71,14 @@ export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTa
 
 export function agentTask({ edge, thread }: SubAgentChild, lastTurnStatus: string | null = null, tokens: number | null = null): BackgroundTask | null {
   const id = edge?.childThreadId
-  if (!id) return null
+  if (!id || !edge?.parentThreadId) return null
   const runtime = thread?.runtime
   const running = runtime?.running === true
   return {
     kind: 'agent',
     id,
+    ownerThreadId: edge.parentThreadId,
+    open: edge.status !== 'closed',
     title: edge.agentNickname || thread?.displayName || edge.taskName || id,
     status: running ? 'running' : edge.status === 'closed' ? 'stopped' : (AGENT_TURN_STATUS[lastTurnStatus ?? ''] ?? 'completed'),
     startedAt: edge.createdAt ?? thread?.createdAt ?? null,
@@ -92,6 +96,7 @@ export function workflowTask(run: WorkflowRunSummary): BackgroundTask {
   return {
     kind: 'workflow',
     id: run.runId,
+    ownerThreadId: run.threadId,
     title: run.description || run.name,
     status,
     startedAt: run.startedAt ?? run.createdAt,
@@ -110,7 +115,11 @@ export function mergeAgents(previous: BackgroundTask[] | undefined, listed: Back
   const ids = new Set(listed.map((task) => task.id))
   const gone = (previous ?? [])
     .filter((task) => !ids.has(task.id))
-    .map((task): BackgroundTask => (task.status === 'running' ? { ...task, status: 'stopped', stop: null } : task))
+    .map((task): BackgroundTask => ({
+      ...task,
+      ...(task.kind === 'agent' ? { open: false } : {}),
+      ...(task.status === 'running' ? { status: 'stopped', stop: null } : {}),
+    }))
   return [...listed, ...gone]
 }
 
@@ -133,10 +142,4 @@ export function chatTasks(
       .filter((task) => task.status !== 'running')
       .sort((left, right) => time(right.endedAt ?? right.startedAt) - time(left.endedAt ?? left.startedAt)),
   }
-}
-
-export function runningTaskCount(sources: TaskSources | undefined): number {
-  return Object.values(sources ?? {})
-    .flat()
-    .filter((task) => task.status === 'running').length
 }

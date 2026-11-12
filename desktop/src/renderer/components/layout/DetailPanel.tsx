@@ -82,7 +82,7 @@ export function DetailPanel({
   const fileCount = useConversationStore((s) => turnPatchTotals(latestTurnDiff(s.turnDiffs, s.turns)?.files ?? []).files)
   const subagents = useSubAgentStore((s) => s.childrenByParent)
   useThreadStore((s) => s.runtimeSnapshots)
-  useSubAgentTaskActivity((s) => s.activeThreadIds)
+  useSubAgentTaskActivity((s) => s.tasksByThread)
   const runningSubagentCount = activeThreadId
     ? (subagents.get(activeThreadId) ?? []).filter(isSubAgentChildWorking).length : 0
 

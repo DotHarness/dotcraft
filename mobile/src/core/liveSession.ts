@@ -1,5 +1,5 @@
 import type { Timers } from './backoff'
-import { runningTaskCount } from './backgroundTasks'
+import { chatTaskTree } from './taskTree'
 import { isLive, needsYou, type ChatState } from './chatState'
 import type { ChatHistory } from './history'
 import { runningChats, stateOf, type Action, type ChatSummary, type ComputerState, type MobileState, type PendingRequest } from './state'
@@ -76,12 +76,12 @@ function updated(entry: Entry): number {
 }
 
 function tasksOf(entry: Entry): number {
-  return runningTaskCount(entry.computer.tasks[entry.chat.key])
+  return chatTaskTree(entry.computer, entry.chat.key).running.length
 }
 
 function liveEntries(state: MobileState): Entry[] {
   return entriesOf(state, (computer) =>
-    runningChats(computer).filter((chat) => isLive(stateOf(chat)) || runningTaskCount(computer.tasks[chat.key]) > 0),
+    runningChats(computer).filter((chat) => isLive(stateOf(chat)) || chatTaskTree(computer, chat.key).running.length > 0),
   ).sort((left, right) => updated(right) - updated(left))
 }
 
@@ -180,7 +180,8 @@ export class LiveSession {
       computer: computer?.computer.name ?? '',
       running: states.filter((value) => value === 'running').length,
       needsYou: states.filter(needsYou).length,
-      tasks: live.reduce((sum, entry) => sum + tasksOf(entry), 0),
+      tasks: new Set(live.flatMap((entry) => chatTaskTree(entry.computer, entry.chat.key).running
+        .map((task) => `${entry.computerId}:${entry.chat.projectId}:${task.ownerThreadId}:${task.kind}:${task.id}`))).size,
       reachable: computer?.link === 'online',
       focus: followed
         ? {

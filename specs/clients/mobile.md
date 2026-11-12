@@ -278,7 +278,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
     `terminal/started`, `terminal/completed`, and `terminal/cleaned`; Stop calls `terminal/stop`.
   - SubAgents (`capabilities.subAgentSessions`): `subagent/children/list` without closed children,
     reread on `subagent/graph/changed` for the chat and `thread/status/changed` for a child. A child
-    runs per its thread runtime; Stop calls `turn/interrupt` on its active turn, leaving it open. An
+    has an active turn per its thread runtime; Stop on that turn calls `turn/interrupt`, leaving it open. An
     agent's card adds its model and tokens used: the sum of its turns' `tokenUsage` from
     `thread/turns/list`, raised to `total` from each `thread/tokenUsage/updated`, never decreasing.
     A non-running child reads how its latest turn ended (completed, failed, or stopped when
@@ -287,10 +287,16 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
     reread on `workflow/run/updated`; paused runs count as running; Stop calls `workflow/run/stop`
     when the run's controls allow it and the capability lists `stop`.
 
-  The phone loads a chat's tasks when it opens or attaches to the chat and reloads every known
-  chat's tasks after reconnecting to the project. Notifications are honoured for any listed chat,
-  and repeated refreshes of one source for one chat coalesce into one request at a time. Background
-  tasks never mark the chat itself as running.
+  The phone loads a chat's tasks and recursively discovers its open SubAgent descendants when it
+  opens or attaches to the chat. The existing Running Tasks entry and task sheet aggregate the chat's
+  and descendants' work in one list without source labels or grouping. Descendant tasks remain visible
+  when their parent Agent has no active turn. Opening a child chat exposes its own tasks through the
+  same entry. Each task retains its actual owner thread for controls and state updates; stopping a
+  command stops only that session, and stopping a Workflow uses its owner thread. An idle Agent is
+  not counted again as a running task just because its descendants or background commands are active.
+  Reconnecting reloads the observed task tree. Lifecycle and graph notifications update descendants
+  even if they were never opened as chats; repeated refreshes of one source for one thread coalesce
+  into one request at a time. Background tasks never mark the chat's model runtime as running.
 
 ### 6.3.1 Runtime update budget
 

@@ -270,7 +270,7 @@ export class ProjectConnection {
     on('thread/status/changed', ({ threadId, runtime }) => {
       if (!threadId) return
       if (!this.store.getState().chats[this.key(threadId)]) {
-        if (!this.tasks?.childChanged(threadId)) this.lookUp(client, threadId)
+        if (!this.tasks?.observes(threadId)) this.lookUp(client, threadId)
         return
       }
       this.patch(threadId, { runtime: runtime ?? null, updatedAt: now(), ...(runtime?.running ? { lastTurnFailed: false } : {}) })
@@ -769,9 +769,9 @@ export class ProjectConnection {
     this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) })
   }
 
-  async stopTask(threadId: string, task: BackgroundTask): Promise<void> {
+  async stopTask(task: BackgroundTask): Promise<void> {
     if (!this.tasks || !this.readyValue) throw new NotConnectedError()
-    await this.tasks.stop(threadId, task)
+    await this.tasks.stop(task)
   }
 
   async stop(threadId: string): Promise<void> {

@@ -12,7 +12,7 @@ export interface SummaryFeed {
   refreshTerminals(): Promise<void>
   refreshWorkflows(): Promise<void>
   stopWorkflow(runId: string): Promise<void>
-  stopTerminals(sessionIds: readonly string[]): Promise<void>
+  stopTerminal(sessionId: string): Promise<void>
 }
 
 export interface SummaryAutomation {
@@ -250,7 +250,7 @@ export function startSummaryFeed(
     refreshTerminals: async () => { await terminals.refresh() },
     refreshWorkflows: () => workflows.getState().refresh(threadId),
     stopWorkflow: (runId) => workflows.getState().stop(threadId, runId),
-    stopTerminals: terminals.stopMany,
+    stopTerminal: terminals.stop,
     stop() {
       disposed = true
       stopSubAgents()

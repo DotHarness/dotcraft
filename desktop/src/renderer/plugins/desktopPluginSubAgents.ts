@@ -8,14 +8,14 @@ import {
   type SubAgentChild
 } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
+import { useSubAgentTaskActivity, type SubAgentTasks } from '../stores/subAgentTaskActivity'
 import type { ThreadRuntimeSnapshot } from '../types/thread'
 
 const NO_SUBAGENTS: readonly DesktopPluginSubAgent[] = []
 const snapshots = new WeakMap<SubAgentChild[], {
   graph: ReadonlyMap<string, SubAgentChild[]>
   runtimes: ReadonlyMap<string, ThreadRuntimeSnapshot>
-  tasks: ReadonlySet<string>
+  tasks: ReadonlyMap<string, SubAgentTasks>
   agents: readonly DesktopPluginSubAgent[]
 }>()
 
@@ -48,7 +48,7 @@ export function listDesktopPluginSubAgents(parentThreadId: string): readonly Des
   const children = graph.get(parentThreadId)
   if (!children || children.length === 0) return NO_SUBAGENTS
   const runtimes = useThreadStore.getState().runtimeSnapshots
-  const tasks = useSubAgentTaskActivity.getState().activeThreadIds
+  const tasks = useSubAgentTaskActivity.getState().tasksByThread
   let snapshot = snapshots.get(children)
   if (!snapshot || snapshot.graph !== graph || snapshot.runtimes !== runtimes || snapshot.tasks !== tasks) {
     snapshot = { graph, runtimes, tasks, agents: children.map((child) => toDesktopPluginSubAgent(parentThreadId, child)) }
