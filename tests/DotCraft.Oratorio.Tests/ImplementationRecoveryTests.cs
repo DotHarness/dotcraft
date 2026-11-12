@@ -1,7 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Domain;
+using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Integrations;
 using DotCraft.Oratorio.Services;
 using static DotCraft.Oratorio.Tests.OratorioApiTestSupport;
@@ -11,11 +13,12 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class ImplementationRecoveryTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Retry_ContinuesRecordedWorkspaceAndThreadWithImplementationTools(bool automatic)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Retry_StopsPreviousTurnBeforeContinuingImplementation(bool automatic, bool incompatibleThread)
     {
-        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Disconnect);
+        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Disconnect) { EnforceSingleActiveTurn = true };
         var worktrees = new FakeWorktreeManager();
         var clock = new MutableClock(DateTimeOffset.Parse("2026-11-12T00:00:00Z"));
         await using var app = CreateApp(appServer, worktrees, clock, automatic ? 2 : 1);
@@ -27,6 +30,15 @@ public sealed class ImplementationRecoveryTests
         var interrupted = await WaitForItemByIdAsync(client, itemId,
             x => x.Runs.Any(run => run.Status == RunStatus.Failed && run.ErrorCode == "appServerDisconnected"));
         var original = Assert.Single(interrupted.Runs, run => run.Status == RunStatus.Failed);
+        if (incompatibleThread)
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            var previous = await db.Runs.SingleAsync(run => run.RunId == original.RunId);
+            previous.PromptContextJson = "{}";
+            await db.SaveChangesAsync();
+        }
+
         appServer.Outcome = FakeAppServerOutcome.SubmitImplementationDraft;
         worktrees.BaseShaOverride = "unrelated-checkout-head";
         if (automatic)
@@ -43,10 +55,43 @@ public sealed class ImplementationRecoveryTests
         Assert.Equal(original.WorktreeBranch, retried.WorktreeBranch);
         Assert.Equal(original.BaseRef, retried.BaseRef);
         Assert.Equal(original.BaseSha, retried.BaseSha);
-        Assert.Equal(original.ThreadId, retried.ThreadId);
-        Assert.Equal(1, appServer.StartThreadCount);
-        Assert.True(Assert.Single(appServer.ThreadResumeRequests).DynamicTools!.ContainsTool("oratorio_run", "SubmitImplementationDraft"));
+        if (incompatibleThread)
+            Assert.NotEqual(original.ThreadId, retried.ThreadId);
+        else
+            Assert.Equal(original.ThreadId, retried.ThreadId);
+        Assert.Equal(incompatibleThread ? 2 : 1, appServer.StartThreadCount);
+        var tools = incompatibleThread
+            ? appServer.LastThreadStartRequest!.DynamicTools
+            : Assert.Single(appServer.ThreadResumeRequests, request => request.DynamicTools is not null).DynamicTools;
+        Assert.True(tools!.ContainsTool("oratorio_run", "SubmitImplementationDraft"));
+        Assert.Contains(appServer.InterruptedTurns, turn => turn.ThreadId == original.ThreadId && turn.TurnId == original.TurnId);
+        Assert.Equal(0, appServer.RejectedConcurrentTurnStarts);
         Assert.True(appServer.LastToolResult!.Success);
+    }
+
+    [Fact]
+    public async Task Retry_WhenPreviousTurnCannotBeInterrupted_StopsWithoutAnotherWriterOrRetry()
+    {
+        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Disconnect) { EnforceSingleActiveTurn = true };
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-11-12T00:00:00Z"));
+        await using var app = CreateApp(appServer, new FakeWorktreeManager(), clock, maxAttempts: 3);
+        var client = app.CreateClient();
+        var itemId = (await CreateLocalTaskAsync(client)).Item.ItemId;
+        await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/dispatch", ImplementationRequest());
+        await WaitForItemByIdAsync(client, itemId,
+            x => x.Runs.Any(run => run.Status == RunStatus.Failed && run.ErrorCode == "appServerDisconnected"));
+
+        appServer.Outcome = FakeAppServerOutcome.SubmitImplementationDraft;
+        appServer.FailInterrupt = true;
+        clock.Advance(TimeSpan.FromSeconds(2));
+        var failed = await WaitForItemByIdAsync(client, itemId, x => x.Item.State == ItemState.Failed);
+        var retry = Assert.Single(failed.Runs, run => run.Attempt == 2);
+
+        Assert.Equal("appServerTerminationUnconfirmed", retry.ErrorCode);
+        Assert.Equal(2, failed.Runs.Count);
+        Assert.Single(appServer.TurnThreadIds);
+        Assert.Equal(1, appServer.StartThreadCount);
+        Assert.Empty(failed.ImplementationDrafts);
     }
 
     [Fact]
@@ -99,7 +144,6 @@ public sealed class ImplementationRecoveryTests
         await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/dispatch", ImplementationRequest());
         var interrupted = await WaitForItemByIdAsync(client, itemId, x => x.Item.State == ItemState.Failed);
         var original = Assert.Single(interrupted.Runs);
-        worktrees.Failure = new WorktreeException("worktreeDirty", "Existing implementation changes.");
         appServer.Outcome = FakeAppServerOutcome.SubmitDiscussionReply;
 
         await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/discussion-turns",
@@ -108,7 +152,9 @@ public sealed class ImplementationRecoveryTests
             x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded));
 
         Assert.Equal(original.ThreadId, Assert.Single(answered.DiscussionTurns).ThreadId);
-        Assert.Single(worktrees.PrepareRequests);
+        Assert.Equal(2, worktrees.PrepareRequests.Count);
+        Assert.True(worktrees.PrepareRequests[^1].RequireExisting);
+        Assert.NotNull(worktrees.PrepareRequests[^1].ResumeFrom);
         Assert.Equal(1, appServer.StartThreadCount);
         Assert.Single(answered.Runs);
         Assert.Empty(answered.ImplementationDrafts);

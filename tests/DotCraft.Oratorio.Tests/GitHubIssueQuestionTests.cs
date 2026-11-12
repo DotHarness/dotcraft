@@ -76,7 +76,7 @@ public sealed class GitHubIssueQuestionTests
         Assert.Equal(run.RunId, Assert.Single(finished.Runs).RunId);
         Assert.Single(finished.Rounds);
         Assert.Single(finished.ImplementationDrafts);
-        Assert.Single(harness.Worktrees.PrepareRequests);
+        Assert.Single(harness.Worktrees.PrepareRequests, request => !request.RequireExisting);
         Assert.Equal(0, harness.GitHub.GetRepositoryCallCount);
         Assert.Empty(harness.GitHub.PullRequestCreates);
         if (active)

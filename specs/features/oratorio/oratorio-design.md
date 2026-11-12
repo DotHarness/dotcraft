@@ -712,8 +712,12 @@ An independent discussion starts in the item's managed worktree at the latest
 head of its base branch: a local task's base branch when set, otherwise the
 repository's remote default branch as GitHub or GitLab reports it. Idle
 independent discussions refresh that target before resuming. Active
-conversations and implementation threads keep their execution context. The base
-checkout is never switched or pulled. Every question on an issue or local task
+conversations and implementation threads keep their execution context. Before a
+standalone discussion resumes an implementation thread, it claims the existing
+managed worktree without resetting it, so prior runs cannot clean it up during
+the discussion. Missing or already-cleaned worktrees fail explicitly rather
+than resuming a thread against a deleted execution directory. The base checkout
+is never switched or pulled. Every question on an issue or local task
 includes its title, body, URL and discussion history. See GitHub Mentions §11 for intake, failure and
 publication rules.
 
@@ -877,9 +881,11 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
   remains (§6.1);
 - maps completion, failure, cancellation, timeout and disconnection to run
   status;
-- treats an SDK disconnect as a disconnection failure and recovers through the
-  bounded retry flow by resuming and re-subscribing, never replaying the
-  original turn;
+- treats an SDK disconnect as a disconnection failure. Before implementation
+  recovery starts another turn, it reconnects to the recorded thread and
+  interrupts the recorded turn, confirming it ended or was already terminal.
+  Unconfirmed termination blocks the retry rather than starting another writer
+  or consuming repeated retries on a still-running turn;
 - when a run or stall timeout fires after a turn started, asks DotCraft to
   interrupt the turn and waits briefly for a terminal signal before closing the
   run;

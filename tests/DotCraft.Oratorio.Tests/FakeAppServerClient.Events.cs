@@ -6,6 +6,7 @@ namespace DotCraft.Oratorio.Tests;
 internal sealed partial class FakeAppServerClient
 {
     public Action TurnStartedProcessed { get; init; } = () => { };
+    public Action<string, string> TurnEnded { get; init; } = (_, _) => { };
 
     public async IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync([EnumeratorCancellation] CancellationToken ct)
     {
@@ -15,6 +16,8 @@ internal sealed partial class FakeAppServerClient
                 : _notifications.Reader.ReadAllAsync(ct);
         await foreach (var notification in events.WithCancellation(ct))
         {
+            if (notification.Type is "turn/completed" or "turn/failed" or "turn/cancelled" && notification.TurnId is { } turnId)
+                TurnEnded(notification.ThreadId, turnId);
             yield return notification;
             if (notification.Type == "turn/started")
                 TurnStartedProcessed();

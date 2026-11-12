@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -564,6 +565,10 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public Task SteeredRunRelease { get; set; } = Task.CompletedTask;
     public bool FailThreadResume { get; set; }
     public int RejectTurnStarts { get; set; }
+    public bool EnforceSingleActiveTurn { get; set; }
+    public bool FailInterrupt { get; set; }
+    public int RejectedConcurrentTurnStarts { get; private set; }
+    private readonly ConcurrentDictionary<string, string> _activeTurns = new(StringComparer.Ordinal);
     public bool SupportsRuntimeAdditionalContext { get; set; } = true;
     public DynamicToolResult? LastToolResult { get; set; }
     public List<DynamicToolResult> ToolResults { get; } = [];
@@ -604,12 +609,23 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
                     throw new InvalidOperationException("Synthetic turn start rejection.");
                 }
 
+                var turnId = $"turn-test-{Interlocked.Increment(ref _turnCount)}";
+                if (EnforceSingleActiveTurn && !_activeTurns.TryAdd(threadId, turnId))
+                {
+                    RejectedConcurrentTurnStarts++;
+                    throw new InvalidOperationException($"A turn is already in progress on thread: {threadId}");
+                }
+
                 TurnThreadIds.Add(threadId);
-                _turnCount++;
-                return $"turn-test-{_turnCount}";
+                return turnId;
             },
             prompt => TurnPrompts.Add(prompt),
-            (threadId, turnId) => InterruptedTurns.Add((threadId, turnId)),
+            (threadId, turnId) =>
+            {
+                InterruptedTurns.Add((threadId, turnId));
+                if (FailInterrupt)
+                    throw new InvalidOperationException("Synthetic interrupt failure.");
+            },
             () => SupportsRuntimeAdditionalContext,
             () => UseMismatchedToolThreadId,
             () => FollowUpDraftRepository,
@@ -624,6 +640,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
         {
             LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt,
             TurnStartedProcessed = () => _firstTurnStartedProcessed.TrySetResult(),
+            TurnEnded = (threadId, turnId) => { _activeTurns.TryRemove(KeyValuePair.Create(threadId, turnId)); },
             SteeredRunRelease = () => SteeredRunRelease
         });
     }
