@@ -4,6 +4,12 @@ using DotCraft.McpTestServer;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
+if (args.Contains("environment"))
+{
+    await EnvironmentMcpFixture.RunAsync();
+    return;
+}
+
 if (args.Contains("stateful"))
 {
     await StatefulMcpFixture.RunAsync();

@@ -135,7 +135,8 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         var plugin = WritePlugin(new
         {
             command = "dotnet",
-            arguments = new[] { "${PLUGIN_ROOT}/DotCraft.McpTestServer.dll" },
+            arguments = new[] { "${PLUGIN_ROOT}/DotCraft.McpTestServer.dll", "environment" },
+            envVars = new[] { "plugin_root", "plugin_data" },
             cwd = "${PLUGIN_ROOT}"
         });
         var assembly = McpFixtureProcess.AssemblyPath;
@@ -153,7 +154,16 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
 
         var status = Assert.Single(await manager.ListStatusesAsync(timeout.Token));
         Assert.True(status.StartupState == "ready", status.LastError);
-        Assert.Single(manager.Tools);
+        var result = await manager.CallToolAsync(server.Name, "environment",
+            new Dictionary<string, object?> { ["names"] = new[] { "PLUGIN_ROOT", "PLUGIN_DATA", "plugin_root", "plugin_data" } },
+            cancellationToken: timeout.Token);
+        var values = JsonSerializer.SerializeToElement(result.StructuredContent);
+        Assert.Equal(plugin.Manifest.RootPath, values.GetProperty("PLUGIN_ROOT").GetString());
+        Assert.Equal(Path.Combine(_root, "data"), values.GetProperty("PLUGIN_DATA").GetString());
+        Assert.Equal(OperatingSystem.IsWindows() ? plugin.Manifest.RootPath : Environment.GetEnvironmentVariable("plugin_root"),
+            values.GetProperty("plugin_root").GetString());
+        Assert.Equal(OperatingSystem.IsWindows() ? Path.Combine(_root, "data") : Environment.GetEnvironmentVariable("plugin_data"),
+            values.GetProperty("plugin_data").GetString());
     }
 
     private DiscoveredPlugin WritePlugin(object server, string directory = "plugin with spaces")

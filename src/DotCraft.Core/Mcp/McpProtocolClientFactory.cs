@@ -81,12 +81,7 @@ internal static class McpProtocolClientFactory
             if (string.IsNullOrWhiteSpace(server.Command))
                 throw new InvalidOperationException($"MCP server '{server.Name}' has transport 'stdio' but no Command configured.");
 
-            var environmentVariables = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (key, value) in server.EnvironmentVariables)
-                environmentVariables[key] = value;
-
-            foreach (var envVar in server.EnvVars.Where(v => !string.IsNullOrWhiteSpace(v)))
-                environmentVariables[envVar] = Environment.GetEnvironmentVariable(envVar);
+            var environmentVariables = McpStdioEnvironment.CreateOverlay(server);
 
             var options = new StdioClientTransportOptions
             {
