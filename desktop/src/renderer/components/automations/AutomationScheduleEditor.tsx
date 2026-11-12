@@ -30,8 +30,7 @@ export function AutomationScheduleEditor({
       <div className="dc-automation-fields">
         <SettingRow label={t('automation.repeat')}>
           <Select
-            appearance="frameless"
-            adaptiveWidth={false}
+            {...rowSelectProps}
             value={value.kind}
             options={scheduleOptions}
             ariaLabel={t('automation.repeat')}
@@ -75,13 +74,15 @@ export function AutomationScheduleEditor({
         ) : null}
         {notificationPolicy ? (
           <SettingRow label={t('automation.notifications')}>
-            <Select appearance="frameless" adaptiveWidth={false} value={notificationPolicy} options={notificationOptions} ariaLabel={t('automation.notifications')} onValueChange={onNotificationPolicyChange} />
+            <Select {...rowSelectProps} value={notificationPolicy} options={notificationOptions} ariaLabel={t('automation.notifications')} onValueChange={onNotificationPolicyChange} />
           </SettingRow>
         ) : null}
       </div>
     </section>
   )
 }
+
+export const rowSelectProps = { appearance: 'frameless', adaptiveWidth: false, menuAlign: 'end', menuMinWidth: 200 } as const
 
 function SettingRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return <div className="dc-automation-setting-row"><span>{label}</span><div>{children}</div></div>

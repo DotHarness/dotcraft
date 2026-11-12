@@ -319,15 +319,15 @@
 
 .dc-automation-prompt {
   width: 100%;
-  min-height: 82px;
-  max-height: 320px;
+  min-height: 72px;
+  max-height: 256px;
   box-sizing: border-box;
   padding: 16px !important;
   border-color: var(--border-subtle) !important;
   border-radius: 16px !important;
   background: var(--bg-hover) !important;
   line-height: 20px !important;
-  resize: vertical;
+  resize: none !important;
 }
 
 .dc-automation-prompt:focus,
@@ -362,9 +362,8 @@
 .dc-automation-setting-row > span { flex: 0 0 auto; }
 .dc-automation-setting-row > div { min-width: 0; display: flex; justify-content: flex-end; }
 .dc-automation-setting-row .dc-adaptive-select { max-width: min(310px, 34vw); }
-.dc-automation-setting-row .dc-settings-select { width: auto; min-width: 0; max-width: 100%; min-height: 30px; justify-content: flex-end; padding-inline: 8px; font-weight: 500; }
+.dc-automation-setting-row .dc-settings-select { width: auto; min-width: 0; max-width: min(310px, 34vw); min-height: 28px; justify-content: flex-end; padding: 4px 8px 4px 10px; border-radius: 999px; font-weight: 500; }
 .dc-automation-setting-row .dc-time-select-value { font-variant-numeric: tabular-nums; }
-.dc-automation-static-value { padding: 7px 8px; color: var(--text-secondary); }
 .dc-automation-inline-input { width: min(220px, 28vw) !important; height: 30px !important; background: transparent !important; text-align: right; }
 .dc-automation-inline-input[type="datetime-local"] { font-variant-numeric: tabular-nums; }
 .dc-automation-inline-input[type="datetime-local"]::-webkit-datetime-edit {

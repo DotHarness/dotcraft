@@ -24,6 +24,7 @@ export interface SelectOption<T extends string = string> {
   icon?: ReactNode
   tooltip?: string
   disabled?: boolean
+  group?: string
 }
 
 export type SelectAppearance = 'field' | 'frameless'
@@ -488,17 +489,21 @@ export function Select<T extends string = string>({
         }}
       >
         {options.map((option, index) => (
-          <SelectMenuOption
-            key={option.value}
-            id={`${listboxId}-option-${index}`}
-            value={option.value}
-            option={option}
-            selected={option.value === value}
-            active={index === activeIndex}
-            showTooltip={!adaptive}
-            onActivate={() => setActiveIndex(index)}
-            onSelect={() => selectOption(index)}
-          />
+          <div key={option.value} role="presentation">
+            {option.group && option.group !== options[index - 1]?.group && (
+              <div role="presentation" className="dc-settings-select-group">{option.group}</div>
+            )}
+            <SelectMenuOption
+              id={`${listboxId}-option-${index}`}
+              value={option.value}
+              option={option}
+              selected={option.value === value}
+              active={index === activeIndex}
+              showTooltip={!adaptive}
+              onActivate={() => setActiveIndex(index)}
+              onSelect={() => selectOption(index)}
+            />
+          </div>
         ))}
       </div>,
       document.body

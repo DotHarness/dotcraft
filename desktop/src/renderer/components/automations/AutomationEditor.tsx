@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUpRight, ChevronRight, CirclePause, CirclePlay, Play, Trash2, X } from 'lucide-react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { useT } from '../../contexts/LocaleContext'
@@ -11,7 +11,7 @@ import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input, Textarea } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { AgentProfileDropdown } from './AgentProfileDropdown'
-import { AutomationScheduleEditor, validSchedule } from './AutomationScheduleEditor'
+import { AutomationScheduleEditor, rowSelectProps, validSchedule } from './AutomationScheduleEditor'
 import { AutomationRunHistory } from './AutomationRunHistory'
 
 export function AutomationEditor({ automation, initial, chats = false, onClose, onSaved, onDirtyChange, onAction, onDelete }: {
@@ -39,17 +39,16 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
   const targetChatId = !dirty && draft.executionMode === 'thread' ? draft.targetThreadId : null
   const conflict = !!base && !!automation && base.version !== automation.version
   const valid = !!draft.name.trim() && !!draft.prompt.trim() && validSchedule(draft.schedule) && (draft.executionMode !== 'thread' || !!draft.targetThreadId)
-  const executionOptions = [
-    { value: 'independent' as const, label: t('automation.independent') },
-    { value: 'thread' as const, label: t('automation.thread') }
-  ]
-  const threadOptions = [
-    { value: '', label: t('automation.chooseChat') },
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const existingChats = t('automation.existingChats')
+  const destinationOptions = [
+    { value: NEW_CHAT_EACH_RUN, label: t('automation.independent') },
     ...(draft.targetThreadId && !threads.some((thread) => thread.id === draft.targetThreadId)
-      ? [{ value: draft.targetThreadId, label: draft.targetThreadId }]
+      ? [{ value: draft.targetThreadId, label: draft.targetThreadId, group: existingChats }]
       : []),
-    ...threads.filter((thread) => thread.status === 'active').map((thread) => ({ value: thread.id, label: thread.displayName ?? thread.id }))
+    ...threads.filter((thread) => thread.status === 'active').map((thread) => ({ value: thread.id, label: thread.displayName ?? thread.id, group: existingChats }))
   ]
+  const destination = draft.executionMode === 'independent' ? NEW_CHAT_EACH_RUN : draft.targetThreadId ?? ''
   const workspaceOptions = [
     { value: '' as const, label: t('composer.reasoning.default') },
     { value: 'project' as const, label: t('automation.project') },
@@ -68,7 +67,29 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
     }
   }, [automation, dirty])
 
+  useLayoutEffect(() => {
+    const element = promptRef.current
+    if (!element) return
+    const fit = (): void => {
+      element.style.height = 'auto'
+      element.style.height = `${Math.min(PROMPT_MAX_HEIGHT, element.scrollHeight)}px`
+      element.style.overflowY = element.scrollHeight > PROMPT_MAX_HEIGHT ? 'auto' : 'hidden'
+    }
+    fit()
+    let width = element.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === width) return
+      width = element.clientWidth
+      fit()
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [draft.prompt])
+
   const update = (patch: Partial<AutomationInput>): void => setDraft((value) => ({ ...value, ...patch }))
+  const selectDestination = (value: string): void => update(value === NEW_CHAT_EACH_RUN
+    ? { executionMode: 'independent', targetThreadId: null, notificationPolicy: draft.executionMode === 'independent' ? draft.notificationPolicy : 'all' }
+    : { executionMode: 'thread', targetThreadId: value, notificationPolicy: draft.executionMode === 'thread' ? draft.notificationPolicy : 'important' })
   async function save(): Promise<void> {
     setSaving(true)
     setError(null)
@@ -121,22 +142,15 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
       <div className="dc-automation-editor-body">
         <fieldset disabled={saving || completed || actionPending} className="dc-automation-editor-form">
         <Input frameless className="dc-automation-title" maxLength={200} aria-label={t('automation.name')} placeholder={t('automation.name')} value={draft.name} onChange={(event) => update({ name: event.target.value })} />
-        <Textarea frameless className="dc-automation-prompt" maxLength={10000} rows={3} aria-label={t('automation.prompt')} placeholder={t('automation.prompt')} value={draft.prompt} onChange={(event) => update({ prompt: event.target.value })} />
+        <Textarea ref={promptRef} frameless className="dc-automation-prompt" maxLength={10000} rows={2} aria-label={t('automation.prompt')} placeholder={t('automation.prompt')} value={draft.prompt} onChange={(event) => update({ prompt: event.target.value })} />
 
         <section className="dc-automation-section">
           <h3>{t('automation.details')}</h3>
           <div className="dc-automation-fields">
-            <SettingRow label={t('automation.host')}><span className="dc-automation-static-value">{t('automation.connectedHost')}</span></SettingRow>
             <SettingRow label={t('automation.runsIn')}>
-              <Select appearance="frameless" adaptiveWidth={false} value={draft.executionMode} options={executionOptions} ariaLabel={t('automation.runsIn')} onValueChange={(executionMode) => update({ executionMode, targetThreadId: executionMode === 'thread' ? draft.targetThreadId : null, notificationPolicy: executionMode === 'thread' ? 'important' : 'all' })} />
+              <Select {...rowSelectProps} menuMinWidth={280} value={destination} options={destinationOptions} placeholder={t('automation.chooseChat')} ariaLabel={t('automation.runsIn')} onValueChange={selectDestination} />
             </SettingRow>
-            {draft.executionMode === 'thread' ? (
-              <SettingRow label={t('automation.chat')}>
-                <Select appearance="frameless" adaptiveWidth={false} value={draft.targetThreadId ?? ''} options={threadOptions} ariaLabel={t('automation.chat')} onValueChange={(targetThreadId) => update({ targetThreadId })} />
-              </SettingRow>
-            ) : null}
           </div>
-          <p className="dc-automation-hint">{t('automation.onlineHint')}</p>
         </section>
 
         <AutomationScheduleEditor value={draft.schedule} onChange={(schedule) => update({ schedule })} notificationPolicy={chatOrigin ? undefined : draft.notificationPolicy} onNotificationPolicyChange={(notificationPolicy) => update({ notificationPolicy })} />
@@ -148,11 +162,11 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
               <SettingRow label={t('automation.agent')}><AgentProfileDropdown value={draft.agentProfileId} onChange={(agentProfileId) => update({ agentProfileId })} /></SettingRow>
               {!chats ? (
                 <SettingRow label={t('automation.workspace')}>
-                  <Select appearance="frameless" adaptiveWidth={false} value={draft.workspaceMode ?? ''} options={workspaceOptions} ariaLabel={t('automation.workspace')} onValueChange={(workspaceMode) => update({ workspaceMode: workspaceMode || undefined })} />
+                  <Select {...rowSelectProps} value={draft.workspaceMode ?? ''} options={workspaceOptions} ariaLabel={t('automation.workspace')} onValueChange={(workspaceMode) => update({ workspaceMode: workspaceMode || undefined })} />
                 </SettingRow>
               ) : null}
               <SettingRow label={t('automation.permissions')}>
-                <Select appearance="frameless" adaptiveWidth={false} value={draft.approvalPolicy} options={permissionOptions} ariaLabel={t('automation.permissions')} onValueChange={(approvalPolicy) => update({ approvalPolicy })} />
+                <Select {...rowSelectProps} value={draft.approvalPolicy} options={permissionOptions} ariaLabel={t('automation.permissions')} onValueChange={(approvalPolicy) => update({ approvalPolicy })} />
               </SettingRow>
             </div>
           </details>
@@ -186,6 +200,9 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
     </aside>
   )
 }
+
+const NEW_CHAT_EACH_RUN = 'new-chat-each-run'
+const PROMPT_MAX_HEIGHT = 256
 
 function SettingRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return <div className="dc-automation-setting-row"><span>{label}</span><div>{children}</div></div>
