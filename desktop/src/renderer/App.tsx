@@ -264,8 +264,8 @@ function resolveActiveProjectKey(
   const protocolKey = normalizeWorkspaceProjectKey(protocolPath)
   const foregroundKey = normalizeWorkspaceProjectKey(foregroundProjectId)
   if (!protocolKey) return foregroundProjectId || ''
-  if (foregroundKey && foregroundKey === protocolKey) return foregroundProjectId || protocolPath
-  return protocolPath
+  if (foregroundKey && foregroundKey === protocolKey) return foregroundProjectId || protocolKey
+  return protocolKey
 }
 
 function buildUiToolApproval(
