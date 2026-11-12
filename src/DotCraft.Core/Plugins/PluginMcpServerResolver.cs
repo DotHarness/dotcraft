@@ -27,7 +27,8 @@ public static class PluginMcpServerResolver
         var discovery = new PluginDiscoveryService(paths, logger: logger).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
         var pluginServers = discovery.Plugins
-            .SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics))
+            .SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(
+                plugin, allDiagnostics, PluginDataPaths.Resolve(paths, plugin.Manifest.Id)))
             .ToList();
         diagnostics = allDiagnostics;
         return BuildEffectiveServers(DotCraft.Mcp.McpScopeStore.WithOrigins(config.McpServers,
@@ -45,9 +46,11 @@ public static class PluginMcpServerResolver
         var discovery = new PluginDiscoveryService(userData == null ? null : Path.Combine(userData, "plugins"), craftHome: userData).Discover(config, workspacePath, botPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
+        var paths = DotCraftPaths.CreateForExecutionHost(workspacePath, botPath, userData);
         var pluginServers = new List<McpServerConfig>();
         foreach (var plugin in discovery.Plugins)
-            pluginServers.AddRange(PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics));
+            pluginServers.AddRange(PluginMcpServerLoader.LoadPluginServers(
+                plugin, allDiagnostics, PluginDataPaths.Resolve(paths, plugin.Manifest.Id)));
 
         diagnostics = allDiagnostics;
         return BuildEffectiveServers(DotCraft.Mcp.McpScopeStore.WithOrigins(config.McpServers,

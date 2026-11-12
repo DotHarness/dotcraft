@@ -433,6 +433,11 @@ Each thread that uses MCP owns its connections, including inherited workspace/pl
 
 After a successful plugin contribution change, AppServer marks loaded active threads' MCP runtimes for background refresh and continues plugin finalization. Each thread coalesces refresh requests and reconciles its MCP connections independently of model Agent construction. MCP use waits for requested refresh work; subsequent Agent construction publishes the updated tool snapshot. Refresh startup does not occupy the thread command dispatcher, and thread release cancels and awaits its refresh work.
 
+Stdio launch environments inherit the host environment, forward configured `EnvVars` only when
+present in the host, and then apply explicit `EnvironmentVariables` values. Explicit values take
+precedence over forwarded values. Environment names are case-insensitive on Windows and
+case-sensitive on other platforms. Connection identity uses the same effective environment merge.
+
 Reconciliation retains available connections with matching transport, effective environment/working directory, endpoint, and authentication inputs. Call policy and timeout changes do not replace ready connections. Removed, disabled, changed, or closed connections are released or replaced.
 
 Successful OAuth login invalidates loaded threads' next snapshots. Failed authentication is retried during preparation when that server's saved credentials change; ready clients retain SDK-managed authentication across token renewal.

@@ -94,6 +94,19 @@ may set `toolApprovalMode` as defined in [Tool Architecture](tools-architecture.
 enabling the plugin accepts the declared mode, since the plugin already supplies the server it
 launches.
 
+Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root) and
+`${PLUGIN_DATA}` (the shared plugin data directory in §2.5) in `command`, `arguments`,
+`environmentVariables` values, and `cwd`. Expansion is case-sensitive and single-pass: inserted
+paths are not expanded again, and unknown placeholders remain literal. Arguments and environment
+values otherwise remain opaque, without path normalization or shell escaping. Only path fields
+such as `cwd` are normalized after expansion. HTTP URLs, headers, environment variable names,
+and workspace MCP declarations are not expanded.
+
+Plugin stdio processes receive `PLUGIN_ROOT` and `PLUGIN_DATA` as environment variables. These
+host-owned values take precedence over declared values and host environment forwarding, including
+case variants on Windows. Omitting `cwd` retains the host's
+normal MCP working-directory behavior.
+
 Contributed servers run in the same runtime as workspace `McpServers` under the runtime name
 `{pluginId}:{serverName}`. That name is for connection routing; model-visible tool identity is
 derived as defined in [Tool Architecture](tools-architecture.md) (see §5), and MCP server policies

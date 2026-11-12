@@ -55,6 +55,29 @@ To have the agent write a plugin for you, start with `$plugin-creator`. It uses 
 
 Every path starts with `./`, contains no `..`, and stays inside the plugin root. `tools`, `functions`, and `processes` are not supported. Use MCP for reusable external tools.
 
+## MCP launch paths
+
+Use `${PLUGIN_ROOT}` for bundled files and `${PLUGIN_DATA}` for writable plugin state in a plugin's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "review": {
+      "command": "node",
+      "arguments": ["${PLUGIN_ROOT}/server.js"],
+      "environmentVariables": {
+        "CACHE_DIR": "${PLUGIN_DATA}/cache"
+      },
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}
+```
+
+For stdio servers, DotCraft expands these variables in `command`, `arguments`, `environmentVariables` values, and `cwd`, and injects `PLUGIN_ROOT` and `PLUGIN_DATA` into the process environment. Hooks, MCP servers, and LSP processes from the same plugin share the data directory. Relative `cwd` values resolve under the plugin root.
+
+Expansion is case-sensitive and single-pass. Unknown placeholders remain unchanged, and HTTP URLs and headers are not expanded.
+
 ## Interface fields
 
 DotCraft loads a plugin without most of these fields, but `dotcraft plugin verify` requires them so the plugin looks finished in the catalog.

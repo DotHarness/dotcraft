@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Mcp;
+using DotCraft.Workspaces;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
@@ -28,9 +29,12 @@ public static class PluginMcpServerLoader
         var discovery = new PluginDiscoveryService().Discover(config, workspacePath, botPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
+        var userDataPath = string.IsNullOrWhiteSpace(config.GlobalConfigPath)
+            ? null : Path.GetDirectoryName(config.GlobalConfigPath);
+        var paths = DotCraftPaths.CreateForExecutionHost(workspacePath, botPath, userDataPath);
         var servers = new List<McpServerConfig>();
         foreach (var plugin in discovery.Plugins)
-            servers.AddRange(LoadPluginServers(plugin, allDiagnostics));
+            servers.AddRange(LoadPluginServers(plugin, allDiagnostics, PluginDataPaths.Resolve(paths, plugin.Manifest.Id)));
 
         diagnostics = allDiagnostics;
         return servers;
@@ -38,7 +42,8 @@ public static class PluginMcpServerLoader
 
     public static IReadOnlyList<McpServerConfig> LoadPluginServers(
         DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        string? pluginDataPath = null)
     {
         var manifest = plugin.Manifest;
         var path = manifest.McpServersPath;
@@ -107,12 +112,37 @@ public static class PluginMcpServerLoader
                 manifest.Id,
                 manifest.Interface?.DisplayName ?? manifest.DisplayName,
                 declaredName);
-            if (!string.IsNullOrWhiteSpace(clone.Cwd) && !Path.IsPathRooted(clone.Cwd))
+            if (clone.NormalizedTransport == "stdio")
+                ExpandLaunchConfiguration(clone, manifest.RootPath, pluginDataPath);
+            if (!string.IsNullOrWhiteSpace(clone.Cwd))
                 clone.Cwd = Path.GetFullPath(Path.Combine(manifest.RootPath, clone.Cwd));
             result.Add(clone);
         }
 
         return result;
+    }
+
+    private static void ExpandLaunchConfiguration(McpServerConfig server, string pluginRoot, string? pluginDataPath)
+    {
+        server.Command = PluginVariables.Expand(server.Command, pluginRoot, pluginDataPath);
+        if (Path.IsPathRooted(server.Command))
+            server.Command = Path.GetFullPath(server.Command);
+        server.Arguments = server.Arguments.Select(value => PluginVariables.Expand(value, pluginRoot, pluginDataPath)).ToList();
+        if (server.Cwd is not null)
+            server.Cwd = PluginVariables.Expand(server.Cwd, pluginRoot, pluginDataPath);
+        foreach (var key in server.EnvironmentVariables.Keys.ToArray())
+            server.EnvironmentVariables[key] = PluginVariables.Expand(server.EnvironmentVariables[key], pluginRoot, pluginDataPath);
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        foreach (var (name, value) in new[] { ("PLUGIN_ROOT", pluginRoot), ("PLUGIN_DATA", pluginDataPath) })
+        {
+            if (value is null)
+                continue;
+            foreach (var key in server.EnvironmentVariables.Keys.Where(key => key.Equals(name, comparison)).ToArray())
+                server.EnvironmentVariables.Remove(key);
+            server.EnvVars.RemoveAll(key => key.Equals(name, comparison));
+            server.EnvironmentVariables[name] = value;
+        }
     }
 
     private static bool TryGetObjectProperty(JsonElement element, string name, out JsonElement value)

@@ -55,10 +55,8 @@ internal readonly record struct McpConnectionIdentity(string Configuration, stri
             var environment = new Dictionary<string, string?>(comparer);
             foreach (DictionaryEntry pair in Environment.GetEnvironmentVariables())
                 environment[(string)pair.Key] = (string?)pair.Value;
-            foreach (var pair in config.EnvironmentVariables)
+            foreach (var pair in McpStdioEnvironment.CreateOverlay(config))
                 environment[pair.Key] = pair.Value;
-            foreach (var name in config.EnvVars.Where(static name => !string.IsNullOrWhiteSpace(name)))
-                environment[name] = Environment.GetEnvironmentVariable(name);
             inputs = new
             {
                 config.Command,

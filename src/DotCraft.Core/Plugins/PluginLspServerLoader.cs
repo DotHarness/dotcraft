@@ -150,7 +150,6 @@ public static class PluginLspServerLoader
             }
 
             var clone = server.Clone();
-            pluginDataPath ??= string.Empty;
             clone.Name = $"{manifest.Id}:{declaredName}";
             clone.Transport = clone.NormalizedTransport;
             clone.Origin = LspServerOrigin.Plugin(
@@ -158,10 +157,10 @@ public static class PluginLspServerLoader
                 manifest.Interface?.DisplayName ?? manifest.DisplayName,
                 declaredName);
             clone.Command = NormalizeExpandedCommand(
-                ExpandPluginVariables(clone.Command, manifest.RootPath, pluginDataPath),
+                PluginVariables.Expand(clone.Command, manifest.RootPath, pluginDataPath),
                 manifest.RootPath);
             clone.Arguments = clone.Arguments
-                .Select(arg => ExpandPluginVariables(arg, manifest.RootPath, pluginDataPath))
+                .Select(arg => PluginVariables.Expand(arg, manifest.RootPath, pluginDataPath))
                 .ToList();
             ExpandPluginEnvironment(clone, manifest.RootPath, pluginDataPath);
             if (!TryResolvePluginRelativeCommand(clone, manifest, path, diagnostics))
@@ -175,10 +174,10 @@ public static class PluginLspServerLoader
         return result;
     }
 
-    private static void ExpandPluginEnvironment(LspServerConfig server, string pluginRoot, string pluginDataPath)
+    private static void ExpandPluginEnvironment(LspServerConfig server, string pluginRoot, string? pluginDataPath)
     {
         foreach (var key in server.EnvironmentVariables.Keys.ToList())
-            server.EnvironmentVariables[key] = ExpandPluginVariables(
+            server.EnvironmentVariables[key] = PluginVariables.Expand(
                 server.EnvironmentVariables[key],
                 pluginRoot,
                 pluginDataPath);
@@ -207,18 +206,6 @@ public static class PluginLspServerLoader
 
         server.Command = ProbeWindowsExecutableSuffix(resolved);
         return true;
-    }
-
-    private static string ExpandPluginVariables(string value, string pluginRoot, string pluginDataPath)
-    {
-        var separator = Path.DirectorySeparatorChar.ToString();
-        return value
-            .Replace("${DOTCRAFT_PLUGIN_ROOT}/", pluginRoot + separator, StringComparison.Ordinal)
-            .Replace(@"${DOTCRAFT_PLUGIN_ROOT}\", pluginRoot + separator, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_DATA}/", pluginDataPath + separator, StringComparison.Ordinal)
-            .Replace(@"${DOTCRAFT_PLUGIN_DATA}\", pluginDataPath + separator, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_ROOT}", pluginRoot, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_DATA}", pluginDataPath, StringComparison.Ordinal);
     }
 
     private static string NormalizeExpandedCommand(string command, string pluginRoot)
@@ -259,10 +246,19 @@ public static class PluginLspServerLoader
             || normalizedPath.StartsWith(normalizedDirectory + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void InjectPluginEnvironment(LspServerConfig server, string pluginRoot, string pluginDataPath)
+    private static void InjectPluginEnvironment(LspServerConfig server, string pluginRoot, string? pluginDataPath)
     {
-        server.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"] = pluginRoot;
-        server.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"] = pluginDataPath;
+        if (OperatingSystem.IsWindows())
+        {
+            foreach (var key in server.EnvironmentVariables.Keys
+                         .Where(key => key.Equals("PLUGIN_ROOT", StringComparison.OrdinalIgnoreCase)
+                                       || key.Equals("PLUGIN_DATA", StringComparison.OrdinalIgnoreCase))
+                         .ToList())
+                server.EnvironmentVariables.Remove(key);
+        }
+        server.EnvironmentVariables["PLUGIN_ROOT"] = pluginRoot;
+        if (pluginDataPath is not null)
+            server.EnvironmentVariables["PLUGIN_DATA"] = pluginDataPath;
     }
 
     private static bool TryGetObjectProperty(JsonElement element, string name, out JsonElement value)

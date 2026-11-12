@@ -134,7 +134,7 @@ public sealed class PluginDiscoveryTests
         WriteHookOnlyPlugin(
             pluginRoot,
             id: "demo-plugin",
-            command: "dotnet ${DOTCRAFT_PLUGIN_ROOT}/hooks/check.dll");
+            command: "dotnet ${PLUGIN_ROOT}/hooks/check.dll");
         var config = new AppConfig();
 
         var paths = CreatePaths(root, workspace, botPath);
@@ -159,12 +159,9 @@ public sealed class PluginDiscoveryTests
         Assert.Equal(HookTrustStatuses.Trusted, trustedHook.TrustStatus);
         var group = Assert.Single(trusted.RuntimeConfig.Hooks[nameof(HookEvent.PreToolUse)]);
         var runtimeHook = Assert.Single(group.Hooks);
-        Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"]);
-        Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["CLAUDE_PLUGIN_ROOT"]);
-        Assert.Equal(runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], runtimeHook.EnvironmentVariables["CLAUDE_PLUGIN_DATA"]);
-        Assert.Equal(
-            Path.Combine(runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], "claude-compat"),
-            runtimeHook.EnvironmentVariables["CLAUDE_CONFIG_DIR"]);
+        Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["PLUGIN_ROOT"]);
+        Assert.Equal(PluginDataPaths.Resolve(paths, "demo-plugin"), runtimeHook.EnvironmentVariables["PLUGIN_DATA"]);
+        Assert.Equal(2, runtimeHook.EnvironmentVariables.Count);
         Assert.Equal("Bash(git commit:*)", runtimeHook.If);
         Assert.Equal("demo-plugin", runtimeHook.PluginId);
     }
@@ -255,7 +252,7 @@ public sealed class PluginDiscoveryTests
         Assert.Equal("plugin", server.Origin.Kind);
         Assert.Equal("demo-plugin", server.Origin.PluginId);
         Assert.Equal("csharp", server.Origin.DeclaredName);
-        Assert.Equal(pluginRoot, server.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"]);
+        Assert.Equal(pluginRoot, server.EnvironmentVariables["PLUGIN_ROOT"]);
     }
 
     [Fact]
@@ -274,11 +271,11 @@ public sealed class PluginDiscoveryTests
   "lspServers": {
     "csharp": {
       "transport": "stdio",
-      "command": "${DOTCRAFT_PLUGIN_ROOT}/server/bin/csharp-ls",
-      "arguments": ["--cache", "${DOTCRAFT_PLUGIN_DATA}/cache"],
+      "command": "${PLUGIN_ROOT}/server/bin/csharp-ls",
+      "arguments": ["--cache", "${PLUGIN_DATA}/cache"],
       "environmentVariables": {
-        "PLUGIN_HOME": "${DOTCRAFT_PLUGIN_ROOT}",
-        "PLUGIN_CACHE": "${DOTCRAFT_PLUGIN_DATA}/cache"
+        "PLUGIN_HOME": "${PLUGIN_ROOT}",
+        "PLUGIN_CACHE": "${PLUGIN_DATA}/cache"
       },
       "extensionToLanguage": {
         ".cs": "csharp"
@@ -297,10 +294,10 @@ public sealed class PluginDiscoveryTests
         Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         var server = Assert.Single(servers);
         Assert.Equal(Path.Combine(pluginRoot, "server", "bin", "csharp-ls"), server.Command);
-        Assert.Equal(Path.Combine(server.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], "cache"), server.Arguments[1]);
+        Assert.Equal(server.EnvironmentVariables["PLUGIN_DATA"] + "/cache", server.Arguments[1]);
         Assert.Equal(pluginRoot, server.EnvironmentVariables["PLUGIN_HOME"]);
         Assert.Equal(
-            Path.Combine(server.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], "cache"),
+            server.EnvironmentVariables["PLUGIN_DATA"] + "/cache",
             server.EnvironmentVariables["PLUGIN_CACHE"]);
     }
 
