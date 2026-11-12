@@ -225,6 +225,27 @@ describe('subagent owned background activity', () => {
     activity(true)
   })
 
+  it('recovers an active-turn command whose result was missed during a connection gap', async () => {
+    useThreadStore.getState().applyRuntimeSnapshot(child, { running: true, activeTurnId: 'turn-1' }, { isDesktopOrigin: false })
+    let returned = false
+    request.mockImplementation(async (_connection, method) => {
+      if (method === 'terminal/list') return { terminals }
+      if (method === 'thread/items/list') return { data: returned ? [{
+        turnId: 'turn-1', item: { id: 'result-1', type: 'toolResult', payload: { callId: 'call-1' } }
+      }] : [] }
+      return { runs: [] }
+    })
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    expect(useSubAgentTaskActivity.getState().tasksByThread.has(child)).toBe(false)
+
+    projectConnection('A1', false)
+    returned = true
+    projectConnection('A1')
+    await syncSubAgentTaskActivity(parent, [metadata()])
+
+    expect(useSubAgentTaskActivity.getState().tasksByThread.get(child)?.terminals).toHaveLength(1)
+  })
+
   it('releases old observers and ignores delayed snapshots from a replaced connection', async () => {
     const old = deferred<{ terminals: ReturnType<typeof terminal>[] }>()
     request.mockImplementation(async (_connection, method, _params, _timeout, options) => {

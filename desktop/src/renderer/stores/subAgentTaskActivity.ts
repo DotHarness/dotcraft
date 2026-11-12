@@ -203,6 +203,7 @@ export async function syncSubAgentTaskActivity(
         void refresh()
         return
       }
+      restoredTurnId = null
       taskTerminals = []
       taskWorkflows = []
       publish()
