@@ -60,6 +60,8 @@ internal sealed class TurnRequestHandler(
     {
         var msg = request.Message;
         var p = request.Params;
+        if (p.Mode is not null && p.Mode is not ("agent" or "plan"))
+            throw AppServerErrors.InvalidParams("'mode' must be 'agent' or 'plan'.");
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
 
@@ -113,7 +115,8 @@ internal sealed class TurnRequestHandler(
                     NativeInputParts = materializedInput.NativeInputParts,
                     MaterializedInputParts = materializedInput.MaterializedInputParts,
                     DisplayText = materializedInput.DisplayText,
-                    SentAsGoal = p.SentAsGoal
+                    SentAsGoal = p.SentAsGoal,
+                    Mode = p.Mode
                 }));
 
             var enumerator = events.GetAsyncEnumerator(CancellationToken.None);

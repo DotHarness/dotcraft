@@ -109,6 +109,13 @@ public sealed class SessionThread
 
     internal TokenUsageInfo OmittedTokenUsage { get; set; } = new();
 
+    internal SessionThread WithConfiguration(ThreadConfiguration configuration)
+    {
+        var copy = (SessionThread)MemberwiseClone();
+        copy.Configuration = configuration;
+        return copy;
+    }
+
     internal SessionThread WithTurns(List<SessionTurn> turns)
     {
         var copy = (SessionThread)MemberwiseClone();

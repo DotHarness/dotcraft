@@ -19580,6 +19580,23 @@
         "start"
       ]
     },
+    "ThreadSettingsUpdatedNotification": {
+      "title": "ThreadSettingsUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "mode",
+        "threadId"
+      ]
+    },
     "ThreadSkillsPolicy": {
       "title": "ThreadSkillsPolicy",
       "type": "object",
@@ -21618,6 +21635,16 @@
           }
         },
         "messages": {},
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "runtimeWorkspaceRoots": {
           "anyOf": [
             {

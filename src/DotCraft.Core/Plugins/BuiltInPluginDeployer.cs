@@ -33,6 +33,43 @@ public sealed class BuiltInPluginDeployer(
         return targets.Count == 0 ? [] : DeployCore(targets);
     }
 
+    public IReadOnlyList<string> GetPendingUpdates(
+        List<PluginDiagnostic> diagnostics,
+        string? marketplaceName = null)
+    {
+        var sources = BuiltInPluginSourceResolver.Discover(sourceRoots, diagnostics, pluginsConfig, userDataPath);
+
+        var pending = new List<string>();
+        foreach (var source in sources)
+        {
+            if (marketplaceName != null
+                && !string.Equals(source.MarketplaceName, marketplaceName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var targetRoot = Path.Combine(pluginsPath, source.Manifest.Id);
+            var markerPath = Path.Combine(targetRoot, MarkerFile);
+            if (!File.Exists(markerPath))
+                continue;
+
+            var installed = PluginManifestParser.Load(targetRoot);
+            diagnostics.AddRange(installed.Diagnostics);
+            if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
+                continue;
+
+            try
+            {
+                if (!string.Equals(File.ReadAllText(markerPath).Trim(), BuildMarkerText(source.PluginRoot), StringComparison.Ordinal))
+                    pending.Add(source.Manifest.Id);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                diagnostics.Add(DeploymentFailure(source.Manifest.Id, targetRoot, "check", exception));
+            }
+        }
+
+        return pending;
+    }
+
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
         File.Exists(Path.Combine(pluginRoot, MarkerFile));
 
@@ -94,20 +131,27 @@ public sealed class BuiltInPluginDeployer(
                 continue;
             }
 
-            timer.Restart();
-            var markerText = BuildMarkerText(source.PluginRoot);
-            fingerprintMs += timer.Elapsed.TotalMilliseconds;
-            fingerprintCount++;
-            if (File.Exists(markerPath)
-                && string.Equals(File.ReadAllText(markerPath).Trim(), markerText, StringComparison.Ordinal))
+            try
             {
-                continue;
-            }
+                timer.Restart();
+                var markerText = BuildMarkerText(source.PluginRoot);
+                fingerprintMs += timer.Elapsed.TotalMilliseconds;
+                fingerprintCount++;
+                if (File.Exists(markerPath)
+                    && string.Equals(File.ReadAllText(markerPath).Trim(), markerText, StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            timer.Restart();
-            ReplacePluginDirectory(source.PluginRoot, pluginDir, markerText);
-            replaceMs += timer.Elapsed.TotalMilliseconds;
-            replaceCount++;
+                timer.Restart();
+                ReplacePluginDirectory(source.PluginRoot, pluginDir, markerText);
+                replaceMs += timer.Elapsed.TotalMilliseconds;
+                replaceCount++;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                diagnostics.Add(DeploymentFailure(pluginId, pluginDir, "replace", exception));
+            }
         }
 
         foreach (var missing in (pending ?? []).OrderBy(id => id, StringComparer.Ordinal))
@@ -126,6 +170,18 @@ public sealed class BuiltInPluginDeployer(
             "plugin-deploy-replace", replaceMs, replaceCount);
         return diagnostics;
     }
+
+    private static PluginDiagnostic DeploymentFailure(string pluginId, string path, string phase, Exception exception) =>
+        PluginDiagnostic.Error(
+            "BuiltInPluginDeployFailed",
+            $"Plugin '{pluginId}' could not be deployed: {exception.Message}",
+            pluginId,
+            path: path,
+            parameters: new Dictionary<string, System.Text.Json.JsonElement>
+            {
+                ["phase"] = System.Text.Json.JsonSerializer.SerializeToElement(phase),
+                ["failureType"] = System.Text.Json.JsonSerializer.SerializeToElement(exception.GetType().Name)
+            });
 
     private static void ReplacePluginDirectory(string sourceRoot, string targetRoot, string markerText)
     {

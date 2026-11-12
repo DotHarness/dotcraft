@@ -1128,7 +1128,9 @@ Workspace resolution:
 
 ### 12.3 Mode Switching
 
-`SetThreadMode(threadId, mode)` changes `Configuration.Mode` and rebuilds the agent's tool set. It creates no Turn.
+`SetThreadMode(threadId, mode)` validates and persists the candidate mode before publishing it to the thread and its runtime policy. It creates no Turn and does not discover plugins or rebuild the agent solely for an operational mode change. Failure leaves the previous configuration and runtime mode unchanged. A running Turn retains its captured mode; the change applies to queued and future Turns.
+
+Input submission may carry an explicit `mode` (`agent` or `plan`). Session Core validates it and checks admission before applying it to the admitted Turn and subsequent thread settings. Rejected admission does not change the mode. Accepting a saved plan submits its execution input with `mode = agent` rather than relying on a separate mode-change request.
 
 ### 12.3.1 Mode-Stable Plan Tools
 

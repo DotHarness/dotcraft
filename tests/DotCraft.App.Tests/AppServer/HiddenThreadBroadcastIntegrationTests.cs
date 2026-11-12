@@ -61,6 +61,9 @@ public sealed class HiddenThreadBroadcastIntegrationTests
                 using var subscriberUpdated = await subscriber.Wire.WaitForNotificationAsync(
                     "thread/updated", TimeSpan.FromSeconds(10), deadline.Token);
                 AssertMode(subscriberUpdated, threadId, "plan");
+                using var subscriberSettings = await subscriber.Wire.WaitForNotificationAsync(
+                    "thread/settings/updated", TimeSpan.FromSeconds(10), deadline.Token);
+                AssertSettingsMode(subscriberSettings, threadId, "plan");
 
                 using var turn = await server.Wire.SendRequestAsync("turn/start", new
                 {
@@ -97,6 +100,15 @@ public sealed class HiddenThreadBroadcastIntegrationTests
                 "thread/updated", TimeSpan.FromSeconds(10), deadline.Token);
             AssertMode(passiveUpdated, visibleId, "plan");
             AssertMode(initiatorUpdated, visibleId, "plan");
+            using var passiveSettings = await server.Wire.WaitForNotificationAsync(
+                "thread/settings/updated", TimeSpan.FromSeconds(10), deadline.Token);
+            using var initiatorSettings = await observer.Wire.WaitForNotificationAsync(
+                "thread/settings/updated", TimeSpan.FromSeconds(10), deadline.Token);
+            using var settingsWithoutFullThread = await optedOut.Wire.WaitForNotificationAsync(
+                "thread/settings/updated", TimeSpan.FromSeconds(10), deadline.Token);
+            AssertSettingsMode(passiveSettings, visibleId, "plan");
+            AssertSettingsMode(initiatorSettings, visibleId, "plan");
+            AssertSettingsMode(settingsWithoutFullThread, visibleId, "plan");
             using var suppressed = await optedOut.Wire.WaitForNotificationAsync(
                 "thread/updated", TimeSpan.FromMilliseconds(300), deadline.Token);
             Assert.Null(suppressed);
@@ -154,6 +166,15 @@ public sealed class HiddenThreadBroadcastIntegrationTests
         var thread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(threadId, thread.GetProperty("id").GetString());
         Assert.Equal(mode, thread.GetProperty("configuration").GetProperty("mode").GetString());
+    }
+
+    private static void AssertSettingsMode(JsonDocument? notification, string threadId, string mode)
+    {
+        Assert.NotNull(notification);
+        var settings = notification.RootElement.GetProperty("params");
+        Assert.Equal(threadId, settings.GetProperty("threadId").GetString());
+        Assert.Equal(mode, settings.GetProperty("mode").GetString());
+        Assert.False(settings.TryGetProperty("thread", out _));
     }
 
     private static JsonElement Result(JsonDocument response)

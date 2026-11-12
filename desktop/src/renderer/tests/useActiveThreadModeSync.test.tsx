@@ -1,8 +1,5 @@
-import './setupPluginRuntime'
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConversationPanel } from '../components/layout/ConversationPanel'
-import { LocaleProvider } from '../contexts/LocaleContext'
 import { requestThreadModeChange, useActiveThreadModeSync } from '../hooks/useActiveThreadModeSync'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -11,11 +8,7 @@ import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { useUIStore } from '../stores/uiStore'
 import type { Thread } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
-import { coreToolFields } from './testToolPresentation'
-
-vi.mock('../components/conversation/ThreadHeader', () => ({ ThreadHeader: () => null }))
-vi.mock('../components/conversation/MessageStream', () => ({ MessageStream: () => null }))
-vi.mock('../components/conversation/InputComposer', () => ({ InputComposer: () => <textarea aria-label="Draft" /> }))
+import { applyThreadNotification } from '../stores/threadNotifications'
 
 const sendRequest = vi.fn()
 
@@ -34,9 +27,12 @@ function selectThread(mode?: string, id = 'thread-1'): void {
   useThreadStore.getState().setActiveThread(thread(mode, id))
 }
 
-function ModeSyncHost(): JSX.Element {
-  useActiveThreadModeSync('workspace-1')
-  return <LocaleProvider><ConversationPanel workspacePath="workspace-1" /></LocaleProvider>
+function notifyMode(mode: string, threadId = 'thread-1'): void {
+  applyThreadNotification({ method: 'thread/settings/updated', params: { threadId, mode } }, {
+    locale: 'en', foreground: true,
+    updateWarmThread() {}, updateWarmThreadMode() {}, releaseWarmThread() {},
+    reloadThreadList: async () => {}
+  })
 }
 
 function deferred() {
@@ -65,39 +61,34 @@ beforeEach(() => {
 })
 
 describe('active thread mode synchronization', () => {
-  it('shows plan confirmation after an external mode update without switching threads', () => {
-    const conversation = useConversationStore.getState()
-    conversation.onTurnStarted({
-      id: 'plan-turn', threadId: 'thread-1', status: 'running',
-      startedAt: '2026-10-24T00:00:00Z', items: []
-    })
-    const nestedCall = {
-      id: 'plan-call', type: 'toolCall',
-      payload: { callId: 'exec-nested-plan', toolName: 'CreatePlan', ...coreToolFields('CreatePlan') }
-    }
-    conversation.onItemStarted({ turnId: 'plan-turn', item: nestedCall })
-    conversation.onItemCompleted({ turnId: 'plan-turn', item: nestedCall })
-    conversation.onItemCompleted({
-      turnId: 'plan-turn',
-      item: {
-        id: 'plan-result', type: 'toolResult',
-        payload: { callId: 'exec-nested-plan', toolName: 'CreatePlan', success: true, result: 'saved' }
-      }
-    })
-    conversation.onPlanUpdated({ title: 'Plan', overview: '', content: 'Implement it', todos: [] })
-    conversation.onTurnCompleted({
-      id: 'plan-turn', threadId: 'thread-1', status: 'completed',
-      startedAt: '2026-10-24T00:00:00Z', completedAt: '2026-10-24T00:01:00Z', items: []
-    })
-    render(<ModeSyncHost />)
-    expect(screen.queryByRole('button', { name: /Yes, implement this plan/ })).toBeNull()
+  it('applies confirmed settings without reloading the thread or discarding its plan', () => {
+    const plan = { title: 'Plan', overview: '', content: 'Implement it', todos: [] }
+    useConversationStore.getState().onPlanUpdated(plan)
+    renderHook(() => useActiveThreadModeSync('workspace-1'))
 
-    act(() => useThreadStore.getState().setActiveThread(thread('plan')))
-    expect(screen.getByRole('button', { name: /Yes, implement this plan/ })).toBeInTheDocument()
+    act(() => notifyMode('plan'))
+
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+    expect(useThreadStore.getState().activeThread?.configuration?.mode).toBe('plan')
+    expect(useConversationStore.getState().plan).toEqual(plan)
     expect(useThreadStore.getState().activeThreadId).toBe('thread-1')
+    expect(sendRequest).not.toHaveBeenCalled()
 
-    act(() => useThreadStore.getState().setActiveThread(thread('agent')))
-    expect(screen.queryByRole('button', { name: /Yes, implement this plan/ })).toBeNull()
+    act(() => notifyMode('agent'))
+    expect(useConversationStore.getState().threadMode).toBe('agent')
+  })
+
+  it('does not let a pending request overwrite a same-value authoritative notification', async () => {
+    const response = deferred()
+    sendRequest.mockReturnValue(response.promise)
+    renderHook(() => useActiveThreadModeSync('workspace-1'))
+    let request!: Promise<boolean>
+    act(() => { request = requestThreadModeChange('thread-1', 'plan') })
+    act(() => notifyMode('agent'))
+
+    expect(useConversationStore.getState().threadMode).toBe('agent')
+    await act(async () => { response.resolve({}); expect(await request).toBe(false) })
+    expect(useConversationStore.getState().threadMode).toBe('agent')
   })
 
   it('initializes explicit mode and preserves drafts and dismissed confirmations during metadata refresh', () => {

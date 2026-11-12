@@ -9,7 +9,6 @@ import {
 } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
-import { requestThreadModeChange } from '../../hooks/useActiveThreadModeSync'
 import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -74,14 +73,12 @@ export function PlanApprovalComposer({
   const submitAsNo = trimmed.length > 0
 
   const handleAcceptPlan = useCallback(async (): Promise<void> => {
-    if (sendInFlightRef.current) return
+    if (sendInFlightRef.current
+      || useThreadStore.getState().activeThreadId !== threadId
+      || useConversationStore.getState().threadMode !== 'plan'
+      || useConversationStore.getState().turnStatus !== 'idle') return
     sendInFlightRef.current = true
     try {
-      if (!await requestThreadModeChange(threadId, 'agent')) return
-      if (useThreadStore.getState().activeThreadId !== threadId
-        || useConversationStore.getState().threadMode !== 'agent'
-        || useConversationStore.getState().turnStatus !== 'idle') return
-      dismissPlanApproval(turnId)
       await startTurnWithOptimisticUI({
         threadId,
         workspacePath,
@@ -89,13 +86,13 @@ export function PlanApprovalComposer({
         fallbackThreadName: t('toast.imageMessage'),
         fileFallbackThreadName: t('toast.fileReferenceMessage'),
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
-        renameThreadFromText: false
+        renameThreadFromText: false,
+        mode: 'agent',
+        throwOnStartError: true
       })
+      if (useThreadStore.getState().activeThreadId === threadId) dismissPlanApproval(turnId)
     } catch (err) {
-      console.error('thread/mode/set failed:', err)
-      addToast(t('composer.modeSwitchFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
+      addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false
     }

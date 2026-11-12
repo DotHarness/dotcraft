@@ -25,23 +25,6 @@ public sealed partial class SessionService
     {
         var thread = admittedRuntime.Thread;
         var threadId = thread.Id;
-        // Step 1: Validate synchronously before starting the background Task.
-        // This method executes inside the Thread command dispatcher so validation,
-        // sequence reservation, insertion, event publication, and runtime registration
-        // form one Thread-local transition.
-        if (thread.Status != ThreadStatus.Active)
-            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot submit input.");
-
-        if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-            throw new InvalidOperationException($"Thread '{threadId}' already has a running Turn. Wait for it to complete or cancel it first.");
-
-        ThrowIfThreadMaintenanceActive(threadId);
-
-        if (thread.HistoryMode == HistoryMode.Client && messages is not { Length: > 0 })
-            throw new InvalidOperationException($"Thread '{threadId}' requires client-managed history, but no messages were provided.");
-
-        if (thread.HistoryMode == HistoryMode.Server && messages is { Length: > 0 })
-            throw new InvalidOperationException($"Thread '{threadId}' uses server-managed history and does not accept client-supplied messages.");
 
         var channelInfo = turnContext.Channel;
         var turnOriginChannel = channelInfo?.Channel ?? thread.OriginChannel;

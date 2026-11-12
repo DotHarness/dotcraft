@@ -177,6 +177,29 @@ describe('thread restoration', () => {
     expect(sendRequest).not.toHaveBeenCalled()
   })
 
+  it('retains confirmed settings when returning to a warm conversation without reloading it', async () => {
+    const hook = renderHook(() => useThreadRestoration(props))
+    await select('thread-0')
+    await act(async () => respond('thread-0'))
+    await select('thread-1')
+    await act(async () => respond('thread-1'))
+    const context = { locale: 'en' as const, foreground: true, ...hook.result.current,
+      reloadThreadList: async () => {} }
+    act(() => {
+      applyThreadNotification({ method: 'thread/settings/updated',
+        connectionKey: 'workspace', connectionId: 'connection-1',
+        params: { threadId: 'thread-0', mode: 'plan' }
+      }, context)
+    })
+    sendRequest.mockClear()
+
+    await select('thread-0')
+
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+    expect(useThreadStore.getState().activeThread?.configuration?.mode).toBe('plan')
+    expect(sendRequest).not.toHaveBeenCalled()
+  })
+
   it('keeps tools and interactive requests live across workspaces without reloading the warm transcript', async () => {
     const hook = renderHook(value => useThreadRestoration(value), { initialProps: props })
     await select('thread-0')

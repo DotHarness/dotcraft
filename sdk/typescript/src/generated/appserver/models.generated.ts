@@ -4892,6 +4892,12 @@ export interface ThreadSearchTextRange {
   [key: string]: unknown;
 }
 
+export interface ThreadSettingsUpdatedNotification {
+  mode: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadSkillsPolicy {
   allow?: string[] | null;
   deny?: string[] | null;
@@ -5335,6 +5341,7 @@ export interface TurnStartParams {
   cwd?: string | null;
   input: InputPart[];
   messages?: JsonValue;
+  mode?: string | null;
   runtimeWorkspaceRoots?: string[] | null;
   sender?: SenderContext | null;
   sentAsGoal?: boolean | null;

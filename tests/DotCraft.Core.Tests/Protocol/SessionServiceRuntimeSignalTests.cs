@@ -1625,6 +1625,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
             planStore: new PlanStore(_tempDir));
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
+        await svc.RefreshThreadAgentAsync(thread.Id);
         await svc.SetThreadModeAsync(thread.Id, "plan");
         var seen = new List<SessionThreadRuntimeSignal>();
         svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>

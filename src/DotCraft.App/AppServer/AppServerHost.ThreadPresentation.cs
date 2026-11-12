@@ -25,6 +25,7 @@ public sealed partial class AppServerHost
     private void BroadcastThreadUpdated(SessionThread thread)
     {
         _hiddenThreads.Observe(thread);
+        BroadcastThreadSettingsUpdated(thread);
         SessionWireThread wire;
         lock (thread.Metadata)
             wire = thread.ToWire(includeTurns: false) with
@@ -54,6 +55,23 @@ public sealed partial class AppServerHost
                 return transport.NotifyAsync(Contract.AppServerRpc.ThreadUpdated,
                     new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(current) }, CancellationToken.None);
             });
+        }
+    }
+
+    private void BroadcastThreadSettingsUpdated(SessionThread thread)
+    {
+        var mode = thread.Configuration?.Mode ?? "agent";
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.ThreadSettingsUpdated.Name)
+                || !_hiddenThreads.Accepts(thread.Id, connection)) continue;
+            _ = SendThreadPresentationAsync(transport, connection, thread.Id, snapshot =>
+                transport.NotifyAsync(Contract.AppServerRpc.ThreadSettingsUpdated,
+                    new Contract.ThreadSettingsUpdatedNotification
+                    {
+                        ThreadId = thread.Id,
+                        Mode = snapshot?.Configuration?.Mode ?? mode
+                    }, CancellationToken.None));
         }
     }
 

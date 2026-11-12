@@ -1,7 +1,7 @@
 import { createOptimisticUserMessage } from './inputPresentation'
 import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
-import type { ConversationTurn } from '../types/conversation'
+import type { ConversationTurn, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -31,6 +31,7 @@ interface StartTurnParams {
   onScreen?: boolean
   onOptimisticEcho?: () => void
   sentAsGoal?: boolean
+  mode?: ThreadMode
   title?: ThreadTitleRequest
 }
 
@@ -113,9 +114,11 @@ export async function submitOptimisticTurn(
     workspacePath,
     identityWorkspacePath,
     sentAsGoal = false,
+    mode,
     throwOnStartError = false
-  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'throwOnStartError'>
+  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'mode' | 'throwOnStartError'>
 ): Promise<void> {
+  const conversation = echo.onScreen ? useConversationStore.getState() : null
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
     const workspaceUpdate = threadWorkspaceUpdateFor(threadId, identityPath)
@@ -130,16 +133,17 @@ export async function submitOptimisticTurn(
       input: echo.inputParts,
       clientUserMessageId: echo.clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
+      ...(mode ? { mode } : {}),
       ...workspaceUpdate
     })
     const res = result as { turn?: { id?: string } }
     if (res.turn?.id && echo.onScreen) {
-      useConversationStore.getState().promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
+      conversation?.promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
     }
     if (echo.title) void generateThreadTitle(threadId, echo.title.request)
   } catch (err) {
     console.error('turn/start failed:', err)
-    if (echo.onScreen) useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
+    conversation?.removeOptimisticTurn(echo.optimisticTurnId)
     if (throwOnStartError) {
       throw err
     }

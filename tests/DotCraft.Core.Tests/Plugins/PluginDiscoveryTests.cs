@@ -611,7 +611,7 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void Discovery_RefreshesInstalledManagedBuiltInPlugins()
+    public void Discovery_LeavesInstalledManagedBuiltInPluginsUnchanged()
     {
         var root = NewTempDir();
         var workspace = Path.Combine(root, "workspace");
@@ -624,11 +624,10 @@ public sealed class PluginDiscoveryTests
             .DiscoverAll(new AppConfig(), workspace, botPath);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.Equal("fixture-extension", File.ReadAllText(Path.Combine(pluginRoot, "scripts", "extension-id.json")));
-        Assert.StartsWith(
-            "filesystem;sha256:",
-            File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)),
-            StringComparison.Ordinal);
+        var plugin = Assert.Single(result.Plugins, candidate => candidate.Manifest.Id == "chrome");
+        Assert.Equal("Stale Chrome", plugin.Manifest.DisplayName);
+        Assert.False(File.Exists(Path.Combine(pluginRoot, "scripts", "extension-id.json")));
+        Assert.Equal("0.0.0.0", File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)));
     }
 
     [Fact]
@@ -687,7 +686,7 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void Discovery_RefreshesInstalledManagedRegistryPluginsFromConfiguredUserData()
+    public void Discovery_LeavesInstalledManagedRegistryPluginsUnchanged()
     {
         var root = NewTempDir();
         var userDataPath = Path.Combine(root, "user-data");
@@ -713,7 +712,8 @@ public sealed class PluginDiscoveryTests
 
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "BuiltInPluginNotFound");
         var plugin = Assert.Single(result.Plugins, candidate => candidate.Manifest.Id == "registry-archive");
-        Assert.Equal("Registry Archive", plugin.Manifest.DisplayName);
+        Assert.Equal("Stale Registry Archive", plugin.Manifest.DisplayName);
+        Assert.Equal("stale", File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)));
     }
 
     [Fact]

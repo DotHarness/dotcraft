@@ -31,6 +31,16 @@
       }
     },
     "messages": {},
+    "mode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "runtimeWorkspaceRoots": {
       "anyOf": [
         {

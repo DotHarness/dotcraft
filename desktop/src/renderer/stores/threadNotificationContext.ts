@@ -1,10 +1,12 @@
 import type { RawNotificationPayload } from '../../shared/appServerBoundary'
 import type { AppLocale } from '../../shared/locales'
 import type { Thread } from '../types/thread'
+import type { ThreadMode } from '../types/conversation'
 export interface ThreadNotificationContext {
   locale: AppLocale
   foreground: boolean
   updateWarmThread(thread: Thread): void
+  updateWarmThreadMode(threadId: string, mode: ThreadMode): void
   releaseWarmThread(threadId: string): void
   reloadThreadList(): Promise<void>
 }

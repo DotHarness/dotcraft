@@ -78,8 +78,6 @@ public sealed class PluginDiscoveryService(
     {
         var timer = Stopwatch.StartNew();
         var diagnostics = new List<PluginDiagnostic>();
-        RefreshManagedBuiltInPlugins(config, diagnostics);
-        LogStage("plugin-managed-built-in-refresh");
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
         var discovered = DiscoverCandidates(config, candidates, diagnostics);
         var seen = discovered.Select(static plugin => plugin.Manifest.Id)
@@ -187,39 +185,6 @@ public sealed class PluginDiscoveryService(
         }
 
         return discovered;
-    }
-
-    private void RefreshManagedBuiltInPlugins(
-        AppConfig config,
-        List<PluginDiagnostic> diagnostics)
-    {
-        if (userGlobalPluginsPath == null || !Directory.Exists(userGlobalPluginsPath))
-            return;
-
-        var managed = new List<string>();
-        foreach (var pluginRoot in Directory.GetDirectories(userGlobalPluginsPath))
-        {
-            if (!BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(pluginRoot))
-                continue;
-
-            var parse = PluginManifestParser.Load(pluginRoot);
-            diagnostics.AddRange(parse.Diagnostics);
-            if (parse.Manifest == null)
-                continue;
-            // .NET bundle bytes may change only through the coordinated update transaction.
-            if (parse.Manifest.Dotnet != null)
-                continue;
-
-            managed.Add(parse.Manifest.Id);
-        }
-
-        diagnostics.AddRange(new BuiltInPluginDeployer(
-                userGlobalPluginsPath,
-                builtInPluginSourceRoots,
-                config.Plugins,
-                craftHome,
-                logger)
-            .DeployPlugins(managed));
     }
 
     private IReadOnlyList<PluginCandidate> EnumerateCandidates(

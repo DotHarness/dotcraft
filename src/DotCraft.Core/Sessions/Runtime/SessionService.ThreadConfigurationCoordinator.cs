@@ -11,13 +11,7 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
             {
-                thread.Configuration ??= new ThreadConfiguration();
-                thread.Configuration.Mode = mode;
-
-                owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
-
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
-                owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                await owner.CommitThreadModeAsync(thread, mode, ct);
             }
         }
 

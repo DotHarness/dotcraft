@@ -15,7 +15,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceSetThreadModeTests : IDisposable
+public sealed partial class SessionServiceSetThreadModeTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -221,9 +221,23 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var activeTurn = Assert.Single(runtime!.Turns.Values);
         Assert.Equal("agent", activeTurn.Context?.Configuration.Mode);
         Assert.Equal("plan", runtime.Thread.Configuration?.Mode);
+        Assert.Equal(AgentMode.Agent, runtime.ModeManager!.CurrentMode);
 
         activeClient.Release();
         await drainTask.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var nextClient = new BlockingChatClient();
+        SetCachedThreadAgent(svc, thread.Id, nextClient.AsAIAgent());
+        var nextDrain = DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("next")]));
+        await nextClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            Assert.True(runtime.TryGetTurn(thread.Turns.Last().Id, out var nextTurn));
+            Assert.Equal("plan", nextTurn.Context!.Configuration.Mode);
+            Assert.Equal(AgentMode.Plan, runtime.ModeManager!.CurrentMode);
+        }
+        finally { nextClient.Release(); }
+        await nextDrain.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
