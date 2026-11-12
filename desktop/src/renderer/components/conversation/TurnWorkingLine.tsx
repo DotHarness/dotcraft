@@ -42,14 +42,12 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool, tasksThr
   if (!showTasks && (!engaged || (!working && !keepSpace))) return null
   return (
     <div className={styles.line} data-after-tool={afterTool || undefined} data-exited={!working || undefined} data-testid="turn-working-line">
-      {showTasks && faded ? (
-        <span className={styles.pulseSlot} aria-hidden="true"><span className={styles.pulse} /></span>
-      ) : (
-        <span className={styles.glyph}>
-          <ThinkingGlyph thinking={!faded} />
-        </span>
+      {showTasks && faded ? <RunningTasksIndicator count={tasks} /> : (
+        <>
+          <span className={styles.glyph}><ThinkingGlyph thinking={!faded} /></span>
+          {showTasks ? <RunningTasksButton count={tasks} /> : null}
+        </>
       )}
-      {showTasks ? <RunningTasksButton count={tasks} /> : null}
       {showTasks && current ? <span className={styles.separator} aria-hidden="true">·</span> : null}
       {shown ? (
         <span className={styles.label} data-visible={current ? 'true' : 'false'} aria-hidden={!current}>
@@ -59,6 +57,15 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool, tasksThr
         </span>
       ) : null}
     </div>
+  )
+}
+
+export function RunningTasksIndicator({ count }: { count: number }): JSX.Element {
+  return (
+    <span className={styles.taskIndicator}>
+      <span className={styles.pulseSlot} aria-hidden="true"><span className={styles.pulse} /></span>
+      <RunningTasksButton count={count} />
+    </span>
   )
 }
 

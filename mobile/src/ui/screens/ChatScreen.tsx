@@ -6,7 +6,7 @@ import { useComputerLink, useComputerSelector } from '../../app-state/SessionCon
 import { isLive } from '../../core/chatState'
 import { implementationTurn, waitingDecisions } from '../../core/decisions'
 import { plainMessage } from '../../core/draft'
-import { chatTasks } from '../../core/backgroundTasks'
+import { createTaskTreeSelector } from '../../core/taskTree'
 import { chatKey, computerStatus, isReachable, projectById, stateOf, type ComputerState, type PendingRequest } from '../../core/state'
 import { shallowEqual } from '../../core/selection'
 import { workspaceFile } from '../../core/links'
@@ -38,6 +38,7 @@ const NO_PENDING: PendingRequest[] = []
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
   const key = chatKey(projectId, threadId)
+  const [selectTasks] = useState(createTaskTreeSelector)
   const selectShell = useCallback(
     (computer: ComputerState) => {
       const detail = computer.details[key]
@@ -54,10 +55,10 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         restored: detail?.loading === false,
         planTurn: implementationTurn(detail, computer.chats[key]?.runtime ?? null),
         pending: computer.pending[key] ?? NO_PENDING,
-        taskSources: computer.tasks[key],
+        tasks: selectTasks(computer, key),
       }
     },
-    [key, projectId],
+    [key, projectId, selectTasks],
   )
   const state = useComputerSelector(selectShell, shallowEqual)
   const session = useComputerLink()
@@ -87,7 +88,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     }, [key, session]),
   )
 
-  const { chat, project, computer, status, pending, workspacePath } = state
+  const { chat, project, computer, status, pending, workspacePath, tasks } = state
   const online = isReachable(status)
   const live = online && (project?.running ?? false)
   const waitingForRequest = (chat?.runtime?.waitingOnApproval && !pending.some((request) => request.kind === 'approval'))
@@ -95,8 +96,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const ready = state.phase === 'ready' && state.restored && !waitingForRequest && !chat?.archived
   const chatState = chat ? stateOf(chat) : 'done'
   const working = isLive(chatState)
-  const activeTurnId = chat?.runtime?.activeTurnId ?? null
-  const tasks = useMemo(() => chatTasks(state.taskSources, activeTurnId), [state.taskSources, activeTurnId])
   const catchingUp = live && state.catchingUp
   const selectApproval = useCallback((computer: ComputerState) => computer.models[projectId]?.approvalDefault ?? 'prompt', [projectId])
   const approvalDefault = useComputerSelector(selectApproval)

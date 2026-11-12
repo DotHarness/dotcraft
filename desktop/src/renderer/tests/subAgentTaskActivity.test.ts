@@ -7,7 +7,7 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import {
   isSubAgentChildRunning, isSubAgentChildWorking, useSubAgentStore
 } from '../stores/subAgentStore'
-import { syncSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
+import { syncSubAgentTaskActivity, useSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
 import { listDesktopPluginSubAgents, onDesktopPluginSubAgentsChange } from '../plugins/desktopPluginSubAgents'
 import { deferred, makeSubAgent } from './subAgentFixtures'
 
@@ -126,6 +126,25 @@ describe('subagent owned background activity', () => {
     notify('workflow/run/updated', { threadId: child, runId: 'run-owned', reason: 'terminal' })
     await ended
     activity(false)
+  })
+
+  it('lists an active-turn command only after its originating call returns, including restored calls', async () => {
+    useThreadStore.getState().applyRuntimeSnapshot(child, { running: true, activeTurnId: 'turn-1' }, { isDesktopOrigin: false })
+    const result = { id: 'result-1', type: 'toolResult', payload: { callId: 'call-1' } }
+    request.mockImplementation(async (_connection, method) => {
+      if (method === 'terminal/list') return { terminals }
+      if (method === 'thread/items/list') return { data: [{ turnId: 'turn-1', item: result }] }
+      return { runs: [] }
+    })
+    await syncSubAgentTaskActivity(parent, [metadata()])
+    expect(useSubAgentTaskActivity.getState().tasksByThread.get(child)?.terminals).toHaveLength(1)
+
+    notify('terminal/started', { terminal: { ...terminal('running'), sessionId: 'term-next', callId: 'call-next' } })
+    expect(useSubAgentTaskActivity.getState().tasksByThread.get(child)?.terminals).toHaveLength(1)
+    notify('item/completed', { threadId: child, turnId: 'turn-1', item: {
+      ...result, id: 'result-next', payload: { callId: 'call-next' }
+    } })
+    expect(useSubAgentTaskActivity.getState().tasksByThread.get(child)?.terminals).toHaveLength(2)
   })
 
   it('reconciles again when idle arrives during the initial terminal read', async () => {

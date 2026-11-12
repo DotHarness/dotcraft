@@ -154,20 +154,19 @@ export function createTerminalFeed(
       publish()
       if (previous && previous !== turnId) void refresh()
     },
-    async stopMany(sessionIds: readonly string[]): Promise<void> {
+    async stop(sessionId: string): Promise<void> {
       if (!current()) return
       const requestGeneration = generation
-      const results = await Promise.allSettled(sessionIds.map(async (sessionId) => {
+      try {
         const result = await services.appServer.request('terminal/stop', { sessionId })
         if (!current() || requestGeneration !== generation) return
         apply(result.terminal)
         publish()
-      }))
-      if (!current() || requestGeneration !== generation) return
-      const failure = results.find((result) => result.status === 'rejected')
-      if (!failure) return
-      await refresh()
-      if (current() && requestGeneration === generation) throw failure.reason
+      } catch (error) {
+        if (!current() || requestGeneration !== generation) return
+        await refresh()
+        if (current() && requestGeneration === generation) throw error
+      }
     },
     dispose(): void {
       disposed = true

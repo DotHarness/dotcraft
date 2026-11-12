@@ -456,8 +456,8 @@ export class ComputerLink {
   }
 
   async stopTask(key: string, task: BackgroundTask): Promise<void> {
-    const { projectId, threadId } = this.split(key)
-    await this.connection(projectId).stopTask(threadId, task)
+    const { projectId } = this.split(key)
+    await this.connection(projectId).stopTask(task)
   }
 
   async stop(key: string): Promise<void> {

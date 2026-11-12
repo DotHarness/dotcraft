@@ -59,10 +59,10 @@ beforeEach(() => {
     }
   } } })
   request.mockImplementation(async (_connection, method, params) => {
-    if (method === 'subagent/children/list') return { data: [{
+    if (method === 'subagent/children/list') return { data: params.parentThreadId === parent ? [{
       edge: { parentThreadId: parent, childThreadId: child, status: 'open' },
       thread: { id: child, runtime: { running: false } }
-    }] }
+    }] : [] }
     if (method === 'terminal/list') return { terminals: params.threadId === child ? terminals : [] }
     if (method === 'workflow/run/list') return { runs: [] }
     return { data: [] }

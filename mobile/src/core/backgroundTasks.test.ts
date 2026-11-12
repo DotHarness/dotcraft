@@ -65,7 +65,7 @@ describe('background tasks', () => {
 
   it('leaves a running command of the active turn out until the turn ends', () => {
     const shell = [
-      { kind: 'shell' as const, id: 'term_1', title: 'npm run dev', status: 'running' as const, startedAt: null, endedAt: null, stop: 'term_1', turnId: 'turn_1', output: null },
+      { kind: 'shell' as const, id: 'term_1', ownerThreadId: 'thread_1', title: 'npm run dev', status: 'running' as const, startedAt: null, endedAt: null, stop: 'term_1', turnId: 'turn_1', output: null },
     ]
     expect(chatTasks({ shell }, 'turn_1').running).toEqual([])
     expect(chatTasks({ shell }, null).running.map((task) => task.id)).toEqual(['term_1'])

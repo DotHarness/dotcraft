@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { startSummaryFeed, type SummaryFeed, type SummaryState } from './feed'
 import type { SummaryServices } from './summaryServices'
+import { useSubAgentTaskTree } from '../../../hooks/useSubAgentTaskTree'
 
 const IDLE_FEED_LIMIT = 4
 
@@ -51,8 +52,8 @@ export function disposeSummaryFeeds(): void {
   feedScope = null
 }
 
-export function stopSummaryTerminals(services: SummaryServices, threadId: string, sessionIds: readonly string[]): Promise<void> {
-  return entryFor(services, threadId).feed!.stopTerminals(sessionIds)
+export function stopSummaryTerminal(services: SummaryServices, threadId: string, sessionId: string): Promise<void> {
+  return entryFor(services, threadId).feed!.stopTerminal(sessionId)
 }
 
 export function stopSummaryWorkflow(services: SummaryServices, threadId: string, runId: string): Promise<void> {
@@ -84,28 +85,27 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
   return state
 }
 
-function runningTaskCount(state: SummaryState | null): number {
-  if (!state) return 0
-  const working = state.subagents.filter((agent) => agent.state === 'working' || agent.state === 'waiting').length
-  return state.terminals.length + state.workflows.length + working
-}
-
 export function useRunningTaskCount(services: SummaryServices, threadId: string | null): number {
+  const tree = useSubAgentTaskTree(threadId)
   const scope = useSummaryScope(services)
-  const [count, setCount] = useState(() => threadId ? runningTaskCount(entryFor(services, threadId).state) : 0)
+  const [summary, setSummary] = useState<SummaryState | null>(() => threadId ? entryFor(services, threadId).state : null)
   useEffect(() => {
     if (!threadId) {
-      setCount(0)
+      setSummary(null)
       return
     }
     const entry = entryFor(services, threadId)
-    const listener = (state: SummaryState): void => setCount(runningTaskCount(state))
-    setCount(runningTaskCount(entry.state))
+    const listener = (state: SummaryState): void => setSummary(state)
+    setSummary(entry.state)
     entry.listeners.add(listener)
     return () => {
       entry.listeners.delete(listener)
       evictIdleFeeds()
     }
   }, [services, threadId, scope])
-  return count
+  const known = new Set(tree.children.map(child => child.childThreadId))
+  const unresolvedAgents = summary?.subagents.filter(agent => !known.has(agent.childThreadId)
+    && (agent.state === 'working' || agent.state === 'waiting')).length ?? 0
+  return (summary?.terminals.length ?? 0) + (summary?.workflows.length ?? 0) + unresolvedAgents + tree.activeAgents
+    + tree.owners.reduce((total, owner) => total + owner.terminals.length + owner.workflows.length, 0)
 }

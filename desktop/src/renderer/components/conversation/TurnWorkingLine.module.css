@@ -23,6 +23,12 @@
   opacity: 0;
 }
 
+.taskIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .pulseSlot {
   display: flex;
   width: 16px;
