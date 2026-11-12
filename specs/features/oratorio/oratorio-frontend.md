@@ -221,6 +221,10 @@ the agent is doing, optionally followed by its latest streamed text. It is an
 ephemeral status line, not a conversation row: replaced in place as the run
 streams, never stored, and cleared when the run ends.
 
+Task descriptions, discussion messages, review summaries and findings, including
+file locations, support native text selection and copying in both the drawer
+and full task page. Action controls retain Desktop's non-selectable behavior.
+
 The Discussion composer closes Activity with separate `Add comment` and `Ask
 Oratorio` actions. `Add comment` records internal operator feedback. `Ask
 Oratorio` starts an Agent Discussion Turn whenever no Discussion Turn is

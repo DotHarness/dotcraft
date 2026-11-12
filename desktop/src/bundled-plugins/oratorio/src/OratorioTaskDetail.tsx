@@ -86,7 +86,7 @@ export function OratorioTaskDetail({ task, presentation = 'page', closeOnEscape 
     </header>
     <section className="ora-detail__content dc-scrollbar-stable">
       <div className="ora-detail__page">
-        <article className="ora-detail__main">
+        <article className="ora-detail__main selectable">
           <h1 className="ora-detail__title">{task.title}</h1>
           {task.branch ? <p className="ora-meta-line"><GitBranch size={14} aria-hidden="true" /><code>{task.branch}</code></p> : null}
           {task.body ? <Markdown content={task.body} /> : <p className="ora-detail__note">{t('noDescription')}</p>}
