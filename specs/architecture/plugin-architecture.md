@@ -311,12 +311,16 @@ from a registry URL.
 Catalog and local-folder installs stage copies beside the destination before renaming them into
 place. On Windows, installation renames (including backup and rollback) retry access-denied and
 sharing-violation failures up to five times, waiting 100, 200, 300, 400, and 500 ms. Other errors
-and exhausted retries propagate normally; staging paths and rollback behavior are unchanged.
+and exhausted retries fail the affected plugin operation; staging paths and rollback behavior are unchanged.
 
 Installed built-in and registry plugins carry a `.builtin` marker holding a fingerprint of the
-source directory. Marked directories are DotCraft-owned and may be refreshed or removed by DotCraft
-lifecycle operations; unmarked directories are user-owned and never overwritten or removed
-automatically.
+source directory. Marked directories are DotCraft-owned and may be refreshed or removed by explicit
+plugin lifecycle operations; unmarked directories are user-owned and never overwritten or removed
+automatically. Discovery and thread projections never update installed plugin directories. Marketplace
+refresh may refresh managed installations through the plugin mutation path, collecting failures per
+plugin and keeping the previous installation usable when replacement fails. A failed update must not
+prevent unrelated plugins, thread reads, or mode changes from working; an occupied directory is an
+update failure, not a reason to stop other workspaces.
 
 `plugin/remove` removes an installed plugin directory from the user-global root (removing it from
 every workspace) or from the workspace-local root, including user-owned plugins. It first renames

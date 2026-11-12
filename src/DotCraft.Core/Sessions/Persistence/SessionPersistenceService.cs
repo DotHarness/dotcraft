@@ -42,6 +42,10 @@ public sealed class SessionPersistenceService(
         _tokenUsageStore?.UpdateThread(thread);
     }
 
+    internal Task CommitThreadConfigurationAsync(
+        SessionThread thread, ThreadConfiguration configuration, CancellationToken ct)
+        => threadStore.CommitConfigurationAsync(thread, configuration, ct);
+
     internal async Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct = default)
     {
         await threadStore.ArchiveStoredThreadAsync(threadId, ct);

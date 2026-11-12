@@ -64,15 +64,14 @@ public sealed class SessionServiceDeferredInvocationSurfaceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetThreadModeAsync_OpenAIResponsesNativeDoesNotRetainRemovedDeferredTool()
+    public async Task RefreshThreadAgentAsync_OpenAIResponsesNativeDoesNotRetainRemovedDeferredTool()
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         config.Providers[config.ProviderId].Protocol = ModelProviderProtocols.OpenAIResponses;
         config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Native;
 
-        await using var agentFactory = CreateAgentFactory(
-            config,
-            [new DeferredTestToolSource(requiredMode: "plan")]);
+        var source = new DeferredTestToolSource();
+        await using var agentFactory = CreateAgentFactory(config, [source]);
         using var stateDatabase = new WorkspaceStateDatabase(_tempDir);
         await using var threadStore = new ThreadStore(_tempDir, stateDatabase);
         var service = CreateSessionService(agentFactory, threadStore);
@@ -80,7 +79,8 @@ public sealed class SessionServiceDeferredInvocationSurfaceTests : IDisposable
 
         AssertDeferredInvocationSurface(GetCachedThreadAgent(service, thread.Id), agentFactory, expected: true);
 
-        await service.SetThreadModeAsync(thread.Id, "agent");
+        source.Enabled = false;
+        await service.RefreshThreadAgentAsync(thread.Id);
 
         var invoking = Assert.IsType<StreamingFunctionInvokingChatClient>(
             GetCachedThreadAgent(service, thread.Id).ChatClient.GetService(
@@ -146,15 +146,16 @@ public sealed class SessionServiceDeferredInvocationSurfaceTests : IDisposable
         Assert.DoesNotContain(createdTools, static tool => tool.Name == "fixture__Lookup");
     }
 
-    private sealed class DeferredTestToolSource(string? requiredMode = null) : IToolSource
+    private sealed class DeferredTestToolSource : IToolSource
     {
         public string SourceId => "deferred-test";
+        public bool Enabled { get; set; } = true;
 
         public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
             ToolPlanningContext context,
             CancellationToken cancellationToken = default)
         {
-            if (requiredMode != null && !string.Equals(requiredMode, context.Mode, StringComparison.Ordinal))
+            if (!Enabled)
                 return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
 
             var sourceToolId = new SourceToolId("Lookup");

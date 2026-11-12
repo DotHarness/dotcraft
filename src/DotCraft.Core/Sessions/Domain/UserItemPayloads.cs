@@ -120,6 +120,8 @@ public sealed record UserMessagePayload
 /// </summary>
 public sealed record SessionInputSnapshot
 {
+    public string? Mode { get; init; }
+
     public string? ClientUserMessageId { get; init; }
 
     /// <summary>

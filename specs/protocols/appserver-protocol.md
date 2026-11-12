@@ -503,7 +503,7 @@ Deletion succeeds only after the persisted record and bound tracing data are rem
 
 ### 4.11 `thread/mode/set`
 
-Set the agent mode (for example `"plan"`, `"agent"`). Params `threadId`, `mode`; result `{}`. The server recreates the thread's execution context with the mode's tool set. After successfully persisting, it broadcasts `thread/updated` with the current configuration to eligible connections, including the caller, under the normal visibility and opt-out rules. A running Turn keeps the configuration and tool snapshot captured at its start; the new mode applies to queued and future Turns.
+Set the agent mode (`"plan"` or `"agent"`). Params `threadId`, `mode`; result `{}`. The server validates and persists the candidate mode before publishing it, without plugin discovery or an agent rebuild solely for this change. Failure leaves the previous mode unchanged. After commit it broadcasts `thread/settings/updated` (`threadId`, `mode`) independently of plugin attribution or a full Thread projection, to eligible connections including the caller under the normal visibility and opt-out rules. `thread/updated` remains available for full configuration changes. A running Turn keeps its captured configuration and mode; the new mode applies to queued and future Turns.
 
 ### 4.12 `thread/rename`
 
@@ -665,6 +665,7 @@ The response returns immediately with the initial Turn (`running`, empty `items`
 - `messages`: required when the thread uses `historyMode = "client"`, forbidden for `"server"`.
 - `sentAsGoal`: submit the message as the thread goal; projected onto the resulting `userMessage` item.
 - `cwd`, `runtimeWorkspaceRoots`: sticky for this and subsequent turns.
+- `mode`: optional `"agent"` or `"plan"`, applied by Session Core when this input is admitted and retained for subsequent Turns. Invalid values or rejected admission leave the thread mode unchanged. Accepting a plan sends its execution input with `mode = "agent"` in this request; it does not require a preceding `thread/mode/set`.
 - `clientUserMessageId`: also accepted by `turn/enqueue` and `turn/steer`. Clients using optimistic submission send a fresh UUID per submission (queue updates keep the existing id); user-message payloads and queued inputs echo it so clients correlate acknowledgements without content matching. Channels without optimistic presentation omit it.
 
 **Execution ownership**: for persisted server-managed threads the AppServer, not the submitting transport, owns a started turn. If the connection drops, the server keeps consuming the turn so it completes or fails normally; the client recovers by reconnecting, subscribing, and reloading the header and history.
@@ -766,7 +767,7 @@ Event notifications are server-initiated JSON-RPC notifications that stream the 
 
 ### 6.1 Thread Notifications
 
-A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper threads marked with `dotcraft.internal` metadata or a known internal origin, and conversational Agent Builder threads). The workspace-level broadcasts below — `thread/started`, `thread/updated`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`, and `thread/readState/changed` — reach a hidden thread's events only on connections subscribed to it; the creating connection already has the thread from its result. SubAgent child threads are not hidden. Turn and item notifications keep subscription rules.
+A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper threads marked with `dotcraft.internal` metadata or a known internal origin, and conversational Agent Builder threads). The workspace-level broadcasts below — `thread/started`, `thread/updated`, `thread/settings/updated`, `thread/renamed`, `thread/deleted`, `thread/archived`, `thread/unarchived`, `thread/status/changed`, and `thread/readState/changed` — reach a hidden thread's events only on connections subscribed to it; the creating connection already has the thread from its result. SubAgent child threads are not hidden. Turn and item notifications keep subscription rules.
 
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
@@ -775,6 +776,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | `worktree/createProgress` | `{ operationId, step, status }` | A `worktree/createAndStart` or `worktree/createAndFork` step carrying an `operationId` changed state. `step` is `createWorktree`, `copyFiles`, or `setupEnvironment`; `status` as above. |
 | `worktree/setupOutput` | `{ operationId, delta }` | Output of a setup script run for `operationId` (creation or `worktree/runSetup`), stdout and stderr interleaved as produced. |
 | `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff`, `thread/config/update`, or a Turn start that changed `gitInfo`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
+| `thread/settings/updated` | `{ threadId, mode }` | Authoritative committed mode, emitted independently of full Thread projections and plugin attribution. Clients update the cached thread settings without fetching history or inferring mode from plan/runtime flags. |
 | `thread/renamed` | `{ threadId, displayName }` | Display name changed by `thread/rename` or automatic naming. Broadcast to all connections; duplicate deliveries are allowed. |
 | `thread/deleted` | `{ threadId }` | Thread permanently deleted. Broadcast to all connections, including the initiator, regardless of which entry point removed it; no subscription required; may precede or follow the RPC response. Duplicates are ignored. |
 | `thread/resumed` | `{ thread, resumedBy }` | Thread resumed through `thread/resume`; `resumedBy` is the channel name. |

@@ -874,6 +874,10 @@ public sealed class TurnInitiatorContext : ExtensibleJsonObject
 /// <summary>Parameters for starting a turn.</summary>
 public sealed class TurnStartParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Mode { get; init; }
+
     [JsonPropertyName("clientUserMessageId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ClientUserMessageId { get; init; }

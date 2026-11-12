@@ -26,18 +26,18 @@ public sealed partial class SessionService
         // Admission is a short, serialized Thread transition. The returned Turn continues
         // independently, so the command pump remains available for cancel/approval/queue work.
         var channel = runtime.Commands.InvokeAsync(
-            _ => Task.FromResult(StartTurn(
+            _ => StartTurnAsync(
                 runtime,
                 capturedContent,
                 sender,
                 capturedMessages,
                 capturedInputSnapshot,
-                ct)),
+                ct),
             ct).GetAwaiter().GetResult();
         return channel.ReadAllAsync(ct);
     }
 
-    private SessionEventChannel StartTurn(
+    private async Task<SessionEventChannel> StartTurnAsync(
         ThreadRuntime runtime,
         IList<AIContent> content,
         SenderContext? sender,
@@ -50,6 +50,10 @@ public sealed partial class SessionService
             throw new InvalidOperationException($"Thread '{thread.Id}' runtime was replaced before Turn admission.");
         if (_runtimeRegistry.IsPendingPermanentDeletion(thread.Id))
             throw new InvalidOperationException($"Thread '{thread.Id}' is being permanently deleted and cannot accept a new Turn.");
+
+        ValidateTurnAdmission(thread, messages);
+        if (inputSnapshot?.Mode is { } mode)
+            await CommitThreadModeAsync(thread, mode, callerCt);
 
         var configuration = thread.Configuration == null
             ? new ThreadConfiguration()
@@ -72,6 +76,20 @@ public sealed partial class SessionService
             messages?.Select(static message => message.Clone()).ToArray(),
             CloneInputSnapshot(inputSnapshot),
             callerCt);
+    }
+
+    private void ValidateTurnAdmission(SessionThread thread, ChatMessage[]? messages)
+    {
+        var threadId = thread.Id;
+        if (thread.Status != ThreadStatus.Active)
+            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot submit input.");
+        if (thread.Turns.Any(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
+            throw new InvalidOperationException($"Thread '{threadId}' already has a running Turn. Wait for it to complete or cancel it first.");
+        ThrowIfThreadMaintenanceActive(threadId);
+        if (thread.HistoryMode == HistoryMode.Client && messages is not { Length: > 0 })
+            throw new InvalidOperationException($"Thread '{threadId}' requires client-managed history, but no messages were provided.");
+        if (thread.HistoryMode == HistoryMode.Server && messages is { Length: > 0 })
+            throw new InvalidOperationException($"Thread '{threadId}' uses server-managed history and does not accept client-supplied messages.");
     }
 
     private static SessionInputSnapshot? CloneInputSnapshot(SessionInputSnapshot? source) =>

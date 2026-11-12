@@ -28,7 +28,7 @@ import {
   isSameThreadObservationTarget,
   type ThreadObservationTarget
 } from '../utils/threadObservationScope'
-import { wireTurnToConversationTurn } from '../types/conversation'
+import { wireTurnToConversationTurn, type ThreadMode } from '../types/conversation'
 import type { Thread } from '../types/thread'
 import { addToast } from '../stores/toastStore'
 
@@ -40,6 +40,7 @@ interface Props {
 
 export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
   updateWarmThread(thread: Thread): void
+  updateWarmThreadMode(threadId: string, mode: ThreadMode): void
   releaseWarmThread(threadId: string): void
 } {
   const { status, connectionId } = useConnectionStore()
@@ -255,6 +256,10 @@ export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
 
   return {
     updateWarmThread: useCallback((thread: Thread) => warm.updateThread(thread), [warm]),
+    updateWarmThreadMode: useCallback((threadId: string, mode: ThreadMode) => {
+      const entry = warm.peek(threadId)
+      if (entry) warm.updateThread({ ...entry.thread, configuration: { ...entry.thread.configuration, mode } })
+    }, [warm]),
     releaseWarmThread
   }
 }

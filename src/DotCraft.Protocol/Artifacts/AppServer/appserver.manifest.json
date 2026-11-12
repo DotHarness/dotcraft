@@ -24144,6 +24144,31 @@
       "variants": []
     },
     {
+      "id": "core.ThreadSettingsUpdatedNotification",
+      "name": "ThreadSettingsUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadSettingsUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "mode",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadSkillsPolicy",
       "name": "ThreadSkillsPolicy",
       "module": "core",
@@ -26448,6 +26473,13 @@
         {
           "name": "messages",
           "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "mode",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
@@ -34788,6 +34820,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/settings/updated",
+      "descriptorMember": "ThreadSettingsUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadSettingsUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

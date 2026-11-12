@@ -19,7 +19,12 @@ public sealed partial class SessionService
         ClientSurface? clientSurface = null)
     {
         ReleaseStableContextPages(thread.Id);
-        var mode = thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
+        var modeName = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
+            && runtime.TryGetTurn(turnId, out var turnRuntime)
+            && turnRuntime.Context is { } turnContext
+                ? turnContext.Configuration.Mode
+                : thread.Configuration?.Mode;
+        var mode = modeName?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
             ? AgentMode.Plan
             : AgentMode.Agent;
         var goal = GoalsEnabled ? await persistence.GetThreadGoalAsync(thread.Id, ct) : null;

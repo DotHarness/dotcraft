@@ -49,6 +49,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     public IReadOnlyList<(string threadId, string turnId, string requestId, RequestUserInputResponse response)> ResolvedUserInputs => _resolvedUserInputs;
     public IReadOnlyList<SessionEventType> YieldedSubmitEventTypes => _yieldedSubmitEventTypes;
     public IReadOnlyList<AIContent> LastSubmittedContent { get; private set; } = [];
+    public SessionInputSnapshot? LastSubmittedInputSnapshot { get; private set; }
     public QueuedTurnInput? LastStartedQueuedInput { get; private set; }
     public IReadOnlyList<ChatMessage>? LastSubmittedMessages { get; private set; }
     public CancellationToken LastSubmitCancellationToken { get; private set; }
@@ -672,6 +673,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         SessionInputSnapshot? inputSnapshot = null)
     {
         LastSubmittedContent = content.ToList();
+        LastSubmittedInputSnapshot = inputSnapshot;
         LastSubmittedMessages = messages?.ToList();
         LastSubmitCancellationToken = ct;
         if (SubmitInputHandler != null)

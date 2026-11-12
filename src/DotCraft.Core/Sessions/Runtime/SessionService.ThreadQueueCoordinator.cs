@@ -402,7 +402,7 @@ public sealed partial class SessionService
                 using var triggerScope = CreateQueuedInputTriggerScope(queued);
                 if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var activeRuntime))
                     throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
-                var eventChannel = owner.StartTurn(
+                var eventChannel = await owner.StartTurnAsync(
                     activeRuntime,
                     content,
                     queued.Sender,

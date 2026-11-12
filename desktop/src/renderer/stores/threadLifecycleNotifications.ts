@@ -8,6 +8,7 @@ import { addToast } from './toastStore'
 import { normalizeThreadRuntime } from '../utils/threadRuntime'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { reloadThreadAfterRollback } from '../utils/threadRollback'
+import { confirmThreadMode } from './threadModeSynchronization'
 import type { Thread, ThreadSummary, ThreadGoal, ThreadReadState, ThreadRuntimeSnapshot } from '../types/thread'
 import type { QueuedTurnInput } from '../types/conversation'
 import type { ThreadNotificationContext } from './threadNotificationContext'
@@ -33,6 +34,22 @@ export function applyThreadLifecycleNotification(
             .catch(() => {})
         }
       }
+      return true
+    }
+
+    case 'thread/settings/updated': {
+      const { threadId, mode } = p
+      if (typeof threadId !== 'string' || (mode !== 'agent' && mode !== 'plan')) return true
+      context.updateWarmThreadMode(threadId, mode)
+      const threads = useThreadStore.getState()
+      if (threads.activeThread?.id === threadId) {
+        threads.setActiveThread({
+          ...threads.activeThread,
+          configuration: { ...threads.activeThread.configuration, mode }
+        })
+      }
+      conversationFor(threadId)?.setThreadMode(mode)
+      confirmThreadMode(threadId, mode)
       return true
     }
 

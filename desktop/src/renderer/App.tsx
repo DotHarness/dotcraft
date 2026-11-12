@@ -546,7 +546,7 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const { reloadThreadList, loadedProjectKey, updateWarmThread, releaseWarmThread, foregroundReady } = useForegroundThreadNavigation({
+  const { reloadThreadList, loadedProjectKey, updateWarmThread, updateWarmThreadMode, releaseWarmThread, foregroundReady } = useForegroundThreadNavigation({
     projectKey: foregroundThreadListKey,
     protocolWorkspacePath: protocolWorkspacePath || workspacePath,
     remoteWorkspace: remoteWorkspaceActive,
@@ -1181,7 +1181,7 @@ export function App(): JSX.Element {
           && (!payload.workspacePath || normalizeWorkspacePathForPinnedLookup(payload.workspacePath)
             === normalizeWorkspacePathForPinnedLookup(protocolWorkspacePathRef.current || workspacePathRef.current))
         if (applyThreadNotification(payload, {
-          locale: localeRef.current, foreground, updateWarmThread, releaseWarmThread, reloadThreadList
+          locale: localeRef.current, foreground, updateWarmThread, updateWarmThreadMode, releaseWarmThread, reloadThreadList
         })) return
         if (payload.foreground === false) {
           if (payload.method === 'thread/deleted' && payload.workspacePath) {

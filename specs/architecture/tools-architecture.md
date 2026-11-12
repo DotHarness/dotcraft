@@ -99,6 +99,8 @@ The runtime registry retains executable registrations that are hidden from the m
 
 Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
 
+The common dispatcher evaluates operational mode from the current runtime authority. A running Turn retains its captured mode; committed changes apply to subsequent Turns without rebuilding tools or rediscovering plugins.
+
 Authorization MUST be server-authoritative. Arguments, renderer metadata, an iframe, or a remote source MUST NOT expand authority. A source whose execution authority has a live, independently revocable reference MUST fail closed when that reference cannot be resolved.
 
 ### 5.4 Exposure

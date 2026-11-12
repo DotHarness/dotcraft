@@ -575,10 +575,11 @@ internal sealed partial class ThreadRequestHandler(
         CancellationToken ct)
     {
         var p = request.Params;
+        var mode = Require(p.Mode, "'mode' is required.");
+        if (mode is not ("agent" or "plan"))
+            throw AppServerErrors.InvalidParams("'mode' must be 'agent' or 'plan'.");
         await sessionService.SetThreadModeAsync(
-            Require(p.ThreadId, "'threadId' is required."),
-            Require(p.Mode, "'mode' is required."),
-            ct);
+            Require(p.ThreadId, "'threadId' is required."), mode, ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 

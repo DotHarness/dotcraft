@@ -110,6 +110,10 @@ public static partial class AppServerRpc
     public static readonly RpcNotification<ThreadNotification> ThreadUpdated =
         new("thread/updated", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
 
+    /// <summary>thread/settings/updated notification.</summary>
+    public static readonly RpcNotification<ThreadSettingsUpdatedNotification> ThreadSettingsUpdated =
+        new("thread/settings/updated", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);
+
     /// <summary>thread/deleted notification.</summary>
     public static readonly RpcNotification<ThreadDeletedNotification> ThreadDeleted =
         new("thread/deleted", RpcDirection.ServerToClient, "1", Spec, scope: "thread", notificationOptOut: true);

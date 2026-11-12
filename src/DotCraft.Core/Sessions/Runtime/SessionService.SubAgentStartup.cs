@@ -10,7 +10,7 @@ public sealed partial class SessionService : ISubAgentStartupLifecycleService, I
         if (!_runtimeRegistry.TryGetRuntime(childThreadId, out var runtime))
             throw new InvalidOperationException($"Thread '{childThreadId}' has no active runtime.");
         var channel = runtime.Commands.InvokeAsync(
-            _ => Task.FromResult(StartTurn(runtime, content, null, null, null, ct)), ct).GetAwaiter().GetResult();
+            _ => StartTurnAsync(runtime, content, null, null, null, ct), ct).GetAwaiter().GetResult();
         // Keep observing durable admission and terminal cleanup when the caller cancels execution.
         return channel.ReadAllAsync(CancellationToken.None);
     }

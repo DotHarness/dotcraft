@@ -77,7 +77,7 @@ internal sealed partial class PluginRequestHandler
             () => CreateMarketplaceManager().RefreshAsync(name, commitToken, appConfigMonitor?.Current?.Plugins))
             .ConfigureAwait(false);
 
-        var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
+        var (discovery, updateErrors) = await RefreshManagedPluginsAsync(name, commitToken).ConfigureAwait(false);
         return await WriteMarketplaceMutationAsync(
             request.Message,
             new Contract.MarketplaceRefreshResult
@@ -90,6 +90,7 @@ internal sealed partial class PluginRequestHandler
                     Code = failure.Code,
                     Message = failure.Message
                 })
+                .Concat(updateErrors)
                 .ToList()
             },
             ct).ConfigureAwait(false);
@@ -121,8 +122,6 @@ internal sealed partial class PluginRequestHandler
         return new MarketplaceManager(userDataPath, configPath);
     }
 
-    // Adding, refreshing, or removing a marketplace changes which plugins are installable but
-    // installs nothing, so only the plugin catalog is invalidated.
     private PluginDiscoveryResult NotifyMarketplaceChanged(string source)
     {
         SyncConfiguredMarketplaces();
