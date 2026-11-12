@@ -11,9 +11,6 @@ namespace DotCraft.Sessions;
 
 internal sealed record WithheldTool(string Name, string? Namespace, string Source, string Reason);
 
-/// <summary>
-/// Evaluates profile-shaped thread capability policy for tool discovery and invocation.
-/// </summary>
 internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, AgentRuntimeContext context)
 {
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
@@ -23,13 +20,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private const string McpToolNamePrefix = "mcp__";
     private readonly HashSet<string> _runtimeManagedProviderToolNames = new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Returns true when a tool may be exposed to the model for this thread.
-    /// </summary>
     public bool AllowsTool(AITool tool) =>
         AllowsTool(tool, out _);
 
-    /// <summary>Returns true when source-qualified policy permits model exposure.</summary>
     public bool AllowsRegistrationExposure(ToolRegistration registration) =>
         AllowsRegistrationExposure(registration, out _);
 
@@ -46,7 +39,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return AllowsMcpRegistration(registration, out reason);
     }
 
-    /// <summary>The tools this policy keeps out of the model's list, each with the refusal that hid it.</summary>
     public IReadOnlyList<WithheldTool> WithheldFromModel(EffectiveToolSnapshot snapshot)
     {
         var withheld = new List<WithheldTool>();
@@ -73,7 +65,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return [.. withheld.OrderBy(static tool => tool.Name, StringComparer.Ordinal)];
     }
 
-    /// <summary>Captures the effective provider-facing aliases for runtime-managed tools.</summary>
     public void SetRuntimeManagedTools(EffectiveToolSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -89,10 +80,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
     }
 
-    /// <summary>
-    /// Evaluates a model tool call before the concrete function is resolved.
-    /// This catches stale calls to tools that were hidden by policy.
-    /// </summary>
+    // Reject stale calls to tools hidden by policy before function resolution.
     public ModeToolPolicyDecision EvaluateCall(FunctionCallContent call)
     {
         var toolName = call.Name;
@@ -112,9 +100,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return ModeToolPolicyDecision.Allow;
     }
 
-    /// <summary>
-    /// Evaluates a concrete function invocation after the runtime has resolved the function.
-    /// </summary>
     public ModeToolPolicyDecision EvaluateInvocation(FunctionInvocationContext invocation)
     {
         if (!AllowsTool(invocation.Function, out var reason))
@@ -134,16 +119,16 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         && FileToolAccess.TryResolveTarget(registration.Definition.Id.SourceToolId.Value, arguments, workspacePath, out _, out var target)
         && stores.Classify(target) is { Writable: true };
 
-    /// <summary>Evaluates the source-qualified registration at the common dispatcher boundary.</summary>
     public ToolDispatchDecision EvaluateRegistration(
         ToolRegistration registration,
         JsonObject arguments,
+        AgentMode mode,
         string? workspacePath = null,
         ToolExecutionLocation? location = null)
     {
         var name = registration.Definition.Name.Name;
         var shellFamily = location?.Target == "local" ? ReadOnlyCommandClassifier.HostShellFamily : null;
-        if (string.Equals(config.Mode, "plan", StringComparison.OrdinalIgnoreCase))
+        if (mode == AgentMode.Plan)
         {
             if (ModeToolPolicy.PlanDeniedToolNames.Contains(name) && !WritesMemoryStore(registration, arguments, workspacePath))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
@@ -160,7 +145,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
                 && !ModeToolPolicy.IsStdinPoll(arguments["input"]?.GetValue<string>()))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, ModeToolPolicy.StdinPollOnlyReason);
         }
-        else if (string.Equals(config.Mode, "agent", StringComparison.OrdinalIgnoreCase)
+        else if (mode == AgentMode.Agent
                  && string.Equals(name, "CreatePlan", StringComparison.OrdinalIgnoreCase))
         {
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "Agent mode does not allow CreatePlan.");
@@ -272,11 +257,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return true;
     }
 
-    /// <summary>
-    /// Applies the role's shell access level to a shell tool the allow/deny lists already
-    /// admitted. Read-only roles are bounded by what the command does, not by whether the
-    /// shell tool exists, so they can still observe workspace state.
-    /// </summary>
+    // Read-only roles may observe shell state without gaining permission to mutate it.
     private static bool AllowsSubAgentShell(
         SubAgentRoleConfig role,
         string toolName,
@@ -441,22 +422,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
 
         var toolName = tool.Name;
-        var sourceId = ResolvePluginOrAppSourceId(tool);
-        if (!string.IsNullOrWhiteSpace(sourceId))
-        {
-            if (MatchesAny(sourceId!, policy.Deny, allowWildcards: false))
-            {
-                reason = "The thread plugin policy denies this plugin or app.";
-                return false;
-            }
-
-            if (policy.Allow != null && !MatchesAny(sourceId!, policy.Allow, allowWildcards: false))
-            {
-                reason = "The thread plugin policy does not allow this plugin or app.";
-                return false;
-            }
-        }
-
         if (MatchesAny(toolName, policy.Deny, allowWildcards: true))
         {
             reason = "The thread plugin policy denies this tool name.";
@@ -544,9 +509,6 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         return null;
     }
-
-    private static string? ResolvePluginOrAppSourceId(AITool tool)
-        => null;
 
     private static bool IsRuntimeReservedToolName(string toolName) =>
         string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal);

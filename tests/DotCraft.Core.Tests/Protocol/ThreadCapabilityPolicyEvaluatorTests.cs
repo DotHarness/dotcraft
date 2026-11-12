@@ -162,8 +162,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.False(ordinaryPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
             profileSnapshot,
             profileManaged.Definition)));
-        Assert.True(runtimePolicy.EvaluateRegistration(runtimeManaged, []).Allowed);
-        Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, []).Allowed);
+        Assert.True(runtimePolicy.EvaluateRegistration(runtimeManaged, [], AgentMode.Agent).Allowed);
+        Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, [], AgentMode.Agent).Allowed);
     }
 
     [Theory]
@@ -182,7 +182,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
 
         bool Evaluate(ThreadToolPolicy toolPolicy) =>
             new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { ToolPolicy = toolPolicy }, CreateContext())
-                .EvaluateRegistration(registration, [])
+                .EvaluateRegistration(registration, [], AgentMode.Agent)
                 .Allowed;
     }
 
@@ -226,9 +226,9 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] }
         };
         var registration = Registration(
-            new ToolName("universe", "SendMessage"),
+            new ToolName("sample", "SendMessage"),
             ToolSourceKind.RuntimeDynamic,
-            "thread:universe",
+            "thread:sample",
             ToolPolicyScope.RuntimeManaged);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
         var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
@@ -241,9 +241,9 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ModeToolPolicyDecisionKind.Allow,
             policy.EvaluateCall(new FunctionCallContent(
                 "call-1",
-                "universe__SendMessage",
+                "sample__SendMessage",
                 new Dictionary<string, object?>())).Kind);
-        Assert.True(policy.EvaluateRegistration(registration, []).Allowed);
+        Assert.True(policy.EvaluateRegistration(registration, [], AgentMode.Agent).Allowed);
     }
 
     [Fact]
@@ -251,7 +251,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     {
         var config = new ThreadConfiguration
         {
-            Mode = "plan",
             McpPolicy = new ThreadMcpPolicy
             {
                 Servers = ["catalog-service"],
@@ -262,52 +261,52 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
 
         Assert.False(policy.EvaluateRegistration(
             Registration(new ToolName("mcp__catalog_service", "write_record"), ToolSourceKind.Mcp, "catalog-service"),
-            []).Allowed);
+            [], AgentMode.Plan).Allowed);
         Assert.False(policy.EvaluateRegistration(
             Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core"),
-            new JsonObject { ["path"] = "notes.txt" }).Allowed);
+            new JsonObject { ["path"] = "notes.txt" }, AgentMode.Plan).Allowed);
         Assert.True(policy.EvaluateRegistration(
             Registration(new ToolName("mcp__catalog_service", "get_record"), ToolSourceKind.Mcp, "catalog-service"),
-            []).Allowed);
+            [], AgentMode.Plan).Allowed);
     }
 
     [Fact]
     public void EvaluateRegistration_PlanModeAllowsWritesToTheMemoryStoreOnly()
     {
         var context = CreateContext();
-        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, context);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
         var write = Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core");
         var memoryFile = Path.Combine(context.MemoryStore.MemoryDirectoryPath, "use-pnpm.md");
 
-        Assert.True(policy.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, _tempRoot).Allowed);
-        Assert.False(policy.EvaluateRegistration(write, new JsonObject { ["path"] = "notes.md" }, _tempRoot).Allowed);
+        Assert.True(policy.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, AgentMode.Plan, _tempRoot).Allowed);
+        Assert.False(policy.EvaluateRegistration(write, new JsonObject { ["path"] = "notes.md" }, AgentMode.Plan, _tempRoot).Allowed);
 
         var disabled = new ThreadCapabilityPolicyEvaluator(
-            new ThreadConfiguration { Mode = "plan" },
+            new ThreadConfiguration(),
             CreateContext(memoryEnabled: false));
-        Assert.False(disabled.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, _tempRoot).Allowed);
+        Assert.False(disabled.EvaluateRegistration(write, new JsonObject { ["path"] = memoryFile }, AgentMode.Plan, _tempRoot).Allowed);
     }
 
     [Fact]
     public void EvaluateRegistration_PlanModeClassifiesOnlyTheShellExecTool()
     {
-        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, CreateContext());
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), CreateContext());
         var script = Registration(new ToolName(null, "exec"), ToolSourceKind.CoreNative, "code-mode");
         var shell = Registration(new ToolName(null, "Exec"), ToolSourceKind.CoreNative, "core");
 
-        Assert.True(policy.EvaluateRegistration(script, new JsonObject { ["code"] = "return 1;" }).Allowed);
-        Assert.True(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git status" }).Allowed);
-        Assert.False(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git push" }).Allowed);
+        Assert.True(policy.EvaluateRegistration(script, new JsonObject { ["code"] = "return 1;" }, AgentMode.Plan).Allowed);
+        Assert.True(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git status" }, AgentMode.Plan).Allowed);
+        Assert.False(policy.EvaluateRegistration(shell, new JsonObject { ["command"] = "git push" }, AgentMode.Plan).Allowed);
     }
 
     [Fact]
     public void EvaluateRegistration_PlanModeAllowsWriteStdinOnlyToPoll()
     {
-        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration { Mode = "plan" }, CreateContext());
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), CreateContext());
         var stdin = Registration(new ToolName(null, "WriteStdin"), ToolSourceKind.CoreNative, "core");
 
-        Assert.True(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "" }).Allowed);
-        Assert.False(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "y" }).Allowed);
+        Assert.True(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "" }, AgentMode.Plan).Allowed);
+        Assert.False(policy.EvaluateRegistration(stdin, new JsonObject { ["sessionId"] = "term_1", ["input"] = "y" }, AgentMode.Plan).Allowed);
     }
 
     [Fact]
@@ -328,7 +327,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
 
         Assert.True(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(snapshot, query.Definition)));
-        Assert.True(policy.EvaluateRegistration(query, []).Allowed);
+        Assert.True(policy.EvaluateRegistration(query, [], AgentMode.Agent).Allowed);
         Assert.Equal(
             ModeToolPolicyDecisionKind.Allow,
             policy.EvaluateCall(new FunctionCallContent(
@@ -337,7 +336,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 new Dictionary<string, object?>())).Kind);
 
         Assert.False(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(snapshot, change.Definition)));
-        Assert.False(policy.EvaluateRegistration(change, []).Allowed);
+        Assert.False(policy.EvaluateRegistration(change, [], AgentMode.Agent).Allowed);
         Assert.False(policy.AllowsTool(Tool("WriteFile")));
     }
 
@@ -371,7 +370,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.True(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
             snapshot,
             registration.Definition)));
-        Assert.True(policy.EvaluateRegistration(registration, []).Allowed);
+        Assert.True(policy.EvaluateRegistration(registration, [], AgentMode.Agent).Allowed);
     }
 
     [Fact]
@@ -424,10 +423,10 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
 
         Assert.True(policy.EvaluateRegistration(
             Registration(new ToolName("web", "run"), ToolSourceKind.CoreNative, "web-search"),
-            []).Allowed);
+            [], AgentMode.Agent).Allowed);
         Assert.False(policy.EvaluateRegistration(
             Registration(new ToolName("image_gen", "imagegen"), ToolSourceKind.CoreNative, "image-generation"),
-            []).Allowed);
+            [], AgentMode.Agent).Allowed);
     }
 
     [Theory]
@@ -437,11 +436,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("find . -name '*.cs'")]
     [InlineData("sed -n '1,5p' README.md")]
     [InlineData("git status\ngit diff --stat")]
-    // A single-quoted literal neutralizes substitution and redirection in both shells, so
-    // these stay searchable patterns rather than operators.
     [InlineData("grep 'a > b' README.md")]
     [InlineData("grep '$(rm -f victim)' README.md")]
-    // Quoted parentheses are pattern syntax, not grouping.
     [InlineData("rg \"foo(bar)\" README.md")]
     [InlineData("grep 'a(b)' README.md")]
     public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
@@ -462,10 +458,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("git diff --stat && rm -rf build")]
     [InlineData("git -C ../other status")]
     [InlineData("dotnet test > out.txt")]
-    // An unquoted newline separates commands, so the trailing command must be classified too.
     [InlineData("git status\nrm -rf build")]
     [InlineData("git status\r\nrm -rf build")]
-    // Allow-listed utilities still carry options that delete files or run external programs.
     [InlineData("find . -delete")]
     [InlineData("find . -exec rm -f {} ;")]
     [InlineData("rg --pre sh pattern")]
@@ -473,17 +467,13 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("rg -z pattern")]
     [InlineData("sed -n -i s/a/b/ README.md")]
     [InlineData("sed -i s/a/b/ README.md")]
-    // Substitution runs inside double quotes, so an allow-listed executable is not enough.
     [InlineData("grep \"$(rm -f victim)\" README.md")]
     [InlineData("grep \"`rm -f victim`\" README.md")]
     [InlineData("Select-String \"$(Remove-Item victim)\" README.md")]
-    // Escaped quotes are literal characters, so separators between them are real separators.
     [InlineData("grep \\\"x; rm -rf build; echo \\\" README.md")]
     [InlineData("grep \\'x; rm -rf build; echo \\' README.md")]
-    // PowerShell evaluates a parenthesized argument; Bash runs one as a subshell.
     [InlineData("Get-Content (Remove-Item victim)")]
     [InlineData("grep foo README.md && (rm -rf build)")]
-    // Expansion synthesizes options the raw tokens never spell out.
     [InlineData(@"find . $'\x2ddelete'")]
     [InlineData("find . -{delete,print}")]
     [InlineData(@"find . \-delete")]
@@ -508,8 +498,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("sed -n 1,5p README.md")]
     public void SubAgentExplorer_DeniesUnquotedSyntaxItCannotClassify(string command)
     {
-        // The unquoted character set is closed, so a construct this classifier does not model is
-        // refused even when it would not have mutated anything. Quoting is the way through.
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
         var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
 
@@ -524,8 +512,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [Fact]
     public void SubAgentExplorer_DeniesShellOverride()
     {
-        // The override becomes the launched executable, so a read-only classification of the
-        // command text says nothing about what actually runs.
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
         var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
 
@@ -600,8 +586,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [Fact]
     public void SubAgentRole_WithAllowListOmittingExec_StillDeniesShell()
     {
-        // A workspace role that bounded shell through its allow-list must not gain shell
-        // access from the default shell level.
         var appConfig = new AppConfig();
         appConfig.SubAgent.Roles =
         [

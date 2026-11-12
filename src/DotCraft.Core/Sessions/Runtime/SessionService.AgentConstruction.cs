@@ -365,7 +365,7 @@ public sealed partial class SessionService
         };
 
         var toolContext = CloneContextWithWorkspace(
-            scopedContext ?? threadBaseContext,
+            scopedContext,
             ThreadWorkspaceResolver.Resolve(thread));
         threadRuntimeState.SkillCatalogLoader = toolContext.SkillsLoader;
         threadRuntimeState.SkillCatalog = null;
@@ -374,7 +374,7 @@ public sealed partial class SessionService
 
         toolContext.DeferredToolActivationIndex = null;
         var capabilityPolicy = new ThreadCapabilityPolicyEvaluator(config, toolContext);
-        toolDispatchPolicyRegistry?.Bind(thread.Id, config, toolContext);
+        toolDispatchPolicyRegistry?.Bind(thread.Id, config, toolContext, mm);
         toolContext.ToolCallPolicy = capabilityPolicy.EvaluateCall;
         toolContext.ToolInvocationPolicy = capabilityPolicy.EvaluateInvocation;
 

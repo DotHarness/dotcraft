@@ -5,26 +5,23 @@ using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
-/// <summary>
-/// Keeps the current server-authoritative thread policy used by the common dispatcher.
-/// Frozen snapshots retain declarations, while policy replacement takes effect immediately.
-/// </summary>
 public sealed class ThreadToolDispatchPolicyRegistry : IToolPolicyEvaluator
 {
-    private readonly ConcurrentDictionary<string, ThreadCapabilityPolicyEvaluator> _policies =
+    private readonly ConcurrentDictionary<string, (ThreadCapabilityPolicyEvaluator Policy, AgentModeManager ModeManager)> _policies =
         new(StringComparer.Ordinal);
 
-    /// <summary>Replaces the current effective policy for a thread.</summary>
-    public void Bind(string threadId, ThreadConfiguration configuration, AgentRuntimeContext context)
+    public void Bind(
+        string threadId,
+        ThreadConfiguration configuration,
+        AgentRuntimeContext context,
+        AgentModeManager modeManager)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        _policies[threadId] = new ThreadCapabilityPolicyEvaluator(configuration, context);
+        _policies[threadId] = (new ThreadCapabilityPolicyEvaluator(configuration, context), modeManager);
     }
 
-    /// <summary>Forgets policy state when a thread is archived or deleted.</summary>
     public void Remove(string threadId) => _policies.TryRemove(threadId, out _);
 
-    /// <inheritdoc />
     public ValueTask<ToolDispatchDecision> EvaluateAsync(
         ToolInvocationContext context,
         ToolRegistration registration,
@@ -32,8 +29,9 @@ public sealed class ThreadToolDispatchPolicyRegistry : IToolPolicyEvaluator
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(_policies.TryGetValue(context.ThreadId, out var policy)
-            ? policy.EvaluateRegistration(registration, arguments, context.WorkspacePath, context.ExecutionLocation)
+        return ValueTask.FromResult(_policies.TryGetValue(context.ThreadId, out var binding)
+            ? binding.Policy.EvaluateRegistration(registration, arguments, binding.ModeManager.CurrentMode,
+                context.WorkspacePath, context.ExecutionLocation)
             : ToolDispatchDecision.Allow);
     }
 }
