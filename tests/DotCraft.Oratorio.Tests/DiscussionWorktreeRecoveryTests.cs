@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Domain;
@@ -14,9 +15,10 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class DiscussionWorktreeRecoveryTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Discussion_ClaimsPreservedWorkspaceOrRejectsCleanedWorkspace(bool cleaned)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task DiscussionClaim_PreservesImplementationAcrossCleanupOrRejectsRemovedWorkspace(bool removed, bool dirty)
     {
         var root = Path.Combine(Path.GetTempPath(), $"oratorio-discussion-{Guid.NewGuid():n}");
         var checkout = Path.Combine(root, "checkout");
@@ -43,7 +45,8 @@ public sealed class DiscussionWorktreeRecoveryTests
             {
                 ["Oratorio:DotCraft:RepositoryWorkspaceRoutes:0:WorkspacePath"] = checkout,
                 ["Oratorio:DotCraft:WorktreeRoot"] = Path.Combine(root, "managed"),
-                ["Oratorio:DotCraft:WorktreeCleanupEnabled"] = "false"
+                ["Oratorio:DotCraft:WorktreeCleanupEnabled"] = "false",
+                ["Oratorio:DotCraft:FailedWorktreeRetentionHours"] = "1"
             });
             var client = app.CreateClient();
             var task = await PostAsync<ItemDetailResponse>(client, "/api/v1/local-tasks",
@@ -55,30 +58,33 @@ public sealed class DiscussionWorktreeRecoveryTests
             var run = Assert.Single(failed.Runs);
             Assert.Equal("appServerDisconnected", run.ErrorCode);
             var worktree = run.WorktreePath!;
-            var manager = app.Services.GetRequiredService<IWorktreeManager>();
-            var oldCleanup = new WorktreeCleanupRequest(run.RunId, run.BaseWorkspacePath, worktree);
-            await File.WriteAllTextAsync(Path.Combine(worktree, "work.txt"), "Staged implementation.\n");
+            var cleanup = app.Services.GetServices<IHostedService>().OfType<WorktreeCleanupWorker>().Single();
+            await File.WriteAllTextAsync(Path.Combine(worktree, "work.txt"), "Committed implementation.\n");
             await GitAsync(worktree, "add", "work.txt");
-            await File.AppendAllTextAsync(Path.Combine(worktree, "work.txt"), "Unstaged implementation.\n");
-            await File.WriteAllTextAsync(Path.Combine(worktree, "new.txt"), "Untracked implementation.\n");
-
-            if (cleaned)
+            await GitAsync(worktree, "commit", "-m", "Implement task");
+            var implementationHead = await GitAsync(worktree, "rev-parse", "HEAD");
+            if (dirty)
             {
-                await manager.CleanupAsync(oldCleanup, CancellationToken.None);
-                using var scope = app.Services.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-                var recorded = await db.Runs.SingleAsync(x => x.RunId == run.RunId);
-                recorded.WorktreeStatus = WorktreeStatus.Cleaned;
-                await db.SaveChangesAsync();
+                await File.WriteAllTextAsync(Path.Combine(worktree, "work.txt"), "Staged implementation.\n");
+                await GitAsync(worktree, "add", "work.txt");
+                await File.AppendAllTextAsync(Path.Combine(worktree, "work.txt"), "Unstaged implementation.\n");
+                await File.WriteAllTextAsync(Path.Combine(worktree, "new.txt"), "Untracked implementation.\n");
+            }
+            var originalStatus = await GitAsync(worktree, "status", "--porcelain");
+
+            if (removed)
+            {
+                clock.Advance(run.WorktreeCleanupAfterAt!.Value - clock.UtcNow + TimeSpan.FromSeconds(1));
+                await cleanup.CleanupDueWorktreesAsync(CancellationToken.None);
             }
 
-            appServer.Outcome = FakeAppServerOutcome.Hold;
+            appServer.Outcome = FakeAppServerOutcome.SubmitDiscussionReply;
             await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/discussion-turns",
                 new DiscussionTurnRequest("Explain the existing changes.", null, null));
             var discussion = await WaitForItemByIdAsync(client, itemId, x => x.DiscussionTurns.Any(turn =>
-                cleaned ? turn.Status == DiscussionTurnStatus.Failed : turn.Status == DiscussionTurnStatus.Running && turn.TurnId != null));
+                removed ? turn.Status == DiscussionTurnStatus.Failed : turn.Status == DiscussionTurnStatus.Succeeded));
             var turn = Assert.Single(discussion.DiscussionTurns);
-            if (cleaned)
+            if (removed)
             {
                 Assert.Equal("implementationWorktreeMissing", turn.ErrorCode);
                 Assert.Empty(appServer.ThreadResumeRequests);
@@ -86,19 +92,35 @@ public sealed class DiscussionWorktreeRecoveryTests
                 return;
             }
 
-            clock.Advance(run.WorktreeCleanupAfterAt!.Value - clock.UtcNow + TimeSpan.FromSeconds(1));
-            await manager.CleanupAsync(oldCleanup, CancellationToken.None);
-
             Assert.Equal(run.ThreadId, turn.ThreadId);
-            Assert.Equal("Staged implementation.\nUnstaged implementation.\n",
-                await File.ReadAllTextAsync(Path.Combine(worktree, "work.txt")));
-            Assert.Equal("Untracked implementation.\n", await File.ReadAllTextAsync(Path.Combine(worktree, "new.txt")));
-            Assert.Contains("Staged implementation.", await GitAsync(worktree, "diff", "--cached"));
-            using var verification = app.Services.CreateScope();
-            var discussionRecord = await verification.ServiceProvider.GetRequiredService<OratorioDbContext>()
-                .DiscussionTurns.SingleAsync(x => x.DiscussionTurnId == turn.DiscussionTurnId);
-            Assert.Equal(WorktreeStatus.Ready, discussionRecord.WorktreeStatus);
-            Assert.Equal(worktree, discussionRecord.WorktreePath);
+            clock.Advance(run.WorktreeCleanupAfterAt!.Value - clock.UtcNow + TimeSpan.FromSeconds(1));
+            await cleanup.CleanupDueWorktreesAsync(CancellationToken.None);
+            using (var verification = app.Services.CreateScope())
+            {
+                var db = verification.ServiceProvider.GetRequiredService<OratorioDbContext>();
+                var recorded = await db.Runs.SingleAsync(x => x.RunId == run.RunId);
+                var discussionRecord = await db.DiscussionTurns.SingleAsync(x => x.DiscussionTurnId == turn.DiscussionTurnId);
+                Assert.Equal(WorktreeStatus.Cleaned, recorded.WorktreeStatus);
+                Assert.Equal(WorktreeStatus.CleanupPending, discussionRecord.WorktreeStatus);
+                Assert.Equal(worktree, discussionRecord.WorktreePath);
+            }
+
+            appServer.Outcome = FakeAppServerOutcome.SubmitImplementationDraft;
+            await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/dispatch",
+                new DispatchRequest("appServer", "Continue implementation.", null, null, "implementation", DeliveryPolicy.ManualDelivery));
+            var completed = await WaitForItemByIdAsync(client, itemId,
+                x => x.Item.State == ItemState.AwaitingReview && x.ImplementationDrafts.Count == 1);
+            var retried = Assert.Single(completed.Runs, x => x.Status == RunStatus.Succeeded);
+            Assert.Equal(worktree, retried.WorktreePath);
+            Assert.Equal(implementationHead, await GitAsync(worktree, "rev-parse", "HEAD"));
+            Assert.Equal(originalStatus, await GitAsync(worktree, "status", "--porcelain"));
+            if (dirty)
+            {
+                Assert.Equal("Staged implementation.\nUnstaged implementation.\n",
+                    await File.ReadAllTextAsync(Path.Combine(worktree, "work.txt")));
+                Assert.Equal("Untracked implementation.\n", await File.ReadAllTextAsync(Path.Combine(worktree, "new.txt")));
+                Assert.Contains("Staged implementation.", await GitAsync(worktree, "diff", "--cached"));
+            }
         }
         finally
         {

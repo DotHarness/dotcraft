@@ -882,8 +882,10 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
 - maps completion, failure, cancellation, timeout and disconnection to run
   status;
 - treats an SDK disconnect as a disconnection failure. Before implementation
-  recovery starts another turn, it reconnects to the recorded thread and
-  interrupts the recorded turn, confirming it ended or was already terminal.
+  recovery prepares its workspace or starts another turn, it ensures the
+  workspace's current AppServer is available through normal discovery/startup,
+  reconnects to the recorded thread there and interrupts the recorded turn,
+  confirming it ended or was already terminal.
   Unconfirmed termination blocks the retry rather than starting another writer
   or consuming repeated retries on a still-running turn;
 - when a run or stall timeout fires after a turn started, asks DotCraft to
@@ -1019,7 +1021,9 @@ Managed worktrees and concurrency:
   in the same round, continues its recorded managed worktree, branch and base
   commit without checkout, reset or a clean-worktree requirement. It preserves
   tracked, staged and untracked changes and rebinds cleanup ownership to the new
-  attempt. A missing worktree is prepared normally.
+  attempt. A cleanup record marked cleaned remains eligible for recovery when
+  the directory was retained for a later owner; filesystem availability decides
+  whether to resume it. A missing worktree is prepared normally.
 - Other preparation validates the worktree; a dirty or invalid one fails with a
   visible error instead of being destroyed. Each new round's worktree is reset
   to the requested base, except for Implementation Follow-up (§6.2).
@@ -1029,9 +1033,10 @@ Managed worktrees and concurrency:
   cleanup pending, cleaned or failed.
 - Scheduling uses explicit leases and configurable global, repository and
   source capacity limits.
-- Runs interrupted by a backend restart reconnect to their recorded endpoint
-  and interrupt the recorded turn before the retry policy applies; if
-  termination cannot be confirmed, the run closes without an automatic retry.
+- Runs interrupted by a backend restart ensure the workspace's current AppServer
+  is available and interrupt the recorded turn there before the retry policy
+  applies; if termination cannot be confirmed, the run closes without an
+  automatic retry.
   Stale heartbeats take the same path.
 - Transient preparation, AppServer, timeout, disconnection and stall failures
   may retry with exponential backoff capped at five minutes. The maximum run

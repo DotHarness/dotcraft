@@ -21,7 +21,6 @@ public sealed partial class AppServerRunWorker(
     IClock clock,
     IDotCraftAppServerProcessManager processManager,
     IDotCraftAppServerClientFactory clientFactory,
-    IDotCraftAppServerEndpointResolver endpointResolver,
     IDotCraftWorkspaceResolver workspaceResolver,
     IOptionsMonitor<DotCraftOptions> options,
     IOptionsMonitor<OratorioAutomationOptions> automationOptions,
@@ -103,7 +102,7 @@ public sealed partial class AppServerRunWorker(
             var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
             activeRuns = await db.Runs.AsNoTracking()
                 .Where(x => x.RunnerKind == "appServer" && ActiveWorkerStatuses.Contains(x.Status))
-                .Select(x => new InterruptedRun(x.RunId, x.AppServerEndpoint, x.ThreadId, x.TurnId))
+                .Select(x => new InterruptedRun(x.RunId, x.ThreadId, x.TurnId))
                 .ToArrayAsync(ct);
         }
 
@@ -1448,4 +1447,4 @@ public sealed partial class AppServerRunWorker(
 
 internal sealed record AppServerThreadReuseCandidate(string ThreadId, string Origin, bool IsRetryRecovery);
 
-internal sealed record InterruptedRun(string RunId, string? AppServerEndpoint, string? ThreadId, string? TurnId);
+internal sealed record InterruptedRun(string RunId, string? ThreadId, string? TurnId);

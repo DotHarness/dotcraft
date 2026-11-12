@@ -67,7 +67,8 @@ public sealed partial class AppServerRunWorker
                         .Where(x => x.RoundId == run.RoundId && x.Attempt < run.Attempt &&
                             x.RunnerKind == "appServer" && x.Purpose == RunPurpose.Implementation &&
                             (x.Status == RunStatus.Failed || x.Status == RunStatus.TimedOut) &&
-                            (x.WorktreeStatus == WorktreeStatus.Ready || x.WorktreeStatus == WorktreeStatus.CleanupPending))
+                            (x.WorktreeStatus == WorktreeStatus.Ready || x.WorktreeStatus == WorktreeStatus.CleanupPending ||
+                                x.WorktreeStatus == WorktreeStatus.Cleaned))
                         .OrderByDescending(x => x.Attempt)
                         .FirstOrDefaultAsync(ct);
                     if (previous is { BaseWorkspacePath: not null, WorktreePath: not null, WorktreeBranch: not null, BaseRef: not null, BaseSha: not null } &&

@@ -23,7 +23,7 @@ public sealed partial class AppServerRunWorker
                 x.RunnerKind == "appServer" && x.Purpose == RunPurpose.Implementation &&
                 (x.Status == RunStatus.Failed || x.Status == RunStatus.TimedOut) && x.TurnId != null)
             .OrderByDescending(x => x.Attempt)
-            .Select(x => new InterruptedRun(x.RunId, x.AppServerEndpoint, x.ThreadId, x.TurnId))
+            .Select(x => new InterruptedRun(x.RunId, x.ThreadId, x.TurnId))
             .FirstOrDefaultAsync(ct);
         if (previous is null)
             return true;
@@ -43,8 +43,7 @@ public sealed partial class AppServerRunWorker
         InterruptedRun run,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(run.AppServerEndpoint) ||
-            string.IsNullOrWhiteSpace(run.ThreadId) ||
+        if (string.IsNullOrWhiteSpace(run.ThreadId) ||
             string.IsNullOrWhiteSpace(run.TurnId))
         {
             return (TimeoutTerminalResult.MissingTurn, null);
@@ -54,10 +53,12 @@ public sealed partial class AppServerRunWorker
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeoutInterruptWait);
+            var workspacePath = await ResolveBaseWorkspacePathAsync(run.RunId, timeout.Token);
+            var endpoint = await processManager.EnsureAvailableAsync(workspacePath, timeout.Token);
             await using var client = await clientFactory.ConnectAsync(
-                run.AppServerEndpoint,
+                endpoint.Url,
                 timeout.Token,
-                endpointResolver.ResolveConfiguredToken());
+                endpoint.Token);
             await client.ResumeThreadAsync(run.ThreadId, null, null, timeout.Token);
             try
             {

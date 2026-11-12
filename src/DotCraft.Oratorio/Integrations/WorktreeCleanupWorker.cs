@@ -40,7 +40,7 @@ public sealed class WorktreeCleanupWorker(
         }
     }
 
-    private async Task CleanupDueWorktreesAsync(CancellationToken ct)
+    public async Task CleanupDueWorktreesAsync(CancellationToken ct)
     {
         List<string> runIds;
         using (var scope = scopeFactory.CreateScope())

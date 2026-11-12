@@ -70,6 +70,35 @@ public sealed class ImplementationRecoveryTests
     }
 
     [Fact]
+    public async Task Retry_AfterAppServerRestart_ReconcilesAgainstCurrentWorkspaceEndpoint()
+    {
+        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Disconnect);
+        var processManager = new FakeDotCraftProcessManager();
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-11-12T00:00:00Z"));
+        await using var app = CreateApp(appServer, new FakeWorktreeManager(), clock,
+            maxAttempts: 2, processManager: processManager);
+        var client = app.CreateClient();
+        var itemId = (await CreateLocalTaskAsync(client)).Item.ItemId;
+        await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{itemId}/dispatch", ImplementationRequest());
+        var interrupted = await WaitForItemByIdAsync(client, itemId,
+            x => x.Runs.Any(run => run.Status == RunStatus.Failed && run.ErrorCode == "appServerDisconnected"));
+        var original = Assert.Single(interrupted.Runs, run => run.Status == RunStatus.Failed);
+        var current = new DotCraftAppServerEndpoint("ws://127.0.0.1:9200/ws", "hub");
+        processManager.CurrentEndpoint = current;
+        appServer.ExpectedEndpoint = current.Url;
+        appServer.Outcome = FakeAppServerOutcome.SubmitImplementationDraft;
+        clock.Advance(TimeSpan.FromSeconds(2));
+
+        var completed = await WaitForItemByIdAsync(client, itemId,
+            x => x.Item.State == ItemState.AwaitingReview && x.ImplementationDrafts.Count == 1);
+        var retry = Assert.Single(completed.Runs, run => run.Status == RunStatus.Succeeded);
+
+        Assert.Equal(current.Url, retry.AppServerEndpoint);
+        Assert.Equal(original.ThreadId, retry.ThreadId);
+        Assert.Contains(appServer.InterruptedTurns, turn => turn.ThreadId == original.ThreadId && turn.TurnId == original.TurnId);
+    }
+
+    [Fact]
     public async Task Retry_WhenPreviousTurnCannotBeInterrupted_StopsWithoutAnotherWriterOrRetry()
     {
         var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Disconnect) { EnforceSingleActiveTurn = true };
@@ -112,9 +141,11 @@ public sealed class ImplementationRecoveryTests
             original = Assert.Single(running.Runs);
         }
 
-        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitImplementationDraft);
+        var current = new DotCraftAppServerEndpoint("ws://127.0.0.1:9200/ws", "hub");
+        var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitImplementationDraft) { ExpectedEndpoint = current.Url };
         var worktrees = new FakeWorktreeManager { BaseShaOverride = "unrelated-checkout-head" };
-        await using var recovered = CreateApp(appServer, worktrees, clock, 2, databasePath);
+        await using var recovered = CreateApp(appServer, worktrees, clock, 2, databasePath,
+            new FakeDotCraftProcessManager(true, current));
         var recoveredClient = recovered.CreateClient();
         await WaitForItemByIdAsync(recoveredClient, itemId,
             x => x.Runs.Count == 2 && x.Runs.Any(run => run.ErrorCode == "appServerRunnerInterrupted"));
@@ -127,6 +158,7 @@ public sealed class ImplementationRecoveryTests
         Assert.Equal(original.ThreadId, retried.ThreadId);
         Assert.Equal(original.WorktreePath, retried.WorktreePath);
         Assert.Equal(original.BaseSha, retried.BaseSha);
+        Assert.Equal(current.Url, retried.AppServerEndpoint);
         Assert.NotNull(Assert.Single(worktrees.PrepareRequests).ResumeFrom);
         Assert.Empty(appServer.ThreadStartRequests);
     }
@@ -169,14 +201,15 @@ public sealed class ImplementationRecoveryTests
         FakeWorktreeManager worktrees,
         MutableClock clock,
         int maxAttempts = 1,
-        string? databasePath = null) =>
+        string? databasePath = null,
+        IDotCraftAppServerProcessManager? processManager = null) =>
         new(services =>
         {
             services.RemoveAll<IDotCraftAppServerProcessManager>();
             services.RemoveAll<IDotCraftAppServerClientFactory>();
             services.RemoveAll<IWorktreeManager>();
             services.RemoveAll<IClock>();
-            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
+            services.AddSingleton<IDotCraftAppServerProcessManager>(processManager ?? new FakeDotCraftProcessManager());
             services.AddSingleton<IDotCraftAppServerClientFactory>(appServer);
             services.AddSingleton<IWorktreeManager>(worktrees);
             services.AddSingleton<IClock>(clock);
