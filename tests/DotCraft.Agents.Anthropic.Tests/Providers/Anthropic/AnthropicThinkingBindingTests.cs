@@ -124,8 +124,7 @@ public sealed class AnthropicThinkingBindingTests
             ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic), IsRemote: remote);
         if (remote)
         {
-            var adaptation = new ProviderRequestAdaptation(false, false,
-                ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter("https://api.anthropic.com", Model), null);
+            var adaptation = new ProviderRequestAdaptation(false, false, Adapter(true), null);
             runtime = runtime with
             {
                 RequestAdaptation = JsonSerializer.Deserialize<ProviderRequestAdaptation>(JsonSerializer.Serialize(adaptation))

@@ -353,8 +353,16 @@ public sealed class ModelCatalogTests : IDisposable
     [Fact]
     public void SupportsFast_ReturnsFalseForPluginBackendProtocol()
     {
-        Assert.True(ModelCatalog.SupportsFast(ModelProviderProtocols.Anthropic, "claude-opus-5-5"));
-        Assert.False(ModelCatalog.SupportsFast("claude-code", "claude-opus-5-5"));
+        var catalogPath = WriteCatalog("fast-protocol", """
+            {
+              "models": {
+                "fast-model": { "fast": { "protocols": ["anthropic"] } }
+              }
+            }
+            """);
+
+        Assert.True(ModelCatalog.SupportsFast(ModelProviderProtocols.Anthropic, "fast-model", globalCatalogPath: catalogPath));
+        Assert.False(ModelCatalog.SupportsFast("claude-code", "fast-model", globalCatalogPath: catalogPath));
     }
 
     [Fact]

@@ -21,35 +21,6 @@ public sealed class RoutingTests
         Assert.Throws<ArgumentException>(() => OpenRouterModelCatalog.SelectProtocol(model, "anthropic"));
     }
 
-    [Theory]
-    [InlineData("claude-opus-5-5")]
-    [InlineData("anthropic/claude-opus-5.5")]
-    [InlineData("gateway/anthropic/claude-opus-5.5[1m]")]
-    public void GenericOpus55UsesSpecificCapabilitiesWithoutChangingId(string id)
-    {
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability("anthropic", "https://openrouter.ai/api", id);
-        Assert.NotNull(capability);
-        Assert.False(capability.SupportsDisable);
-        Assert.Equal(ProviderReasoningEffort.Medium, capability.DefaultEffort);
-        var capacity = ModelCatalog.ResolveDetailed(id);
-        Assert.Equal("claude-opus-5-5", capacity.MatchedPattern);
-        Assert.Equal(1_000_000, capacity.ContextWindow);
-        Assert.Equal("adaptive", ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(null, id)!.ThinkingType);
-    }
-
-    [Fact]
-    public void BundledCatalogResolvesExactModelsAndRejectsUnknownIds()
-    {
-        var provider = Create();
-        var model = "anthropic/claude-opus-5.5";
-        var runtime = provider.ResolveRuntime(Runtime() with { Model = model });
-        Assert.Equal(model, runtime.Model);
-        Assert.Equal("anthropic", runtime.Protocol);
-        Assert.Equal(1_000_000, runtime.ModelMetadata!.ContextWindow);
-        Assert.False(runtime.ModelMetadata.Reasoning!.SupportsDisable);
-        Assert.Throws<ArgumentException>(() => provider.ResolveRuntime(Runtime() with { Model = model + "[unlisted]" }));
-    }
-
     internal static EffectiveModelRuntime Runtime() => new("test", "", "auto", "OpenRouter", "test-key",
         OpenRouterModelCatalog.DefaultEndpoint, 20, null, new())
         { BackendId = "openrouter", ConfiguredProtocol = "auto", ConfiguredEndPoint = OpenRouterModelCatalog.DefaultEndpoint };

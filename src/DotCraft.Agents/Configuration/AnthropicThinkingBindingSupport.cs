@@ -22,6 +22,6 @@ internal static partial class AnthropicThinkingBindingSupport
         return VerifiedModels().IsMatch(id);
     }
 
-    [GeneratedRegex(@"^claude-(?:opus-(?:5|5[.-]5)|(?:sonnet|haiku)-5[.-]5|(?:fable|mythos)-5[.-]1)(?:-\d{8})?$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^claude-(?:opus-(?:5|5[.-]5)|(?:sonnet|haiku)-5[.-]5|(?:fable|mythos)-5[.-][12])(?:-\d{8})?$", RegexOptions.CultureInvariant)]
     private static partial Regex VerifiedModels();
 }

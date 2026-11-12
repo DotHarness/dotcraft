@@ -140,14 +140,31 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
     [Fact]
     public void ResolveReasoningCapability_ReturnsNullForPluginBackendProtocol()
     {
+        var workspacePath = WriteCatalog("plugin-protocol", """
+            {
+              "reasoningCapabilities": {
+                "adapters": [
+                  {
+                    "protocols": ["anthropic"],
+                    "models": ["test-reasoner"],
+                    "supportedEfforts": ["low", "high"],
+                    "defaultEffort": "high"
+                  }
+                ]
+              }
+            }
+            """);
+
         Assert.NotNull(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
             protocol: ModelProviderProtocols.Anthropic,
             endpoint: null,
-            model: "claude-opus-5-5"));
+            model: "test-reasoner",
+            workspaceCatalogPath: workspacePath));
         Assert.Null(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
             protocol: "claude-code",
             endpoint: null,
-            model: "claude-opus-5-5"));
+            model: "test-reasoner",
+            workspaceCatalogPath: workspacePath));
     }
 
     [Fact]

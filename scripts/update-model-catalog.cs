@@ -20,7 +20,8 @@ using var http = new HttpClient();
 var catalog = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
 const string pricingSource = "https://models.dev/api.json";
 using var canonical = JsonDocument.Parse(await http.GetStringAsync("https://models.dev/models.json"));
-var canonicalIds = canonical.RootElement.EnumerateObject().Select(model => model.Name).ToHashSet(StringComparer.Ordinal);
+var canonicalModels = canonical.RootElement;
+var canonicalIds = canonicalModels.EnumerateObject().Select(model => model.Name).ToHashSet(StringComparer.Ordinal);
 var providers = await http.GetFromJsonAsync<Dictionary<string, ModelsDevProvider>>(pricingSource, options)
     ?? throw new JsonException("models.dev returned no provider catalog.");
 var prices = providers.SelectMany(provider => provider.Value.Models.Select(model => new
@@ -31,8 +32,10 @@ var prices = providers.SelectMany(provider => provider.Value.Models.Select(model
     Pricing = ReadPricing(model.Value.Cost)
 })).Where(model => model.CanonicalId.StartsWith(model.Provider + "/", StringComparison.Ordinal)
     && canonicalIds.Contains(model.CanonicalId) && model.Pricing is not null).ToArray();
+var models = catalog["models"]!.AsObject();
+if (!pricingOnly) AddMissingModels(models, canonicalModels);
 var priced = 0;
-foreach (var (id, value) in catalog["models"]!.AsObject())
+foreach (var (id, value) in models)
 {
     var entry = value!.AsObject();
     var key = ModelCapabilityIdentity.ForMatching(id)!;
@@ -49,16 +52,16 @@ foreach (var (id, value) in catalog["models"]!.AsObject())
 }
 catalog["pricingSource"] = pricingSource;
 catalog["pricingCapturedAt"] = DateTimeOffset.UtcNow;
-Console.WriteLine($"Updated official base prices for {priced} existing models.");
+Console.WriteLine($"Updated official base prices for {priced} models.");
 if (!pricingOnly)
 {
     const string source = "https://openrouter.ai/api/v1/models";
-    var models = OpenRouterModelCatalog.Read(await http.GetStringAsync(source));
-    if (models.Count == 0) throw new InvalidOperationException("OpenRouter returned no tool-capable text models.");
+    var openRouterModels = OpenRouterModelCatalog.Read(await http.GetStringAsync(source));
+    if (openRouterModels.Count == 0) throw new InvalidOperationException("OpenRouter returned no tool-capable text models.");
     var routingProviders = catalog["providers"] as JsonObject ?? new JsonObject();
-    routingProviders["openrouter"] = JsonSerializer.SerializeToNode(new { source, capturedAt = DateTimeOffset.UtcNow, models }, options);
+    routingProviders["openrouter"] = JsonSerializer.SerializeToNode(new { source, capturedAt = DateTimeOffset.UtcNow, models = openRouterModels }, options);
     catalog["providers"] = routingProviders;
-    Console.WriteLine($"Updated {models.Count} OpenRouter models.");
+    Console.WriteLine($"Updated {openRouterModels.Count} OpenRouter models.");
 }
 await File.WriteAllTextAsync(path, catalog.ToJsonString(options) + "\n");
 
@@ -72,6 +75,55 @@ static ModelPricing? ReadPricing(ModelsDevCost? cost)
 }
 
 static decimal? Rate(decimal? value) => value is >= 0 ? value : null;
+
+static void AddMissingModels(JsonObject models, JsonElement canonical)
+{
+    const int minContextWindow = 1_000;
+    var added = 0;
+    foreach (var model in canonical.EnumerateObject())
+    {
+        if (model.Value.ValueKind != JsonValueKind.Object)
+            continue;
+        if (!model.Value.TryGetProperty("tool_call", out var toolCall) || toolCall.ValueKind != JsonValueKind.True)
+            continue;
+        if (!model.Value.TryGetProperty("modalities", out var modalities)
+            || !modalities.TryGetProperty("output", out var outputs)
+            || !outputs.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.String && item.GetString() == "text"))
+            continue;
+        if (!model.Value.TryGetProperty("limit", out var limit)
+            || !TryReadPositive(limit, "context", out var context) || context < minContextWindow)
+            continue;
+
+        var key = ModelCapabilityIdentity.ForMatching(model.Name.Split('/')[^1])!.ToLowerInvariant();
+        if (models.ContainsKey(key))
+            continue;
+
+        var entry = new JsonObject { ["contextWindow"] = context };
+        if (TryReadPositive(limit, "input", out var maxInput) && maxInput < context)
+            entry["maxInputTokens"] = maxInput;
+        models[key] = entry;
+        added++;
+    }
+
+    if (added == 0)
+        return;
+
+    var sorted = models.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+    foreach (var (key, _) in sorted)
+        models.Remove(key);
+    foreach (var (key, value) in sorted)
+        models[key] = value;
+    Console.WriteLine($"Added {added} models from models.dev.");
+}
+
+static bool TryReadPositive(JsonElement element, string propertyName, out int value)
+{
+    value = 0;
+    return element.TryGetProperty(propertyName, out var property)
+        && property.ValueKind == JsonValueKind.Number
+        && property.TryGetInt32(out value)
+        && value > 0;
+}
 
 internal sealed class ModelsDevProvider
 {
