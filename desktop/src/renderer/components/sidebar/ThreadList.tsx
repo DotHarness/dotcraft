@@ -24,7 +24,7 @@ import { CustomSidebarSection } from './sections/CustomSidebarSection'
 import { SectionDialogHost } from './sections/SectionDialog'
 import { SidebarSectionDropTarget } from './sections/SidebarSectionDropTarget'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
-import type { SidebarSection } from '../../../shared/sidebarSections'
+import { sidebarSectionItemKey, type SidebarSection } from '../../../shared/sidebarSections'
 import { RecentsSection, type RecentsRow } from './RecentsSection'
 import { ThreadListRow, useReorderItem } from './ThreadListRow'
 import {
@@ -371,7 +371,13 @@ export function ThreadList({
       buildRecentsRows('', recentsSort, recentsOrder).filter((row) => !row.pinned).length > 1
     const recentsCanShowProjects = recentsShowProjects || projectsForRender.length > 0
 
-    const renderProjectBlock = (project: WorkspaceProjectSummary, sectionId?: string): JSX.Element => {
+    interface SectionSlot {
+      listId: string
+      itemKey: string
+      onMove: (movedKey: string, targetKey: string, placement: ThreadDropPlacement) => void
+    }
+
+    const renderProjectBlock = (project: WorkspaceProjectSummary, slot?: SectionSlot): JSX.Element => {
       const projectKey = projectIdentity(project)
       const orderKey = projectOrderIdentity(project)
       const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
@@ -412,10 +418,10 @@ export function ThreadList({
       return (
         <ProjectListItem
           key={projectKey}
-          listId={sectionId ? `section:${sectionId}` : project.pinned ? 'projects:pinned' : 'projects:ordinary'}
-          projectKey={orderKey}
-          reorderable={!sectionId && projectSort === 'manual' && !searching}
-          onMove={moveProject}
+          listId={slot?.listId ?? (project.pinned ? 'projects:pinned' : 'projects:ordinary')}
+          projectKey={slot?.itemKey ?? orderKey}
+          reorderable={slot ? !searching : projectSort === 'manual' && !searching}
+          onMove={slot?.onMove ?? moveProject}
           header={<ProjectHeader
             project={project}
             active={isForeground}
@@ -486,32 +492,39 @@ export function ThreadList({
       )
     }
     const sectionProjects = [...projectsForRender, ...(chat ? [chat] : [])]
-    const renderSectionItems = (section: SidebarSection): JSX.Element[] => section.items.flatMap((item) => {
-      const project = sectionProjects.find((candidate) =>
-        sameWorkspaceProjectKey(projectIdentity(candidate), item.projectKey)
-      )
-      if (!project) return []
-      if (item.kind === 'project') {
-        if (project.pinned || project.kind === 'chat') return []
-        if (searching && projectListSource(project, searchQuery).threads.length === 0) return []
-        return [renderProjectBlock(project, section.id)]
-      }
-      const { live, threads, pinnedIds } = projectListSource(project, searchQuery)
-      const thread = threads.find((candidate) => candidate.id === item.threadId)
-      if (!thread || pinnedIds.includes(thread.id)) return []
-      return [
-        <ThreadListRow
-          key={`${projectIdentity(project)}:${thread.id}`}
-          listId={`section:${section.id}`}
-          threadId={thread.id}
-          home={project.kind === 'chat'}
-          reorderable={false}
-          onMove={() => {}}
-        >
-          {live ? <ThreadEntryWrapper thread={thread} /> : <ReadonlyThreadRow thread={thread} project={project} />}
-        </ThreadListRow>
-      ]
-    })
+    const renderSectionItems = (section: SidebarSection): JSX.Element[] => {
+      const listId = `section:${section.id}`
+      const itemKeys = section.items.map(sidebarSectionItemKey)
+      const onMove = (movedKey: string, targetKey: string, placement: ThreadDropPlacement): void =>
+        useSidebarSectionsStore.getState().reorderItems(section.id, moveThreadId(itemKeys, movedKey, targetKey, placement))
+      return section.items.flatMap((item, index) => {
+        const slot: SectionSlot = { listId, itemKey: itemKeys[index], onMove }
+        const project = sectionProjects.find((candidate) =>
+          sameWorkspaceProjectKey(projectIdentity(candidate), item.projectKey)
+        )
+        if (!project) return []
+        if (item.kind === 'project') {
+          if (project.pinned || project.kind === 'chat') return []
+          if (searching && projectListSource(project, searchQuery).threads.length === 0) return []
+          return [renderProjectBlock(project, slot)]
+        }
+        const { live, threads, pinnedIds } = projectListSource(project, searchQuery)
+        const thread = threads.find((candidate) => candidate.id === item.threadId)
+        if (!thread || pinnedIds.includes(thread.id)) return []
+        return [
+          <ThreadListRow
+            key={`${projectIdentity(project)}:${thread.id}`}
+            listId={listId}
+            threadId={slot.itemKey}
+            home={project.kind === 'chat'}
+            reorderable={!searching}
+            onMove={onMove}
+          >
+            {live ? <ThreadEntryWrapper thread={thread} /> : <ReadonlyThreadRow thread={thread} project={project} />}
+          </ThreadListRow>
+        ]
+      })
+    }
     return (
       <div
         style={{

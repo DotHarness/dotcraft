@@ -15,6 +15,7 @@ interface SidebarSectionsState {
   removeSection(sectionId: string): void
   setSectionCollapsed(sectionId: string, collapsed: boolean): void
   moveItems(sectionId: string, items: SidebarSectionItem[]): void
+  reorderItems(sectionId: string, itemKeys: readonly string[]): void
   removeItems(items: SidebarSectionItem[]): void
 }
 
@@ -83,6 +84,14 @@ export const useSidebarSectionsStore = create<SidebarSectionsState>((set, get) =
         const { collapsed: _collapsed, ...expanded } = section
         return { ...expanded, items: [...section.items, ...items] }
       }))
+    },
+
+    reorderItems(sectionId, itemKeys) {
+      const rank = new Map(itemKeys.map((key, index) => [key, index]))
+      const position = (item: SidebarSectionItem): number => rank.get(sidebarSectionItemKey(item)) ?? itemKeys.length
+      commit(get().sections.map((section) => section.id === sectionId
+        ? { ...section, items: [...section.items].sort((a, b) => position(a) - position(b)) }
+        : section))
     },
 
     removeItems(items) {

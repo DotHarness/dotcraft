@@ -155,7 +155,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 
 **Ordering and collapse**
 
-- Built-in sections and project thread lists have a Desktop-local sort preference: **Last updated** or **Manual order**. Manual reordering stays within one list and pauses while search filters it. Dragging a project or individual chat into a custom section appends it regardless of sort preference and expands a collapsed destination. Projects move with their chats. Dropping a section member back on Projects (projects) or Recents (chats) restores its usual placement.
+- Built-in sections and project thread lists have a Desktop-local sort preference: **Last updated** or **Manual order**. Manual reordering stays within one list and pauses while search filters it. Dragging a project or individual chat into a custom section appends it regardless of sort preference and expands a collapsed destination. A custom section has no sort preference: its projects and chats form one manually ordered list, and dragging a member within the section reorders it, pausing while search filters it. Projects move with their chats. Dropping a section member back on Projects (projects) or Recents (chats) restores its usual placement.
 - Project and section collapse state is Desktop-local and persisted. Expanding a project row does not promote it. A project shows a bounded number of threads with a show-more control; the selected thread and search matches are always visible.
 
 **Ownership**
