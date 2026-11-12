@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -454,8 +455,8 @@ internal sealed class FakeDotCraftProcessManager : IDotCraftAppServerProcessMana
 {
     private static readonly DotCraftAppServerEndpoint Endpoint = new("ws://127.0.0.1:9100/ws", "test");
     private readonly bool _connected;
-    private readonly DotCraftAppServerEndpoint? _endpoint;
     private readonly string _message;
+    public DotCraftAppServerEndpoint? CurrentEndpoint { get; set; }
     public List<string> EnsureWorkspacePaths { get; } = [];
     public List<string> ProbeWorkspacePaths { get; } = [];
 
@@ -467,20 +468,20 @@ internal sealed class FakeDotCraftProcessManager : IDotCraftAppServerProcessMana
     public FakeDotCraftProcessManager(bool connected, DotCraftAppServerEndpoint? endpoint, string? message = null)
     {
         _connected = connected;
-        _endpoint = endpoint;
+        CurrentEndpoint = endpoint;
         _message = message ?? (connected ? "DotCraft AppServer is reachable." : "DotCraft AppServer is not reachable.");
     }
 
     public Task<DotCraftAppServerEndpoint> EnsureAvailableAsync(string workspacePath, CancellationToken ct)
     {
         EnsureWorkspacePaths.Add(workspacePath);
-        return Task.FromResult(_endpoint ?? Endpoint);
+        return Task.FromResult(CurrentEndpoint ?? Endpoint);
     }
 
     public Task<DotCraftAppServerProbeResult> ProbeAsync(string workspacePath, CancellationToken ct)
     {
         ProbeWorkspacePaths.Add(workspacePath);
-        return Task.FromResult(new DotCraftAppServerProbeResult(_endpoint, _connected, _connected ? "ok" : "unreachable", _message));
+        return Task.FromResult(new DotCraftAppServerProbeResult(CurrentEndpoint, _connected, _connected ? "ok" : "unreachable", _message));
     }
 }
 
@@ -554,6 +555,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public int ThreadResumeAttemptCount { get; private set; }
     public int StartThreadCount { get; private set; }
     public int ConnectCount { get; private set; }
+    public string? ExpectedEndpoint { get; set; }
     public List<string> StartedThreadIds { get; } = [];
     public List<string> TurnThreadIds { get; } = [];
     public List<string> TurnPrompts { get; } = [];
@@ -564,6 +566,10 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public Task SteeredRunRelease { get; set; } = Task.CompletedTask;
     public bool FailThreadResume { get; set; }
     public int RejectTurnStarts { get; set; }
+    public bool EnforceSingleActiveTurn { get; set; }
+    public bool FailInterrupt { get; set; }
+    public int RejectedConcurrentTurnStarts { get; private set; }
+    private readonly ConcurrentDictionary<string, string> _activeTurns = new(StringComparer.Ordinal);
     public bool SupportsRuntimeAdditionalContext { get; set; } = true;
     public DynamicToolResult? LastToolResult { get; set; }
     public List<DynamicToolResult> ToolResults { get; } = [];
@@ -574,6 +580,8 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public Task<IDotCraftAppServerClient> ConnectAsync(string appServerUrl, CancellationToken ct, string? token = null)
     {
         ConnectCount++;
+        if (ExpectedEndpoint is not null && appServerUrl != ExpectedEndpoint)
+            throw new InvalidOperationException("Synthetic unavailable AppServer endpoint.");
         var connectionOutcome = ScriptedOutcomes.Count > 0 ? ScriptedOutcomes.Dequeue() : Outcome;
         return Task.FromResult<IDotCraftAppServerClient>(new FakeAppServerClient(
             connectionOutcome,
@@ -604,12 +612,23 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
                     throw new InvalidOperationException("Synthetic turn start rejection.");
                 }
 
+                var turnId = $"turn-test-{Interlocked.Increment(ref _turnCount)}";
+                if (EnforceSingleActiveTurn && !_activeTurns.TryAdd(threadId, turnId))
+                {
+                    RejectedConcurrentTurnStarts++;
+                    throw new InvalidOperationException($"A turn is already in progress on thread: {threadId}");
+                }
+
                 TurnThreadIds.Add(threadId);
-                _turnCount++;
-                return $"turn-test-{_turnCount}";
+                return turnId;
             },
             prompt => TurnPrompts.Add(prompt),
-            (threadId, turnId) => InterruptedTurns.Add((threadId, turnId)),
+            (threadId, turnId) =>
+            {
+                InterruptedTurns.Add((threadId, turnId));
+                if (FailInterrupt)
+                    throw new InvalidOperationException("Synthetic interrupt failure.");
+            },
             () => SupportsRuntimeAdditionalContext,
             () => UseMismatchedToolThreadId,
             () => FollowUpDraftRepository,
@@ -624,6 +643,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
         {
             LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt,
             TurnStartedProcessed = () => _firstTurnStartedProcessed.TrySetResult(),
+            TurnEnded = (threadId, turnId) => { _activeTurns.TryRemove(KeyValuePair.Create(threadId, turnId)); },
             SteeredRunRelease = () => SteeredRunRelease
         });
     }

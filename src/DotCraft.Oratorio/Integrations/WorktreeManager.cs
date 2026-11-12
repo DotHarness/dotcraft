@@ -26,7 +26,9 @@ public sealed record WorktreePrepareRequest(
     string BaseWorkspacePath,
     string? StackOntoBranch = null,
     string? StackOntoSha = null,
-    string? FetchBaseBranch = null);
+    string? FetchBaseBranch = null,
+    WorktreePrepareResult? ResumeFrom = null,
+    bool RequireExisting = false);
 
 public sealed record WorktreePrepareResult(
     string BaseWorkspacePath,
@@ -67,14 +69,25 @@ public sealed class WorktreeManager(
             ? request.StackOntoBranch ?? request.StackOntoSha!
             : ResolveBaseRef(request));
 
-        // Resolved before the repository lock because minting an installation
-        // token is a network round trip.
-        var credential = await ResolveTransportCredentialAsync(request, ct);
+        var resume = request.ResumeFrom;
+        var resuming = resume is not null &&
+            string.Equals(Path.GetFullPath(resume.WorktreePath), worktreePath, StringComparison.OrdinalIgnoreCase) &&
+            Directory.Exists(worktreePath);
+        var credential = resuming || request.RequireExisting ? null : await ResolveTransportCredentialAsync(request, ct);
 
         var repoLock = RepoLocks.GetOrAdd(repoRoot, _ => new SemaphoreSlim(1, 1));
         await repoLock.WaitAsync(ct);
         try
         {
+            if (resuming && Directory.Exists(worktreePath))
+            {
+                await WriteMetadataAsync(request, worktreeRoot, worktreePath, resume!.WorktreeBranch, resume.BaseRef, resume.BaseSha, ct);
+                return resume with { BaseWorkspacePath = repoRoot, WorktreeRoot = worktreeRoot };
+            }
+
+            if (request.RequireExisting)
+                throw new WorktreeException("implementationWorktreeMissing", "The implementation worktree is no longer available.");
+
             var baseSha = request.FetchBaseBranch is { } fetchBranch
                 ? await FetchBranchHeadAsync(repoRoot, fetchBranch, credential, ct)
                 : stackOntoExistingPr

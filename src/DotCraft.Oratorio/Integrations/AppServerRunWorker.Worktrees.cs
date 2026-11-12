@@ -61,6 +61,26 @@ public sealed partial class AppServerRunWorker
                 }
 
                 request = ConversationThreadStarter.CreateWorktreeRequest(run.RunId, item, headSha, baseWorkspacePath, stackOntoBranch, stackOntoSha);
+                if (run.Purpose == RunPurpose.Implementation)
+                {
+                    var previous = await db.Runs.AsNoTracking()
+                        .Where(x => x.RoundId == run.RoundId && x.Attempt < run.Attempt &&
+                            x.RunnerKind == "appServer" && x.Purpose == RunPurpose.Implementation &&
+                            (x.Status == RunStatus.Failed || x.Status == RunStatus.TimedOut) &&
+                            (x.WorktreeStatus == WorktreeStatus.Ready || x.WorktreeStatus == WorktreeStatus.CleanupPending ||
+                                x.WorktreeStatus == WorktreeStatus.Cleaned))
+                        .OrderByDescending(x => x.Attempt)
+                        .FirstOrDefaultAsync(ct);
+                    if (previous is { BaseWorkspacePath: not null, WorktreePath: not null, WorktreeBranch: not null, BaseRef: not null, BaseSha: not null } &&
+                        string.Equals(Path.GetFullPath(previous.BaseWorkspacePath), Path.GetFullPath(baseWorkspacePath), StringComparison.OrdinalIgnoreCase))
+                    {
+                        request = request with
+                        {
+                            ResumeFrom = new WorktreePrepareResult(previous.BaseWorkspacePath, previous.WorktreePath,
+                                previous.WorktreeBranch, previous.BaseRef, previous.BaseSha, Path.GetDirectoryName(previous.WorktreePath)!)
+                        };
+                    }
+                }
             }
 
             var result = await threadStarter.PrepareWorktreeAsync(request, ct);

@@ -146,6 +146,9 @@ public sealed class DiscussionTurnDelivery(
             return;
         }
 
+        if (turn.ThreadContextJson is { } context && ConversationThreadContext.Purpose(context) == RunPurpose.Implementation)
+            await workspaces.ClaimImplementationAsync(turn, turn.ThreadId, context, ct);
+
         if (sessions.Find(turn.ThreadId) is { } existing)
         {
             existing.Waiting[turn.DiscussionTurnId] = turn.StartedAt ?? turn.CreatedAt;
@@ -201,7 +204,9 @@ public sealed class DiscussionTurnDelivery(
             }
 
             string? workspaceSection = null;
-            if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson) &&
+            if (ConversationThreadContext.Purpose(thread.ContextJson) == RunPurpose.Implementation)
+                await workspaces.ClaimImplementationAsync(turn, thread.ThreadId, thread.ContextJson, ct);
+            else if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson) &&
                 session.ActiveTurnId is null && !await session.Client.HasBackgroundWorkAsync(session.ThreadId, ct))
             {
                 var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
@@ -268,7 +273,9 @@ public sealed class DiscussionTurnDelivery(
             }
 
             string? workspaceSection = null;
-            if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson))
+            if (ConversationThreadContext.Purpose(thread.ContextJson) == RunPurpose.Implementation)
+                await workspaces.ClaimImplementationAsync(turn, thread.ThreadId, thread.ContextJson, ct);
+            else if (DiscussionWorkspacePreparer.IsIndependent(turn, thread.ContextJson))
             {
                 var workspace = await workspaces.PrepareAsync(turn, workspaceResolver.ResolveWorkspacePath(turn.Item!.Repository), ct);
                 workspaceSection = DiscussionWorkspacePreparer.DescribeIndependentWorkspace(workspace);

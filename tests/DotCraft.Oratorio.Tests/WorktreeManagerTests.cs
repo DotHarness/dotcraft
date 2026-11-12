@@ -109,6 +109,66 @@ public sealed class WorktreeManagerTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImplementationRetry_PreservesExistingHeadAndChanges(bool dirty)
+    {
+        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: false, mismatchReviewRef: false);
+        try
+        {
+            var manager = CreateManager(repository.Root);
+            var request = new WorktreePrepareRequest("run-original", "implementation", "local", "task:implementation",
+                null, null, null, repository.CheckoutPath);
+            var first = await manager.PrepareAsync(request, CancellationToken.None);
+            var readme = Path.Combine(first.WorktreePath, "README.md");
+            await File.WriteAllTextAsync(readme, "Committed implementation progress.\n");
+            await GitAsync(first.WorktreePath, ["commit", "-am", "Implementation progress"]);
+            var head = (await GitAsync(first.WorktreePath, ["rev-parse", "HEAD"])).Trim();
+            if (dirty)
+            {
+                await File.WriteAllTextAsync(readme, "Staged implementation progress.\n");
+                await GitAsync(first.WorktreePath, ["add", "README.md"]);
+                await File.AppendAllTextAsync(readme, "Unstaged implementation progress.\n");
+                await File.WriteAllTextAsync(Path.Combine(first.WorktreePath, "new-file.txt"), "Untracked progress.\n");
+            }
+
+            var status = await GitAsync(first.WorktreePath, ["status", "--porcelain"]);
+            var staged = await GitAsync(first.WorktreePath, ["diff", "--cached"]);
+            var unstaged = await GitAsync(first.WorktreePath, ["diff"]);
+            await GitAsync(repository.CheckoutPath, ["checkout", "-b", "unrelated-checkout"]);
+            await File.WriteAllTextAsync(Path.Combine(repository.CheckoutPath, "README.md"), "Other branch.\n");
+            await GitAsync(repository.CheckoutPath, ["commit", "-am", "Advance another branch"]);
+
+            var resumed = await manager.PrepareAsync(request with
+            {
+                RunId = "run-retry",
+                SourceBranch = "does-not-exist",
+                ResumeFrom = first
+            }, CancellationToken.None);
+
+            Assert.Equal(first.WorktreePath, resumed.WorktreePath);
+            Assert.Equal(first.BaseRef, resumed.BaseRef);
+            Assert.Equal(first.BaseSha, resumed.BaseSha);
+            Assert.Equal(head, (await GitAsync(resumed.WorktreePath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal(first.WorktreeBranch, (await GitAsync(resumed.WorktreePath, ["branch", "--show-current"])).Trim());
+            Assert.Equal(status, await GitAsync(resumed.WorktreePath, ["status", "--porcelain"]));
+            Assert.Equal(staged, await GitAsync(resumed.WorktreePath, ["diff", "--cached"]));
+            Assert.Equal(unstaged, await GitAsync(resumed.WorktreePath, ["diff"]));
+            if (dirty)
+                Assert.Equal("Untracked progress.\n", await File.ReadAllTextAsync(Path.Combine(resumed.WorktreePath, "new-file.txt")));
+
+            await manager.CleanupAsync(new WorktreeCleanupRequest("run-original", repository.CheckoutPath, first.WorktreePath), CancellationToken.None);
+            Assert.True(Directory.Exists(resumed.WorktreePath));
+            await manager.CleanupAsync(new WorktreeCleanupRequest("run-retry", repository.CheckoutPath, first.WorktreePath), CancellationToken.None);
+            Assert.False(Directory.Exists(resumed.WorktreePath));
+        }
+        finally
+        {
+            DeleteDirectory(repository.Root);
+        }
+    }
+
     [Fact]
     public async Task CleanupAsync_LeavesWorktreeALaterOwnerPrepared()
     {

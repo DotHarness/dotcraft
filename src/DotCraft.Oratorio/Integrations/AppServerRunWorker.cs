@@ -21,7 +21,6 @@ public sealed partial class AppServerRunWorker(
     IClock clock,
     IDotCraftAppServerProcessManager processManager,
     IDotCraftAppServerClientFactory clientFactory,
-    IDotCraftAppServerEndpointResolver endpointResolver,
     IDotCraftWorkspaceResolver workspaceResolver,
     IOptionsMonitor<DotCraftOptions> options,
     IOptionsMonitor<OratorioAutomationOptions> automationOptions,
@@ -103,7 +102,7 @@ public sealed partial class AppServerRunWorker(
             var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
             activeRuns = await db.Runs.AsNoTracking()
                 .Where(x => x.RunnerKind == "appServer" && ActiveWorkerStatuses.Contains(x.Status))
-                .Select(x => new InterruptedRun(x.RunId, x.AppServerEndpoint, x.ThreadId, x.TurnId))
+                .Select(x => new InterruptedRun(x.RunId, x.ThreadId, x.TurnId))
                 .ToArrayAsync(ct);
         }
 
@@ -123,54 +122,6 @@ public sealed partial class AppServerRunWorker(
                 termination,
                 ct,
                 interruptError);
-        }
-    }
-
-    private async Task<(TimeoutTerminalResult Result, Exception? Error)> TerminatePersistedTurnAsync(
-        InterruptedRun run,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(run.AppServerEndpoint) ||
-            string.IsNullOrWhiteSpace(run.ThreadId) ||
-            string.IsNullOrWhiteSpace(run.TurnId))
-        {
-            return (TimeoutTerminalResult.MissingTurn, null);
-        }
-
-        try
-        {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeoutInterruptWait);
-            await using var client = await clientFactory.ConnectAsync(
-                run.AppServerEndpoint,
-                timeout.Token,
-                endpointResolver.ResolveConfiguredToken());
-            await client.ResumeThreadAsync(run.ThreadId, null, null, timeout.Token);
-            try
-            {
-                await client.InterruptTurnAsync(run.ThreadId, run.TurnId, timeout.Token);
-            }
-            catch (JsonRpcException ex) when (ex.RpcCode is -32013 or -32014)
-            {
-                return (TimeoutTerminalResult.AlreadyTerminal, null);
-            }
-
-            var result = await WaitForTerminationTerminalAsync(
-                run.RunId,
-                client,
-                "appServerRunnerInterrupted",
-                "The DotCraft AppServer runner was interrupted before it completed.",
-                timeout.Token);
-            return (result, null);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return (TimeoutTerminalResult.WaitTimedOut, null);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Interrupted AppServer run {RunId} could not confirm termination of persisted turn {TurnId}.", run.RunId, run.TurnId);
-            return (TimeoutTerminalResult.InterruptFailed, ex);
         }
     }
 
@@ -398,6 +349,9 @@ public sealed partial class AppServerRunWorker(
 
         try
         {
+            if (!await ConfirmImplementationRecoveryAsync(runId, runToken))
+                return;
+
             var baseWorkspacePath = await ResolveBaseWorkspacePathAsync(runId, runToken);
             var executionWorkspacePath = await PrepareExecutionWorkspaceAsync(runId, baseWorkspacePath, runToken);
             var endpoint = await processManager.EnsureAvailableAsync(baseWorkspacePath, runToken);
@@ -533,185 +487,6 @@ public sealed partial class AppServerRunWorker(
         }
     }
 
-    private async Task HandleForcedTerminationAsync(
-        string runId,
-        IDotCraftAppServerClient? client,
-        string? threadId,
-        RunTurn turn,
-        AppServerRunTerminationReason reason,
-        CancellationToken ct)
-    {
-        var turnId = turn.Id;
-        var (errorCode, reasonMessage) = reason == AppServerRunTerminationReason.Stalled
-            ? ("appServerStalled", "DotCraft AppServer run heartbeat stalled.")
-            : ("appServerTimedOut", "DotCraft AppServer run timed out.");
-        if (client is null || string.IsNullOrWhiteSpace(threadId) || string.IsNullOrWhiteSpace(turnId))
-        {
-            await CompleteForcedTerminationAsync(
-                runId,
-                RunStatus.TimedOut,
-                errorCode,
-                reasonMessage,
-                TimeoutTerminalResult.MissingTurn,
-                CancellationToken.None);
-            return;
-        }
-
-        if (!turn.Running)
-        {
-            await CompleteForcedTerminationAsync(
-                runId,
-                RunStatus.TimedOut,
-                errorCode,
-                reasonMessage,
-                TimeoutTerminalResult.AlreadyTerminal,
-                CancellationToken.None);
-            return;
-        }
-
-        runCoordinator.UpdateRunStatus(runId, turnId, "timedOut");
-        PublishRunStatus(runId, "timedOut", turnId, errorCode, reasonMessage, 95, $"{reasonMessage} Interrupting DotCraft turn.");
-        await UpdateRunHeartbeatAsync(runId, 95, $"{reasonMessage} Interrupting DotCraft turn.", turnId, CancellationToken.None);
-
-        var terminalResult = TimeoutTerminalResult.WaitTimedOut;
-        Exception? interruptError = null;
-        try
-        {
-            using var interruptTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            interruptTimeout.CancelAfter(TimeoutInterruptWait);
-            await client.InterruptTurnAsync(threadId, turnId, interruptTimeout.Token);
-            terminalResult = await WaitForTerminationTerminalAsync(runId, client, errorCode, reasonMessage, interruptTimeout.Token);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            terminalResult = TimeoutTerminalResult.WaitTimedOut;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "AppServer run {RunId} could not interrupt DotCraft turn {TurnId} after {TerminationReason}.", runId, turnId, reason);
-            interruptError = ex;
-            terminalResult = TimeoutTerminalResult.InterruptFailed;
-        }
-
-        await CompleteForcedTerminationAsync(
-            runId,
-            RunStatus.TimedOut,
-            errorCode,
-            reasonMessage,
-            terminalResult,
-            CancellationToken.None,
-            interruptError);
-    }
-
-    private async Task CompleteForcedTerminationAsync(
-        string runId,
-        RunStatus status,
-        string confirmedErrorCode,
-        string reasonMessage,
-        TimeoutTerminalResult terminalResult,
-        CancellationToken ct,
-        Exception? interruptError = null)
-    {
-        var terminationConfirmed = terminalResult is
-            TimeoutTerminalResult.Cancelled or
-            TimeoutTerminalResult.Failed or
-            TimeoutTerminalResult.Completed or
-            TimeoutTerminalResult.AlreadyTerminal;
-        var errorCode = terminationConfirmed ? confirmedErrorCode : "appServerTerminationUnconfirmed";
-        var message = BuildTerminationMessage(reasonMessage, terminalResult, interruptError);
-        logger.LogInformation(
-            "AppServer run {RunId} forced termination completed with {TerminalResult}; termination confirmed: {TerminationConfirmed}.",
-            runId,
-            terminalResult,
-            terminationConfirmed);
-        await FailRunAsync(
-            runId,
-            status,
-            errorCode,
-            message,
-            allowRetry: terminationConfirmed,
-            ct);
-    }
-
-    private async Task<TimeoutTerminalResult> WaitForTerminationTerminalAsync(
-        string runId,
-        IDotCraftAppServerClient client,
-        string errorCode,
-        string reasonMessage,
-        CancellationToken ct)
-    {
-        await foreach (var runEvent in client.ReadEventsAsync(ct))
-        {
-            if (runEvent.Type == "turn/completed")
-            {
-                PublishRunStatus(runId, "timedOut", null, errorCode, "DotCraft turn completed after Oratorio forced termination.", 100, "DotCraft turn completed after Oratorio forced termination.");
-                await UpdateRunHeartbeatAsync(runId, 98, "DotCraft turn completed after Oratorio forced termination.", null, CancellationToken.None);
-                return TimeoutTerminalResult.Completed;
-            }
-
-            if (runEvent is DotCraftRunEvent<TurnNotification> { Type: "turn/failed" } failed)
-            {
-                PublishRunStatus(runId, "timedOut", null, errorCode, TurnError(failed.Params), 100, "DotCraft turn failed after Oratorio forced termination.");
-                await UpdateRunHeartbeatAsync(runId, 98, "DotCraft turn failed after Oratorio forced termination.", null, CancellationToken.None);
-                return TimeoutTerminalResult.Failed;
-            }
-
-            if (runEvent.Type == "turn/cancelled")
-            {
-                PublishRunStatus(runId, "timedOut", null, errorCode, "DotCraft turn was cancelled after Oratorio forced termination.", 100, "DotCraft turn acknowledged the interrupt.");
-                await UpdateRunHeartbeatAsync(runId, 98, "DotCraft turn acknowledged the interrupt.", null, CancellationToken.None);
-                return TimeoutTerminalResult.Cancelled;
-            }
-
-            if (runEvent is DotCraftRunEvent<ItemNotification> { Type: "item/started" } started)
-            {
-                PublishItemSnapshot(runId, DrawerEvent.ItemStartedType, started.Params, streaming: true);
-                await UpdateRunHeartbeatAsync(runId, 95, $"DotCraft item started after forced termination: {reasonMessage}", null, CancellationToken.None);
-                continue;
-            }
-
-            if (runEvent is DotCraftRunEvent<ItemDeltaNotification> deltaEvent)
-            {
-                var delta = deltaEvent.Params.Delta;
-                if (!string.IsNullOrEmpty(delta))
-                {
-                    PublishItemDelta(runId, runEvent.Type, deltaEvent.Params);
-                }
-
-                await UpdateRunHeartbeatAsync(runId, 95, $"DotCraft agent produced output after forced termination: {reasonMessage}", null, CancellationToken.None);
-                continue;
-            }
-
-            if (runEvent is DotCraftRunEvent<ItemNotification> { Type: "item/completed" } completed)
-            {
-                PublishItemSnapshot(runId, DrawerEvent.ItemCompletedType, completed.Params, streaming: false);
-                await UpdateRunHeartbeatAsync(runId, 96, $"DotCraft item completed after forced termination: {reasonMessage}", null, CancellationToken.None);
-                continue;
-            }
-
-            if (runEvent is DotCraftRunEvent<PlanUpdatedNotification> { Type: "plan/updated" } plan)
-            {
-                PublishPlan(runId, plan.Params);
-            }
-        }
-
-        return TimeoutTerminalResult.Disconnected;
-    }
-
-    private static string BuildTerminationMessage(string reasonMessage, TimeoutTerminalResult result, Exception? interruptError = null) =>
-        result switch
-        {
-            TimeoutTerminalResult.Cancelled => $"{reasonMessage} DotCraft turn was interrupted and cancelled.",
-            TimeoutTerminalResult.Failed => $"{reasonMessage} DotCraft turn failed after the interrupt.",
-            TimeoutTerminalResult.Completed => $"{reasonMessage} DotCraft turn completed after forced termination and the late result was discarded.",
-            TimeoutTerminalResult.AlreadyTerminal => $"{reasonMessage} DotCraft reported that the persisted turn was already terminal.",
-            TimeoutTerminalResult.Disconnected => $"{reasonMessage} DotCraft turn interrupt was requested, but the AppServer disconnected before a terminal notification.",
-            TimeoutTerminalResult.WaitTimedOut => $"{reasonMessage} DotCraft turn interrupt was requested, but no terminal notification arrived within 30 seconds.",
-            TimeoutTerminalResult.InterruptFailed => $"{reasonMessage} DotCraft turn interrupt failed: {interruptError!.Message}.",
-            TimeoutTerminalResult.MissingTurn => $"{reasonMessage} No DotCraft turn was available to interrupt.",
-            _ => reasonMessage
-        };
-
     private async Task<OratorioDynamicToolSet> BuildDynamicToolSetAsync(string runId, CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
@@ -758,50 +533,6 @@ public sealed partial class AppServerRunWorker(
     {
         using var scope = scopeFactory.CreateScope();
         await scope.ServiceProvider.GetRequiredService<ThreadStateTracker>().RecordAsync(threadId, state, ct);
-    }
-
-    private async Task<AppServerThreadReuseCandidate?> FindCompatibleThreadAsync(
-        string runId,
-        string baseWorkspacePath,
-        string executionWorkspacePath,
-        IReadOnlyList<string> requiredDynamicTools,
-        CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var run = await db.Runs.AsNoTracking().FirstAsync(x => x.RunId == runId, ct);
-
-        if (run.RetryCount > 0)
-        {
-            var previousAttempt = await db.Runs.AsNoTracking()
-                .Where(x =>
-                    x.RoundId == run.RoundId &&
-                    x.Attempt == run.Attempt - 1 &&
-                    x.RunnerKind == "appServer" &&
-                    x.ThreadId != null &&
-                    x.PromptContextJson != null)
-                .FirstOrDefaultAsync(ct);
-            if (previousAttempt is not null &&
-                IsReviewThreadRecoveryError(previousAttempt.ErrorCode) &&
-                SameHead(previousAttempt.TargetHeadSha, run.TargetHeadSha) &&
-                ConversationThreadContext.IsReusable(
-                    previousAttempt.PromptContextJson!,
-                    baseWorkspacePath,
-                    executionWorkspacePath,
-                    requiredDynamicTools))
-            {
-                return new AppServerThreadReuseCandidate(previousAttempt.ThreadId!, $"failed attempt {ShortId(previousAttempt.RunId)}", IsRetryRecovery: true);
-            }
-
-            return null;
-        }
-
-        var candidates = await scope.ServiceProvider.GetRequiredService<ConversationThreadLocator>()
-            .ListAsync(run.ItemId, excludeRunId: runId, ct);
-        return candidates
-            .Where(x => ConversationThreadContext.IsReusable(x.ContextJson, baseWorkspacePath, executionWorkspacePath, requiredDynamicTools))
-            .Select(x => new AppServerThreadReuseCandidate(x.ThreadId, x.Origin, IsRetryRecovery: false))
-            .FirstOrDefault();
     }
 
     private async Task MarkDispatchingAsync(string runId, string endpoint, string appServerIdentity, CancellationToken ct)
@@ -1716,4 +1447,4 @@ public sealed partial class AppServerRunWorker(
 
 internal sealed record AppServerThreadReuseCandidate(string ThreadId, string Origin, bool IsRetryRecovery);
 
-internal sealed record InterruptedRun(string RunId, string? AppServerEndpoint, string? ThreadId, string? TurnId);
+internal sealed record InterruptedRun(string RunId, string? ThreadId, string? TurnId);

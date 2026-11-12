@@ -712,8 +712,12 @@ An independent discussion starts in the item's managed worktree at the latest
 head of its base branch: a local task's base branch when set, otherwise the
 repository's remote default branch as GitHub or GitLab reports it. Idle
 independent discussions refresh that target before resuming. Active
-conversations and implementation threads keep their execution context. The base
-checkout is never switched or pulled. Every question on an issue or local task
+conversations and implementation threads keep their execution context. Before a
+standalone discussion resumes an implementation thread, it claims the existing
+managed worktree without resetting it, so prior runs cannot clean it up during
+the discussion. Missing or already-cleaned worktrees fail explicitly rather
+than resuming a thread against a deleted execution directory. The base checkout
+is never switched or pulled. Every question on an issue or local task
 includes its title, body, URL and discussion history. See GitHub Mentions §11 for intake, failure and
 publication rules.
 
@@ -856,7 +860,11 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
   reconnect off);
 - resolves a workspace's AppServer through Hub, falling back to an explicitly
   configured endpoint when Hub cannot provide one;
-- starts a new thread or reuses a compatible one for an item;
+- starts a new thread or reuses a compatible one for an item. Implementation
+  retries, including operator retries, reuse the failed attempt's compatible
+  thread and rebind implementation tools; discussions after a failed
+  implementation retain that thread's execution context. If the thread cannot
+  be resumed, a new thread uses the preserved workspace;
 - declares its run tools when it starts a thread for a round that needs
   thread-bound callbacks (review, implementation and follow-up drafts,
   discussion replies, finding resolution);
@@ -873,9 +881,13 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
   remains (§6.1);
 - maps completion, failure, cancellation, timeout and disconnection to run
   status;
-- treats an SDK disconnect as a disconnection failure and recovers through the
-  bounded retry flow by resuming and re-subscribing, never replaying the
-  original turn;
+- treats an SDK disconnect as a disconnection failure. Before implementation
+  recovery prepares its workspace or starts another turn, it ensures the
+  workspace's current AppServer is available through normal discovery/startup,
+  reconnects to the recorded thread there and interrupts the recorded turn,
+  confirming it ended or was already terminal.
+  Unconfirmed termination blocks the retry rather than starting another writer
+  or consuming repeated retries on a still-running turn;
 - when a run or stall timeout fires after a turn started, asks DotCraft to
   interrupt the turn and waits briefly for a terminal signal before closing the
   run;
@@ -1005,18 +1017,26 @@ Managed worktrees and concurrency:
   reuse a clean, valid worktree. Worktrees live under the configured managed
   root, inside the repository by default, and branches use the configured
   prefix.
-- Reuse validates the worktree; a dirty or invalid one fails preparation with a
-  visible error instead of being destroyed. Each round's worktree is reset to
-  the requested base, except for Implementation Follow-up (§6.2).
+- Retrying an interrupted implementation, automatically or by operator dispatch
+  in the same round, continues its recorded managed worktree, branch and base
+  commit without checkout, reset or a clean-worktree requirement. It preserves
+  tracked, staged and untracked changes and rebinds cleanup ownership to the new
+  attempt. A cleanup record marked cleaned remains eligible for recovery when
+  the directory was retained for a later owner; filesystem availability decides
+  whether to resume it. A missing worktree is prepared normally.
+- Other preparation validates the worktree; a dirty or invalid one fails with a
+  visible error instead of being destroyed. Each new round's worktree is reset
+  to the requested base, except for Implementation Follow-up (§6.2).
 - Each run records its base workspace, worktree, branch, requested and resolved
   base, worktree state, errors, retry count and next retry, and scheduling
   lease. A worktree is in exactly one state: not required, preparing, ready,
   cleanup pending, cleaned or failed.
 - Scheduling uses explicit leases and configurable global, repository and
   source capacity limits.
-- Runs interrupted by a backend restart reconnect to their recorded endpoint
-  and interrupt the recorded turn before the retry policy applies; if
-  termination cannot be confirmed, the run closes without an automatic retry.
+- Runs interrupted by a backend restart ensure the workspace's current AppServer
+  is available and interrupt the recorded turn there before the retry policy
+  applies; if termination cannot be confirmed, the run closes without an
+  automatic retry.
   Stale heartbeats take the same path.
 - Transient preparation, AppServer, timeout, disconnection and stall failures
   may retry with exponential backoff capped at five minutes. The maximum run

@@ -221,6 +221,10 @@ the agent is doing, optionally followed by its latest streamed text. It is an
 ephemeral status line, not a conversation row: replaced in place as the run
 streams, never stored, and cleared when the run ends.
 
+Task descriptions, discussion messages, review summaries and findings, including
+file locations, support native text selection and copying in both the drawer
+and full task page. Action controls retain Desktop's non-selectable behavior.
+
 The Discussion composer closes Activity with separate `Add comment` and `Ask
 Oratorio` actions. `Add comment` records internal operator feedback. `Ask
 Oratorio` starts an Agent Discussion Turn whenever no Discussion Turn is
@@ -229,8 +233,10 @@ waiting to be delivered, including on a task that has never run. Agent replies a
 comments imported from the provider keep their author. Questions asked from the
 provider show their provider author, and their replies link to the published
 provider comment. The composer follows
-Desktop's line comment card. Enter adds a comment and Shift+Enter starts a new
-line; `Ask Oratorio` is only ever a button.
+Desktop's line comment card. Enter invokes `Ask Oratorio`, matching the primary
+button, and Shift+Enter starts a new line. `Add comment` remains an explicit
+button. Keyboard and button inquiries share the same empty-input, pending
+Discussion Turn and in-flight action guards for issues and pull or merge requests.
 
 When a pull or merge request's head differs from the one the latest successful
 review analyzed, the toolbar action becomes `Review new revision`. It requests
