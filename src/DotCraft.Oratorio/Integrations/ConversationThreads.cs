@@ -16,14 +16,15 @@ public sealed class ConversationThreadLocator(OratorioDbContext db)
 {
     private const int CandidateLimit = 10;
 
-    public async Task<IReadOnlyList<ConversationThread>> ListAsync(string itemId, string? excludeRunId, CancellationToken ct)
+    public async Task<IReadOnlyList<ConversationThread>> ListAsync(string itemId, string? excludeRunId, CancellationToken ct, bool includeFailedImplementations = false)
     {
         var runs = await db.Runs.AsNoTracking()
             .Where(x =>
                 x.ItemId == itemId &&
                 x.RunId != excludeRunId &&
                 x.RunnerKind == "appServer" &&
-                x.Status == RunStatus.Succeeded &&
+                (x.Status == RunStatus.Succeeded || includeFailedImplementations && x.Purpose == RunPurpose.Implementation &&
+                    (x.Status == RunStatus.Failed || x.Status == RunStatus.TimedOut)) &&
                 x.ThreadId != null &&
                 x.AppServerEndpoint != null &&
                 x.PromptContextJson != null)
@@ -51,7 +52,8 @@ public sealed class ConversationThreadLocator(OratorioDbContext db)
     }
 
     public async Task<ConversationThread?> FindDiscussionThreadAsync(string itemId, CancellationToken ct) =>
-        (await ListAsync(itemId, excludeRunId: null, ct)).FirstOrDefault(x => ConversationThreadContext.CarriesDiscussionReply(x.ContextJson));
+        (await ListAsync(itemId, excludeRunId: null, ct, includeFailedImplementations: true))
+            .FirstOrDefault(x => ConversationThreadContext.CarriesDiscussionReply(x.ContextJson));
 
     private static string ShortId(string value) => value.Length <= 12 ? value : value[..12];
 }

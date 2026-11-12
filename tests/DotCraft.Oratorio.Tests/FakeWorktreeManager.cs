@@ -19,6 +19,11 @@ internal sealed class FakeWorktreeManager : IWorktreeManager
             throw Failure;
         }
 
+        if (request.ResumeFrom is { } previous)
+        {
+            return Task.FromResult(previous);
+        }
+
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{request.Source}:{request.ExternalId}:{request.ItemId}")))[..10].ToLowerInvariant();
         var worktreePath = Path.Combine(request.BaseWorkspacePath, ".craft", "oratorio", "worktrees", key);
         var branch = $"oratorio/run/{key}";

@@ -229,8 +229,10 @@ waiting to be delivered, including on a task that has never run. Agent replies a
 comments imported from the provider keep their author. Questions asked from the
 provider show their provider author, and their replies link to the published
 provider comment. The composer follows
-Desktop's line comment card. Enter adds a comment and Shift+Enter starts a new
-line; `Ask Oratorio` is only ever a button.
+Desktop's line comment card. Enter invokes `Ask Oratorio`, matching the primary
+button, and Shift+Enter starts a new line. `Add comment` remains an explicit
+button. Keyboard and button inquiries share the same empty-input, pending
+Discussion Turn and in-flight action guards for issues and pull or merge requests.
 
 When a pull or merge request's head differs from the one the latest successful
 review analyzed, the toolbar action becomes `Review new revision`. It requests

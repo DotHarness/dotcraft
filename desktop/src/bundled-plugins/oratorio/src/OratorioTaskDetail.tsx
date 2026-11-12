@@ -286,6 +286,12 @@ function Activity(props: PartProps) {
     void mutate('comment', oratorioClient.addComment(task.id, body, task.round || undefined), t('toastCommentAdded')).then((saved) => { if (saved) setComment('') })
   }
 
+  function askAgent(): void {
+    const body = comment.trim()
+    if (!body || busy || discussionBusy) return
+    void mutate('ask', oratorioClient.askAgent(task.id, body, task.round || undefined), t('toastDiscussionStarted')).then((saved) => { if (saved) setComment('') })
+  }
+
   return <section className="ora-activity" aria-label={t('sectionActivity')}>
     <h2>{t('sectionActivity')}</h2>
     {entries.length ? <ol className="ora-timeline">{entries.map((entry) => <li key={entry.key}>{entry.node}</li>)}</ol> : null}
@@ -294,10 +300,10 @@ function Activity(props: PartProps) {
       onChange={setComment}
       placeholder={t('discussionPlaceholder')}
       ariaLabel={t('discussionReply')}
-      onSubmit={addComment}
+      onSubmit={askAgent}
       actions={<>
-        <Button variant="secondary" size="sm" disabled={!comment.trim()} loading={busy === 'comment'} onClick={addComment}>{t('addComment')}</Button>
-        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy} loading={busy === 'ask'} onClick={() => { const body = comment.trim(); void mutate('ask', oratorioClient.askAgent(task.id, body, task.round || undefined), t('toastDiscussionStarted')).then((saved) => { if (saved) setComment('') }) }}>{t('askAgent')}</Button>
+        <Button variant="secondary" size="sm" disabled={!comment.trim() || busy !== null} loading={busy === 'comment'} onClick={addComment}>{t('addComment')}</Button>
+        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy || busy !== null} loading={busy === 'ask'} onClick={askAgent}>{t('askAgent')}</Button>
       </>}
     />
   </section>

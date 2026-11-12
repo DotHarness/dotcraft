@@ -856,7 +856,11 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
   reconnect off);
 - resolves a workspace's AppServer through Hub, falling back to an explicitly
   configured endpoint when Hub cannot provide one;
-- starts a new thread or reuses a compatible one for an item;
+- starts a new thread or reuses a compatible one for an item. Implementation
+  retries, including operator retries, reuse the failed attempt's compatible
+  thread and rebind implementation tools; discussions after a failed
+  implementation retain that thread's execution context. If the thread cannot
+  be resumed, a new thread uses the preserved workspace;
 - declares its run tools when it starts a thread for a round that needs
   thread-bound callbacks (review, implementation and follow-up drafts,
   discussion replies, finding resolution);
@@ -1005,9 +1009,14 @@ Managed worktrees and concurrency:
   reuse a clean, valid worktree. Worktrees live under the configured managed
   root, inside the repository by default, and branches use the configured
   prefix.
-- Reuse validates the worktree; a dirty or invalid one fails preparation with a
-  visible error instead of being destroyed. Each round's worktree is reset to
-  the requested base, except for Implementation Follow-up (§6.2).
+- Retrying an interrupted implementation, automatically or by operator dispatch
+  in the same round, continues its recorded managed worktree, branch and base
+  commit without checkout, reset or a clean-worktree requirement. It preserves
+  tracked, staged and untracked changes and rebinds cleanup ownership to the new
+  attempt. A missing worktree is prepared normally.
+- Other preparation validates the worktree; a dirty or invalid one fails with a
+  visible error instead of being destroyed. Each new round's worktree is reset
+  to the requested base, except for Implementation Follow-up (§6.2).
 - Each run records its base workspace, worktree, branch, requested and resolved
   base, worktree state, errors, retry count and next retry, and scheduling
   lease. A worktree is in exactly one state: not required, preparing, ready,

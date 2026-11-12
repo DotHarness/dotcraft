@@ -760,50 +760,6 @@ public sealed partial class AppServerRunWorker(
         await scope.ServiceProvider.GetRequiredService<ThreadStateTracker>().RecordAsync(threadId, state, ct);
     }
 
-    private async Task<AppServerThreadReuseCandidate?> FindCompatibleThreadAsync(
-        string runId,
-        string baseWorkspacePath,
-        string executionWorkspacePath,
-        IReadOnlyList<string> requiredDynamicTools,
-        CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var run = await db.Runs.AsNoTracking().FirstAsync(x => x.RunId == runId, ct);
-
-        if (run.RetryCount > 0)
-        {
-            var previousAttempt = await db.Runs.AsNoTracking()
-                .Where(x =>
-                    x.RoundId == run.RoundId &&
-                    x.Attempt == run.Attempt - 1 &&
-                    x.RunnerKind == "appServer" &&
-                    x.ThreadId != null &&
-                    x.PromptContextJson != null)
-                .FirstOrDefaultAsync(ct);
-            if (previousAttempt is not null &&
-                IsReviewThreadRecoveryError(previousAttempt.ErrorCode) &&
-                SameHead(previousAttempt.TargetHeadSha, run.TargetHeadSha) &&
-                ConversationThreadContext.IsReusable(
-                    previousAttempt.PromptContextJson!,
-                    baseWorkspacePath,
-                    executionWorkspacePath,
-                    requiredDynamicTools))
-            {
-                return new AppServerThreadReuseCandidate(previousAttempt.ThreadId!, $"failed attempt {ShortId(previousAttempt.RunId)}", IsRetryRecovery: true);
-            }
-
-            return null;
-        }
-
-        var candidates = await scope.ServiceProvider.GetRequiredService<ConversationThreadLocator>()
-            .ListAsync(run.ItemId, excludeRunId: runId, ct);
-        return candidates
-            .Where(x => ConversationThreadContext.IsReusable(x.ContextJson, baseWorkspacePath, executionWorkspacePath, requiredDynamicTools))
-            .Select(x => new AppServerThreadReuseCandidate(x.ThreadId, x.Origin, IsRetryRecovery: false))
-            .FirstOrDefault();
-    }
-
     private async Task MarkDispatchingAsync(string runId, string endpoint, string appServerIdentity, CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
