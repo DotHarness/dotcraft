@@ -49,6 +49,7 @@ interface TurnProjection {
   turn: HistoryTurn | undefined
   fallbackOrigin: string | null
   consumesOrigin: boolean
+  workingAgentPaths: ReadonlySet<string> | undefined
   stopped: boolean
   retry: number | null | undefined
   changes: TurnChanges | null
@@ -67,12 +68,12 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
   let previous: TranscriptEntry[] = []
   let echoes: ChatHistory['echoes'] | null = null
   let echoEntries: TranscriptEntry[] = []
-  let input: { history: ChatHistory; workspacePath: string | null; stopped: readonly string[] | undefined; spawnedFrom: string | null | undefined } | null = null
+  let input: ({ history: ChatHistory; workspacePath: string | null } & TranscriptOptions) | null = null
 
   return {
     project(history, workspacePath = null, options = {}) {
-      if (input?.history === history && input.workspacePath === workspacePath && input.stopped === options.stopped && input.spawnedFrom === options.spawnedFrom) return previous
-      input = { history, workspacePath, stopped: options.stopped, spawnedFrom: options.spawnedFrom }
+      if (input?.history === history && input.workspacePath === workspacePath && input.stopped === options.stopped && input.spawnedFrom === options.spawnedFrom && input.workingAgentPaths === options.workingAgentPaths) return previous
+      input = { history, workspacePath, ...options }
       const stopped = new Set(options.stopped ?? [])
       const firstTurn = history.olderCursor ? null : (history.turns[0]?.id ?? null)
       const approvals = new Map<string, HistoryItem>()
@@ -117,7 +118,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         const wasStopped = stopped.has(chunk.id)
         const old = turnsCache.get(key)
         const inputs = relatedItems.get(chunk.id)!
-        if (old && old.turn === turn && old.fallbackOrigin === fallbackOrigin && old.stopped === wasStopped && old.retry === retry && old.changes === turnChanges && sameReferences(old.items, inputs)) {
+        if (old && old.turn === turn && old.fallbackOrigin === fallbackOrigin && old.stopped === wasStopped && old.retry === retry && old.changes === turnChanges && old.workingAgentPaths === options.workingAgentPaths && sameReferences(old.items, inputs)) {
           nextCache.set(key, old)
           if (old.consumesOrigin) threadOrigin = null
           output.push(...old.entries)
@@ -138,6 +139,8 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
             question: questions.get(inTurn(item.turnId, str(item.payload.requestId))),
             turn,
             fallbackOrigin: origin,
+            subagentWorking: item.payload.triggerKind === 'subagent' && item.payload.triggerStatus === 'completed'
+              && options.workingAgentPaths?.has(str(item.payload.triggerRefId).trim()) === true,
           })
           if (projection.entry) {
             body.push(projection.entry)
@@ -159,7 +162,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         body.push(...actions)
         const summarized = !!turn?.summary && turn.summary.itemCount > chunk.items.length
         const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
-        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), stopped: wasStopped, retry, changes: turnChanges, entries }
+        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, entries }
         nextCache.set(key, next)
         output.push(...entries)
       }

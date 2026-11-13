@@ -93,6 +93,7 @@ export interface ThreadAction {
 }
 
 export interface TranscriptOptions {
+  workingAgentPaths?: ReadonlySet<string>
   stopped?: readonly string[]
   spawnedFrom?: string | null
 }

@@ -41,6 +41,25 @@ export function chatTaskTree(computer: ComputerState, key: string): TaskTree {
   return collect(branchesOf(computer, key))
 }
 
+export function createWorkingSubagentSelector(): (computer: ComputerState, key: string) => ReadonlySet<string> {
+  let previous: ReadonlySet<string> = new Set()
+  return (computer, key) => {
+    const workingThreads = new Set<string>()
+    const paths = new Set<string>()
+    for (const branch of branchesOf(computer, key).reverse()) {
+      if (chatTasks(branch.sources, branch.activeTurnId).running.length > 0) workingThreads.add(branch.threadId)
+      for (const task of branch.sources?.agent ?? []) {
+        if (task.kind !== 'agent' || !task.open || (task.status !== 'running' && !workingThreads.has(task.id))) continue
+        workingThreads.add(branch.threadId)
+        if (task.agentPath) paths.add(task.agentPath)
+      }
+    }
+    if (paths.size === previous.size && [...paths].every((path) => previous.has(path))) return previous
+    previous = paths
+    return paths
+  }
+}
+
 export function createTaskTreeSelector(): (computer: ComputerState, key: string) => TaskTree {
   let previous: Branch[] = []
   let result: TaskTree = { running: [], completed: [] }

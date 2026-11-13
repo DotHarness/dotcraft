@@ -392,10 +392,11 @@ export function toolEntry(
   }
 }
 
-export function subagentEndingEntry(item: HistoryItem): ToolEntry | null {
+export function subagentEndingEntry(item: HistoryItem, subagentWorking = false): ToolEntry | null {
   const name = str(item.payload.triggerLabel).trim() || str(item.payload.triggerRefId).trim()
   if (!name) return null
   const status = str(item.payload.triggerStatus)
+  if (status === 'completed' && subagentWorking) return null
   return {
     kind: 'tool',
     id: entryId(item),

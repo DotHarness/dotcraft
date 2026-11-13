@@ -73,8 +73,14 @@ in the Thread (matched by agent path) stops tracking live status, since that end
 a group whose entries all have one keeps reading started working without live treatment. An ending
 drained into a running parent Turn appears at its place as a row naming the ended agents, with the
 same identity and navigation as spawn entries; consecutive endings with the same outcome share a
-row, and failed or cancelled endings read as interrupted. A Turn woken by endings marks its activity
-boundary with the first ended agent's avatar.
+row, and failed or cancelled endings read as interrupted. On Desktop and mobile, do not render a
+successful ending while the child is still working: it has an active Turn, known active background
+terminals, running or paused Workflows, or working descendants. Existing activity surfaces retain the
+running state; the ending notice must not become a new running notice or label. Once that work settles,
+the original finished row becomes visible without new transcript items. Failed, cancelled, and
+`TaskStop` outcomes retain their historical meaning. A Turn woken by endings marks its activity
+boundary with the first ended agent's avatar; while that agent is still working, its accessible
+description uses the existing generic subagent origin instead of claiming completion.
 
 ## 3. Spawn lifecycle
 
