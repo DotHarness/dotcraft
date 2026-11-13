@@ -259,6 +259,7 @@ public sealed class ThreadStoreTests : IDisposable
         }
 
         await _store.LoadIndexAsync();
+        await _store.ReadThreadSnapshotAsync(thread.Id);
 
         using (var connection = OpenStateConnection())
         {

@@ -125,7 +125,7 @@ public sealed class ThreadProjectionMetadataTests : IDisposable
     }
 
     [Fact]
-    public async Task DeletingStateDatabase_ListingRebuildsIdenticalSummariesAndReferences()
+    public async Task DeletingStateDatabase_ListingRecoversSummariesAndHistoryRepairsReferencesOnDemand()
     {
         var attachment = CreateAttachment("rebuilt.png");
         List<ThreadSummary> before;
@@ -153,13 +153,19 @@ public sealed class ThreadProjectionMetadataTests : IDisposable
         var after = await rebuilt.LoadIndexAsync();
 
         Assert.Equal(Describe(before), Describe(after));
+        Assert.Empty(ReadReferences());
+        Assert.Null(ReadFirstUserMessage());
+        Assert.Equal(0, rebuilt.ProjectedRolloutBytes);
+        Assert.True(File.Exists(attachment));
+
+        await rebuilt.ReadThreadSnapshotAsync(ThreadId);
+
         Assert.Equal(referencesBefore, ReadReferences());
         Assert.Equal(firstUserMessageBefore, ReadFirstUserMessage());
-        Assert.True(File.Exists(attachment));
     }
 
     [Fact]
-    public async Task ExternalAppend_ProjectsOnlyTheAppendedSuffix()
+    public async Task ExternalAppend_RepairsSummaryWithoutProjectingHistoryUntilRead()
     {
         await using var store = new ThreadStore(_root);
         var thread = CreateThread();
@@ -174,6 +180,11 @@ public sealed class ThreadProjectionMetadataTests : IDisposable
         var summary = Assert.Single(await store.LoadIndexAsync());
 
         Assert.Equal("Appended", summary.DisplayName);
+        Assert.Equal(projectedBefore, store.ProjectedRolloutBytes);
+
+        var snapshot = await store.ReadThreadSnapshotAsync(ThreadId);
+
+        Assert.Equal("Appended", snapshot.Thread.DisplayName);
         Assert.Equal(Encoding.UTF8.GetByteCount(suffix), store.ProjectedRolloutBytes - projectedBefore);
     }
 

@@ -7,13 +7,35 @@ export interface ApplyRuntimeSnapshotOptions {
   baseline?: ReadonlyMap<string, ThreadRuntimeSnapshot>
 }
 
-type RuntimeState = Pick<ThreadStore,
-  | 'threadList' | 'activeThread' | 'hiddenThreadIds'
+type RuntimeCollections = Pick<ThreadStore,
   | 'runtimeSnapshots' | 'runningTurnThreadIds'
   | 'parkedApprovals' | 'parkedUserInputs'
   | 'pendingApprovalThreadIds' | 'pendingUserInputThreadIds'
   | 'pendingPlanConfirmationThreadIds'
 >
+
+type RuntimeState = RuntimeCollections & Pick<ThreadStore, 'threadList' | 'activeThread' | 'hiddenThreadIds'>
+
+// Collections must be cloned by the caller before hydration.
+export function hydrateThreadRuntimeCollections(
+  state: RuntimeCollections,
+  threadId: string,
+  runtime: ThreadRuntimeSnapshot,
+  isDesktopOrigin: boolean
+): void {
+  state.runtimeSnapshots.set(threadId, runtime)
+  if (runtime.running) state.runningTurnThreadIds.add(threadId)
+  else state.runningTurnThreadIds.delete(threadId)
+  if (!runtime.waitingOnApproval) state.parkedApprovals.delete(threadId)
+  if (!runtime.waitingOnInput) state.parkedUserInputs.delete(threadId)
+
+  if (runtime.waitingOnApproval && isDesktopOrigin) state.pendingApprovalThreadIds.add(threadId)
+  else state.pendingApprovalThreadIds.delete(threadId)
+  if (runtime.waitingOnInput && isDesktopOrigin) state.pendingUserInputThreadIds.add(threadId)
+  else state.pendingUserInputThreadIds.delete(threadId)
+  if (runtime.waitingOnPlanConfirmation && isDesktopOrigin) state.pendingPlanConfirmationThreadIds.add(threadId)
+  else state.pendingPlanConfirmationThreadIds.delete(threadId)
+}
 
 export function applyThreadRuntimeSnapshot(
   state: RuntimeState,
@@ -24,48 +46,19 @@ export function applyThreadRuntimeSnapshot(
   if (state.hiddenThreadIds.has(threadId)
     || (options.baseline && state.runtimeSnapshots.get(threadId) !== options.baseline.get(threadId))) return state
   const runtime = normalizeThreadRuntime(incoming)
-  const runtimeSnapshots = new Map(state.runtimeSnapshots)
-  runtimeSnapshots.set(threadId, runtime)
-
-  const runningTurnThreadIds = new Set(state.runningTurnThreadIds)
-  if (runtime.running) runningTurnThreadIds.add(threadId)
-  else runningTurnThreadIds.delete(threadId)
-
-  const parkedApprovals = new Map(state.parkedApprovals)
-  if (!runtime.waitingOnApproval) parkedApprovals.delete(threadId)
-  const parkedUserInputs = new Map(state.parkedUserInputs)
-  if (!runtime.waitingOnInput) parkedUserInputs.delete(threadId)
-
-  const pendingApprovalThreadIds = new Set(state.pendingApprovalThreadIds)
-  if (runtime.waitingOnApproval && options.isDesktopOrigin) {
-    pendingApprovalThreadIds.add(threadId)
-  } else {
-    pendingApprovalThreadIds.delete(threadId)
+  const collections: RuntimeCollections = {
+    runtimeSnapshots: new Map(state.runtimeSnapshots),
+    runningTurnThreadIds: new Set(state.runningTurnThreadIds),
+    parkedApprovals: new Map(state.parkedApprovals),
+    parkedUserInputs: new Map(state.parkedUserInputs),
+    pendingApprovalThreadIds: new Set(state.pendingApprovalThreadIds),
+    pendingUserInputThreadIds: new Set(state.pendingUserInputThreadIds),
+    pendingPlanConfirmationThreadIds: new Set(state.pendingPlanConfirmationThreadIds)
   }
-
-  const pendingUserInputThreadIds = new Set(state.pendingUserInputThreadIds)
-  if (runtime.waitingOnInput && options.isDesktopOrigin) {
-    pendingUserInputThreadIds.add(threadId)
-  } else {
-    pendingUserInputThreadIds.delete(threadId)
-  }
-
-  const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-  if (runtime.waitingOnPlanConfirmation && options.isDesktopOrigin) {
-    pendingPlanConfirmationThreadIds.add(threadId)
-  } else {
-    pendingPlanConfirmationThreadIds.delete(threadId)
-  }
-
+  hydrateThreadRuntimeCollections(collections, threadId, runtime, options.isDesktopOrigin)
   return {
     threadList: state.threadList.map((thread) => thread.id === threadId ? { ...thread, runtime } : thread),
     activeThread: state.activeThread?.id === threadId ? { ...state.activeThread, runtime } : state.activeThread,
-    runtimeSnapshots,
-    runningTurnThreadIds,
-    parkedApprovals,
-    parkedUserInputs,
-    pendingApprovalThreadIds,
-    pendingUserInputThreadIds,
-    pendingPlanConfirmationThreadIds
+    ...collections
   }
 }

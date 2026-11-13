@@ -1,5 +1,7 @@
-using DotCraft.Persistence.Upgrades;
+using System.Diagnostics;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Persistence;
 
@@ -13,6 +15,7 @@ public sealed class WorkspaceStateDatabase : IDisposable
 
     private readonly string _connectionString;
     private readonly bool _readOnly;
+    private readonly ILogger<WorkspaceStateDatabase> _logger;
     private readonly object _initLock = new();
     private bool _initialized;
 
@@ -29,9 +32,10 @@ public sealed class WorkspaceStateDatabase : IDisposable
     /// When true, opens the existing state database without creating directories,
     /// creating schema or issuing write-oriented pragmas.
     /// </param>
-    public WorkspaceStateDatabase(string botPath, bool readOnly)
+    public WorkspaceStateDatabase(string botPath, bool readOnly, ILogger<WorkspaceStateDatabase>? logger = null)
     {
         _readOnly = readOnly;
+        _logger = logger ?? NullLogger<WorkspaceStateDatabase>.Instance;
         if (!readOnly)
             Directory.CreateDirectory(botPath);
 
@@ -143,11 +147,27 @@ public sealed class WorkspaceStateDatabase : IDisposable
                 return;
 
             using var connection = new SqliteConnection(_connectionString);
-            connection.Open();
-            WorkspaceStateSchema.EnsureInitialized(connection);
-            WorkspaceUpgrades.Apply(connection);
+            InitializeStage(_logger, "workspace-state-open", connection.Open);
+            WorkspaceStateSchema.EnsureInitialized(connection, _logger);
             _initialized = true;
         }
+    }
+
+    internal static void InitializeStage(ILogger logger, string stage, Action initialize)
+    {
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            initialize();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Startup stage {Stage} failed after {ElapsedMs}ms",
+                stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            throw;
+        }
+        logger.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
+            stage, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     private static long ReadPragmaLong(SqliteConnection connection, string pragmaName)

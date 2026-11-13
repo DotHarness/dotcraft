@@ -144,7 +144,6 @@ internal sealed partial class ThreadRequestHandler(
     {
         var msg = request.Message;
         var p = request.Params;
-        RejectRemovedFields(p.ExtensionData, "excludeTurns");
         var promptSuggestion = ValueOrDefault(p.PromptSuggestion) == true;
         var sideChat = ValueOrDefault(p.SideChat) == true;
         if (promptSuggestion && ValueOrDefault(p.Ephemeral) != true)
@@ -216,52 +215,29 @@ internal sealed partial class ThreadRequestHandler(
         var scope = ResolveThreadDiscoveryScope(p.Scope);
         var crossOrigins = scope == ThreadDiscoveryScope.Workspace
             ? null
-            : ResolveCrossChannelOriginsForThreadList(p);
-        var threads = await sessionService.FindThreadsAsync(
-            identity,
-            p.IncludeArchived ?? false,
-            crossOrigins,
-            ct,
-            p.IncludeSubAgents ?? false,
-            scope);
-
-        if (p.IncludeInternal != true)
-        {
-            threads = threads
-                .Where(t => !ThreadVisibility.IsInternal(t))
-                .ToList();
-        }
-
-        if (!string.IsNullOrEmpty(p.ChannelName))
-        {
-            threads = threads
-                .Where(t => string.Equals(t.OriginChannel, p.ChannelName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        if (!string.IsNullOrWhiteSpace(p.Query))
-        {
-            var query = p.Query.Trim();
-            threads = threads
-                .Where(t => MatchesThreadListQuery(t, query))
-                .ToList();
-        }
-
-        var totalMatched = threads.Count;
+            : p.CrossChannelOrigins;
         var isPaged = p.Limit.HasValue || !string.IsNullOrWhiteSpace(p.Cursor);
         var limit = isPaged
             ? NormalizePageLimit(p.Limit, ThreadListDefaultPageLimit, ThreadListMaxPageLimit, "limit")
-            : totalMatched;
-        var offset = DecodeCursorOffset(p.Cursor, ThreadListCursorKind);
-        if (!isPaged && offset != 0)
-            throw AppServerErrors.InvalidParams("'cursor' requires pagination.");
-
-        var page = isPaged
-            ? threads.Skip(offset).Take(limit).ToList()
-            : threads.ToList();
-        var nextOffset = offset + page.Count;
-        var nextCursor = isPaged && nextOffset < totalMatched
-            ? EncodeCursor(ThreadListCursorKind, nextOffset)
+            : (int?)null;
+        var cursor = DecodeThreadListCursor(p.Cursor);
+        var resultPage = await sessionService.ListThreadsAsync(new ThreadListQuery
+        {
+            Identity = identity,
+            Scope = scope,
+            IncludeArchived = p.IncludeArchived ?? false,
+            IncludeSubAgents = p.IncludeSubAgents ?? false,
+            IncludeInternal = p.IncludeInternal ?? false,
+            CrossChannelOrigins = crossOrigins,
+            ChannelName = p.ChannelName,
+            Query = p.Query,
+            Cursor = cursor,
+            Limit = limit
+        }, ct);
+        var page = resultPage.Items;
+        var totalMatched = resultPage.TotalMatched;
+        var nextCursor = resultPage.HasMore
+            ? EncodeThreadListCursor(new ThreadListCursor(page[^1].LastActiveAt, page[^1].Id))
             : null;
 
         var data = new List<Contract.ThreadSummary>();
@@ -286,7 +262,6 @@ internal sealed partial class ThreadRequestHandler(
         AppServerTypedRequest<Contract.ThreadReadParams> request,
         CancellationToken ct)
     {
-        RejectRemovedFields(request.Params.ExtensionData, "includeTurns", "turnLimit", "cursor");
         var snapshot = await sessionService.ReadThreadSnapshotAsync(request.Params.ThreadId, ct);
         var result = new Contract.ThreadReadResult
         {
@@ -623,9 +598,6 @@ internal sealed partial class ThreadRequestHandler(
             throw AppServerErrors.InvalidParams($"'config.developerInstructions' must be at most {MaxDeveloperInstructionsLength} characters.");
     }
 
-    private static IReadOnlyList<string>? ResolveCrossChannelOriginsForThreadList(Contract.ThreadListParams p) =>
-        p.CrossChannelOrigins;
-
     private static ThreadDiscoveryScope ResolveThreadDiscoveryScope(string? scope)
     {
         if (string.IsNullOrWhiteSpace(scope)
@@ -642,19 +614,6 @@ internal sealed partial class ThreadRequestHandler(
             nameof(scope));
     }
 
-    private static bool MatchesThreadListQuery(ThreadSummary summary, string query)
-    {
-        static bool Contains(string? value, string query) =>
-            !string.IsNullOrWhiteSpace(value)
-            && value.Contains(query, StringComparison.OrdinalIgnoreCase);
-
-        return Contains(summary.Id, query)
-               || Contains(summary.DisplayName, query)
-               || Contains(summary.OriginChannel, query)
-               || Contains(summary.ChannelContext, query)
-               || Contains(summary.Status.ToString(), query);
-    }
-
     private static int NormalizePageLimit(int? limit, int defaultLimit, int maxLimit, string fieldName)
     {
         var value = limit ?? defaultLimit;
@@ -663,19 +622,6 @@ internal sealed partial class ThreadRequestHandler(
         if (value > maxLimit)
             throw AppServerErrors.InvalidParams($"'{fieldName}' must be at most {maxLimit}.");
         return value;
-    }
-
-    private static void RejectRemovedFields(
-        IDictionary<string, JsonElement>? extensionData,
-        params string[] removedFields)
-    {
-        if (extensionData is null)
-            return;
-        foreach (var field in removedFields)
-        {
-            if (extensionData.ContainsKey(field))
-                throw AppServerErrors.InvalidParams($"'{field}' is no longer supported.");
-        }
     }
 
     private static string EncodeCursor(string kind, int offset)
@@ -707,11 +653,7 @@ internal sealed partial class ThreadRequestHandler(
 
             return offset;
         }
-        catch (AppServerException)
-        {
-            throw;
-        }
-        catch (Exception)
+        catch (FormatException)
         {
             throw AppServerErrors.InvalidParams("'cursor' is invalid.");
         }

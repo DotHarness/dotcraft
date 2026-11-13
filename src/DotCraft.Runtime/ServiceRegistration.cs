@@ -105,7 +105,8 @@ public static class ServiceRegistration
         services.TryAddSingleton(sp => new PluginDiscoveryService(paths,
             logger: sp.GetService<ILogger<PluginDiscoveryService>>()));
         services.TryAddSingleton<PluginConfigStore>();
-        services.AddSingleton(_ => new WorkspaceStateDatabase(dataPath));
+        services.AddSingleton(sp => new WorkspaceStateDatabase(
+            dataPath, readOnly: false, logger: sp.GetService<ILogger<WorkspaceStateDatabase>>()));
         services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
         services.AddSingleton<IBackgroundTerminalService>(sp =>
             new BackgroundTerminalService(

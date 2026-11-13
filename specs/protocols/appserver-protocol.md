@@ -394,12 +394,12 @@ List threads matching an identity.
 - `includeArchived` (default `false`).
 - `includeSubAgents` (default `false`): include session-backed SubAgent children; children of archived parents stay hidden unless `includeArchived`. Per-parent views use `subagent/children/list`.
 - `includeInternal` (default `false`): include DotCraft-owned helper threads (marked `dotcraft.internal` or with known internal origins). Diagnostics only.
-- `crossChannelOrigins`: when an array, non-empty values also return threads whose `originChannel` is listed and whose `workspacePath` and `userId` match `identity`, ignoring `channelContext` ([Session Core §9.5](../architecture/session-core.md#95-cross-channel-resume-protocol)).
-- `channelName`: case-insensitive post-filter on `originChannel`.
+- `crossChannelOrigins`: when non-empty, also return workspace threads whose `originChannel` is listed, ignoring `userId` and `channelContext`, including synthetic per-run identities ([Session Core §9.5](../architecture/session-core.md#95-cross-channel-resume-protocol)).
+- `channelName`: case-insensitive filter on `originChannel`.
 - `query`: case-insensitive text filter over id, display name, origin channel, status, and channel context.
 - `limit` (1-100; 50 when only `cursor` is given; full list when both are omitted) and opaque `cursor` (invalid → `InvalidParams`).
 
-**Result**: `{ data: ThreadSummary[], nextCursor, totalMatched }`. Summaries carry the same `worktree` and `gitInfo` as the Thread object. Ordered by `lastActiveAt` descending; filters apply before pagination; `totalMatched` counts after filters and before pagination.
+**Result**: `{ data: ThreadSummary[], nextCursor, totalMatched }`. Summaries carry the same `worktree` and `gitInfo` as the Thread object. Ordered by `lastActiveAt` descending, then id descending; the cursor anchors that activity/id pair. Filters, ordering, and page limits execute in the metadata database before summaries are decoded. `totalMatched` counts after filters and before pagination. Listing returns summaries without rebuilding historical Turn, Item, or attachment projections.
 
 - `runtime`: optional best-effort, process-local snapshot with the shape of `thread/status/changed`, for hydrating activity indicators after reconnect. Clients continue to consume `thread/status/changed` as the source of truth and treat omission as unknown, not idle.
 - `readStates`: a map from each read-receipt-eligible thread id on the returned page to its `ThreadReadState` ([4.19](#419-threadreadstateupdate)). Omitted when receipts are unavailable; an id without an entry has no receipt.

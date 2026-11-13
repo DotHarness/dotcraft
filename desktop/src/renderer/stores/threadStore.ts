@@ -9,7 +9,7 @@ import { collectThreadTreeIds, getSubAgentParentThreadId, isSubAgentThread } fro
 import { filterPendingThreadArchives, isPendingThreadArchive } from './pendingThreadArchives'
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
-import type { ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
+import { hydrateThreadRuntimeCollections, type ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
 import { retainedThreadActions, type ParkedApproval, type ParkedUserInput } from './retainedThreadState'
 import { retainedThreadIds } from './threadConnectionStore'
 import { useSubAgentStore } from './subAgentStore'
@@ -248,6 +248,10 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       )
       const goalSnapshots = filterMapToThreadList(state.goalSnapshots, threadIds)
 
+      const runtimeCollections = {
+        runtimeSnapshots, runningTurnThreadIds, parkedApprovals, parkedUserInputs,
+        pendingApprovalThreadIds, pendingUserInputThreadIds, pendingPlanConfirmationThreadIds
+      }
       for (const thread of visibleThreads) {
         if (retained.has(thread.id)) continue
         if (thread.goal === null) {
@@ -258,38 +262,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
         const snapshot = thread.runtime
         if (!snapshot) continue
-        const isDesktopOrigin = thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
-        runtimeSnapshots.set(thread.id, snapshot)
-
-        if (snapshot.running) {
-          runningTurnThreadIds.add(thread.id)
-        } else {
-          runningTurnThreadIds.delete(thread.id)
-        }
-
-        if (snapshot.waitingOnApproval && isDesktopOrigin) {
-          pendingApprovalThreadIds.add(thread.id)
-        } else {
-          pendingApprovalThreadIds.delete(thread.id)
-          if (!snapshot.waitingOnApproval) {
-            parkedApprovals.delete(thread.id)
-          }
-        }
-
-        if (snapshot.waitingOnInput && isDesktopOrigin) {
-          pendingUserInputThreadIds.add(thread.id)
-        } else {
-          pendingUserInputThreadIds.delete(thread.id)
-          if (!snapshot.waitingOnInput) {
-            parkedUserInputs.delete(thread.id)
-          }
-        }
-
-        if (snapshot.waitingOnPlanConfirmation && isDesktopOrigin) {
-          pendingPlanConfirmationThreadIds.add(thread.id)
-        } else {
-          pendingPlanConfirmationThreadIds.delete(thread.id)
-        }
+        hydrateThreadRuntimeCollections(runtimeCollections, thread.id, snapshot,
+          thread.originChannel?.toLowerCase() === 'dotcraft-desktop')
       }
 
       return {
@@ -373,6 +347,10 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
         goalSnapshots.delete(id)
       }
 
+      const runtimeCollections = {
+        runtimeSnapshots, runningTurnThreadIds, parkedApprovals, parkedUserInputs,
+        pendingApprovalThreadIds, pendingUserInputThreadIds, pendingPlanConfirmationThreadIds
+      }
       for (const thread of visibleThreads) {
         if (thread.goal === null) {
           goalSnapshots.delete(thread.id)
@@ -382,12 +360,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
         const snapshot = thread.runtime
         if (!snapshot) continue
-        runtimeSnapshots.set(thread.id, snapshot)
-        if (snapshot.running) {
-          runningTurnThreadIds.add(thread.id)
-        } else {
-          runningTurnThreadIds.delete(thread.id)
-        }
+        hydrateThreadRuntimeCollections(runtimeCollections, thread.id, snapshot,
+          thread.originChannel?.toLowerCase() === 'dotcraft-desktop')
       }
 
       return {

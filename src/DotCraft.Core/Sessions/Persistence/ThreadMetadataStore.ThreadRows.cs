@@ -154,61 +154,50 @@ internal sealed partial class ThreadMetadataStore
         var list = new List<ThreadSummary>();
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT
-                thread_id,
-                user_id,
-                origin_channel,
-                channel_context,
-                display_name,
-                status,
-                created_at,
-                updated_at,
-                turn_count,
-                metadata_json,
-                forked_from_id,
-                ephemeral,
-                worktree_json,
-                source_json,
-                git_info_json
-            FROM threads
+        command.CommandText = $"""
+            SELECT {SummaryColumns} FROM threads
             ORDER BY updated_at DESC, thread_id DESC
             """;
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            var originChannel = reader.GetString(2);
-            var metadata = reader.IsDBNull(9)
-                ? new Dictionary<string, string>()
-                : ParseMetadata(reader.GetString(9));
-            list.Add(new ThreadSummary
-            {
-                Id = reader.GetString(0),
-                UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
-                WorkspacePath = stateRuntime.WorkspacePath,
-                OriginChannel = originChannel,
-                ChannelContext = reader.IsDBNull(3) ? null : reader.GetString(3),
-                DisplayName = reader.IsDBNull(4) ? null : reader.GetString(4),
-                Source = reader.IsDBNull(13)
-                    ? throw new InvalidDataException($"Thread '{reader.GetString(0)}' has no source projection.")
-                    : PersistedThreadSourceCodec.Decode(
-                        JsonSerializer.Deserialize<PersistedThreadSource>(
-                            reader.GetString(13),
-                            SessionPersistenceJsonOptions.Default)
-                        ?? throw new JsonException("Thread source projection decoded to null.")),
-                Status = Enum.TryParse<ThreadStatus>(reader.GetString(5), out var status) ? status : ThreadStatus.Active,
-                CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
-                LastActiveAt = DateTimeOffset.Parse(reader.GetString(7)),
-                TurnCount = reader.GetInt32(8),
-                Metadata = metadata,
-                ForkedFromId = reader.IsDBNull(10) ? null : reader.GetString(10),
-                Ephemeral = !reader.IsDBNull(11) && reader.GetInt32(11) != 0,
-                Worktree = reader.IsDBNull(12) ? null : ParseWorktree(reader.GetString(12)),
-                GitInfo = reader.IsDBNull(14) ? null : JsonSerializer.Deserialize<ThreadGitInfo>(reader.GetString(14))
-            });
+            list.Add(ReadSummary(reader));
         }
 
         return list;
+    }
+
+    private ThreadSummary ReadSummary(SqliteDataReader reader)
+    {
+        var originChannel = reader.GetString(2);
+        var metadata = reader.IsDBNull(9)
+            ? new Dictionary<string, string>()
+            : ParseMetadata(reader.GetString(9));
+        return new ThreadSummary
+        {
+            Id = reader.GetString(0),
+            UserId = reader.IsDBNull(1) ? null : reader.GetString(1),
+            WorkspacePath = stateRuntime.WorkspacePath,
+            OriginChannel = originChannel,
+            ChannelContext = reader.IsDBNull(3) ? null : reader.GetString(3),
+            DisplayName = reader.IsDBNull(4) ? null : reader.GetString(4),
+            Source = reader.IsDBNull(13)
+                ? throw new InvalidDataException($"Thread '{reader.GetString(0)}' has no source projection.")
+                : PersistedThreadSourceCodec.Decode(
+                    JsonSerializer.Deserialize<PersistedThreadSource>(
+                        reader.GetString(13),
+                        SessionPersistenceJsonOptions.Default)
+                    ?? throw new JsonException("Thread source projection decoded to null.")),
+            Status = Enum.TryParse<ThreadStatus>(reader.GetString(5), out var status) ? status : ThreadStatus.Active,
+            CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
+            LastActiveAt = DateTimeOffset.Parse(reader.GetString(7)),
+            TurnCount = reader.GetInt32(8),
+            Metadata = metadata,
+            ForkedFromId = reader.IsDBNull(10) ? null : reader.GetString(10),
+            Ephemeral = !reader.IsDBNull(11) && reader.GetInt32(11) != 0,
+            Worktree = reader.IsDBNull(12) ? null : ParseWorktree(reader.GetString(12)),
+            GitInfo = reader.IsDBNull(14) ? null : JsonSerializer.Deserialize<ThreadGitInfo>(reader.GetString(14))
+        };
     }
 
     private static ThreadWorktreeInfo? ParseWorktree(string json)

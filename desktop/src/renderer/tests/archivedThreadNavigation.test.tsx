@@ -56,7 +56,7 @@ it.each([INITIAL_WORKSPACE, '/projects/two'])(
     installDesktopApiMock({
       settings: { get: async () => ({}) },
       workspace: { switch: switchWorkspace },
-      appServer: { sendRequest, sendConnectionRequest: vi.fn((_key, method, params) =>
+      appServer: { sendRequest, onNotification: () => () => undefined, sendConnectionRequest: vi.fn((_key, method, params) =>
         sendRequest(method, params as { includeArchived?: boolean })) }
     })
     useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: INITIAL_WORKSPACE, connectionId: 'initial-connection' })

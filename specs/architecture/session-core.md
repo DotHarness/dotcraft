@@ -730,9 +730,11 @@ User-level usage statistics live at `<UserDataPath>/usage.db`, independently of 
 
 ### 9.1.1 Workspace Data Upgrades
 
-`state.db` records the release that last upgraded the workspace's data in `workspace_meta` (`data_version`). When a release changes the shape of existing data, it ships one upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads, and then record its release. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
+When a release changes the shape of existing workspace data, it may ship one release-scoped upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
 
-The 0.9.3 upgrade removes the workspace path from the `threads` table and stores rollout paths relative to the data directory. In the background it removes the workspace path from `thread_opened` and drops the `turn_started`, `item_appended`, and `turn_completed` records that a later `turn_state_replaced` for the same Turn supersedes. A rollout whose first `thread_opened` has no workspace path is already upgraded.
+### 9.1.2 Workspace Database Initialization
+
+Workspace database initialization logs the duration and outcome of opening the database, creating the schema, updating columns, and creating query indexes as separate startup stages through the host logger. Failed stages identify the operation and preserve the original exception; read-only opens perform no schema initialization.
 
 ### 9.2 Thread File Format
 
@@ -854,11 +856,13 @@ Full forward domain replay is limited to recovery export, current-context export
 
 ### 9.4 Thread Discovery
 
-Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread metadata projection. Rollouts remain canonical; summary rows are derived.
+Discovery reconciles lightweight thread metadata, then reads the SQLite thread summary projection. Rollouts remain canonical; summary rows are derived. Listing never rebuilds Turn, Item, model-history, or attachment projections, including when their index version changes.
 
-Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a mismatched offset projects only the unprojected suffix, and a missing row, changed path, or shortened file rebuilds that thread's projection. Concurrent initial discovery shares one reconciliation.
+Each metadata row records its confirmed rollout byte offset. Discovery enumerates active and archived rollout paths and lengths; matching summary rows need no rollout read. Missing, moved, shortened, or changed rollouts repair only their summary fields from canonical metadata and Turn-membership envelopes, without materializing history. A summary repair leaves the history and attachment checkpoints unchanged. Concurrent discovery is serialized.
 
-If SQLite listing or repair is unavailable, discovery returns summaries built from each readable rollout's latest `thread_opened`, name, and status records and its Turn-membership and rollback record envelopes and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+Filtered pages apply identity, workspace scope, visibility, archive, channel, and literal text predicates, deterministic activity/id ordering, and pagination in SQLite before decoding returned summaries. Process-local persistent thread summaries override their stored row for filtering and ordering, and runtime activity is attached only to returned rows. A page returns the matching count without materializing the complete result set. Continuation is anchored by the last returned activity timestamp and id.
+
+If SQLite listing or summary repair is unavailable, discovery returns filesystem-derived summaries with the same filters and ordering and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 
@@ -876,7 +880,7 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 
 Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, mailbox state, and read receipts do not.
 
-Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; one projection pass publishes history, the metadata row, attachment references, and their offsets in one transaction. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
+Canonical writes and history repair derive metadata and attachment references from rollout records and publish them with history and their offsets in one transaction after the rollout flush succeeds. Discovery repairs only summary fields; first-message/history aggregates and attachment references remain owned by history repair. Every physical attachment cleanup, including candidate cleanup after deletion, rollback, or writes and the orphan sweep, requires all active and archived rollout files to be covered by current attachment versions and matching metadata/history paths and checkpoints. A metadata row count alone does not establish coverage; unknown rollouts or uncertain references suppress physical deletion without rebuilding unrelated history. Older indexes are rebuilt when that thread's history is accessed.
 
 ### 9.4.2 Paged Thread History Projection
 
