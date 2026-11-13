@@ -103,6 +103,12 @@
   border-top: 1px solid var(--border-default);
 }
 
+.truncatedNote {
+  margin: 0;
+  padding: 12px;
+  color: var(--text-dimmed);
+}
+
 .moreToggle {
   display: flex;
   align-items: center;

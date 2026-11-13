@@ -9,13 +9,13 @@ import { turnPatchTotals } from '../../stores/turnDiffs'
 import { useUIStore } from '../../stores/uiStore'
 import type { TurnFileChange } from '../../types/turnDiff'
 import { basename } from '../../utils/path'
-import { toWorkspaceRelativePath } from '../../utils/workspacePaths'
 import { ChangePath } from '../detail/changes/ChangePath'
 import { Button } from '../ui/Button'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { FileDiffStats } from './FileDiffStats'
 import { InlineDiffView } from './InlineDiffView'
+import { groupTurnFileChanges, type TurnFileGroup } from './turnFileGroups'
 import styles from './TurnCompletionSummary.module.css'
 
 const SquarePlusMinusIcon = createLucideIcon('square-plus-minus', [
@@ -50,6 +50,7 @@ interface TurnChangesCardProps {
 
 export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview }: TurnChangesCardProps): JSX.Element | null {
   const t = useT()
+  const files = useMemo(() => groupTurnFileChanges(rows, workspacePath), [rows, workspacePath])
   const totals = useMemo(() => turnPatchTotals(rows), [rows])
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [showAll, setShowAll] = useState(false)
@@ -65,11 +66,11 @@ export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview 
     })
   }
 
-  const title = totals.files === 1
-    ? t('turnChanges.editedFile', { file: basename(rows[0].diff.filePath) })
-    : t('turnChanges.editedFiles', { count: totals.files })
-  const visibleRows = showAll ? rows : rows.slice(0, COLLAPSED_ROW_LIMIT)
-  const hiddenCount = rows.length - visibleRows.length
+  const title = files.length === 1
+    ? t('turnChanges.editedFile', { file: basename(files[0].filePath) })
+    : t('turnChanges.editedFiles', { count: files.length })
+  const visibleFiles = showAll ? files : files.slice(0, COLLAPSED_ROW_LIMIT)
+  const hiddenCount = files.length - visibleFiles.length
 
   return (
     <section className={styles.card} aria-label={title}>
@@ -93,21 +94,20 @@ export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview 
         </div>
       </div>
 
-      {totals.files > 1 && (
+      {files.length > 1 && (
         <>
           <div role="list">
-            {visibleRows.map((row) => (
+            {visibleFiles.map((file) => (
               <TurnFileRow
-                key={row.key}
-                row={row}
-                workspacePath={workspacePath}
-                expanded={expanded.has(row.key)}
-                onToggle={() => toggleRow(row.key)}
+                key={file.filePath}
+                file={file}
+                expanded={expanded.has(file.filePath)}
+                onToggle={() => toggleRow(file.filePath)}
                 onReview={onReview}
               />
             ))}
           </div>
-          {rows.length > COLLAPSED_ROW_LIMIT && (
+          {files.length > COLLAPSED_ROW_LIMIT && (
             <button
               type="button"
               className={styles.moreToggle}
@@ -187,19 +187,17 @@ function TurnPatchButton({
 }
 
 function TurnFileRow({
-  row,
-  workspacePath,
+  file,
   expanded,
   onToggle,
   onReview
 }: {
-  row: TurnFileChange
-  workspacePath: string
+  file: TurnFileGroup
   expanded: boolean
   onToggle: () => void
   onReview?: (key: string) => void
 }): JSX.Element {
-  const file = row.diff
+  const t = useT()
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -209,9 +207,9 @@ function TurnFileRow({
 
   function review(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
-    onReview?.(row.key)
+    onReview?.(file.rows[0].key)
   }
-  const path = <ChangePath path={toWorkspaceRelativePath(workspacePath, file.filePath)} />
+  const path = <ChangePath path={file.filePath} />
 
   return (
     <div role="listitem" className={styles.item}>
@@ -232,7 +230,7 @@ function TurnFileRow({
           <FileDiffStats
             additions={file.additions}
             deletions={file.deletions}
-            tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
+            tone={file.rows.every((row) => row.diff.status === 'reverted') ? 'dimmed' : 'semantic'}
           />
         </span>
         <span className={styles.chevron}>
@@ -241,7 +239,10 @@ function TurnFileRow({
       </div>
       {expanded && (
         <div className={styles.diff}>
-          <InlineDiffView diff={file} variant="embedded" presentation="body-only" />
+          {file.rows.some((row) => row.truncated) && <p className={styles.truncatedNote}>{t('changes.truncated')}</p>}
+          {file.rows.filter((row) => !row.truncated).map((row) => (
+            <InlineDiffView key={row.key} diff={row.diff} variant="embedded" presentation="body-only" />
+          ))}
         </div>
       )}
     </div>
