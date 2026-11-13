@@ -2,20 +2,27 @@ using System.Text.Json;
 
 namespace DotCraft.Sessions;
 
+internal sealed record ScannedThreadSummary(ThreadSummary Summary, HistoryMode HistoryMode);
+
 internal static class ThreadSummaryScanner
 {
     private static readonly JsonSerializerOptions JsonOptions = SessionJsonOptions.Default;
 
-    public static async Task<ThreadSummary?> ScanAsync(string path, CancellationToken ct)
+    public static async Task<ScannedThreadSummary?> ScanMetadataAsync(string path, CancellationToken ct)
     {
         var scan = new Scan();
         await Utf8JsonlReader.ReadAsync(path, scan.Apply, ct).ConfigureAwait(false);
         if (scan.Thread is not { } thread)
             return null;
+        if (string.IsNullOrWhiteSpace(thread.Id)
+            || !string.Equals(ThreadRolloutStore.BuildFileName(thread.Id), Path.GetFileName(path), StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The canonical thread header does not match its rollout filename.");
+        }
         thread.WorkspacePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "..", "..", ".."));
         var summary = ThreadSummary.FromThread(thread);
         summary.TurnCount = scan.TurnCount;
-        return summary;
+        return new ScannedThreadSummary(summary, thread.HistoryMode);
     }
 
     public static string? ReadThreadId(string path)
@@ -69,9 +76,10 @@ internal static class ThreadSummaryScanner
                 return;
             }
 
-            if (record?.ThreadOpened is { } opened)
+            if (kind == RolloutKinds.ThreadOpened)
             {
-                ApplyHeader(opened);
+                ApplyHeader(record?.ThreadOpened
+                    ?? throw new InvalidDataException("The canonical thread header is unreadable."));
                 return;
             }
             if (Thread is null)
@@ -114,6 +122,8 @@ internal static class ThreadSummaryScanner
 
         private void ApplyHeader(ThreadOpenedPayload opened)
         {
+            if (Thread is not null && !string.Equals(Thread.Id, opened.ThreadId, StringComparison.Ordinal))
+                throw new InvalidDataException("Thread history record belongs to another Thread.");
             Thread ??= new SessionThread();
             Thread.Id = opened.ThreadId;
             Thread.UserId = opened.UserId;

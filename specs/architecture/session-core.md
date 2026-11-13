@@ -854,11 +854,13 @@ Full forward domain replay is limited to recovery export, current-context export
 
 ### 9.4 Thread Discovery
 
-Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread metadata projection. Rollouts remain canonical; summary rows are derived.
+Discovery reconciles lightweight thread metadata, then reads the SQLite thread summary projection. Rollouts remain canonical; summary rows are derived. Listing never rebuilds Turn, Item, model-history, or attachment projections, including when their index version changes.
 
-Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a mismatched offset projects only the unprojected suffix, and a missing row, changed path, or shortened file rebuilds that thread's projection. Concurrent initial discovery shares one reconciliation.
+Each metadata row records its confirmed rollout byte offset. Discovery enumerates active and archived rollout paths and lengths; matching summary rows need no rollout read. Missing, moved, shortened, or changed rollouts repair only their summary fields from canonical metadata and Turn-membership envelopes, without materializing history. A summary repair leaves the history and attachment checkpoints unchanged. Concurrent discovery is serialized.
 
-If SQLite listing or repair is unavailable, discovery returns summaries built from each readable rollout's latest `thread_opened`, name, and status records and its Turn-membership and rollback record envelopes and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+Filtered pages apply identity, workspace scope, visibility, archive, channel, and literal text predicates, deterministic activity/id ordering, and pagination in SQLite before decoding returned summaries. Process-local persistent thread summaries override their stored row for filtering and ordering, and runtime activity is attached only to returned rows. A page returns the matching count without materializing the complete result set. Continuation is anchored by the last returned activity timestamp and id.
+
+If SQLite listing or summary repair is unavailable, discovery returns filesystem-derived summaries with the same filters and ordering and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 
@@ -876,7 +878,7 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 
 Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, mailbox state, and read receipts do not.
 
-Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; one projection pass publishes history, the metadata row, attachment references, and their offsets in one transaction. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
+Canonical writes and history repair derive metadata and attachment references from rollout records and publish them with history and their offsets in one transaction after the rollout flush succeeds. Discovery repairs only summary fields; first-message/history aggregates and attachment references remain owned by history repair. Attachment garbage collection requires every rollout's attachment index version, path, and checkpoint to be current. Older indexes are rebuilt when that thread's history is accessed.
 
 ### 9.4.2 Paged Thread History Projection
 

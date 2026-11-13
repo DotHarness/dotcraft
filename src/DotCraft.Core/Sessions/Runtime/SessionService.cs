@@ -127,7 +127,6 @@ public sealed partial class SessionService(
     private readonly Dictionary<string, ThreadLoadGate> _threadLoadGates = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
-    private ThreadIndexCoordinator? _threadIndexCoordinator;
     private ThreadCreationCoordinator? _threadCreationCoordinator;
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
     private ThreadRecoveryCoordinator? _threadRecoveryCoordinator;
@@ -274,8 +273,6 @@ public sealed partial class SessionService(
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 
     private SubAgentSessionCoordinator SubAgents => _subAgentSessionCoordinator ??= new SubAgentSessionCoordinator(this);
-
-    private ThreadIndexCoordinator ThreadIndex => _threadIndexCoordinator ??= new ThreadIndexCoordinator(this);
 
     private ThreadCreationCoordinator ThreadCreation => _threadCreationCoordinator ??= new ThreadCreationCoordinator(this);
 
@@ -578,15 +575,6 @@ public sealed partial class SessionService(
         McpAppTransientContexts?.ClearThread(threadId);
         await DeleteSideChatsAsync(threadId, ct);
     }
-
-    public async Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
-        SessionIdentity identity,
-        bool includeArchived = false,
-        IReadOnlyList<string>? crossChannelOrigins = null,
-        CancellationToken ct = default,
-        bool includeSubAgents = false,
-        ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity)
-        => await ThreadIndex.FindAsync(identity, includeArchived, crossChannelOrigins, ct, includeSubAgents, scope);
 
     public Task<string?> FindThreadContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default)
         => Persistence.FindThreadContentMatchAsync(threadId, searchTerm, ct);

@@ -186,6 +186,10 @@ public sealed class SessionPersistenceService(
     public Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
         => threadStore.LoadIndexAsync(ct);
 
+    internal Task<ThreadListPage> ListThreadsAsync(
+        ThreadListQuery query, IReadOnlyList<ThreadSummary> liveSummaries, CancellationToken ct)
+        => threadStore.ListThreadsAsync(query, liveSummaries, ct);
+
     internal Task PersistModelHistoryAsync(
         IReadOnlyList<ChatMessage> history,
         string threadId,

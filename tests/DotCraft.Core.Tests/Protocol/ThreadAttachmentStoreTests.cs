@@ -141,7 +141,7 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task IndexRepair_RebuildsReferencesFromAnOlderIndexBeforeSweeping()
+    public async Task ListingOlderAttachmentIndex_KeepsFilesUntilHistoryRepairsReferencesOnDemand()
     {
         var folder = Path.Combine(_root, "attachments", "pasted_1");
         Directory.CreateDirectory(folder);
@@ -163,9 +163,15 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         }
         File.SetLastWriteTimeUtc(pasted, DateTime.UtcNow.AddDays(-2));
 
+        var projectedBytes = _store.ProjectedRolloutBytes;
         await _store.LoadIndexAsync();
 
         Assert.True(File.Exists(pasted));
+        Assert.Equal(0, CountAttachmentRows());
+        Assert.Equal(projectedBytes, _store.ProjectedRolloutBytes);
+
+        await _store.ReadThreadSnapshotAsync(thread.Id);
+
         Assert.Equal(1, CountAttachmentRows());
     }
 

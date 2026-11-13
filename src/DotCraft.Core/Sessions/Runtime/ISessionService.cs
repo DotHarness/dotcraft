@@ -183,6 +183,9 @@ public interface ISessionService
         bool includeSubAgents = false,
         ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity);
 
+    Task<ThreadListPage> ListThreadsAsync(ThreadListQuery query, CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged thread discovery is not supported by this session service.");
+
     /// <summary>
     /// Returns an excerpt of the first user or agent message in a Thread's rollout that contains the term, ignoring case,
     /// or null when none does.
