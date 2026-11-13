@@ -5342,9 +5342,13 @@ export interface TurnStartParams {
   input: InputPart[];
   messages?: JsonValue;
   mode?: string | null;
+  model?: string | null;
+  providerId?: string | null;
+  reasoning?: ReasoningConfig | null;
   runtimeWorkspaceRoots?: string[] | null;
   sender?: SenderContext | null;
   sentAsGoal?: boolean | null;
+  speed?: string | null;
   threadId: string;
   [key: string]: unknown;
 }

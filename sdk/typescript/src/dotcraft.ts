@@ -374,11 +374,10 @@ export type RunInput =
       sender?: SenderContext;
     };
 
-export interface RunOptions {
+export interface RunOptions extends Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed"> {
   sender?: SenderContext;
   collectRawEvents?: boolean;
   abortSignal?: AbortSignal;
-  enqueueIfBusy?: boolean;
 }
 
 export interface EnqueueOptions {
@@ -398,7 +397,6 @@ export interface DotCraftRunResult {
   items: unknown[];
   usage?: Record<string, unknown> | null;
   rawEvents?: JsonRpcMessage[];
-  queuedInput?: unknown;
 }
 
 export interface DotCraftRunEventBase {
@@ -414,7 +412,6 @@ export type DotCraftRunEvent = DotCraftRunEventBase & {
   turn?: SessionTurn;
   result?: DotCraftRunResult;
   error?: string;
-  queuedInput?: unknown;
 };
 
 export interface ThreadManager {

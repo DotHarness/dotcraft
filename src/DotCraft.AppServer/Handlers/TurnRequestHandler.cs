@@ -60,8 +60,7 @@ internal sealed class TurnRequestHandler(
     {
         var msg = request.Message;
         var p = request.Params;
-        if (p.Mode is not null && p.Mode is not ("agent" or "plan"))
-            throw AppServerErrors.InvalidParams("'mode' must be 'agent' or 'plan'.");
+        var settings = TurnSettingsContractMapper.ToDomain(p);
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
 
@@ -84,26 +83,15 @@ internal sealed class TurnRequestHandler(
             }
         }
 
-
-
         using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, p.ThreadId));
 
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
-        if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
-        {
-            await sessionService.UpdateThreadWorkspaceAsync(
-                p.ThreadId,
-                p.Cwd,
-                p.RuntimeWorkspaceRoots,
-                ct);
-        }
-
         await connection.RunThreadNotificationAsync(p.ThreadId, _ => AdmitTurnAsync(), ct);
         return AppServerTypedResult<Contract.TurnStartResult>.Written;
 
         async Task AdmitTurnAsync()
         {
-            var events = WithNonInteractiveFallback(sessionService.SubmitInputAsync(
+            var admission = await sessionService.StartOrSteerTurnAsync(
                 p.ThreadId,
                 content,
                 sender,
@@ -115,42 +103,29 @@ internal sealed class TurnRequestHandler(
                     NativeInputParts = materializedInput.NativeInputParts,
                     MaterializedInputParts = materializedInput.MaterializedInputParts,
                     DisplayText = materializedInput.DisplayText,
-                    SentAsGoal = p.SentAsGoal,
-                    Mode = p.Mode
-                }));
+                    SentAsGoal = p.SentAsGoal
+                },
+                settings);
 
-            var enumerator = events.GetAsyncEnumerator(CancellationToken.None);
-            var drainOwnsEnumerator = false;
+            var events = admission.Started
+                ? WithNonInteractiveFallback(admission.Events ?? throw new InvalidOperationException("A started Turn requires an execution stream."))
+                : null;
             try
             {
-                while (await enumerator.MoveNextAsync())
-                {
-                    if (enumerator.Current is { EventType: SessionEventType.TurnStarted, TurnPayload: { } startedTurn })
+                await responseWriter.WriteResponseAsync(
+                    msg.Id,
+                    new Contract.TurnStartResult
                     {
-                        try
-                        {
-                            await responseWriter.WriteResponseAsync(
-                                msg.Id,
-                                new Contract.TurnStartResult
-                                {
-                                    Turn = AppServerContractMapper.ToContract(
-                                        startedTurn.ToWire(includeItems: false) with { Items = [] })
-                                }, ct);
-                        }
-                        catch (OperationCanceledException) { }
-                        catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
-                        _ = DrainTurnEventsAsync(enumerator);
-                        drainOwnsEnumerator = true;
-                        return;
-                    }
-                }
-                throw new AppServerException(AppServerErrors.InternalErrorCode,
-                    "Execution completed without admitting a Turn.");
+                        Turn = AppServerContractMapper.ToContract(
+                            admission.Turn.ToWire(includeItems: false) with { Items = [] })
+                    }, ct);
             }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
             finally
             {
-                if (!drainOwnsEnumerator)
-                    await enumerator.DisposeAsync();
+                if (events is not null)
+                    _ = DrainTurnEventsAsync(events.GetAsyncEnumerator(CancellationToken.None));
             }
         }
     }

@@ -653,20 +653,25 @@ Turn methods correspond to `ISessionService` turn lifecycle operations in [Sessi
 
 ### 5.1 `turn/start`
 
-Submit user input and begin agent execution. The server creates a Turn, records the input as a `userMessage` Item, and starts the agent. Before starting, it loads the thread from persistence if needed and applies the persisted `thread.configuration`, so a cold-loaded thread never silently runs with workspace-default tooling.
+Submit input and sparse execution settings as one Session Core admission. The server loads persisted configuration before deciding whether to start a new Turn or steer the active regular Turn.
 
-The response returns immediately with the initial Turn (`running`, empty `items`); output then streams as `turn/started`, `item/*` events, and a terminal `turn/completed`, `turn/failed`, or `turn/cancelled`.
+When idle, the server commits the effective settings, captures that configuration and its execution resources, creates a Turn, and records non-empty input as a `userMessage`. The response contains the initial Turn (`running`, empty `items`), followed by `turn/started`, Item events, and a terminal notification.
+
+When a regular Turn accepts guidance, the input joins that Turn and the response contains its existing id with empty `items`. No second `turn/started` is emitted. Supplied settings become defaults for subsequent Turns; they do not change the active Turn's captured model, mode, workspace, tools, execution owner, or approval routing. Clients merge by the returned Turn id and correlate input through `clientUserMessageId`, rather than assuming each successful request created a Turn.
 
 **Params**:
 
-- `threadId`: an Active thread with no running/waiting turn or blocking maintenance; otherwise `TurnInProgress`. During an active regular Turn interactive clients use `turn/steer`; during blocking maintenance, or when steering is not accepted, `turn/enqueue`.
-- `input` (`InputPart[]`): an empty array starts a Turn that continues from committed history without a new user message (used to retry a failed Turn).
+- `threadId`: an Active thread. An idle thread starts a Turn; an active regular Turn accepts guidance under the same restrictions as `turn/steer`. Blocking maintenance and executions that cannot accept guidance are rejected, not automatically queued. Call `turn/enqueue` explicitly to request a future Turn.
+- `input` (`InputPart[]`): an empty array starts an idle Turn from committed history without a new user message. Empty input cannot steer an active Turn and leaves settings unchanged.
 - `sender`: `SenderContext` for group sessions.
 - `messages`: required when the thread uses `historyMode = "client"`, forbidden for `"server"`.
 - `sentAsGoal`: submit the message as the thread goal; projected onto the resulting `userMessage` item.
-- `cwd`, `runtimeWorkspaceRoots`: sticky for this and subsequent turns.
-- `mode`: optional `"agent"` or `"plan"`, applied by Session Core when this input is admitted and retained for subsequent Turns. Invalid values or rejected admission leave the thread mode unchanged. Accepting a plan sends its execution input with `mode = "agent"` in this request; it does not require a preceding `thread/mode/set`.
+- `providerId`, `model`, `reasoning`, `speed`: optional sparse model settings using the existing provider-neutral configuration types. Omission or top-level null inherits the current thread selection. A model-only override retains the current provider; changing provider requires an explicit model. Reasoning fields merge individually, `reasoning.enabled = false` disables reasoning, and `speed = "standard"` selects standard speed. An empty identifier or invalid setting fails before input is accepted. Provider changes seed omitted model options from the target provider's effective preference; otherwise omitted settings inherit the thread and are normalized for the selected model using the existing capability rules. These overrides do not change workspace provider preferences, Agent Profile identity, tools, MCP, memory, or approval policy.
+- `cwd`, `runtimeWorkspaceRoots`: sticky settings admitted together with the input, rather than applied by a preceding workspace update. An empty roots array explicitly clears runtime roots.
+- `mode`: optional `"agent"` or `"plan"`, admitted and retained with the other settings. Accepting a plan sends `mode = "agent"` with its execution input, without a preceding `thread/mode/set`. A steered input changes only the next-Turn default.
 - `clientUserMessageId`: also accepted by `turn/enqueue` and `turn/steer`. Clients using optimistic submission send a fresh UUID per submission (queue updates keep the existing id); user-message payloads and queued inputs echo it so clients correlate acknowledgements without content matching. Channels without optimistic presentation omit it.
+
+**Commit boundary**: Session Core merges sparse settings against the latest thread configuration inside the same command that accepts input. Prevalidation or admission rejection changes neither settings nor input. A started Turn owns its commit's configuration and execution resources; later updates cannot replace them. Settings persist as thread defaults and are not rolled back when accepted execution subsequently fails. Steering accepts guidance before committing subsequent-Turn settings, so a later persistence failure is not a guarantee that input was never accepted; callers must not automatically replay the request. This is a concurrency boundary, not a database transaction spanning all execution and persistence.
 
 **Execution ownership**: for persisted server-managed threads the AppServer, not the submitting transport, owns a started turn. If the connection drops, the server keeps consuming the turn so it completes or fails normally; the client recovers by reconnecting, subscribing, and reloading the header and history.
 

@@ -58,6 +58,8 @@ Each runtime activation has a generation identity. Delayed completion from an ea
 
 ### 3.4 Turn Execution Ownership
 
+Start-or-steer admission accepts input and sparse execution settings in one runtime command. Candidate settings are resolved and validated against the latest configuration before accepting input. Idle admission commits defaults and captures the same commit's execution context. Active regular-Turn admission reuses guidance acceptance and then commits subsequent-Turn defaults without replacing the active execution or its owner. Empty guidance, maintenance, and non-steerable execution reject settings and input. Explicit queue admission remains separate; strict-start execution streams used by internal callers do not silently become guidance.
+
 Turn admission captures an immutable execution context: effective configuration, agent, workspace and runtime roots, client capabilities, and request origin. The effective tool snapshot is frozen with the Turn; provider-history identity is derived from the admitted Thread and Turn before the first provider request. Caller-owned input, input snapshots, and client-managed history are copied at admission.
 
 Mutable Turn state is separate: cancellation, pending approval and user-input waiters, tool projections, usage accounting, item sequence allocation, and same-Turn steering. The command owner requests cancellation through it; the Turn applies the terminal success, cancellation, and failure policy. The agent pipeline owns model sampling and tool invocation.

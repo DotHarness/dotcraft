@@ -87,7 +87,7 @@ Start options contain identity fields, display name, history mode, configuration
 
 `read()` and a Thread handle's `refresh()` return the current Thread header without persisted Turns or Items. `listTurns()` reads Turn metadata or summary Items according to `itemsView`; `listItems()` reads Items across the Thread or for the optional `turnId`. Both accept `cursor`, `limit`, and `sortDirection`, and return `data` plus an opaque `nextCursor`; `listTurns()` also returns a `backwardsCursor` that reads outward from the first returned Turn in either direction. Thread handles expose the same two pagination methods without the `threadId` argument.
 
-`run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options are `sender`, `collectRawEvents`, `abortSignal`, and `enqueueIfBusy`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, optional raw events, and any queued-input result.
+`run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options include `providerId`, `model`, `reasoning`, `speed`, `sender`, `collectRawEvents`, and `abortSignal`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, and optional raw events. A run starts a turn or adds guidance to an active regular turn. See [Runs](./runs#run-options) for model inheritance, shared results, and explicit queueing.
 
 ## Models, MCP, and App Binding
 
@@ -97,7 +97,7 @@ Start options contain identity fields, display name, history mode, configuration
 | `mcpRuntime` | `listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()`. |
 | `appBindings` | App discovery, connection, surfaces, thread bindings, channel bindings, and principal operations. |
 
-The TypeScript high-level surface lists models but does not currently provide a model-configuration convenience method. Use the typed Wire request map for `thread/config/update` when an application must change the complete thread configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [DotCraft App](../app-binding) for task-oriented flows.
+Use run options to submit model settings with input. To change complete thread configuration independently of a run, use the typed Wire request map for `thread/config/update` and preserve fields the application does not own. See [MCP runtime](./mcp-runtime) and [DotCraft App](../app-binding) for task-oriented flows.
 
 The MCP manager signatures are:
 

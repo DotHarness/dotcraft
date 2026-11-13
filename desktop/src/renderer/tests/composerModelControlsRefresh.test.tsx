@@ -98,6 +98,35 @@ describe('useComposerModelControls catalog loading', () => {
     activateTestWorkspace()
   })
 
+  it('captures a just-selected model only after its configuration update completes', async () => {
+    listModels.mockImplementation(async (providerId) => ({ success: true, providerId, models: [{ id: 'next-model' }] }))
+    const pending = deferred<unknown>()
+    const original = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation((method: string, ...args: unknown[]) => method === 'thread/config/update' ? pending.promise : original(method, ...args))
+    render(<LocaleProvider><Probe /></LocaleProvider>)
+    await waitFor(() => expect(controls?.providerId).toBe('openai'))
+    let capture!: ReturnType<ComposerModelControls['captureTurnSettings']>
+    act(() => {
+      controls!.onModelChange('next-model')
+      capture = controls!.captureTurnSettings()
+    })
+    await waitFor(() => expect(sendRequest.mock.calls.some(([method]) => method === 'thread/config/update')).toBe(true))
+    await act(async () => {
+      pending.resolve({})
+      await expect(capture).resolves.toMatchObject({ providerId: 'openai', model: 'next-model' })
+    })
+  })
+
+  it('refuses to capture the previous selection after a failed update', async () => {
+    const original = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation((method: string, ...args: unknown[]) => method === 'thread/config/update' ? Promise.reject(new Error('update rejected')) : original(method, ...args))
+    render(<LocaleProvider><Probe /></LocaleProvider>)
+    await waitFor(() => expect(controls?.providerId).toBe('openai'))
+    await act(async () => controls!.onModelChange('next-model'))
+    await expect(controls!.captureTurnSettings()).rejects.toMatchObject({ name: 'AbortError' })
+    expect(useThreadStore.getState().activeThread?.configuration?.model).toBe('gpt-5.4')
+  })
+
   it('does not reload the catalog for an unchanged thread snapshot', async () => {
     render(<LocaleProvider><Probe /></LocaleProvider>)
     await waitFor(() => expect(listModels).toHaveBeenCalled())

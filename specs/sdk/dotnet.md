@@ -83,7 +83,7 @@ The model-configuration convenience API reads the latest complete `ThreadConfigu
 
 Turn APIs (`StartAsync`, `EnqueueAsync`, `InterruptAsync`) accept Contracts params with `InputPart` input. Convenience overloads may accept a thread id, `IReadOnlyList<InputPart>`, and `SenderContext`, but construct the Contracts params without adding fields.
 
-`RunOptions.Sender` is `SenderContext?`. `RunOptions` has no model id because `turn/start` has none; model selection belongs to Thread configuration.
+`RunOptions` accepts `ProviderId`, `Model`, `Reasoning`, and `Speed` alongside `Sender`, raw-event collection and failure handling. These sparse settings travel with `turn/start` and persist as thread defaults. A run starts an idle Turn or joins an active regular Turn without replacing its execution settings. It consumes the returned Turn's complete terminal result without requiring a new `turn/started`. Call `EnqueueAsync` explicitly for a separate future Turn. Cancellation interrupts the returned Turn, including a shared Turn joined through guidance.
 
 ## 8. Session item payloads
 

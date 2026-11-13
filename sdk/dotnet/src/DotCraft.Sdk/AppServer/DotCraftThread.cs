@@ -34,14 +34,14 @@ public sealed class DotCraftThread
 
     public ThreadResumeResult? Restoration { get; private set; }
 
-    /// <summary>Runs one text turn and returns the merged assistant reply.</summary>
+    /// <summary>Submits text and returns the started or steered turn's complete final reply.</summary>
     public Task<DotCraftRunResult> RunAsync(
         string text,
         RunOptions? options = null,
         CancellationToken cancellationToken = default) =>
         RunAsync(ToParts(text), options, cancellationToken);
 
-    /// <summary>Runs one typed-input turn and returns the merged assistant reply.</summary>
+    /// <summary>Submits input and returns the started or steered turn's complete final reply.</summary>
     public async Task<DotCraftRunResult> RunAsync(
         IReadOnlyList<InputPart> input,
         RunOptions? options = null,
@@ -81,20 +81,30 @@ public sealed class DotCraftThread
         return new DotCraftRunResult(Id, turnId, reducer.GetText(terminalTurn), terminalTurn, raw);
     }
 
-    /// <summary>Runs one text turn and streams typed events until its terminal event.</summary>
+    /// <summary>Submits text and observes the returned turn until its terminal event.</summary>
     public IAsyncEnumerable<DotCraftRunEvent> RunStreamedAsync(
         string text,
         RunOptions? options = null,
         CancellationToken cancellationToken = default) =>
         RunStreamedAsync(ToParts(text), options, cancellationToken);
 
-    /// <summary>Runs one typed-input turn and streams typed events until its terminal event.</summary>
+    /// <summary>Submits input and observes the returned turn until its terminal event.</summary>
     public async IAsyncEnumerable<DotCraftRunEvent> RunStreamedAsync(
         IReadOnlyList<InputPart> input,
         RunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var value = options ?? new RunOptions();
+        var parameters = new TurnStartParams
+        {
+            ThreadId = Id,
+            Input = input,
+            Sender = value.Sender,
+            ProviderId = value.ProviderId,
+            Model = value.Model,
+            Reasoning = value.Reasoning,
+            Speed = value.Speed
+        };
         var channel = Channel.CreateUnbounded<DotCraftRunEvent>(new UnboundedChannelOptions { SingleReader = true });
         string? turnId = null;
 
@@ -125,32 +135,14 @@ public sealed class DotCraftThread
         try
         {
             await EnsureAttachedAsync(cancellationToken).ConfigureAwait(false);
-            TurnEnqueueResult? queued = null;
             try
             {
-                var start = await _client.Turns.StartAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
+                var start = await _client.Turns.StartAsync(parameters, cancellationToken).ConfigureAwait(false);
                 turnId = start.Turn.Id;
             }
             catch (JsonRpcException exception) when (exception.RpcCode == AppServerErrorCodes.TurnInProgress)
             {
-                if (!value.EnqueueIfBusy)
-                    throw new TurnInProgressException("A turn is already running on this thread.", exception);
-
-                queued = await _client.Turns.EnqueueAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (queued is not null)
-            {
-                var raw = new AppServerNotification(
-                    "turn/enqueue",
-                    JsonSerializer.SerializeToElement(queued, AppServerContractJson.Options));
-                yield return new DotCraftRunEvent<TurnEnqueueResult>(
-                    DotCraftRunEventTypes.QueueUpdated,
-                    Id,
-                    null,
-                    queued,
-                    raw);
-                yield break;
+                throw new TurnInProgressException("The current execution cannot accept input.", exception);
             }
 
             using var interruptRegistration = cancellationToken.Register(() =>

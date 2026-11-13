@@ -161,8 +161,12 @@ public sealed class DotCraftAppServerClient(SdkClient client) : IDotCraftAppServ
 
     public async Task<string?> StartTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct)
     {
-        _ = modelId; // turn/start has no model field; model selection belongs to thread configuration.
-        var result = await client.Turns.StartAsync(threadId, NormalizeInput(input), cancellationToken: ct);
+        var result = await client.Turns.StartAsync(new TurnStartParams
+        {
+            ThreadId = threadId,
+            Input = NormalizeInput(input),
+            Model = modelId
+        }, ct);
         return result.Turn.Id;
     }
 

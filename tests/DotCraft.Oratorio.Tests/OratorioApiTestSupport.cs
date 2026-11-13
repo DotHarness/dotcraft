@@ -559,6 +559,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public List<string> StartedThreadIds { get; } = [];
     public List<string> TurnThreadIds { get; } = [];
     public List<string> TurnPrompts { get; } = [];
+    public List<(string ThreadId, string? ModelId)> TurnModelSelections { get; } = [];
     public List<(string ThreadId, string TurnId)> InterruptedTurns { get; } = [];
     public List<FakeAppServerSteer> SteerRequests { get; } = [];
     public bool UseMismatchedToolThreadId { get; set; }
@@ -642,6 +643,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
             steer => SteerRequests.Add(steer))
         {
             LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt,
+            CaptureModelSelection = (threadId, modelId) => TurnModelSelections.Add((threadId, modelId)),
             TurnStartedProcessed = () => _firstTurnStartedProcessed.TrySetResult(),
             TurnEnded = (threadId, turnId) => { _activeTurns.TryRemove(KeyValuePair.Create(threadId, turnId)); },
             SteeredRunRelease = () => SteeredRunRelease

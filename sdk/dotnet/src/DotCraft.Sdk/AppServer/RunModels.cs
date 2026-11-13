@@ -64,8 +64,13 @@ public sealed class RunOptions
     /// <summary>When true, the buffered run captures every raw notification on the result.</summary>
     public bool CollectRawEvents { get; set; }
 
-    /// <summary>When true, a busy thread enqueues the input instead of throwing.</summary>
-    public bool EnqueueIfBusy { get; set; }
+    public string? ProviderId { get; set; }
+
+    public string? Model { get; set; }
+
+    public ReasoningConfig? Reasoning { get; set; }
+
+    public string? Speed { get; set; }
 
     /// <summary>When true (default), buffered runs throw on failed or cancelled turns.</summary>
     public bool ThrowOnFailure { get; set; } = true;

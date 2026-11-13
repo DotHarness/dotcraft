@@ -218,41 +218,17 @@ public sealed class ExecProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Resume_Model_ReplacesModelAndKeepsTheRestOfTheConfiguration()
+    public async Task Resume_Model_IsSubmittedWithTheInput()
     {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            ThreadConfiguration = new JsonObject
-            {
-                ["model"] = "old-model",
-                ["providerId"] = "workspace-provider",
-                ["reasoning"] = new JsonObject { ["effort"] = "high" },
-                ["speed"] = "fast",
-                ["approvalPolicy"] = "default",
-                ["mcpServers"] = new JsonArray(new JsonObject { ["name"] = "docs", ["transport"] = "stdio" })
-            }
-        });
+        await using var server = await ExecFakeAppServer.StartAsync();
 
         var result = await RunExecAsync(server, ["resume", "thread_9", "-m", "new-model", "hello"]);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("thread_9", Assert.Single(server.ParamsOf("thread/read"))["threadId"]!.GetValue<string>());
-        var update = Assert.Single(server.ParamsOf("thread/config/update"));
-        Assert.Equal("thread_9", update["threadId"]!.GetValue<string>());
-        Assert.True(JsonNode.DeepEquals(
-            new JsonObject
-            {
-                ["model"] = "new-model",
-                ["providerId"] = "workspace-provider",
-                ["approvalPolicy"] = "default",
-                ["mcpServers"] = new JsonArray(new JsonObject { ["name"] = "docs", ["transport"] = "stdio" })
-            },
-            update["config"]));
-
-        var methods = server.Requests.Select(r => r.Method).ToList();
-        Assert.True(methods.IndexOf("thread/config/update") < methods.IndexOf("thread/resume"));
-        Assert.True(methods.IndexOf("thread/resume") < methods.IndexOf("turn/start"));
-        Assert.Single(server.ParamsOf("thread/resume"));
+        var submission = Assert.Single(server.ParamsOf("turn/start"));
+        Assert.Equal("thread_9", submission["threadId"]!.GetValue<string>());
+        Assert.Equal("new-model", submission["model"]!.GetValue<string>());
+        Assert.Equal("hello", submission["input"]![0]!["text"]!.GetValue<string>());
     }
 
     [Fact]
@@ -289,7 +265,7 @@ public sealed class ExecProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Resume_AutoApproveWithModel_AppliesBothInOneUpdate()
+    public async Task Resume_AutoApprovePreservesConfigurationAndSubmitsModelWithInput()
     {
         await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
         {
@@ -313,10 +289,12 @@ public sealed class ExecProcessTests : ExecProcessTestBase
         Assert.True(JsonNode.DeepEquals(
             new JsonObject
             {
-                ["model"] = "new-model",
+                ["model"] = "old-model",
                 ["providerId"] = "workspace-provider",
+                ["speed"] = "fast",
                 ["approvalPolicy"] = "autoApprove"
             },
             update["config"]));
+        Assert.Equal("new-model", Assert.Single(server.ParamsOf("turn/start"))["model"]!.GetValue<string>());
     }
 }

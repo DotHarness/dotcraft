@@ -35,6 +35,7 @@ export async function startPendingWelcomeTurn({
     fileFallbackThreadName: translate('toast.fileReferenceMessage'),
     attachmentFallbackThreadName: translate('toast.attachmentMessage'),
     sentAsGoal: pending.sentAsGoal,
+    modelSettings: pending.modelSettings,
     onScreen,
     title: pending.title
   })
@@ -43,7 +44,6 @@ export async function startPendingWelcomeTurn({
   const appIds = pending.appIds ?? []
   if (appIds.length > 0 && !(await activateStagedApps({ threadId, echo, appIds, translate, signal }))) return
 
-  // Must land before `turn/start`: the thread now exists but has no turn yet.
   const routeFailure = await useThreadRouteStore.getState().applyPendingRoute(threadId)
   if (routeFailure) {
     showThreadRouteFailureToast(routeFailure.hostName, routeFailure.error, translate)

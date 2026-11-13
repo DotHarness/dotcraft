@@ -182,12 +182,15 @@ Raw events are collected only when the language-specific `collectRawEvents` / `C
 | Behavior | TypeScript | .NET |
 | --- | --- | --- |
 | Sender context | `sender` | `RunOptions.Sender` |
-| Queue when busy | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` |
+| Provider and model | `providerId`, `model` | `RunOptions.ProviderId`, `RunOptions.Model` |
+| Reasoning and speed | `reasoning`, `speed` | `RunOptions.Reasoning`, `RunOptions.Speed` |
 | Collect raw events | `collectRawEvents` | `RunOptions.CollectRawEvents` |
 | Return failed terminal turns | Not available | `RunOptions.ThrowOnFailure = false` |
 | Interrupt through cancellation | `AbortSignal` | `CancellationToken` |
 
-Without the busy option, starting a second turn raises `TurnInProgressError` or `TurnInProgressException`. With it, the SDK enqueues the input and returns a queued result without a turn ID.
+A run starts a turn when idle or adds guidance to an active regular turn. Model settings travel with the input and become defaults for later turns. A new turn uses them immediately; adding guidance does not change the active turn's model. Maintenance or an execution that cannot accept guidance is rejected. Use `enqueue()` / `EnqueueAsync()` explicitly to request a separate future turn.
+
+When a run joins an active turn, it returns that shared turn's full final reply, not just text generated after this input. Multiple calls can therefore return the same turn ID and result. Cancelling such a run interrupts the shared turn, not only its guidance message.
 
 ## Control a thread
 
@@ -239,7 +242,7 @@ An active .NET run fails with `RunDisconnectedException`. Do not assume a reques
 | --- | --- | --- |
 | Turn failed | `TurnFailedError` | `TurnFailedException` |
 | Turn cancelled | `TurnCancelledError` | `TurnCancelledException` |
-| Turn already running | `TurnInProgressError` | `TurnInProgressException` |
+| Execution cannot accept guidance | `TurnInProgressError` | `TurnInProgressException` |
 
 Branch on the error type or stable `code`. Treat the message as diagnostic text. See the language reference for initialization, transport, timeout, JSON-RPC, and protocol errors.
 

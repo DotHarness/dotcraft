@@ -22,7 +22,6 @@ import { activateTestWorkspace } from './workspaceResourceFixtures'
 vi.mock('../components/conversation/welcomeBackdrop/WelcomeBackdrop', () => ({
   ConversationBackdrop: ({ children }: { children: ReactNode }) => children
 }))
-vi.mock('../components/conversation/InputComposer', () => ({ InputComposer: () => null }))
 vi.mock('../components/conversation/MessageStream', () => ({ MessageStream: () => null }))
 vi.mock('../components/conversation/ThreadHeader', () => ({ ThreadHeader: () => null }))
 vi.mock('../components/conversation/ThreadCreatingContent', () => ({ ThreadCreatingContent: () => null }))
@@ -86,6 +85,35 @@ beforeEach(async () => {
   })
   activateTestWorkspace(first)
   await activate(first)
+})
+
+it('parks an input submitted during creation as a draft for the created thread', async () => {
+  const ui = useUIStore.getState()
+  const configuration = { providerId: 'fixture-provider', model: 'fixture-model' }
+  ui.setPendingThreadCreation({
+    requestId: 'creation-request', createdAt: 0, workspacePath: first.projectKey,
+    text: 'First message', inputParts: [{ type: 'text', text: 'First message' }],
+    threadName: 'New thread', configuration
+  })
+  render(panel(first))
+  const textbox = await screen.findByRole('textbox')
+  textbox.textContent = 'Follow-up draft'
+  fireEvent.input(textbox)
+  fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+  await waitFor(() => expect(textbox.textContent).toBe(''))
+
+  act(() => {
+    ui.resolvePendingThreadCreation('creation-request', 'created-thread')
+    useThreadStore.getState().setActiveThreadId('created-thread')
+    useThreadStore.getState().setActiveThread({
+      id: 'created-thread', displayName: 'New thread', status: 'active',
+      originChannel: 'dotcraft-desktop', userId: 'local', workspacePath: first.projectKey,
+      metadata: {}, turns: [], createdAt: new Date(0).toISOString(),
+      lastActiveAt: new Date(0).toISOString(), configuration
+    })
+  })
+  await waitFor(() => expect(useComposerDraftStore.getState().getDraft('created-thread'))
+    .toMatchObject({ text: 'Follow-up draft' }))
 })
 
 it('keeps Welcome drafts and explicit approval choices isolated when switching projects', async () => {

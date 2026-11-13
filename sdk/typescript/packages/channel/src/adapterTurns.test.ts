@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ERR_TURN_IN_PROGRESS, JsonRpcError, JsonRpcMessage, type Transport } from "@dotcraft/sdk/wire";
+import { JsonRpcError, JsonRpcMessage, type Transport } from "@dotcraft/sdk/wire";
 import type { SessionThread, ThreadRuntimeState } from "@dotcraft/sdk/contracts";
 
 import { ChannelAdapter, type ChannelAdapterMessageOpts } from "./adapter.js";
@@ -254,20 +254,43 @@ test("a message during thread maintenance is queued without steering", async () 
   assert.deepEqual(adapter.calls, ["enqueue:thread-1"]);
 });
 
-test("a Turn that starts first from another sender receives the message as guidance", async () => {
+test("a start race adopts the existing Turn without requiring another started event", async () => {
   const adapter = new TurnAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   client.turnStart = async () => {
     adapter.calls.push("start:thread-1");
-    throw new JsonRpcError(ERR_TURN_IN_PROGRESS, "Turn in progress");
+    return makeTurn("turn-other", "thread-1", "running");
   };
-  client.threadRead = async () => ({ ...adapter.thread, runtime: { running: true, activeTurnId: "turn-other" } });
 
   await adapter.send("me too");
+  adapter.stream.push("turn/completed", { turn: { id: "turn-other" } });
+  await adapter.ended;
 
-  assert.deepEqual(adapter.calls, ["start:thread-1", "steer:thread-1:turn-other"]);
-  assert.equal(adapter.stream.closed, true);
+  assert.deepEqual(adapter.calls, ["start:thread-1"]);
+  assert.deepEqual(adapter.hooks, ["started:turn-other", "ended:turn-other:completed"]);
   assert.deepEqual(adapter.deliveries, []);
+});
+
+test("two start submissions sharing a Turn retain only one response consumer", async () => {
+  const adapter = new TurnAdapter();
+  await adapter.send("first");
+  const runningStream = adapter.stream;
+  const duplicateStream = new ControlledStream();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  client.streamEvents = () => duplicateStream;
+
+  await adapter.send("guidance");
+
+  assert.equal(duplicateStream.closed, true);
+  assert.equal(runningStream.closed, false);
+  assert.deepEqual(adapter.hooks, ["started:turn-new"]);
+  assert.deepEqual(adapter.detached, []);
+  const detached = adapter.nextDetach();
+  runningStream.push("turn/completed", { turn: { id: "turn-new" } });
+  await adapter.ended;
+  await detached;
+  assert.deepEqual(adapter.hooks, ["started:turn-new", "ended:turn-new:completed"]);
+  assert.deepEqual(adapter.detached, ["thread-1"]);
 });
 
 test("a failed Turn sends one generic notice without diagnostics", async () => {

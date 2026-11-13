@@ -41,10 +41,10 @@ function setLocalProject(): void {
   }] })
 }
 
-function renderComposer(): void {
+function renderComposer(captureTurnSettings?: Parameters<typeof InputComposer>[0]['captureTurnSettings']): void {
   render(
     <LocaleProvider>
-      <InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" modelName="test-model" modelOptions={['test-model']} onOptimisticEcho={onOptimisticEcho} />
+      <InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" modelName="test-model" modelOptions={['test-model']} onOptimisticEcho={onOptimisticEcho} captureTurnSettings={captureTurnSettings} />
     </LocaleProvider>
   )
 }
@@ -85,6 +85,21 @@ describe('InputComposer follow-up routing', () => {
     useVoiceStore.setState({ initialized: false, recording: null, finalizing: null,
       snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, chatGpt: { signedIn: false, enabled: true }, sessions: [], capacity: 2 } })
     useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
+  })
+
+  it('waits for the selected model before submitting once and preserves the draft on capture failure', async () => {
+    useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null })
+    let reject!: (error: Error) => void
+    const capture = vi.fn(() => new Promise<never>((_resolve, fail) => { reject = fail }))
+    renderComposer(capture)
+    const textbox = draft('Keep this draft')
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+    expect(capture).toHaveBeenCalledTimes(1)
+    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
+    await act(async () => reject(new DOMException('Selection failed', 'AbortError')))
+    expect(textbox.textContent).toBe('Keep this draft')
+    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
   })
 
   it.each(['enter', 'button'] as const)('starts a turn and notifies when submitted by %s', async (submission) => {

@@ -182,12 +182,15 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 | 行为 | TypeScript | .NET |
 | --- | --- | --- |
 | Sender context | `sender` | `RunOptions.Sender` |
-| Busy 时排队 | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` |
+| Provider 和模型 | `providerId`、`model` | `RunOptions.ProviderId`、`RunOptions.Model` |
+| Reasoning 和速度 | `reasoning`、`speed` | `RunOptions.Reasoning`、`RunOptions.Speed` |
 | 收集 raw event | `collectRawEvents` | `RunOptions.CollectRawEvents` |
 | 返回失败终态 | 不支持 | `RunOptions.ThrowOnFailure = false` |
 | 通过取消中断 | `AbortSignal` | `CancellationToken` |
 
-未启用 busy 选项时，启动第二个 turn 会抛出 `TurnInProgressError` 或 `TurnInProgressException`。启用后，SDK 会把输入排队，并返回不含 turn ID 的 queued result。
+Run 在空闲时启动 turn，或向活动的普通 turn 添加指导。模型设置随输入一起提交，并成为后续 turn 的默认值。新 turn 立即使用这些设置，指导输入不改变活动 turn 的模型。维护或不能接收指导的执行会被拒绝。需要独立的未来 turn 时，显式调用 `enqueue()` / `EnqueueAsync()`。
+
+Run 加入活动 turn 后，返回该共享 turn 的完整最终回复，而不是仅本次输入之后生成的文本。因此，多次调用可能返回相同 turn ID 和结果。取消这样的 run 会中断共享 turn，而不只是撤销其指导消息。
 
 ## 控制 thread
 
@@ -239,7 +242,7 @@ TypeScript 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type` 中使用
 | --- | --- | --- |
 | Turn 失败 | `TurnFailedError` | `TurnFailedException` |
 | Turn 取消 | `TurnCancelledError` | `TurnCancelledException` |
-| 已有 turn 在运行 | `TurnInProgressError` | `TurnInProgressException` |
+| 执行不能接收指导 | `TurnInProgressError` | `TurnInProgressException` |
 
 按错误类型或稳定的 `code` 分支，message 只用于诊断。初始化、transport、timeout、JSON-RPC 和协议错误见各语言参考。
 

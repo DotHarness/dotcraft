@@ -123,6 +123,15 @@ describe('startTurnWithOptimisticUI echo notification', () => {
     expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the existing turn running when a new submission fails', async () => {
+    useConversationStore.getState().onTurnStarted({ id: 'active', threadId: 'thread-1', status: 'running', items: [], startedAt: '2026-11-13T00:00:00Z' })
+    useConversationStore.setState({ streamingMessage: 'partial reply' })
+    sendRequest.mockRejectedValueOnce(new Error('rejected'))
+    await expect(startTurnWithOptimisticUI({ ...input, throwOnStartError: true })).rejects.toThrow('rejected')
+    expect(useConversationStore.getState()).toMatchObject({ activeTurnId: 'active', turnStatus: 'running', streamingMessage: 'partial reply' })
+    expect(useConversationStore.getState().turns.map(turn => turn.id)).toEqual(['active'])
+  })
+
   it('does not notify or submit when input parts are empty', async () => {
     const onOptimisticEcho = vi.fn()
 

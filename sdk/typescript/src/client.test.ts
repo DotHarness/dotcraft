@@ -133,9 +133,11 @@ test("attached handles isolate interleaved feeds and resume after explicit conne
   await start;
   const thread = new DotCraftThread({ wire: client } as DotCraft, makeThread("A", "active"), { channelName: "sdk", userId: "u" });
   const observer = client.streamEvents("A");
-  const run = thread.run("hi", { collectRawEvents: true });
+  const settings = { providerId: "provider-b", model: "model-b", reasoning: { enabled: true, effort: "high" }, speed: "fast" };
+  const run = thread.run("hi", { collectRawEvents: true, ...settings });
   const turnWrite = await transport.nextWrite();
   assert.equal(turnWrite.method, "turn/start");
+  assert.deepEqual(turnWrite.params, { threadId: "A", input: [{ type: "text", text: "hi" }], ...settings });
   transport.push({ id: turnWrite.id, result: { turn: makeTurn("target", "A", "running") } });
   transport.push({ method: "turn/completed", params: { turn: makeTurn("B-turn", "B", "completed") } });
   transport.push({ method: "turn/failed", params: { turn: makeTurn("old", "A", "failed") } });

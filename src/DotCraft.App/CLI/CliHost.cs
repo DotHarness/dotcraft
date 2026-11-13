@@ -67,8 +67,8 @@ public sealed class CliHost(
 
         if (resuming)
         {
-            if (request.Model != null || request.AutoApprove)
-                await ExecThreads.UpdateConfigAsync(wire, threadId, request.Model, request.AutoApprove, ct).ConfigureAwait(false);
+            if (request.AutoApprove)
+                await ExecThreads.AutoApproveAsync(wire, threadId, ct).ConfigureAwait(false);
             await ExecThreads.ResumeAsync(wire, threadId, ct).ConfigureAwait(false);
         }
         return threadId;

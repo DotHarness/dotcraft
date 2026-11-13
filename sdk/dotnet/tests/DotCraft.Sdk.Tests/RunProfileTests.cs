@@ -117,21 +117,42 @@ public sealed class RunProfileTests
     }
 
     [Fact]
-    public async Task RunAsync_BusyThreadCanReturnTypedEnqueueResult()
+    public async Task RunAsync_JoinsExistingTurnWithModelSettingsAndUsesItsFinalSnapshot()
     {
         var (client, transport) = await ConnectAsync();
         await using var _ = client;
         var thread = await StartThreadAsync(client, transport);
-        var run = thread.RunAsync("later", new RunOptions { EnqueueIfBusy = true });
-        await RespondErrorAsync(transport, "turn/start", AppServerErrorCodes.TurnInProgress, "busy");
-        await RespondAsync(transport, "turn/enqueue", new TurnEnqueueResult
+        var run = thread.RunAsync("continue", new RunOptions
         {
-            QueuedInput = QueuedInput(), QueuedInputs = [QueuedInput()]
+            ProviderId = "provider-b",
+            Model = "model-b",
+            Reasoning = new ReasoningConfig { Enabled = true, Effort = "high" },
+            Speed = "fast"
+        });
+        using var request = await transport.ReadOutboundAsync();
+        Assert.Equal("turn/start", request.RootElement.GetProperty("method").GetString());
+        var parameters = request.RootElement.GetProperty("params");
+        Assert.Equal("provider-b", parameters.GetProperty("providerId").GetString());
+        Assert.Equal("model-b", parameters.GetProperty("model").GetString());
+        Assert.Equal("high", parameters.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("fast", parameters.GetProperty("speed").GetString());
+        await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
+        {
+            ThreadId = "thread_1", TurnId = "turn_1", ItemId = "item_1", DeltaKind = "agentMessage", Delta = "after"
+        });
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0", id = request.RootElement.GetProperty("id").GetInt64(),
+            result = new TurnStartResult { Turn = Turn("inProgress") }
+        });
+        await PushNotificationAsync(transport, "turn/completed", new TurnNotification
+        {
+            Turn = Turn("completed", [AgentItem("before", "item_0"), AgentItem("after")])
         });
 
         var result = await run.WaitAsync(Timeout);
-        Assert.Null(result.Turn);
-        Assert.Null(result.TurnId);
+        Assert.Equal("turn_1", result.TurnId);
+        Assert.Equal("before\n\nafter", result.Text);
     }
 
     [Fact]
@@ -368,14 +389,6 @@ public sealed class RunProfileTests
         await transport.PushInboundAsync(new { jsonrpc = "2.0", id, result });
     }
 
-    private static async Task RespondErrorAsync(TestJsonRpcTransport transport, string method, int code, string message)
-    {
-        using var outbound = await transport.ReadOutboundAsync();
-        Assert.Equal(method, outbound.RootElement.GetProperty("method").GetString());
-        var id = outbound.RootElement.GetProperty("id").GetInt64();
-        await transport.PushInboundAsync(new { jsonrpc = "2.0", id, error = new { code, message } });
-    }
-
     private static Task PushNotificationAsync(TestJsonRpcTransport transport, string method, object parameters) =>
         transport.PushInboundAsync(new { jsonrpc = "2.0", method, @params = parameters });
 
@@ -411,9 +424,9 @@ public sealed class RunProfileTests
         Items = items
     };
 
-    private static SessionItem AgentItem(string text) => new()
+    private static SessionItem AgentItem(string text, string id = "item_1") => new()
     {
-        Id = "item_1",
+        Id = id,
         TurnId = "turn_1",
         Type = "agentMessage",
         Status = "completed",
@@ -421,17 +434,6 @@ public sealed class RunProfileTests
         CompletedAt = Now,
         PayloadKind = "agentMessage",
         Payload = JsonSerializer.SerializeToElement(new AgentMessagePayload { Text = text }, AppServerContractJson.Options)
-    };
-
-    private static QueuedTurnInput QueuedInput() => new()
-    {
-        Id = "queue_1",
-        ThreadId = "thread_1",
-        NativeInputParts = [new InputPart { Type = "text", Text = "later" }],
-        MaterializedInputParts = [new InputPart { Type = "text", Text = "later" }],
-        DisplayText = "later",
-        Status = "queued",
-        CreatedAt = Now
     };
 
     private static ThreadConfiguration Configuration(string provider, string model) => new()

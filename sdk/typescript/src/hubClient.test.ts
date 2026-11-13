@@ -416,25 +416,23 @@ test("ensureHub never reuses a mismatched Hub it asked to stop", async () => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       if (url.port === "49143" && url.pathname === "/v1/shutdown") {
         shutdownRequested = true;
+        await stopProcess(previous);
+        await writeHubLock(dir, { pid: process.pid, apiBaseUrl: "http://127.0.0.1:49144", binaryPath: "/new/dotcraft" });
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
       const binaryPath = url.port === "49143" ? "/old/dotcraft" : "/new/dotcraft";
       return new Response(JSON.stringify({ binaryPath }), { status: 200 });
     }) as typeof fetch;
 
-    const ensured = new HubClient({
+    const hub = await new HubClient({
       homeDir: dir,
       executable: join(dir, "missing-dotcraft"),
       expectedExecutable: "/new/dotcraft",
       binaryMatchPolicy: "restartIfMismatch",
     }).ensureHub();
-    await new Promise((resolve) => setTimeout(resolve, 600));
+
     assert.equal(shutdownRequested, true);
-
-    await stopProcess(previous);
-    await writeHubLock(dir, { pid: process.pid, apiBaseUrl: "http://127.0.0.1:49144", binaryPath: "/new/dotcraft" });
-
-    assert.equal((await ensured).apiBaseUrl, "http://127.0.0.1:49144");
+    assert.equal(hub.apiBaseUrl, "http://127.0.0.1:49144");
   } finally {
     globalThis.fetch = originalFetch;
     await stopProcess(previous);

@@ -17,7 +17,10 @@ internal sealed partial class FakeAppServerClient
         await foreach (var notification in events.WithCancellation(ct))
         {
             if (notification.Type is "turn/completed" or "turn/failed" or "turn/cancelled" && notification.TurnId is { } turnId)
+            {
+                if (_activeTurnId == turnId) _activeTurnId = null;
                 TurnEnded(notification.ThreadId, turnId);
+            }
             yield return notification;
             if (notification.Type == "turn/started")
                 TurnStartedProcessed();

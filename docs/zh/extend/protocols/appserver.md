@@ -279,7 +279,9 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 
 ## 回合
 
-`turn/start` 提交用户输入并启动 agent 执行。响应会立即返回初始 turn，后续输出通过 notification 流式发送。
+`turn/start` 一起提交输入与可选模型设置。空闲时，服务端使用这些设置启动 turn。已有普通 turn 可以接收指导时，输入加入该 turn，响应返回其现有 ID，不再发出第二次 `turn/started` notification。
+
+可选字段 `providerId`、`model`、`reasoning` 和 `speed` 在接纳后成为 thread 默认设置。新启动的 turn 立即使用它们，指导输入不会改变活动 turn 已捕获的模型或执行设置。省略或 null 字段保留当前选择，切换 provider 必须同时指定模型，reasoning 按字段合并。输入必须等待独立 turn 时，显式调用 `turn/enqueue`。
 
 ```json
 {

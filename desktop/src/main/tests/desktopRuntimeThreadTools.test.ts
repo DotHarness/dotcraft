@@ -395,19 +395,17 @@ describe('desktop runtime thread tools', () => {
     expect(turnCall?.[1]).not.toHaveProperty('cwd')
   })
 
-  it('queues SendMessageToThread when the target thread is busy', async () => {
+  it('accepts a message into an existing turn with its requested model and reasoning', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/read') return { thread: { id: 'thread-1', status: 'active' } }
-      if (method === 'thread/resume') return { thread: { id: 'thread-1' } }
-      if (method === 'turn/start') throw new Error('Invalid request: TurnInProgress')
-      if (method === 'turn/enqueue') return { queuedInput: { id: 'queued-1' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-existing' } }
       throw new Error(`unexpected ${method}`)
     })
 
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
-      arguments: { threadId: 'thread-1', prompt: 'follow up' }
+      arguments: { threadId: 'thread-1', prompt: 'follow up', model: 'model-b', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace', {
       supportsDynamicToolRebind: true
     })
@@ -415,17 +413,22 @@ describe('desktop runtime thread tools', () => {
     expect(result?.success).toBe(true)
     expect(result?.structuredContent).toEqual(expect.objectContaining({
       threadId: 'thread-1',
-      queued: true,
-      queuedInput: { id: 'queued-1' }
+      accepted: true,
+      turn: { id: 'turn-existing' }
     }))
     expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual([
       'thread/read',
-      'turn/start',
-      'turn/enqueue'
+      'turn/start'
     ])
+    expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toEqual({
+      threadId: 'thread-1',
+      input: [{ type: 'text', text: 'follow up' }],
+      model: 'model-b',
+      reasoning: { enabled: true, effort: 'ultra' }
+    })
   })
 
-  it('updates persistent reasoning effort before sending a message', async () => {
+  it('reports a non-steerable execution without silently queueing input', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/read') {
         return {
@@ -440,8 +443,7 @@ describe('desktop runtime thread tools', () => {
           }
         }
       }
-      if (method === 'thread/config/update') return {}
-      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      if (method === 'turn/start') throw new Error('Thread is running maintenance')
       throw new Error(`unexpected ${method}`)
     })
 
@@ -451,27 +453,11 @@ describe('desktop runtime thread tools', () => {
       arguments: { threadId: 'thread-1', prompt: 'follow up', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace')
 
-    expect(result?.success).toBe(true)
-    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual([
-      'thread/read',
-      'thread/config/update',
-      'turn/start'
-    ])
-    expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toEqual({
-      threadId: 'thread-1',
-      config: {
-        mode: 'agent',
-        model: 'gpt-5',
-        reasoning: {
-          enabled: true,
-          effort: 'ultra',
-          output: 'summary'
-        }
-      }
-    })
+    expect(result).toEqual(expect.objectContaining({ success: false, errorCode: 'ThreadBusy' }))
+    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual(['thread/read', 'turn/start'])
   })
 
-  it('rejects SendMessageToThread model overrides and ignores other namespaces without requests', async () => {
+  it('rejects empty model selections and ignores other namespaces without requests', async () => {
     const client = createClient(async () => {
       throw new Error('should not be called')
     })
@@ -479,7 +465,7 @@ describe('desktop runtime thread tools', () => {
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
-      arguments: { threadId: 'thread-1', prompt: 'follow up', model: 'gpt-5' }
+      arguments: { threadId: 'thread-1', prompt: 'follow up', model: ' ' }
     }, 'F:\\examples\\workspace')
     const ignored = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: 'other',
@@ -489,7 +475,7 @@ describe('desktop runtime thread tools', () => {
 
     expect(result).toEqual(expect.objectContaining({
       success: false,
-      errorCode: 'UnsupportedOption'
+      errorCode: 'InvalidArguments'
     }))
     expect(ignored).toBeUndefined()
     expect(client.sendRequest).not.toHaveBeenCalled()

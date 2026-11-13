@@ -31,6 +31,29 @@ public sealed partial class OratorioAppBindingSdkTests
     }
 
     [Fact]
+    public async Task StartTurn_UsesTypedModelSelectionAndAdoptsTheReturnedTurn()
+    {
+        var transport = new TestJsonRpcTransport();
+        var sdkClient = await ConnectSdkClientAsync(transport);
+        await using var client = new DotCraftAppServerClient(sdkClient);
+
+        var start = client.StartTurnAsync("thread-existing",
+            [new TurnInputPartDto("text", "Continue.", null, null, null, null, null, null)],
+            "discussion-model", CancellationToken.None);
+        using var request = await transport.ReadOutboundAsync().WaitAsync(Timeout);
+        Assert.Equal("turn/start", request.RootElement.GetProperty("method").GetString());
+        var parameters = request.RootElement.GetProperty("params");
+        Assert.Equal("discussion-model", parameters.GetProperty("model").GetString());
+        Assert.Equal("Continue.", parameters.GetProperty("input")[0].GetProperty("text").GetString());
+        await transport.PushResultAsync(request, new
+        {
+            turn = new { id = "turn-existing", threadId = "thread-existing", status = "running", startedAt = DateTimeOffset.UnixEpoch, items = Array.Empty<object>() }
+        });
+
+        Assert.Equal("turn-existing", await start.WaitAsync(Timeout));
+    }
+
+    [Fact]
     public async Task StartThread_UsesBaseWorkspaceForIdentityAndWorktreeForExecution()
     {
         var transport = new TestJsonRpcTransport();
