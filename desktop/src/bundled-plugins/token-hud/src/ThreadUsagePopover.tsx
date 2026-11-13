@@ -60,10 +60,12 @@ export function ThreadUsagePopover({ usage, strings, formatTokens, formatCost, s
               <li key={slice.label}>
                 <span className="token-hud-popover-swatch" style={{ background: seriesColor(index) }} />
                 <span className="token-hud-popover-label">{slice.label}</span>
-                <span className="token-hud-popover-value">
-                  {`${Math.round((slice.totalTokens / total) * 100)}% · ${formatTokens(slice.totalTokens)}`}
-                  {slice.costUsd === null ? '' : ` · ${formatCost(slice.costUsd)}`}
-                </span>
+                {slices.length > 1 ? (
+                  <span className="token-hud-popover-value">
+                    {`${Math.round((slice.totalTokens / total) * 100)}% · ${formatTokens(slice.totalTokens)}`}
+                    {slice.costUsd === null ? '' : ` · ${formatCost(slice.costUsd)}`}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
