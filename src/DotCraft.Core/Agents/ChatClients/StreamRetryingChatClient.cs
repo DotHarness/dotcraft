@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using DotCraft.Sessions;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 
@@ -14,8 +14,7 @@ internal sealed record StreamRetryOptions(
     int ProviderServerErrorMaxRetries = 0);
 
 /// <summary>
-/// Replays a dropped streaming provider call only while no update has been delivered; after that
-/// the tool loop owns the retry, because only it can commit what already arrived.
+/// Retries streams before an update is delivered; the tool loop owns continuation after delivery.
 /// </summary>
 internal sealed class StreamRetryingChatClient(
     IChatClient innerClient,
@@ -213,16 +212,17 @@ internal sealed class StreamRetryingChatClient(
             // Exhausting this layer's budget is terminal, so the tool loop adds no round of its own.
             var surfaced = retryExhausted
                 ? new ProviderFailureException(
-                    new ProviderFailure(
-                        ProviderFailureKind.ResponseTooManyFailedAttempts,
-                        ModelStreamAttemptRuntimeScope.Current?.StatusCode,
-                        RequestId: ModelStreamAttemptRuntimeScope.Current?.RequestId),
+                    classifiedFailure with
+                    {
+                        Kind = ProviderFailureKind.ResponseTooManyFailedAttempts,
+                        HttpStatus = ModelStreamAttemptRuntimeScope.Current?.StatusCode ?? classifiedFailure.HttpStatus,
+                        RequestId = ModelStreamAttemptRuntimeScope.Current?.RequestId ?? classifiedFailure.RequestId
+                    },
                     failure)
                 : failure;
 
             if (!retryDelegated && !cancellationToken.IsCancellationRequested)
             {
-                // Only the tool loop knows whether a delegated failure is terminal.
                 ModelStreamRetryRuntimeScope.Current?.NotifyFailureClassified?.Invoke(
                     _classifier.ClassifyCaptured(surfaced));
                 if (totalRetries > 0)
@@ -411,7 +411,7 @@ internal sealed class StreamRetryingChatClient(
             return "idle_timeout";
         if (DefaultProviderFailureClassifier.IsStreamDisconnect(exception))
             return "premature_end";
-        if (exception is OperationCanceledException or TaskCanceledException)
+        if (exception is OperationCanceledException)
             return "canceled";
         if (exception is TimeoutException)
             return "timeout";

@@ -35,7 +35,6 @@ public sealed partial class SessionService
             : McpAppTransientContexts?.TakeForThread(threadId) ?? [];
         var lastActivityBeforeTurn = thread.LastActiveAt;
 
-        // Step 2: Create Turn and UserMessage Item
         var turnSeq = SessionIdGenerator.ReserveNextTurnSequence(thread);
         var turn = new SessionTurn
         {
@@ -58,7 +57,6 @@ public sealed partial class SessionService
 
         var itemSeq = SessionIdGenerator.LastItemSequence(turn.Items);
 
-        // Extract plain text from content parts for display and persistence
         var text = inputSnapshot?.DisplayText
             ?? string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var images = ExtractUserMessageImages(content);
@@ -73,7 +71,7 @@ public sealed partial class SessionService
             Status = ItemStatus.Completed,
             CreatedAt = DateTimeOffset.UtcNow,
             CompletedAt = DateTimeOffset.UtcNow,
-                Payload = new UserMessagePayload
+            Payload = new UserMessagePayload
             {
                 Text = text,
                 DeliveryMode = inputSnapshot?.DeliveryMode,
@@ -105,7 +103,6 @@ public sealed partial class SessionService
         thread.Turns.Add(turn);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
-        // Set a provisional display name from the first user message so the session list updates immediately.
         string? provisionalThreadTitle = null;
         if (string.IsNullOrEmpty(thread.DisplayName))
         {
@@ -114,7 +111,6 @@ public sealed partial class SessionService
                 thread.DisplayName = provisionalThreadTitle;
         }
 
-        // Step 3: Create event channel
         var broker = GetOrCreateBroker(threadId);
         var eventChannel = broker.CreateTurnChannel(turn.Id, LogStreamDebugSessionEvent, admittedRuntime.Generation);
 
@@ -141,7 +137,6 @@ public sealed partial class SessionService
             }
         }
 
-        // Step 4: Register the runtime before starting background persistence and execution.
         var turnKey = new TurnKey(threadId, turn.Id);
         var cts = new CancellationTokenSource();
         var turnRuntime = admittedRuntime.GetOrAddTurn(turn.Id);
@@ -158,8 +153,7 @@ public sealed partial class SessionService
                 ["Channel"] = turnOriginChannel
             });
 
-            // Link caller cancellation with our internal CTS inside the lambda so it lives
-            // for the full duration of the background task rather than being disposed on method return.
+            // Keep the linked token alive for the background task, not just admission.
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCt, cts.Token);
             var executionCt = linkedCts.Token;
             var boardInbox = RegisterBoardInbox(thread, turn.Id, executionCt);
@@ -591,8 +585,7 @@ public sealed partial class SessionService
                                 Replacement = new CompactionReplacement.Neutral(compactedHistory)
                             };
                             TryAdvanceResponsesContextWindowAfterReplacement(threadId);
-                            // Sampling boundaries project the replacement from inside the request
-                            // pipeline; the phases outside it project here.
+                            // Mid-turn compaction projects the replacement inside the request pipeline; other phases project it here.
                             if (phase != CompactionPhase.MidTurn
                                 && ProviderRequestContextScope.Current?.History is { } replacedProviderHistory)
                             {
@@ -797,7 +790,6 @@ public sealed partial class SessionService
                     eventChannel.EmitItemCompleted(userItem);
                 }
 
-                // Step 5a: Acquire SessionGate
                 try
                 {
                     gateLock = await sessionGate.AcquireAsync(threadId, executionCt);
@@ -823,7 +815,6 @@ public sealed partial class SessionService
                     return;
                 }
 
-                // Step 5b: Rebuild the MEAI model history from Session Core rollout.
                 // Resource capture was ordered at admission. It may wait for an in-flight
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
@@ -835,7 +826,6 @@ public sealed partial class SessionService
                 await PrepareRemoteTurnAsync(threadId, executionResources.ToolSnapshot, turnContext.Configuration.Mode, executionCt)
                     .ConfigureAwait(false);
 
-                // Bind tracing and token tracking before model history reconstruction.
                 if (CacheSharingFork.PurposeOf(thread) is not null)
                     BindCacheSharingForkTrace(thread);
                 else if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)
@@ -914,11 +904,10 @@ public sealed partial class SessionService
                     }
 
                     turnCommitter.PersistedModelHistoryCount = session.Count;
-                    // The new checkpoint is the newest one replay stops at, so both baselines restart here.
+                    // Replay stops at this checkpoint, so restart both baselines here.
                     ResetWorldStateBaseline(threadId, "history_replaced");
                 }
 
-                // Step 5c: Append runtime context to the multimodal content list
                 var turnMode = turnContext.Configuration.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
                     ? AgentMode.Plan
                     : AgentMode.Agent;
@@ -995,7 +984,6 @@ public sealed partial class SessionService
                 if (BuildPromptHookReminder(promptHookContext, prePromptHookContext) is { } promptHookReminder)
                     modelInputContent = [.. modelInputContent, new TextContent(promptHookReminder)];
 
-                // Step 5e: Set up approval service override
                 sessionApproval = new SessionApprovalService(
                     eventChannel,
                     turn,
@@ -1036,7 +1024,6 @@ public sealed partial class SessionService
                 if (userInputTurnRuntime != null)
                     userInputTurnRuntime.PendingUserInput = userInputRequestService;
 
-                // Set ApprovalContext for tools that read ApprovalContextScope
                 var approvalContextDisposable = sender != null
                     ? ApprovalContextScope.Set(new ApprovalContext
                     {
@@ -1047,13 +1034,11 @@ public sealed partial class SessionService
                     })
                     : null;
 
-                // Step 5g: Run agent
                 int? currentUsageRequestIndex = null;
                 ChatFinishReason? lastFinishReason = null;
                 var usageAccumulator = new TokenUsageRequestAccumulator();
                 TokenUsageInfo? requestUsage = null;
 
-                // SubAgent progress aggregator: lazily created when SpawnAgent tool calls appear
                 SubAgentProgressAggregator? progressAggregator = null;
 
                 var effectiveWorkspace = turnContext.Workspace;
@@ -1213,9 +1198,7 @@ public sealed partial class SessionService
                         ? ephemeralHistoryRuntime
                         : null);
 
-                // Pre-turn compaction runs before the Turn's context items and input are appended,
-                // so those stay behind the checkpoint and rolling this Turn back keeps the
-                // compacted history.
+                // Keep this Turn's context and input behind the checkpoint so rollback preserves the compacted history.
                 if (thread.HistoryMode != HistoryMode.Client
                     && TrySnapshotInMemoryHistory(session, out var preTurnHistory)
                     && preTurnHistory.Count > 0)
@@ -1260,7 +1243,7 @@ public sealed partial class SessionService
 
                 try
                 {
-                    // Context items are plumbing, not conversation: a history of only those is still turn one.
+                    // Context-only history still counts as the first conversational turn.
                     if (!TrySnapshotInMemoryHistory(session, out var preflightHistory)
                         || !preflightHistory.Any(static message => ThreadContextItems.GetKind(message) == null))
                     {
@@ -1421,9 +1404,7 @@ public sealed partial class SessionService
                                                 resolvedToolName,
                                                 StringComparison.Ordinal)) == true)
                                     {
-                                        // Namespace-capable providers may stream only the local child name.
-                                        // Argument deltas are presentation-only, so wait for the final composite
-                                        // callback instead of persisting an identity-incomplete tool item.
+                                        // A local child name is not a stable tool identity; wait for the final composite callback.
                                         break;
                                     }
                                     FinalizeStreamingReasoning();
@@ -1607,7 +1588,6 @@ public sealed partial class SessionService
                                         eventChannel.EmitItemCompleted(toolCallItem);
                                     }
 
-                                    // Track SubAgent progress when SpawnAgent tool calls are detected
                                     if (string.Equals(fc.Name, "SpawnAgent", StringComparison.Ordinal)
                                         && fc.Arguments != null)
                                     {
@@ -1791,7 +1771,7 @@ public sealed partial class SessionService
                 }
                 finally
                 {
-                    // Stop SubAgent progress aggregator before cleaning up AsyncLocal context
+                    // Dispose progress tracking while its AsyncLocal context is still available.
                     if (progressAggregator != null)
                         await progressAggregator.DisposeAsync();
 
@@ -1801,11 +1781,9 @@ public sealed partial class SessionService
                     approvalContextDisposable?.Dispose();
                 }
 
-                // Step 5h: Finalize any still-streaming items.
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
 
-                // Step 5i: Accumulate token usage (include SubAgent tokens)
                 var mainTraceUsageDelta = Math.Max(
                     0,
                     (traceCollector?.GetTokenUsageCount(threadId) ?? mainTraceUsageBaseline) - mainTraceUsageBaseline);
@@ -1836,7 +1814,6 @@ public sealed partial class SessionService
                     return;
                 }
 
-                // Step 5j: Run Stop hooks
                 if (hookRunner != null)
                 {
                     var stopInput = new HookInput
@@ -1851,7 +1828,6 @@ public sealed partial class SessionService
                     await hookRunner.RunAsync(HookEvent.Stop, stopInput, CancellationToken.None);
                 }
 
-                // Step 5k: Turn-end compaction, then threshold notification.
                 {
                     var compactionPipeline = GetCompactionPipelineForThread(thread);
                     if (compactionPipeline.PostTurnCompactionEnabled
@@ -1899,13 +1875,10 @@ public sealed partial class SessionService
                     }
                 }
 
-                // Step 5m: Release gate
                 gateLock.Dispose();
                 gateLock = null;
 
-                // Steps 5n-5r: Complete Turn. The status transition shares the
-                // serialized queue command with guidance restoration so steer
-                // cannot bind input after this turn has crossed its final boundary.
+                // Serialize completion with guidance restoration so steer cannot bind input past the Turn's final boundary.
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
                     turn.Status = TurnStatus.Completed;
@@ -1923,7 +1896,6 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
-                // Explicit CancelTurn call
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
                 await AccountGoalUsageAsync(
@@ -1955,7 +1927,6 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException) when (callerCt.IsCancellationRequested)
             {
-                // Caller cancellation
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
                 await RestoreUndrainedGuidanceAsync(() =>
@@ -1976,8 +1947,6 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException)
             {
-                // Preserve historical behavior for cancellation-shaped exceptions that
-                // are not the SDK network timeout and are not tied to a known source.
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
                 await RestoreUndrainedGuidanceAsync(() =>
@@ -2013,14 +1982,19 @@ public sealed partial class SessionService
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Turn execution failed for thread {ThreadId}", threadId);
+                if (classifiedProviderFailure?.Message is { } providerMessage)
+                    logger?.LogError(
+                        "Provider request failed for thread {ThreadId}: {ProviderMessage}; HTTP {HttpStatus}; code {ProviderErrorCode}; request {RequestId}",
+                        threadId, providerMessage, classifiedProviderFailure.HttpStatus,
+                        classifiedProviderFailure.ProviderErrorCode, classifiedProviderFailure.RequestId);
+                else
+                    logger?.LogError(ex, "Turn execution failed for thread {ThreadId}", threadId);
 
-                // Step 5k-R: Reactive compaction on prompt-too-long / context-overflow errors.
-                // On success we still fail this turn (the model's streaming response is
-                // already gone), but the compacted history lets the user re-send their
-                // prompt and succeed without any manual cleanup.
-                var reactiveMessage = ex.Message;
-                if (CompactionErrors.IsPromptTooLong(ex) && session is not null)
+                // Compaction prepares history for the next user request; this failed Turn is not replayed.
+                var reactiveMessage = classifiedProviderFailure?.Message ?? ex.Message;
+                if ((classifiedProviderFailure?.Kind == ProviderFailureKind.ContextWindowExceeded
+                     || classifiedProviderFailure?.ProviderErrorCode is null && CompactionErrors.IsPromptTooLong(ex))
+                    && session is not null)
                 {
                     try
                     {

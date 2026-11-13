@@ -20,7 +20,6 @@ public enum ProviderFailureKind
     ResponseTooManyFailedAttempts
 }
 
-/// <summary>Wire names for <see cref="ProviderFailureKind"/>; these are part of the client contract.</summary>
 public static class ProviderFailureKinds
 {
     public static string ToWireName(ProviderFailureKind kind) => kind switch
@@ -52,6 +51,8 @@ public sealed record ProviderFailure(
     private TimeSpan? _serverRetryAfter = ServerRetryAfter;
     private ProviderRetryDeadline? _retryDeadline = ServerRetryAfter is { } delay
         ? ProviderRetryDeadline.FromDelay(delay) : null;
+
+    public string? Message { get; init; }
 
     public TimeSpan? ServerRetryAfter
     {
@@ -125,7 +126,6 @@ public interface IStreamRetryBudget
     int MaxStreamRetries { get; }
 }
 
-/// <summary>Used when a provider integration registers no classifier of its own.</summary>
 public sealed class DefaultProviderFailureClassifier : IProviderFailureClassifier
 {
     public static readonly DefaultProviderFailureClassifier Instance = new();

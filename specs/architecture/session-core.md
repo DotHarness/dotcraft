@@ -1032,6 +1032,8 @@ When these tools are available, prompt composition describes the choice: `Reques
 | **Cancellation** | Adapter calls `CancelTurn` | Pending requests resolved (Section 10.2); Turn `Cancelled`; partial state saved. |
 | **Prompt Hook Blocked** | PrePrompt hook blocks | Error Item with the reason; Turn `Failed`; no agent invocation. |
 
+For OpenAI-compatible HTTP failures, recognized provider error codes take precedence over HTTP status fallback. A redacted, bounded provider reason is used consistently in the Error Item, failed Turn, notification, and persisted history; raw response bodies and headers are not forwarded. Ordinary invalid requests are terminal; identified context overflow enters the existing reactive compaction flow without automatically resending the request.
+
 #### Thread-Level Failures
 
 | Failure | Trigger | Behavior |

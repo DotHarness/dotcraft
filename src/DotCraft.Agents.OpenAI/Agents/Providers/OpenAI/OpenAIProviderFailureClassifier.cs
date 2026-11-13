@@ -19,12 +19,23 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         var response = TryGetRawResponse(result);
         var retryDeadline = OpenAIRetryAdvicePipelinePolicy.Capture(response);
         var status = response?.Status ?? result.Status;
-        var detail = $"{Detail(exception)} {TryReadBody(response)}";
+        var error = OpenAIProviderErrorParser.Read(response);
+        var detail = $"{Detail(exception)} {error.Detail}";
         var baseline = fallback with
         {
-            Kind = DefaultProviderFailureClassifier.FromStatusCode((System.Net.HttpStatusCode)status),
+            Kind = error.Code switch
+            {
+                "context_length_exceeded" when status == 400 => ProviderFailureKind.ContextWindowExceeded,
+                "invalid_prompt" when status == 400 => ProviderFailureKind.BadRequest,
+                "model_not_found" => ProviderFailureKind.BadRequest,
+                _ => fallback.Kind == ProviderFailureKind.ContextWindowExceeded
+                    ? fallback.Kind
+                    : DefaultProviderFailureClassifier.FromStatusCode((System.Net.HttpStatusCode)status)
+            },
             HttpStatus = status,
-            RequestId = TryGetHeader(response, "x-request-id")
+            ProviderErrorCode = error.Code,
+            RequestId = OpenAIProviderErrorParser.SafeIdentifier(TryGetHeader(response, "x-request-id")),
+            Message = error.Message ?? $"Provider request failed with HTTP {status}."
         };
 
         return Refine(baseline, detail, retryDeadline);
@@ -45,6 +56,11 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         string detail,
         ProviderRetryDeadline? retryDeadline)
     {
+        if (failure.Kind == ProviderFailureKind.ContextWindowExceeded
+            || failure.ProviderErrorCode == "model_not_found"
+            || failure.HttpStatus == 400 && failure.ProviderErrorCode == "invalid_prompt")
+            return failure.Kind;
+
         if (ProviderFailureParsing.Mentions(detail, "server_is_overloaded")
             || ProviderFailureParsing.Mentions(detail, "insufficient_system_resource")
             || ProviderFailureParsing.Mentions(detail, "turn_rate_limit_exceeded")
@@ -100,21 +116,6 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         System.ClientModel.Primitives.PipelineResponse? response,
         string name) =>
         response is not null && response.Headers.TryGetValue(name, out var value) ? value : null;
-
-    private static string TryReadBody(System.ClientModel.Primitives.PipelineResponse? response)
-    {
-        if (response is null)
-            return string.Empty;
-
-        try
-        {
-            return response.Content?.ToString() ?? string.Empty;
-        }
-        catch (Exception)
-        {
-            return string.Empty;
-        }
-    }
 
     private static string Detail(Exception exception)
     {
