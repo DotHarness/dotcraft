@@ -74,7 +74,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _metadataStore = new ThreadMetadataStore(StateDatabase);
         _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync, rolloutWriter);
         _rolloutReplayer = new RolloutReplayer();
-        _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
+        _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath, _metadataStore, _rolloutStore);
         _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _attachmentStore);
         VisualizationWidgetStates = new VisualizationWidgetStateStore(StateDatabase);
         GenerativeUiStates = new GenerativeUiStateStore(StateDatabase);

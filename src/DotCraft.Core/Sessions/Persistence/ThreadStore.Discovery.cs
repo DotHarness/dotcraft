@@ -90,10 +90,9 @@ public sealed partial class ThreadStore
             if (attachmentProjectionsCurrent
                 && excludedThreadIds.Count == 0
                 && DateTimeOffset.UtcNow - _lastOrphanSweep >= OrphanSweepInterval
-                && _metadataStore.AreAttachmentProjectionsCurrent())
+                && _attachmentStore.CleanupUnreferencedAttachments(OrphanAttachmentAge))
             {
                 _lastOrphanSweep = DateTimeOffset.UtcNow;
-                _attachmentStore.CleanupUnreferencedAttachments(OrphanAttachmentAge);
             }
             return excludedThreadIds;
         }

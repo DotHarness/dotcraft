@@ -66,21 +66,36 @@ internal sealed partial class ThreadMetadataStore
         command.ExecuteNonQuery();
     }
 
-    public bool AreAttachmentProjectionsCurrent()
+    public bool AreAttachmentProjectionsCurrent(IEnumerable<string> rolloutPaths)
     {
+        var checkpoints = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT NOT EXISTS (
-                SELECT 1 FROM threads t
-                LEFT JOIN thread_history_projection_state s ON s.thread_id = t.thread_id
-                WHERE t.attachment_index_version != $version
-                   OR s.thread_id IS NULL
-                   OR s.rollout_path != t.rollout_path
-                   OR s.projected_rollout_offset != t.projected_rollout_offset
-            )
+            SELECT t.rollout_path, t.projected_rollout_offset, t.attachment_index_version,
+                   s.rollout_path, s.projected_rollout_offset
+            FROM threads t
+            LEFT JOIN thread_history_projection_state s ON s.thread_id = t.thread_id
             """;
-        command.Parameters.AddWithValue("$version", ThreadAttachmentStore.IndexVersion);
-        return Convert.ToBoolean(command.ExecuteScalar());
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (reader.GetInt32(2) != ThreadAttachmentStore.IndexVersion
+                    || reader.IsDBNull(3)
+                    || reader.GetString(0) != reader.GetString(3)
+                    || reader.GetInt64(1) != reader.GetInt64(4)
+                    || !checkpoints.TryAdd(
+                        StoredRolloutPath.Resolve(connection, reader.GetString(0)), reader.GetInt64(1)))
+                    return false;
+            }
+        }
+
+        foreach (var path in rolloutPaths)
+        {
+            if (!checkpoints.Remove(path, out var offset) || new FileInfo(path).Length != offset)
+                return false;
+        }
+        return checkpoints.Count == 0;
     }
 }

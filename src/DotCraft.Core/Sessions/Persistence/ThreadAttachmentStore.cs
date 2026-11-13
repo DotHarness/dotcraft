@@ -5,7 +5,11 @@ using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Sessions;
 
-internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime, string botPath)
+internal sealed class ThreadAttachmentStore(
+    WorkspaceStateDatabase stateRuntime,
+    string botPath,
+    ThreadMetadataStore metadataStore,
+    ThreadRolloutStore rolloutStore)
 {
     public const int IndexVersion = 3;
 
@@ -147,13 +151,16 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
 
     public IReadOnlySet<string> LoadCandidatePaths(string threadId) => LoadPathsForThread(threadId);
 
-    public void CleanupCandidates(IEnumerable<string> candidatePaths) =>
-        CleanupUnreferencedPaths(candidatePaths);
+    public void CleanupCandidates(IReadOnlyCollection<string> candidatePaths)
+    {
+        if (candidatePaths.Count > 0)
+            CleanupUnreferencedPaths(candidatePaths);
+    }
 
-    public void CleanupUnreferencedAttachments(TimeSpan minAge)
+    public bool CleanupUnreferencedAttachments(TimeSpan minAge)
     {
         if (!Directory.Exists(_attachmentsDir))
-            return;
+            return false;
 
         var threshold = DateTimeOffset.UtcNow - minAge;
         var candidates = Directory.EnumerateFiles(_attachmentsDir, "*", new EnumerationOptions
@@ -173,7 +180,7 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
                     return false;
                 }
             });
-        CleanupUnreferencedPaths(candidates);
+        return CleanupUnreferencedPaths(candidates);
     }
 
     private HashSet<string> LoadPathsForThread(string threadId)
@@ -189,12 +196,30 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
         return paths;
     }
 
-    private void CleanupUnreferencedPaths(IEnumerable<string> paths)
+    private bool CleanupUnreferencedPaths(IEnumerable<string> paths)
     {
+        var referencesVerified = false;
         foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!IsManagedPath(path) || HasAnyReference(path))
+            if (!IsManagedPath(path))
                 continue;
+
+            try
+            {
+                if (HasAnyReference(path))
+                    continue;
+                if (!referencesVerified)
+                {
+                    if (!metadataStore.AreAttachmentProjectionsCurrent(rolloutStore.EnumerateRolloutPaths()))
+                        return false;
+                    referencesVerified = true;
+                }
+            }
+            catch (Exception ex) when (ex is SqliteException or IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Attachment cleanup skipped because reference completeness is unavailable: {ex.Message}");
+                return false;
+            }
 
             try
             {
@@ -207,6 +232,7 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
                 // Best-effort attachment cleanup must not block thread lifecycle.
             }
         }
+        return true;
     }
 
     private void RemoveEmptyFolder(string? folder)

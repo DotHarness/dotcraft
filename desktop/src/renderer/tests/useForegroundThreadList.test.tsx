@@ -75,6 +75,52 @@ describe('foreground thread list loading', () => {
     expect(notifications.size).toBe(0)
   })
 
+  it.each([
+    ['waitingOnApproval', 'pendingApprovalThreadIds'],
+    ['waitingOnInput', 'pendingUserInputThreadIds'],
+    ['waitingOnPlanConfirmation', 'pendingPlanConfirmationThreadIds']
+  ] as const)('hydrates %s for threads first discovered on a later page', async (flag, pendingSet) => {
+    const next = deferred<ThreadList>()
+    sendRequest.mockReturnValueOnce(list.promise).mockReturnValueOnce(next.promise)
+    const { result } = renderHook(() => useForegroundThreadList({ current: '/a' }, { current: '/a' }))
+    let load!: Promise<void>
+    act(() => { load = result.current.reloadThreadList() })
+    await act(async () => { list.resolve({ data: [thread('first')], nextCursor: 'page-2' }); await load })
+    const runtime = { running: flag !== 'waitingOnPlanConfirmation', waitingOnApproval: false, waitingOnPlanConfirmation: false, [flag]: true }
+    await act(async () => {
+      next.resolve({ data: [
+        { ...thread('waiting'), runtime },
+        { ...thread('external'), originChannel: 'external', runtime }
+      ] })
+    })
+    const state = useThreadStore.getState()
+    expect([...state[pendingSet]]).toEqual(['waiting'])
+    expect(state.runtimeSnapshots.get('waiting')).toMatchObject(runtime)
+    expect(state.runtimeSnapshots.get('external')).toMatchObject(runtime)
+    expect(state.runningTurnThreadIds.has('waiting')).toBe(runtime.running)
+  })
+
+  it('preserves a newer runtime notification for a thread first discovered on a later page', async () => {
+    const next = deferred<ThreadList>()
+    sendRequest.mockReturnValueOnce(list.promise).mockReturnValueOnce(next.promise)
+    const { result } = renderHook(() => useForegroundThreadList({ current: '/a' }, { current: '/a' }))
+    let load!: Promise<void>
+    act(() => { load = result.current.reloadThreadList() })
+    await act(async () => { list.resolve({ data: [thread('first')], nextCursor: 'page-2' }); await load })
+    const runtime = { running: true, waitingOnApproval: false, waitingOnInput: true, waitingOnPlanConfirmation: false }
+    act(() => {
+      useThreadStore.getState().applyRuntimeSnapshot('waiting', runtime, { isDesktopOrigin: true })
+    })
+    await act(async () => {
+      next.resolve({ data: [{ ...thread('waiting'), runtime: { ...runtime, waitingOnApproval: true, waitingOnInput: false } }] })
+    })
+    const state = useThreadStore.getState()
+    expect(state.threadList.find((entry) => entry.id === 'waiting')?.runtime).toMatchObject(runtime)
+    expect(state.runtimeSnapshots.get('waiting')).toMatchObject(runtime)
+    expect(state.pendingUserInputThreadIds.has('waiting')).toBe(true)
+    expect(state.pendingApprovalThreadIds.has('waiting')).toBe(false)
+  })
+
   it('keeps pins and a pending navigation until their later page arrives', async () => {
     const next = deferred<ThreadList>()
     sendRequest.mockReturnValueOnce(list.promise).mockReturnValueOnce(next.promise)
