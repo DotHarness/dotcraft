@@ -262,9 +262,16 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   `triggerStatus`) is never a user message. When it starts a turn, the turn has no user message and
   its **Worked for** row starts with the task kind's icon; its accessible name says how the task
   ended, in Desktop's wording. A subagent notification drained into a running turn adds its own line
-  at its place naming the subagent and whether it finished or was interrupted, in Desktop's wording;
-  other notifications drained into a running turn add nothing. Mobile keeps the subagent icon where
-  Desktop shows the subagent's avatar, since avatars render only in a DOM view there.
+  at its place naming the subagent and whether it finished or was interrupted, in Desktop's wording.
+  Do not render a successful ending line while the child has an active Turn or its live task tree
+  has active terminals, running or paused Workflows, or working descendants. Keep the existing running
+  activity surfaces, without introducing a replacement notice or label. The original finished line
+  becomes visible when the work settles; wake accessible descriptions meanwhile use the existing
+  generic subagent origin. Both update without new transcript items. Resolve children by their
+  canonical agent path, never by display name, and isolate projects.
+  Failed, cancelled, and `TaskStop` outcomes do not change. Other notifications drained into a running
+  turn add nothing. Mobile keeps the subagent icon where Desktop shows the subagent's avatar, since
+  avatars render only in a DOM view there.
 - Background task tools read as Desktop names them: an `Exec` still running after its result stays a
   running line while its turn runs and afterwards reads as a started (or stopped) background
   terminal; `SpawnAgent`, `SendMessage`, `ListAgents`, and `TaskStop` read as Desktop labels them,

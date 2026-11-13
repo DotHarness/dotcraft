@@ -13,6 +13,9 @@ import { openBackgroundTask } from '../../utils/backgroundTaskNavigation'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RobotAvatar } from '../agents/RobotAvatar'
+import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
+import { findSubAgentChild } from '../../utils/subAgentIdentity'
+import { subAgentEndingOutcome } from '../../utils/subAgentEndingDisplay'
 import styles from './TurnActivitySummary.module.css'
 
 const SCROLL_ANCHOR_MS = 350
@@ -28,7 +31,22 @@ interface TurnActivitySummaryProps {
   taskWake?: TaskWake | null
 }
 
-export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, children }: TurnActivitySummaryProps): JSX.Element {
+export function TurnActivitySummary(props: TurnActivitySummaryProps): JSX.Element {
+  return props.taskWake?.kind === 'subagent'
+    ? <SubAgentTurnActivitySummary {...props} />
+    : <TurnActivitySummaryContent {...props} />
+}
+
+function SubAgentTurnActivitySummary(props: TurnActivitySummaryProps): JSX.Element {
+  const { lookup } = useSubAgentLookup(props.threadId)
+  const child = findSubAgentChild(lookup, null, props.taskWake?.taskId, 'children')
+  const taskWake = props.taskWake && subAgentEndingOutcome(props.taskWake.status, child) === null
+    ? { ...props.taskWake, status: undefined }
+    : props.taskWake
+  return <TurnActivitySummaryContent {...props} taskWake={taskWake} />
+}
+
+function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const projectKey = useWorkspaceProjectsStore((state) => state.foregroundProjectId)

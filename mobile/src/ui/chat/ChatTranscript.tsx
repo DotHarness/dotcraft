@@ -5,6 +5,7 @@ import type { Decision } from '../../core/decisions'
 import { shallowEqual } from '../../core/selection'
 import { computerStatus, isReachable, NO_SIGNALS, projectById, type ComputerState } from '../../core/state'
 import { createTranscriptProjector } from '../../core/transcript'
+import { createWorkingSubagentSelector } from '../../core/taskTree'
 import type { ChangesProjector } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
 import { useRefreshControl } from '../layout'
@@ -91,6 +92,10 @@ export const ChatTranscript = memo(function ChatTranscript({
     [chatKey, projectId],
   )
   const slice = useComputerSelector(selectTranscript, shallowEqual)
+  const selectWorkingAgents = useMemo(() => createWorkingSubagentSelector(), [])
+  const workingAgentPaths = useComputerSelector(useCallback(
+    (state: ComputerState) => selectWorkingAgents(state, chatKey), [selectWorkingAgents, chatKey],
+  ))
   const projector = useMemo(() => createTranscriptProjector(changesProjector), [changesProjector])
   useEffect(() => () => projector.clear(), [projector])
   const transcript = useMemo(
@@ -99,9 +104,10 @@ export const ChatTranscript = memo(function ChatTranscript({
         ? projector.project(slice.history, slice.workspacePath, {
             stopped: slice.signals?.stopped,
             spawnedFrom: slice.spawnedFrom,
+            workingAgentPaths,
           })
         : [],
-    [slice.history, slice.workspacePath, slice.signals?.stopped, slice.spawnedFrom, projector],
+    [slice.history, slice.workspacePath, slice.signals?.stopped, slice.spawnedFrom, workingAgentPaths, projector],
   )
   const lines = useKeptWorkingLine(transcript, chatKey)
   const shownLines = useMemo(

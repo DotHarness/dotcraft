@@ -13,6 +13,7 @@ interface ItemContext {
   question?: HistoryItem
   turn?: HistoryTurn
   fallbackOrigin: string | null
+  subagentWorking: boolean
 }
 
 export interface ItemProjection {
@@ -69,7 +70,7 @@ export function thinkingStatus(reasoning: string, complete = false): string | nu
 function dependencies(item: HistoryItem, context: ItemContext): unknown[] {
   switch (item.type) {
     case 'userMessage':
-      return [context.fallbackOrigin]
+      return [context.fallbackOrigin, context.subagentWorking]
     case 'toolCall':
     case 'mcpToolCall':
     case 'dynamicToolCall':
@@ -94,10 +95,10 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
       const trigger = str(payload.triggerKind)
       if (trigger === 'terminal' || trigger === 'subagent' || (trigger === 'workflow' && !!str(payload.triggerStatus))) {
         if (mode === 'guidance') {
-          const ending = trigger === 'subagent' ? subagentEndingEntry(item) : null
+          const ending = trigger === 'subagent' ? subagentEndingEntry(item, context.subagentWorking) : null
           return ending ? { entry: ending } : {}
         }
-        return { wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: str(payload.triggerStatus) || null } }
+        return { wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: context.subagentWorking ? null : str(payload.triggerStatus) || null } }
       }
       if (mode === 'subagentMailbox') return {}
       const text = str(payload.text)
