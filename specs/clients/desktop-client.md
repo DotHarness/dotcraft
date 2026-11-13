@@ -366,6 +366,7 @@ Desktop restores the current view through the ordered resume response and subseq
 - Rollback, fork, archive, and unarchive clear affected cursors and segments and reload the header and head pages. `thread/rolledBack` does the same for the active thread when another client rolled it back, and releases the thread when it is warm. Delete clears everything. Reconnect resumes actual active owners at a new ordered boundary and invalidates pre-disconnect cursors. Archived threads remain query-only.
 - Reconciliation is scoped to the originating thread and connection; only the selected thread owns the foreground interaction composer.
 - Conversation updates apply whether or not the window is visible; showing a hidden or minimized window reads nothing.
+- Streaming text reveal advances independently of animation frames, using elapsed time and an adaptive rate to catch up with received text. Animation frames coalesce display updates rather than pace backlog replay. Completed messages and disabled animation show the full text immediately.
 
 ### 5.3.4 Open a Thread from a Workspace-owned Product Surface
 
