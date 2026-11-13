@@ -1,4 +1,6 @@
 using System.ClientModel;
+using System.ClientModel.Primitives;
+using System.Text.Json;
 
 namespace DotCraft.Agents;
 
@@ -19,12 +21,23 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         var response = TryGetRawResponse(result);
         var retryDeadline = OpenAIRetryAdvicePipelinePolicy.Capture(response);
         var status = response?.Status ?? result.Status;
-        var detail = $"{Detail(exception)} {TryReadBody(response)}";
+        var error = ReadError(response);
+        var detail = $"{Detail(exception)} {error.Detail}";
         var baseline = fallback with
         {
-            Kind = DefaultProviderFailureClassifier.FromStatusCode((System.Net.HttpStatusCode)status),
+            Kind = error.Code switch
+            {
+                "context_length_exceeded" when status == 400 => ProviderFailureKind.ContextWindowExceeded,
+                "invalid_prompt" when status == 400 => ProviderFailureKind.BadRequest,
+                "model_not_found" => ProviderFailureKind.BadRequest,
+                _ => fallback.Kind == ProviderFailureKind.ContextWindowExceeded
+                    ? fallback.Kind
+                    : DefaultProviderFailureClassifier.FromStatusCode((System.Net.HttpStatusCode)status)
+            },
             HttpStatus = status,
-            RequestId = TryGetHeader(response, "x-request-id")
+            ProviderErrorCode = error.Code,
+            RequestId = TryGetHeader(response, "x-request-id"),
+            Message = error.Message ?? $"Provider request failed with HTTP {status}."
         };
 
         return Refine(baseline, detail, retryDeadline);
@@ -45,6 +58,11 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         string detail,
         ProviderRetryDeadline? retryDeadline)
     {
+        if (failure.Kind == ProviderFailureKind.ContextWindowExceeded
+            || failure.ProviderErrorCode == "model_not_found"
+            || failure.HttpStatus == 400 && failure.ProviderErrorCode == "invalid_prompt")
+            return failure.Kind;
+
         if (ProviderFailureParsing.Mentions(detail, "server_is_overloaded")
             || ProviderFailureParsing.Mentions(detail, "insufficient_system_resource")
             || ProviderFailureParsing.Mentions(detail, "turn_rate_limit_exceeded")
@@ -83,7 +101,7 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         return null;
     }
 
-    private static System.ClientModel.Primitives.PipelineResponse? TryGetRawResponse(
+    private static PipelineResponse? TryGetRawResponse(
         ClientResultException exception)
     {
         try
@@ -97,24 +115,41 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
     }
 
     private static string? TryGetHeader(
-        System.ClientModel.Primitives.PipelineResponse? response,
+        PipelineResponse? response,
         string name) =>
         response is not null && response.Headers.TryGetValue(name, out var value) ? value : null;
 
-    private static string TryReadBody(System.ClientModel.Primitives.PipelineResponse? response)
+    private static (string? Code, string? Message, string? Detail) ReadError(PipelineResponse? response)
     {
-        if (response is null)
-            return string.Empty;
-
         try
         {
-            return response.Content?.ToString() ?? string.Empty;
+            var body = response?.Content?.ToString();
+            if (string.IsNullOrWhiteSpace(body))
+                return default;
+
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("error", out var error)
+                || error.ValueKind != JsonValueKind.Object)
+            {
+                return default;
+            }
+
+            var code = ReadString(error, "code");
+            var message = ReadString(error, "message")?.Trim();
+            return (code, string.IsNullOrEmpty(message) ? null : message,
+                string.Join(' ', code, ReadString(error, "type"), message));
         }
         catch (Exception)
         {
-            return string.Empty;
+            return default;
         }
     }
+
+    private static string? ReadString(JsonElement error, string name) =>
+        error.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private static string Detail(Exception exception)
     {

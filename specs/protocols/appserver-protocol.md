@@ -1131,6 +1131,8 @@ Automation task methods (`automation/*`) share this error space; their params, r
 
 Agent execution errors arrive as `turn/failed`, not as an error response to `turn/start` (the request succeeded; the asynchronous run failed). `turn.error` holds the description. An `error` item created during the turn appears in `items` and is emitted through `item/started`/`item/completed` before `turn/failed`.
 
+OpenAI-compatible HTTP failures use recognized provider error codes before falling back to HTTP status classification. A non-empty provider `error.message` is trimmed at its boundaries and used in `turn.error` and the Error Item; notifications and persisted reads retain the same description without rewriting its contents. Missing, invalid, or unreadable reasons fall back to a generic HTTP status description. Raw HTTP bodies and headers are not forwarded. Ordinary HTTP 400 failures do not trigger automatic retries or recovery; identified context overflow uses the existing reactive compaction flow.
+
 Provider failures also set `turn.providerError` — `contextWindowExceeded`, `usageLimitExceeded`, `rateLimitExceeded`, `serverOverloaded`, `internalServerError`, `unauthorized`, `badRequest`, `httpConnectionFailed`, `responseStreamConnectionFailed`, `responseStreamDisconnected`, `responseTooManyFailedAttempts`, or `other` (error frames inside a successful stream are classified like HTTP failures) — and `turn.httpStatus` when known. Clients may retry transient classifications with a `turn/start` whose `input` is empty.
 
 ## 9. Backpressure

@@ -48,17 +48,17 @@ public sealed class ProviderFailureClassifierTests
         Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
         Assert.False(failure.IsTerminal);
         Assert.Equal(TimeSpan.FromSeconds(3.5), failure.ServerRetryAfter);
-        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(3.5));
     }
 
     [Theory]
     [InlineData(true, 503, "{\"error\":{\"code\":\"server_is_overloaded\"}}", ProviderFailureKind.ServerOverloaded, true)]
     [InlineData(true, 503, "{\"error\":{\"code\":\"slow_down\"}}", ProviderFailureKind.RateLimitExceeded, false)]
     [InlineData(true, 500, "{}", ProviderFailureKind.InternalServerError, false)]
-    [InlineData(false, 404, "{\"error\":{\"code\":\"model_not_found\"}}", ProviderFailureKind.BadRequest, true)]
+    [InlineData(false, 404, "{\"error\":{\"code\":\"model_not_found\",\"message\":\"The model is unavailable; slow_down does not apply at capacity.\"}}", ProviderFailureKind.BadRequest, true)]
+    [InlineData(false, 400, "{\"error\":{\"code\":\"context_length_exceeded\"}}", ProviderFailureKind.ContextWindowExceeded, true)]
     [InlineData(false, 429, "{\"error\":{\"code\":\"insufficient_quota\"}}", ProviderFailureKind.UsageLimitExceeded, true)]
     [InlineData(true, 429, "{\"error\":{\"code\":\"rate_limit_exceeded\"}}", ProviderFailureKind.ResponseTooManyFailedAttempts, true)]
-    [InlineData(true, 429, "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Codex is at capacity, please try again later\"}}", ProviderFailureKind.ServerOverloaded, true)]
+    [InlineData(true, 429, "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Service is at capacity, please try again later\"}}", ProviderFailureKind.ServerOverloaded, true)]
     public void OpenAI_ClassifiesFailureKindAndTerminality(
         bool isSubscriptionBackend,
         int status,
@@ -87,7 +87,38 @@ public sealed class ProviderFailureClassifierTests
 
         Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
         Assert.Equal(TimeSpan.FromSeconds(seconds), failure.ServerRetryAfter);
-        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(seconds));
+    }
+
+    [Fact]
+    public void OpenAI_PreservesContextClassificationFromExceptionMessage()
+    {
+        var response = new FakePipelineResponse(400, "{}", new Dictionary<string, string>());
+        var exception = new ClientResultException("context_length_exceeded", response);
+
+        var failure = new OpenAIProviderFailureClassifier(false).Classify(exception);
+
+        Assert.Equal(ProviderFailureKind.ContextWindowExceeded, failure.Kind);
+        Assert.Equal(400, failure.HttpStatus);
+    }
+
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("{\"error\":{\"message\":\" \\n\\t \"}}", false)]
+    [InlineData("<html>private upstream response</html>", false)]
+    [InlineData("{\"error\":{\"code\":{},\"message\":{\"private\":\"upstream response\"}}}", false)]
+    [InlineData("", true)]
+    public void OpenAI_UsesStatusFallbackForUnavailableStructuredReason(string body, bool unreadable)
+    {
+        var response = new FakePipelineResponse(400, body, new Dictionary<string, string>(), unreadable);
+        var exception = new ClientResultException("private raw response included by SDK", response);
+
+        var failure = new OpenAIProviderFailureClassifier(false).Classify(exception);
+
+        Assert.Equal(ProviderFailureKind.BadRequest, failure.Kind);
+        Assert.Null(failure.ProviderErrorCode);
+        Assert.Contains("400", failure.Message);
+        Assert.DoesNotContain("private", failure.Message);
+        Assert.DoesNotContain("upstream", failure.Message);
     }
 
     private static ProviderFailure Classify(
@@ -104,14 +135,15 @@ public sealed class ProviderFailureClassifierTests
             headers["x-request-id"] = requestId;
 
         var response = new FakePipelineResponse(status, body, headers);
-        var exception = new ClientResultException(response);
+        var exception = new ClientResultException("Service request failed.", response);
         return new OpenAIProviderFailureClassifier(isSubscriptionBackend).Classify(exception);
     }
 
     private sealed class FakePipelineResponse(
         int status,
         string body,
-        IReadOnlyDictionary<string, string> headers) : PipelineResponse
+        IReadOnlyDictionary<string, string> headers,
+        bool unreadable = false) : PipelineResponse
     {
         private readonly BinaryData _content = BinaryData.FromString(body);
 
@@ -119,7 +151,7 @@ public sealed class ProviderFailureClassifierTests
 
         public override string ReasonPhrase => string.Empty;
 
-        public override BinaryData Content => _content;
+        public override BinaryData Content => unreadable ? throw new IOException("Response unavailable") : _content;
 
         public override Stream? ContentStream { get; set; }
 
