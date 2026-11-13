@@ -9,6 +9,7 @@ import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { useDetailPanelStore } from './detailPanelStore'
 import type { ThreadTitleRequest } from '../utils/threadTitleGeneration'
+import type { TurnModelSettings } from '../utils/turnModelSettings'
 import {
   projectThreadNavigationActions,
   type ProjectThreadNavigationActions,
@@ -80,6 +81,7 @@ export interface PendingWelcomeTurnInput {
   files?: ComposerFileAttachment[]
   appIds?: string[]
   sentAsGoal?: boolean
+  modelSettings?: TurnModelSettings
   title?: ThreadTitleRequest
 }
 

@@ -86,7 +86,13 @@ internal sealed partial class FakeAppServerClient(
     public Task<string?> StartTurnAsync(string threadId, string prompt, CancellationToken ct)
     {
         captureTurnPrompt(prompt);
+        if (_activeTurnId is { } activeTurnId)
+        {
+            AcceptGuidance(threadId, activeTurnId, prompt);
+            return Task.FromResult<string?>(activeTurnId);
+        }
         var turnId = startTurn(threadId);
+        _activeTurnId = turnId;
         _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId }));
         if (outcome == FakeAppServerOutcome.Success)
         {
@@ -554,20 +560,6 @@ internal sealed partial class FakeAppServerClient(
         _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft discussion reply submitted." }));
         _notifications.Writer.TryComplete();
         return turnId;
-    }
-
-    public Task<string?> StartTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct) =>
-        StartTurnAsync(threadId, input.FirstOrDefault()?.Text ?? "", ct);
-
-    public Task<string?> EnqueueTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct) =>
-        Task.FromResult<string?>("queued-test-1");
-
-    public Task SteerTurnAsync(string threadId, string expectedTurnId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct)
-    {
-        var prompt = input.FirstOrDefault()?.Text ?? "";
-        captureSteer(new FakeAppServerSteer(threadId, expectedTurnId, prompt));
-        _steered.TrySetResult(prompt);
-        return Task.CompletedTask;
     }
 
     private async Task SubmitDiscussionReplyAsync(string threadId, string turnId, string callId, string discussionTurnId)

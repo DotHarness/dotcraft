@@ -398,6 +398,7 @@ export function ConversationPanel({
           variant={variant}
           prefillRequest={composerPrefillRequest}
           onBeforeSend={onBeforeSend}
+          captureTurnSettings={modelControls.captureTurnSettings}
           onOptimisticEcho={onOptimisticEcho}
           modelName={modelControls.modelName}
           providerId={modelControls.providerId}

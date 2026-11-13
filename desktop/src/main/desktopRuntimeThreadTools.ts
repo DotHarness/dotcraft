@@ -1,5 +1,6 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
 import { DesktopThreadBindings } from './desktopThreadBindings'
+import { submitThreadMessage } from './desktopThreadMessageTool'
 import {
   listTerminalTabsTool,
   listTerminalTabsToolDefinition,
@@ -8,7 +9,7 @@ import {
   type DesktopTerminalHost
 } from './desktopTerminalTools'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
-import { buildReasoningConfig, desktopIdentity, type ThreadTaskConnection, type ThreadTaskWorkspace } from './threadTasks/childThreads'
+import { desktopIdentity, type ThreadTaskConnection, type ThreadTaskWorkspace } from './threadTasks/childThreads'
 import {
   CREATE_THREAD_DESCRIPTION,
   CREATE_THREAD_PROPERTIES,
@@ -224,7 +225,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         properties: {
           threadId: { type: 'string' },
           prompt: { type: 'string' },
-          model: { type: 'string', description: 'Unsupported until AppServer exposes turn-scoped model override.' },
+          model: { type: 'string', description: 'Model for a new turn and subsequent turns; an active turn keeps its current model.' },
           reasoningEffort: {
             type: 'string',
             enum: ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'],
@@ -238,9 +239,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           turn: { type: 'object' },
-          queuedInput: { type: 'object' },
-          started: { type: 'boolean' },
-          queued: { type: 'boolean' }
+          accepted: { type: 'boolean' }
         }
       },
       display: { title: 'Send message', subtitle: 'Desktop' }
@@ -465,51 +464,7 @@ async function sendMessageToThreadTool(
   if (model?.ok === false) return model.error
   const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
   if (reasoningEffort?.ok === false) return reasoningEffort.error
-  if (model?.value) {
-    return fail('UnsupportedOption', 'SendMessageToThread.model is not supported by the current AppServer turn protocol.')
-  }
-
-  const readResult = await client.sendRequest<{ thread?: ThreadWire }>('thread/read', {
-    threadId: threadId.value
-  })
-  if (!readResult.thread) {
-    return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
-  }
-  if (readResult.thread.status === 'archived') {
-    return fail('ThreadArchived', `Thread '${threadId.value}' is archived.`)
-  }
-  if (reasoningEffort?.value) {
-    await client.sendRequest('thread/config/update', {
-      threadId: threadId.value,
-      config: buildConfigWithReasoningEffort(readResult.thread.configuration, reasoningEffort.value)
-    })
-  }
-
-  const input = [{ type: 'text', text: prompt.value }]
-  try {
-    const turnResult = await client.sendRequest<{ turn?: JsonObject }>('turn/start', { threadId: threadId.value, input })
-    return ok(`Sent message to thread ${threadId.value}.`, {
-      threadId: threadId.value,
-      turn: turnResult.turn ?? null,
-      started: true,
-      queued: false
-    })
-  } catch (error) {
-    if (!isThreadBusyError(error)) {
-      throw error
-    }
-    try {
-      const queueResult = await client.sendRequest<{ queuedInput?: unknown }>('turn/enqueue', { threadId: threadId.value, input })
-      return ok(`Queued message for thread ${threadId.value}.`, {
-        threadId: threadId.value,
-        queuedInput: queueResult.queuedInput ?? null,
-        started: false,
-        queued: true
-      })
-    } catch (queueError) {
-      return fail('ThreadBusy', requestErrorMessage(queueError))
-    }
-  }
+  return await submitThreadMessage(client, threadId.value, prompt.value, model?.value, reasoningEffort?.value)
 }
 
 async function setThreadTitleTool(
@@ -764,28 +719,6 @@ function optionalInteger(
     }
   }
   return { ok: true, value }
-}
-
-function buildConfigWithReasoningEffort(config: JsonObject | null | undefined, effort: ReasoningEffortValue): JsonObject {
-  const next = cloneJsonObject(config) ?? { mode: 'agent' }
-  const existingReasoning = isRecord(next.reasoning)
-    ? next.reasoning
-    : isRecord(next.Reasoning)
-      ? next.Reasoning
-      : undefined
-  delete next.Reasoning
-  next.reasoning = buildReasoningConfig(effort, existingReasoning)
-  return next
-}
-
-function cloneJsonObject(value: unknown): JsonObject | null {
-  if (!isRecord(value)) return null
-  try {
-    const cloned = JSON.parse(JSON.stringify(value)) as unknown
-    return isRecord(cloned) ? cloned : null
-  } catch {
-    return { ...value }
-  }
 }
 
 function resolvePinnedThreadIdsForWorkspace(

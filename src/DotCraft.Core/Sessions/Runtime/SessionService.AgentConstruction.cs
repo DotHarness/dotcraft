@@ -151,7 +151,8 @@ public sealed partial class SessionService
                && (HasAgentShapingConfiguration(config)
                    || config.SubAgentModelCatalogSnapshot != null
                    || ThreadRuntimeDiffersFromCurrentDefault(config.ProviderId, config.Model)
-                   || ThreadReasoningDiffersFromCurrentDefault(config.Reasoning));
+                   || ThreadReasoningDiffersFromCurrentDefault(config.Reasoning)
+                   || ThreadSpeedDiffersFromCurrentDefault(config.Speed));
     }
 
     private bool ThreadRuntimeDiffersFromCurrentDefault(string? providerId, string? model)
@@ -176,6 +177,15 @@ public sealed partial class SessionService
         {
             return true;
         }
+    }
+
+    private bool ThreadSpeedDiffersFromCurrentDefault(InferenceSpeed? speed)
+    {
+        if (!speed.HasValue)
+            return false;
+        var config = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        return speed.Value != (ModelPreferenceRules.Find(config.ProviderPreferences, config.ProviderId)?.Speed
+            ?? InferenceSpeed.Standard);
     }
 
     private bool ThreadReasoningDiffersFromCurrentDefault(AppConfig.ReasoningConfig? reasoning)

@@ -75,7 +75,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 
 `ReadAsync()` and `DotCraftThread.RefreshAsync()` return the current Thread header without persisted Turns or Items. `ListTurnsAsync()` reads Turn metadata or summary Items according to `itemsView`; `ListItemsAsync()` reads Items across the Thread or for the optional `ThreadItemsListParams.TurnId`. Both page requests accept an opaque cursor, limit, and sort direction.
 
-`DotCraftThread` accepts either text or `IReadOnlyList<InputPart>` in `RunAsync()` and `RunStreamedAsync()`. `RunOptions` controls sender context, raw-event collection, queue-if-busy behavior, and whether failed terminal turns throw. Cancellation interrupts an active turn once its ID is known.
+`DotCraftThread` accepts either text or `IReadOnlyList<InputPart>` in `RunAsync()` and `RunStreamedAsync()`. `RunOptions` controls provider/model selection, reasoning, speed, sender context, raw-event collection, and whether failed terminal turns throw. Model settings are submitted with input. A run can join an active regular turn without changing that turn's model; the settings become defaults for later turns. Cancellation interrupts the returned turn, including a shared turn joined through guidance. See [Runs](./runs#run-options) for the acceptance and result semantics.
 
 The result is `DotCraftRunResult`; streamed events are `DotCraftRunEvent` or `DotCraftRunEvent<TParams>`. Thread-control methods operate on the handle's `Id`, while the low-level `Turns` surface accepts explicit protocol parameters.
 

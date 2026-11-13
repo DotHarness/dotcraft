@@ -41,6 +41,36 @@
         }
       ]
     },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "providerId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "$ref": "./ReasoningConfig.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "runtimeWorkspaceRoots": {
       "anyOf": [
         {
@@ -68,6 +98,16 @@
       "anyOf": [
         {
           "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "speed": {
+      "anyOf": [
+        {
+          "type": "string"
         },
         {
           "type": "null"

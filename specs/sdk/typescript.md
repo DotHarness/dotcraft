@@ -163,13 +163,13 @@ Start/fork attach automatically. Resume prepares a cold runtime or reuses a warm
 
 ### 9.1 Options and Result
 
-`RunOptions` takes `sender`, `collectRawEvents`, `abortSignal`, and `enqueueIfBusy`. Without `enqueueIfBusy`, a server `TurnInProgress` response becomes `TurnInProgressError`.
+`RunOptions` takes `providerId`, `model`, `reasoning`, `speed`, `sender`, `collectRawEvents`, and `abortSignal`. Model settings are sparse, submitted with input, and retained as thread defaults. Runs start a new Turn or join an active regular Turn without changing its captured settings. Executions that cannot accept guidance are rejected; callers request a separate future Turn through `enqueue()` explicitly.
 
 `DotCraftRunResult` contains `thread`, `turn`, `text`, `items`, optional `usage`, and optional `rawEvents`. `text` is the merged assistant reply (§11.3).
 
 ### 9.2 `run()`
 
-`run()` prepares input and local event capture, ensures an attached feed on the current connection through creation/fork or metadata-only resume, then calls `turn/start`. It filters by typed thread identity and the exact Turn id returned by that call before reducing output or accepting a terminal event, and returns that Turn's result. `turn/failed` raises `TurnFailedError` by default.
+`run()` prepares input and local event capture, ensures an attached feed on the current connection through creation/fork or metadata-only resume, then calls `turn/start` with the supplied model settings. It filters by typed thread identity and the exact Turn id returned by that call before reducing output or accepting a terminal event, and returns that Turn's complete result. The returned Turn may already be active, with no new `turn/started`; multiple runs can join and return the same terminal result. `turn/failed` raises `TurnFailedError` by default.
 
 ### 9.3 `runStreamed()`
 
@@ -177,7 +177,7 @@ Start/fork attach automatically. Resume prepares a cold runtime or reuses a warm
 
 ### 9.4 Abort Semantics
 
-An `abortSignal` triggered after `turn/start` succeeds calls `turn/interrupt`. One triggered before `turn/start` rejects without sending a request.
+An `abortSignal` triggered after `turn/start` succeeds calls `turn/interrupt` for the returned Turn, including a shared active Turn joined through guidance. It does not merely withdraw this run's input. One triggered before `turn/start` rejects without sending a request.
 
 ## 10. Input Model
 
@@ -272,7 +272,7 @@ Required typed errors:
 | `InitializationError` | AppServer initialize handshake failed. |
 | `RequestTimeoutError` | A request exceeded its timeout before the server answered. |
 | `ReconnectQueueFullError` | Requests queued during reconnect exceeded the queue bound. |
-| `TurnInProgressError` | Server rejected turn start due to active turn or maintenance. |
+| `TurnInProgressError` | Maintenance or an execution that cannot accept guidance rejected turn input. |
 | `ThreadNotFoundError` | Server reports thread missing. |
 | `ThreadNotActiveError` | Server reports thread cannot accept turns. |
 | `TurnFailedError` | Agent execution failed after `turn/start` succeeded. |

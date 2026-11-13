@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
 using Microsoft.EntityFrameworkCore;
 using DotCraft.Oratorio.Api;
@@ -33,7 +34,6 @@ public sealed class DiscussionTurnDelivery(
     BoardEventHub boardEvents,
     ILogger<DiscussionTurnDelivery> logger)
 {
-    private const int MethodNotFound = -32601;
     private static readonly RunStatus[] ActiveRunStatuses = [RunStatus.Queued, RunStatus.Dispatching, RunStatus.Running];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -114,26 +114,17 @@ public sealed class DiscussionTurnDelivery(
         await MarkDeliveringAsync(turn, bound.ThreadId, run.AppServerEndpoint, run.RunId, context, ct);
 
         string? turnId;
-        if (bound.ActiveTurnId is { } activeTurnId)
-        {
-            try
-            {
-                await bound.Client.SteerTurnAsync(bound.ThreadId, activeTurnId, Input(prompt), ct);
-            }
-            catch (Exception ex) when (IsSteerRejection(ex))
-            {
-                await RevertToPendingAsync(turn, ct);
-                return;
-            }
-
-            turnId = activeTurnId;
-        }
-        else
+        try
         {
             turnId = await bound.Client.StartTurnAsync(bound.ThreadId, Input(prompt), turn.ModelId, ct);
         }
+        catch (JsonRpcException ex) when (ex.RpcCode == AppServerErrorCodes.TurnInProgress)
+        {
+            await RevertToPendingAsync(turn, ct);
+            return;
+        }
 
-        await MarkDeliveredAsync(turn, bound.ThreadId, turnId, state.State, bound.ActiveTurnId is null ? "runTurn" : "steer", ct);
+        await MarkDeliveredAsync(turn, bound.ThreadId, turnId, state.State, "submit", ct);
     }
 
     public async Task AdoptFromEndedRunAsync(string discussionTurnId, CancellationToken ct)
@@ -218,22 +209,13 @@ public sealed class DiscussionTurnDelivery(
             await MarkDeliveringAsync(turn, session.ThreadId, thread.AppServerEndpoint, null, ConversationThreadContext.Reduce(thread.ContextJson), ct);
             session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
 
-            var activeTurnId = session.ActiveTurnId;
             string? turnId;
             try
             {
-                if (activeTurnId is not null)
-                {
-                    await session.Client.SteerTurnAsync(session.ThreadId, activeTurnId, Input(prompt), ct);
-                    turnId = activeTurnId;
-                }
-                else
-                {
-                    turnId = await session.Client.StartTurnAsync(session.ThreadId, Input(prompt), turn.ModelId, ct);
-                    session.TurnStarted(turnId);
-                }
+                turnId = await session.Client.StartTurnAsync(session.ThreadId, Input(prompt), turn.ModelId, ct);
+                session.TurnStarted(turnId);
             }
-            catch (Exception ex) when (activeTurnId is not null && IsSteerRejection(ex))
+            catch (JsonRpcException ex) when (ex.RpcCode == AppServerErrorCodes.TurnInProgress)
             {
                 session.Waiting.TryRemove(turn.DiscussionTurnId, out _);
                 await RevertToPendingAsync(turn, ct);
@@ -245,7 +227,7 @@ public sealed class DiscussionTurnDelivery(
                 throw;
             }
 
-            await MarkDeliveredAsync(turn, session.ThreadId, turnId, state.State, activeTurnId is null ? "turn" : "steer", ct);
+            await MarkDeliveredAsync(turn, session.ThreadId, turnId, state.State, "submit", ct);
             return true;
         }
         finally
@@ -465,9 +447,6 @@ public sealed class DiscussionTurnDelivery(
 
     private Task FailAsync(OratorioDiscussionTurn turn, string code, string message) =>
         discussionTurns.FailAsync(turn.DiscussionTurnId, code, message, CancellationToken.None);
-
-    private static bool IsSteerRejection(Exception ex) =>
-        ex is JsonRpcException { RpcCode: not MethodNotFound } or InvalidOperationException;
 
     private static IReadOnlyList<TurnInputPartDto> Input(string prompt) =>
         [new TurnInputPartDto("text", prompt, null, null, null, null, null, null)];

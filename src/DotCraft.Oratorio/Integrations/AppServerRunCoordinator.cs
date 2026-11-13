@@ -133,15 +133,9 @@ public sealed class AppServerRunCoordinator(
                 new Dictionary<string, object?> { ["runId"] = runId });
         }
 
-        if (string.Equals(binding.TurnStatus, "running", StringComparison.OrdinalIgnoreCase))
-        {
-            var queuedInputId = await binding.Client.EnqueueTurnAsync(binding.ThreadId, input, ct);
-            return new SubmitTurnResponse("queued", null, queuedInputId);
-        }
-
         var turnId = await binding.Client.StartTurnAsync(binding.ThreadId, input, modelId, ct);
         UpdateRunStatus(runId, turnId, "running");
-        return new SubmitTurnResponse("started", turnId, null);
+        return new SubmitTurnResponse("submitted", turnId, null);
     }
 
     public async Task<InterruptResponse> InterruptTurnAsync(string runId, CancellationToken ct)

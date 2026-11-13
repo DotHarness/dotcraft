@@ -534,11 +534,11 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
 /// <summary>Turn operation surface.</summary>
 public sealed class DotCraftTurnClient(DotCraftClient client)
 {
-    /// <summary>Starts a turn.</summary>
+    /// <summary>Starts a turn or adds guidance to the active turn, retaining supplied settings for future turns.</summary>
     public Task<TurnStartResult> StartAsync(TurnStartParams parameters, CancellationToken cancellationToken = default) =>
         client.Wire.TurnStartAsync(parameters, cancellationToken);
 
-    /// <summary>Convenience overload for starting a turn.</summary>
+    /// <summary>Submits input to a new or active turn.</summary>
     public Task<TurnStartResult> StartAsync(
         string threadId,
         IReadOnlyList<InputPart> input,

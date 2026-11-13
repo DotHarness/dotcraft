@@ -93,6 +93,32 @@ describe('startPendingWelcomeTurn', () => {
     expect(useConversationStore.getState().systemLabel).toBeNull()
   })
 
+  it('keeps the submitted model while app activation waits and joins a turn started meanwhile', async () => {
+    mockAppServer([ACTIVE_BINDING])
+    let release!: () => void
+    const activation = new Promise<void>(resolve => { release = resolve })
+    const original = sendRequest.getMockImplementation()!
+    sendRequest.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === 'thread/appBindings/enable') await activation
+      if (method === 'turn/start') return { turn: { id: 'already-running' } }
+      return original(method, ...args)
+    })
+    const request = pending(['com.example.workflow'])
+    const settings = { providerId: 'provider-a', model: 'model-a', reasoning: { enabled: true, effort: 'high' } }
+    const submitting = startPendingWelcomeTurn({ ...request, pending: { ...request.pending, modelSettings: settings } })
+    await vi.waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method)).toContain('thread/appBindings/enable'))
+    settings.model = 'model-b'
+    settings.reasoning.effort = 'low'
+    useConversationStore.getState().onTurnStarted({ id: 'already-running', threadId: 'thread-1', status: 'running', items: [], startedAt: '2026-11-13T00:00:00Z' })
+    useConversationStore.setState({ streamingMessage: 'Already responding', inputTokens: 123 })
+    release()
+    await submitting
+    expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({ model: 'model-a', reasoning: { enabled: true, effort: 'high' } }))
+    expect(useConversationStore.getState()).toMatchObject({ activeTurnId: 'already-running', streamingMessage: 'Already responding', inputTokens: 123 })
+    expect(useConversationStore.getState().turns.map(turn => turn.id)).toEqual(['already-running'])
+    expect(useConversationStore.getState().queuedInputs).toMatchObject([{ displayText: request.pending.text, status: 'guidancePending' }])
+  })
+
   it('starts the turn without the app when a staged app fails to activate', async () => {
     mockAppServer([FAILED_BINDING])
 

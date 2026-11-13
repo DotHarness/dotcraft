@@ -2,7 +2,7 @@ import type { Unsubscribe } from "./client.js";
 import { threadEventIdentity } from "./threadEvents.js";
 import { JsonRpcMessage } from "./models.js";
 import { normalizeRunInput, toContractSender, stripRuntimeDynamicToolHandlers } from "./threadInput.js";
-import { TurnCancelledError, TurnFailedError, TurnInProgressError } from "./errors.js";
+import { TurnCancelledError, TurnFailedError } from "./errors.js";
 import { extractAgentReplyTextFromTurnCompletedParams, mergeReplyTextFromDeltaAndSnapshot } from "./turnReply.js";
 import type { SessionIdentity, SessionThread, SessionTurn, ThreadItemsListResult, ThreadTurnsListResult, ThreadResumeResult } from "./generated/appserver/index.js";
 import type { DotCraft, DotCraftRunEvent, DotCraftRunResult, DynamicToolBinding, DynamicToolSpec, DynamicToolHandler, EnqueueOptions, QueuedInputResult, RunInput, RunOptions, ThreadHistoryPageOptions, ThreadItemPageOptions } from "./dotcraft.js";
@@ -151,19 +151,8 @@ export class DotCraftThread {
   }
 
   async run(input: RunInput, options: RunOptions = {}): Promise<DotCraftRunResult> {
-    let queued: DotCraftRunResult | null = null;
     for await (const event of this.runStreamed(input, options)) {
       if (event.type === "completed" && event.result) return event.result;
-      if (event.type === "queue_updated") {
-        queued = {
-          thread: this.cached,
-          turn: null,
-          text: "",
-          items: [],
-          rawEvents: options.collectRawEvents ? [event.raw] : undefined,
-          queuedInput: event.queuedInput,
-        };
-      }
       if (event.type === "failed") {
         throw new TurnFailedError(event.error ?? "SessionTurn failed.", event.turn);
       }
@@ -171,7 +160,6 @@ export class DotCraftThread {
         throw new TurnCancelledError("SessionTurn was cancelled.", event.turn);
       }
     }
-    if (queued) return queued;
     throw new TurnFailedError("Run finished without a terminal event.");
   }
 
@@ -179,6 +167,12 @@ export class DotCraftThread {
     if (options.abortSignal?.aborted) throw abortError();
 
     const normalized = normalizeRunInput(input, options.sender);
+    const settings = {
+      providerId: options.providerId,
+      model: options.model,
+      reasoning: options.reasoning ? { ...options.reasoning } : options.reasoning,
+      speed: options.speed,
+    };
     const reducer = new RunReducer();
     const rawEvents: JsonRpcMessage[] = [];
     const eventStream = this.sdk.wire.streamEvents(this.id);
@@ -194,23 +188,7 @@ export class DotCraftThread {
         this.cached = restoration.thread;
       }
       if (options.abortSignal?.aborted) throw abortError();
-      try {
-        turn = await this.sdk.wire.turnStart(this.id, normalized.input, toContractSender(normalized.sender));
-      } catch (error) {
-        await eventStream.return?.();
-        if (error instanceof TurnInProgressError && options.enqueueIfBusy) {
-          const queued = await this.enqueue({ input: normalized.input, sender: normalized.sender });
-          const raw = JsonRpcMessage.fromDict({ method: "thread/queue/updated", params: queued.raw });
-          yield {
-            type: "queue_updated",
-            threadId: this.id,
-            raw,
-            queuedInput: queued.queuedInput,
-          };
-          return;
-        }
-        throw error;
-      }
+      turn = await this.sdk.wire.turnStart(this.id, normalized.input, toContractSender(normalized.sender), settings);
 
       if (options.abortSignal) {
         abortListener = () => {

@@ -245,6 +245,15 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Current thread observation is not supported by this session service.");
 
+    Task<TurnInputAdmission> StartOrSteerTurnAsync(
+        string threadId,
+        IList<AIContent> content,
+        SenderContext? sender = null,
+        ChatMessage[]? messages = null,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null,
+        TurnSettingsOverrides? settings = null);
+
     IAsyncEnumerable<SessionEvent> SubmitInputAsync(
         string threadId,
         IList<AIContent> content,

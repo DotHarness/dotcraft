@@ -87,7 +87,7 @@ Start 选项包含 identity 字段、显示名称、history mode、配置、运�
 
 `read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 按 `itemsView` 读取 Turn 元数据或摘要，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
-`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
+`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项包括 `providerId`、`model`、`reasoning`、`speed`、`sender`、`collectRawEvents` 和 `abortSignal`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage` 和可选 raw event。Run 会启动 turn，或向活动的普通 turn 添加指导。模型继承、共享结果和显式排队见 [Run](./runs#run-选项)。
 
 ## 模型、MCP 与 App Binding
 
@@ -97,7 +97,7 @@ Start 选项包含 identity 字段、显示名称、history mode、配置、运�
 | `mcpRuntime` | `listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()`。 |
 | `appBindings` | App 发现、连接、surface、thread binding、channel binding 和 principal 操作。 |
 
-TypeScript 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../app-binding)。
+通过 Run 选项把模型设置与输入一起提交。需要独立于 Run 修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归应用所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../app-binding)。
 
 MCP manager 的签名如下：
 

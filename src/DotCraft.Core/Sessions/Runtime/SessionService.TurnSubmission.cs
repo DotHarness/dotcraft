@@ -43,7 +43,8 @@ public sealed partial class SessionService
         SenderContext? sender,
         ChatMessage[]? messages,
         SessionInputSnapshot? inputSnapshot,
-        CancellationToken callerCt)
+        CancellationToken callerCt,
+        TurnExecutionContext? admittedContext = null)
     {
         var thread = runtime.Thread;
         if (!_runtimeRegistry.IsCurrent(thread.Id, runtime))
@@ -51,22 +52,25 @@ public sealed partial class SessionService
         if (_runtimeRegistry.IsPendingPermanentDeletion(thread.Id))
             throw new InvalidOperationException($"Thread '{thread.Id}' is being permanently deleted and cannot accept a new Turn.");
 
-        ValidateTurnAdmission(thread, messages);
-        if (inputSnapshot?.Mode is { } mode)
-            await CommitThreadModeAsync(thread, mode, callerCt);
-
-        var configuration = thread.Configuration == null
-            ? new ThreadConfiguration()
-            : ThreadConfigurationCloner.Clone(thread.Configuration);
-        var turnContext = new TurnExecutionContext(
-            runtime.Generation,
-            CaptureTurnExecutionResourcesAsync(runtime, callerCt),
-            configuration,
-            ThreadWorkspaceResolver.Resolve(thread.WorkspacePath, configuration),
-            ChannelSessionScope.Current,
-            TurnTriggerScope.Current,
-            SessionClientCapabilitiesScope.Current?.SupportsCommandExecutionStreaming == true,
-            SessionClientCapabilitiesScope.Current?.SupportsToolExecutionLifecycle == true);
+        var turnContext = admittedContext;
+        if (turnContext is null)
+        {
+            ValidateTurnAdmission(thread, messages);
+            if (inputSnapshot?.Mode is { } mode)
+                await CommitThreadModeAsync(thread, mode, callerCt);
+            var configuration = thread.Configuration == null
+                ? new ThreadConfiguration()
+                : ThreadConfigurationCloner.Clone(thread.Configuration);
+            turnContext = new TurnExecutionContext(
+                runtime.Generation,
+                CaptureTurnExecutionResourcesAsync(runtime, callerCt),
+                configuration,
+                ThreadWorkspaceResolver.Resolve(thread.WorkspacePath, configuration),
+                ChannelSessionScope.Current,
+                TurnTriggerScope.Current,
+                SessionClientCapabilitiesScope.Current?.SupportsCommandExecutionStreaming == true,
+                SessionClientCapabilitiesScope.Current?.SupportsToolExecutionLifecycle == true);
+        }
 
         return AdmitTurn(
             runtime,
@@ -86,6 +90,12 @@ public sealed partial class SessionService
         if (thread.Turns.Any(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
             throw new InvalidOperationException($"Thread '{threadId}' already has a running Turn. Wait for it to complete or cancel it first.");
         ThrowIfThreadMaintenanceActive(threadId);
+        ValidateTurnHistory(thread, messages);
+    }
+
+    private static void ValidateTurnHistory(SessionThread thread, ChatMessage[]? messages)
+    {
+        var threadId = thread.Id;
         if (thread.HistoryMode == HistoryMode.Client && messages is not { Length: > 0 })
             throw new InvalidOperationException($"Thread '{threadId}' requires client-managed history, but no messages were provided.");
         if (thread.HistoryMode == HistoryMode.Server && messages is { Length: > 0 })

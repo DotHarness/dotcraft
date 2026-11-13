@@ -17,12 +17,9 @@ import {
   resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
 import type { ReasoningQuickValue } from './ModelPicker'
+import { modelSettingsFromConfiguration, type TurnModelSettings } from '../../utils/turnModelSettings'
 import { useT } from '../../contexts/LocaleContext'
-import {
-  findProviderPreference,
-  readProviderPreferences,
-  type ModelPreference
-} from '../../../shared/modelPreference'
+import { applyModelCompatibility, applyPreferenceToThreadConfig, deleteCaseInsensitiveField, readThreadSpeed, readWorkspacePreference, resolveReasoningFromConfiguration, setCaseInsensitiveField } from './composerModelConfiguration'
 
 
 export interface ComposerModelControls {
@@ -44,6 +41,7 @@ export interface ComposerModelControls {
   onSpeedChange: (value: InferenceSpeedWire) => void
   onModelCatalogRetry: () => void
   threadStartConfig: ThreadConfigurationWire
+  captureTurnSettings: () => Promise<TurnModelSettings>
 }
 
 interface UseComposerModelControlsOptions {
@@ -76,9 +74,11 @@ export function useComposerModelControls({
   const currentActionScope = useRef<typeof actionScope | null>(actionScope)
   currentActionScope.current = actionScope
   const updates = useRef(Promise.resolve())
+  const selectionFailure = useRef<unknown>(null)
   useEffect(() => {
     currentActionScope.current = actionScope
     updates.current = Promise.resolve()
+    selectionFailure.current = null
     setModelApplying(false)
     return () => { currentActionScope.current = null }
   }, [actionScope])
@@ -88,7 +88,10 @@ export function useComposerModelControls({
       useConnectionStore.getState().status === 'connected' &&
       (detached || useThreadStore.getState().activeThreadId === activeThreadId)
     updates.current = updates.current.then(async () => {
-      if (isCurrent()) await task(isCurrent)
+      if (!isCurrent()) return
+      selectionFailure.current = null
+      try { await task(isCurrent) }
+      catch (error) { if (isCurrent()) selectionFailure.current = error }
     })
   }
   const [detachedModelTouched, setDetachedModelTouched] = useState(false)
@@ -110,25 +113,6 @@ export function useComposerModelControls({
     errorMessage: modelCatalogErrorMessage
   } = useModelCatalog(providerId, modelApiAvailable && Boolean(providerId))
   const modelLoading = modelApiAvailable && (modelCatalogStatus === 'loading' || modelCatalogStatus === 'idle')
-
-  const setCaseInsensitiveField = useCallback(
-    (target: Record<string, unknown>, key: string, value: unknown): void => {
-      const lower = key.toLowerCase()
-      const existingKey = Object.keys(target).find((k) => k.toLowerCase() === lower)
-      if (existingKey) {
-        target[existingKey] = value
-      } else {
-        target[key] = value
-      }
-    },
-    []
-  )
-
-  const deleteCaseInsensitiveField = useCallback((target: Record<string, unknown>, key: string): void => {
-    const lower = key.toLowerCase()
-    const existingKey = Object.keys(target).find((k) => k.toLowerCase() === lower)
-    if (existingKey) delete target[existingKey]
-  }, [])
 
   const resolveEffectiveModel = useCallback(
     (thread: Thread | null, workspaceCfg: Record<string, unknown>, effectiveProviderId: string): string => {
@@ -246,6 +230,7 @@ export function useComposerModelControls({
         if (!isCurrent()) return
         const msg = err instanceof Error ? err.message : String(err)
         addToast(`Failed to switch model: ${msg}`, 'error')
+        throw err
       } finally {
         if (isCurrent()) setModelApplying(false)
       }
@@ -271,7 +256,9 @@ export function useComposerModelControls({
       const remembered = readWorkspacePreference(workspaceCfg, nextProviderId)
       const nextModel = remembered?.model || catalogState.modelOptions[0]
       if (!nextModel) {
-        addToast(t('composer.providerModelUnavailable'), 'error')
+        const error = new Error(t('composer.providerModelUnavailable'))
+        selectionFailure.current = error
+        addToast(error.message, 'error')
         return
       }
 
@@ -310,6 +297,7 @@ export function useComposerModelControls({
       await loadModels(false, providerId)
       if (!isCurrent()) return
       addToast(`Failed to switch provider: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      throw err
     } finally {
       if (isCurrent()) setModelApplying(false)
     }
@@ -367,6 +355,7 @@ export function useComposerModelControls({
         const msg = err instanceof Error ? err.message : String(err)
         setReasoningConfig(previousReasoning)
         addToast(`Failed to update thinking: ${msg}`, 'error')
+        throw err
       } finally {
         if (isCurrent()) setModelApplying(false)
       }
@@ -418,6 +407,7 @@ export function useComposerModelControls({
         if (!isCurrent()) return
         setSpeedValue(previousSpeed)
         addToast(`Failed to update speed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+        throw err
       } finally {
         if (isCurrent()) setModelApplying(false)
       }
@@ -483,51 +473,16 @@ export function useComposerModelControls({
     onModelCatalogRetry: () => {
       void loadModels(true, providerId)
     },
-    threadStartConfig
-  }
-}
-
-function readWorkspacePreference(
-  config: Record<string, unknown>,
-  providerId: string
-): ModelPreference | null {
-  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'providerpreferences')
-  return findProviderPreference(readProviderPreferences(key ? config[key] : null), providerId)
-}
-
-function applyPreferenceToThreadConfig(
-  config: Record<string, unknown>,
-  preference: ModelPreference
-): void {
-  config.model = preference.model
-  config.reasoning = { ...preference.reasoning }
-  config.speed = preference.speed
-}
-
-function readThreadSpeed(config: Record<string, unknown>): InferenceSpeedWire {
-  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'speed')
-  return key && config[key] === 'fast' ? 'fast' : 'standard'
-}
-
-function applyModelCompatibility(config: Record<string, unknown>, model: ModelCatalogItem | null): void {
-  const reasoningKey = Object.keys(config).find((key) => key.toLowerCase() === 'reasoning')
-  if (reasoningKey && config[reasoningKey] && typeof config[reasoningKey] === 'object' && model?.reasoning) {
-    const current = readReasoningObject(config[reasoningKey]) ?? DEFAULT_REASONING_CONFIG
-    const effortSupported = model.reasoning.supportedEfforts.some((option) => option.effort === current.effort)
-    if ((!current.enabled && !model.reasoning.supportsDisable) || (current.enabled && !effortSupported)) {
-      config[reasoningKey] = {
-        enabled: true,
-        effort: model.reasoning.defaultEffort,
-        output: model.reasoning.supportedOutputs.includes(current.output)
-          ? current.output
-          : model.reasoning.defaultOutput
+    threadStartConfig,
+    captureTurnSettings: async () => {
+      await updates.current
+      const current = useThreadStore.getState().activeThread
+      if (currentActionScope.current !== actionScope || selectionFailure.current ||
+        (!detached && current?.id !== activeThread?.id)) {
+        throw new DOMException('Model selection was interrupted', 'AbortError')
       }
+      if (detached) return modelSettingsFromConfiguration(threadStartConfig)
+      return modelSettingsFromConfiguration(current?.configuration)
     }
   }
-
-}
-
-function resolveReasoningFromConfiguration(config: Record<string, unknown>): ResolvedReasoningConfig {
-  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'reasoning')
-  return readReasoningObject(key ? config[key] : null) ?? DEFAULT_REASONING_CONFIG
 }

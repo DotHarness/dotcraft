@@ -494,19 +494,43 @@ export class FakeComputer {
         thread.config = { ...thread.config, mode: params.mode }
         return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: threadBody(thread, project.path ?? '') }) }
       case 'turn/start': {
-        if (this.activeTurn(thread)) return { error: { code: -32012, message: 'A turn is already running on this thread.' } }
+        const active = this.activeTurn(thread)
+        if (active && (!Array.isArray(params.input) || params.input.length === 0)) {
+          return { error: { code: -32602, message: 'Steer input must not be empty.' } }
+        }
+        const config = thread.config ??= {}
+        for (const key of ['providerId', 'model', 'speed', 'mode', 'cwd', 'runtimeWorkspaceRoots']) {
+          if (params[key] != null) config[key] = params[key]
+        }
+        if (params.reasoning && typeof params.reasoning === 'object') {
+          config.reasoning = { ...(config.reasoning as Record<string, unknown> | undefined), ...params.reasoning }
+        }
+        if (active) {
+          return {
+            result: { turn: { ...active, items: [] } },
+            after: () => {
+              const item = this.addItem(thread, active.id, 'userMessage', {
+                text: inputText(params.input), nativeInputParts: params.input,
+                deliveryMode: 'guidance', clientUserMessageId: params.clientUserMessageId,
+              })
+              this.toSubscribers(project, thread.id, 'item/completed', { threadId: thread.id, turnId: active.id, item })
+            },
+          }
+        }
         const turn: FakeTurn = { id: sequenceId('turn', thread.turns.length + 1), threadId: thread.id, status: 'running', startedAt: this.stamp() }
         thread.turns.push(turn)
         thread.planned = false
         return {
           result: { turn },
           after: () => {
-            const user = this.addItem(thread, turn.id, 'userMessage', {
-              text: inputText(params.input),
-              nativeInputParts: params.input,
-              clientUserMessageId: params.clientUserMessageId,
-            })
-            this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: [user] } })
+            const user = Array.isArray(params.input) && params.input.length > 0
+              ? this.addItem(thread, turn.id, 'userMessage', {
+                text: inputText(params.input),
+                nativeInputParts: params.input,
+                clientUserMessageId: params.clientUserMessageId,
+              })
+              : null
+            this.toSubscribers(project, thread.id, 'turn/started', { turn: { ...turn, items: user ? [user] : [] } })
             this.statusChanged(project, thread)
             const reply =
               thread.turns.length === 1 ? `Starting on ${this.name} in ${project.name}. I’ll read the project first and report back here.` : thread.continuation

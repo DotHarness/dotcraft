@@ -871,9 +871,25 @@ public sealed class TurnInitiatorContext : ExtensibleJsonObject
     public string? GroupId { get; init; }
 }
 
-/// <summary>Parameters for starting a turn.</summary>
+/// <summary>Input and sticky settings for starting or steering a turn.</summary>
 public sealed class TurnStartParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("providerId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ProviderId { get; init; }
+
+    [JsonPropertyName("model")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Model { get; init; }
+
+    [JsonPropertyName("reasoning")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ReasoningConfig? Reasoning { get; init; }
+
+    [JsonPropertyName("speed")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Speed { get; init; }
+
     [JsonPropertyName("mode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Mode { get; init; }

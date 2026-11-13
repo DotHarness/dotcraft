@@ -1,5 +1,6 @@
 import { shouldUseTerminalSnapshotOutput, appendTerminalDelta, mergeTerminalAcrossItems } from './terminalState'
 import { optimisticUserMessageRepresentedByIncoming, removeRepresentedOptimisticTurns, turnRepresentsOptimisticTurn } from './optimisticMessages'
+import { acceptOptimisticSubmission, addOptimisticSubmission, reconcileCanonicalSubmissions, reconcileQueuedSubmissions, removeOptimisticSubmission } from './optimisticSubmissions'
 import { createStore, type StoreApi } from 'zustand'
 import type {
   ConversationTurn,
@@ -1592,7 +1593,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
             state.workspacePath
           )
           return {
-            turns: toolCompletionApplied.turns,
+            ...reconcileCanonicalSubmissions(toolCompletionApplied.turns, state.queuedInputs),
             turnStatus: restoredTurnStatus,
             activeTurnId: activeTurn ? activeTurn.id : null,
             interruptingTurnId: null,
@@ -1636,11 +1637,11 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
           const alreadyExists = state.turns.find((t) => t.id === turn.id)
           if (alreadyExists) {
             return {
-              turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
+              ...reconcileCanonicalSubmissions(state.turns.map((t) =>
                 t.id === turn.id
                   ? { ...mergeExistingRealtimeTurn(turn, t), status: 'running', startedAt: turn.startedAt }
                   : t
-              )),
+              ), state.queuedInputs),
               turnStatus: 'running',
               activeTurnId: turn.id,
               interruptingTurnId: null,
@@ -1700,7 +1701,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
         const turn = wireTurnToConversationTurn(rawTurn)
         set((state) => {
           return {
-            turns: state.turns.map((t) =>
+            ...reconcileCanonicalSubmissions(state.turns.map((t) =>
               t.id === turn.id
                 ? {
                     ...mergeExistingRealtimeTurn(turn, t),
@@ -1709,7 +1710,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
                     tokenUsage: turn.tokenUsage ?? t.tokenUsage
                   }
                 : t
-            ),
+            ), state.queuedInputs),
             turnStatus: 'idle',
             activeTurnId: null,
             interruptingTurnId: null,
@@ -1821,11 +1822,9 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
           }))
         } else if (type === 'userMessage') {
           const newItem = wireItemToConversationItem(item)
-          set((state) => ({
-            turns: removeRepresentedOptimisticTurns(state.turns.map((t) =>
-              t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-            ))
-          }))
+          set((state) => reconcileCanonicalSubmissions(state.turns.map((t) =>
+            t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
+          ), state.queuedInputs))
         } else if (type === 'reasoningContent') {
           const newItem: ConversationItem = {
             id: itemId ?? '',
@@ -2397,11 +2396,9 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
           })
         } else if (type === 'userMessage') {
           const newItem = wireItemToConversationItem(item)
-          set((s) => ({
-            turns: removeRepresentedOptimisticTurns(s.turns.map((t) =>
-              t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
-            ))
-          }))
+          set((s) => reconcileCanonicalSubmissions(s.turns.map((t) =>
+            t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
+          ), s.queuedInputs))
         } else if (type === 'error') {
           const newItem = wireItemToConversationItem(item)
           set((s) => ({
@@ -2794,7 +2791,7 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
       },
 
       setQueuedInputs(inputs) {
-        set({ queuedInputs: inputs })
+        set((state) => reconcileQueuedSubmissions(state, inputs))
       },
 
       setSystemLabel(label) {
@@ -2810,60 +2807,15 @@ function createConversationStore(workspace: ConversationWorkspace): StoreApi<Con
       },
 
       addOptimisticTurn(turn) {
-        set((state) => ({
-          turns: [...state.turns, turn],
-          turnStatus: 'running',
-          activeTurnId: turn.id,
-          interruptingTurnId: null,
-          streamingMessage: '',
-          streamingMessageLastDeltaAt: null,
-          streamingReasoning: '',
-          activeItemId: null,
-          turnStartedAt: Date.now(),
-          inputTokens: 0,
-          outputTokens: 0,
-          systemLabel: null,
-          streamRetry: null,
-          maintenanceKind: null
-        }))
+        set((state) => addOptimisticSubmission(state, turn))
       },
 
       removeOptimisticTurn(turnId) {
-        set((state) => ({
-          turns: state.turns.filter((t) => t.id !== turnId),
-          turnStatus: 'idle',
-          activeTurnId: null,
-          streamingMessage: '',
-          streamingMessageLastDeltaAt: null,
-          streamingReasoning: '',
-          activeItemId: null,
-          turnStartedAt: null,
-          streamRetry: state.streamRetry?.turnId === turnId ? null : state.streamRetry
-        }))
+        set((state) => removeOptimisticSubmission(state, turnId))
       },
 
       promoteOptimisticTurn(localId, serverId) {
-        set((state) => {
-          const localTurn = state.turns.find((turn) => turn.id === localId)
-          const serverTurn = state.turns.find((turn) => turn.id === serverId)
-          const turns = localTurn && serverTurn
-            ? state.turns
-              .flatMap((turn) => {
-                if (turn.id === serverId) return [mergeExistingRealtimeTurn(serverTurn, localTurn)]
-                if (turn.id === localId) return []
-                return [turn]
-              })
-              .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
-            : state.turns.map((turn) => (turn.id === localId ? { ...turn, id: serverId } : turn))
-
-          return {
-            turns,
-            activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
-            streamRetry: state.streamRetry?.turnId === localId
-              ? { ...state.streamRetry, turnId: serverId }
-              : state.streamRetry
-          }
-        })
+        set((state) => acceptOptimisticSubmission(state, localId, serverId, mergeExistingRealtimeTurn))
       },
 
       onTurnDiffUpdated({ turnId, diff }) {

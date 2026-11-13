@@ -57,11 +57,9 @@ internal static class ExecThreads
         throw new InvalidOperationException("No thread found in this workspace.");
     }
 
-    public static async Task UpdateConfigAsync(
+    public static async Task AutoApproveAsync(
         AppServerWireClient wire,
         string threadId,
-        string? model,
-        bool autoApprove,
         CancellationToken ct)
     {
         var thread = await ReadAsync(wire, threadId, ct).ConfigureAwait(false);
@@ -70,15 +68,7 @@ internal static class ExecThreads
             ? JsonNode.Parse(configuration.GetRawText())!.AsObject()
             : new JsonObject();
 
-        if (model != null)
-        {
-            config["model"] = model;
-            config.Remove("reasoning");
-            config.Remove("speed");
-        }
-
-        if (autoApprove)
-            config["approvalPolicy"] = AutoApprovePolicy;
+        config["approvalPolicy"] = AutoApprovePolicy;
 
         await RequestAsync(wire, AppServerMethodNames.ThreadConfigUpdate, new { threadId, config }, ct).ConfigureAwait(false);
     }
@@ -96,7 +86,7 @@ internal static class ExecThreads
         var input = new List<object> { new { type = "text", text = request.Prompt } };
         input.AddRange(request.Images.Select(path => new { type = "localImage", path }));
 
-        var result = await RequestAsync(wire, AppServerMethodNames.TurnStart, new { threadId, input }, ct).ConfigureAwait(false);
+        var result = await RequestAsync(wire, AppServerMethodNames.TurnStart, new { threadId, input, model = request.Model }, ct).ConfigureAwait(false);
         var turnId = result.GetProperty("turn").GetProperty("id").GetString();
         return string.IsNullOrWhiteSpace(turnId)
             ? throw new InvalidOperationException("AppServer returned a turn with no id.")

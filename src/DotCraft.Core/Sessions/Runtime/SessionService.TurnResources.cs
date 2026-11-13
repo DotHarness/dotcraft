@@ -6,7 +6,7 @@ public sealed partial class SessionService
     {
         foreach (var refresher in runtimeRefreshers ?? [])
             await refresher.RefreshAsync(ct).ConfigureAwait(false);
-        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents)
+        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents || runtime.ToolSnapshotDirty)
             await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
         TurnExecutionResources resources;
         using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, ct).ConfigureAwait(false))

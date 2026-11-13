@@ -245,6 +245,46 @@ describe('approvals and questions', () => {
 })
 
 describe('turn control', () => {
+  it('accepts a stale-idle start as guidance without replacing the active turn or its history', async () => {
+    const computer = studio()
+    const running = computer.projects.flatMap(project => project.threads).find(thread => thread.displayName === 'Fix the flaky turn-diff test')!
+    running.stream = null
+    const activeId = running.turns.at(-1)!.id
+    const existing = computer.addItem(running, activeId, 'agentMessage', { text: 'Existing assistant output.' })
+    const notifications: string[] = []
+    const socket = computer.socket.bind(computer)
+    computer.socket = (path, headers, sink) => socket(path, headers, {
+      ...sink,
+      message(frame) {
+        const message = JSON.parse(frame) as { method?: string }
+        if (message.method) notifications.push(message.method)
+        sink.message(frame)
+      },
+    })
+    const harness = setup([computer])
+    const key = keyOf(await online(harness), 'Fix the flaky turn-diff test')
+    harness.link().openChat(key)
+    await waitFor(() => harness.state().details[key]?.loading === false)
+    const before = running.turns.length
+    const started = notifications.filter(method => method === 'turn/started').length
+    const runtime = harness.state().chats[key].runtime!
+    harness.session.store.dispatch({ type: 'computer', computerId: computer.id, action: {
+      type: 'chatPatched', key, patch: { runtime: { ...runtime, running: false, busy: false, activeTurnId: null } },
+    } })
+
+    await harness.link().send(key, plainMessage('Include the integration tests.'))
+    await waitFor(() => harness.state().details[key].history.echoes.length === 0)
+    const submission = computer.calls.filter(call => call.method === 'turn/start').at(-1)!
+    expect(submission.params.threadId).toBe(running.id)
+    expect(running.turns).toHaveLength(before)
+    expect(notifications.filter(method => method === 'turn/started')).toHaveLength(started)
+    computer.endTurn(running.id, 'completed')
+    await waitFor(() => harness.state().details[key].history.turns.find(turn => turn.id === activeId)?.status === 'completed')
+    const history = harness.state().details[key].history
+    expect(history.items.filter(item => item.payload.clientUserMessageId === submission.params.clientUserMessageId)).toHaveLength(1)
+    expect(history.items.find(item => item.id === existing.id && item.turnId === activeId)?.payload.text).toBe('Existing assistant output.')
+  })
+
   it('adds a message to a running turn with turn/steer and stops it with turn/interrupt', async () => {
     const computer = studio()
     const harness = setup([computer])

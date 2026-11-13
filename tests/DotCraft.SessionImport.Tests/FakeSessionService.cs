@@ -134,6 +134,8 @@ internal sealed class FakeSessionService : ISessionService
 
     public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 
+    public Task<TurnInputAdmission> StartOrSteerTurnAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null, TurnSettingsOverrides? settings = null) => throw new NotSupportedException();
+
     public IAsyncEnumerable<SessionEvent> SubmitInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotSupportedException();
 
     public Task<QueuedTurnInput> EnqueueTurnInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotSupportedException();

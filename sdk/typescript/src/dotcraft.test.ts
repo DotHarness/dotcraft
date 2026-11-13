@@ -9,8 +9,7 @@ import {
   type ApprovalHandler,
   type UserInputHandler,
 } from "./dotcraft.js";
-import { TurnInProgressError } from "./errors.js";
-import { ERR_TURN_IN_PROGRESS, JsonRpcMessage } from "./models.js";
+import { JsonRpcMessage } from "./models.js";
 import type {
   DynamicToolCallResult,
   ServerCapabilities,
@@ -40,9 +39,8 @@ class FakeWire {
   startParams: Record<string, unknown> | null = null;
   turnStartInput: unknown;
   turnStartSender: unknown;
-  turnStartError: unknown = null;
+  turnStartSettings: unknown;
   events: JsonRpcMessage[] = [];
-  queuedInput: unknown = { id: "queued-1" };
   cancelAfterInterrupt = false;
   interrupted: { threadId: string; turnId: string } | null = null;
   private releaseAfterInterrupt: (() => void) | null = null;
@@ -78,11 +76,11 @@ class FakeWire {
 
   async ensureThreadAttached(): Promise<undefined> { return undefined; }
 
-  async turnStart(_threadId: string, input: unknown, sender: unknown): Promise<SessionTurn> {
+  async turnStart(_threadId: string, input: unknown, sender: unknown, settings?: unknown): Promise<SessionTurn> {
     this.calls.push("turnStart");
     this.turnStartInput = input;
     this.turnStartSender = sender;
-    if (this.turnStartError) throw this.turnStartError;
+    this.turnStartSettings = settings;
     return makeTurn("turn-1", "thread-1", "running");
   }
 
@@ -133,11 +131,6 @@ class FakeWire {
     return this.requestRaw<T>(method, params);
   }
 
-  async turnEnqueue(_threadId: string, input: unknown, sender: unknown): Promise<Record<string, unknown>> {
-    this.turnStartInput = input;
-    this.turnStartSender = sender;
-    return { queuedInput: this.queuedInput };
-  }
 }
 
 function createSdk(
@@ -329,18 +322,37 @@ test("DotCraftThread run registers stream capture before turn start and merges f
   assert.equal(result.rawEvents?.length, 5);
 });
 
-test("DotCraftThread run enqueues when requested and a turn is already active", async () => {
+test("DotCraftThread joins a turn with model settings without waiting for another started event", async () => {
   const wire = new FakeWire();
-  wire.turnStartError = new TurnInProgressError(ERR_TURN_IN_PROGRESS, "busy");
+  wire.events = [
+    JsonRpcMessage.fromDict({
+      method: "item/agentMessage/delta",
+      params: { threadId: "thread-1", turnId: "turn-1", itemId: "m1", delta: "after" },
+    }),
+    JsonRpcMessage.fromDict({
+      method: "turn/completed",
+      params: {
+        threadId: "thread-1",
+        turn: {
+          ...makeTurn("turn-1", "thread-1", "completed"),
+          items: [
+            { id: "m0", type: "agentMessage", payload: { text: "before " } },
+            { id: "m1", type: "agentMessage", payload: { text: "after" } },
+          ],
+        },
+      },
+    }),
+  ];
   const sdk = createSdk(wire);
   const thread = await sdk.threads.start({ userId: "u" });
+  const settings = { providerId: "provider-b", model: "model-b", reasoning: { enabled: true, effort: "high" }, speed: "fast" };
 
-  const result = await thread.run("later", { enqueueIfBusy: true, sender: { senderId: "u" } });
+  const result = await thread.run("continue", settings);
 
-  assert.equal(result.turn, null);
-  assert.deepEqual(result.queuedInput, { id: "queued-1" });
-  assert.deepEqual(wire.turnStartInput, [{ type: "text", text: "later" }]);
-  assert.deepEqual(wire.turnStartSender, { senderId: "u", senderName: "u", senderRole: "user" });
+  assert.deepEqual(wire.calls, ["streamEvents", "turnStart"]);
+  assert.deepEqual(wire.turnStartSettings, settings);
+  assert.equal(result.turn?.id, "turn-1");
+  assert.equal(result.text, "before after");
 });
 
 test("DotCraftThread runStreamed interrupts the active turn on abort", async () => {

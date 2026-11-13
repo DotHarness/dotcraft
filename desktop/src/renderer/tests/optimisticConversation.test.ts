@@ -400,7 +400,7 @@ describe('optimistic turns', () => {
     expect(state.activeTurnId).toBe('turn_001')
   })
 
-  it('promotion after turn/started keeps one turn with the optimistic user message', () => {
+  it('keeps accepted input pending until a canonical user message confirms it', () => {
     const optimisticTurn: ConversationTurn = {
       id: 'local-turn-789',
       threadId: 'thread-1',
@@ -408,6 +408,7 @@ describe('optimistic turns', () => {
       items: [
         {
           id: 'local-item-2',
+          clientUserMessageId: 'message-789',
           type: 'userMessage',
           status: 'completed',
           text: 'Hi there',
@@ -419,10 +420,22 @@ describe('optimistic turns', () => {
     s().addOptimisticTurn(optimisticTurn)
 
     s().onTurnStarted(makeTurn({ id: 'turn_002' }))
+    s().setQueuedInputs([{
+      id: 'queued-789', clientUserMessageId: 'message-789', threadId: 'thread-1',
+      displayText: 'Hi there', status: 'guidancePending', readyAfterTurnId: 'turn_002', createdAt: optimisticTurn.startedAt
+    }])
     s().promoteOptimisticTurn('local-turn-789', 'turn_002')
     expect(s().turns).toHaveLength(1)
     expect(s().turns[0].id).toBe('turn_002')
-    expect(s().turns[0].items[0].text).toBe('Hi there')
+    expect(s().turns[0].items).toEqual([])
+    expect(s().queuedInputs).toMatchObject([{ clientUserMessageId: 'message-789', displayText: 'Hi there', status: 'guidancePending' }])
+    s().setQueuedInputs([])
+    s().onItemCompleted({ turnId: 'turn_002', item: {
+      id: 'user-789', type: 'userMessage', status: 'completed', createdAt: new Date().toISOString(),
+      payload: { text: 'Hi there', clientUserMessageId: 'message-789', deliveryMode: 'guidance' }
+    } })
+    expect(s().turns[0].items).toMatchObject([{ id: 'user-789', text: 'Hi there' }])
+    expect(s().queuedInputs).toEqual([])
 
     s().promoteOptimisticTurn('local-turn-789', 'turn_002')
     expect(s().turns).toHaveLength(1)
@@ -474,6 +487,17 @@ describe('optimistic turns', () => {
     expect(userMessages).toHaveLength(1)
     expect(userMessages[0].id).toBe('server-user-canonical-first')
   })
+})
+
+it('confirms pending guidance from an authoritative terminal snapshot without replayed item events', () => {
+  s().onTurnStarted(makeTurn({ id: 'active' }))
+  const item = createOptimisticUserMessage([{ type: 'text', text: 'guidance' }], 'guidance', 'terminal-guidance')
+  s().addOptimisticTurn({ id: 'local-turn-guidance', threadId: 'thread-1', status: 'running', startedAt: item.createdAt, items: [item] })
+  s().promoteOptimisticTurn('local-turn-guidance', 'active')
+  expect(s().queuedInputs).toHaveLength(1)
+  s().onTurnCompleted(makeTurn({ id: 'active', status: 'completed', items: [{ ...item, id: 'canonical-user', deliveryMode: 'guidance' }] }))
+  expect(s().queuedInputs).toEqual([])
+  expect(s().turns[0].items.map(value => value.id)).toEqual(['canonical-user'])
 })
 
 it('correlates page captures independently of image count and keeps identical subsequent submissions', () => {

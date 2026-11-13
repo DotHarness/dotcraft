@@ -151,8 +151,13 @@ export class InternalAppServerClient extends DotCraftWireClient {
   async threadDelete(threadId: string): Promise<void> { await this.request("thread/delete", { threadId }); }
   async threadSetMode(threadId: string, mode: string): Promise<void> { await this.request("thread/mode/set", { threadId, mode }); }
 
-  async turnStart(threadId: string, input: Record<string, unknown>[], sender?: Record<string, unknown> | null): Promise<SessionTurn> {
-    const payload: Record<string, unknown> = { threadId, input };
+  async turnStart(
+    threadId: string,
+    input: Record<string, unknown>[],
+    sender?: Record<string, unknown> | null,
+    settings: Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed"> = {},
+  ): Promise<SessionTurn> {
+    const payload: Record<string, unknown> = { ...settings, threadId, input };
     if (sender) payload.sender = sender;
     const result = await this.request("turn/start", payload as ClientRequestMethods["turn/start"]["params"]);
     return result.turn;

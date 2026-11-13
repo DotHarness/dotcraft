@@ -37,7 +37,7 @@ public sealed class DiscussionTurnDeliveryTests
         await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/items/id/{itemId}/discussion-turns",
-            new DiscussionTurnRequest("Is the second pass covering the refresh path?", null, null));
+            new DiscussionTurnRequest("Is the second pass covering the refresh path?", null, "discussion-model"));
         var answered = await WaitForItemByIdAsync(
             client,
             itemId,
@@ -45,6 +45,7 @@ public sealed class DiscussionTurnDeliveryTests
 
         var steer = Assert.Single(fakeAppServer.SteerRequests);
         Assert.Equal(run.TurnId, steer.ExpectedTurnId);
+        Assert.Equal((run.ThreadId, "discussion-model"), fakeAppServer.TurnModelSelections[^1]);
         var turn = Assert.Single(answered.DiscussionTurns);
         Assert.Equal(run.RunId, turn.RunId);
         Assert.Null(turn.Origin);

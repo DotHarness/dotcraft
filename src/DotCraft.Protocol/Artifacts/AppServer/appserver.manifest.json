@@ -26485,6 +26485,27 @@
           "const": null
         },
         {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "reasoning",
+          "type": "core.ReasoningConfig",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "runtimeWorkspaceRoots",
           "type": "array<string>",
           "required": false,
@@ -26501,6 +26522,13 @@
         {
           "name": "sentAsGoal",
           "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "speed",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null

@@ -311,7 +311,8 @@ export abstract class ChannelAdapter {
   }
 
   protected approvalSender(request: Record<string, unknown>): string | undefined {
-    return this.turnSenders.get(String(request.turnId ?? "")) ?? this.threadSenders.get(String(request.threadId ?? ""));
+    return this.turnSenders.get(JSON.stringify([String(request.threadId ?? ""), String(request.turnId ?? "")]))
+      ?? this.threadSenders.get(String(request.threadId ?? ""));
   }
 
   protected async isCommand(text: string): Promise<boolean> {
@@ -608,7 +609,13 @@ export abstract class ChannelAdapter {
       throw error;
     }
 
-    this.turnSenders.set(turn.id, String(sender.senderId));
+    const consumerKey = JSON.stringify([thread.id, turn.id]);
+    if (this.turnSenders.has(consumerKey)) {
+      await eventStream.return?.();
+      await release();
+      return;
+    }
+    this.turnSenders.set(consumerKey, String(sender.senderId));
     void this.runTurn(eventStream, { threadId: thread.id, turnId: turn.id, channelContext }, release);
   }
 
@@ -651,7 +658,7 @@ export abstract class ChannelAdapter {
       await eventStream.return?.();
     }
     await this.onTurnEnded(turn, outcome).catch((error) => reportHookError("onTurnEnded", error));
-    this.turnSenders.delete(turn.turnId);
+    this.turnSenders.delete(JSON.stringify([turn.threadId, turn.turnId]));
     await release().catch((error) => reportHookError("unsubscribe", error));
   }
 

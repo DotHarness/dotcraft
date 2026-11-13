@@ -5,7 +5,6 @@ import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, RefreshCw, Target } from 'lucide-react'
-import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -32,6 +31,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import type { TurnModelSettings } from '../../utils/turnModelSettings'
 import { mergeVisibleQueueOrder } from '../../utils/visibleUserMessage'
 import { canOpenSideChat as canOpenSideChatNow, openSideChat, parseSideSlashCommand, useCanOpenSideChat, withoutSideCommand } from '../../utils/sideChat'
 import { useFailedTurnResume } from './useFailedTurnResume'
@@ -112,14 +112,6 @@ const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
-/** AppServer maps a running turn and active maintenance alike onto this code. */
-const TURN_IN_PROGRESS_RPC_CODE = -32012
-
-function isTurnBusyError(err: unknown): boolean {
-  const { code, rpcCode } = readAppServerErrorFields(err)
-  return code === 'turnInProgress' || rpcCode === TURN_IN_PROGRESS_RPC_CODE
-}
-
 export interface InputComposerSubmitPayload {
   text: string
   segments: ComposerDraftSegment[]
@@ -161,6 +153,7 @@ interface InputComposerProps {
   /** One-shot text injection request from an external empty state or suggestion. */
   prefillRequest?: { id: number; text: string } | null
   onBeforeSend?: () => Promise<void> | void
+  captureTurnSettings?: () => Promise<TurnModelSettings>
   onOptimisticEcho?: () => void
   /** The caller owns submission; the composer still serializes input and restores failed drafts. */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
@@ -230,6 +223,7 @@ function InputComposerCore({
   placeholder,
   prefillRequest = null,
   onBeforeSend,
+  captureTurnSettings,
   onOptimisticEcho,
   submitOverride,
   runtime,
@@ -953,6 +947,7 @@ function InputComposerCore({
     sendInFlightRef.current = true
     const submission = captureComposerDraft()
     try {
+      const modelSettings = await captureTurnSettings?.()
       clearComposerForSubmission()
       const ok = await setGoalObjective(objective)
       if (!ok) {
@@ -975,6 +970,7 @@ function InputComposerCore({
           workspacePath: effectiveFileWorkspacePath,
           identityWorkspacePath: workspacePath,
           text: objective,
+          modelSettings,
           segments: [],
           images: [],
           files: [],
@@ -990,11 +986,11 @@ function InputComposerCore({
       setMascotBounce((n) => n + 1)
     } catch (err) {
       restoreComposerSubmission(submission)
-      addToast(describeAppServerError(locale, err), 'error')
+      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, onOptimisticEcho, t])
+  }, [captureTurnSettings, files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, onOptimisticEcho, t])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1183,6 +1179,7 @@ function InputComposerCore({
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
       try {
+        const modelSettings = await captureTurnSettings?.()
         clearComposerForSubmission()
         const expandedPrompt = await expandInitCommand(threadId)
         await startTurnWithOptimisticUI({
@@ -1190,13 +1187,14 @@ function InputComposerCore({
           workspacePath: effectiveFileWorkspacePath,
           identityWorkspacePath: workspacePath,
           text: expandedPrompt,
+          modelSettings,
           fallbackThreadName: t('cmd.init'),
           throwOnStartError: true,
           onOptimisticEcho
         })
       } catch (err) {
         restoreComposerSubmission(submission)
-        addToast(describeAppServerError(locale, err), 'error')
+        if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1255,11 +1253,17 @@ function InputComposerCore({
       return
     }
 
+    if (sendInFlightRef.current) return
+    sendInFlightRef.current = true
+    let modelSettings: TurnModelSettings | undefined
     try {
+      modelSettings = await captureTurnSettings?.()
       await onBeforeSend?.()
     } catch (err) {
-      addToast(describeAppServerError(locale, err), 'error')
+      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
       return
+    } finally {
+      sendInFlightRef.current = false
     }
 
     setMascotBounce((n) => n + 1)
@@ -1349,24 +1353,17 @@ function InputComposerCore({
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
-    const { inputParts, visibleText } = buildComposerInputParts({
-      text: trimmed,
-      threadId,
-      segments: capturedSegments,
-      contexts: inputContexts,
-      files: capturedFiles,
-      images: capturedImages
-    })
     const submission = submissionSnapshot()
     try {
       clearComposerForSubmission()
       await startTurnWithOptimisticUI({
         clientUserMessageId: submission.clientUserMessageId,
         threadId,
+        modelSettings,
         workspacePath: effectiveFileWorkspacePath,
         identityWorkspacePath: workspacePath,
         text: trimmed,
-        segments,
+        segments: capturedSegments,
         contexts: inputContexts,
         images: capturedImages,
         files: capturedFiles,
@@ -1379,25 +1376,12 @@ function InputComposerCore({
       clearEditPosition()
     } catch (err) {
       console.error('turn/start failed:', err)
-      const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
-      if (isTurnBusyError(err)
-        && currentMaintenanceKind === 'compacting') {
-        try {
-          await sendFollowUpWithEcho(crypto.randomUUID(), inputParts, visibleText, 'queue')
-          return
-        } catch (enqueueErr) {
-          console.error('turn/enqueue fallback failed:', enqueueErr)
-          restoreComposerSubmission(submission)
-          addToast(describeAppServerError(locale, enqueueErr), 'error')
-          return
-        }
-      }
       restoreComposerSubmission(submission)
       addToast(describeAppServerError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isRunning, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isRunning, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, captureTurnSettings, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1580,6 +1564,7 @@ function InputComposerCore({
     threadId,
     workspacePath: effectiveFileWorkspacePath,
     identityWorkspacePath: workspacePath,
+    captureTurnSettings,
     enabled: !hasSubmitOverride && !goalComposeMode
   })
   const resumeAvailable = canResumeTurn && composerEmpty && !voiceRecording && !voiceProcessing

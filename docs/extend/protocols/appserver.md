@@ -279,7 +279,9 @@ An ACP client can expose client-owned Runtime Dynamic Tools through DotCraft's p
 
 ## Turns
 
-`turn/start` submits user input and starts agent execution. The response returns the initial turn immediately; later output streams through notifications.
+`turn/start` submits input and optional model settings together. When idle, the server starts a turn using those settings. When a regular turn accepts guidance, input joins that turn and the response returns its existing ID without another `turn/started` notification.
+
+The optional `providerId`, `model`, `reasoning`, and `speed` fields become thread defaults after acceptance. A newly started turn uses them immediately; guidance does not change the active turn's captured model or execution settings. Omitted or null fields retain the current selection. Changing provider requires a model, and reasoning fields merge individually. Use `turn/enqueue` explicitly when the input must wait for a separate turn.
 
 ```json
 {

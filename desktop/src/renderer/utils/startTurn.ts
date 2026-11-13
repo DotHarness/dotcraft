@@ -10,6 +10,7 @@ import { buildComposerInputParts } from './composeInputParts'
 import { generateThreadTitle, threadTitleRequest, type ThreadTitleRequest } from './threadTitleGeneration'
 import { getFallbackThreadName } from './threadFallbackName'
 import { threadWorkspaceUpdateFor } from './workspaceRuntimeRoots'
+import { modelSettingsForThread, type TurnModelSettings } from './turnModelSettings'
 
 interface StartTurnParams {
   clientUserMessageId?: string
@@ -32,6 +33,7 @@ interface StartTurnParams {
   onOptimisticEcho?: () => void
   sentAsGoal?: boolean
   mode?: ThreadMode
+  modelSettings?: TurnModelSettings
   title?: ThreadTitleRequest
 }
 
@@ -40,6 +42,7 @@ export interface OptimisticTurn {
   clientUserMessageId: string
   inputParts: InputPart[]
   onScreen: boolean
+  modelSettings: TurnModelSettings
   title?: { request: ThreadTitleRequest; rename: boolean }
 }
 
@@ -60,12 +63,16 @@ export function echoOptimisticTurn({
   sentAsGoal = false,
   onScreen = true,
   onOptimisticEcho,
+  modelSettings,
   title: namedTitle
 }: StartTurnParams): OptimisticTurn | null {
   const built = providedInputParts ? null : buildComposerInputParts({ text, threadId, segments, files, images, contexts })
   const inputParts = providedInputParts ?? built!.inputParts
   const visibleText = built?.visibleText ?? text
   if (inputParts.length === 0) return null
+  const capturedSettings = modelSettings
+    ? { ...modelSettings, ...(modelSettings.reasoning ? { reasoning: { ...modelSettings.reasoning } } : {}) }
+    : modelSettingsForThread(threadId)
 
   let title: OptimisticTurn['title']
   if (namedTitle) {
@@ -104,7 +111,7 @@ export function echoOptimisticTurn({
     useConversationStore.getState().addOptimisticTurn(optimisticTurn)
     onOptimisticEcho?.()
   }
-  return { optimisticTurnId, clientUserMessageId, inputParts, onScreen, title }
+  return { optimisticTurnId, clientUserMessageId, inputParts, onScreen, modelSettings: capturedSettings, title }
 }
 
 export async function submitOptimisticTurn(
@@ -134,6 +141,7 @@ export async function submitOptimisticTurn(
       clientUserMessageId: echo.clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
       ...(mode ? { mode } : {}),
+      ...echo.modelSettings,
       ...workspaceUpdate
     })
     const res = result as { turn?: { id?: string } }
@@ -153,13 +161,15 @@ export async function submitOptimisticTurn(
 export async function reissueFailedTurn({
   threadId,
   workspacePath,
-  identityWorkspacePath
-}: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath'>): Promise<void> {
+  identityWorkspacePath,
+  modelSettings = modelSettingsForThread(threadId)
+}: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'modelSettings'>): Promise<void> {
   const identityPath = identityWorkspacePath ?? workspacePath
   const workspaceUpdate = threadWorkspaceUpdateFor(threadId, identityPath)
   await window.api.appServer.sendRequest('turn/start', {
     threadId,
     input: [],
+    ...modelSettings,
     ...workspaceUpdate
   })
 }

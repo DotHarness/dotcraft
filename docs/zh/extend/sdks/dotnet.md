@@ -75,7 +75,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 
 `ReadAsync()` 和 `DotCraftThread.RefreshAsync()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`ListTurnsAsync()` 按 `itemsView` 读取 Turn 元数据或摘要，`ListItemsAsync()` 跨 Thread 或按可选的 `ThreadItemsListParams.TurnId` 读取 Item。两种分页请求都接受 opaque cursor、limit 和排序方向。
 
-`DotCraftThread` 的 `RunAsync()` 和 `RunStreamedAsync()` 接受文本或 `IReadOnlyList<InputPart>`。`RunOptions` 控制 sender context、raw event 收集、busy 时排队，以及失败终态是否抛出异常。Cancellation 会在获知活动 turn ID 后中断它。
+`DotCraftThread` 的 `RunAsync()` 和 `RunStreamedAsync()` 接受文本或 `IReadOnlyList<InputPart>`。`RunOptions` 控制 provider/model 选择、reasoning、速度、sender context、raw event 收集，以及失败终态是否抛出异常。模型设置与输入一起提交。Run 可以加入活动的普通 turn，但不改变它的模型，设置成为后续 turn 的默认值。Cancellation 会中断返回的 turn，包括通过指导加入的共享 turn。接纳和结果语义见 [Run](./runs#run-选项)。
 
 结果类型为 `DotCraftRunResult`。流式事件为 `DotCraftRunEvent` 或 `DotCraftRunEvent<TParams>`。Thread 控制方法使用 handle 的 `Id`，低层 `Turns` 接口则接受显式协议参数。
 

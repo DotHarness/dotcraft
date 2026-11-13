@@ -48,6 +48,7 @@ import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfig
 import { chatFolderThreadStart, startsInChatFolder } from '../../utils/chatFolderThreadStart'
 import { getFallbackThreadName } from '../../utils/threadFallbackName'
 import { threadTitleRequest } from '../../utils/threadTitleGeneration'
+import { modelSettingsFromConfiguration } from '../../utils/turnModelSettings'
 import { isLineCommentContext } from '../../../shared/messageComments'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
@@ -738,6 +739,7 @@ function ConversationWelcomeCore({
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: trimmedObjective,
+        modelSettings: modelSettingsFromConfiguration(welcomeThreadConfiguration as ThreadConfigurationWire),
         inputParts,
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         sentAsGoal: true,
@@ -885,6 +887,7 @@ function ConversationWelcomeCore({
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: turnText,
+        modelSettings: modelSettingsFromConfiguration(welcomeThreadConfiguration as ThreadConfigurationWire),
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
         files: capturedFiles.length > 0 ? capturedFiles : undefined,

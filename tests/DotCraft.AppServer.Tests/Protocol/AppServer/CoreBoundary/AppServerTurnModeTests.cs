@@ -22,6 +22,6 @@ public sealed class AppServerTurnModeTests
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Equal("agent", harness.Service.LastSubmittedInputSnapshot?.Mode);
+        Assert.Equal("agent", harness.Service.LastSubmittedTurnSettings?.Mode);
     }
 }

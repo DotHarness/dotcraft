@@ -195,11 +195,7 @@ async Task RunTurnAsync(
     var sawDelta = false;
     await foreach (var runEvent in thread.RunStreamedAsync(
                        text,
-                       new RunOptions
-                       {
-                           EnqueueIfBusy = true,
-                           ThrowOnFailure = false
-                       },
+                       new RunOptions { ThrowOnFailure = false },
                        cancellationToken))
     {
         if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta &&
