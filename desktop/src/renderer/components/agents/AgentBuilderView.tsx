@@ -848,9 +848,9 @@ export function AgentBuilderView({ initialRoute = 'gallery', leadingAction }: Ag
       {importDialogOpen && (
         <AgentImportDialog
           onClose={() => setImportDialogOpen(false)}
-          onImported={(profile, dotnetPluginIds) => {
+          onImported={(profile, dotnetExtensionIds) => {
             setImportDialogOpen(false)
-            setTrustPluginIds(dotnetPluginIds)
+            setTrustPluginIds(dotnetExtensionIds)
             loadCatalogs()
             void loadProfiles()
             void openProfile({ id: profile.id, source: profile.source })

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.11.1 |
 | **Status** | Living |
-| **Date** | 2026-11-05 |
+| **Date** | 2026-11-13 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
+| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -1434,7 +1434,7 @@ Only `workspace` skills and `user` skills under the user-data `skills/` root are
 
 ### 18B.1 Plugin Management Methods
 
-`capabilities.pluginManagement` gates the `plugin/*` methods below and `plugin/snapshot/updated`. It does not gate `plugin/config/*` ([Section 18B.2](#18b2-plugin-configuration-methods)); `plugin/desktop/read` additionally requires `capabilities.desktopPluginArtifacts`. Plugin structure, bundled MCP servers, and contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle, trust model, states, and unload semantics are defined in [.NET Extension Runtime](../architecture/dotnet-plugins.md). These methods project them.
+`capabilities.pluginManagement` gates the `plugin/*` methods below and `plugin/snapshot/updated`. It does not gate `plugin/config/*` ([Section 18B.2](#18b2-plugin-configuration-methods)); `plugin/desktop/read` additionally requires `capabilities.desktopPluginArtifacts`. Plugin structure, bundled MCP servers, and contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle, trust model, states, and unload semantics are defined in [.NET Extension Runtime](../architecture/dotnet-extensions.md). These methods project them.
 
 `installed`, configured `enabled`, `dotnetRuntime.state`, and `dotnetRuntime.trustStatus` are separate facts. A `dotnet` plugin's runtime state affects only its in-process contributions, never its Skills, MCP or LSP servers, Hooks, Apps, Desktop module, Workflows, or interface metadata. Listing or viewing a plugin never loads plugin code.
 
@@ -1471,7 +1471,7 @@ Params `id`. Result `{ plugin, snapshotRevision }`.
 
 `availability` is `missing`, `versionUnsatisfied`, `disabled`, `unavailable`, or the provider's runtime state, evaluated in that precedence: no effective installed provider; no canonical version, too old, or outside the compatible release line; configured disabled; enabled but no observed runtime state; otherwise its state. Only `active` satisfies a dependency.
 
-`dotnetRuntime` (`PluginDotnetRuntimeInfo`): `state` (`stopped`, `blocked`, `activating`, `active`, `deactivating`, `faulted`, `reclaiming`), `generationId` (opaque, diagnostic only, never accepted as authority), `blockers`, `leakedGenerations`, `restartRecommended`, and `trustStatus` (`untrusted`, `trusted`, `modified`).
+`dotnetRuntime` (`DotNetExtensionRuntimeInfo`): `state` (`stopped`, `blocked`, `activating`, `active`, `deactivating`, `faulted`, `reclaiming`), `generationId` (opaque, diagnostic only, never accepted as authority), `blockers`, `leakedGenerations`, `restartRecommended`, and `trustStatus` (`untrusted`, `trusted`, `modified`).
 
 - `blocked` is non-terminal admission: activation was not attempted and is re-evaluated when its cause can change. `faulted` means activation was attempted and failed. Both are retried by disabling and re-enabling.
 - `reclaiming` is observability, not a fault: the plugin is deactivated and routes nothing while memory release finishes; it blocks nothing. Clients suggest a restart only when `restartRecommended`.
@@ -1479,7 +1479,7 @@ Params `id`. Result `{ plugin, snapshotRevision }`.
 
 Blockers and diagnostics share `code`, English `message`, and `parameters` (a shallow object of scalars or scalar arrays; never nested objects, credentials, exceptions, stack traces, or private paths). `PluginDiagnostic` adds `severity`, `pluginId`, and `path`. Clients localize by `code` and `parameters`; the server never localizes.
 
-Lifecycle codes (diagnostics on `PluginInfo`; errors also appear as blockers): `PluginDotnetAdmissionFailed`, `PluginHostVersionUnsatisfied`, `PluginEntryAssemblyMissing`, `PluginEntryAssemblyInvalid`, `PluginDependencyManifestMissing`, `PluginTargetFrameworkMismatch`, `PluginEntryTypeInvalid`, `PluginApiExportInvalid`, `PluginUntrusted`, `PluginTrustModified`, `PluginDependencyUnsatisfied` (`reason` is `missing`, `versionUnsatisfied`, `disabled`, or the provider state), `PluginDependencyCycle`, `PluginApiAssemblyConflict`, `PluginServiceExportMissing`, `PluginActivationFailed`, `PluginActivationTimeout`, `PluginDrainTimeout`, `PluginCleanupFailed`, `PluginToolContributionInvalid`.
+Lifecycle codes (diagnostics on `PluginInfo`; errors also appear as blockers): `DotNetExtensionAdmissionFailed`, `PluginHostVersionUnsatisfied`, `PluginEntryAssemblyMissing`, `PluginEntryAssemblyInvalid`, `PluginDependencyManifestMissing`, `PluginTargetFrameworkMismatch`, `PluginEntryTypeInvalid`, `PluginApiExportInvalid`, `PluginUntrusted`, `PluginTrustModified`, `PluginDependencyUnsatisfied` (`reason` is `missing`, `versionUnsatisfied`, `disabled`, or the provider state), `PluginDependencyCycle`, `PluginApiAssemblyConflict`, `PluginServiceExportMissing`, `PluginActivationFailed`, `PluginActivationTimeout`, `PluginDrainTimeout`, `PluginCleanupFailed`, `PluginToolContributionInvalid`.
 
 Operation-scoped codes (only in `PluginOperationResult.diagnostics`): `PluginRuntimeNotDeclared`, `PluginCandidateInvalid`, `PluginOperationIncomplete`, `PluginTrustNotPersisted`, `PluginContributionQuiesceFailed`, `PluginFilesystemCommitFailed`.
 

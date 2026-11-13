@@ -84,10 +84,10 @@ internal static class PluginDependencyCatalogProjection
                 PluginDependencyAvailability.Missing);
         }
 
-        var observedVersion = PluginDotnetManifestAdmission.IsCanonicalVersion(provider.Manifest.Version)
+        var observedVersion = DotNetExtensionManifestAdmission.IsCanonicalVersion(provider.Manifest.Version)
             ? provider.Manifest.Version
             : null;
-        if (!PluginDotnetManifestAdmission.SatisfiesMinimum(requiredVersion, observedVersion))
+        if (!DotNetExtensionManifestAdmission.SatisfiesMinimum(requiredVersion, observedVersion))
         {
             return new PluginDependencyObservation(
                 providerId,

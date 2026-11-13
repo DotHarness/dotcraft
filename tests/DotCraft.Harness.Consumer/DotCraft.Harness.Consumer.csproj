@@ -10,11 +10,16 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
-    <PackageReference Include="DotCraft.Harness" Version="[$(HarnessPackageVersion)]" Condition="'$(UseHarnessPackage)' == 'true'" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseHarnessPackage)' != 'true'">
+  <ItemGroup Condition="'$(UseDotCraftPackages)' == 'true'">
+    <PackageReference Include="DotCraft.Harness" Version="[$(DotCraftPackageVersion)]" />
+    <PackageReference Include="DotCraft.CSharp" Version="[$(DotCraftPackageVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseDotCraftPackages)' != 'true'">
     <ProjectReference Include="..\..\src\DotCraft.Harness\DotCraft.Harness.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.CSharp\DotCraft.CSharp.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Runtime\DotCraft.Runtime.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />

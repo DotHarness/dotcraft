@@ -1,28 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\DotCraft.Package.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DotCraft</RootNamespace>
-    <IsPackable>true</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <DotCraftGenerateConfigSchemaRegistrations>true</DotCraftGenerateConfigSchemaRegistrations>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-
-    <PackageId>DotCraft.Harness</PackageId>
-    <Version>0.11.1</Version>
-    <Authors>DotHarness</Authors>
     <Description>In-process .NET Agent Harness for hosting DotCraft in console, desktop, service, and test applications.</Description>
-    <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <RepositoryUrl>https://github.com/DotHarness/dotcraft</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>dotcraft;agent;harness;runtime;ai</PackageTags>
-    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledDotCraftAssemblies</TargetsForTfmSpecificBuildOutput>
-    <BundledToolGeneratorPath>$(MSBuildProjectDirectory)/../DotCraft.Generators/bin/$(Configuration)/netstandard2.0/DotCraft.Generators.dll</BundledToolGeneratorPath>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -31,77 +20,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Anthropic" Version="13.3.0" />
-    <PackageReference Include="DiffPlex" Version="1.7.2" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
-    <PackageReference Include="Jint" Version="4.17.0" />
-    <PackageReference Include="System.Management.Automation" Version="7.6.6" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
-    <PackageReference Include="OpenAI" Version="2.14.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
-    <PackageReference Include="ModelContextProtocol" Version="2.3.0" />
-    <PackageReference Include="ReverseMarkdown" Version="5.5.0" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <PackageReference Include="TimeZoneConverter" Version="6.1.0" />
-    <PackageReference Include="Tomlyn" Version="0.19.0" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.Agents.OpenRouter\DotCraft.Agents.OpenRouter.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.SessionImport\DotCraft.SessionImport.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\DotCraft.CodeMode\DotCraft.CodeMode.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.OpenRouter\DotCraft.Agents.OpenRouter.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.Remote\DotCraft.Agents.Remote.csproj" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
-    <None Include="$(BundledToolGeneratorPath)"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Update="buildTransitive/DotCraft.Harness.targets"
-          Pack="true" PackagePath="buildTransitive/DotCraft.Harness.targets" />
   </ItemGroup>
 
   <ItemGroup>
     <CompilerVisibleProperty Include="DotCraftGenerateConfigSchemaRegistrations" />
   </ItemGroup>
-
-  <Target Name="IncludeBundledDotCraftAssemblies">
-    <ItemGroup>
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.dll" TargetPath="DotCraft.Runtime.dll" />
-      <BuildOutputInPackage Include="$(BundledToolGeneratorPath)" TargetPath="DotCraft.Generators.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.dll" TargetPath="DotCraft.Core.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.dll" TargetPath="DotCraft.RemoteTools.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll" TargetPath="DotCraft.Protocol.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.dll" TargetPath="DotCraft.Agents.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Imaging.dll" TargetPath="DotCraft.Imaging.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Imaging.xml" TargetPath="DotCraft.Imaging.xml" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.dll" TargetPath="DotCraft.Agents.OpenAI.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.dll" TargetPath="DotCraft.Agents.Anthropic.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenRouter.dll" TargetPath="DotCraft.Agents.OpenRouter.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Remote.dll" TargetPath="DotCraft.Agents.Remote.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.SessionImport.dll" TargetPath="DotCraft.SessionImport.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.CodeMode.dll" TargetPath="DotCraft.CodeMode.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Scripting.dll" TargetPath="DotCraft.Scripting.dll" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.xml" TargetPath="DotCraft.Runtime.xml" Condition="Exists('$(OutputPath)DotCraft.Runtime.xml')" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.RemoteTools.xml" TargetPath="DotCraft.RemoteTools.xml" Condition="Exists('$(OutputPath)DotCraft.RemoteTools.xml')" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.xml" TargetPath="DotCraft.Core.xml" Condition="Exists('$(OutputPath)DotCraft.Core.xml')" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.xml" TargetPath="DotCraft.Agents.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.xml')" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.xml" TargetPath="DotCraft.Agents.OpenAI.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.OpenAI.xml')" />
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.xml" TargetPath="DotCraft.Agents.Anthropic.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.Anthropic.xml')" />
-    </ItemGroup>
-  </Target>
 
 </Project>

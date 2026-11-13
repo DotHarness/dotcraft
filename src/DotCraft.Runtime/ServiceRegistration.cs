@@ -216,26 +216,23 @@ public static class ServiceRegistration
 
         // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the
         // kernel down. Keeping one owner also covers custom hosts that do not run IHostedService.
-        services.TryAddSingleton(new DotNetPluginRuntimeOptions
+        services.TryAddSingleton(new DotNetExtensionRuntimeOptions
         {
             HostSharedAssemblies = PluginHostAssemblies.ValidateHostShared(options.PluginSharedAssemblies)
         });
-        services.AddSingleton(sp => new DotNetPluginRuntimeManager(
+        services.AddSingleton(sp => new DotNetExtensionRuntimeManager(
             sp.GetRequiredService<PluginDiscoveryService>(),
             sp.GetRequiredService<AppConfig>(),
             sp.GetRequiredService<DotCraftPaths>(),
             sp,
             sp.GetRequiredService<ContributionRegistry>(),
-            sp.GetRequiredService<DotNetPluginRuntimeOptions>(),
-            sp.GetService<ILogger<DotNetPluginRuntimeManager>>(),
+            sp.GetRequiredService<DotNetExtensionRuntimeOptions>(),
+            sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(),
             pluginConfigStore: sp.GetRequiredService<PluginConfigStore>()));
-        services.AddSingleton<IPluginDotnetRuntimeCoordinator>(sp =>
-            sp.GetRequiredService<DotNetPluginRuntimeManager>());
+        services.AddSingleton<IDotNetExtensionRuntimeCoordinator>(sp =>
+            sp.GetRequiredService<DotNetExtensionRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>
-            sp.GetRequiredService<DotNetPluginRuntimeManager>().ToolSource);
-        services.AddSingleton<DotNetPluginAuthoringToolSource>();
-        services.AddSingleton<IToolSource>(sp =>
-            sp.GetRequiredService<DotNetPluginAuthoringToolSource>());
+            sp.GetRequiredService<DotNetExtensionRuntimeManager>().ToolSource);
 
         return services;
     }

@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tracing;
 
-internal static class TokenUsageRequestMetadata
+public static class TokenUsageRequestMetadata
 {
     public const string RequestIndexKey = "dotcraft.llmRequestIndex";
 

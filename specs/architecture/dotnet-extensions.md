@@ -1,0 +1,477 @@
+# DotCraft .NET Extension Architecture
+
+| Field | Value |
+|---|---|
+| **Version** | 0.11.1 |
+| **Status** | Living |
+| **Date** | 2026-11-13 |
+
+This specification defines trusted, in-process .NET extensions. The shared plugin manifest,
+discovery, installation, and content contributions remain owned by
+[Plugin Architecture](plugin-architecture.md). A bundle may contain both content and .NET
+contributions.
+
+## 1. Scope and invariants
+
+DotCraft combines two extension paths:
+
+- Built-ins and compiled modules use direct, strongly typed contribution contracts on the host's
+  normal hot paths.
+- Trusted .NET extensions use the same contracts through a generation boundary that stages
+  registration, controls calls, and supports best-effort unload.
+
+The following invariants are normative:
+
+1. The kernel owns the contribution-point catalog. Loading an assembly does not create an
+   extension point.
+2. Plugins never mutate or receive the built root DI container. They may resolve public,
+   host-owned application services through a filtered view and must not dispose those services.
+3. `ActivateAsync` is transactional. Registrations made during activation are invisible until the
+   callback succeeds and the generation's call gate is published. Failure or timeout discards the
+   staged set.
+4. No long-lived host object calls a raw collectible-ALC object. The runtime registers host-owned,
+   contract-specific adapters; factory results and async streams remain behind the same gate.
+   Plugin tools use the stricter projection in §8.
+5. Deactivation is ordered: revoke routing, reject new calls, signal `Stopping`, drain admitted calls
+   and tracked work, dispose plugin-owned objects, then request ALC unload.
+6. Routing revocation is deterministic. Memory reclamation is observable but best-effort.
+7. Plugin code is fully trusted. The generation boundary is a lifecycle and type-identity
+   mechanism, not a security sandbox.
+
+## 2. Trust
+
+An in-process plugin has the host process's operating-system authority. Installed plugins keep
+installation, enablement, and trust as separate decisions:
+
+- Trust grants live in the machine-local `dotnet-extension-trust.json` authority file next to global
+  configuration. This file is not part of configuration layering and cannot be overridden by a
+  workspace.
+- An enabled installed .NET extension activates only when the exact pair of canonical plugin id and
+  accepted .NET execution fingerprint has a durable grant. Several fingerprints for one plugin id may
+  remain granted at the same time.
+- `plugin/setTrusted` identifies the plugin; the server computes the currently accepted
+  fingerprint. Clients do not choose the fingerprint. Grant adds that exact pair; revoke removes
+  only that exact pair, leaving other grants for the same plugin id intact.
+- Changed .NET execution bytes or manifest contract require a grant for the new fingerprint without
+  erasing earlier grants. Revoking the active fingerprint's grant stops the active generation and
+  its dependants.
+- A grant that cannot be persisted is not applied and activates nothing.
+- Workspace configuration cannot grant .NET trust.
+- Discovery, installation, and metadata preflight do not execute plugin code. Enabling an
+  installed plugin may execute code only when all admission requirements, including an existing
+  matching grant, are satisfied.
+
+The authoring build in §7.6 grants one exact plugin id and fingerprint a process-local execution
+qualification for the development bundle it published. It neither writes nor substitutes a durable
+grant and is lost when the process exits.
+
+Marketplace or publisher information is display evidence, not a verified identity. Lower-trust
+extensibility uses out-of-process tools, hooks, workflows, or channel adapters.
+
+## 3. Host ABI and assembly identity
+
+Plugins compile against `DotCraft.Core` and its public transitive contracts, including
+`DotCraft.Agents` and Microsoft.Extensions.AI. There is no separate narrow plugin SDK.
+
+The authoring compiler uses metadata references and XML documentation supplied by the running
+host. An authoring project has no `.csproj`, performs no NuGet restore, and may reference only the
+current public plugin API, host-shared contracts, and the supplied BCL surface.
+
+The plugin load context shares the host's allowlisted DotCraft and framework assemblies by simple
+name. A bundle copy of a shared assembly is ignored. Other dependencies resolve from the
+generation shadow copy and its `.deps.json`. This preserves type identity for contribution
+contracts while keeping plugin-private dependencies collectible.
+
+The host supplies `DotCraft.Imaging` as a shared assembly; the capability is defined in
+[Image processing](image-processing.md).
+
+An application that embeds DotCraft may declare additional shared assemblies by simple name through
+its Runtime host options (`PluginSharedAssemblies`), so plugins can consume the application's own
+typed service contracts. The declaration is a Host ABI decision; workspace and plugin configuration
+cannot set it. Declared names only add to the built-in set: a name must be a plain assembly simple
+name that is not already shared, and invalid names fail host composition. A declared assembly resolves to the Host's instance like any other shared assembly.
+
+The public host surface is a version-bound ABI, not an append-only compatibility promise:
+
+- `dotnet.minHostVersion` is a hard admission floor.
+- A plugin built against a different compatible host version loads best-effort; missing members
+  may still fail on first use. Plugins declare the earliest host whose APIs they actually use.
+
+Provider plugins may export typed service-contract assemblies to direct dependants. Exported
+assembly simple names must be unique within each consumer's dependency closure. The host validates
+structure and identity, not every referenced member.
+
+## 4. Contribution registry
+
+`IContributionRegistry` is the kernel's register, resolve, revoke, and propagation primitive.
+Consumers depend on `IContributionView`; composition code owns the write side.
+
+```csharp
+public interface IContributionView
+{
+    IReadOnlyList<T> Resolve<T>(string? threadId = null)
+        where T : class, IContributionContract;
+    IReadOnlyList<ContributionEntry<T>> ResolveEntries<T>(string? threadId = null)
+        where T : class, IContributionContract;
+    long GetRevision<T>() where T : class, IContributionContract;
+}
+
+public interface IContributionRegistrar : IDisposable
+{
+    ContributionOrigin Origin { get; }
+    IContributionHandle Add<T>(T contribution, ContributionOptions? options = null)
+        where T : class, IContributionContract;
+}
+```
+
+### 4.1 Ordering, replacement, and scope
+
+- `Order` is compared only within one contribution point; lower values resolve first and
+  registration order breaks ties.
+- `TargetName` names a default. `ReplaceTarget` replaces that name. Thread scope beats workspace
+  scope; within one scope the later replacement wins. Losing replacements are diagnosed and are
+  absent from the effective list.
+- Disposing a handle is idempotent. It removes membership and restores any shadowed default.
+- A thread-scoped registration applies only to its thread. Permanent deletion calls
+  `ReleaseThread`; archive does not. Forks do not copy thread-scoped registrations.
+- `BeginBatch` coalesces change notification. Subscribers run outside registry locks, and one
+  failing subscriber does not starve the rest.
+
+Built-ins, modules, and plugins share these rules. Plugin registrars add two lifecycle rules:
+
+- During `ActivateAsync`, `Add` returns a generation-owned handle but does not publish the entry.
+  Successful activation seals the registrar and publishes the staged set as one mutation batch.
+  Calls to `Add` after activation are rejected; background work cannot change the contribution
+  set of an active generation.
+- Registry membership never owns the raw plugin object. Revocation removes host adapters first;
+  raw targets are disposed in reverse registration order only after the generation gate drains.
+
+### 4.2 Propagation
+
+Call-time points resolve the current list for each operation. Five kernel contracts are captured
+while an agent is built: `IToolSource`, `IToolRestriction`, `IChatMiddleware`,
+`IAgentContextSource`, and `ISubAgentRuntimeSource`. Their mutations invalidate live thread agents
+for the next turn; an in-flight operation keeps the view it started with. Prompt sections
+and assemblers remain dynamically resolved.
+
+### 4.3 Failure semantics
+
+Registration and composition failures are isolated so one bad entry does not prevent unrelated
+entries from being published or revoked. Callback behavior is defined by each contribution point:
+fan-out observers are normally logged and skipped, authority or fold failures may fail their host
+operation, and tool failures use stable tool errors. There is no blanket promise that every plugin
+exception is ignored.
+
+## 5. Plugin-facing contribution catalog
+
+The catalog reuses kernel contracts. Capability tiers are:
+
+| Tier | Meaning |
+|---|---|
+| A | Add an ordered item. |
+| B | Replace a named default until the handle is revoked. |
+| C | Apply terminal composition to the point's assembled result. |
+
+| Area | Contracts | Tiers | Evaluation |
+|---|---|---|---|
+| Prompt | `ISystemPromptSection` | A, B | Resolved per prompt build |
+| Prompt | `ISystemPromptAssembler` | C | Resolved per prompt build |
+| Context | `IChatContextProvider` | A | Per request; returned lines are copied by the host adapter |
+| Context | `IThreadSystemPromptContextProvider` | A | Base-instruction path only; `ThreadContextItem` is rejected before activation; resolved per prompt build |
+| Context | `IWorldStateSection` | A | Snapshotted per sampling step, rendered only when that snapshot moves; the host owns persistence, diffing, and the item envelope |
+| Context | `IAgentContextSource` | A, B | Materialized; factory result is a gated host `AIContextProvider` |
+| Compaction | `ICompactionSummarizer` | B | Per compaction |
+| Compaction | `ICompactableToolPolicy` | A, B | Per compaction |
+| Model pipeline | `IChatMiddleware` | A, B | Materialized; returned client is host-gated, including streams |
+| Model backend | `IModelBackendSource` | A | Workspace-only unique backend ID; factories, clients and supported capabilities are gated; see [Model backend plugins](model-backend-plugins.md) |
+| Model usage | `IProviderUsageSource` | A | Per usage read, first snapshot wins; see [Provider authentication](../protocols/provider-auth.md#usage) |
+| Tools | `IToolSource` | A | Materialized through the §8 projection |
+| Tools | `IToolPolicyEvaluator`, `IToolApprovalEvaluator` | A, B | Per dispatch, first denial wins |
+| Tools | `IToolInvocationRecorder` | A, B | Per dispatch, contained fan-out |
+| Tools | `IToolResultNormalizer` | A, B | Per dispatch, ordered fold |
+| Tools | `IToolRestriction` | A | Materialized per tool snapshot |
+| Memory | `IMemoryWriteGate` | A | Resolved per attached-store write, every gate must admit the write |
+| Lifecycle | `IThreadLifecycleContributor`, `ITurnLifecycleContributor` | A | Contained fan-out |
+| Lifecycle | `IThreadRuntimeSignalContributor` | A | Bounded asynchronous fan-out |
+| Suggestions | `ICommitMessageSuggester` | B | Authority per request |
+| Subagents | `ISubAgentRuntimeSource` | A | Materialized; runtime is a gated host adapter |
+| Tracing | `ITraceSink` | A | Bounded asynchronous fan-out when tracing is enabled |
+
+The runtime uses an explicit adapter policy for this table. Unknown contribution contracts are
+rejected instead of falling back to an unsafe reflection proxy. Stable metadata and lazy
+collections are copied while the gate is held. Async leases cover task completion and complete
+stream enumeration, not merely method return.
+
+The following are also closed plugin surfaces: root DI mutation, `IDotCraftModule`,
+`WorkspaceRuntime` composition, Session Core replacement, protocol handlers, persistence, and
+wire-model implementations. Plugins may consume public services; they do not replace these owners.
+
+## 6. Activation API
+
+```csharp
+public interface IDotCraftPlugin
+{
+    ValueTask ActivateAsync(
+        IPluginActivationContext context,
+        CancellationToken cancellationToken);
+}
+
+public interface IPluginActivationContext
+{
+    PluginIdentity Plugin { get; }
+    string ContentRoot { get; }
+    string DataRoot { get; }
+    string WorkspaceRoot { get; }
+    JsonElement Settings { get; }
+    IServiceProvider Services { get; }
+    IContributionRegistrar Contributions { get; }
+    IPluginServiceExportRegistrar Exports { get; }
+    IPluginDependencyResolver Dependencies { get; }
+    IPluginLifetime Lifetime { get; }
+}
+```
+
+The manifest names one public, concrete, non-generic entry type with a public parameterless
+constructor. Activation should register contributions, exports, owned resources, and tracked work;
+work registered with `Lifetime.Run` starts only after activation commits. `Contributions`,
+`Exports`, dependency resolution, and `Lifetime.Run` are activation-only and seal when activation
+completes.
+
+`Services` is a filtered, host-owned view of public application services. It does not expose the
+root provider, contribution registry, service-scope factories, host lifecycle, or plugin-runtime
+control plane. Plugins
+must not dispose resolved services. `Settings` is a host-owned snapshot resolved from the plugin's
+schema defaults, personal `plugin-config.json`, and workspace `plugin-config.json` when the
+activation generation starts. It is an empty object when the manifest declares no settings schema.
+Configuration changes require runtime reconciliation and a generation restart; they never
+mutate an already activated context.
+
+Resources and background work belong to `IPluginLifetime`. Contribution instances may borrow
+those resources; they must not dispose them. Raw threads, static subscriptions, native callbacks,
+and untracked tasks can pin a generation and are plugin defects.
+
+`DataRoot` uses the host-side plugin data directory defined by [Plugin Architecture](plugin-architecture.md). A settings mutation that affects a .NET extension follows the
+normal quiesce, write, and reconcile lifecycle. Quiesce failure writes nothing. Write failure
+restores the old generation. A successful write restarts the plugin and every required dependent
+generation so each activation receives a coherent new snapshot.
+
+### 6.1 Manifest
+
+The shared [.NET manifest](plugin-architecture.md#net-manifest) defines entry identity, host floor,
+exported contract assemblies, and required plugin dependencies. Admission compares managed assembly
+paths ordinally and case-insensitively on every host OS.
+
+## 7. Admission, activation, and teardown
+
+### 7.1 Snapshot and preflight
+
+Local admission copies the complete plugin into an immutable accepted snapshot. A content fingerprint
+verifies that copy, and each activation loads a separate shadow copy so install/remove can change
+the installed directory without mutating a live generation.
+
+A [remote tool host](remote-tool-host.md) instead installs verified bundles immutably at
+`workspaces/<workspaceId>/plugins/<pluginId>/<contentFingerprint>/` and loads them in place.
+Uploads are promoted before activation under the workspace preparation lock and owner
+authorization; binding publication still requires final lease, authorization, cancellation, and
+tool-contract checks. Writable plugin state belongs in `DataRoot`. Unchanged preparations and
+reconnects reuse the installation, and installations stay cached on disconnect. Replaced content is
+removed only after every accepted reference and collectible generation has released it, and an
+older generation's delayed reclaim never deletes a current installation. Interrupted uploads are
+discarded; verified installations may remain after failed activation for a later retry.
+
+.NET trust uses a separate execution fingerprint. It includes the canonical plugin id, version,
+managed entry contract, exported API declarations, dependencies, and every non-Desktop bundle
+entry that in-process code can read. The raw manifest and `desktop/` tree are replaced by those
+normalized managed fields, so presentation-only changes do not invalidate .NET trust. The
+deployment-only `.builtin` marker is absent from both fingerprints and runtime snapshots. Both
+fingerprints are SHA-256 digests over a versioned, unambiguous canonical encoding of the bundle tree.
+
+Metadata preflight does not load or execute the entry assembly. It validates the target framework, host floor, entry type shape, declared assemblies,
+dependency metadata, and `.deps.json`. Deterministic failures produce coded blockers before an ALC
+is created.
+
+### 7.2 States
+
+```text
+Blocked <-> Stopped -> Activating -> Active -> Deactivating -> Stopped
+                          |                         |
+                          v                         v
+                       Faulted                 Reclaiming -> Stopped
+```
+
+- `Blocked`: activation was not attempted because trust, preflight, version, or dependency
+  admission failed.
+- `Faulted`: executable activation was attempted and failed or timed out.
+- `Reclaiming`: routing and cleanup completed, but the collectible context or shadow files remain.
+
+Only one live generation exists per plugin id. Updates stop the previous generation before
+activating the accepted replacement; there is no automatic rollback.
+
+Request cancellation may cancel only the wait for the runtime mutation lock; it never strands a node
+in `Activating` or `Deactivating`. Activation and cleanup timeouts bound how long ordinary mutations
+wait, not how long plugin code that ignores cancellation stays alive. Until that code settles, the
+runtime retains the pending transition and neither activates a replacement nor tears down a
+provider the pending generation may still call.
+
+### 7.3 Activation transaction
+
+Activation performs:
+
+1. select the immutable installed root for remote execution, or create a local generation shadow copy, then create a collectible ALC;
+2. load exported API assemblies and the entry type;
+3. create lifetime, exports, dependencies, and a staging contribution registrar;
+4. invoke `ActivateAsync` under the activation timeout;
+5. seal activation-only registrars;
+6. revalidate the accepted .NET execution fingerprint's durable grant or process-local authoring qualification;
+7. publish the generation call gate and commit staged host adapters as one transaction;
+8. publish `Active`, then start tracked background work.
+
+Any failure before commit discards staged registrations, disposes constructed plugin-owned
+objects, requests ALC unload, and leaves no callable route. A timed-out callback can never commit;
+it remains a pending activation as described in §7.2.
+
+### 7.4 Deactivation and reclaim
+
+Deactivation performs:
+
+1. mark the registrar closed and revoke every registry handle without disposing raw targets;
+2. remove the generation from gate lookup and close admission;
+3. cancel `Lifetime.Stopping` so admitted calls and tracked work can begin a cooperative exit;
+4. await already admitted contribution and tool calls, then tracked work;
+5. dispose raw contribution targets, exports, entry, and owned lifetime resources in defined
+   reverse order;
+6. clear host references and call `AssemblyLoadContext.Unload()`;
+7. track the ALC weak reference and generation-directory deletion off the mutation path.
+
+After step 1 no new resolution reaches the plugin. Retained host adapters reject later calls with
+an unavailable failure and never invoke their raw target. For an ordinary mutation,
+`CleanupTimeout` bounds the wait for steps 3-5. If functional teardown is still running, the node
+remains `Deactivating` (§7.2). Only after it completes may the node enter `Reclaiming`, where only
+collectible-context and shadow-file reclaim remain.
+
+Host shutdown waits for actual functional teardown so consumers finish before their providers and
+the host root are disposed. That safety wait is deliberately not bounded by `CleanupTimeout`; an
+outer process or service manager owns any hard shutdown deadline.
+
+The runtime never forces GC during normal operation. A collected generation deletes its shadow
+copy; transient deletion failures are retried. Once functional teardown has completed, a pinned
+context increments the leaked-generation projection and may recommend restart, but does not block
+reactivation, dependent teardown, or shutdown.
+
+### 7.5 Dependencies and typed exports
+
+Providers activate before consumers; consumers stop before providers. Dependency versions follow
+the compatibility-line rule of the shared manifest. Missing, disabled, blocked, too-old, or
+incompatible-line providers block the consumer. Cycles and API assembly-name conflicts are deterministic blockers.
+
+Across upgrades within one compatibility line, a provider must preserve each exported API
+assembly's identity: simple name, `AssemblyVersion`, culture, and public-key token. A breaking API
+change requires a new compatibility line, normally with a new plugin id and API assembly identity so
+old and new consumers cannot bind accidentally.
+
+`IPluginDependencyResolver` is activation-only. A consumer may capture a direct provider export
+for its generation. Correctness relies on dependency stop order and tracked work; exported objects
+are not independently hot-swapped. Plugins must not call an export from work that outlives their
+generation.
+
+### 7.6 Agent authoring build
+
+Agent authoring is an optional capability owned by `DotCraft.CSharp` and registered by the host with
+`AddDotCraftCSharp`. Without it, installed .NET extensions load and run normally, and the `CSharp`
+tools are absent. The authoring capability compiles and inspects; publication, admission, and
+activation of each successful build belong to the Runtime and follow the rules below.
+
+The built-in `$plugin-creator` is the authoring entry point. It creates .NET extension projects under
+the workspace data root:
+
+```text
+.craft/plugin-projects/<plugin-id>/
+├── src/
+└── plugin/
+    ├── .craft-plugin/plugin.json
+    └── lib/
+```
+
+`src/**/*.cs` is persistent source. `plugin/` is a standard bundle whose manifest and compiled
+output are admitted by the same parser, metadata preflight, fingerprinting, generation, and managed
+contribution rules as an installed bundle. The project contains no `.csproj`, and authoring never
+restores NuGet packages or resolves arbitrary machine assemblies.
+
+Before emit, the authoring compiler runs the host-matched strongly typed tool generator, and only
+that generator (no module discovery or plugin-supplied analyzers). Generated sources stay in the
+in-memory compilation and are never written into `src/`; they add no plugin API references.
+Generator diagnostics keep stable codes and relative source locations with `phase=generate`; a
+generation error fails preparation before emit.
+
+The host carries its matching generator, compiler runtime, and compilation reference pack, so
+authoring works in single-file deployments without SDK lookup, restore, or network access.
+Host-declared shared assemblies (§3) are added as references from the files the Host loaded them
+from, and `Inspect` searches them with the public plugin API.
+
+The stable `CSharp` tool namespace follows the Host's configured tool-loading strategy and
+exposes two operations:
+
+- `Inspect(query)` searches the running Host's public plugin symbols and XML documentation.
+- `Build(pluginId)` compiles the project's source, runs metadata preflight, atomically publishes
+  `plugin/`, and reconciles the affected plugin dependency closure.
+
+A compile or preflight failure reports diagnostics with relative source locations and does not
+modify the published bundle or active generation. A successful build qualifies its exact plugin id
+and fingerprint for execution in the current process, replaces the previous generation through the
+normal quiesce and activation sequence, and returns only after the new generation is `Active` and
+its contributions are projected. It does not invoke a contributed tool. Building an already active
+fingerprint from the same project is a no-op. Activation failure leaves the replacement `Faulted` or `Blocked`.
+
+An in-flight Turn keeps its frozen instructions and tool snapshot. Contributions from a successful
+build are available when the next Turn builds its agent. Process restart clears the development
+bundle registration and execution qualification, so the project must be built again before it is
+active. Source changes take effect only after `Build`.
+
+## 8. Tool containment
+
+Plugin tool methods use the same strongly typed authoring contract as built-ins; see
+[Tool Architecture §7.2](tools-architecture.md#72-strongly-typed-tool-implementations).
+Invocation context and full execution results are optional capabilities, not requirements for
+ordinary business methods. An `AIFunctionToolSource` can contribute generated functions through
+`IToolSource`; the Host still assigns plugin identity and lifecycle. Full result forwarding inside
+a generated function does not expand the fields admitted by the plugin result projection.
+
+Plugin tools use `IToolSource`, but raw plugin registrations never enter a frozen
+`EffectiveToolSnapshot`. A host aggregate source:
+
+- resolves plugin-origin sources by `(pluginId, generationId)`;
+- copies definitions, schemas, annotations, results, and stable errors into host-owned values;
+- rewrites identity and policy scope so a plugin cannot claim another source or bypass host policy;
+- replaces runtimes and leases with host proxies that re-resolve the live generation per call;
+- holds the generation call lease across planning, invocation, thread release, and fork callbacks;
+- returns stable `tool_unavailable` after revocation;
+- omits host-private result channels and never forwards provider-flat naming overrides.
+
+Schema validation, authority, policy, approval, hooks, recording, and result normalization remain
+owned by [Tool Architecture](tools-architecture.md).
+
+## 9. Protocol projection
+
+AppServer projects plugin state; it does not own another plugin runtime.
+
+- Mutations include install, install-local, remove, enable/disable, and `plugin/setTrusted`.
+- `PluginOperationResult` reports `applied`, `noChange`, or `notApplied`; an applied operation may
+  still leave a plugin blocked.
+- `plugin/snapshot/updated` carries a monotonic revision. Clients reconcile by revision and ignore
+  stale responses.
+- Runtime projection includes state, blockers, trust, host floor, active generation, reclaim
+  counts, diagnostics, contributed tools, and restart recommendation.
+- Workspace plugin mutations are serialized from their first config/filesystem read through
+  runtime reconcile and snapshot publication. `plugin/list` and `plugin/view` are serialized against
+  that boundary, so a response never combines a post-mutation projection with the preceding revision.
+- .NET generation revocation cannot veto a mutation. Quiescing root-backed content contributions
+  can fail; that failure aborts the filesystem/config mutation and restores the prior projection.
+
+## 10. Non-goals
+
+- managed-code sandboxing, signatures, publisher identity, or capability permissions;
+- runtime NuGet restore, third-party package resolution, or dependency version-range solving;
+- root DI mutation, dynamic module loading, Session Core or persistence replacement;
+- independent ModelService deployment of backend plugins;
+- overlapping generations, automatic rollback, Native AOT, or bundle filesystem watching;
+- guaranteed ALC collection.

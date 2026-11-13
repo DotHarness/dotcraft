@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.11.1</Version>
+    <IsPackable>true</IsPackable>
+    <Authors>DotHarness</Authors>
+    <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DotHarness/dotcraft</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>dotcraft;agent;harness;ai</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1572;1573;1574</NoWarn>
+    <DotCraftGeneratorsAssemblyPath>$(MSBuildThisFileDirectory)DotCraft.Generators/bin/$(Configuration)/netstandard2.0/DotCraft.Generators.dll</DotCraftGeneratorsAssemblyPath>
+  </PropertyGroup>
+
+  <!-- DotCraft packages are released in lockstep, so project references become exact-version dependencies. -->
+  <Target Name="UseExactDotCraftPackageVersions" AfterTargets="_GetProjectReferenceVersions">
+    <ItemGroup>
+      <_DotCraftExactProjectReference Include="@(_ProjectReferencesWithVersions)">
+        <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion)]</ProjectVersion>
+      </_DotCraftExactProjectReference>
+      <_ProjectReferencesWithVersions Remove="@(_ProjectReferencesWithVersions)" />
+      <_ProjectReferencesWithVersions Include="@(_DotCraftExactProjectReference)" />
+    </ItemGroup>
+  </Target>
+</Project>

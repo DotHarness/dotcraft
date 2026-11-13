@@ -31,7 +31,7 @@ public static class PluginMcpServerLoader
 
         var userDataPath = string.IsNullOrWhiteSpace(config.GlobalConfigPath)
             ? null : Path.GetDirectoryName(config.GlobalConfigPath);
-        var paths = DotCraftPaths.CreateForExecutionHost(workspacePath, botPath, userDataPath);
+        var paths = DotCraftPaths.Create(workspacePath, botPath, userDataPath);
         var servers = new List<McpServerConfig>();
         foreach (var plugin in discovery.Plugins)
             servers.AddRange(LoadPluginServers(plugin, allDiagnostics, PluginDataPaths.Resolve(paths, plugin.Manifest.Id)));

@@ -1,4 +1,4 @@
-import type { MarketplaceEntry, PluginDiagnosticEntry, PluginDotnetRuntimeInfo, PluginEntry } from './pluginStore'
+import type { MarketplaceEntry, PluginDiagnosticEntry, DotNetExtensionRuntimeInfo, PluginEntry } from './pluginStore'
 
 // `noChange` found the requested state already current; `notApplied` left the workspace
 // untouched and explains why in `diagnostics`.
@@ -8,7 +8,7 @@ export interface PluginRuntimeProjection {
   id: string
   installed: boolean
   enabled: boolean
-  dotnetRuntime: PluginDotnetRuntimeInfo
+  dotnetRuntime: DotNetExtensionRuntimeInfo
 }
 
 export interface PluginOperationResult {
@@ -119,7 +119,7 @@ function runtimeFields(
   }
 }
 
-function normalizeDotnetRuntime(runtime: PluginDotnetRuntimeInfo): PluginDotnetRuntimeInfo {
+function normalizeDotnetRuntime(runtime: DotNetExtensionRuntimeInfo): DotNetExtensionRuntimeInfo {
   return {
     ...runtime,
     blockers: runtime.blockers ?? [],

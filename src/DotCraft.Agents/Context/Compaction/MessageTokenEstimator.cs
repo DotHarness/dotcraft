@@ -69,7 +69,7 @@ public static class MessageTokenEstimator
     /// <summary>
     /// Estimates a contiguous message range without materializing a sliced list.
     /// </summary>
-    internal static int EstimateDelta(IReadOnlyList<ChatMessage> messages, int startIndex, int count)
+    public static int EstimateDelta(IReadOnlyList<ChatMessage> messages, int startIndex, int count)
     {
         ArgumentNullException.ThrowIfNull(messages);
         if (startIndex < 0 || startIndex > messages.Count)
@@ -100,7 +100,7 @@ public static class MessageTokenEstimator
         return total;
     }
 
-    internal static string ComputePrefixFingerprint(
+    public static string ComputePrefixFingerprint(
         IReadOnlyList<ChatMessage> messages,
         int messageCount)
     {

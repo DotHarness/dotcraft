@@ -29,7 +29,7 @@ internal sealed partial class PluginRequestHandler(
     AppServerRuntimeConfigRefresher runtimeConfig,
     HookRunner? hookRunner,
     IPluginWorkflowSummaryProvider? workflowSummaryProvider,
-    IPluginDotnetRuntimeCoordinator? dotnetRuntime,
+    IDotNetExtensionRuntimeCoordinator? dotnetRuntime,
     PluginConfigStore? pluginConfigStore,
     Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
         broadcastPluginSnapshotUpdated,

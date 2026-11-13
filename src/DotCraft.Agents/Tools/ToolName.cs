@@ -31,7 +31,7 @@ public readonly record struct ToolName
     /// <inheritdoc />
     public override string ToString() => Namespace is null ? Name : $"{Namespace}.{Name}";
 
-    internal static bool TryCreate(string? @namespace, string? name, out ToolName toolName)
+    public static bool TryCreate(string? @namespace, string? name, out ToolName toolName)
     {
         toolName = default;
         if ((@namespace is not null && string.IsNullOrWhiteSpace(@namespace))

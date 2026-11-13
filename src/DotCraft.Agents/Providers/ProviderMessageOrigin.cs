@@ -7,7 +7,7 @@ namespace DotCraft.Agents;
 
 public sealed record ProviderMessageOrigin(string ProviderId, string Protocol, string Model);
 
-internal static class ProviderMessageProjection
+public static class ProviderMessageProjection
 {
     private const string OriginKey = "dotcraft.message.origin";
 

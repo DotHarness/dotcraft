@@ -3,7 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Runtime;
 using Microsoft.Extensions.AI;
 using Xunit;
-using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
+using static DotCraft.Tests.Runtime.Plugins.DotNetExtensionTestBundle;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 

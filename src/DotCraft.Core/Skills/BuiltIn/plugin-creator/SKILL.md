@@ -30,7 +30,7 @@ Choose the contributions with the least execution authority that meet the need. 
 | An application connected to threads | `"apps": "./apps.json"` | | See `https://www.dotcraft.net/extend/app-binding` |
 | User options | `"settings": "./settings.schema.json"` | `assets/template-settings.json` | |
 | A view or action in Desktop | `"desktop"` | `assets/template-desktop-*` | Read `references/desktop-authoring.md` |
-| In-process tools or Host contribution points | `"dotnet"` | `assets/template-dotnet-plugin.txt` | Read `references/dotnet-authoring.md` |
+| In-process tools or Host contribution points | `"dotnet"` | `assets/template-dotnet-extension.txt` | Read `references/dotnet-authoring.md` |
 
 ## Write
 
@@ -71,7 +71,7 @@ Passing verification does not show that a plugin works. Make it active and exerc
 | LSP servers | The server starts for a matching file and returns one result |
 | Apps | The app appears and its connection flow starts |
 | Desktop extension | The build succeeds, and the view opens or the action runs in Desktop |
-| .NET extension | `DotNetPlugin.Build` succeeds, and a contributed tool runs on a later turn |
+| .NET extension | `CSharp.Build` succeeds, and a contributed tool runs on a later turn |
 | Settings | The field appears and its value reaches the plugin |
 
 Some steps belong to the user: refreshing Desktop > Plugins, sending `/reload-skills`, granting trust, or starting a new conversation. Name the exact step and mark the result unverified until you have evidence. Do not report success from file creation or installation alone.
@@ -85,7 +85,7 @@ Inspect the plugin first, then change the source that owns it:
 | Plugin | Where to change it |
 |---|---|
 | Workspace-local or user-owned | In place |
-| .NET under development | The project's `src/`, then `DotNetPlugin.Build` |
+| .NET under development | The project's `src/`, then `CSharp.Build` |
 | Published from another repository | That repository, through its release process |
 | Holds a `.builtin` marker | Not in place, because a refresh replaces it. Change its source, or copy it without the marker to `<workspace>/.craft/plugins/<id>`, which takes precedence |
 

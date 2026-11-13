@@ -37,7 +37,7 @@ export interface PluginFunctionInfo {
   description: string
 }
 
-export interface PluginDotnetInfo {
+export interface DotNetExtensionInfo {
   displayName?: string
   description?: string
   entryAssembly: string
@@ -73,7 +73,7 @@ export interface PluginRuntimeBlocker {
 }
 
 /** `reclaiming` is not a fault: the plugin is already stopped, only its memory is still held. */
-export type PluginDotnetRuntimeState =
+export type DotNetExtensionRuntimeState =
   | 'stopped'
   | 'blocked'
   | 'activating'
@@ -85,8 +85,8 @@ export type PluginDotnetRuntimeState =
 /** Fingerprint-bound trust of the accepted bundle. Any byte change returns it to `modified`. */
 export type PluginTrustStatus = 'untrusted' | 'trusted' | 'modified'
 
-export interface PluginDotnetRuntimeInfo {
-  state: PluginDotnetRuntimeState
+export interface DotNetExtensionRuntimeInfo {
+  state: DotNetExtensionRuntimeState
   generationId?: string | null
   blockers: PluginRuntimeBlocker[]
   leakedGenerations: number
@@ -181,9 +181,9 @@ export interface PluginEntry {
   rootPath: string
   marketplaceName?: string | null
   interface?: PluginInterface | null
-  dotnet?: PluginDotnetInfo | null
+  dotnet?: DotNetExtensionInfo | null
   dependencies?: PluginDependencyInfo[]
-  dotnetRuntime?: PluginDotnetRuntimeInfo | null
+  dotnetRuntime?: DotNetExtensionRuntimeInfo | null
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]

@@ -48,7 +48,7 @@
     "dotnet": {
       "anyOf": [
         {
-          "$ref": "./PluginDotnetInfo.schema.json"
+          "$ref": "./DotNetExtensionInfo.schema.json"
         },
         {
           "type": "null"
@@ -58,7 +58,7 @@
     "dotnetRuntime": {
       "anyOf": [
         {
-          "$ref": "./PluginDotnetRuntimeInfo.schema.json"
+          "$ref": "./DotNetExtensionRuntimeInfo.schema.json"
         },
         {
           "type": "null"

@@ -1,6 +1,6 @@
 namespace DotCraft.Tracing;
 
-internal sealed record PromptCacheRequestShapeSnapshot(
+public sealed record PromptCacheRequestShapeSnapshot(
     int SchemaVersion,
     string Protocol,
     string Model,
@@ -36,7 +36,7 @@ public sealed record PromptCachePointTraceEntry(
     bool Remembered,
     bool Latest,
     string ContentKind);
-internal sealed record PromptCacheRequestDiagnosticSnapshot(
+public sealed record PromptCacheRequestDiagnosticSnapshot(
     string Model,
     string MarkerStrategy,
     string? Ttl,
@@ -52,7 +52,7 @@ internal sealed record PromptCacheRequestDiagnosticSnapshot(
     int ToolCount,
     IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
     IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);
-internal sealed record PromptCacheSelectedPointDiagnostic(
+public sealed record PromptCacheSelectedPointDiagnostic(
     string Role,
     string ContentKind,
     int MessageIndex,
@@ -61,7 +61,7 @@ internal sealed record PromptCacheSelectedPointDiagnostic(
     string HashPrefix,
     bool Remembered,
     bool Latest);
-internal sealed record PromptCacheCandidateCountDiagnostic(
+public sealed record PromptCacheCandidateCountDiagnostic(
     string Role,
     string ContentKind,
     int Count);

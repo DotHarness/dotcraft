@@ -46,7 +46,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
         SkillsLoader? loader = null,
         McpClientManager? mcpClientManager = null,
         bool includeBundledRoots = true,
-        IPluginDotnetRuntimeCoordinator? pluginDotnetRuntimeCoordinator = null)
+        IDotNetExtensionRuntimeCoordinator? dotNetExtensionRuntimeCoordinator = null)
     {
         config ??= new AppConfig();
         config.GlobalConfigPath ??= Path.Combine(_userDataPath, "config.json");
@@ -56,7 +56,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             skillsLoader: loader,
             appConfigMonitor: new AppConfigMonitor(config),
             mcpClientManager: mcpClientManager,
-            pluginDotnetRuntimeCoordinator: pluginDotnetRuntimeCoordinator,
+            dotNetExtensionRuntimeCoordinator: dotNetExtensionRuntimeCoordinator,
             pluginConfigStore: new PluginConfigStore(new DotCraftPaths(
                 _tempRoot,
                 _workspaceCraftPath,
@@ -65,8 +65,16 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     }
 
     private sealed class FakePluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
-        : IPluginDotnetRuntimeCoordinator
+        : IDotNetExtensionRuntimeCoordinator
     {
+        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
+
+        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
+            string pluginId,
+            DotNetExtensionBuild build,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public PluginRuntimeSnapshot Snapshot { get; private set; } = snapshot;
 
         public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged
@@ -98,9 +106,9 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             _ = cancellationToken;
-            var alreadyTrusted = Find(pluginId)?.TrustStatus == PluginDotnetTrustStatus.Trusted;
+            var alreadyTrusted = Find(pluginId)?.TrustStatus == DotNetExtensionTrustStatus.Trusted;
             if (!alreadyTrusted)
-                Retrust(pluginId, PluginDotnetTrustStatus.Trusted);
+                Retrust(pluginId, DotNetExtensionTrustStatus.Trusted);
             return Task.FromResult(Result(
                 alreadyTrusted ? PluginRuntimeMutationOutcome.NoChange : PluginRuntimeMutationOutcome.Applied,
                 pluginId));
@@ -111,9 +119,9 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             _ = cancellationToken;
-            var alreadyUntrusted = Find(pluginId)?.TrustStatus != PluginDotnetTrustStatus.Trusted;
+            var alreadyUntrusted = Find(pluginId)?.TrustStatus != DotNetExtensionTrustStatus.Trusted;
             if (!alreadyUntrusted)
-                Retrust(pluginId, PluginDotnetTrustStatus.Untrusted);
+                Retrust(pluginId, DotNetExtensionTrustStatus.Untrusted);
             return Task.FromResult(Result(
                 alreadyUntrusted ? PluginRuntimeMutationOutcome.NoChange : PluginRuntimeMutationOutcome.Applied,
                 pluginId));
@@ -121,12 +129,12 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
 
         /// <summary>Simulates the bundle bytes changing under an existing grant.</summary>
         public void MarkBundleModified(string pluginId) =>
-            Retrust(pluginId, PluginDotnetTrustStatus.Modified);
+            Retrust(pluginId, DotNetExtensionTrustStatus.Modified);
 
-        private PluginDotnetRuntimeInfo? Find(string pluginId) =>
+        private DotNetExtensionRuntimeInfo? Find(string pluginId) =>
             Snapshot.Plugins.FirstOrDefault(plugin => PluginIds.EqualsCanonical(plugin.PluginId, pluginId));
 
-        private void Retrust(string pluginId, PluginDotnetTrustStatus trust)
+        private void Retrust(string pluginId, DotNetExtensionTrustStatus trust)
         {
             var nextRevision = Snapshot.Revision + 1;
             Snapshot = new PluginRuntimeSnapshot(
@@ -135,26 +143,26 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
                     ? plugin with
                     {
                         TrustStatus = trust,
-                        State = trust == PluginDotnetTrustStatus.Trusted
-                            ? PluginDotnetRuntimeState.Active
-                            : PluginDotnetRuntimeState.Blocked,
-                        GenerationId = trust == PluginDotnetTrustStatus.Trusted
+                        State = trust == DotNetExtensionTrustStatus.Trusted
+                            ? DotNetExtensionRuntimeState.Active
+                            : DotNetExtensionRuntimeState.Blocked,
+                        GenerationId = trust == DotNetExtensionTrustStatus.Trusted
                             ? $"{pluginId}-g{nextRevision}"
                             : null,
                         Blockers = trust switch
                         {
-                            PluginDotnetTrustStatus.Trusted => [],
-                            PluginDotnetTrustStatus.Modified =>
+                            DotNetExtensionTrustStatus.Trusted => [],
+                            DotNetExtensionTrustStatus.Modified =>
                             [
                                 new PluginRuntimeBlocker(
-                                    PluginDotnetDiagnosticCodes.TrustModified,
+                                    DotNetExtensionDiagnosticCodes.TrustModified,
                                     "The accepted bundle changed after trust was granted.",
                                     new Dictionary<string, System.Text.Json.JsonElement>())
                             ],
                             _ =>
                             [
                                 new PluginRuntimeBlocker(
-                                    PluginDotnetDiagnosticCodes.Untrusted,
+                                    DotNetExtensionDiagnosticCodes.Untrusted,
                                     "The plugin has no trust grant.",
                                     new Dictionary<string, System.Text.Json.JsonElement>())
                             ]
@@ -185,16 +193,16 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static FakePluginRuntimeCoordinator CreateUntrustedBrowserRuntime() =>
         new(new PluginRuntimeSnapshot(
             3,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Blocked,
+                DotNetExtensionRuntimeState.Blocked,
                 null,
                 [new PluginRuntimeBlocker(
-                    PluginDotnetDiagnosticCodes.Untrusted,
+                    DotNetExtensionDiagnosticCodes.Untrusted,
                     "The plugin has no trust grant.",
                     new Dictionary<string, System.Text.Json.JsonElement>())],
-                TrustStatus: PluginDotnetTrustStatus.Untrusted)],
+                TrustStatus: DotNetExtensionTrustStatus.Untrusted)],
             []));
 
     // Clones the result element, because the harness disposes each response document.
@@ -566,7 +574,7 @@ interface:
 """);
     }
 
-    private static void WriteDotNetPluginWithMissingEntry(string pluginRoot)
+    private static void WriteDotNetExtensionWithMissingEntry(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(

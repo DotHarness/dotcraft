@@ -16,18 +16,18 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
     [Fact]
     public async Task PluginList_UsesRuntimeDependencyAvailabilityWhenRuntimeStateExists()
     {
-        WriteDotNetPlugin("wire.provider", "1.2.0");
-        WriteDotNetPlugin(
+        WriteDotNetExtension("wire.provider", "1.2.0");
+        WriteDotNetExtension(
             "wire.consumer",
             "1.0.0",
             dependencies: new Dictionary<string, string> { ["wire.provider"] = "1.0.0" });
         var runtime = new SnapshotPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
             4,
             [
-                new PluginDotnetRuntimeInfo(
+                new DotNetExtensionRuntimeInfo(
                     "wire.consumer",
                     "1.0.0",
-                    PluginDotnetRuntimeState.Active,
+                    DotNetExtensionRuntimeState.Active,
                     "wire.consumer-g1",
                     [],
                     DependencyObservations:
@@ -38,10 +38,10 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
                             "1.2.0",
                             PluginDependencyAvailability.Active)
                     ]),
-                new PluginDotnetRuntimeInfo(
+                new DotNetExtensionRuntimeInfo(
                     "wire.provider",
                     "1.2.0",
-                    PluginDotnetRuntimeState.Active,
+                    DotNetExtensionRuntimeState.Active,
                     "wire.provider-g1",
                     [],
                     DependencyObservations: [])
@@ -50,7 +50,7 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: WorkspaceCraftPath,
             appConfigMonitor: new AppConfigMonitor(new AppConfig()),
-            pluginDotnetRuntimeCoordinator: runtime);
+            dotNetExtensionRuntimeCoordinator: runtime);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
@@ -81,7 +81,7 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
         }
     }
 
-    private void WriteDotNetPlugin(
+    private void WriteDotNetExtension(
         string pluginId,
         string version,
         IReadOnlyDictionary<string, string>? dependencies = null)
@@ -113,8 +113,16 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
     }
 
     private sealed class SnapshotPluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
-        : IPluginDotnetRuntimeCoordinator
+        : IDotNetExtensionRuntimeCoordinator
     {
+        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
+
+        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
+            string pluginId,
+            DotNetExtensionBuild build,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public PluginRuntimeSnapshot Snapshot { get; } = snapshot;
 
         public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged

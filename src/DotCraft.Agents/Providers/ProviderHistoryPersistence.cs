@@ -3,19 +3,19 @@ using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
 
-internal static class ProviderHistorySchema
+public static class ProviderHistorySchema
 {
     public const int CurrentSchemaVersion = 1;
     public const string OpenAIResponsesProtocol = Configuration.ModelProviderProtocols.OpenAIResponses;
 }
 
-internal static class ProviderHistorySources
+public static class ProviderHistorySources
 {
     public const string LocalInput = "local_input";
     public const string ProviderOutput = "provider_output";
 }
 
-internal static class ProviderHistoryReasons
+public static class ProviderHistoryReasons
 {
     public const string RemoteCompaction = "remote_compaction";
     public const string Fork = "fork";
@@ -27,14 +27,14 @@ internal static class ProviderHistoryReasons
         reason is RemoteCompaction or ForkNativeCompaction or RecoveryNativeCompaction;
 }
 
-internal sealed class ProviderHistoryEntry
+public sealed class ProviderHistoryEntry
 {
     public string EntryId { get; init; } = string.Empty;
 
     public JsonElement Item { get; init; }
 }
 
-internal sealed class ProviderHistoryItemsAppendedPayload
+public sealed class ProviderHistoryItemsAppendedPayload
 {
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
@@ -48,7 +48,7 @@ internal sealed class ProviderHistoryItemsAppendedPayload
     public List<ProviderHistoryEntry> Entries { get; init; } = [];
 }
 
-internal sealed class ProviderHistoryReplacedPayload
+public sealed class ProviderHistoryReplacedPayload
 {
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
@@ -61,7 +61,7 @@ internal sealed class ProviderHistoryReplacedPayload
     public List<ProviderHistoryEntry> Entries { get; init; } = [];
 }
 
-internal sealed class ProviderHistoryAttemptAbortedPayload
+public sealed class ProviderHistoryAttemptAbortedPayload
 {
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
@@ -71,7 +71,7 @@ internal sealed class ProviderHistoryAttemptAbortedPayload
     public string AttemptId { get; init; } = string.Empty;
 }
 
-internal sealed record ProviderHistorySnapshot(
+public sealed record ProviderHistorySnapshot(
     string GenerationId,
     string ContextWindowId,
     IReadOnlyList<ProviderHistoryEntry> Entries,
@@ -84,7 +84,7 @@ internal sealed record ProviderHistorySnapshot(
         new(contextWindowId, contextWindowId, [], null);
 }
 
-internal static class ProviderHistoryEntryCloner
+public static class ProviderHistoryEntryCloner
 {
     public static ProviderHistoryEntry Clone(ProviderHistoryEntry entry) => new()
     {

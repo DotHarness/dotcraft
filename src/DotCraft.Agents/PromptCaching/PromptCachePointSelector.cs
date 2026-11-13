@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-internal sealed record CachePointCandidate(
+public sealed record CachePointCandidate(
     int MessageIndex,
     int ContentIndex,
     ChatRole Role,
@@ -10,17 +10,17 @@ internal sealed record CachePointCandidate(
     string Hash,
     string ContentKind);
 
-internal sealed record SelectedCachePoint(
+public sealed record SelectedCachePoint(
     CachePointCandidate Candidate,
     bool Remembered,
     bool Latest);
 
-internal sealed record PromptCacheMaintenanceSelection(
+public sealed record PromptCacheMaintenanceSelection(
     int SnapshotMessageCount,
     bool InsertedSystemMessage);
 
 /// <summary>Provider-neutral selection of stable prompt-cache boundaries.</summary>
-internal static class PromptCachePointSelector
+public static class PromptCachePointSelector
 {
     private const int MaxCacheBreakpoints = 4;
 

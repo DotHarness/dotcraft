@@ -1,24 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\..\..\src\DotCraft.Package.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>DotCraft.Sdk</PackageId>
-    <Version>0.11.1</Version>
-    <Authors>DotHarness</Authors>
     <Description>Lightweight .NET SDK for DotCraft Hub and AppServer protocol clients.</Description>
-    <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/DotHarness/dotcraft</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>dotcraft;appserver;json-rpc;sdk;ai</PackageTags>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeContractsAssemblyInPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -34,15 +26,8 @@
     <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol\DotCraft.Protocol.csproj" />
     <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol.Generators\DotCraft.Protocol.Generators.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
     <AdditionalFiles Include="..\..\..\..\src\DotCraft.Protocol\Artifacts\AppServer\appserver.manifest.json" />
   </ItemGroup>
-
-  <Target Name="IncludeContractsAssemblyInPackage">
-    <ItemGroup>
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll"
-                            TargetPath="DotCraft.Protocol.dll" />
-    </ItemGroup>
-  </Target>
 
 </Project>

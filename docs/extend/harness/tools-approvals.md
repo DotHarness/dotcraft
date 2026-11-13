@@ -109,14 +109,15 @@ A shell request carries `request.Shell` with what the safety check found: `Reaso
 
 ## Let the model script its tool calls
 
-Code Mode gives the model one `CodeMode` tool that runs a JavaScript program calling the Thread's other tools, so a batch of calls takes one model round trip. The scripts run in a child process of your application, so turn it on by naming your executable, and serve the worker command from it:
+Code Mode gives the model one `CodeMode` tool that runs a JavaScript program calling the Thread's other tools, so a batch of calls takes one model round trip. It ships as the `DotCraft.CodeMode` package. The scripts run in a child process of your application, so register Code Mode with your executable's name, and serve the worker command from it:
+
+```bash
+dotnet add package DotCraft.CodeMode
+```
 
 ```csharp
-builder.Services.AddDotCraftHarness(config, options =>
-{
-    options.WorkspacePath = workspacePath;
-    options.CodeModeWorkerHost = "myapp";
-});
+builder.Services.AddDotCraftHarness(config, options => options.WorkspacePath = workspacePath);
+builder.Services.AddDotCraftCodeMode(workspacePath, config, "myapp");
 ```
 
 ```csharp

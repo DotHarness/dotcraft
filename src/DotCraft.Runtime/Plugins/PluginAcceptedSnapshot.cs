@@ -22,8 +22,8 @@ internal sealed class PluginRuntimeNode(
 
     public bool Enabled { get; set; } = enabled;
 
-    public PluginDotnetRuntimeState State { get; set; }
-        = enabled ? PluginDotnetRuntimeState.Blocked : PluginDotnetRuntimeState.Stopped;
+    public DotNetExtensionRuntimeState State { get; set; }
+        = enabled ? DotNetExtensionRuntimeState.Blocked : DotNetExtensionRuntimeState.Stopped;
 
     public string? GenerationId { get; set; }
 
@@ -40,15 +40,15 @@ internal sealed class PluginRuntimeNode(
 
     public Task<PluginGenerationRemnant>? PendingTeardown { get; set; }
 
-    public PluginDotnetRuntimeState PendingTeardownCompletedState { get; set; }
-        = PluginDotnetRuntimeState.Stopped;
+    public DotNetExtensionRuntimeState PendingTeardownCompletedState { get; set; }
+        = DotNetExtensionRuntimeState.Stopped;
 
     public bool RetryAfterPendingTeardown { get; set; }
 
     public PluginGenerationRemnant? PendingRemnant { get; set; }
 
-    public PluginDotnetRuntimeState ReclaimCompletedState { get; set; }
-        = PluginDotnetRuntimeState.Stopped;
+    public DotNetExtensionRuntimeState ReclaimCompletedState { get; set; }
+        = DotNetExtensionRuntimeState.Stopped;
 
     public IReadOnlyList<PluginDiagnostic> Diagnostics { get; set; } = [];
 }

@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "dotnetRuntime": {
-      "$ref": "./PluginDotnetRuntimeInfo.schema.json"
+      "$ref": "./DotNetExtensionRuntimeInfo.schema.json"
     },
     "enabled": {
       "type": "boolean"

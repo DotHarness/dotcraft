@@ -6,7 +6,7 @@ using DotCraft.Runtime;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Xunit;
-using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
+using static DotCraft.Tests.Runtime.Plugins.DotNetExtensionTestBundle;
 using static DotCraft.Tests.Runtime.Plugins.GeneratedPluginToolFixture;
 using static DotCraft.Tests.Runtime.Plugins.PluginRuntimeHarness;
 
@@ -202,7 +202,7 @@ public sealed class GeneratedPluginToolTests : IDisposable
     }
 
     private Task<EffectiveToolSnapshot> SnapshotAsync() => new EffectiveToolSnapshotBuilder().BuildAsync(
-        [new DotNetPluginToolSource(_harness.Registry, _harness.CallGates,
+        [new DotNetExtensionToolSource(_harness.Registry, _harness.CallGates,
             static (_, _, _) => throw new InvalidOperationException("Local test tools must not request remote export."))],
         new ToolPlanningContext("planning-thread", "planning-turn", Path.GetTempPath(), ".craft", "default",
             null, null, 37)).AsTask();

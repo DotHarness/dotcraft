@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.11.1 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-11-13 |
 
 This specification defines the stable boundary of the in-process .NET Harness package. Runtime
 ownership and lifecycle rules remain defined by
@@ -17,9 +17,10 @@ remains defined by [Session Core](../architecture/session-core.md).
 inside their own Generic Host. It is distinct from `DotCraft.Sdk`, which connects to an AppServer
 host from another process.
 
-The Harness composes its facade, Runtime, Core, Agents, and the built-in OpenAI and Anthropic model
-providers. AppServer and optional product features remain separate capabilities selected by the
-embedding host.
+The Harness composes its facade, Runtime, Core, Agents, and the built-in OpenAI, Anthropic, and
+OpenRouter model providers. AppServer and optional product features, including Code Mode, session
+import, Remote Tool Host, and agent-authored .NET extensions, remain separate capabilities selected
+by the embedding host.
 
 ## Host contract
 
@@ -67,16 +68,19 @@ The default Harness refreshes the model-service catalog at startup and every 30 
 deliver catalogs through revisions set `RefreshModelServiceCatalog = false`, supply
 `InitialModelServiceCatalog`, and apply later snapshots with `RemoteModelConfiguration.Apply`.
 
+An optional feature is registered by the host on the same service collection through that
+feature's own entry point, such as `AddDotCraftCodeMode` or `AddDotCraftCSharp`. Harness options do
+not select optional features.
+
 ## Package contract
 
 The package id is `DotCraft.Harness` and the target framework is `net10.0`. The package contains
-`DotCraft.Harness.dll`, `DotCraft.Runtime.dll`, `DotCraft.Core.dll`, `DotCraft.Agents.dll`,
-`DotCraft.Agents.OpenAI.dll`, and `DotCraft.Agents.Anthropic.dll`.
+only `DotCraft.Harness.dll` and depends on the `DotCraft.Runtime`, `DotCraft.Agents.OpenAI`,
+`DotCraft.Agents.Anthropic`, `DotCraft.Agents.OpenRouter`, and `DotCraft.Agents.Remote` packages,
+which bring `DotCraft.Core`, `DotCraft.Agents`, and `DotCraft.Imaging` transitively. Package
+identity, versioning, and dependency budgets follow [NuGet Packages](nuget-packages.md).
 
-The included DotCraft assemblies keep their assembly boundaries and do not become dependencies on
-unpublished DotCraft packages. Third-party managed and native assets are ordinary NuGet
-dependencies, and the dependency graph covers the runtime requirements of every bundled assembly.
-
-A consumer installs only `DotCraft.Harness`, supplies its configuration and paths, and uses its own
-Generic Host lifecycle. It needs no project reference to the DotCraft repository and no AppServer
-process.
+A consumer that needs the default in-process DotCraft installs only `DotCraft.Harness`, supplies its
+configuration and paths, and uses its own Generic Host lifecycle. It needs no project reference to
+the DotCraft repository and no AppServer process. A consumer that needs less composes the lower-level
+packages directly; one that needs an optional feature adds that feature's package.

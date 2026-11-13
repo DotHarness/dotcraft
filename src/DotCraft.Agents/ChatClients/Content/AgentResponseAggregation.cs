@@ -3,9 +3,9 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-internal static class AgentResponseAggregation
+public static class AgentResponseAggregation
 {
-    internal const string ReasoningGroupKey = "dotcraft.reasoning.group";
+    public const string ReasoningGroupKey = "dotcraft.reasoning.group";
 
     public static ChatResponse ToAgentResponse(this IEnumerable<ChatResponseUpdate> updates)
     {
@@ -69,7 +69,7 @@ internal static class AgentResponseAggregation
         return copy;
     }
 
-    internal static string? Group(AIContent content) =>
+    public static string? Group(AIContent content) =>
         content.AdditionalProperties?.TryGetValue(ReasoningGroupKey, out var value) == true
             ? value as string
             : null;

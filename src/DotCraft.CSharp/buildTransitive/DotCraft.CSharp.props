@@ -1,0 +1,7 @@
+<Project>
+  <!-- The C# compiler reads public API documentation beside the running host's assemblies. -->
+  <PropertyGroup>
+    <CopyDocumentationFilesFromPackages>true</CopyDocumentationFilesFromPackages>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+  </PropertyGroup>
+</Project>

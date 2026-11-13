@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\DotCraft.Package.props" />
   <PropertyGroup>
+    <Description>Image codecs, resampling, and resource limits used by DotCraft.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <IsPackable>false</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 

@@ -13,7 +13,24 @@ dotnet add package Microsoft.Extensions.Hosting
 
 The application must target .NET 10 or later.
 
-The package ships the Runtime, Core, and built-in model provider assemblies, so `DotCraft.Harness` is the only DotCraft package an application references.
+`DotCraft.Harness` brings the Runtime, Core, and the built-in OpenAI, Anthropic, OpenRouter, and remote model-service providers as package dependencies. Every DotCraft package shares one version, so keep all DotCraft package references on the same version.
+
+## Choose a smaller set of packages
+
+Each DotCraft assembly is also published as its own package. Reference lower-level packages instead of Harness when the application needs less:
+
+| Need | Packages |
+| --- | --- |
+| Model providers and chat clients only | One or more of `DotCraft.Agents.OpenAI`, `DotCraft.Agents.Anthropic`, `DotCraft.Agents.OpenRouter` |
+| The session kernel inside your own composition | `DotCraft.Core` and the providers you use |
+| Generic Host lifecycle, configuration validation, and plugins | `DotCraft.Runtime` and the providers you use |
+
+Optional features are separate packages that the host registers explicitly:
+
+| Feature | Package | Registration |
+| --- | --- | --- |
+| Code Mode | `DotCraft.CodeMode` | `AddDotCraftCodeMode`; see [Let the model script its tool calls](./tools-approvals#let-the-model-script-its-tool-calls) |
+| Agent-authored .NET extensions | `DotCraft.CSharp` | `AddDotCraftCSharp`; see [Build a .NET extension](../dotnet-extensions#create-with-dotcraft) |
 
 ## Register Harness
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.CSharp;
 using DotCraft.Harness;
 using DotCraft.Plugins;
 using DotCraft.Sessions;
@@ -34,6 +35,7 @@ try
     var config = CreateConfig(testRoot, binaryRoot);
     var builder = Host.CreateApplicationBuilder();
     builder.Services.AddDotCraftHarness(config, options => options.WorkspacePath = workspacePath);
+    builder.Services.AddDotCraftCSharp();
     builder.Services.RemoveAll<IModelProvider>();
     builder.Services.AddSingleton<IModelProvider, FakeModelProvider>();
 
@@ -41,7 +43,7 @@ try
     await host.StartAsync();
     try
     {
-        var plugins = host.Services.GetRequiredService<IPluginDotnetRuntimeCoordinator>();
+        var plugins = host.Services.GetRequiredService<IDotNetExtensionRuntimeCoordinator>();
         var trust = await plugins.TrustAsync("package.binary");
         Ensure(trust.Outcome != PluginRuntimeMutationOutcome.NotApplied,
             "Could not trust the binary fixture: " + JsonSerializer.Serialize(trust.Diagnostics));
@@ -52,7 +54,7 @@ try
         await AssertEcho(sessions, first, workspacePath, "PackageBinary", "binary");
         await AssertEnvelope(sessions, first, "PackageBinary", "package.binary");
 
-        var build = await RunToolTurn(sessions, first, "DotNetPlugin", "Build", "package.source");
+        var build = await RunToolTurn(sessions, first, "CSharp", "Build", "package.source");
         Ensure(build.Result.Success, "Authoring tool failed: " + build.Result.Result);
         using (var document = JsonDocument.Parse(build.Result.Result))
         {
@@ -135,10 +137,10 @@ static async Task<string> CreateThread(ISessionService sessions, string workspac
         WorkspacePath = workspace
     })).Id;
 
-static void AssertActive(IPluginDotnetRuntimeCoordinator plugins, string pluginId)
+static void AssertActive(IDotNetExtensionRuntimeCoordinator plugins, string pluginId)
 {
     var plugin = plugins.Snapshot.Plugins.SingleOrDefault(plugin => plugin.PluginId == pluginId);
-    Ensure(plugin?.State == PluginDotnetRuntimeState.Active,
+    Ensure(plugin?.State == DotNetExtensionRuntimeState.Active,
         "Plugin did not activate: " + JsonSerializer.Serialize(plugins.Snapshot));
 }
 

@@ -6896,6 +6896,114 @@
       "variants": []
     },
     {
+      "id": "core.DotNetExtensionInfo",
+      "name": "DotNetExtensionInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DotNetExtensionInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "entryAssembly",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "entryType",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "exportedApiAssemblies",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "minHostVersion",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.DotNetExtensionRuntimeInfo",
+      "name": "DotNetExtensionRuntimeInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DotNetExtensionRuntimeInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "blockers",
+          "type": "array<core.PluginRuntimeBlocker>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "generationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "leakedGenerations",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "restartRecommended",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "trustStatus",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.DreamsCreateParams",
       "name": "DreamsCreateParams",
       "module": "core",
@@ -13858,114 +13966,6 @@
       "variants": []
     },
     {
-      "id": "core.PluginDotnetInfo",
-      "name": "PluginDotnetInfo",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/PluginDotnetInfo.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "entryAssembly",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "entryType",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "exportedApiAssemblies",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "minHostVersion",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.PluginDotnetRuntimeInfo",
-      "name": "PluginDotnetRuntimeInfo",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/PluginDotnetRuntimeInfo.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "blockers",
-          "type": "array<core.PluginRuntimeBlocker>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "generationId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "leakedGenerations",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "restartRecommended",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "state",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "trustStatus",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.PluginFunctionInfo",
       "name": "PluginFunctionInfo",
       "module": "core",
@@ -14074,14 +14074,14 @@
         },
         {
           "name": "dotnet",
-          "type": "core.PluginDotnetInfo",
+          "type": "core.DotNetExtensionInfo",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
           "name": "dotnetRuntime",
-          "type": "core.PluginDotnetRuntimeInfo",
+          "type": "core.DotNetExtensionRuntimeInfo",
           "required": false,
           "nullable": true,
           "const": null
@@ -14619,7 +14619,7 @@
       "fields": [
         {
           "name": "dotnetRuntime",
-          "type": "core.PluginDotnetRuntimeInfo",
+          "type": "core.DotNetExtensionRuntimeInfo",
           "required": false,
           "nullable": false,
           "const": null

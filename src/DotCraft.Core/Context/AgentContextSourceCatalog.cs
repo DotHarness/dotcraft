@@ -4,7 +4,7 @@ using DotCraft.Contributions;
 namespace DotCraft.Context;
 
 /// <summary>Registers the kernel's memory provider as an ordinary named contribution on the pre-send context contribution point.</summary>
-internal static class AgentContextSourceCatalog
+public static class AgentContextSourceCatalog
 {
     /// <summary>The order the built-in memory provider is registered at.</summary>
     public const int MemoryOrder = 100;
@@ -15,7 +15,7 @@ internal static class AgentContextSourceCatalog
     /// <summary>Registers the built-in memory provider into a registry.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handle; when omitted the contribution is attributed to <see cref="ContributionOrigin.Builtin"/> and lives for the registry's lifetime.</param>
     /// <returns>The registration handle.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IContributionRegistrar? registrar = null)
     {

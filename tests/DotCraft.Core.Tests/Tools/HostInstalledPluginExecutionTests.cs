@@ -83,7 +83,7 @@ public sealed class HostInstalledPluginExecutionTests
         var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!;
         manifest["dotnet"]!["minHostVersion"] = "9999.0.0";
         File.WriteAllText(manifestPath, manifest.ToJsonString());
-        DotNetPluginTestBundle.WritePlugin(plugins.PluginRoot("hidden"), "hidden", "Hidden.Plugin", NonRpcSource);
+        DotNetExtensionTestBundle.WritePlugin(plugins.PluginRoot("hidden"), "hidden", "Hidden.Plugin", NonRpcSource);
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         var diagnostics = new ConcurrentQueue<RemoteToolHostDiagnostic>();
@@ -93,7 +93,7 @@ public sealed class HostInstalledPluginExecutionTests
         await using var session = await OpenAsync(client, server, "session");
         Assert.DoesNotContain(session.HostPlugins, plugin => plugin.Id == "future");
         Assert.Contains(session.HostPlugins, plugin => plugin.Id == "hidden");
-        Assert.Contains(diagnostics, item => item.PluginId == "future" && item.EventName == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
+        Assert.Contains(diagnostics, item => item.PluginId == "future" && item.EventName == DotNetExtensionDiagnosticCodes.HostVersionUnsatisfied);
         Assert.Contains(diagnostics, item => item.EventName == "InvalidPluginManifestJson");
         var tools = await session.ListExportedToolsAsync("thread");
         Assert.DoesNotContain(tools, tool => tool.Name == "Hidden.Run");

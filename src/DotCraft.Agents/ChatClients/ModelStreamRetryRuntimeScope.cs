@@ -68,7 +68,7 @@ public static class ModelStreamRetryRuntimeScope
 
     public static ModelStreamRetryRuntimeContext? Current => CurrentContext.Value;
 
-    internal static IDisposable Suppress()
+    public static IDisposable Suppress()
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = null;

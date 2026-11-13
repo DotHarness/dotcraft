@@ -7,7 +7,7 @@ namespace DotCraft.Agents;
 /// Projects persisted composite tool calls to their frozen flat aliases for provider
 /// protocols that do not support native tool namespaces.
 /// </summary>
-internal sealed class FlatToolIdentityChatClient(IChatClient innerClient)
+public sealed class FlatToolIdentityChatClient(IChatClient innerClient)
     : DelegatingChatClient(innerClient)
 {
     private const string ProviderFlatNameMetadataKey = "dotcraft.tool.provider_flat_name";

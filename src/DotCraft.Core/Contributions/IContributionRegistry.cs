@@ -26,7 +26,7 @@ public interface IContributionRegistrar : IDisposable
 }
 
 /// <summary>The kernel service that turns registrations into live behavior.</summary>
-internal interface IContributionRegistry : IContributionView
+public interface IContributionRegistry : IContributionView
 {
     /// <summary>Registers a contribution attributed to <see cref="ContributionOrigin.Builtin"/>.</summary>
     IContributionHandle Add<TContract>(TContract contribution, ContributionOptions? options = null)
@@ -47,7 +47,7 @@ internal interface IContributionRegistry : IContributionView
 }
 
 /// <summary>Describes one coalesced registry mutation batch.</summary>
-internal sealed class ContributionsChangedEventArgs : EventArgs
+public sealed class ContributionsChangedEventArgs : EventArgs
 {
     /// <summary>Creates the event payload.</summary>
     public ContributionsChangedEventArgs(IReadOnlyCollection<Type> changedContracts, long version)

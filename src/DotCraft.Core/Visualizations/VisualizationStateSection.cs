@@ -6,7 +6,7 @@ using DotCraft.Context.WorldState;
 
 namespace DotCraft.Visualizations;
 
-internal sealed class VisualizationStateSection(VisualizationWidgetStateStore store) : IWorldStateSection
+public sealed class VisualizationStateSection(VisualizationWidgetStateStore store) : IWorldStateSection
 {
     public const string SectionId = "visualization_state";
 

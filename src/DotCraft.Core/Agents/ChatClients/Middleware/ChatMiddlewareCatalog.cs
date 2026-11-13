@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Agents;
 
 /// <summary>Registers DotCraft's own chat client wrappers as built-in contributions and composes the effective middleware into a pipeline.</summary>
-internal static class ChatMiddlewareCatalog
+public static class ChatMiddlewareCatalog
 {
     private static readonly Lazy<IContributionView> LazyDefaultView = new(CreateDefaultView, isThreadSafe: true);
 
@@ -15,7 +15,7 @@ internal static class ChatMiddlewareCatalog
     /// <summary>Registers every built-in chat middleware into a registry.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handles; when omitted the middleware is attributed to <see cref="ContributionOrigin.Builtin"/> and lives for the registry's lifetime.</param>
     /// <returns>The handles from the outside in.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IContributionRegistrar? registrar = null)
     {

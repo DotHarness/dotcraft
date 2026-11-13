@@ -3,7 +3,7 @@ using DotCraft.Contributions;
 namespace DotCraft.Tools;
 
 /// <summary>Registers the composition root's policy, approval, recorder, and normalizer stages as ordinary built-in contributions.</summary>
-internal static class ToolDispatchStageCatalog
+public static class ToolDispatchStageCatalog
 {
     /// <summary>The order every built-in stage is registered at.</summary>
     public const int BuiltInOrder = 100;
@@ -11,7 +11,7 @@ internal static class ToolDispatchStageCatalog
     /// <summary>Registers the supplied dispatch stages. A <see langword="null"/> stage leaves its contribution point empty.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handles; when omitted the stages are attributed to <see cref="ContributionOrigin.Builtin"/> and live for the registry's lifetime.</param>
     /// <returns>The handles. The instances belong to the container, so disposing a handle only removes the stage from its contribution point.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IToolPolicyEvaluator? policyEvaluator = null,
         IToolApprovalEvaluator? approvalEvaluator = null,

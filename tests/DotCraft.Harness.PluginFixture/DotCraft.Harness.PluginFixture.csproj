@@ -7,11 +7,11 @@
     <GenerateDependencyFile>true</GenerateDependencyFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(UseHarnessPackage)' == 'true'">
-    <PackageReference Include="DotCraft.Harness" Version="[$(HarnessPackageVersion)]" />
+  <ItemGroup Condition="'$(UseDotCraftPackages)' == 'true'">
+    <PackageReference Include="DotCraft.Core" Version="[$(DotCraftPackageVersion)]" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseHarnessPackage)' != 'true'">
+  <ItemGroup Condition="'$(UseDotCraftPackages)' != 'true'">
     <ProjectReference Include="../../src/DotCraft.Core/DotCraft.Core.csproj" />
     <ProjectReference Include="../../src/DotCraft.Generators/DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

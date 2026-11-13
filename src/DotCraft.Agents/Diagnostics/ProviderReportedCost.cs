@@ -3,7 +3,7 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Tracing;
 
 /// <summary>Carries the USD amount a provider bills for one model request on its final response or update.</summary>
-internal static class ProviderReportedCost
+public static class ProviderReportedCost
 {
     public const string Key = "dotcraft.costUsd";
 

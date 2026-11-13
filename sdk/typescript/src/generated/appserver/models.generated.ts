@@ -1402,6 +1402,26 @@ export interface ContextUsageSnapshot {
   [key: string]: unknown;
 }
 
+export interface DotNetExtensionInfo {
+  description?: string;
+  displayName?: string;
+  entryAssembly?: string;
+  entryType?: string;
+  exportedApiAssemblies?: string[];
+  minHostVersion?: string;
+  [key: string]: unknown;
+}
+
+export interface DotNetExtensionRuntimeInfo {
+  blockers?: PluginRuntimeBlocker[];
+  generationId?: string | null;
+  leakedGenerations?: number;
+  restartRecommended?: boolean;
+  state?: string;
+  trustStatus?: string;
+  [key: string]: unknown;
+}
+
 export interface DreamsCreateParams {
   instructions?: string | null;
   model?: string | null;
@@ -2831,26 +2851,6 @@ export interface PluginDiagnostic {
   [key: string]: unknown;
 }
 
-export interface PluginDotnetInfo {
-  description?: string;
-  displayName?: string;
-  entryAssembly?: string;
-  entryType?: string;
-  exportedApiAssemblies?: string[];
-  minHostVersion?: string;
-  [key: string]: unknown;
-}
-
-export interface PluginDotnetRuntimeInfo {
-  blockers?: PluginRuntimeBlocker[];
-  generationId?: string | null;
-  leakedGenerations?: number;
-  restartRecommended?: boolean;
-  state?: string;
-  trustStatus?: string;
-  [key: string]: unknown;
-}
-
 export interface PluginFunctionInfo {
   description?: string;
   name?: string;
@@ -2871,8 +2871,8 @@ export interface PluginInfo {
   desktop?: PluginDesktopInfo | null;
   diagnostics?: PluginDiagnostic[];
   displayName?: string;
-  dotnet?: PluginDotnetInfo | null;
-  dotnetRuntime?: PluginDotnetRuntimeInfo | null;
+  dotnet?: DotNetExtensionInfo | null;
+  dotnetRuntime?: DotNetExtensionRuntimeInfo | null;
   enabled?: boolean;
   functions?: PluginFunctionInfo[];
   hooks?: PluginHookInfo[];
@@ -2975,7 +2975,7 @@ export interface PluginRuntimeBlocker {
 }
 
 export interface PluginRuntimeProjection {
-  dotnetRuntime?: PluginDotnetRuntimeInfo;
+  dotnetRuntime?: DotNetExtensionRuntimeInfo;
   enabled?: boolean;
   id?: string;
   installed?: boolean;

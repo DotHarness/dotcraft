@@ -2,7 +2,7 @@
 
 本参考页介绍贡献契约、类型化依赖、信任与 generation 生命周期。要创建并构建插件，先读[开发 .NET 扩展](./dotnet-extensions)。
 
-![三个能力层级作用于同一份贡献点装配结果：Tier A 按序追加一项，Tier B 在句柄存续期间遮蔽具名默认项，Tier C 返回最终结果](/dotnet-plugin-tiers.svg)
+![三个能力层级作用于同一份贡献点装配结果：Tier A 按序追加一项，Tier B 在句柄存续期间遮蔽具名默认项，Tier C 返回最终结果](/dotnet-extension-tiers.svg)
 
 ## 选择贡献点
 
@@ -189,11 +189,11 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 - **授权绑定精确的 id 与指纹。** 客户端只按插件 id 请求信任，服务端把授权绑定到它实际接受的那份字节。同一个插件 id 可以同时保留多个已授权指纹。只有变更后指纹没有匹配授权时，插件才会变成 `modified`。
 - **托管路径与契约数据也是指纹的一部分。** DotCraft 会对规范化的 .NET 声明、插件版本与依赖，以及非 Desktop bundle 文件树做哈希。在这些文件间移动字节会改变身份。原始 manifest 字节、仅用于部署的 `.builtin` 标记和 `desktop/` 文件树不计入该指纹，因此只修改 Desktop 模块不会让 .NET 信任失效。
-- **权限文件独立于配置。** 授权保存在全局配置旁的 `dotnet-plugin-trust.json`，但该文件不参与配置合并，Workspace 配置也不能授予信任。
+- **权限文件独立于配置。** 授权保存在全局配置旁的 `dotnet-extension-trust.json`，但该文件不参与配置合并，Workspace 配置也不能授予信任。
 - **已安装插件不存在隐式信任层级。** 每个已安装的 `dotnet` 插件都需要显式授权，宿主自带的 bundle 也不例外。
 - **撤销按指纹生效。** 撤销只移除当前插件 id 与指纹这一对授权。如果活跃闭包依赖该授权，它会停止。同一 id 的其他指纹授权保持不变。
 
-没有匹配授权时，已安装插件停在 `blocked` 并报 `PluginUntrusted` 或 `PluginTrustModified`，而且**不会创建任何加载上下文**，因此它的代码一行都没有运行过。`DotNetPlugin.Build` 开发构建会改为让开发 bundle 的精确指纹获得进程内执行资格。该资格不会持久化，也不适用于已安装插件。
+没有匹配授权时，已安装插件停在 `blocked` 并报 `PluginUntrusted` 或 `PluginTrustModified`，而且**不会创建任何加载上下文**，因此它的代码一行都没有运行过。`CSharp.Build` 开发构建会改为让开发 bundle 的精确指纹获得进程内执行资格。该资格不会持久化，也不适用于已安装插件。
 
 ## 生命周期与更新
 
@@ -209,7 +209,7 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 | **`faulted`** | 已尝试，且失败方式明确：构造、激活或已注册的后台工作失败。 |
 | **`reclaiming`** | 功能上已停止、不再路由任何调用，但内存尚未归还。 |
 
-`blocked` 不是终态，只要其成因可能已经改变——宿主升级、依赖激活、授予信任、重新安装——就会被重新评估。已安装的 `faulted` 插件通过停用再启用来重试。对于开发项目，请修正源码后再次运行 `DotNetPlugin.Build`。
+`blocked` 不是终态，只要其成因可能已经改变——宿主升级、依赖激活、授予信任、重新安装——就会被重新评估。已安装的 `faulted` 插件通过停用再启用来重试。对于开发项目，请修正源码后再次运行 `CSharp.Build`。
 
 ### 撤销是确定的，回收不是
 
@@ -219,7 +219,7 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 ### 替换已安装 bundle
 
-通过插件安装流程管理的 bundle 按以下方式更新：停用插件、替换文件、再次启用。对于 `.craft/plugin-projects` 下的项目，`DotNetPlugin.Build` 会完成发布和 generation 替换，不走这组客户端操作。
+通过插件安装流程管理的 bundle 按以下方式更新：停用插件、替换文件、再次启用。对于 `.craft/plugin-projects` 下的项目，`CSharp.Build` 会完成发布和 generation 替换，不走这组客户端操作。
 
 停用会先按消费方优先的顺序撤销 .NET generation 及其消费方。文件系统变更还会要求以根目录为依托的声明式贡献停止。若这一步失败，变更会返回 `notApplied` 与 `PluginContributionQuiesceFailed`，并保持 bundle 目录不变。重新启用会重新准入当前字节。
 
@@ -231,6 +231,6 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 ## 相关文档
 
-- [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample)——覆盖本页每个贡献点的可运行 bundle。
-- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——这些契约的规范原文。
+- [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample)——覆盖本页每个贡献点的可运行 bundle。
+- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-extensions.md)——这些契约的规范原文。
 - [桌面扩展](./desktop-extensions)——同一个 bundle 的界面部分。

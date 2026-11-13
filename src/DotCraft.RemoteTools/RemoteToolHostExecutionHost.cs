@@ -65,7 +65,7 @@ internal sealed class RemoteToolHostExecutionHost : IAsyncDisposable
             if (_plugins.TryGetValue(workspaceId, out var existing)) return existing;
             var data = Path.Combine(Storage.RootPath, "workspaces", workspaceId);
             var created = new PluginExecutionWorkspace(
-                DotCraftPaths.CreateForExecutionHost(workspacePath, data, data),
+                DotCraftPaths.Create(workspacePath, data, data),
                 AppConfig.Load(Storage.GlobalConfigPath), new ExecutionSessionTerminals());
             _plugins.Add(workspaceId, created);
             return created;
@@ -88,7 +88,7 @@ internal sealed class RemoteToolHostExecutionHost : IAsyncDisposable
                 {
                     var data = Path.Combine(Storage.RootPath, "workspaces", workspaceId, "host-installed");
                     installed = new HostInstalledPluginWorkspace(
-                        DotCraftPaths.CreateForExecutionHost(workspacePath, data, data),
+                        DotCraftPaths.Create(workspacePath, data, data),
                         HostWorkspaceRuntime.LoadWorkspaceConfig(Storage.GlobalConfigPath, workspacePath), _diagnostic);
                     _installed.Add(workspaceId, installed);
                 }

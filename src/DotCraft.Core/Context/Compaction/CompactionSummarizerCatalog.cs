@@ -17,7 +17,7 @@ public static class CompactionSummarizerCatalog
     /// <summary>Registers the built-in summarizer into a registry.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handle; when omitted the summarizer is attributed to <see cref="ContributionOrigin.Builtin"/> and lives for the registry's lifetime.</param>
     /// <returns>The registration handle.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IContributionRegistrar? registrar = null)
     {

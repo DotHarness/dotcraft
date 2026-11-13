@@ -12,7 +12,7 @@ public sealed class PluginExecutionHost(
 {
     private readonly ContributionRegistry _contributions = new();
     private readonly object _gate = new();
-    private DotNetPluginRuntimeManager? _runtime;
+    private DotNetExtensionRuntimeManager? _runtime;
     private bool _installed;
     private bool _disposed;
 
@@ -31,7 +31,7 @@ public sealed class PluginExecutionHost(
 
     public static bool MatchesBundle(string rootPath, RemotePluginBundle bundle) =>
         PluginBundleFingerprint.Compute(rootPath) == bundle.ContentFingerprint
-        && PluginDotnetFingerprint.Compute(rootPath) == bundle.DotnetFingerprint;
+        && DotNetExtensionFingerprint.Compute(rootPath) == bundle.DotnetFingerprint;
 
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         ToolPlanningContext context, CancellationToken cancellationToken = default) =>
@@ -44,7 +44,7 @@ public sealed class PluginExecutionHost(
         _contributions.ReleaseThread(threadId);
     }
 
-    private DotNetPluginRuntimeManager Runtime(bool installed = false)
+    private DotNetExtensionRuntimeManager Runtime(bool installed = false)
     {
         lock (_gate)
         {
@@ -56,7 +56,7 @@ public sealed class PluginExecutionHost(
                 return _runtime;
             }
             _installed = installed;
-            return _runtime = new DotNetPluginRuntimeManager(new PluginDiscoveryService(), config ?? new AppConfig(), paths,
+            return _runtime = new DotNetExtensionRuntimeManager(new PluginDiscoveryService(), config ?? new AppConfig(), paths,
                 services, _contributions, executionOnly: true, installedExecution: installed);
         }
     }

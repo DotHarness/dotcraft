@@ -1,0 +1,131 @@
+using System.Text.Json;
+using DotCraft.AppServerTestClient;
+using Xunit;
+
+namespace DotCraft.Tests.AppServerTestClient;
+
+public sealed class CSharpAuthoringSmokeTests
+{
+    [Fact]
+    public void Capture_ValidatesPluginInvocation()
+    {
+        using var notification = JsonDocument.Parse("""
+            {
+              "params": {
+                "turn": {
+                  "items": [
+                    {
+                      "type": "toolCall",
+                      "payload": {
+                        "namespace": null,
+                        "toolName": "smoke_agent_tool",
+                        "providerFlatName": "smoke_agent_tool",
+                        "source": { "pluginId": "smoke-agent-tool" },
+                        "callId": "call-1",
+                        "arguments": {}
+                      }
+                    },
+                    {
+                      "type": "toolResult",
+                      "payload": {
+                        "callId": "call-1",
+                        "success": true,
+                        "result": "AUTHORING_SMOKE_V1_SYNTHETIC"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+        var capture = new AppServerToolTurnCapture();
+
+        AppServerToolTurnCaptureReader.ReadCompletedTurn(notification.RootElement, capture);
+
+        CSharpAuthoringSmokeRunner.ValidatePluginInvocation(
+            capture,
+            "AUTHORING_SMOKE_V1_SYNTHETIC",
+            "test");
+    }
+
+    [Fact]
+    public void InvocationValidation_RejectsWrongPluginProvenance()
+    {
+        using var notification = JsonDocument.Parse("""
+            {
+              "params": {
+                "turn": {
+                  "items": [
+                    {
+                      "type": "toolCall",
+                      "payload": {
+                        "namespace": null,
+                        "toolName": "smoke_agent_tool",
+                        "providerFlatName": "smoke_agent_tool",
+                        "source": { "pluginId": "other.plugin" },
+                        "callId": "call-1",
+                        "arguments": {}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+        var capture = new AppServerToolTurnCapture();
+        AppServerToolTurnCaptureReader.ReadCompletedTurn(notification.RootElement, capture);
+
+        var exception = Assert.Throws<DotNetExtensionSmokeException>(() =>
+            CSharpAuthoringSmokeRunner.ValidatePluginInvocation(
+                capture,
+                "unused",
+                "invoke"));
+
+        Assert.Equal("unexpected_tool_provenance", exception.ErrorCode);
+    }
+
+    [Fact]
+    public void BuildCapture_ReadsActiveFingerprint()
+    {
+        using var notification = JsonDocument.Parse("""
+            {
+              "params": {
+                "turn": {
+                  "items": [
+                    {
+                      "type": "toolCall",
+                      "payload": {
+                        "namespace": "CSharp",
+                        "toolName": "Build",
+                        "providerFlatName": "CSharp__Build",
+                        "source": { "kind": "native" },
+                        "callId": "build-1",
+                        "arguments": { "pluginId": "smoke-agent-tool" }
+                      }
+                    },
+                    {
+                      "type": "toolResult",
+                      "payload": {
+                        "callId": "build-1",
+                        "success": true,
+                        "result": "{\"outcome\":\"built\",\"fingerprint\":\"sha256:synthetic\",\"state\":\"active\",\"diagnostics\":[]}"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+        var capture = new AppServerToolTurnCapture();
+        AppServerToolTurnCaptureReader.ReadCompletedTurn(notification.RootElement, capture);
+
+        var observation = CSharpAuthoringSmokeRunner.ParseBuildResult(
+            capture,
+            Assert.Single(capture.Calls),
+            "build");
+
+        Assert.Equal("built", observation.Outcome);
+        Assert.Equal("active", observation.State);
+        Assert.Equal("sha256:synthetic", observation.Fingerprint);
+    }
+}

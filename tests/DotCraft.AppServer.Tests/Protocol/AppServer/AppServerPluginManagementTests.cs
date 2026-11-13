@@ -75,10 +75,10 @@ public sealed partial class AppServerPluginManagementTests
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = new FakePluginRuntimeCoordinator(new PluginRuntimeSnapshot(
             7,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Active,
+                DotNetExtensionRuntimeState.Active,
                 "browser-g7",
                 [],
                 [new PluginRuntimeToolInfo("browser.search", "browser", "search", "Search the browser")])],
@@ -86,7 +86,7 @@ public sealed partial class AppServerPluginManagementTests
                 "PluginActivationTimeout",
                 "Plugin activation did not complete before the deadline.",
                 "browser")]));
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
+        using var harness = CreateHarness(dotNetExtensionRuntimeCoordinator: runtime);
         await harness.InitializeAsync();
 
         var result = await ReadPluginListResultAsync(harness);
@@ -361,7 +361,7 @@ public sealed partial class AppServerPluginManagementTests
     public async Task PluginList_ReportsManifestAndDotnetDiagnostics()
     {
         WriteInvalidPlugin(Path.Combine(_workspaceCraftPath, "plugins", "broken-plugin"));
-        WriteDotNetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
+        WriteDotNetExtensionWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 

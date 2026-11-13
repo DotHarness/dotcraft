@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
-using DotCraft.CodeMode;
 using DotCraft.Configuration;
 using DotCraft.Runtime;
 using DotCraft.Workspaces;
@@ -31,10 +30,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
             appConfig.Providers.Clear();
         var runtimeOptions = CreateRuntimeOptions(appConfig, harnessOptions);
         var paths = DotCraftPathResolver.Resolve(runtimeOptions);
-        AddDotCraftHarness(services, runtimeOptions, paths, harnessOptions.RefreshModelServiceCatalog);
-        if (harnessOptions.CodeModeWorkerHost is { } workerHost)
-            services.AddDotCraftCodeMode(paths.WorkspacePath, appConfig, workerHost);
-        return services;
+        return AddDotCraftHarness(services, runtimeOptions, paths, harnessOptions.RefreshModelServiceCatalog);
     }
 
     internal static IServiceCollection AddDotCraftHarness(
@@ -65,7 +61,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
         services.AddOpenAIModelProvider(paths.UserData.RootPath, localAuthentication: runtimeOptions.Config.ModelService is null);
         services.AddAnthropicModelProvider();
         services.AddOpenRouterModelProvider();
-        services.AddDotCraftRuntime(runtimeOptions, paths);
+        services.AddDotCraftRuntime(runtimeOptions);
         return services;
     }
 

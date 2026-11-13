@@ -426,7 +426,7 @@ public static class ModelThinkingAdapterCatalog
         return false;
     }
 
-    internal static string? CatalogPathForConfig(string? configPath)
+    public static string? CatalogPathForConfig(string? configPath)
     {
         if (string.IsNullOrWhiteSpace(configPath))
             return null;

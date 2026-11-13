@@ -84,7 +84,7 @@ The build script type-checks the source, then runs `dotcraft-plugin build` to bu
 
 Build before DotCraft discovers or packages the plugin. Refresh the plugin list, then enable it. After a source change, rebuild and refresh or re-enable the plugin.
 
-See [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) for two runnable bundles that each ship .NET and Desktop modules. The Core plugin replaces the background, wraps the app, and owns a renderer service, an event, and a custom surface. The Consumer adds Composer controls and contributes UI to the Core-owned surface.
+See [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample) for two runnable bundles that each ship .NET and Desktop modules. The Core plugin replaces the background, wraps the app, and owns a renderer service, an event, and a custom surface. The Consumer adds Composer controls and contributes UI to the Core-owned surface.
 
 For the complete surface catalog, contexts, composition semantics, Host API, and generation lifecycle, see [Desktop extension API](./desktop-extension-api).
 

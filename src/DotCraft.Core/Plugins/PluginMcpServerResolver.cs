@@ -46,7 +46,7 @@ public static class PluginMcpServerResolver
         var discovery = new PluginDiscoveryService(userData == null ? null : Path.Combine(userData, "plugins"), craftHome: userData).Discover(config, workspacePath, botPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
-        var paths = DotCraftPaths.CreateForExecutionHost(workspacePath, botPath, userData);
+        var paths = DotCraftPaths.Create(workspacePath, botPath, userData);
         var pluginServers = new List<McpServerConfig>();
         foreach (var plugin in discovery.Plugins)
             pluginServers.AddRange(PluginMcpServerLoader.LoadPluginServers(

@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tracing;
 
-internal sealed record TokenUsageRequestTiming(double FirstOutputLatencyMs, double GenerationMs)
+public sealed record TokenUsageRequestTiming(double FirstOutputLatencyMs, double GenerationMs)
 {
     private const string Key = "dotcraft.llmRequestTiming";
 

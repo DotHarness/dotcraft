@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\DotCraft.Package.props" />
   <PropertyGroup>
+    <Description>Remote model-service transport for DotCraft model providers.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DebugSymbols>False</DebugSymbols>

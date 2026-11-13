@@ -84,7 +84,7 @@ public sealed class AppServerTestHarness : IDisposable
         Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
         HookRunner? hookRunner = null,
         IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null,
-        IPluginDotnetRuntimeCoordinator? pluginDotnetRuntimeCoordinator = null,
+        IDotNetExtensionRuntimeCoordinator? dotNetExtensionRuntimeCoordinator = null,
         Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
         DotCraft.Contributions.IContributionView? contributions = null,
         AppServerPluginManagementState? pluginManagementState = null,
@@ -144,7 +144,7 @@ public sealed class AppServerTestHarness : IDisposable
                 WorkspaceCraftPath = workspaceCraftPath,
                 WorkspaceTempPath = string.IsNullOrWhiteSpace(workspaceCraftPath)
                     ? null
-                    : DotCraft.Workspaces.DotCraftPaths.CreateForExecutionHost(_tempDir, workspaceCraftPath).WorkspaceTempPath,
+                    : DotCraft.Workspaces.DotCraftPaths.Create(_tempDir, workspaceCraftPath).WorkspaceTempPath,
                 HostWorkspacePath = _tempDir,
                 MemoryStore = memoryStore,
                 ProtocolExtensions = protocolExtensions,
@@ -174,7 +174,7 @@ public sealed class AppServerTestHarness : IDisposable
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
                 SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
                 HookRunner = hookRunner,
-                PluginDotnetRuntimeCoordinator = pluginDotnetRuntimeCoordinator,
+                DotNetExtensionRuntimeCoordinator = dotNetExtensionRuntimeCoordinator,
                 PluginConfigStore = pluginConfigStore,
                 PluginManagementState = pluginManagementState ?? new AppServerPluginManagementState(),
                 BroadcastPluginSnapshotUpdated = broadcastPluginSnapshotUpdated,

@@ -103,7 +103,7 @@ public sealed record AppServerConnectionServices
     public HookRunner? HookRunner { get; init; }
     public bool SupportsUltraReasoning { get; init; }
     public IPluginWorkflowSummaryProvider? PluginWorkflowSummaryProvider { get; init; }
-    public IPluginDotnetRuntimeCoordinator? PluginDotnetRuntimeCoordinator { get; init; }
+    public IDotNetExtensionRuntimeCoordinator? DotNetExtensionRuntimeCoordinator { get; init; }
     public PluginConfigStore? PluginConfigStore { get; init; }
 
     /// <summary>Workspace-scoped state used to coordinate plugin management across connections.</summary>

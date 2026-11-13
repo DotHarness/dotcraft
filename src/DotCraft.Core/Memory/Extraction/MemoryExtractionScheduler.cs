@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Memory.Extraction;
 
 /// <summary>Decides after each completed Turn whether memory extraction runs, keeping each Thread's cursor and cadence in process.</summary>
-internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThreadLifecycleContributor, IDisposable
+public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThreadLifecycleContributor, IDisposable
 {
     internal const int Cadence = 7;
 

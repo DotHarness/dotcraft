@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tracing;
 
-internal static class ProviderCostMultiplier
+public static class ProviderCostMultiplier
 {
     private const string Key = "dotcraft.costMultiplier";
 

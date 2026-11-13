@@ -39,37 +39,16 @@ jobs:
         id: validate
         shell: pwsh
         env:
-          SDK_PROJECT: ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj
-          HARNESS_PROJECT: ./src/DotCraft.Harness/DotCraft.Harness.csproj
-          MODEL_SERVICE_PROJECT: ./src/DotCraft.ModelService/DotCraft.ModelService.csproj
           TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm }}
           GITHUB_REF_FULL: ${{ github.ref }}
         run: |
           $ErrorActionPreference = "Stop"
-          $projects = @(
-            @{ Id = "DotCraft.Sdk"; Path = $env:SDK_PROJECT },
-            @{ Id = "DotCraft.Harness"; Path = $env:HARNESS_PROJECT },
-            @{ Id = "DotCraft.ModelService"; Path = $env:MODEL_SERVICE_PROJECT }
-          )
-          $versionsById = @{}
-          foreach ($package in $projects) {
-            if (!(Test-Path $package.Path)) {
-              throw "Package project not found: $($package.Path)"
-            }
-            [xml]$project = Get-Content -Raw $package.Path
-            $packageVersion = @($project.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
-            $packageVersion = "$packageVersion".Trim()
-            if ([string]::IsNullOrWhiteSpace($packageVersion)) {
-              throw "Set <Version> in $($package.Path) before publishing."
-            }
-            $versionsById[$package.Id] = $packageVersion
-          }
-          $version = $versionsById["DotCraft.Sdk"]
-          foreach ($package in $projects) {
-            if ($versionsById[$package.Id] -cne $version) {
-              throw "DotCraft.Sdk, DotCraft.Harness and DotCraft.ModelService must use the same version."
-            }
+          $projects = & ./scripts/nuget-packages.ps1
+          [xml]$props = Get-Content -Raw ./src/DotCraft.Package.props
+          $version = "$(@($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0])".Trim()
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Set <Version> in src/DotCraft.Package.props before publishing."
           }
 
           $previewPattern = '^\d+\.\d+\.\d+-preview\.\d+$'
@@ -118,7 +97,7 @@ jobs:
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Validated DotCraft.Sdk, DotCraft.Harness and DotCraft.ModelService $version ($channel) for $($env:TARGET)."
+          Write-Host "Validated $($projects.Count) DotCraft packages $version ($channel) for $($env:TARGET)."
 
       - name: Restore SDK
         run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
@@ -186,29 +165,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path artifacts/nuget | Out-Null
-          dotnet pack ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj `
-            --configuration Release `
-            --no-build `
-            --output artifacts/nuget `
-            /p:Version=$env:PACKAGE_VERSION `
-            /p:PackageVersion=$env:PACKAGE_VERSION `
-            /p:DebugSymbols=true `
-            /p:DebugType=portable `
-            /p:ContinuousIntegrationBuild=true
-          dotnet pack ./src/DotCraft.Harness/DotCraft.Harness.csproj `
-            --configuration Release `
-            --no-build `
-            --output artifacts/nuget `
-            /p:Version=$env:PACKAGE_VERSION `
-            /p:PackageVersion=$env:PACKAGE_VERSION `
-            /p:ContinuousIntegrationBuild=true
-          dotnet pack ./src/DotCraft.ModelService/DotCraft.ModelService.csproj `
-            --configuration Release `
-            --no-build `
-            --output artifacts/nuget `
-            /p:Version=$env:PACKAGE_VERSION `
-            /p:PackageVersion=$env:PACKAGE_VERSION `
-            /p:ContinuousIntegrationBuild=true
+          foreach ($package in (& ./scripts/nuget-packages.ps1)) {
+            $symbols = if ($package.Id -eq "DotCraft.Sdk") { @("/p:DebugSymbols=true", "/p:DebugType=portable") } else { @() }
+            dotnet pack $package.Project `
+              --configuration Release `
+              --output artifacts/nuget `
+              /p:Version=$env:PACKAGE_VERSION `
+              /p:PackageVersion=$env:PACKAGE_VERSION `
+              /p:ContinuousIntegrationBuild=true `
+              @symbols
+            if ($LASTEXITCODE -ne 0) {
+              throw "dotnet pack failed for $($package.Id)."
+            }
+          }
 
       - name: Inspect package artifacts
         shell: pwsh
@@ -224,23 +193,13 @@ jobs:
           if (!(Test-Path $snupkg)) {
             throw "Missing symbol package: $snupkg"
           }
-          $harnessPackage = "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
-          if (!(Test-Path $harnessPackage)) {
-            throw "Missing package: $harnessPackage"
-          }
-          $modelServicePackage = "artifacts/nuget/DotCraft.ModelService.$env:PACKAGE_VERSION.nupkg"
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $nupkg))
           try {
             $entries = @($package.Entries | ForEach-Object { $_.FullName })
-            foreach ($required in @(
-              "lib/net10.0/DotCraft.Sdk.dll",
-              "lib/net10.0/DotCraft.Protocol.dll"
-            )) {
-              if ($entries -notcontains $required) {
-                throw "Package is missing required entry: $required"
-              }
+            if ($entries -notcontains "lib/net10.0/DotCraft.Sdk.dll") {
+              throw "Package is missing required entry: lib/net10.0/DotCraft.Sdk.dll"
             }
 
             $nuspecEntries = @($package.Entries | Where-Object { $_.FullName -like "*.nuspec" })
@@ -255,8 +214,8 @@ jobs:
             finally {
               $reader.Dispose()
             }
-            if ($nuspec -match '<dependency\s+id="DotCraft\.Protocol"') {
-              throw "DotCraft.Sdk must bundle the protocol assembly instead of declaring a package dependency."
+            if ($nuspec -notmatch '<dependency\s+id="DotCraft\.Protocol"') {
+              throw "DotCraft.Sdk must depend on the DotCraft.Protocol package."
             }
           }
           finally {
@@ -274,9 +233,9 @@ jobs:
           }
 
           Get-ChildItem artifacts/nuget | Format-Table Name, Length
-          Get-FileHash $nupkg, $snupkg, $harnessPackage, $modelServicePackage -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
+          Get-ChildItem artifacts/nuget -Filter *.nupkg | Get-FileHash -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
 
-      - name: Restore bundled contracts from isolated source
+      - name: Restore SDK contracts from isolated source
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
@@ -321,12 +280,10 @@ jobs:
             Remove-Item -LiteralPath $probe -Recurse -Force
           }
 
-      - name: Restore and run Harness from isolated source
+      - name: Validate package shapes, dependency budgets, and Harness hosting from isolated source
         shell: pwsh
-        env:
-          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
         run: |
-          ./scripts/test-harness-package.ps1 -PackagePath "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
+          ./scripts/test-nuget-packages.ps1 -PackageSource artifacts/nuget
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
@@ -371,7 +328,13 @@ jobs:
         with:
           user: ${{ vars.NUGET_USER }}
 
-      - name: Push exact package artifacts
+      - name: Checkout package catalog
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/nuget-packages.ps1
+          sparse-checkout-cone-mode: false
+
+      - name: Push exact package artifacts in dependency order
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
@@ -379,9 +342,9 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $source = "https://api.nuget.org/v3/index.json"
-          $sdkPackage = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
-          $harnessPackage = "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
-          $modelServicePackage = "artifacts/nuget/DotCraft.ModelService.$env:PACKAGE_VERSION.nupkg"
-          dotnet nuget push $sdkPackage --source $source --api-key $env:NUGET_API_KEY
-          dotnet nuget push $harnessPackage --source $source --api-key $env:NUGET_API_KEY
-          dotnet nuget push $modelServicePackage --source $source --api-key $env:NUGET_API_KEY
+          foreach ($package in (& ./scripts/nuget-packages.ps1)) {
+            dotnet nuget push "artifacts/nuget/$($package.Id).$env:PACKAGE_VERSION.nupkg" --source $source --api-key $env:NUGET_API_KEY
+            if ($LASTEXITCODE -ne 0) {
+              throw "dotnet nuget push failed for $($package.Id)."
+            }
+          }

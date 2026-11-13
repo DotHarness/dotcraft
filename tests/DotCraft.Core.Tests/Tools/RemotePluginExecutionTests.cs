@@ -246,7 +246,7 @@ public sealed class RemotePluginExecutionTests
         return storage;
     }
 
-    private static async Task<EffectiveToolSnapshot> SnapshotAsync(DotNetPluginRuntimeManager manager,
+    private static async Task<EffectiveToolSnapshot> SnapshotAsync(DotNetExtensionRuntimeManager manager,
         RemoteToolHostClient client, string threadId, long revision, string mode = "agent")
     {
         var planning = new ToolPlanningContext(threadId, null, Path.GetTempPath(), Path.GetTempPath(), mode, null, [], revision);

@@ -7,14 +7,14 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Memory.Extraction;
 
-internal interface IMemoryExtractionRunner
+public interface IMemoryExtractionRunner
 {
     /// <returns>The Turn the extraction forked after when it completed, or null when it was skipped or did not complete.</returns>
     Task<string?> RunAsync(string threadId, string? cursorTurnId, CancellationToken cancellationToken);
 }
 
 /// <summary>Runs memory extraction as an ephemeral fork of the Thread that adds nothing to the Thread itself.</summary>
-internal sealed class MemoryExtractionRunner(
+public sealed class MemoryExtractionRunner(
     ISessionService sessions,
     IContributionRegistry contributions,
     MemoryStore workspaceStore,

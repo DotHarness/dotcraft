@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DotCraft.Contributions;
 
 /// <summary>Seeds dependency-injection multi-registrations into the contribution registry at workspace start.</summary>
-internal static class ContributionSeeding
+public static class ContributionSeeding
 {
     private static readonly ContributionOptions SeedOptions =
         ContributionOptions.Default with { OwnsContribution = false };

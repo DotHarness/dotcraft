@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.11.1 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-11-13 |
 
 This specification defines the stable ownership, dependency, composition, and lifecycle rules for
 the DotCraft runtime.
@@ -28,6 +28,9 @@ Embedded application
   |-- DotCraft.Runtime
   |     `-- DotCraft.Core
   `-- selected providers and features
+
+DotCraft.CSharp
+  `-- DotCraft.Runtime
 ```
 
 - `DotCraft.Core` owns the product kernel and feature-neutral domain contracts. It does not depend
@@ -42,9 +45,16 @@ Embedded application
   and Host policy. It depends on Core, Runtime's provider-free plugin execution facade, the MCP
   ASP.NET transport, and the screen view contracts in Protocol. `DotCraft.App` owns its CLI and
   process composition. It must not cause Runtime to enable a provider, Session Core, or AppServer.
+- `DotCraft.CSharp` owns agent authoring of .NET extensions: public-API inspection, C# compilation,
+  and the host-matched tool generator run. It depends on Runtime and hands each successful build to
+  Runtime's .NET extension runtime. Runtime does not depend on it, and `DotCraft.Generators` remains
+  the build-time analyzer shipped with Core.
 - An optional feature owns its behavior and depends on Core. Core never depends on a feature
   implementation.
 - Dependency cycles are not permitted.
+
+Each published assembly is its own NuGet package; package identity, versioning, and dependency
+budgets are defined by [NuGet Packages](../sdk/nuget-packages.md).
 
 `DotCraft.Imaging` is a provider-independent image capability used by Agents and Core. It depends
 only on the .NET BCL and owns codecs, pixel resampling, and image resource limits. Model input budgets
@@ -78,7 +88,9 @@ Runtime represents how a host creates, starts, and stops DotCraft. Its public AP
 - `WorkspaceRuntime`, exposing kernel capabilities without transport or application-host types;
 - configuration validation, workspace provisioning, initialization, readiness, shutdown, and
   disposal coordination;
-- integration with the .NET Generic Host lifecycle.
+- integration with the .NET Generic Host lifecycle;
+- the .NET extension runtime: loading, trust, activation, teardown, and admission of builds
+  produced by an authoring feature.
 
 Runtime does not automatically enable a model provider, AppServer, or an optional feature. The
 host selects those capabilities explicitly. Runtime does not reference a desktop UI framework;
@@ -171,7 +183,8 @@ A responsibility has one owner. Its implementation, resources, configuration bin
 tests live together; host wiring tests live with the composition root.
 
 Compatibility shims, type forwarding, module-name branches, and friend-assembly access are not
-substitutes for a clear dependency boundary. Production internals are not broadened for tests.
+substitutes for a clear dependency boundary. Published assemblies never grant one another
+friend-assembly access. Production internals are not broadened for tests.
 
 ## Test boundaries
 

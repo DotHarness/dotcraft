@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
-internal interface IToolNamespaceMetadata
+public interface IToolNamespaceMetadata
 {
     string? ToolNamespace { get; }
 
@@ -13,7 +13,7 @@ internal interface IToolNamespaceMetadata
 /// Carries the canonical composite identity independently from the flat alias used by
 /// providers that cannot represent namespaces.
 /// </summary>
-internal interface ICanonicalToolIdentityMetadata : IToolNamespaceMetadata
+public interface ICanonicalToolIdentityMetadata : IToolNamespaceMetadata
 {
     ToolName CanonicalToolName { get; }
 
@@ -22,7 +22,7 @@ internal interface ICanonicalToolIdentityMetadata : IToolNamespaceMetadata
     string IToolNamespaceMetadata.ToolNamespace => CanonicalToolName.Namespace!;
 }
 
-internal interface IOpenAIResponsesFunctionToolMetadata
+public interface IOpenAIResponsesFunctionToolMetadata
 {
     bool? Strict { get; }
 
@@ -31,7 +31,7 @@ internal interface IOpenAIResponsesFunctionToolMetadata
     ToolFreeformInput? FreeformInput { get; }
 }
 
-internal static class ToolNamespaceMetadataResolver
+public static class ToolNamespaceMetadataResolver
 {
     public static bool TryGet(AITool tool, out string toolNamespace)
     {
@@ -65,7 +65,7 @@ internal static class ToolNamespaceMetadataResolver
     }
 }
 
-internal static class ToolNamespaceDescriptionResolver
+public static class ToolNamespaceDescriptionResolver
 {
     public static string Resolve(
         string namespaceName,
@@ -85,7 +85,7 @@ internal static class ToolNamespaceDescriptionResolver
     }
 }
 
-internal static class CanonicalToolIdentityMetadataResolver
+public static class CanonicalToolIdentityMetadataResolver
 {
     public static bool TryGet(AITool tool, out ToolName toolName, out string providerFlatName)
     {

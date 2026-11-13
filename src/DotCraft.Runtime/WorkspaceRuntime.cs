@@ -37,7 +37,7 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
         ISessionService sessionService,
         ICommitMessageSuggester commitMessageSuggestService,
         DreamsService dreamsService,
-        DotNetPluginRuntimeManager pluginRuntime,
+        DotNetExtensionRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
         ConfigurationService configuration,
@@ -60,7 +60,7 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
 
         public IAsyncDisposable BackgroundUpgrade { get; } = backgroundUpgrade;
 
-        public DotNetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
+        public DotNetExtensionRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
         public IReadOnlyList<ConfigSchemaSection> ConfigSchema { get; } = configSchema;
 

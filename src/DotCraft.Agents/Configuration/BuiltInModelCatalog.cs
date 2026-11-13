@@ -4,9 +4,9 @@ using DotCraft.Agents;
 
 namespace DotCraft.Configuration;
 
-internal sealed class BuiltInModelCatalog
+public sealed class BuiltInModelCatalog
 {
-    internal static BuiltInModelCatalog Instance { get; } = Load();
+    public static BuiltInModelCatalog Instance { get; } = Load();
 
     public int DefaultContextWindow { get; init; } = 256_000;
     public string? PricingSource { get; init; }
@@ -23,7 +23,7 @@ internal sealed class BuiltInModelCatalog
         })!;
     }
 
-    internal sealed class ModelDefaults
+    public sealed class ModelDefaults
     {
         private FastCapability? _fast;
         public int? ContextWindow { get; init; }
@@ -37,6 +37,6 @@ internal sealed class BuiltInModelCatalog
         }
         [JsonIgnore] public bool HasFastDeclaration { get; private set; }
     }
-    internal sealed record FastCapability(IReadOnlyList<string> Protocols);
-    internal sealed record ProviderCatalog(string Source, DateTimeOffset CapturedAt, IReadOnlyList<ModelCatalogEntry> Models);
+    public sealed record FastCapability(IReadOnlyList<string> Protocols);
+    public sealed record ProviderCatalog(string Source, DateTimeOffset CapturedAt, IReadOnlyList<ModelCatalogEntry> Models);
 }

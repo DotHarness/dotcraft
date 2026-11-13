@@ -1,6 +1,6 @@
 namespace DotCraft.Tracing;
 
-internal static class PromptCacheRequestShapeTraceScope
+public static class PromptCacheRequestShapeTraceScope
 {
     private static readonly AsyncLocal<int?> RequestIndexLocal = new();
 

@@ -73,7 +73,7 @@ internal sealed partial class PluginBundleSnapshotStore : IDisposable
                 parsed.Manifest,
                 destination,
                 copiedFingerprint,
-                PluginDotnetFingerprint.Compute(parsed.Manifest),
+                DotNetExtensionFingerprint.Compute(parsed.Manifest),
                 parsed.Diagnostics);
         }
         catch

@@ -2,7 +2,7 @@
 
 namespace DotCraft.Tools;
 
-internal static class NativeToolCatalog
+public static class NativeToolCatalog
 {
     public static IReadOnlyList<GeneratedToolDescriptor> Descriptors { get; } =
     [
@@ -14,7 +14,7 @@ internal static class NativeToolCatalog
             "Search the web and open pages through ChatGPT. Available when the conversation provider signs in with ChatGPT.")
     ];
 
-    internal static GeneratedToolDescriptor Entry(ToolName name, string description) =>
+    public static GeneratedToolDescriptor Entry(ToolName name, string description) =>
         new(
             ProviderToolProjector.Project([name])[name],
             description,

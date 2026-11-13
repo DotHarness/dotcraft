@@ -12,7 +12,7 @@ public sealed partial class AppServerPluginManagementTests
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = CreateUntrustedBrowserRuntime();
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
+        using var harness = CreateHarness(dotNetExtensionRuntimeCoordinator: runtime);
         await harness.InitializeAsync();
 
         var blocked = await ReadBrowserRuntimeAsync(harness);
@@ -20,7 +20,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Equal("untrusted", blocked.GetProperty("trustStatus").GetString());
         Assert.Contains(
             blocked.GetProperty("blockers").EnumerateArray(),
-            item => item.GetProperty("code").GetString() == PluginDotnetDiagnosticCodes.Untrusted);
+            item => item.GetProperty("code").GetString() == DotNetExtensionDiagnosticCodes.Untrusted);
 
         var observed = new List<long> { await ReadListRevisionAsync(harness) };
         var unchanged = await SetTrustedAsync(harness, trusted: false, expectNotification: false);
@@ -52,7 +52,7 @@ public sealed partial class AppServerPluginManagementTests
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = CreateUntrustedBrowserRuntime();
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
+        using var harness = CreateHarness(dotNetExtensionRuntimeCoordinator: runtime);
         await harness.InitializeAsync();
         await SetTrustedAsync(harness, trusted: true);
 
@@ -72,7 +72,7 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Equal("blocked", modified.GetProperty("state").GetString());
         Assert.Contains(
             modified.GetProperty("blockers").EnumerateArray(),
-            item => item.GetProperty("code").GetString() == PluginDotnetDiagnosticCodes.TrustModified);
+            item => item.GetProperty("code").GetString() == DotNetExtensionDiagnosticCodes.TrustModified);
 
         var reconfirmed = await SetTrustedAsync(harness, trusted: true);
         Assert.Equal("applied", reconfirmed.GetProperty("outcome").GetString());

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.11.1 |
 | **Status** | Draft |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-13 |
 | **Parent** | [Plugin Architecture](../architecture/plugin-architecture.md) |
-| **Related** | [Skills](../architecture/skills.md), [Plugin Registry](../architecture/plugin-registry.md), [.NET Plugins](../architecture/dotnet-plugins.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Exec CLI](exec-cli.md) |
+| **Related** | [Skills](../architecture/skills.md), [Plugin Registry](../architecture/plugin-registry.md), [.NET Extensions](../architecture/dotnet-extensions.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Exec CLI](exec-cli.md) |
 
 Purpose: define how a user turns a workflow into a complete DotCraft plugin from any workspace, how that plugin is verified and changed, and how it reaches other people.
 
@@ -77,7 +77,7 @@ An id that already exists among discovered plugins moves the work to §8 unless 
 | Language intelligence for a file type | LSP servers | Public documentation |
 | An external application connected to threads | App descriptors | Public documentation |
 | A view, action, or tool presentation in Desktop | Desktop extension | Public documentation |
-| In-process tools or Host contribution points | .NET extension | Public documentation and `DotNetPlugin.Inspect` |
+| In-process tools or Host contribution points | .NET extension | Public documentation and `CSharp.Inspect` |
 | Options the user changes per installation | Settings | Public documentation |
 
 The Agent chooses the contributions with the least execution authority that meet the need. A Desktop or .NET extension runs as trusted code, so it needs a reason that a Skill or MCP server cannot satisfy. One plugin may combine contributions under one id.
@@ -88,7 +88,7 @@ The Agent chooses the contributions with the least execution authority that meet
 |---|---|
 | This workspace, by default | `<workspace>/.craft/plugins/<id>` |
 | Every workspace of this user | `<craft-home>/plugins/<id>` |
-| A .NET extension under development | `<workspace>/.craft/plugin-projects/<id>` ([.NET Plugins](../architecture/dotnet-plugins.md) §7.6) |
+| A .NET extension under development | `<workspace>/.craft/plugin-projects/<id>` ([.NET Extensions](../architecture/dotnet-extensions.md) §7.6) |
 
 The Agent does not write into marketplace snapshots or into plugin directories that carry the managed marker.
 
@@ -157,7 +157,7 @@ When the Agent cannot view the rendered icon, it reports that the icon was check
 dotcraft plugin verify --candidate <plugin-root> [--for-publish] [--json]
 ```
 
-The command checks one plugin root without installing it. It uses the runtime's own manifest and descriptor parsing, so verification cannot accept a shape the runtime rejects. It writes nothing, uses no network, and never loads or runs plugin code. For a .NET project, the candidate is the project's `plugin/` bundle after `DotNetPlugin.Build`. When `dotcraft` is not on PATH, as on a Desktop-only installation, the Agent locates the installed binary. If it still cannot run, the plugin is reported as unverified, not complete.
+The command checks one plugin root without installing it. It uses the runtime's own manifest and descriptor parsing, so verification cannot accept a shape the runtime rejects. It writes nothing, uses no network, and never loads or runs plugin code. For a .NET project, the candidate is the project's `plugin/` bundle after `CSharp.Build`. When `dotcraft` is not on PATH, as on a Desktop-only installation, the Agent locates the installed binary. If it still cannot run, the plugin is reported as unverified, not complete.
 
 | Group | Applies | Checks |
 |---|---|---|
@@ -204,7 +204,7 @@ The Agent runs `dotcraft plugin verify`, fixes every error, and then makes the p
 | LSP servers | The server starts for a matching file and returns one result |
 | App descriptors | The app appears and its connection flow starts |
 | Desktop extension | The build succeeds, and the view opens or the action runs in Desktop |
-| .NET extension | `DotNetPlugin.Build` succeeds, and a contributed Tool runs on a later Turn |
+| .NET extension | `CSharp.Build` succeeds, and a contributed Tool runs on a later Turn |
 | Settings | The field appears and its value reaches the plugin |
 
 Some steps belong to the user, such as refreshing the plugin list, granting trust, or starting a new thread. The Agent names the exact step and marks the result unverified until it has evidence. It never reports success from file creation or installation alone.
@@ -218,7 +218,7 @@ The Agent inspects the current plugin and edits the source that owns the change:
 | Plugin | Where the change happens |
 |---|---|
 | Workspace-local or user-owned | In place |
-| .NET under development | The project's `src/`, followed by `DotNetPlugin.Build` |
+| .NET under development | The project's `src/`, followed by `CSharp.Build` |
 | Published from another repository | That repository, through its release process |
 | Managed copy from a marketplace or built-in catalog | Not in place, because a refresh replaces it. The user changes the source, or adapts an unmarked copy in the workspace-local root with the same id, which takes precedence by root priority |
 

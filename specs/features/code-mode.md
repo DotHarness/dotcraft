@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.11.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-11-13 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
@@ -84,10 +84,10 @@ when it still fails, `on` falls back to direct tools for that snapshot and recor
 thread, and `only` fails the Turn with a stable `code_mode_unavailable` error rather than silently
 removing tools.
 
-An application that embeds DotCraft through the Harness opts into code mode by setting
-`DotCraftHarnessOptions.CodeModeWorkerHost` to the name of its own executable or assembly, which must
-serve `script-worker code-mode` by running `CodeModeWorkerRunner.RunAsync` over its standard streams.
-Without that option the Harness registers no code mode, whatever `Mode` says. Embedding hosts may
+An application that embeds DotCraft opts into code mode by calling `AddDotCraftCodeMode` with the name
+of its own executable or assembly, which must serve `script-worker code-mode` by running
+`CodeModeWorkerRunner.RunAsync` over its standard streams. Without that registration the host has no
+code mode, whatever `Mode` says. Embedding hosts may
 supply cell and worker limits other than §9.3.
 
 ## 4. Model-Facing Surface

@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.AppServer;
 using DotCraft.Diagnostics;
 using DotCraft.Configuration;
+using DotCraft.CSharp;
 using DotCraft.Hub;
 using DotCraft.Hosting;
 using DotCraft.Harness;
@@ -286,7 +287,8 @@ internal static class DotCraftApplication
                         options.WorkspacePath = workspacePath;
                         options.DataPath = botPath;
                         options.UserDataPath = HubPaths.ForCurrentUser().CraftHomePath;
-                    });
+                    })
+                    .AddDotCraftCSharp();
 
             if (cliArgs.Mode == CommandLineArgs.RunMode.Auth)
             {

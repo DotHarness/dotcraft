@@ -99,7 +99,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             {
                 lsp = new LspServerManager(
                     config,
-                    DotCraftPaths.CreateForExecutionHost(workspacePath, workspaceData, hostDataPath));
+                    DotCraftPaths.Create(workspacePath, workspaceData, hostDataPath));
             }
             var registrations = await CreateSource(config, terminals, lsp, Path.Combine(hostDataPath, "artifacts", executionSessionId))
                 .GetRegistrationsAsync(
@@ -143,7 +143,7 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
         var lsp = config.Tools.Lsp.Enabled
             ? new LspServerManager(
                 config,
-                DotCraftPaths.CreateForExecutionHost(hostDataPath, hostDataPath, hostDataPath))
+                DotCraftPaths.Create(hostDataPath, hostDataPath, hostDataPath))
             : null;
         try
         {

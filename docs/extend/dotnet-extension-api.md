@@ -2,7 +2,7 @@
 
 This reference covers contribution contracts, typed dependencies, trust, and generation lifecycle. To create and build a plugin, start with [Build a .NET extension](./dotnet-extensions).
 
-![Three contribution tiers acting on one contribution point's assembled output: Tier A adds an item in order, Tier B shadows a named default while its handle lives, and Tier C returns the final result](/dotnet-plugin-tiers.svg)
+![Three contribution tiers acting on one contribution point's assembled output: Tier A adds an item in order, Tier B shadows a named default while its handle lives, and Tier C returns the final result](/dotnet-extension-tiers.svg)
 
 ## Choose a contribution point
 
@@ -189,11 +189,11 @@ Installing or enabling a `dotnet` plugin never grants trust. An installed plugin
 
 - **Grants bind an exact id and fingerprint.** The client asks for trust by plugin id, and the server binds the grant to the bytes it has actually accepted. Several fingerprints of the same plugin id may remain granted. Changed bytes are `modified` only when their fingerprint has no matching grant.
 - **Managed paths and contract data are part of the fingerprint.** DotCraft hashes the normalized .NET declaration, plugin version and dependencies, and the non-Desktop bundle tree. Moving those bytes between files changes identity. The raw manifest bytes, deployment-only `.builtin` marker, and `desktop/` tree are excluded, so changing only a Desktop module does not invalidate .NET trust.
-- **The authority is separate from configuration.** Grants live in `dotnet-plugin-trust.json` next to global configuration. The file is not merged configuration, and workspace config cannot grant trust.
+- **The authority is separate from configuration.** Grants live in `dotnet-extension-trust.json` next to global configuration. The file is not merged configuration, and workspace config cannot grant trust.
 - **Installed plugins have no implicit trust tier.** Every installed `dotnet` plugin needs an explicit grant, host-shipped bundles included.
 - **Revocation is fingerprint-specific.** Revoking removes only the current plugin id and fingerprint pair. It stops the active closure when that pair was its authority, while grants for other fingerprints of the same id remain intact.
 
-Without a matching grant, an installed plugin is `blocked` on `PluginUntrusted` or `PluginTrustModified` and **no load context is created**, so none of its code has run. A `DotNetPlugin.Build` authoring session instead grants process-local execution qualification to its exact development fingerprint; that qualification is not persisted and does not apply to installed plugins.
+Without a matching grant, an installed plugin is `blocked` on `PluginUntrusted` or `PluginTrustModified` and **no load context is created**, so none of its code has run. A `CSharp.Build` authoring session instead grants process-local execution qualification to its exact development fingerprint; that qualification is not persisted and does not apply to installed plugins.
 
 ## Lifecycle and updates
 
@@ -209,7 +209,7 @@ Each activation gets its own collectible load context and an opaque generation i
 | **`faulted`** | Attempted, and here is how it broke: construction, activation, or registered background work failed. |
 | **`reclaiming`** | Functionally stopped and routing nothing; its memory has not come back yet. |
 
-`blocked` is non-terminal and re-evaluated whenever its cause may have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. Retry an installed `faulted` plugin by disabling and re-enabling it. For an authoring project, fix the source and run `DotNetPlugin.Build` again.
+`blocked` is non-terminal and re-evaluated whenever its cause may have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. Retry an installed `faulted` plugin by disabling and re-enabling it. For an authoring project, fix the source and run `CSharp.Build` again.
 
 ### Revocation is guaranteed, reclaim is not
 
@@ -219,7 +219,7 @@ Host shutdown waits for actual functional teardown before disposing providers an
 
 ### Replace an installed bundle
 
-Update a bundle managed through the plugin installation flow by disabling the plugin, replacing its files, and enabling it again. `DotNetPlugin.Build` performs publication and generation replacement for projects under `.craft/plugin-projects`; it does not use this client-operation cycle.
+Update a bundle managed through the plugin installation flow by disabling the plugin, replacing its files, and enabling it again. `CSharp.Build` performs publication and generation replacement for projects under `.craft/plugin-projects`; it does not use this client-operation cycle.
 
 Disabling revokes the .NET generation and its consumers, consumers first. A filesystem mutation also asks root-backed declarative contributions to stop. If that step fails, the mutation returns `notApplied` with `PluginContributionQuiesceFailed` and leaves the bundle directory unchanged. Re-enabling re-admits the current bytes.
 
@@ -231,6 +231,6 @@ Installation, enablement, trust, and removal are separate AppServer operations. 
 
 ## Related docs
 
-- [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) — a runnable bundle that exercises every contribution point on this page.
-- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source for these contracts.
+- [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample) — a runnable bundle that exercises every contribution point on this page.
+- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-extensions.md) — the normative source for these contracts.
 - [Desktop extensions](./desktop-extensions) — the UI half of a bundle that also ships .NET code.
