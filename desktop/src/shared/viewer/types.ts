@@ -38,6 +38,7 @@ export interface FileViewerTab extends ViewerTabBase {
   relativePath: string
   contentClass: ViewerContentClass
   sizeBytes?: number
+  restore?: 'none' | 'required'
   navigationHint?: FileNavigationHint
   /** Increments for explicit opens, even when the target position is unchanged. */
   navigationRevision?: number

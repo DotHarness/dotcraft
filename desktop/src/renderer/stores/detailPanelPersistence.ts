@@ -71,7 +71,7 @@ export function startDetailPanelPersistence(api: PanelStateApi, restoreBrowserSt
       if (saved) {
         const changed = current !== initial
         const closed = closedTabs.get(key) ?? new Set<string>()
-        const tabs: ViewerTab[] = saved.tabs.filter(tab => !closed.has(tab.id)).map(tab => tab.kind === 'browser'
+        const tabs: ViewerTab[] = saved.tabs.filter(tab => !closed.has(tab.id)).map(tab => tab.kind === 'browser' || tab.kind === 'file'
           ? { ...tab, restore: 'required' as const }
           : tab)
         for (const tab of changed ? current.tabs : []) {

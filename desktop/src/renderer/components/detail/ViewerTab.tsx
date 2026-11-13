@@ -12,6 +12,7 @@ import { IconButton } from '../ui/IconButton'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
 import { previewUnavailableReason, type FilePreviewProps } from './viewers/filePreview'
 import { UnavailableNotice } from './viewers/UnavailableNotice'
+import { useFileViewerRestore } from '../../hooks/useFileViewerRestore'
 
 const LazyFileEditor = lazy(() =>
   import('./viewers/FileEditor').then((m) => ({ default: m.FileEditor }))
@@ -57,6 +58,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
     if (!currentThreadId) return null
     return s.getThreadState(currentThreadId).tabs.find((t) => t.id === tabId) ?? null
   })
+  const restoringFile = useFileViewerRestore(tab)
   const setWordWrap = useDetailPanelStore((s) => s.setWordWrap)
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const explorerWidth = useUIStore((s) => s.explorerWidth)
@@ -119,6 +121,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
     </div>
   )
 
+  if (restoringFile) return suspenseFallback
   if (tab.kind === 'sideChat') return <SideChatTab tabId={tab.id} />
   if (tab.kind === 'automation') return <AutomationViewerTab tabId={tab.id} />
 

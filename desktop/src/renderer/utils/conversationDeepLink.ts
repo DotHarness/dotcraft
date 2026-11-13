@@ -5,6 +5,7 @@ import { addToast } from '../stores/toastStore'
 import { useDetailPanelStore, type FileReveal } from '../stores/detailPanelStore'
 import { containingRoot, relativeToRoot, viewerRootsFor } from './viewerRoots'
 import { openWebLink, type WebLinkDestination } from './webLinks'
+import { prepareFileViewer } from './fileViewer'
 
 type Translator = (key: string) => string
 
@@ -44,9 +45,11 @@ function rejectReasonToMessageKey(reason: LinkRejectReason): string {
 }
 
 export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams, 't'>): Promise<void> {
-  const authorized = await window.api.workspace.viewer.authorizeFile({ absolutePath: params.absolutePath })
-  const absolutePath = authorized.absolutePath
-  const classified = await window.api.workspace.viewer.classify({ absolutePath })
+  const panel = useDetailPanelStore.getState().getCurrentPanel()
+  const prepared = await prepareFileViewer(params.absolutePath, panel.browserWorkspacePath || params.workspacePath)
+  const current = useDetailPanelStore.getState().getCurrentPanel()
+  if (current.scope.projectKey !== panel.scope.projectKey || current.scope.threadId !== panel.scope.threadId) return
+  const { absolutePath } = prepared
   const { activeThread, threadList } = useThreadStore.getState()
   const thread = activeThread?.id === params.threadId
     ? activeThread
@@ -61,8 +64,8 @@ export async function openWorkspaceFileViewer(params: Omit<OpenFileViewerParams,
     threadId: params.threadId,
     absolutePath,
     relativePath,
-    contentClass: classified.contentClass,
-    sizeBytes: classified.sizeBytes,
+    contentClass: prepared.contentClass,
+    sizeBytes: prepared.sizeBytes,
     forceNew: params.forceNew,
     navigationHint: params.hint,
     reveal: params.reveal

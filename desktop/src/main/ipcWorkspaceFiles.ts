@@ -1,4 +1,5 @@
 import { translate } from '../shared/locales'
+import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { ReadPresentationParams } from '../shared/viewer/presentation'
 import type { ReadSpreadsheetParams } from '../shared/viewer/spreadsheet'
 import type { SaveCopyAsParams, WriteTextParams } from '../shared/viewer/types'
@@ -12,7 +13,7 @@ import {
 } from './pastedTextAttachments'
 import { readPresentation } from './presentation/readPresentation'
 import { readSpreadsheet } from './spreadsheet/readSpreadsheet'
-import { authorizeViewerFile, buildViewerUrl, resolveViewerFileForAccess } from './viewerFileProtocol'
+import { authorizeViewerFile, buildViewerUrl, getViewerWorkspaceRoot, resolveViewerFileForAccess } from './viewerFileProtocol'
 import { classifyFile, listDirectory, listViewerFiles, readTextFile, writeTextFile } from './viewerIpc'
 import { viewerTextWatchManager } from './viewerTextWatch'
 import { listWorkspaceFiles, readImageAsDataUrl, saveImageDataUrlToTemp } from './workspaceComposerIpc'
@@ -154,9 +155,13 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
 
   handleSafe(
     'workspace:viewer:authorize-file',
-    async (_event, params: { absolutePath: string }): Promise<{ absolutePath: string }> => {
+    async (_event, params: { absolutePath: string; workspacePath: string }): Promise<{ absolutePath: string }> => {
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      if (!sameWorkspaceProjectKey(params.workspacePath, workspacePath) ||
+          !sameWorkspaceProjectKey(params.workspacePath, getViewerWorkspaceRoot(owner.webContents.id))) {
+        throw new Error('Viewer workspace changed.')
       }
       const absolutePath = await authorizeViewerFile(params.absolutePath, owner.webContents.id)
       return { absolutePath }

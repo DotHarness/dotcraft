@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiffAnnotationContext, FileAnnotationContext } from '../../shared/composerContext'
@@ -62,7 +61,7 @@ describe('file annotation comments in the composer', () => {
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     fireEvent.click(await screen.findByRole('button', { name: /model\.xlsx/ }))
 
-    await waitFor(() => expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: annotation.path }))
+    await waitFor(() => expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: annotation.path, workspacePath: WORKSPACE }))
     await waitFor(() => {
       const tab = useDetailPanelStore.getState().getThreadState(THREAD).tabs[0] as FileViewerTab | undefined
       expect(tab).toMatchObject({

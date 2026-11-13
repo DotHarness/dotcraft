@@ -1190,7 +1190,7 @@ const api = {
         }
       },
 
-      authorizeFile(params: { absolutePath: string }): Promise<{ absolutePath: string }> {
+      authorizeFile(params: { absolutePath: string; workspacePath: string }): Promise<{ absolutePath: string }> {
         return ipcRenderer.invoke('workspace:viewer:authorize-file', params)
       },
 

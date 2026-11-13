@@ -62,7 +62,7 @@ describe('openConversationLink', () => {
       t
     })
     expect(ok).toBe(true)
-    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
+    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md', workspacePath: 'C:/repo' })
     expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
       kind: 'file',
       absolutePath: 'C:/repo/README.md',
@@ -124,7 +124,7 @@ describe('openConversationLink', () => {
     })
 
     expect(ok).toBe(true)
-    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'D:/reference/outside.png' })
+    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'D:/reference/outside.png', workspacePath: 'C:/repo' })
     const tab = useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]
     expect(tab).toMatchObject({
       kind: 'file',
@@ -162,6 +162,9 @@ describe('openConversationLink', () => {
         t
       })
       expect(ok).toBe(true)
+      expect(authorizeFileMock).toHaveBeenCalledWith({
+        absolutePath: 'D:/design/tokens/colors.md', workspacePath: 'C:/repo'
+      })
       expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
         absolutePath: 'D:/design/tokens/colors.md',
         relativePath: 'tokens/colors.md'
@@ -169,6 +172,29 @@ describe('openConversationLink', () => {
     } finally {
       useWorkspaceProjectsStore.setState({ projects: [] })
     }
+  })
+
+  it.each(['thread', 'project'])('does not publish a stale file open after switching %s during preparation', async selection => {
+    let complete!: (value: { contentClass: string; sizeBytes: number }) => void
+    const classification = new Promise<{ contentClass: string; sizeBytes: number }>(resolve => { complete = resolve })
+    let started!: () => void
+    const preparing = new Promise<void>(resolve => { started = resolve })
+    classifyMock.mockImplementationOnce(() => {
+      started()
+      return classification
+    })
+    const pending = openConversationLink({
+      target: './README.md', workspacePath: 'C:/repo', threadId: 'thread-1', t
+    })
+    await preparing
+    const store = useDetailPanelStore.getState()
+    if (selection === 'project') store.onWorkspaceSwitched('D:/other')
+    store.onThreadSwitched('thread-2')
+    const incoming = useDetailPanelStore.getState().getCurrentPanel()
+    complete({ contentClass: 'text', sizeBytes: 12 })
+    await pending
+    expect(useDetailPanelStore.getState().getCurrentPanel()).toBe(incoming)
+    expect(useDetailPanelStore.getState().getThreadState('thread-1').tabs).toEqual([])
   })
 
   it('hands off external links without opening panel and toasts on unsupported links', async () => {

@@ -30,11 +30,13 @@ Panel checkpoints are Desktop-local, versioned data under Electron userData. Onl
 | Type | Durable state | Restart behavior |
 |---|---|---|
 | Files | Tab identity | Reopen the file explorer |
-| File | Path, content classification, navigation/display hints | Revalidate access and reload; no unsaved buffer or undo-history promise |
+| File | Path, content classification, navigation/display hints | Reopen through the same file preparation as an explicit open before mounting content; no unsaved buffer or undo-history promise |
 | Browser | Tab identity, browserStorageId, URL and metadata | Reuse a live page or lazily restore a navigation snapshot |
 | Terminal | Tab/session identity, cwd and display metadata | Start a new shell on first actual mount if no session survives |
 | System tabs | Tab kind | Render from the restored thread and current capabilities |
 | Workflow/automation | Stable run/automation identity | Query the existing resource |
+
+On first presentation, restored file routes reuse explicit opening's canonical-path validation, exact-file authorization and current classification/size lookup in the owning foreground workspace before mounting content. Reopen intent and errors are transient; historical grants are not replayed. Unavailable files affect only their own tab and can be retried by explicitly reopening the file.
 
 Side Chats and other ephemeral surfaces without a reconstruction contract are not persisted. Restoring an interactive terminal never saves or replays command, environment, PID or pendingRun; shell profiles still have their ordinary startup effects. Inactive terminal descriptors do not eagerly start shells.
 

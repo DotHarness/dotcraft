@@ -66,7 +66,15 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
       if (existing) {
         const nextTabs = computeLabels(threadState.tabs.map((tab) => {
           if (tab.id !== existing.id || tab.kind !== 'file') return tab
-          return applyFileNavigationHint(tab, navigationHint, reveal)
+          return applyFileNavigationHint({
+            ...tab,
+            absolutePath,
+            relativePath,
+            contentClass,
+            sizeBytes,
+            restore: 'none',
+            errorMessage: undefined
+          }, navigationHint, reveal)
         }).filter((tab) => tab.id !== activeFilesTab?.id))
         set((s) => {
           const next = new Map(s.byThread)
