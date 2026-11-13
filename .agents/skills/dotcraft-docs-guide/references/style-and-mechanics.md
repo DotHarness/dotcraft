@@ -174,13 +174,19 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 >
 > **After:** State it once as a rule on the relevant page: "The server listens on `host:port`; clients append `/suffix`." Examples then just confirm the rule instead of being the only place it lives.
 
-### 10.10 Defensive detail without a reader decision
+### 10.10 Hypothetical, defensive explanatory prose
+
+Write for the reader's actual task, not imagined objections. Unsolicited assurances about what a feature does not read, store, change, or expose are still filler when they answer no question the reader needs to resolve. This applies to developer docs as well as end-user pages.
+
+> **Before:** "Run a relay on your server. It only forwards encrypted data and never reads your projects or chats."
+>
+> **After:** "Run a relay on your server so paired devices can reach your computer from other networks." Delete the reassurance rather than rephrasing or moving it to a callout.
 
 > **Before:** A successful setup path adds checks for implied state, rare failure branches, and a final section explaining how to stop or clean up a transient session.
 >
 > **After:** Keep the actions required for the successful path. Add confirmation, recovery, or cleanup only when the reader must make a distinct decision, the omission commonly blocks completion, or the operation has a persistent or safety consequence.
 
-Verified behavior is not automatically useful documentation. Trim redundant detail while preserving explanations that help the reader understand or use the feature.
+Keep actionable warnings, such as protecting a credential file, and constraints required to use an API correctly. Explain security guarantees in a security or contract reference when evaluating those guarantees is the page's job, not as reassurance in an unrelated tutorial. Verified behavior alone does not earn a place on the page.
 
 ### Also still watch for
 

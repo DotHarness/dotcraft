@@ -69,23 +69,9 @@ If another program holds the port, turning device access on fails and Hub does n
 
 ### Access from anywhere
 
-A relay lets paired devices reach the computer from other networks. Run it on a server that both the computer and the device can reach, behind a reverse proxy that serves public HTTPS. The relay only forwards encrypted bytes: the device still speaks TLS to the gateway with its pinned certificate and device credential, so the relay never sees a credential, a project, or a chat.
+A relay lets paired devices reach the computer from other networks. Run it on a server that both the computer and the device can reach, behind a reverse proxy that serves public HTTPS.
 
-The Compose template in a DotCraft source checkout runs the relay with a Caddy proxy that obtains a certificate for your host name:
-
-```bash
-cp -r docker/relay /opt/dotcraft-relay
-cd /opt/dotcraft-relay
-cp .env.example .env
-```
-
-In `.env`, set `RELAY_PUBLIC_HOST` to the relay's DNS name and `RELAY_TOKEN` to a long random value, such as the output of `openssl rand -hex 32`. Ports 80 and 443 must reach the server so Caddy can obtain the certificate. Start the relay:
-
-```bash
-docker compose up -d
-```
-
-If the server already runs a reverse proxy, start only the relay with `docker compose up -d relay` and forward `/r/*`, including WebSocket upgrades, to `127.0.0.1:47620`. To run it without Docker:
+For the dedicated Docker image, HTTPS setup, and Desktop connection steps, see [Deploy a relay](../../self-hosting/relay). To run it without Docker:
 
 ```bash
 dotcraft relay serve --listen http://127.0.0.1:47620 --token <token>
@@ -93,7 +79,7 @@ dotcraft relay serve --listen http://127.0.0.1:47620 --token <token>
 
 The token can come from the `DOTCRAFT_RELAY_TOKEN` environment variable instead of `--token`.
 
-On the computer, open **Settings → Connections → Control this PC → Access from anywhere** and enter the relay address, such as `https://relay.example.com`, and the token. While device access is on, Hub keeps an outbound connection to the relay and reconnects when it drops. New pairing codes include the relay. Devices paired earlier pick it up the next time they connect on the same network.
+While device access is on and a relay is configured, Hub keeps an outbound connection to the relay and reconnects when it drops. New pairing codes include the relay. Devices paired earlier learn it through `/m/hello` on their next direct connection.
 
 ## Desktop and the tray
 

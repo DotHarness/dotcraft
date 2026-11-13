@@ -38,7 +38,8 @@ Write current, task-focused documentation and keep applicable localized mirrors 
 ## Editing rules
 
 - Give each artifact one job. Link across tutorial, explanation, and reference layers instead of mixing them.
-- Include only information the reader needs to complete that job. A behavior being true or verified is not enough reason to document it. Omit defensive failure branches, redundant confirmation steps, and shutdown or cleanup guidance unless they require a distinct action, prevent a common blocker, or have a persistent or safety consequence.
+- Include only information the reader needs to complete that job. A behavior being true or verified is not enough reason to document it.
+- Avoid hypothetical, defensive explanatory prose in both user and developer docs. Do not anticipate imagined objections with unsolicited assurances about what a feature does not read, store, change, or expose. Keep warnings and constraints only when they affect the reader's decision or action, address a concrete risk, or define the contract the page exists to explain. See the examples in `references/style-and-mechanics.md` §10.10.
 - Lead user pages with the outcome. Keep developer pages neutral, exact, and organized around the contract.
 - User pages, including `start/`, `guide/`, `self-hosting/`, and their localized mirrors, explain what a feature is for, when to use it, and the reader's actions and results.
 - Keep internal classes, state transitions, protocol and storage details, fallback paths, and implementation-only defaults or identifiers in developer references. Include commands, paths, config keys, or other identifiers only when the reader must enter or inspect them to complete the task. Link to a developer reference once inline where the need arises.

@@ -1,4 +1,4 @@
-name: Publish Docker Image
+name: Publish Docker Images
 
 on:
   push:
@@ -17,7 +17,16 @@ permissions:
 
 jobs:
   publish:
+    name: Publish ${{ matrix.image }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: dotcraft
+            target: runtime
+          - image: dotcraft-relay
+            target: relay
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -36,11 +45,53 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/dotharness/dotcraft
+          images: ghcr.io/dotharness/${{ matrix.image }}
           tags: |
             type=ref,event=tag
             type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+
+      - name: Build Relay for smoke test
+        if: matrix.target == 'relay'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/dotcraft/Dockerfile
+          target: relay
+          platforms: linux/amd64
+          load: true
+          tags: dotcraft-relay:smoke
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+
+      - name: Smoke test Relay container
+        if: matrix.target == 'relay'
+        run: |
+          DOTCRAFT_VERSION=smoke RELAY_TOKEN=relay-smoke-token RELAY_PUBLIC_HOST=relay.example.com \
+            docker compose -f docker/relay/docker-compose.yml config --quiet
+
+          set +e
+          timeout 30s docker run --name relay-no-token dotcraft-relay:smoke
+          status=$?
+          set -e
+          test "$status" -eq 1
+
+          docker run -d --name relay-smoke \
+            -p 127.0.0.1::47620 \
+            -e DOTCRAFT_RELAY_TOKEN=relay-smoke-token \
+            dotcraft-relay:smoke
+          port=$(docker inspect -f '{{(index (index .NetworkSettings.Ports "47620/tcp") 0).HostPort}}' relay-smoke)
+          pwsh -NoProfile -File docker/relay/smoke-test.ps1 \
+            -BaseUrl "http://127.0.0.1:$port" -Token relay-smoke-token
+          docker stop --time 10 relay-smoke
+          test "$(docker inspect -f '{{.State.ExitCode}}' relay-smoke)" -eq 0
+
+      - name: Relay container logs and cleanup
+        if: always() && matrix.target == 'relay'
+        run: |
+          docker logs relay-no-token 2>&1 || true
+          docker logs relay-smoke 2>&1 || true
+          docker rm -f relay-no-token relay-smoke 2>/dev/null || true
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -48,8 +99,9 @@ jobs:
           context: .
           file: docker/dotcraft/Dockerfile
           platforms: linux/amd64
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max

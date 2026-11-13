@@ -39,6 +39,14 @@ COPY desktop/src/bundled-plugins ./src/bundled-plugins
 COPY desktop/resources/plugins/dotcraft-bundled/plugins ./resources/plugins/dotcraft-bundled/plugins
 RUN npm run prepare:bundled-plugins
 
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS relay
+WORKDIR /app
+COPY --from=dotcraft-build --chmod=755 /out/dotcraft/dotcraft /app/dotcraft
+USER $APP_UID
+EXPOSE 47620
+ENTRYPOINT ["/app/dotcraft", "relay", "serve"]
+CMD ["--listen", "http://0.0.0.0:47620"]
+
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /workspace
 

@@ -47,6 +47,6 @@ The live session ends on its own after two minutes with nothing running or waiti
 
 ## Access from anywhere
 
-At home or in the office, the phone connects to the computer directly over your network. To use it on other networks, run a relay on a server that both can reach, then enter the relay address and token on the computer under **Settings → Connections → Control this PC → Access from anywhere**. The relay only passes encrypted data along and never sees your chats.
+At home or in the office, the phone connects to the computer directly over your network. To use it on other networks, run a relay on a server that both can reach, then enter the relay address and token on the computer under **Settings → Connections → Control this PC → Access from anywhere**.
 
-Phones paired earlier pick up the relay the next time they're on the same network as the computer. To run the relay, see [Access from anywhere](../contribute/lifecycle/hub#access-from-anywhere) in the Hub guide.
+Phones paired earlier pick up the relay the next time they're on the same network as the computer. For setup steps, see [Deploy a relay](../self-hosting/relay).

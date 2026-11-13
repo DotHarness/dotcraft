@@ -111,7 +111,8 @@ export const enSections: DocSection[] = [
         text: 'Deployment',
         items: [
           { text: withIcon('server', 'Server Deployment'), link: '/self-hosting/server-deployment' },
-          { text: withIcon('cloud', 'Model Service'), link: '/self-hosting/model-service' }
+          { text: withIcon('cloud', 'Model Service'), link: '/self-hosting/model-service' },
+          { text: withIcon('network', 'Relay'), link: '/self-hosting/relay' }
         ]
       },
       {
@@ -363,7 +364,8 @@ export const zhSections: DocSection[] = [
         text: '部署',
         items: [
           { text: withIcon('server', '服务器部署'), link: '/zh/self-hosting/server-deployment' },
-          { text: withIcon('cloud', '模型服务'), link: '/zh/self-hosting/model-service' }
+          { text: withIcon('cloud', '模型服务'), link: '/zh/self-hosting/model-service' },
+          { text: withIcon('network', '中继服务'), link: '/zh/self-hosting/relay' }
         ]
       },
       {

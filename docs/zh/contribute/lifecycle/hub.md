@@ -69,23 +69,9 @@ Hub 先把进程身份和选定的本机回环端点写入 `~/.craft/hub/hub.loc
 
 ### 随处访问
 
-中继让已配对的设备从其他网络访问这台电脑。把它运行在电脑和设备都能访问的服务器上，并放在提供公网 HTTPS 的反向代理之后。中继只转发加密后的字节：设备仍然使用固定信任的证书和设备凭据与网关建立 TLS 连接，因此中继看不到凭据、项目或对话。
+中继让已配对的设备从其他网络访问这台电脑。把它运行在电脑和设备都能访问的服务器上，并放在提供公网 HTTPS 的反向代理之后。
 
-DotCraft 源码中的 Compose 模板会运行中继，并附带一个为你的域名申请证书的 Caddy 代理：
-
-```bash
-cp -r docker/relay /opt/dotcraft-relay
-cd /opt/dotcraft-relay
-cp .env.example .env
-```
-
-在 `.env` 中把 `RELAY_PUBLIC_HOST` 设为中继的域名，把 `RELAY_TOKEN` 设为一个足够长的随机值，例如 `openssl rand -hex 32` 的输出。服务器的 80 和 443 端口需要能被访问，Caddy 才能申请证书。启动中继：
-
-```bash
-docker compose up -d
-```
-
-如果服务器上已有反向代理，用 `docker compose up -d relay` 只启动中继，并把 `/r/*`（包括 WebSocket 升级）转发到 `127.0.0.1:47620`。不使用 Docker 时直接运行：
+独立 Docker 镜像、HTTPS 配置和 Desktop 连接步骤见[部署中继服务](../../self-hosting/relay)。不使用 Docker 时直接运行：
 
 ```bash
 dotcraft relay serve --listen http://127.0.0.1:47620 --token <token>
@@ -93,7 +79,7 @@ dotcraft relay serve --listen http://127.0.0.1:47620 --token <token>
 
 Token 也可以通过环境变量 `DOTCRAFT_RELAY_TOKEN` 提供，代替 `--token`。
 
-在电脑上打开**设置 → 连接 → 控制这台电脑 → 随处访问**，填入中继地址（例如 `https://relay.example.com`）和 Token。设备访问开启期间，Hub 会保持一条到中继的出站连接，断开后自动重连。新生成的配对码会包含中继。之前配对的设备下次在同一网络下连接时会获取它。
+设备访问开启且已配置中继时，Hub 会保持一条到中继的出站连接，断开后自动重连。新生成的配对码会包含中继。之前配对的设备会在下次直连时通过 `/m/hello` 获取它。
 
 ## Desktop 与托盘
 

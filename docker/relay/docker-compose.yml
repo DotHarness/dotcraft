@@ -1,11 +1,11 @@
 services:
   relay:
-    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    image: ghcr.io/dotharness/dotcraft-relay:${DOTCRAFT_VERSION:-latest}
     # To build from a source checkout instead of pulling GHCR:
     # build:
     #   context: ../..
     #   dockerfile: docker/dotcraft/Dockerfile
-    command: ["dotcraft", "relay", "serve", "--listen", "http://0.0.0.0:47620"]
+    #   target: relay
     environment:
       DOTCRAFT_RELAY_TOKEN: ${RELAY_TOKEN:?set RELAY_TOKEN in .env}
     ports:

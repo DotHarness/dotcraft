@@ -315,6 +315,19 @@ the relay sees only ciphertext and never a credential, project, or chat.
 
 ### 10.1 Relay
 
+The official `ghcr.io/dotharness/dotcraft-relay` image is published with the DotCraft release tag
+and `latest`, initially for `linux/amd64`. It runs `dotcraft relay serve` as a non-root user, listens
+on `http://0.0.0.0:47620` by default, and requires `DOTCRAFT_RELAY_TOKEN`. Container arguments may
+override the listener with `--listen <url>`. The image reuses the official application binary but
+contains no channel packages, plugins, or Agent tooling.
+
+Run one relay instance behind a public HTTPS reverse proxy that supports WebSocket upgrades and
+long-lived connections. Host registrations and tunnels are process-local, so replicas behind an
+ordinary load balancer are not supported. Relay requires no database, workspace, or data volume;
+only the reverse proxy's certificate state needs persistence. Keep the relay token stable across
+container replacements. `docker/relay` provides a Compose deployment with Caddy and a loopback-only
+published relay port for an existing reverse proxy.
+
 `dotcraft relay serve --listen <url> --token <token>` serves three WebSocket routes, normally behind a
 reverse proxy that terminates public TLS. The token may come from `DOTCRAFT_RELAY_TOKEN` instead of
 `--token`, and the relay compares it in constant time.
