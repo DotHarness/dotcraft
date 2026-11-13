@@ -1257,7 +1257,7 @@ function InputComposerCore({
     sendInFlightRef.current = true
     let modelSettings: TurnModelSettings | undefined
     try {
-      modelSettings = await captureTurnSettings?.()
+      modelSettings = submitOverride ? undefined : await captureTurnSettings?.()
       await onBeforeSend?.()
     } catch (err) {
       if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
