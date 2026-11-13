@@ -41,8 +41,7 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
         ConfigurationService configuration,
-        IAsyncDisposable? idleThreadUnloading,
-        IAsyncDisposable backgroundUpgrade)
+        IAsyncDisposable? idleThreadUnloading)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -52,13 +51,9 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
 
         public ICommitMessageSuggester CommitMessageSuggestService { get; } = commitMessageSuggestService;
 
-
-
         public DreamsService DreamsService { get; } = dreamsService;
 
         public IAsyncDisposable? IdleThreadUnloading { get; } = idleThreadUnloading;
-
-        public IAsyncDisposable BackgroundUpgrade { get; } = backgroundUpgrade;
 
         public DotNetExtensionRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
@@ -223,15 +218,6 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
             {
                 if (started.IdleThreadUnloading != null)
                     await started.IdleThreadUnloading.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
-
-            try
-            {
-                await started.BackgroundUpgrade.DisposeAsync();
             }
             catch (Exception ex)
             {

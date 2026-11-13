@@ -276,8 +276,7 @@ public sealed partial class WorkspaceRuntime
                     configSchema,
                     contextPageManager,
                     configuration,
-                    (sessionService as SessionService)?.StartIdleThreadUnloading(),
-                    Services.GetRequiredService<ThreadStore>().StartBackgroundUpgrade());
+                    (sessionService as SessionService)?.StartIdleThreadUnloading());
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;

@@ -1,10 +1,11 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Persistence;
 
 internal static class WorkspaceStateSchema
 {
-    internal static void EnsureInitialized(SqliteConnection connection)
+    internal static void EnsureInitialized(SqliteConnection connection, ILogger logger)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -12,11 +13,6 @@ internal static class WorkspaceStateSchema
                 PRAGMA synchronous=NORMAL;
                 PRAGMA foreign_keys=ON;
                 PRAGMA secure_delete=ON;
-
-                CREATE TABLE IF NOT EXISTS workspace_meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                );
 
                 CREATE TABLE IF NOT EXISTS threads (
                     thread_id TEXT PRIMARY KEY,
@@ -325,31 +321,34 @@ internal static class WorkspaceStateSchema
                     ON trace_session_bindings(binding_kind, session_key);
 
                 """;
-        command.ExecuteNonQuery();
+        WorkspaceStateDatabase.InitializeStage(logger, "workspace-state-schema", () => command.ExecuteNonQuery());
 
-        EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
-        EnsureColumn(connection, "threads", "attachment_index_version", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "threads", "git_info_json", "TEXT");
-        EnsureColumn(connection, "thread_history_projection_state", "turn_sequence_high_watermark", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "thread_history_projection_state", "provider_history_schema_version", "INTEGER NOT NULL DEFAULT 0");
-        foreach (var column in new[]
-                 {
-                     "input_tokens", "output_tokens", "cached_input_tokens", "cache_write_input_tokens",
-                     "reasoning_output_tokens", "llm_call_count", "total_tokens"
-                 })
+        WorkspaceStateDatabase.InitializeStage(logger, "workspace-state-columns", () =>
         {
-            EnsureColumn(connection, "thread_turns", column, "INTEGER NOT NULL DEFAULT 0");
-        }
-        EnsureColumn(connection, "thread_items", "tool_call", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "thread_items", "user_text", "TEXT");
-        EnsureColumn(connection, "thread_items", "summary_kind", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "thread_items", "summary_call_id", "TEXT");
-        EnsureColumn(connection, "thread_items", "summary_namespace", "TEXT");
-        EnsureColumn(connection, "thread_items", "summary_tool_name", "TEXT");
-        EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
-        EnsureColumn(connection, "trace_session_bindings", "fork_mode", "TEXT");
-        EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");
-        EnsureColumn(connection, "trace_sessions", "last_reasoning_effort", "TEXT");
+            EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
+            EnsureColumn(connection, "threads", "attachment_index_version", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "threads", "git_info_json", "TEXT");
+            EnsureColumn(connection, "thread_history_projection_state", "turn_sequence_high_watermark", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_history_projection_state", "provider_history_schema_version", "INTEGER NOT NULL DEFAULT 0");
+            foreach (var column in new[]
+                     {
+                         "input_tokens", "output_tokens", "cached_input_tokens", "cache_write_input_tokens",
+                         "reasoning_output_tokens", "llm_call_count", "total_tokens"
+                     })
+            {
+                EnsureColumn(connection, "thread_turns", column, "INTEGER NOT NULL DEFAULT 0");
+            }
+            EnsureColumn(connection, "thread_items", "tool_call", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_items", "user_text", "TEXT");
+            EnsureColumn(connection, "thread_items", "summary_kind", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_items", "summary_call_id", "TEXT");
+            EnsureColumn(connection, "thread_items", "summary_namespace", "TEXT");
+            EnsureColumn(connection, "thread_items", "summary_tool_name", "TEXT");
+            EnsureColumn(connection, "trace_events", "tool_source", "TEXT");
+            EnsureColumn(connection, "trace_session_bindings", "fork_mode", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "last_model_id", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "last_reasoning_effort", "TEXT");
+        });
 
         using var usageIndexes = connection.CreateCommand();
         usageIndexes.CommandText = """
@@ -362,7 +361,7 @@ internal static class WorkspaceStateSchema
                     ON thread_items(thread_id, turn_id, rollout_ordinal, item_id, summary_kind,
                                     summary_call_id, summary_namespace, summary_tool_name);
                 """;
-        usageIndexes.ExecuteNonQuery();
+        WorkspaceStateDatabase.InitializeStage(logger, "workspace-state-indexes", () => usageIndexes.ExecuteNonQuery());
     }
 
     private static void EnsureColumn(
