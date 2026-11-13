@@ -11,7 +11,7 @@ afterEach(() => {
 })
 
 describe('Token HUD usage', () => {
-  it('aggregates host-measured throughput and scopes totals to the current chat', async () => {
+  it('keeps thread breakdown totals separate from live cache usage and throughput', async () => {
     vi.useFakeTimers()
     const notifications = new Map<string, (params: any) => void>()
     const request = vi.fn().mockResolvedValue({
@@ -42,7 +42,7 @@ describe('Token HUD usage', () => {
     const stop = startUsageFeed(host)
     await vi.advanceTimersByTimeAsync(0)
     expect(request).toHaveBeenCalledWith('usage/thread', { workspacePath: '/workspace/example', threadId: 'thread-1' })
-    expect(getUsage().totalTokens).toBe(9_000)
+    expect(getUsage().threadUsage?.totalTokens).toBe(9_000)
     expect(getUsage().cacheHitRate).toBeCloseTo(0.75)
 
     notifications.get('turn/started')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
@@ -83,12 +83,22 @@ describe('Token HUD usage', () => {
       threadId: 'thread-1',
       tokenUsage: { total: { totalTokens: 12_000, inputTokens: 10_000, cachedInputTokens: 9_000 } }
     })
-    expect(getUsage().totalTokens).toBe(12_000)
+    expect(getUsage().threadUsage?.totalTokens).toBe(9_000)
     expect(getUsage().cacheHitRate).toBeCloseTo(0.9)
 
+    request.mockResolvedValue({
+      threadId: 'thread-1',
+      turns: 3,
+      totalTokens: 15_000,
+      inputTokens: 12_000,
+      cachedInputTokens: 6_000,
+      groups: [{ model: 'atlas-4', turns: 3, totalTokens: 15_000, costUsd: 0.42 }]
+    })
     notifications.get('turn/completed')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
     await vi.advanceTimersByTimeAsync(0)
-    expect(getUsage().totalTokens).toBe(12_000)
+    expect(getUsage().threadUsage?.totalTokens).toBe(15_000)
+    expect(getUsage().threadUsage?.groups[0].totalTokens).toBe(15_000)
+    expect(getUsage().cacheHitRate).toBeCloseTo(0.9)
     expect(request.mock.calls.map(([method]) => method)).toEqual(['usage/thread', 'usage/thread'])
     stop()
   })

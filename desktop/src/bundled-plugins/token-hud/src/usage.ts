@@ -4,7 +4,6 @@ import { ThroughputMeter, type RequestTiming } from './throughput'
 export interface UsageState {
   readonly tokensPerSecond: number | null
   readonly waitingForSample: boolean
-  readonly totalTokens: number | null
   readonly cacheHitRate: number | null
   /** Mean host-measured first-output latency over the current turn's model requests. */
   readonly firstTokenLatencyMs: number | null
@@ -26,8 +25,7 @@ export interface ThreadUsageSnapshot {
   readonly groups: readonly ThreadUsageGroup[]
 }
 
-interface SessionTotals {
-  readonly totalTokens: number
+interface CacheUsage {
   readonly inputTokens: number
   readonly cachedInputTokens: number
 }
@@ -35,7 +33,6 @@ interface SessionTotals {
 export const EMPTY_USAGE: UsageState = {
   tokensPerSecond: null,
   waitingForSample: false,
-  totalTokens: null,
   cacheHitRate: null,
   firstTokenLatencyMs: null,
   threadUsage: null
@@ -68,14 +65,13 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   let threadId = host.session.threadId
   let workspacePath = host.session.workspacePath
   let activeTurnId: string | null = null
-  let liveTotalsSeen = false
+  let liveCacheUsageSeen = false
   const meter = new ThroughputMeter()
 
-  const showTotals = (totals: SessionTotals | null): void => {
+  const showCacheHitRate = (usage: CacheUsage | null): void => {
     update({
-      totalTokens: totals?.totalTokens ?? null,
-      cacheHitRate: totals !== null && totals.inputTokens > 0
-        ? Math.min(1, totals.cachedInputTokens / totals.inputTokens)
+      cacheHitRate: usage !== null && usage.inputTokens > 0
+        ? Math.min(1, usage.cachedInputTokens / usage.inputTokens)
         : null
     })
   }
@@ -97,7 +93,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
       const result = await host.appServer.request('usage/thread', { workspacePath: requestedWorkspacePath, threadId: requestedThreadId })
       if (disposed || threadId !== requestedThreadId || workspacePath !== requestedWorkspacePath) return
       update({ threadUsage: toThreadUsage(result) })
-      if (!liveTotalsSeen) showTotals(toSessionTotals(result))
+      if (!liveCacheUsageSeen) showCacheHitRate(toCacheUsage(result))
     } catch {
       return
     }
@@ -119,10 +115,10 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     threadId = session.threadId
     workspacePath = session.workspacePath
     activeTurnId = null
-    liveTotalsSeen = false
+    liveCacheUsageSeen = false
     meter.startTurn()
     update({ threadUsage: null, waitingForSample: session.busy })
-    showTotals(null)
+    showCacheHitRate(null)
     void refreshThreadUsage()
   })
 
@@ -149,10 +145,10 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
 
   const stopTokenUsage = host.appServer.onNotification('thread/tokenUsage/updated', (params) => {
     if (params.threadId !== threadId) return
-    const totals = toSessionTotals(params.tokenUsage?.total)
-    if (totals === null) return
-    liveTotalsSeen = true
-    showTotals(totals)
+    const usage = toCacheUsage(params.tokenUsage?.total)
+    if (usage === null) return
+    liveCacheUsageSeen = true
+    showCacheHitRate(usage)
   })
 
   const finishTurn = (params: { turn: { id: string, threadId: string } }): void => {
@@ -198,13 +194,12 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
-function toSessionTotals(value: unknown): SessionTotals | null {
-  const usage = value as { totalTokens?: unknown; inputTokens?: unknown; cachedInputTokens?: unknown } | null
-  const totalTokens = numberOrNull(usage?.totalTokens)
-  if (totalTokens === null) return null
+function toCacheUsage(value: unknown): CacheUsage | null {
+  const usage = value as { inputTokens?: unknown; cachedInputTokens?: unknown } | null
+  const inputTokens = numberOrNull(usage?.inputTokens)
+  if (inputTokens === null) return null
   return {
-    totalTokens,
-    inputTokens: numberOrNull(usage?.inputTokens) ?? 0,
+    inputTokens,
     cachedInputTokens: numberOrNull(usage?.cachedInputTokens) ?? 0
   }
 }

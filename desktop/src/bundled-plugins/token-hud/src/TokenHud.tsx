@@ -79,7 +79,6 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.tr
   if (usage.firstTokenLatencyMs !== null) {
     ariaParts.push(`${strings.latencyLabel} ${formatLatency(usage.firstTokenLatencyMs)}`)
   }
-  if (usage.totalTokens !== null) ariaParts.push(`${strings.totalLabel} ${formatTokens(usage.totalTokens)}`)
   if (usage.cacheHitRate !== null) ariaParts.push(`${strings.cacheLabel} ${Math.round(usage.cacheHitRate * 100)}%`)
   if (ariaParts.length === 0) return null
 
@@ -104,12 +103,6 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.tr
         <span className="token-hud-cell" data-metric="latency">
           <span className="token-hud-value">{formatLatency(usage.firstTokenLatencyMs)}</span>
           <span>{strings.latency}</span>
-        </span>
-      ) : null}
-      {usage.totalTokens !== null ? (
-        <span className="token-hud-cell" data-metric="total">
-          <span className="token-hud-value">{formatTokens(usage.totalTokens)}</span>
-          <span>{strings.total}</span>
         </span>
       ) : null}
       {usage.cacheHitRate !== null ? (

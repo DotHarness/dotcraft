@@ -8,7 +8,6 @@ export interface TokenHudStrings {
   readonly cache: string
   readonly latency: string
   readonly speedLabel: string
-  readonly totalLabel: string
   readonly cacheLabel: string
   readonly latencyLabel: string
   readonly speedPending: string
@@ -29,7 +28,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: 'cache',
     latency: 'TTFT',
     speedLabel: 'Generation speed',
-    totalLabel: 'Total tokens in this chat',
     cacheLabel: 'Cache hit rate in this chat',
     latencyLabel: 'Time to first token',
     speedPending: 'Generation speed is being measured',
@@ -48,7 +46,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: '缓存',
     latency: '首 token',
     speedLabel: '生成速度',
-    totalLabel: '本线程累计 token',
     cacheLabel: '本线程缓存命中率',
     latencyLabel: '首 token 延迟',
     speedPending: '正在测量生成速度',
@@ -67,7 +64,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: 'キャッシュ',
     latency: 'TTFT',
     speedLabel: '生成速度',
-    totalLabel: 'このチャットの合計トークン',
     cacheLabel: 'このチャットのキャッシュヒット率',
     latencyLabel: '最初のトークンまでの時間',
     speedPending: '生成速度を測定中',
@@ -86,7 +82,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: '캐시',
     latency: 'TTFT',
     speedLabel: '생성 속도',
-    totalLabel: '이 채팅의 누적 토큰',
     cacheLabel: '이 채팅의 캐시 적중률',
     latencyLabel: '첫 토큰까지 걸린 시간',
     speedPending: '생성 속도를 측정하는 중',
@@ -105,7 +100,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: 'caché',
     latency: 'TTFT',
     speedLabel: 'Velocidad de generación',
-    totalLabel: 'Tokens totales de este chat',
     cacheLabel: 'Tasa de aciertos de caché de este chat',
     latencyLabel: 'Tiempo hasta el primer token',
     speedPending: 'Midiendo la velocidad de generación',
@@ -124,7 +118,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: 'cache',
     latency: 'TTFT',
     speedLabel: 'Vitesse de génération',
-    totalLabel: 'Total des jetons de cette discussion',
     cacheLabel: 'Taux de réussite du cache dans cette discussion',
     latencyLabel: 'Temps jusqu’au premier jeton',
     speedPending: 'Mesure de la vitesse de génération',
@@ -143,7 +136,6 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cache: 'Cache',
     latency: 'TTFT',
     speedLabel: 'Generierungstempo',
-    totalLabel: 'Token-Gesamtnutzung in diesem Chat',
     cacheLabel: 'Cache-Trefferquote in diesem Chat',
     latencyLabel: 'Zeit bis zum ersten Token',
     speedPending: 'Generierungstempo wird gemessen',
