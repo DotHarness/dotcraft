@@ -1,7 +1,6 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Net;
-using System.Text.Json;
 using DotCraft.Agents;
 using Xunit;
 
@@ -104,10 +103,11 @@ public sealed class ProviderFailureClassifierTests
 
     [Theory]
     [InlineData("", false)]
+    [InlineData("{\"error\":{\"message\":\" \\n\\t \"}}", false)]
     [InlineData("<html>private upstream response</html>", false)]
     [InlineData("{\"error\":{\"code\":{},\"message\":{\"private\":\"upstream response\"}}}", false)]
     [InlineData("", true)]
-    public void OpenAI_UsesSafeStatusFallbackForUnavailableStructuredReason(string body, bool unreadable)
+    public void OpenAI_UsesStatusFallbackForUnavailableStructuredReason(string body, bool unreadable)
     {
         var response = new FakePipelineResponse(400, body, new Dictionary<string, string>(), unreadable);
         var exception = new ClientResultException("private raw response included by SDK", response);
@@ -119,59 +119,6 @@ public sealed class ProviderFailureClassifierTests
         Assert.Contains("400", failure.Message);
         Assert.DoesNotContain("private", failure.Message);
         Assert.DoesNotContain("upstream", failure.Message);
-    }
-
-    [Fact]
-    public void OpenAI_RedactsProviderReasonAndRejectsUnsafeIdentifiers()
-    {
-        const string reason = "Unsupported parameter: reasoning.effort.\n"
-            + "Authorization: Bearer authorization-secret\n"
-            + "Cookie: session=cookie-secret\n"
-            + "api_key=\"assigned-secret\"\n"
-            + "{\"password\":\"quoted-secret\"}\n"
-            + "Bearer standalone-secret\n"
-            + "sk-standaloneapikey\n"
-            + @"File X:\fixture\redaction.txt" + "\n"
-            + "/fixture/redaction.txt\n"
-            + "Contact fixture@example.test\n";
-        var body = JsonSerializer.Serialize(new
-        {
-            error = new
-            {
-                code = "invalid_prompt\ninjected",
-                message = reason + "\n-----BEGIN PRIVATE KEY-----\nprivate-key-secret\n-----END PRIVATE KEY-----"
-            },
-            request = new { prompt = "private unrelated request", apiKey = "unrelated-secret" }
-        });
-
-        var failure = Classify(false, 400, body, requestId: "req_123\ninjected");
-
-        Assert.Equal(ProviderFailureKind.BadRequest, failure.Kind);
-        Assert.Null(failure.ProviderErrorCode);
-        Assert.Null(failure.RequestId);
-        Assert.NotNull(failure.Message);
-        Assert.StartsWith("Unsupported parameter: reasoning.effort.", failure.Message);
-        Assert.InRange(failure.Message.Length, 1, 1_000);
-        foreach (var secret in new[]
-        {
-            "authorization-secret", "cookie-secret", "assigned-secret", "quoted-secret", "standalone-secret",
-            "sk-standaloneapikey", @"X:\fixture", "/fixture", "fixture@example.test",
-            "private-key-secret", "unrelated-secret", "private unrelated request"
-        })
-        {
-            Assert.DoesNotContain(secret, failure.Message);
-        }
-    }
-
-    [Fact]
-    public void OpenAI_BoundsDisplayedProviderReason()
-    {
-        var body = JsonSerializer.Serialize(new { error = new { message = new string('x', 1_200) } });
-
-        var failure = Classify(false, 400, body);
-
-        Assert.NotNull(failure.Message);
-        Assert.Equal(1_000, failure.Message.Length);
     }
 
     private static ProviderFailure Classify(

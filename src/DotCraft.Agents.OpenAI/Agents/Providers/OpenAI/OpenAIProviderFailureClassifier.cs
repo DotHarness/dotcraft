@@ -1,4 +1,6 @@
 using System.ClientModel;
+using System.ClientModel.Primitives;
+using System.Text.Json;
 
 namespace DotCraft.Agents;
 
@@ -19,7 +21,7 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         var response = TryGetRawResponse(result);
         var retryDeadline = OpenAIRetryAdvicePipelinePolicy.Capture(response);
         var status = response?.Status ?? result.Status;
-        var error = OpenAIProviderErrorParser.Read(response);
+        var error = ReadError(response);
         var detail = $"{Detail(exception)} {error.Detail}";
         var baseline = fallback with
         {
@@ -34,7 +36,7 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
             },
             HttpStatus = status,
             ProviderErrorCode = error.Code,
-            RequestId = OpenAIProviderErrorParser.SafeIdentifier(TryGetHeader(response, "x-request-id")),
+            RequestId = TryGetHeader(response, "x-request-id"),
             Message = error.Message ?? $"Provider request failed with HTTP {status}."
         };
 
@@ -99,7 +101,7 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
         return null;
     }
 
-    private static System.ClientModel.Primitives.PipelineResponse? TryGetRawResponse(
+    private static PipelineResponse? TryGetRawResponse(
         ClientResultException exception)
     {
         try
@@ -113,9 +115,41 @@ internal sealed class OpenAIProviderFailureClassifier(bool isSubscriptionBackend
     }
 
     private static string? TryGetHeader(
-        System.ClientModel.Primitives.PipelineResponse? response,
+        PipelineResponse? response,
         string name) =>
         response is not null && response.Headers.TryGetValue(name, out var value) ? value : null;
+
+    private static (string? Code, string? Message, string? Detail) ReadError(PipelineResponse? response)
+    {
+        try
+        {
+            var body = response?.Content?.ToString();
+            if (string.IsNullOrWhiteSpace(body))
+                return default;
+
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("error", out var error)
+                || error.ValueKind != JsonValueKind.Object)
+            {
+                return default;
+            }
+
+            var code = ReadString(error, "code");
+            var message = ReadString(error, "message")?.Trim();
+            return (code, string.IsNullOrEmpty(message) ? null : message,
+                string.Join(' ', code, ReadString(error, "type"), message));
+        }
+        catch (Exception)
+        {
+            return default;
+        }
+    }
+
+    private static string? ReadString(JsonElement error, string name) =>
+        error.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private static string Detail(Exception exception)
     {

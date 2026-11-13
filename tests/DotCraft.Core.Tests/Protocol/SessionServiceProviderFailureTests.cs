@@ -18,9 +18,9 @@ public sealed class SessionServiceProviderFailureTests : SessionServiceRuntimeSi
     {
         var reason = sdkIncludesBody
             ? "context_length_exceeded and slow_down are unsupported parameters."
-            : "This model does not support the requested parameter.";
+            : "No endpoints found for vendor/model-alpha.\nChoose an available model.";
         var inner = new ThrowingThenUpdatesChatClient(
-            Rejection("invalid_prompt", reason, sdkIncludesBody),
+            Rejection(sdkIncludesBody ? "invalid_prompt" : "model_not_found", $" \n{reason}\t ", sdkIncludesBody),
             [new ChatResponseUpdate(ChatRole.Assistant, "unexpected retry")]);
         using var client = WithProviderFailures(inner);
         await using var factory = CreateAgentFactory(client);
@@ -39,7 +39,7 @@ public sealed class SessionServiceProviderFailureTests : SessionServiceRuntimeSi
     }
 
     [Fact]
-    public async Task ExhaustedRetries_RetainsSafeProviderReasonInTerminalFailure()
+    public async Task ExhaustedRetries_RetainsProviderReasonInTerminalFailure()
     {
         const string reason = "The service could not process this request.";
         var body = JsonSerializer.Serialize(new
