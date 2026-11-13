@@ -218,12 +218,24 @@ function appendDelta(history: ChatHistory, delta: HistoryDelta): ChatHistory {
   return { ...history, items }
 }
 
-function upsertTurn(history: ChatHistory, turn: HistoryTurn): ChatHistory {
+function upsertTurn(history: ChatHistory, incoming: SessionTurn): ChatHistory {
+  const turn = turnFromWire(incoming)
+  const fullItems = isComplete(incoming) ? incoming.items : null
   const index = history.turns.findIndex((entry) => entry.id === turn.id)
   const turns = [...history.turns]
   if (index < 0) turns.push(turn)
-  else turns[index] = { ...turns[index], ...turn }
-  return { ...history, turns }
+  else turns[index] = fullItems ? turn : { ...turns[index], ...turn }
+  const next = { ...history, turns }
+  if (!fullItems) return (incoming.items ?? []).reduce((current, item) => upsertItem(current, itemFromWire(item)), next)
+
+  const later = new Set(turns.slice(turns.indexOf(turn) + 1).map((entry) => entry.id))
+  const at = history.items.findIndex((item) => item.turnId === turn.id || later.has(item.turnId))
+  const rest = history.items.filter((item) => item.turnId !== turn.id)
+  const position = at < 0 ? rest.length : at
+  return restoreEchoes({
+    ...next,
+    items: [...rest.slice(0, position), ...fullItems.map(itemFromWire), ...rest.slice(position)],
+  }, history.echoes)
 }
 
 export function applyEvent(history: ChatHistory, event: HistoryEvent): ChatHistory {
@@ -233,10 +245,7 @@ export function applyEvent(history: ChatHistory, event: HistoryEvent): ChatHisto
     case 'delta':
       return appendDelta(history, event)
     case 'turn':
-      return (event.turn.items ?? []).reduce(
-        (next, item) => upsertItem(next, itemFromWire(item)),
-        upsertTurn(history, turnFromWire(event.turn)),
-      )
+      return upsertTurn(history, event.turn)
     case 'diff':
       return { ...history, diffs: { ...history.diffs, [event.turnId]: event.diff } }
   }

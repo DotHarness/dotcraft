@@ -35,6 +35,32 @@ function apply(history: ChatHistory, ...events: Parameters<typeof applyEvent>[1]
 }
 
 describe('history catch-up', () => {
+  it.each(['completed', 'failed', 'cancelled'])('applies a full %s turn snapshot in server order after summary restoration', (status) => {
+    const input = item('a', 'userMessage', { text: 'go', clientUserMessageId: 'c1' })
+    const reply = item('m', 'agentMessage', { text: 'Done', phase: 'final' })
+    const call = item('c', 'toolCall', { ...core('ReadFile'), callId: 'c', arguments: { path: 'a.ts' } })
+    const result = item('r', 'toolResult', { callId: 'c', result: 'ok' })
+    const later = item('later', 'userMessage', { text: 'next' }, { turnId: 't2' })
+    const pages = historyFromTurns([
+      { turn: { ...turn('t1', 'running'), itemsView: 'summary', itemCount: 4 }, items: [input, reply] },
+      { turn: turn('t2', 'running'), items: [later] },
+    ], 'older')
+    pages.turns[0].itemsCursor = 'remaining'
+    pages.turns[0].loadedItemIds = ['a']
+    pages.echoes = [{ clientId: 'c1', text: 'go', added: false }, { clientId: 'c2', text: 'queued', added: true }]
+    const next = applyEvent(pages, { kind: 'turn', turn: { ...turn('t1', status), items: [input, call, result, reply] } })
+
+    expect(next.items.map((entry) => entry.id)).toEqual(['a', 'c', 'r', 'm', 'later'])
+    expect(next.turns[0]).toMatchObject({ status })
+    expect(next.turns[0].summary).toBeUndefined()
+    expect(next.turns[0].itemsCursor).toBeUndefined()
+    expect(next.turns[0].loadedItemIds).toBeUndefined()
+    expect(next.turns[1]).toBe(pages.turns[1])
+    expect(next.echoes).toEqual([pages.echoes[1]])
+    expect(next.olderCursor).toBe('older')
+    if (status === 'completed') expect(layout(next)).toContainEqual(expect.objectContaining({ kind: 'assistant', id: 't1/m', text: 'Done' }))
+  })
+
   it('replays buffered live events onto the reloaded pages without duplicates', () => {
     const pages = historyFromTurns([{ turn: turn('t1', 'running'), items: [item('a', 'userMessage', { text: 'go' })] }], null)
     const next = apply(
